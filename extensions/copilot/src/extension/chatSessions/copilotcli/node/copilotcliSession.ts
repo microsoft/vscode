@@ -935,6 +935,15 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		this._stream = this._streamRouter.stream;
 		this._missionControlApiClient = this.instantiationService.createInstance(MissionControlApiClient);
 		this.add(toDisposable(() => this._todoSqlQuery.dispose()));
+		// End the transcript session when this session is disposed (session close, not per-turn — the
+		// session is ref-counted and cached per conversation). This flushes any buffered entries and
+		// removes it from the active set so retention cleanup can eventually reclaim the file. Mirrors
+		// the debug-logger's endSession wiring in CopilotCLISessionService.
+		this.add(toDisposable(() => {
+			this._sessionTranscriptService.endSession(this.sessionId).catch(err => {
+				this.logService.error(`[CopilotCLISession] Failed to end session transcript for ${this.sessionId}`, err);
+			});
+		}));
 	}
 
 	attachStream(stream: vscode.ChatResponseStream): IDisposable {

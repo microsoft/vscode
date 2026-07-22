@@ -378,6 +378,23 @@ describe('CopilotCLISession', () => {
 		});
 	});
 
+	it('ends the transcript session when the CLI session is disposed', async () => {
+		let endedSessionId: string | undefined;
+		const recordingTranscriptService = new class extends NullSessionTranscriptService {
+			override async endSession(sessionId: string): Promise<void> {
+				endedSessionId = sessionId;
+			}
+		}();
+
+		const otel = new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' }));
+		const session = await createSessionWith(otel, false, recordingTranscriptService);
+
+		// Disposal (session close, not per-turn) must end the transcript so it is flushed and
+		// removed from the active set, otherwise retention cleanup can never reclaim the file.
+		session.dispose();
+		expect(endedSessionId).toBe(session.sessionId);
+	});
+
 	it('synthesizes chat and execute_tool spans for the in-process CLI turn', async () => {
 		sdkSession.send = async ({ prompt }) => {
 			sdkSession.emit('user.message', { content: prompt });
