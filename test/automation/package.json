@@ -28,8 +28,8 @@
     "@types/ncp": "2.0.1",
     "@types/node": "24.x",
     "@types/tmp": "0.2.2",
-    "cpx2": "3.0.0",
-    "nodemon": "^3.1.9",
+    "cpx2": "9.0.0",
+    "nodemon": "^3.1.14",
     "npm-run-all2": "^8.0.4"
   },
   "allowScripts": {
