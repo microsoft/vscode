@@ -534,6 +534,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	readonly onDidChangeUsageBasedBilling = this._onDidChangeUsageBasedBilling.event;
 
 	private _quotas: IQuotas;
+	private quotaCopilotTrackingId: string | undefined;
 	get quotas() { return this._quotas; }
 
 	private readonly chatQuotaExceededContextKey: IContextKey<boolean>;
@@ -584,8 +585,18 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this._register(this.onDidChangeSentiment(() => updateAnonymousUsage()));
 	}
 
-	acceptQuotas(quotas: IQuotas): void {
+	acceptQuotas(incomingQuotas: IQuotas): void {
 		const oldQuota = this._quotas;
+		const cachedQuota = this.quotaCopilotTrackingId === this.copilotTrackingId ? oldQuota : {};
+		const quotas: IQuotas = {
+			...incomingQuotas,
+			chat: incomingQuotas.chat ? mergeDefinedSnapshot(cachedQuota.chat, incomingQuotas.chat) : undefined,
+			completions: incomingQuotas.completions ? mergeDefinedSnapshot(cachedQuota.completions, incomingQuotas.completions) : undefined,
+			premiumChat: incomingQuotas.premiumChat ? mergeDefinedSnapshot(cachedQuota.premiumChat, incomingQuotas.premiumChat) : undefined,
+			sessionRateLimit: incomingQuotas.sessionRateLimit ? mergeDefinedSnapshot(cachedQuota.sessionRateLimit, incomingQuotas.sessionRateLimit) : undefined,
+			weeklyRateLimit: incomingQuotas.weeklyRateLimit ? mergeDefinedSnapshot(cachedQuota.weeklyRateLimit, incomingQuotas.weeklyRateLimit) : undefined,
+		};
+		this.quotaCopilotTrackingId = this.copilotTrackingId;
 		this._quotas = quotas;
 		this.updateContextKeys();
 
@@ -822,6 +833,16 @@ interface IQuotas {
 
 	readonly sessionRateLimit?: IRateLimitSnapshot;
 	readonly weeklyRateLimit?: IRateLimitSnapshot;
+}
+
+function mergeDefinedSnapshot<T extends object>(previous: T | undefined, current: T): T {
+	const result = { ...previous, ...current };
+	for (const key of Object.keys(current) as (keyof T)[]) {
+		if (current[key] === undefined && previous?.[key] !== undefined) {
+			result[key] = previous[key];
+		}
+	}
+	return result;
 }
 
 export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
