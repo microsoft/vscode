@@ -1105,6 +1105,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	opacity: 1;
 }
 
+.monaco-reduce-motion .interactive-session .chat-input-container::before,
+.monaco-reduce-motion .interactive-session .chat-input-container::after {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-workbench .interactive-session .chat-input-container::before,
+	.monaco-workbench .interactive-session .chat-input-container::after {
+		transition: none;
+	}
+}
+
 /* Context usage widget container - positioned in the secondary toolbar below input */
 .interactive-session .chat-input-toolbars .chat-context-usage-container,
 .interactive-session .chat-secondary-toolbar .chat-context-usage-container {
