@@ -7,7 +7,6 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
-import { IOffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModel } from '../model/chatModel.js';
@@ -59,7 +58,7 @@ export interface IDynamicVariable {
 	modelDescription?: string;
 	isFile?: boolean;
 	isDirectory?: boolean;
-	attachment?: IDynamicVariableAttachment;
+	isAttachmentReference?: boolean;
 	data: IChatRequestVariableValue;
 	/**
 	 * Implementation-defined metadata that flows through to the resulting
@@ -78,19 +77,8 @@ export function toAttachedContextDynamicVariable(entry: IChatRequestVariableEntr
 		modelDescription: entry.modelDescription,
 		isFile: entry.kind === 'file',
 		isDirectory: entry.kind === 'directory',
+		isAttachmentReference: true,
 		range,
 		data: undefined,
 	};
-}
-
-type WithoutRange<T> = T extends IChatRequestVariableEntry ? Omit<T, 'range'> : never;
-export type IDynamicVariableAttachment = WithoutRange<IChatRequestVariableEntry>;
-
-export function toDynamicVariableAttachment(entry: IChatRequestVariableEntry): IDynamicVariableAttachment {
-	const { range, ...attachment } = entry;
-	return attachment;
-}
-
-export function fromDynamicVariableAttachment(attachment: IDynamicVariableAttachment, range: IOffsetRange): IChatRequestVariableEntry {
-	return { ...attachment, range };
 }

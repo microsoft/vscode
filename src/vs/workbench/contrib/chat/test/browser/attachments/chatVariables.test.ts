@@ -12,13 +12,11 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { IChatWidget } from '../../../browser/chat.js';
-import { applyPromptAttachmentReferences, getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget, isReferenceToExistingAttachment } from '../../../browser/attachments/chatVariables.js';
+import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../browser/attachments/chatVariables.js';
 import { ChatDynamicVariableModel } from '../../../browser/attachments/chatDynamicVariables.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IToolData, ToolDataSource, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
-import { ChatRequestDynamicVariablePart } from '../../../common/requestParser/chatParserTypes.js';
-import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 
 function createMockVariable(overrides?: Partial<IDynamicVariable>): IDynamicVariable {
 	return {
@@ -196,21 +194,8 @@ suite('getSelectedToolAndToolSetsForWidget', () => {
 	});
 });
 
-suite('applyPromptAttachmentReferences', () => {
+suite('inline attachment references', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('identifies mentions of existing attachments without changing them', () => {
-		const attachment = createMockAttachment();
-		const reference = { ...attachment, range: { start: 7, endExclusive: 24 } };
-
-		assert.deepStrictEqual({
-			isReference: isReferenceToExistingAttachment(reference, [attachment]),
-			attachmentRange: attachment.range,
-		}, {
-			isReference: true,
-			attachmentRange: undefined,
-		});
-	});
 
 	test('keeps large attachment payloads out of inline reference state', () => {
 		const attachment = createMockAttachment({
@@ -221,54 +206,14 @@ suite('applyPromptAttachmentReferences', () => {
 
 		assert.deepStrictEqual({
 			data: reference.data,
-			attachment: reference.attachment,
+			hasAttachment: Object.hasOwn(reference, 'attachment'),
+			isAttachmentReference: reference.isAttachmentReference,
 			hasCompactSerializedState: JSON.stringify(reference).length < 500,
 		}, {
 			data: undefined,
-			attachment: undefined,
+			hasAttachment: false,
+			isAttachmentReference: true,
 			hasCompactSerializedState: true,
-		});
-	});
-
-	test('applies the prompt range to a request copy while preserving the attachment', () => {
-		const imageData = new Uint8Array([1, 2, 3]);
-		const attachment = createMockAttachment({
-			id: 'attach-1',
-			name: 'screenshot.png',
-			kind: 'image',
-			value: imageData,
-			mimeType: 'image/png',
-			references: [{ reference: URI.file('/screenshot.png'), kind: 'reference' }],
-		});
-		const context = new ChatRequestVariableSet([attachment]);
-		const part = new ChatRequestDynamicVariablePart(
-			new OffsetRange(7, 24),
-			new Range(1, 8, 1, 25),
-			'#attachment:screenshot.png',
-			attachment.id,
-			attachment.modelDescription,
-			undefined,
-			attachment.name,
-			attachment.icon,
-		);
-
-		applyPromptAttachmentReferences(context, [part]);
-
-		const requestAttachment = context.asArray()[0];
-		assert.deepStrictEqual({
-			attachmentRange: attachment.range,
-			requestKind: requestAttachment.kind,
-			requestValue: requestAttachment.value,
-			requestMimeType: requestAttachment.kind === 'image' ? requestAttachment.mimeType : undefined,
-			requestReferences: requestAttachment.references,
-			requestRange: requestAttachment.range && { start: requestAttachment.range.start, endExclusive: requestAttachment.range.endExclusive },
-		}, {
-			attachmentRange: undefined,
-			requestKind: 'image',
-			requestValue: imageData,
-			requestMimeType: 'image/png',
-			requestReferences: [{ reference: URI.file('/screenshot.png'), kind: 'reference' }],
-			requestRange: { start: 7, endExclusive: 24 },
 		});
 	});
 });
@@ -276,7 +221,7 @@ suite('applyPromptAttachmentReferences', () => {
 suite('ChatDynamicVariableModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('retains attachment payload outside serialized input state after backing attachment is removed', () => {
+	test('does not retain attachment payload after the backing attachment is removed', () => {
 		const attachment = createMockAttachment({
 			kind: 'image',
 			value: new Uint8Array([1, 2, 3]),
@@ -315,14 +260,14 @@ suite('ChatDynamicVariableModel', () => {
 		const requestReference = model.variables[0];
 		assert.deepStrictEqual({
 			serializedData: serializedReference.data,
-			serializedAttachment: serializedReference.attachment,
 			requestData: requestReference.data,
-			requestAttachment: requestReference.attachment,
+			hasSerializedAttachment: Object.hasOwn(serializedReference, 'attachment'),
+			hasRequestAttachment: Object.hasOwn(requestReference, 'attachment'),
 		}, {
 			serializedData: undefined,
-			serializedAttachment: undefined,
-			requestData: attachment.value,
-			requestAttachment: attachment,
+			requestData: undefined,
+			hasSerializedAttachment: false,
+			hasRequestAttachment: false,
 		});
 	});
 

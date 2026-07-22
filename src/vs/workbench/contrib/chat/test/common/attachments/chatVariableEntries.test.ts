@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ChatRequestVariableSet, getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isChatContextIconPath, isExplicitFileOrImageVariableEntry, resolveChatContextIcon } from '../../../common/attachments/chatVariableEntries.js';
+import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isChatContextIconPath, isExplicitFileOrImageVariableEntry, resolveChatContextIcon } from '../../../common/attachments/chatVariableEntries.js';
 
 suite('Chat variable entries', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -39,22 +39,6 @@ suite('Chat variable entries', () => {
 		const promptEntry: IChatRequestVariableEntry = { kind: 'promptText', id: 'prompt', name: 'prompt', value: 'instructions', modelDescription: 'instructions', automaticallyAdded: true };
 
 		assert.strictEqual(getExplicitFileOrImageAttachmentSummary([workspaceEntry, implicitEntry, promptEntry]), undefined);
-	});
-
-	test('replaces an entry in a variable set without mutating the original', () => {
-		const original: IChatRequestVariableEntry = { kind: 'file', id: 'file', name: 'README.md', value: URI.file('/test/README.md') };
-		const referenced = { ...original, range: { start: 5, endExclusive: 20 } };
-		const set = new ChatRequestVariableSet([original]);
-
-		set.replace(referenced);
-
-		assert.deepStrictEqual({
-			original,
-			entries: set.asArray(),
-		}, {
-			original: { kind: 'file', id: 'file', name: 'README.md', value: URI.file('/test/README.md') },
-			entries: [referenced],
-		});
 	});
 
 	suite('resolveChatContextIcon', () => {

@@ -57,7 +57,7 @@ import { IChatModel, IChatModelInputState, IChatResponseModel, logChangesToState
 import { ChatMode, getModeNameForTelemetry, IChatMode } from '../../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
-import { applyPromptAttachmentReferences, getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget, isReferenceToExistingAttachment } from '../attachments/chatVariables.js';
+import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
@@ -871,7 +871,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			for (const part of input.parts) {
 				if (part instanceof ChatRequestToolPart || part instanceof ChatRequestToolSetPart || part instanceof ChatRequestDynamicVariablePart) {
 					const entry = part.toVariableEntry();
-					if (part instanceof ChatRequestDynamicVariablePart && isReferenceToExistingAttachment(entry, this.attachmentModel.attachments)) {
+					if (part instanceof ChatRequestDynamicVariablePart && part.isAttachmentReference) {
 						continue;
 					}
 					newPromptAttachments.set(entry.id, entry);
@@ -2692,10 +2692,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			input: !query ? editorValue : query.query,
 			attachedContext: options?.enableImplicitContext === false ? this.input.getAttachedContext() : this.input.getAttachedAndImplicitContext(),
 		};
-		if (!query) {
-			applyPromptAttachmentReferences(requestInputs.attachedContext, this.parsedInput.parts);
-		}
-
 		const isUserQuery = !query;
 		const isEditing = this.viewModel?.editing;
 		const editedModelRequestOptions = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input'

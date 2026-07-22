@@ -7,7 +7,6 @@ import { mockObject } from '../../../../../../base/test/common/mock.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -22,7 +21,7 @@ import { ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, getProm
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
-import { IChatVariablesService, toDynamicVariableAttachment } from '../../../common/attachments/chatVariables.js';
+import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IToolData, ToolAndToolSetEnablementMap, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -30,7 +29,6 @@ import { MockChatService } from '../chatService/mockChatService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import assert from 'assert';
-import { toPasteVariableEntry, type IChatRequestDirectoryEntry, type IImageVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 
 const testSessionUri = LocalChatSessionUri.forSession('test-session');
 
@@ -68,24 +66,14 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
-	test('inline image reference preserves image metadata and range', () => {
+	test('inline attachment reference only preserves reference metadata', () => {
 		const text = 'compare #attachment:design.png here';
-		const imageData = new Uint8Array([1, 2, 3]);
-		const reference = URI.file('/design.png');
-		const imageAttachment = {
-			kind: 'image',
-			id: 'image-1',
-			name: 'design.png',
-			value: imageData,
-			references: [{ reference, kind: 'reference' }],
-			mimeType: 'image/png',
-		} satisfies IImageVariableEntry;
 		variableService.setDynamicVariables(testSessionUri, [{
-			id: imageAttachment.id,
-			fullName: imageAttachment.name,
+			id: 'image-1',
+			fullName: 'design.png',
 			range: new Range(1, 9, 1, 31),
-			attachment: toDynamicVariableAttachment(imageAttachment),
-			data: imageAttachment.value,
+			isAttachmentReference: true,
+			data: undefined,
 		}]);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -100,94 +88,18 @@ suite('ChatRequestParser', () => {
 			range: entry?.range && { start: entry.range.start, endExclusive: entry.range.endExclusive },
 			value: entry?.value,
 			fullName: entry?.fullName,
-			references: entry?.references,
-			mimeType: entry?.kind === 'image' ? entry.mimeType : undefined,
+			hasAttachment: part ? Object.hasOwn(part, 'attachment') : undefined,
+			isAttachmentReference: part?.isAttachmentReference,
 		}, {
-			kind: 'image',
+			kind: 'generic',
 			id: 'image-1',
-			name: 'design.png',
+			name: 'attachment:design.png',
 			range: { start: 8, endExclusive: 30 },
-			value: imageData,
-			fullName: undefined,
-			references: [{ reference, kind: 'reference' }],
-			mimeType: 'image/png',
+			value: undefined,
+			fullName: 'design.png',
+			hasAttachment: false,
+			isAttachmentReference: true,
 		});
-	});
-
-	test('inline references preserve directory and text attachment fields', () => {
-		const directoryAttachment = {
-			kind: 'directory',
-			id: 'directory-1',
-			name: 'assets',
-			value: URI.file('/assets'),
-			imageCount: 2,
-		} satisfies IChatRequestDirectoryEntry;
-		const pasteAttachment = toPasteVariableEntry('snippet', 'const value = 1;', {
-			id: 'paste-1',
-			language: 'typescript',
-			fileName: 'snippet.ts',
-			pastedLines: '1-1',
-		});
-		variableService.setDynamicVariables(testSessionUri, [
-			{
-				id: directoryAttachment.id,
-				fullName: directoryAttachment.name,
-				range: new Range(1, 1, 1, 19),
-				attachment: toDynamicVariableAttachment(directoryAttachment),
-				data: directoryAttachment.value,
-			},
-			{
-				id: pasteAttachment.id,
-				fullName: pasteAttachment.name,
-				range: new Range(2, 1, 2, 20),
-				attachment: toDynamicVariableAttachment(pasteAttachment),
-				data: pasteAttachment.value,
-			},
-		]);
-
-		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = parser.parseChatRequest(testSessionUri, '#attachment:assets\n#attachment:snippet');
-		const entries = result.parts
-			.filter((part): part is ChatRequestDynamicVariablePart => part instanceof ChatRequestDynamicVariablePart)
-			.map(part => part.toVariableEntry());
-
-		assert.deepStrictEqual(entries.map(entry => ({
-			kind: entry.kind,
-			id: entry.id,
-			name: entry.name,
-			range: entry.range && { start: entry.range.start, endExclusive: entry.range.endExclusive },
-			value: entry.value,
-			imageCount: entry.kind === 'directory' ? entry.imageCount : undefined,
-			code: entry.kind === 'paste' ? entry.code : undefined,
-			language: entry.kind === 'paste' ? entry.language : undefined,
-			fileName: entry.kind === 'paste' ? entry.fileName : undefined,
-			pastedLines: entry.kind === 'paste' ? entry.pastedLines : undefined,
-		})), [
-			{
-				kind: 'directory',
-				id: 'directory-1',
-				name: 'assets',
-				range: { start: 0, endExclusive: 18 },
-				value: directoryAttachment.value,
-				imageCount: 2,
-				code: undefined,
-				language: undefined,
-				fileName: undefined,
-				pastedLines: undefined,
-			},
-			{
-				kind: 'paste',
-				id: 'paste-1',
-				name: 'snippet',
-				range: { start: 19, endExclusive: 38 },
-				value: pasteAttachment.value,
-				imageCount: undefined,
-				code: 'const value = 1;',
-				language: 'typescript',
-				fileName: 'snippet.ts',
-				pastedLines: '1-1',
-			},
-		]);
 	});
 
 	test('slash in text', async () => {

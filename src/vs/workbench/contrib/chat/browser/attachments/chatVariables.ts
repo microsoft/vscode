@@ -3,30 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatVariablesService, IDynamicVariable, toDynamicVariableAttachment } from '../../common/attachments/chatVariables.js';
+import { IChatVariablesService, IDynamicVariable } from '../../common/attachments/chatVariables.js';
 import { ToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { ChatRequestDynamicVariablePart, IParsedChatRequestPart } from '../../common/requestParser/chatParserTypes.js';
-
-export function isReferenceToExistingAttachment(entry: IChatRequestVariableEntry, attachments: readonly IChatRequestVariableEntry[]): boolean {
-	return attachments.some(attachment => attachment.id === entry.id && !attachment.range);
-}
-
-export function applyPromptAttachmentReferences(context: ChatRequestVariableSet, parts: readonly IParsedChatRequestPart[]): void {
-	for (const part of parts) {
-		if (part instanceof ChatRequestDynamicVariablePart) {
-			const entry = part.toVariableEntry();
-			if (context.has(entry)) {
-				context.replaceRange(entry.id, part.range);
-			}
-		}
-	}
-}
-
 export function getDynamicVariablesForWidget(widget: IChatWidget): ReadonlyArray<IDynamicVariable> {
 	if (!widget.viewModel || !widget.supportsFileReferences) {
 		return [];
@@ -72,7 +54,6 @@ export function getDynamicVariablesForWidget(widget: IChatWidget): ReadonlyArray
 					icon: attachment.icon,
 					isFile: attachment.kind === 'file',
 					isDirectory: attachment.kind === 'directory',
-					attachment: toDynamicVariableAttachment(attachment),
 					data: attachment.value
 				};
 				references.push(referenceObj);

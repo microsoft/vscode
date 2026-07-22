@@ -845,22 +845,6 @@ export class ChatRequestVariableSet {
 		this._entries = this._entries.filter(e => e.id !== entry.id);
 	}
 
-	public replace(entry: IChatRequestVariableEntry): void {
-		const index = this._entries.findIndex(existing => existing.id === entry.id);
-		if (index === -1) {
-			this.add(entry);
-		} else {
-			this._entries[index] = entry;
-		}
-	}
-
-	public replaceRange(id: string, range: IOffsetRange): void {
-		const index = this._entries.findIndex(existing => existing.id === id);
-		if (index !== -1) {
-			this._entries[index] = Object.assign({}, this._entries[index], { range });
-		}
-	}
-
 	public has(entry: IChatRequestVariableEntry): boolean {
 		return this._ids.has(entry.id);
 	}
