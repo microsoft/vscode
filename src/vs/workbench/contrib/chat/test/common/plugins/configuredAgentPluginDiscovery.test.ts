@@ -61,7 +61,11 @@ suite('ConfiguredAgentPluginDiscovery', () => {
 					});
 				}
 			},
-			new class extends mock<IPluginMarketplaceService>() { },
+			new class extends mock<IPluginMarketplaceService>() {
+				override getMarketplacePluginMetadata(): undefined {
+					return undefined;
+				}
+			},
 			new TestContextService(testWorkspace(workspaceUri)),
 			new class extends mock<IPathService>() {
 				override fileURI(path: string): Promise<URI> {
