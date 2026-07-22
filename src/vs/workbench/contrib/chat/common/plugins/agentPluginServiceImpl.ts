@@ -676,7 +676,8 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	 */
 	protected async _resolvePluginPath(path: string, userHome: URI): Promise<URI[]> {
 		if (/^~($|\/|\\)/.test(path)) {
-			return [userHome.with({ path: URI.file(untildify(path, userHome.path)).path })];
+			const uri = await this._pathService.fileURI(untildify(path, userHome.path));
+			return [userHome.scheme === Schemas.file ? uri : userHome.with({ path: uri.path })];
 		}
 
 		if (win32.isAbsolute(path) || posix.isAbsolute(path)) {

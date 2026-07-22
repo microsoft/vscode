@@ -77,6 +77,28 @@ suite('ConfiguredAgentPluginDiscovery', () => {
 		);
 	});
 
+	test('normalizes tilde paths for a remote Windows target with a file user home', async () => {
+		let fileURIPath: string | undefined;
+		const discovery = createDiscovery(
+			URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+windows', path: '/C:/workspace' }),
+			path => {
+				fileURIPath = path;
+				return Promise.resolve(URI.from({ scheme: Schemas.file, path: path.replace(/\\/g, '/') }));
+			},
+		);
+
+		assert.deepStrictEqual(
+			[
+				await discovery.resolvePluginPath('~\\plugins\\my-plugin', URI.from({ scheme: Schemas.file, path: '/C:/Users/user' })),
+				fileURIPath,
+			],
+			[
+				[URI.from({ scheme: Schemas.file, path: '/C:/Users/user/plugins/my-plugin' })],
+				'/C:/Users/user\\plugins\\my-plugin',
+			],
+		);
+	});
+
 	test('preserves UNC authority for local absolute plugin locations', async () => {
 		const discovery = createDiscovery(
 			URI.file('C:\\workspace'),
