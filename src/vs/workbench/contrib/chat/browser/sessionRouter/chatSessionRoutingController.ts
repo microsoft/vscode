@@ -86,6 +86,13 @@ export interface IChatSessionRoutingHost {
 	 * the controller will fall back to an immediate dispatch.
 	 */
 	placeBadge(badge: HTMLElement): void;
+	/**
+	 * Notify the host that the disambiguation picker is opening or closing, so a
+	 * size-constrained surface (e.g. the frameless aux input window) can grow to
+	 * fit the options and shrink back afterwards. `itemCount` is the number of
+	 * rows the picker will show. Optional; surfaces that don't need it omit it.
+	 */
+	onPickerVisibility?(visible: boolean, itemCount: number): void;
 }
 
 /**
@@ -263,9 +270,15 @@ export class ChatSessionRoutingController extends Disposable {
 			items.push(newItem);
 		}
 
-		const picked = await this.quickInputService.pick(items, {
-			placeHolder: localize('chatSessionRouting.choosePlaceholder', "Choose where to send this request"),
-		});
+		this.host.onPickerVisibility?.(true, items.length);
+		let picked: RouteChoiceItem | undefined;
+		try {
+			picked = await this.quickInputService.pick(items, {
+				placeHolder: localize('chatSessionRouting.choosePlaceholder', "Choose where to send this request"),
+			});
+		} finally {
+			this.host.onPickerVisibility?.(false, items.length);
+		}
 		if (!picked) {
 			return undefined;
 		}

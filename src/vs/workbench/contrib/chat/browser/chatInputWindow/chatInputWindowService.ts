@@ -28,6 +28,13 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
 import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_WIDTH, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT } from '../../common/chatInputWindow.js';
 
+/** Approx. rendered height of one quick-pick row, used to size the window to fit the routing picker. */
+const CHAT_INPUT_WINDOW_PICKER_ROW_HEIGHT = 22;
+/** Max picker rows to grow the window for; taller lists scroll instead. */
+const CHAT_INPUT_WINDOW_PICKER_MAX_ROWS = 8;
+/** Extra height for the picker's filter input and padding on top of the rows. */
+const CHAT_INPUT_WINDOW_PICKER_CHROME = 60;
+
 /**
  * Hosts a frameless, always-on-top auxiliary window containing the full chat
  * input box — dictation, voice mode, and the glow animation. Submissions are
@@ -52,6 +59,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _routingController: ChatSessionRoutingController | undefined;
 	/** In-flight `openWindow()` operation, so concurrent toggles stay idempotent. */
 	private _openOperation: Promise<void> | undefined;
+	/** Window height (outer) captured before growing to fit the routing picker; restored on close. */
+	private _preExpandHeight: number | undefined;
 
 	get isOpen(): boolean {
 		return !!this._window;
@@ -278,6 +287,30 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					container.insertBefore(badge, this._widgetParent);
 				}
 			},
+			// The frameless window is only tall enough for the input, so the
+			// disambiguation picker (rendered into this window's container) would
+			// be clipped. Grow to fit the rows while it's open, restore on close.
+			onPickerVisibility: (visible, itemCount) => {
+				const win = this._window?.window;
+				if (!win) {
+					return;
+				}
+				try {
+					if (visible) {
+						if (this._preExpandHeight === undefined) {
+							this._preExpandHeight = win.outerHeight;
+						}
+						const rows = Math.min(Math.max(itemCount, 1), CHAT_INPUT_WINDOW_PICKER_MAX_ROWS);
+						const desired = CHAT_INPUT_WINDOW_DEFAULT_HEIGHT + rows * CHAT_INPUT_WINDOW_PICKER_ROW_HEIGHT + CHAT_INPUT_WINDOW_PICKER_CHROME;
+						const screenBottom = win.screen.availHeight;
+						const maxHeight = Math.max(screenBottom - win.screenY, this._preExpandHeight);
+						win.resizeTo(win.outerWidth, Math.min(desired, maxHeight));
+					} else if (this._preExpandHeight !== undefined) {
+						win.resizeTo(win.outerWidth, this._preExpandHeight);
+						this._preExpandHeight = undefined;
+					}
+				} catch { /* resize may not be supported */ }
+			},
 		};
 		this._routingController = this._windowDisposables.add(this.instantiationService.createInstance(ChatSessionRoutingController, host, 'chatInputWindow'));
 
@@ -290,6 +323,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _disposeWidget(): void {
 		this._routingController = undefined;
 		this._widgetParent = undefined;
+		this._preExpandHeight = undefined;
 		this._modelRef?.dispose();
 		this._modelRef = undefined;
 	}
