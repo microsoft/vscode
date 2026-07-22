@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -271,7 +270,7 @@ suite('ChatDynamicVariableModel', () => {
 		});
 	});
 
-	test('shows attachment paths and image previews in reference hovers', async () => {
+	test('leaves image reference hovers to the custom hover participant', () => {
 		const folderAttachment = createMockAttachment({
 			id: 'folder',
 			name: 'assets',
@@ -282,7 +281,7 @@ suite('ChatDynamicVariableModel', () => {
 			id: 'image',
 			name: 'screenshot.png',
 			kind: 'image',
-			value: decodeBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=').buffer,
+			value: new Uint8Array([1, 2, 3]),
 			mimeType: 'image/png',
 			references: [{ reference: URI.file('/workspace/screenshot.png'), kind: 'reference' }],
 		});
@@ -291,8 +290,7 @@ suite('ChatDynamicVariableModel', () => {
 		const onDidChangeActiveInputEditor = store.add(new Emitter<void>());
 		const onDidChangeAttachments = store.add(new Emitter<{ deleted: readonly string[]; added: readonly IChatRequestVariableEntry[]; updated: readonly IChatRequestVariableEntry[] }>());
 		let folderHover = '';
-		let resolveImageHover!: () => void;
-		const imageHoverReady = new Promise<void>(resolve => resolveImageHover = resolve);
+		let hasImageDecorationHover = false;
 		const widget = {
 			input: {
 				attachmentModel: {
@@ -312,8 +310,8 @@ suite('ChatDynamicVariableModel', () => {
 						if (value.includes('workspace/assets')) {
 							folderHover = value;
 						}
-						if (value.includes('data:image/png;base64,')) {
-							resolveImageHover();
+						if (value.includes('screenshot.png')) {
+							hasImageDecorationHover = true;
 						}
 					}
 					return decorations.map((_, index) => String(index));
@@ -328,14 +326,13 @@ suite('ChatDynamicVariableModel', () => {
 
 		model.addReference(toAttachedContextDynamicVariable(folderAttachment, new Range(1, 1, 1, 20)));
 		model.addReference(toAttachedContextDynamicVariable(imageAttachment, new Range(2, 1, 2, 20)));
-		await imageHoverReady;
 
 		assert.deepStrictEqual({
 			folderHover,
-			hasImageReference: model.variables.some(variable => variable.id === imageAttachment.id),
+			hasImageDecorationHover,
 		}, {
 			folderHover: 'workspace/assets',
-			hasImageReference: true,
+			hasImageDecorationHover: false,
 		});
 	});
 });

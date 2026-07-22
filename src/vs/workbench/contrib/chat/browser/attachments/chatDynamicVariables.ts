@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../../base/common/arrays.js';
-import { encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, dispose, isDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
@@ -18,9 +17,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IChatRequestVariableEntry, isImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestVariableValue, IDynamicVariable, toAttachedContextDynamicVariable } from '../../common/attachments/chatVariables.js';
-import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { IChatWidget } from '../chat.js';
-import { CHAT_IMAGE_HOVER_THUMBNAIL_MAX_SIZE, getOrCreateImageThumbnail } from '../chatImageUtils.js';
 import { IChatWidgetContrib } from '../widget/chatWidget.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
@@ -31,7 +28,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	public static readonly ID = 'chatDynamicVariableModel';
 
 	private _variables: IDynamicVariable[] = [];
-	private readonly _attachmentHoverMessages = new Map<string, IMarkdownString>();
 
 	private readonly _onDidChangeReferences = this._register(new Emitter<void>());
 	/**
@@ -67,18 +63,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			this._subscribeToEditor();
 			this.updateDecorations();
 		}));
-		this._register(widget.input.attachmentModel.onDidChange(e => {
-			for (const id of e.deleted) {
-				this._attachmentHoverMessages.delete(id);
-			}
-			for (const attachment of [...e.added, ...e.updated]) {
-				if (this._variables.some(variable => variable.id === attachment.id)) {
-					this._attachmentHoverMessages.delete(attachment.id);
-					void this.prepareAttachmentHover(attachment);
-				}
-			}
-			this.updateDecorations();
-		}));
+		this._register(widget.input.attachmentModel.onDidChange(() => this.updateDecorations()));
 	}
 
 	private _subscribeToEditor(): void {
@@ -134,7 +119,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 			// cleanup disposable variables
 			dispose(removed.filter(isDisposable));
-			this.pruneAttachmentHovers();
 
 			if (didChange || removed.length > 0) {
 				this.widget.refreshParsedInput();
@@ -175,7 +159,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		const existingAttachment = this.widget.input.attachmentModel.attachments.find(attachment => attachment.id === ref.id && !attachment.range);
 		if (existingAttachment) {
 			ref = toAttachedContextDynamicVariable(existingAttachment, ref.range);
-			void this.prepareAttachmentHover(existingAttachment);
 		}
 
 		this._variables.push(ref);
@@ -207,19 +190,10 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		}
 	}
 
-	private pruneAttachmentHovers(): void {
-		const referencedIds = new Set(this._variables.map(variable => variable.id));
-		for (const id of this._attachmentHoverMessages.keys()) {
-			if (!referencedIds.has(id)) {
-				this._attachmentHoverMessages.delete(id);
-			}
-		}
-	}
-
 	private getHoverForReference(ref: IDynamicVariable): IMarkdownString | undefined {
 		const attachment = this.widget.input.attachmentModel.attachments.find(attachment => attachment.id === ref.id && !attachment.range);
 		if (attachment) {
-			return this._attachmentHoverMessages.get(ref.id) ?? this.createAttachmentLabelHover(attachment);
+			return isImageVariableEntry(attachment) ? undefined : this.createAttachmentLabelHover(attachment);
 		}
 
 		const value = ref.data;
@@ -242,34 +216,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		return new MarkdownString().appendText(label);
 	}
 
-	private async prepareAttachmentHover(attachment: IChatRequestVariableEntry): Promise<void> {
-		const labelHover = this.createAttachmentLabelHover(attachment);
-		if (!isImageVariableEntry(attachment)) {
-			this._attachmentHoverMessages.set(attachment.id, labelHover);
-			return;
-		}
-
-		const buffer = coerceImageBuffer(attachment.value);
-		if (!buffer) {
-			this._attachmentHoverMessages.set(attachment.id, labelHover);
-			return;
-		}
-
-		const thumbnail = await getOrCreateImageThumbnail(attachment.id, buffer, CHAT_IMAGE_HOVER_THUMBNAIL_MAX_SIZE);
-		if (!thumbnail || !this.widget.input.attachmentModel.attachments.includes(attachment)) {
-			return;
-		}
-
-		const thumbnailData = new Uint8Array(await thumbnail.arrayBuffer());
-		const mimeType = thumbnail.type || attachment.mimeType || 'image/png';
-		const hover = new MarkdownString();
-		hover.appendMarkdown(`![${escapeMarkdownSyntaxTokens(attachment.name)}](data:${mimeType};base64,${encodeBase64(VSBuffer.wrap(thumbnailData))})`);
-		hover.appendMarkdown('\n\n');
-		hover.appendMarkdown(labelHover.value);
-		this._attachmentHoverMessages.set(attachment.id, hover);
-		this.updateDecorations();
-	}
-
 	/**
 	 * Dispose all existing variables.
 	 */
@@ -279,7 +225,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 				variable.dispose();
 			}
 		}
-		this._attachmentHoverMessages.clear();
 	}
 
 	public override dispose() {
