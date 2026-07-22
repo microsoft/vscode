@@ -434,7 +434,8 @@ export interface IOctoKitService {
 	/**
 	 * Gets the custom instructions prompt for an organization.
 	 * @param orgLogin The organization login
-	 * @returns The prompt string or undefined if not available
+	 * @returns The prompt string, or undefined when the organization has no available instructions.
+	 * @throws When authentication or the request fails.
 	 */
 	getOrgCustomInstructions(orgLogin: string, authOptions: AuthOptions): Promise<string | undefined>;
 

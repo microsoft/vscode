@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { FileSystem, NotebookData, NotebookDocument, NotebookDocumentChangeEvent, ResourceTrustRequestOptions, TextDocument, TextDocumentChangeEvent, TextEditorSelectionChangeEvent, Uri, WorkspaceEdit, WorkspaceFolder, WorkspaceFoldersChangeEvent, WorkspaceTrustRequestOptions } from 'vscode';
-import { Event } from '../../../../util/vs/base/common/event';
+import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { NotebookDocumentSnapshot } from '../../../editing/common/notebookDocumentSnapshot';
 import { TextDocumentSnapshot } from '../../../editing/common/textDocumentSnapshot';
@@ -16,6 +16,7 @@ import { IWorkspaceService } from '../../../workspace/common/workspaceService';
 export class MockWorkspaceService implements IWorkspaceService {
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _onDidChangeWorkspaceFolders = new Emitter<WorkspaceFoldersChangeEvent>();
 	textDocuments: readonly TextDocument[] = [];
 	notebookDocuments: readonly NotebookDocument[] = [];
 
@@ -25,7 +26,7 @@ export class MockWorkspaceService implements IWorkspaceService {
 	readonly onDidCloseNotebookDocument: Event<NotebookDocument> = Event.None;
 	readonly onDidChangeTextDocument: Event<TextDocumentChangeEvent> = Event.None;
 	readonly onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent> = Event.None;
-	readonly onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent> = Event.None;
+	readonly onDidChangeWorkspaceFolders = this._onDidChangeWorkspaceFolders.event;
 	readonly onDidChangeTextEditorSelection: Event<TextEditorSelectionChangeEvent> = Event.None;
 
 	private _workspaceFolders: URI[] = [];
@@ -37,6 +38,10 @@ export class MockWorkspaceService implements IWorkspaceService {
 	 */
 	setWorkspaceFolders(folders: URI[]): void {
 		this._workspaceFolders = folders;
+	}
+
+	fireWorkspaceFoldersChange(): void {
+		this._onDidChangeWorkspaceFolders.fire({ added: [], removed: [] });
 	}
 
 	getWorkspaceFolders(): URI[] {
@@ -97,5 +102,9 @@ export class MockWorkspaceService implements IWorkspaceService {
 
 	requestWorkspaceTrust(_options?: WorkspaceTrustRequestOptions): Thenable<boolean | undefined> {
 		return Promise.resolve(true);
+	}
+
+	dispose(): void {
+		this._onDidChangeWorkspaceFolders.dispose();
 	}
 }

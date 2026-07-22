@@ -13,6 +13,7 @@ import { MockAuthenticationService } from '../../../../platform/ignore/node/test
 import { MockGitService } from '../../../../platform/ignore/node/test/mockGitService';
 import { MockWorkspaceService } from '../../../../platform/ignore/node/test/mockWorkspaceService';
 import { ILogService } from '../../../../platform/log/common/logService';
+import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
@@ -54,6 +55,8 @@ suite('GitHubOrgChatResourcesService', () => {
 
 	afterEach(() => {
 		disposables.dispose();
+		mockAuthService?.dispose();
+		mockWorkspaceService?.dispose();
 		mockOctoKitService?.reset();
 	});
 
@@ -262,7 +265,7 @@ suite('GitHubOrgChatResourcesService', () => {
 		});
 	});
 
-	suite.skip('startPolling', () => {
+	suite('startRefreshing', () => {
 
 		test('invokes callback immediately with org name', async () => {
 			mockWorkspaceService.setWorkspaceFolders([URI.file('/workspace')]);
@@ -274,36 +277,106 @@ suite('GitHubOrgChatResourcesService', () => {
 
 			const service = createService();
 
-			let capturedOrg: string | undefined;
-			const subscription = service.startPolling(10000, async (orgName) => {
-				capturedOrg = orgName;
+			const callbackInvoked = new DeferredPromise<string>();
+			const subscription = service.startRefreshing(async orgName => {
+				await callbackInvoked.complete(orgName);
 			});
 			disposables.add(subscription);
 
-			// Wait for initial poll
-			await new Promise(resolve => setTimeout(resolve, 50));
-
-			assert.equal(capturedOrg, 'pollingorg');
+			assert.equal(await callbackInvoked.p, 'pollingorg');
 		});
 
-		test('does not invoke callback when no organization', async () => {
+		test('refreshes when authentication changes', async () => {
 			mockWorkspaceService.setWorkspaceFolders([]);
-			mockOctoKitService.setUserOrganizations([]);
+			mockOctoKitService.setUserOrganizations(['firstorg']);
 
 			const service = createService();
 
-			let callbackInvoked = false;
-			const subscription = service.startPolling(10000, async () => {
-				callbackInvoked = true;
+			const firstPoll = new DeferredPromise<void>();
+			const refreshedPoll = new DeferredPromise<string>();
+			let callCount = 0;
+			const subscription = service.startRefreshing(async orgName => {
+				callCount++;
+				if (callCount === 1) {
+					await firstPoll.complete();
+				} else {
+					await refreshedPoll.complete(orgName);
+				}
 			});
 			disposables.add(subscription);
 
-			await new Promise(resolve => setTimeout(resolve, 50));
+			await firstPoll.p;
+			mockOctoKitService.setUserOrganizations(['secondorg']);
+			mockAuthService.fireAuthenticationChange();
 
-			assert.isFalse(callbackInvoked);
+			assert.equal(await refreshedPoll.p, 'secondorg');
 		});
 
-		test('stops polling when subscription is disposed', async () => {
+		test('refreshes when workspace folders change', async () => {
+			mockWorkspaceService.setWorkspaceFolders([URI.file('/workspace')]);
+			mockGitService.setRepositoryFetchUrls({
+				rootUri: URI.file('/workspace'),
+				remoteFetchUrls: ['https://github.com/firstorg/repo.git']
+			});
+
+			const service = createService();
+
+			const firstPoll = new DeferredPromise<void>();
+			const refreshedPoll = new DeferredPromise<string>();
+			let callCount = 0;
+			const subscription = service.startRefreshing(async orgName => {
+				callCount++;
+				if (callCount === 1) {
+					await firstPoll.complete();
+				} else {
+					await refreshedPoll.complete(orgName);
+				}
+			});
+			disposables.add(subscription);
+
+			await firstPoll.p;
+			mockGitService.setRepositoryFetchUrls({
+				rootUri: URI.file('/workspace'),
+				remoteFetchUrls: ['https://github.com/secondorg/repo.git']
+			});
+			mockWorkspaceService.fireWorkspaceFoldersChange();
+
+			assert.equal(await refreshedPoll.p, 'secondorg');
+		});
+
+		test('queues a refresh requested while polling', async () => {
+			mockWorkspaceService.setWorkspaceFolders([URI.file('/workspace')]);
+			mockGitService.setRepositoryFetchUrls({
+				rootUri: URI.file('/workspace'),
+				remoteFetchUrls: ['https://github.com/concurrent/repo.git']
+			});
+
+			const service = createService();
+
+			const firstPollStarted = new DeferredPromise<void>();
+			const continueFirstPoll = new DeferredPromise<void>();
+			const refreshedPoll = new DeferredPromise<void>();
+			let callCount = 0;
+			const subscription = service.startRefreshing(async () => {
+				callCount++;
+				if (callCount === 1) {
+					await firstPollStarted.complete();
+					await continueFirstPoll.p;
+				} else {
+					await refreshedPoll.complete();
+				}
+			});
+			disposables.add(subscription);
+
+			await firstPollStarted.p;
+			mockAuthService.fireAuthenticationChange();
+			await continueFirstPoll.complete();
+			await refreshedPoll.p;
+
+			assert.equal(callCount, 2);
+		});
+
+		test('does not run a queued refresh after subscription is disposed', async () => {
 			mockWorkspaceService.setWorkspaceFolders([URI.file('/workspace')]);
 			mockGitService.setRepositoryFetchUrls({
 				rootUri: URI.file('/workspace'),
@@ -312,77 +385,24 @@ suite('GitHubOrgChatResourcesService', () => {
 
 			const service = createService();
 
+			const firstPollStarted = new DeferredPromise<void>();
+			const continueFirstPoll = new DeferredPromise<void>();
+			const firstPollFinished = new DeferredPromise<void>();
 			let callCount = 0;
-			const subscription = service.startPolling(50, async () => {
+			const subscription = service.startRefreshing(async () => {
 				callCount++;
+				await firstPollStarted.complete();
+				await continueFirstPoll.p;
+				await firstPollFinished.complete();
 			});
 
-			// Wait for initial poll
-			await new Promise(resolve => setTimeout(resolve, 30));
-			const initialCount = callCount;
-
-			// Dispose subscription
+			await firstPollStarted.p;
+			mockAuthService.fireAuthenticationChange();
 			subscription.dispose();
+			await continueFirstPoll.complete();
+			await firstPollFinished.p;
 
-			// Wait longer than poll interval
-			await new Promise(resolve => setTimeout(resolve, 100));
-
-			// Call count should not have increased significantly after disposal
-			assert.isAtMost(callCount - initialCount, 1);
-		});
-
-		test('prevents concurrent polling', async () => {
-			mockWorkspaceService.setWorkspaceFolders([URI.file('/workspace')]);
-			mockGitService.setRepositoryFetchUrls({
-				rootUri: URI.file('/workspace'),
-				remoteFetchUrls: ['https://github.com/concurrent/repo.git']
-			});
-			mockOctoKitService.setUserOrganizations(['concurrent']);
-
-			const service = createService();
-
-			let concurrentCalls = 0;
-			let maxConcurrentCalls = 0;
-
-			const subscription = service.startPolling(10, async () => {
-				concurrentCalls++;
-				maxConcurrentCalls = Math.max(maxConcurrentCalls, concurrentCalls);
-				await new Promise(resolve => setTimeout(resolve, 50));
-				concurrentCalls--;
-			});
-			disposables.add(subscription);
-
-			// Wait for multiple poll cycles
-			await new Promise(resolve => setTimeout(resolve, 100));
-
-			// Should never have more than 1 concurrent call
-			assert.equal(maxConcurrentCalls, 1);
-		});
-
-		test('handles callback errors gracefully', async () => {
-			mockWorkspaceService.setWorkspaceFolders([URI.file('/workspace')]);
-			mockGitService.setRepositoryFetchUrls({
-				rootUri: URI.file('/workspace'),
-				remoteFetchUrls: ['https://github.com/errororg/repo.git']
-			});
-			mockOctoKitService.setUserOrganizations(['errororg']);
-
-			const service = createService();
-
-			let callCount = 0;
-			const subscription = service.startPolling(30, async () => {
-				callCount++;
-				if (callCount === 1) {
-					throw new Error('Callback error');
-				}
-			});
-			disposables.add(subscription);
-
-			// Wait for multiple poll cycles
-			await new Promise(resolve => setTimeout(resolve, 100));
-
-			// Should continue polling even after error
-			assert.isAtLeast(callCount, 2);
+			assert.equal(callCount, 1);
 		});
 	});
 

@@ -11,7 +11,6 @@ import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IGitHubOrgChatResourcesService } from './githubOrgChatResourcesService';
 
 const INSTRUCTIONS_BASE_FILE_NAME = 'default';
-const REFRESH_INTERVAL_MS = 2 * 60 * 1000;
 
 export class GitHubOrgInstructionsProvider extends Disposable implements vscode.ChatInstructionsProvider {
 
@@ -25,8 +24,10 @@ export class GitHubOrgInstructionsProvider extends Disposable implements vscode.
 	) {
 		super();
 
-		// Set up polling with provider-specific interval
-		this._register(this.githubOrgChatResourcesService.startPolling(REFRESH_INTERVAL_MS, this.pollInstructions.bind(this)));
+		this._register(this.githubOrgChatResourcesService.onDidChangePreferredOrganization(() => {
+			this._onDidChangeInstructions.fire();
+		}));
+		this._register(this.githubOrgChatResourcesService.startRefreshing(this.pollInstructions.bind(this)));
 	}
 
 	async provideInstructions(
@@ -55,9 +56,13 @@ export class GitHubOrgInstructionsProvider extends Disposable implements vscode.
 	private async pollInstructions(orgId: string): Promise<void> {
 		try {
 			const instructions = await this.octoKitService.getOrgCustomInstructions(orgId, {});
-			if (!instructions) {
+			if (instructions === undefined || instructions.length === 0) {
+				const existingInstructions = await this.githubOrgChatResourcesService.listCachedFiles(PromptsType.instructions, orgId);
 				await this.githubOrgChatResourcesService.clearCache(PromptsType.instructions, orgId);
 				this.logService.trace(`[GitHubOrgInstructionsProvider] No custom instructions found for org ${orgId}`);
+				if (existingInstructions.length > 0) {
+					this._onDidChangeInstructions.fire();
+				}
 				return;
 			}
 

@@ -13,23 +13,26 @@ import { getGithubRepoIdFromFetchUrl, IGitService } from '../../../platform/git/
 import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
-import { Disposable, DisposableStore, IDisposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../util/vs/base/common/lifecycle';
 import { createDecorator } from '../../../util/vs/platform/instantiation/common/instantiation';
 
 export interface IGitHubOrgChatResourcesService extends IDisposable {
+	/**
+	 * Fires when the preferred organization may have changed.
+	 */
+	readonly onDidChangePreferredOrganization: vscode.Event<void>;
+
 	/**
 	 * Returns the organization that should be used for the current session.
 	 */
 	getPreferredOrganizationName(): Promise<string | undefined>;
 
 	/**
-	 * Creates a polling subscription with a custom interval.
-	 * The callback will be invoked at the specified interval.
-	 * @param intervalMs The polling interval in milliseconds
-	 * @param callback The callback to invoke on each poll cycle
-	 * @returns A disposable that stops the polling when disposed
+	 * Refreshes resources immediately and whenever the preferred organization may have changed.
+	 * @param callback The callback to invoke for each refresh.
+	 * @returns A disposable that stops future refreshes when disposed.
 	 */
-	startPolling(intervalMs: number, callback: (orgName: string) => Promise<void>): IDisposable;
+	startRefreshing(callback: (orgName: string) => Promise<void>): IDisposable;
 
 	/**
 	 * Reads a specific cached resource.
@@ -89,7 +92,8 @@ function isValidFile(type: PromptsType, fileName: string): boolean {
 export class GitHubOrgChatResourcesService extends Disposable implements IGitHubOrgChatResourcesService {
 	private static readonly CACHE_ROOT = 'github';
 
-	// private readonly _pollingSubscriptions = this._register(new DisposableStore());
+	private readonly _onDidChangePreferredOrganization = this._register(new vscode.EventEmitter<void>());
+	readonly onDidChangePreferredOrganization = this._onDidChangePreferredOrganization.event;
 	private _cachedPreferredOrgName: Promise<string | undefined> | undefined;
 
 	constructor(
@@ -107,12 +111,14 @@ export class GitHubOrgChatResourcesService extends Disposable implements IGitHub
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => {
 			this.logService.trace('[GitHubOrgChatResourcesService] Workspace folders changed, invalidating cached org name');
 			this._cachedPreferredOrgName = undefined;
+			this._onDidChangePreferredOrganization.fire();
 		}));
 
 		// Invalidate cached org name when authentication changes (sign in/out)
 		this._register(this.authService.onDidAuthenticationChange(() => {
 			this.logService.trace('[GitHubOrgChatResourcesService] Authentication changed, invalidating cached org name');
 			this._cachedPreferredOrgName = undefined;
+			this._onDidChangePreferredOrganization.fire();
 		}));
 	}
 
@@ -208,38 +214,44 @@ export class GitHubOrgChatResourcesService extends Disposable implements IGitHub
 		return undefined;
 	}
 
-	startPolling(intervalMs: number, callback: (orgName: string) => Promise<void>): IDisposable {
+	startRefreshing(callback: (orgName: string) => Promise<void>): IDisposable {
 		const disposables = new DisposableStore();
 
 		let isPolling = false;
+		let rerunRequested = false;
+		let isDisposed = false;
+		disposables.add(toDisposable(() => isDisposed = true));
 		const poll = async () => {
+			if (isDisposed) {
+				return;
+			}
 			if (isPolling) {
+				rerunRequested = true;
 				return;
 			}
 			isPolling = true;
 			try {
-				const orgName = await this.getPreferredOrganizationName();
-				if (orgName) {
-					try {
-						await callback(orgName);
-					} catch (error) {
-						this.logService.error(`[GitHubOrgChatResourcesService] Error in polling callback: ${error}`);
+				do {
+					rerunRequested = false;
+					const orgName = await this.getPreferredOrganizationName();
+					if (orgName && !isDisposed) {
+						try {
+							await callback(orgName);
+						} catch (error) {
+							this.logService.error(`[GitHubOrgChatResourcesService] Error in polling callback: ${error}`);
+						}
 					}
-				}
+				} while (rerunRequested && !isDisposed);
 			} finally {
 				isPolling = false;
 			}
 		};
 
-		// Initial poll
+		disposables.add(this.onDidChangePreferredOrganization(() => {
+			void poll();
+		}));
+
 		void poll();
-
-		// TODO: re-enable polling
-		// Set up interval polling
-		// const intervalId = setInterval(() => poll(), intervalMs);
-		// disposables.add(toDisposable(() => clearInterval(intervalId)));
-
-		// this._pollingSubscriptions.add(disposables);
 
 		return disposables;
 	}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { AuthenticationGetSessionOptions, AuthenticationSession } from 'vscode';
-import { Event } from '../../../../util/vs/base/common/event';
+import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { CopilotToken } from '../../../authentication/common/copilotToken';
 
@@ -15,8 +15,9 @@ import { CopilotToken } from '../../../authentication/common/copilotToken';
 export class MockAuthenticationService implements IAuthenticationService {
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _onDidAuthenticationChange = new Emitter<void>();
 	readonly isMinimalMode = false;
-	readonly onDidAuthenticationChange: Event<void> = Event.None;
+	readonly onDidAuthenticationChange = this._onDidAuthenticationChange.event;
 	readonly onDidAccessTokenChange: Event<void> = Event.None;
 	readonly onDidCopilotTokenChange: Event<void> = Event.None;
 	readonly onDidAdoAuthenticationChange: Event<void> = Event.None;
@@ -43,5 +44,11 @@ export class MockAuthenticationService implements IAuthenticationService {
 		return Promise.resolve(undefined);
 	}
 
-	dispose(): void { }
+	fireAuthenticationChange(): void {
+		this._onDidAuthenticationChange.fire();
+	}
+
+	dispose(): void {
+		this._onDidAuthenticationChange.dispose();
+	}
 }

@@ -11,12 +11,6 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IGitHubOrgChatResourcesService } from './githubOrgChatResourcesService';
 
-/**
- * Polling interval for refreshing custom agents from GitHub (5 minutes).
- * We poll a bit less frequently as we need to loop and fetch full agent details including prompt content.
- */
-const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-
 export class GitHubOrgCustomAgentProvider extends Disposable implements vscode.ChatCustomAgentProvider {
 	private readonly _onDidChangeCustomAgents = this._register(new vscode.EventEmitter<void>());
 	readonly onDidChangeCustomAgents = this._onDidChangeCustomAgents.event;
@@ -28,8 +22,10 @@ export class GitHubOrgCustomAgentProvider extends Disposable implements vscode.C
 	) {
 		super();
 
-		// Set up polling with provider-specific interval
-		this._register(this.githubOrgChatResourcesService.startPolling(REFRESH_INTERVAL_MS, this.pollAgents.bind(this)));
+		this._register(this.githubOrgChatResourcesService.onDidChangePreferredOrganization(() => {
+			this._onDidChangeCustomAgents.fire();
+		}));
+		this._register(this.githubOrgChatResourcesService.startRefreshing(this.pollAgents.bind(this)));
 	}
 
 	async provideCustomAgents(_context: unknown, token: vscode.CancellationToken): Promise<vscode.ChatResource[]> {
