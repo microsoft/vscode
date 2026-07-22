@@ -89,6 +89,22 @@ describe('resolveSkillConfigLocations', () => {
 		expect(result[0].path).toBe('/absolute/skills/path');
 	});
 
+	it('preserves remote authority for absolute and tilde paths', () => {
+		const userHome = URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/home/user' });
+		const result = resolve({
+			configLocations: {
+				'/opt/skills': true,
+				'~/skills': true,
+			},
+			userHome,
+		});
+
+		expect(result.map(uri => uri.toString())).toEqual([
+			'vscode-remote://wsl+ubuntu/opt/skills',
+			'vscode-remote://wsl+ubuntu/home/user/skills',
+		]);
+	});
+
 	it('joins relative paths to each workspace folder', () => {
 		const result = resolve({
 			configLocations: { 'relative/skills': true },

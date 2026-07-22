@@ -7,7 +7,6 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
-import { untildify } from '../../../../../base/common/labels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -664,9 +663,8 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		});
 	}
 
-	private async _getUserHome(): Promise<string> {
-		const userHome = await this._pathService.userHome();
-		return userHome.scheme === 'file' ? userHome.fsPath : userHome.path;
+	private async _getUserHome(): Promise<URI> {
+		return this._pathService.userHome();
 	}
 
 	/**
@@ -674,13 +672,13 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	 * Supports absolute paths, tilde paths (expanded to user home), and
 	 * workspace-relative paths.
 	 */
-	private _resolvePluginPath(path: string, userHome: string): URI[] {
+	protected _resolvePluginPath(path: string, userHome: URI): URI[] {
 		if (path.startsWith('~')) {
-			path = untildify(path, userHome);
+			return [userHome.with({ path: URI.file(`${userHome.path}${path.substring(1)}`).path })];
 		}
 
 		if (win32.isAbsolute(path) || posix.isAbsolute(path)) {
-			return [URI.file(path)];
+			return [userHome.with({ path: URI.file(path).path })];
 		}
 
 		return this._workspaceContextService.getWorkspace().folders.map(
@@ -693,13 +691,13 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	 * the Copilot CLI install convention `~/.copilot/installed-plugins/<marketplace>/<plugin>/`.
 	 * Returns `undefined` for anything that doesn't match the ID shape.
 	 */
-	private _resolveEnterprisePluginId(id: string, userHome: string): URI | undefined {
+	private _resolveEnterprisePluginId(id: string, userHome: URI): URI | undefined {
 		const idMatch = id.match(/^([^@/\\~]+)@([^@/\\~]+)$/);
 		if (!idMatch) {
 			return undefined;
 		}
 		const [, plugin, marketplace] = idMatch;
-		return URI.file(`${userHome}/.copilot/installed-plugins/${marketplace}/${plugin}`);
+		return joinPath(userHome, '.copilot', 'installed-plugins', marketplace, plugin);
 	}
 
 	/**

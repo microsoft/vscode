@@ -36,7 +36,7 @@ export function resolveSkillConfigLocations(
 		if (location.startsWith('~/')) {
 			results.push(URI.joinPath(userHome, location.substring(2)));
 		} else if (isAbsolute(location)) {
-			results.push(URI.file(location));
+			results.push(userHome.with({ path: URI.file(location).path }));
 		} else {
 			for (const workspaceFolder of workspaceFolders) {
 				results.push(URI.joinPath(workspaceFolder, location));
