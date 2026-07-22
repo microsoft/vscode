@@ -34,7 +34,9 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../services/c
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ISCMService } from '../../../../contrib/scm/common/scm.js';
+import { IBrowserViewWorkbenchService } from '../../../../contrib/browserView/common/browserView.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -51,6 +53,7 @@ import { IChatContextPickService } from '../../../../contrib/chat/browser/attach
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
 import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from '../../../../contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IChatModeService } from '../../../../contrib/chat/common/chatModes.js';
@@ -126,6 +129,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.define(IListService, ListService);
 
 	reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
+	reg.defineInstance(IBrowserViewWorkbenchService, new class extends mock<IBrowserViewWorkbenchService>() {
+		override readonly onDidChangeBrowserViews = Event.None;
+		override getKnownBrowserViews() { return new Map(); }
+	}());
 	reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 	reg.defineInstance(IFileService, new class extends mock<IFileService>() { override onDidFilesChange = Event.None; override onDidRunOperation = Event.None; override hasProvider() { return false; } }());
 	reg.defineInstance(IEditorService, new class extends mock<IEditorService>() { override onDidActiveEditorChange = Event.None; }());
@@ -240,6 +247,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getActiveNotification() { return undefined; }
 		override announceRendered() { }
 	}());
+	reg.defineInstance(IChatSubmitRequestHandlerService, new ChatSubmitRequestHandlerService());
 	reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { override readonly model = new class extends mock<IAgentSessionsService['model']>() { override readonly onDidChangeSessions = Event.None; }(); }());
 	// Agent-host chat widgets (e.g. the turn changes summary fixtures) create the
 	// generic config chips lane, which opens a session subscription. Return an
@@ -272,6 +280,9 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() {
 		override readonly onDidChangeFolder = Event.None;
 		override getFolder() { return undefined; }
+	}());
+	reg.defineInstance(IAgentHostEnablementService, new class extends mock<IAgentHostEnablementService>() {
+		override readonly enabled = false;
 	}());
 
 	const artifactGroups = options.artifactGroups ?? observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', []);

@@ -218,6 +218,30 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 			return { ...state, activeClients: updated };
 		}
 
+		// ── Working Directories ─────────────────────────────────────────────
+
+		case ActionType.SessionWorkingDirectorySet: {
+			const list = state.workingDirectories ?? [];
+			if (list.includes(action.directory)) {
+				return state;
+			}
+			return { ...state, workingDirectories: [...list, action.directory] };
+		}
+
+		case ActionType.SessionWorkingDirectoryRemoved: {
+			const list = state.workingDirectories;
+			if (!list) {
+				return state;
+			}
+			const idx = list.indexOf(action.directory);
+			if (idx < 0) {
+				return state;
+			}
+			const updated = list.slice();
+			updated.splice(idx, 1);
+			return { ...state, workingDirectories: updated };
+		}
+
 		// ── Input Needed ────────────────────────────────────────────────────
 
 		case ActionType.SessionInputNeededSet: {

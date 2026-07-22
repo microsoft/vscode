@@ -132,6 +132,13 @@ suite('SettingsTree', () => {
 				category: 'PowerShell',
 				label: 'Some PowerShell Setting'
 			});
+
+		assert.deepStrictEqual(
+			settingKeyToDisplayFormat('ocaml.server.extendedHover'),
+			{
+				category: 'OCaml › Server',
+				label: 'Extended Hover'
+			});
 	});
 
 	test('parseQuery', () => {

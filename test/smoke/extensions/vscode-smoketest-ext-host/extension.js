@@ -126,6 +126,19 @@ function activate(context) {
 			await vscode.commands.executeCommand(command);
 		})
 	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('smoketest.openLocalChat', async () => {
+			// Open the chat panel directly into the built-in Local harness. The
+			// panel default is Agent Host Copilot when the agent host is enabled,
+			// so tests that exercise the local participant harness must select it
+			// explicitly. `newLocalChat` opens the view from cold and is hidden
+			// from the palette (f1: false), hence this smoke-test wrapper.
+			const command = 'workbench.action.chat.newLocalChat';
+			await waitForCommand(command, 60_000);
+			await vscode.commands.executeCommand(command);
+		})
+	);
 }
 
 function deactivate() {

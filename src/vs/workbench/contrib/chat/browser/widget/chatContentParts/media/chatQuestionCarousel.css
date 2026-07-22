@@ -328,6 +328,11 @@
 			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
 		}
 
+		.chat-question-list-item.multi-select:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: -1px;
+		}
+
 		/* Checkbox for multi-select */
 		.chat-question-list-checkbox {
 			flex-shrink: 0;
@@ -548,7 +553,8 @@
 		overflow-wrap: break-word;
 	}
 
-	.chat-question-summary-skipped {
+	.chat-question-summary-skipped,
+	.chat-question-summary-answered {
 		color: var(--vscode-descriptionForeground);
 		font-style: italic;
 		font-size: var(--vscode-chat-font-size-body-s);

@@ -13,6 +13,15 @@
 export type VoiceGlowState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 
 /**
+ * Glow states that actually render a border/box-shadow. Connected-idle voice
+ * mode deliberately renders NO glow, so callers gate their animation loop on
+ * these states only.
+ */
+export function isGlowingVoiceState(voiceState: VoiceGlowState): boolean {
+	return voiceState === 'listening' || voiceState === 'speaking';
+}
+
+/**
  * Reduce an analyser's frequency data to a normalized [0, 1] intensity. Returns
  * a small resting value when no analyser is available (before capture/playback).
  * `dataArray` is a ref-cell reused across frames, lazily sized to the bin count.
@@ -39,7 +48,8 @@ export interface IVoiceGlowStyle {
 
 /**
  * Compute the glow border color and box-shadow. Blue while listening (flashier
- * when the transcript is hidden), purple while speaking.
+ * when the transcript is hidden) and purple while speaking. Connected-idle voice
+ * mode renders no glow and never reaches this function.
  */
 export function computeVoiceGlowStyle(voiceState: VoiceGlowState, intensity: number, transcriptHidden: boolean): IVoiceGlowStyle {
 	// Blue when listening, purple when speaking.

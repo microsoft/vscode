@@ -9,7 +9,8 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { agentsPanelBackground, agentsPanelBorder, agentsPanelForeground } from '../../common/theme.js';
-import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../common/sizes.js';
+import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
 import { Direction, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
@@ -29,6 +30,7 @@ import { IProgressIndicator } from '../../../platform/progress/common/progress.j
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { IWorkbenchAssignmentService } from '../../../workbench/services/assignment/common/assignmentService.js';
+import { IAgentWorkbenchLayoutService } from '../workbench.js';
 
 /**
  * ExP treatment that, when enabled, moves the session type ("harness") picker
@@ -56,9 +58,10 @@ export class SessionsPart extends Part {
 
 	/** Visual margin values for the card-like appearance */
 	static readonly MARGIN_TOP = 0;
-	static readonly MARGIN_LEFT = 10;
-	static readonly MARGIN_RIGHT = 5;
-	static readonly MARGIN_BOTTOM = 5;
+	static readonly MARGIN_LEFT = 0;
+	static readonly MARGIN_RIGHT = AGENTS_FLOATING_PANEL_GAP;
+	static readonly MARGIN_RIGHT_NO_EDITOR_PANE = 0;
+	static readonly MARGIN_BOTTOM = 0;
 
 	/** Border width on the card (1px each side) */
 	static readonly BORDER_WIDTH = 1;
@@ -107,7 +110,7 @@ export class SessionsPart extends Part {
 	constructor(
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IAgentWorkbenchLayoutService private readonly agentWorkbenchLayoutService: IAgentWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
@@ -117,7 +120,7 @@ export class SessionsPart extends Part {
 			{ hasTitle: false, borderWidth: () => 0 },
 			themeService,
 			storageService,
-			layoutService
+			agentWorkbenchLayoutService
 		);
 
 		// Bind context keys for compatibility with existing when-clauses
@@ -420,13 +423,10 @@ export class SessionsPart extends Part {
 		this._lastLayout = { width, height, top, left };
 
 		// Compute content dimensions accounting for visual margins and border.
-		// MARGIN_BOTTOM applies only when the panel is visible (paired with the panel's
-		// 5px top margin to center the sash). When the panel is hidden the card fills its
-		// cell; the workbench grid's 10px bottom gutter provides the visible gap.
 		const borderTotal = SessionsPart.BORDER_WIDTH * 2;
-		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 0 : SessionsPart.MARGIN_LEFT;
-		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART) ? SessionsPart.MARGIN_BOTTOM : 0;
-		const marginRight = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) ? SessionsPart.MARGIN_RIGHT : 0;
+		const marginLeft = SessionsPart.MARGIN_LEFT;
+		const marginBottom = SessionsPart.MARGIN_BOTTOM;
+		const marginRight = this.agentWorkbenchLayoutService.isEditorPaneVisible() ? SessionsPart.MARGIN_RIGHT : SessionsPart.MARGIN_RIGHT_NO_EDITOR_PANE;
 
 		// Size the content area with the reduced dimensions.
 		const { contentSize } = this.layoutContents(

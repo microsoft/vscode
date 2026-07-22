@@ -9,15 +9,17 @@ import { basename } from '../../../../base/common/path.js';
 import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { AgentSession } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
-import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { toToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
+import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -77,6 +79,9 @@ interface IToolStartInfo {
 	readonly subagentDescription?: string;
 	readonly parameters: Record<string, unknown> | undefined;
 	readonly parentToolCallId?: string;
+	readonly mcpServerName?: string;
+	readonly mcpToolName?: string;
+	readonly mcpUiResourceUri?: string;
 }
 
 /** Subagent metadata seen via `subagent.started`, applied to the parent tool call's content at `tool.execution_complete`. */
@@ -95,6 +100,7 @@ interface ITurnBuilder {
 	id: string;
 	message: Message;
 	readonly responseParts: ResponsePart[];
+	usage: UsageInfo | undefined;
 	/** Tool starts seen but not yet completed in this turn, keyed by toolCallId. */
 	readonly pendingTools: Map<string, IToolStartInfo>;
 }
@@ -113,10 +119,37 @@ function newTurnBuilder(id: string, text: string, options?: { attachments?: Mess
 		...(options?.model ? { model: options.model } : {}),
 		...(options?.agent ? { agent: options.agent } : {}),
 	};
-	return { id, message, responseParts: [], pendingTools: new Map() };
+	return { id, message, responseParts: [], usage: undefined, pendingTools: new Map() };
 }
 
-function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCallId: string | undefined, workingDirectory: URI | undefined): IToolStartInfo | undefined {
+function readStringProperty(source: unknown, key: string): string | undefined {
+	if (!source || typeof source !== 'object' || Array.isArray(source)) {
+		return undefined;
+	}
+	const value = (source as Record<string, unknown>)[key];
+	return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function readMcpUiResourceUri(source: unknown): string | undefined {
+	if (!source || typeof source !== 'object' || Array.isArray(source)) {
+		return undefined;
+	}
+	const toolDescription = (source as Record<string, unknown>)['toolDescription'];
+	if (!toolDescription || typeof toolDescription !== 'object' || Array.isArray(toolDescription)) {
+		return undefined;
+	}
+	const meta = (toolDescription as Record<string, unknown>)['_meta'];
+	if (!meta || typeof meta !== 'object' || Array.isArray(meta)) {
+		return undefined;
+	}
+	const ui = (meta as Record<string, unknown>)['ui'];
+	if (!ui || typeof ui !== 'object' || Array.isArray(ui)) {
+		return undefined;
+	}
+	return readStringProperty(ui, 'resourceUri');
+}
+
+function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCallId: string | undefined, workingDirectory: URI | undefined, source: unknown): IToolStartInfo | undefined {
 	if (isHiddenTool(toolName)) {
 		return undefined;
 	}
@@ -145,6 +178,9 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 		subagentDescription: subagentMeta?.description,
 		parameters,
 		parentToolCallId,
+		mcpServerName: readStringProperty(source, 'mcpServerName'),
+		mcpToolName: readStringProperty(source, 'mcpToolName'),
+		mcpUiResourceUri: readMcpUiResourceUri(source),
 	};
 }
 
@@ -153,7 +189,7 @@ function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
 		id: builder.id,
 		message: builder.message,
 		responseParts: builder.responseParts,
-		usage: undefined,
+		usage: builder.usage,
 		state,
 	};
 }
@@ -214,7 +250,7 @@ export async function mapSessionEvents(
 		if (e.type === 'tool.execution_start') {
 			const d = e.data;
 			const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
-			const info = makeToolStartInfo(d.toolName, d.arguments, parentToolCallId, workingDirectory);
+			const info = makeToolStartInfo(d.toolName, d.arguments, parentToolCallId, workingDirectory, d);
 			if (!info) {
 				continue;
 			}
@@ -248,6 +284,8 @@ export async function mapSessionEvents(
 	}
 
 	const sessionUriStr = session.toString();
+	const providerId = session.scheme;
+	const rawSessionId = AgentSession.id(session);
 	const turns: Turn[] = [];
 
 	// Subagent state. Each subagent has its own active turn builder; only
@@ -262,6 +300,7 @@ export async function mapSessionEvents(
 	let parentTurnState = TurnState.Cancelled;
 	let parentTurnAborted = false;
 	let rootAssistantTurnActive = false;
+	let pendingAutoModeResolved: Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data'] | undefined;
 
 	const flushParent = (): void => {
 		if (!parentBuilder) {
@@ -325,6 +364,12 @@ export async function mapSessionEvents(
 				currentModel = { id: e.data.newModel };
 				break;
 			}
+			case 'session.auto_mode_resolved': {
+				if (!e.agentId) {
+					pendingAutoModeResolved = e.data;
+				}
+				break;
+			}
 			case 'subagent.deselected': {
 				if (!e.agentId) {
 					currentAgent = undefined;
@@ -342,22 +387,16 @@ export async function mapSessionEvents(
 				// User messages carry no deprecated `parentToolCallId`; route
 				// sub-agent user messages by the envelope `agentId` only.
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+				if (e.agentId && !parentToolCallId) {
+					continue;
+				}
 				if (parentToolCallId) {
-					// User messages from a sub-agent route into the subagent's
-					// transcript. They never start a new parent turn; subagents
-					// currently only see assistant messages in practice, but
-					// route conservatively.
 					const builder = ensureSubagentBuilder(parentToolCallId);
-					if (content) {
-						builder.responseParts.push({
-							kind: ResponsePartKind.Markdown,
-							id: generateUuid(),
-							content,
-						});
-					}
-					if (attachments?.length) {
-						builder.message = { ...builder.message, attachments };
-					}
+					builder.message = {
+						...builder.message,
+						text: content,
+						...(attachments?.length ? { attachments } : {}),
+					};
 				} else {
 					// A new top-level user message starts a new parent turn.
 					// Use the SDK envelope id (the same value
@@ -367,6 +406,13 @@ export async function mapSessionEvents(
 					flushParent();
 					const turnId = e.id ?? messageId;
 					parentBuilder = newTurnBuilder(turnId, content, { attachments, model: currentModel, agent: currentAgent });
+					if (pendingAutoModeResolved) {
+						parentBuilder.usage = {
+							model: pendingAutoModeResolved.chosenModel,
+							_meta: { autoModeResolved: pendingAutoModeResolved },
+						};
+						pendingAutoModeResolved = undefined;
+					}
 				}
 				break;
 			}
@@ -477,7 +523,7 @@ export async function mapSessionEvents(
 					// No active turn to attach this completion to.
 					continue;
 				}
-				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, storedEdits, subagentInfoByToolCallId.get(d.toolCallId));
+				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, providerId, rawSessionId, storedEdits, subagentInfoByToolCallId.get(d.toolCallId));
 				builder.responseParts.push(completedPart);
 				// When a parent tool call that spawned a subagent completes,
 				// flush the subagent's accumulated turn.
@@ -541,7 +587,7 @@ export async function mapSessionEvents(
 				continue;
 			}
 			const info = toolInfoByCallId.get(request.toolCallId)
-				?? makeToolStartInfo(request.name, request.arguments, parentToolCallId, workingDirectory);
+				?? makeToolStartInfo(request.name, request.arguments, parentToolCallId, workingDirectory, request);
 			if (!info) {
 				continue;
 			}
@@ -563,6 +609,8 @@ export async function mapSessionEvents(
 				completion ?? { toolCallId: request.toolCallId, success: true },
 				info,
 				sessionUriStr,
+				providerId,
+				rawSessionId,
 				storedEdits,
 				subagentInfoByToolCallId.get(request.toolCallId),
 			));
@@ -661,6 +709,8 @@ function makeCompletedToolCallPart(
 	d: ToolExecutionCompleteData,
 	info: IToolStartInfo,
 	sessionUriStr: string,
+	providerId: string,
+	rawSessionId: string,
 	storedEdits: Map<string, IFileEditRecord[]> | undefined,
 	subagent: ISubagentInfo | undefined,
 ): ResponsePart {
@@ -708,12 +758,23 @@ function makeCompletedToolCallPart(
 		});
 	}
 
+	const mcpServerName = info.mcpServerName ?? readStringProperty(d, 'mcpServerName');
+	const mcpToolName = info.mcpToolName ?? readStringProperty(d, 'mcpToolName');
+	const mcpUiResourceUri = info.mcpUiResourceUri ?? readMcpUiResourceUri(d);
+	const mcpUi: IToolCallUiMeta | undefined = mcpUiResourceUri
+		? {
+			resourceUri: mcpUiResourceUri,
+			...(mcpServerName ? { channel: buildMcpChannel(providerId, rawSessionId, mcpServerName) } : {}),
+		}
+		: undefined;
+
 	const tc: ToolCallCompletedState = {
 		status: ToolCallStatus.Completed,
 		toolCallId: d.toolCallId,
 		toolName: info.toolName,
 		displayName: info.displayName,
 		intention: info.intention,
+		...(mcpServerName ? { contributor: { kind: ToolCallContributorKind.MCP, customizationId: buildMcpTopLevelCustomizationId(providerId, rawSessionId, mcpServerName) } } : {}),
 		invocationMessage: info.invocationMessage,
 		toolInput: info.toolInput,
 		success: d.success,
@@ -726,6 +787,9 @@ function makeCompletedToolCallPart(
 			language: info.language,
 			subagentDescription: info.subagentDescription,
 			subagentAgentName: info.subagentAgentName,
+			mcpServerName,
+			mcpToolName,
+			ui: mcpUi,
 		}),
 	};
 	return { kind: ResponsePartKind.ToolCall, toolCall: tc };

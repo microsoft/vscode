@@ -6,7 +6,9 @@
 .prompt-timeline-rail {
 	position: absolute;
 	top: 0;
-	right: 0;
+	/* Sit just to the left of the transcript's native vertical scrollbar (which stays visible and
+	 * keeps handling scroll), leaving a gutter the width of that scrollbar so the marks never overlap it. */
+	right: var(--prompt-timeline-scrollbar-gutter, 10px);
 	bottom: var(--prompt-timeline-bottom, 0);
 	width: var(--prompt-timeline-rail-width, 36px);
 	pointer-events: none;
@@ -22,22 +24,21 @@
 	--prompt-timeline-rail-width: 36px;
 	/* Minimum clear space guaranteed between the message content and the rail marks. */
 	--prompt-timeline-content-gap: 24px;
-	/* Gutter reserved for the transcript's native scrollbar (its ~10px width + a small gap) so the
-	 * marks sit to its left and it stays grabbable. */
-	--prompt-timeline-scrollbar-gutter: 16px;
+	/* Width of the transcript's native vertical scrollbar; the rail is offset by this so it renders
+	 * beside the scrollbar rather than on top of it. Matches the list's default scrollbar size. */
+	--prompt-timeline-scrollbar-gutter: 10px;
 }
 
 /* Reserve room on the transcript's right edge so message content clears the rail's marks.
  * The chat "card" rows (sessions style.css) pad only 32px on the right — where the marks sit — so
- * bubbles crowd the pills. We reserve the rail's full width plus the minimum gap, but only while
- * the rail is mounted. `.prompt-timeline-host` is added to the same `.interactive-session`
- * element, so the compound plus the card-rule scope wins on specificity without touching the base
- * layout when the rail is absent. */
-.agent-sessions-workbench .part.sessionspart .prompt-timeline-host.interactive-session .interactive-item-container,
-.agent-sessions-workbench .part.sessionspart .prompt-timeline-host.interactive-session > .chat-suggest-next-widget,
-.agent-sessions-workbench .chat-editor-relative .prompt-timeline-host.interactive-session .interactive-item-container,
-.agent-sessions-workbench .chat-editor-relative .prompt-timeline-host.interactive-session > .chat-suggest-next-widget {
-	padding-right: calc(var(--prompt-timeline-rail-width) + var(--prompt-timeline-content-gap));
+ * bubbles crowd the pills. We reserve the rail's full width plus the minimum gap and the scrollbar
+ * gutter the rail is offset by, but only while the rail surface is mounted (`.prompt-timeline-with-rail`);
+ * header-only keeps the base layout. */
+.agent-sessions-workbench .part.sessionspart .prompt-timeline-host.prompt-timeline-with-rail.interactive-session .interactive-item-container,
+.agent-sessions-workbench .part.sessionspart .prompt-timeline-host.prompt-timeline-with-rail.interactive-session > .chat-suggest-next-widget,
+.agent-sessions-workbench .chat-editor-relative .prompt-timeline-host.prompt-timeline-with-rail.interactive-session .interactive-item-container,
+.agent-sessions-workbench .chat-editor-relative .prompt-timeline-host.prompt-timeline-with-rail.interactive-session > .chat-suggest-next-widget {
+	padding-right: calc(var(--prompt-timeline-rail-width) + var(--prompt-timeline-content-gap) + var(--prompt-timeline-scrollbar-gutter));
 }
 
 .prompt-timeline-rail.hidden {
@@ -47,6 +48,116 @@
 /* Not enough horizontal room next to the transcript: hide the marks but keep the rail laid out so its ResizeObserver can detect it fits again. */
 .prompt-timeline-rail.overflowing .prompt-timeline-ruler-marks {
 	display: none;
+}
+
+/* ---- Sticky prompt header ------------------------------------------------------------------
+ * A flat, opaque band pinned to the top of the transcript (editor "sticky scroll" pattern): it
+ * shares the transcript surface, carries only a hairline bottom border and a soft downward shadow,
+ * and names the prompt currently scrolled off the top. Independent of the rail: `.hidden` (toggled
+ * in JS once a prompt is pinned, alongside the `inert` attribute) drives the reveal, so it also
+ * works in header-only mode. */
+.prompt-timeline-sticky {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	z-index: 9;
+	opacity: 0;
+	transform: translateY(-6px);
+	transition: opacity 140ms ease, transform 140ms ease;
+	pointer-events: none;
+	border-bottom: 1px solid var(--vscode-agentsPanel-border, transparent);
+	background: var(--vscode-agentsPanel-background);
+	box-shadow: 0 6px 6px -6px var(--vscode-widget-shadow, transparent);
+	color: var(--vscode-foreground);
+}
+
+.prompt-timeline-sticky:not(.hidden) {
+	opacity: 1;
+	transform: translateY(0);
+	pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.prompt-timeline-sticky {
+		transition: none;
+		transform: none;
+	}
+}
+
+/* High-contrast themes rely on the explicit contrast border and suppress decorative shadows. */
+.hc-black .prompt-timeline-sticky,
+.hc-light .prompt-timeline-sticky {
+	box-shadow: none;
+}
+
+/* Match the transcript's centered message column (chatView.css: max-width 950, margin auto, 32px inset)
+ * so the pinned prompt aligns with the prompts underneath. The right inset matches the column too:
+ * 32px normally, widened to clear the rail lane when the rail is present. */
+.prompt-timeline-sticky-content {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 30px;
+	box-sizing: border-box;
+	max-width: 950px;
+	margin: 0 auto;
+	padding-left: 32px;
+	padding-right: 32px;
+}
+
+.prompt-timeline-host.prompt-timeline-with-rail .prompt-timeline-sticky-content {
+	padding-right: calc(var(--prompt-timeline-rail-width) + var(--prompt-timeline-content-gap) + var(--prompt-timeline-scrollbar-gutter));
+}
+
+/* The label area names the pinned prompt and opens the prompt picker when activated. */
+.prompt-timeline-sticky-label-button {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 100%;
+	padding: 0;
+	border: none;
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.prompt-timeline-sticky-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+/* The label is the picker target, so underline the prompt text on hover/focus to distinguish it from
+ * the static header. Underline (rather than a background) keeps the text aligned with the prompts below. */
+.prompt-timeline-sticky-label-button:hover .prompt-timeline-sticky-label,
+.prompt-timeline-sticky-label-button:focus-visible .prompt-timeline-sticky-label {
+	text-decoration: underline;
+}
+
+.prompt-timeline-sticky-count {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+	font-variant-numeric: tabular-nums;
+}
+
+/* Hosts the Previous/Next toolbar; the toolbar supplies its own theming and spacing. */
+.prompt-timeline-sticky-nav {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+}
+
+.prompt-timeline-sticky-label-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 /* Interactive hover/focus card: prompt text, clickable diff stat, and files. */
@@ -181,11 +292,38 @@
 	font-variant-numeric: tabular-nums;
 }
 
-/* Overview-ruler style: the session compressed into the rail height like the editor overview ruler. Marks sit in a gutter to the LEFT of the transcript's native scrollbar (via the right inset) so the pills never overlap the slider and the scrollbar stays grabbable. The gutter is set from the real scrollbar width by the contribution; the fallback covers the default 10px slider + a small gap. */
+/* Overview-ruler style: the session compressed into the rail height like the editor overview ruler.
+ * The marks column sits in a gutter just left of the transcript's native scrollbar (which stays
+ * visible and keeps handling scroll and position). At rest the marks are invisible; on engagement
+ * the fisheye "fan" blooms in over the column. */
 .prompt-timeline-ruler-marks {
 	position: absolute;
-	inset: 0 var(--prompt-timeline-scrollbar-gutter, 16px) 0 0;
-	pointer-events: none;
+	inset: 0 0 0 auto;
+	width: 22px;
+	/* The whole column is the hover surface: hovering blooms the fisheye "fan" and lets it follow
+	 * the cursor (see the rail's pointer handlers). */
+	pointer-events: auto;
+	/* The marks stay quiet (invisible) at rest and during gentle scrolling so the transcript reads
+	 * calm — only a deliberate gesture surfaces them: hovering the lane (`:hover`), the fisheye bloom
+	 * on a hard scroll (`.engaged`), or keyboard focus inside the rail (`:focus-within`). */
+	opacity: 0;
+	transition: opacity 200ms ease;
+	z-index: 2;
+}
+
+/* Reveal the marks whenever the timeline is engaged: while scrolling + its linger (`.engaged`, which
+ * also covers reduced-motion where the fan is disabled), while hovering the lane, or whenever keyboard
+ * focus is inside the rail (so tabbing to a mark and "Go to Prompt" always show it). */
+.prompt-timeline-rail.engaged .prompt-timeline-ruler-marks,
+.prompt-timeline-rail:hover .prompt-timeline-ruler-marks,
+.prompt-timeline-rail:focus-within .prompt-timeline-ruler-marks {
+	opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.prompt-timeline-ruler-marks {
+		transition: none;
+	}
 }
 
 /* Each mark is a >=24px hit target positioned at its proportional scroll offset. */
@@ -227,7 +365,26 @@
 	height: 3px;
 	border-radius: 2px;
 	background-color: var(--vscode-scrollbarSlider-background);
-	transition: width 80ms ease, height 80ms ease, background-color 80ms ease;
+	/* `transform` is animated for the fisheye "fan" magnification; keep origin at the transcript
+	 * edge so the bar grows leftward, never across the scrollbar. */
+	transform-origin: right center;
+	transition: transform 90ms ease, width 80ms ease, height 80ms ease, background-color 80ms ease;
+}
+
+/* The mark button carries the fan's neighbour-spread (translateY); transition it so bloom and
+ * collapse both ease. `top` is only transitioned under `.glide` (drift), so this stays independent. */
+.prompt-timeline-ruler-mark {
+	transition: transform 90ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.prompt-timeline-ruler-bar {
+		transition: width 80ms ease, height 80ms ease, background-color 80ms ease;
+	}
+
+	.prompt-timeline-ruler-mark {
+		transition: none;
+	}
 }
 
 /* Two-tone edited signal: a green added segment and a red removed segment, sized by the turn's split. */

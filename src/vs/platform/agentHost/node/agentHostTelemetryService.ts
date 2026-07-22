@@ -6,6 +6,7 @@
 import { hostname, release } from 'os';
 import { Disposable, isDisposable, toDisposable, type DisposableStore } from '../../../base/common/lifecycle.js';
 import { joinPath } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
 import { getDevDeviceId, getMachineId, getSqmMachineId } from '../../../base/node/id.js';
 import { ConfigurationService } from '../../configuration/common/configurationService.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
@@ -13,6 +14,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService, ILoggerService } from '../../log/common/log.js';
 import { NullPolicyService } from '../../policy/common/policy.js';
 import { IProductService } from '../../product/common/productService.js';
+import { IRequestService } from '../../request/common/request.js';
 import { OneDataSystemAppender } from '../../telemetry/node/1dsAppender.js';
 import { resolveCommonProperties } from '../../telemetry/common/commonProperties.js';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../telemetry/common/gdprTypings.js';
@@ -22,7 +24,8 @@ import { TelemetryService } from '../../telemetry/common/telemetryService.js';
 import { getPiiPathsFromEnvironment, isInternalTelemetry, isLoggingOnly, NullTelemetryService, supportsTelemetry, type ITelemetryAppender } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
 import { AgentHostDevDeviceIdEnvKey, AgentHostMachineIdEnvKey, AgentHostSqmIdEnvKey } from '../common/agentHostTelemetryEnv.js';
-import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, TelemetryMeasurements, TelemetryProps } from './agentHostRestrictedTelemetry.js';
+import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from './agentHostRestrictedTelemetry.js';
+import { AgentHostInternalTelemetrySender } from './agentHostMicrosoftTelemetry.js';
 
 export interface IAgentHostTelemetryServiceOptions {
 	readonly environmentService: INativeEnvironmentService;
@@ -32,6 +35,8 @@ export interface IAgentHostTelemetryServiceOptions {
 	readonly logService: ILogService;
 	readonly disposables: DisposableStore;
 	readonly disableTelemetry?: boolean;
+	readonly fetchFn?: typeof globalThis.fetch;
+	readonly requestService?: IRequestService;
 }
 
 export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHostRestrictedTelemetry {
@@ -49,6 +54,7 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 	 * keeping public users off the enhanced pipeline the way the Copilot extension does.
 	 */
 	private _restrictedTelemetryEnabled = false;
+	private _internalTelemetryEnabled = false;
 
 	constructor(
 		private readonly _delegate: ITelemetryService,
@@ -134,11 +140,25 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		this._restricted?.sendEnhancedGHTelemetryEvent(eventName, properties, measurements);
 	}
 
+	sendEnhancedGHTelemetryEventForContext(context: IAgentHostRestrictedTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		if (this.telemetryLevel < TelemetryLevel.USAGE || !context.restrictedTelemetryEnabled) {
+			return;
+		}
+		this._restricted?.sendEnhancedGHTelemetryEventForContext(context, eventName, properties, measurements);
+	}
+
 	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
-		if (this.telemetryLevel < TelemetryLevel.USAGE) {
+		if (this.telemetryLevel < TelemetryLevel.USAGE || !this._internalTelemetryEnabled) {
 			return;
 		}
 		this._restricted?.sendInternalMSFTTelemetryEvent(eventName, properties, measurements);
+	}
+
+	sendInternalMSFTTelemetryEventForContext(context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		if (this.telemetryLevel < TelemetryLevel.USAGE || !context.isInternal) {
+			return;
+		}
+		this._restricted?.sendInternalMSFTTelemetryEventForContext(context, eventName, properties, measurements);
 	}
 
 	setCopilotTrackingId(trackingId: string | undefined): void {
@@ -154,6 +174,11 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		// Mirror onto the sender so the restricted-table writer enforces the same `rt` gate
 		// independently (defense in depth), matching the extension's opted-in-only reporter.
 		this._restricted?.setRestrictedTelemetryEnabled(enabled);
+	}
+
+	setInternalTelemetryContext(context: IAgentHostInternalTelemetryContext | undefined): void {
+		this._internalTelemetryEnabled = context?.isInternal === true;
+		this._restricted?.setInternalTelemetryContext(context);
 	}
 
 	setExperimentProperty(name: string, value: string): void {
@@ -182,6 +207,19 @@ export function isAgentHostTelemetryService(telemetryService: ITelemetryService)
 	return typeof (telemetryService as IAgentHostTelemetryService).updateTelemetryLevel === 'function';
 }
 
+async function resolveCopilotExtensionVersion(environmentService: INativeEnvironmentService, fileService: IFileService, logService: ILogService): Promise<string | undefined> {
+	if (!environmentService.builtinExtensionsPath) {
+		return undefined;
+	}
+	try {
+		const manifest = JSON.parse((await fileService.readFile(joinPath(URI.file(environmentService.builtinExtensionsPath), 'copilot', 'package.json'))).value.toString()) as { version?: unknown };
+		return typeof manifest.version === 'string' ? manifest.version : undefined;
+	} catch (error) {
+		logService.debug(`[agentHostTelemetry] Failed to resolve Copilot extension version: ${error instanceof Error ? error.message : String(error)}`);
+		return undefined;
+	}
+}
+
 export async function createAgentHostTelemetryService(options: IAgentHostTelemetryServiceOptions): Promise<IAgentHostTelemetryService> {
 	const { environmentService, productService, fileService, loggerService, logService, disposables } = options;
 	if (options.disableTelemetry || !loggerService || !supportsTelemetry(productService, environmentService)) {
@@ -195,8 +233,9 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 		disposables.add(new TelemetryLogAppender('', false, loggerService, environmentService, productService)),
 	];
 	const internalTelemetry = isInternalTelemetry(productService, configurationService);
-	if (!isLoggingOnly(productService, environmentService) && productService.aiConfig?.ariaKey) {
-		const collectorAppender = new OneDataSystemAppender(undefined, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
+	const loggingOnly = isLoggingOnly(productService, environmentService);
+	if (!loggingOnly && productService.aiConfig?.ariaKey) {
+		const collectorAppender = new OneDataSystemAppender(options.requestService, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
 		disposables.add(toDisposable(() => { void collectorAppender.flush(); }));
 		appenders.push(collectorAppender);
 	}
@@ -220,7 +259,9 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 		piiPaths: getPiiPathsFromEnvironment(environmentService),
 	}, configurationService, productService);
 
-	const restricted = new AgentHostRestrictedTelemetrySender(commonProperties, logService);
+	const extensionVersion = loggingOnly ? undefined : await resolveCopilotExtensionVersion(environmentService, fileService, logService);
+	const internalSender = loggingOnly ? undefined : disposables.add(new AgentHostInternalTelemetrySender({ requestService: options.requestService, commonProperties, extensionVersion }));
+	const restricted = loggingOnly ? undefined : new AgentHostRestrictedTelemetrySender(commonProperties, logService, undefined, internalSender, options.fetchFn);
 
 	return disposables.add(new AgentHostTelemetryService(telemetryService, restricted));
 }

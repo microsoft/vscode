@@ -53,6 +53,7 @@ import { IMarkdownRendererService } from '../../../../../platform/markdown/brows
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { StaticResourceContextKey } from '../../../../common/contextkeys.js';
@@ -69,13 +70,13 @@ import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../
 import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../common/languageModels.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../chatImageCarouselService.js';
-import { getOrCreateImageThumbnail } from '../chatImageUtils.js';
+import { CHAT_IMAGE_HOVER_THUMBNAIL_MAX_SIZE, getOrCreateImageThumbnail } from '../chatImageUtils.js';
 
 const commonHoverOptions: Partial<IHoverOptions> = {
 	style: HoverStyle.Pointer,
@@ -598,13 +599,48 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 	}
 }
 
-/**
- * Maximum width/height (in pixels) of the downscaled image rendered in the hover
- * preview. The preview is capped at ~350px by CSS, so 768px keeps it crisp on
- * high-DPI displays. The same thumbnail is reused for the pill to avoid decoding
- * and resizing the original bitmap twice.
- */
-const IMAGE_HOVER_THUMBNAIL_MAX_SIZE = 768;
+export function createImageHoverContent(resource: URI | undefined, fullName: string,
+	buffer: ArrayBuffer | Uint8Array,
+	cacheKey: string,
+	onContentsChanged?: () => void,
+	clickHandler?: () => void,
+	onImageUrl?: (url: string, isThumbnail: boolean, image: HTMLImageElement) => void): { readonly element: HTMLElement; readonly disposable: IDisposable } {
+
+	const disposable = new DisposableStore();
+	const hoverElement = dom.$('div.chat-attached-context-hover');
+	const hoverImage = dom.$<HTMLImageElement>('img.chat-attached-context-image', { alt: '' });
+	const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
+	hoverElement.appendChild(imageContainer);
+
+	if (resource) {
+		const urlContainer = clickHandler
+			? dom.$('a.chat-attached-context-url', {}, fullName)
+			: dom.$('div.chat-attached-context-url', {}, fullName);
+		const separator = dom.$('div.chat-attached-context-url-separator');
+		if (clickHandler) {
+			disposable.add(dom.addDisposableListener(urlContainer, 'click', clickHandler));
+		}
+		hoverElement.append(separator, urlContainer);
+	}
+
+	const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+	const previewImageUrl = disposable.add(new MutableDisposable<IDisposable>());
+	const renderPreviewImage = async () => {
+		const thumbnail = await getOrCreateImageThumbnail(cacheKey, data, CHAT_IMAGE_HOVER_THUMBNAIL_MAX_SIZE);
+		if (disposable.isDisposed) {
+			return;
+		}
+		const source = thumbnail ?? new Blob([data as Uint8Array<ArrayBuffer>]);
+		const url = URL.createObjectURL(source);
+		previewImageUrl.value = toDisposable(() => URL.revokeObjectURL(url));
+		hoverImage.onload = () => onContentsChanged?.();
+		hoverImage.src = url;
+		onImageUrl?.(url, !!thumbnail, hoverImage);
+	};
+	void renderPreviewImage();
+
+	return { element: hoverElement, disposable };
+}
 
 function createImageElements(resource: URI | undefined, name: string, fullName: string,
 	element: HTMLElement,
@@ -661,57 +697,31 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			style: HoverStyle.Pointer,
 		}));
 	} else {
-		disposable.add(hoverService.setupDelayedHover(element, {
-			content: hoverElement,
-			style: HoverStyle.Pointer,
-		}));
-
-		const hoverImage = dom.$<HTMLImageElement>('img.chat-attached-context-image', { alt: '' });
-		const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
-		hoverElement.appendChild(imageContainer);
-
-		if (isAutoLanguageModel(currentLanguageModel)) {
-			hoverElement.appendChild(dom.$('div', undefined, localize('chat.autoImageAttachmentHover', "Image support depends on the model selected by Auto.")));
-		}
-
-		if (resource) {
-			const urlContainer = dom.$('a.chat-attached-context-url', {}, omittedState === OmittedState.Partial ? localize('chat.imageAttachmentWarning', "This GIF was partially omitted - current frame will be sent.") : fullName);
-			const separator = dom.$('div.chat-attached-context-url-separator');
-			disposable.add(dom.addDisposableListener(urlContainer, 'click', () => clickHandler()));
-			hoverElement.append(separator, urlContainer);
-		}
-
 		const onImageFailed = () => {
 			// reset to original icon on error or invalid image
 			const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
 			replacePill(pillIcon);
 		};
-
-		const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-
-		// Both the always-visible pill and the hover preview render small. Use one
-		// generated thumbnail for both so the original bytes are decoded and resized
-		// only once, and the UI keeps a small object URL for steady-state rendering.
-		const previewImageUrl = disposable.add(new MutableDisposable<IDisposable>());
-		const renderPreviewImage = async () => {
-			const thumbnail = await getOrCreateImageThumbnail(cacheKey, data, IMAGE_HOVER_THUMBNAIL_MAX_SIZE);
-			if (disposable.isDisposed) {
-				return;
-			}
-			// Fall back to the full-resolution image only if downscaling failed, so
-			// the larger original bytes aren't copied into a Blob in the common case.
-			const source = thumbnail ?? new Blob([data as Uint8Array<ArrayBuffer>]);
-			const url = URL.createObjectURL(source);
-			previewImageUrl.value = toDisposable(() => URL.revokeObjectURL(url));
-			if (thumbnail) {
+		const hoverFullName = omittedState === OmittedState.Partial ? localize('chat.imageAttachmentWarning', "This GIF was partially omitted - current frame will be sent.") : fullName;
+		const hoverContent = createImageHoverContent(resource, hoverFullName, buffer, cacheKey, undefined, resource ? clickHandler : undefined, (url, isThumbnail, hoverImage) => {
+			if (isThumbnail) {
 				const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
 				const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
 				replacePill(pill);
 			}
 			hoverImage.onerror = onImageFailed;
-			hoverImage.src = url;
-		};
-		void renderPreviewImage();
+		});
+		disposable.add(hoverContent.disposable);
+		const hoverElement = hoverContent.element;
+		hoverElement.setAttribute('aria-label', ariaLabel);
+		disposable.add(hoverService.setupDelayedHover(element, {
+			content: hoverElement,
+			style: HoverStyle.Pointer,
+		}));
+
+		if (isAutoLanguageModel(currentLanguageModel)) {
+			hoverElement.appendChild(dom.$('div', undefined, localize('chat.autoImageAttachmentHover', "Image support depends on the model selected by Auto.")));
+		}
 	}
 	return disposable;
 }
@@ -787,20 +797,23 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const attachmentLabel = attachment.fullName ?? attachment.name;
+		const description = correspondingContentReference?.options?.status?.description;
 
-		// Derive icon classes from resourceUri for file/folder icons
-		if (isStringVariableEntry(attachment) && attachment.icon && (ThemeIcon.isFile(attachment.icon) || ThemeIcon.isFolder(attachment.icon)) && attachment.resourceUri) {
-			const fileKind = ThemeIcon.isFolder(attachment.icon) ? FileKind.FOLDER : FileKind.FILE;
-			const iconClasses = getIconClasses(this.modelService, this.languageService, attachment.resourceUri, fileKind);
-			this.label.setLabel(attachmentLabel, correspondingContentReference?.options?.status?.description, { extraClasses: iconClasses });
-		} else {
-			const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
-			this.label.setLabel(withIcon, correspondingContentReference?.options?.status?.description);
+		// Provider-supplied icon path (ThemeIcon | Uri | { light, dark }) for context items
+		const iconPath = (isStringVariableEntry(attachment) || attachment.kind === 'generic') ? attachment.iconPath : undefined;
+
+		this._applyLabel(attachment, attachmentLabel, description, iconPath);
+
+		// A light/dark icon must be reapplied when the color theme changes so the correct uri is used
+		if (iconPath && !ThemeIcon.isThemeIcon(iconPath) && !URI.isUri(iconPath)) {
+			this._register(this.themeService.onDidColorThemeChange(() => this._applyLabel(attachment, attachmentLabel, description, iconPath)));
 		}
+
 		this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment', "Attached context, {0}", attachment.name));
 
 		if (attachment.kind === 'diagnostic') {
@@ -846,6 +859,21 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		if (resource) {
 			this.addResourceOpenHandlers(resource, range);
+		}
+	}
+
+	private _applyLabel(attachment: IChatRequestVariableEntry, attachmentLabel: string, description: string | undefined, iconPath: ChatContextIconPath | undefined): void {
+		if (isStringVariableEntry(attachment) && iconPath && ThemeIcon.isThemeIcon(iconPath) && (ThemeIcon.isFile(iconPath) || ThemeIcon.isFolder(iconPath)) && attachment.resourceUri) {
+			// Derive icon classes from resourceUri for file/folder theme icons
+			const fileKind = ThemeIcon.isFolder(iconPath) ? FileKind.FOLDER : FileKind.FILE;
+			const iconClasses = getIconClasses(this.modelService, this.languageService, attachment.resourceUri, fileKind);
+			this.label.setLabel(attachmentLabel, description, { extraClasses: iconClasses });
+		} else if (iconPath) {
+			const resolvedIcon = resolveChatContextIcon(iconPath, isDark(this.themeService.getColorTheme().type));
+			this.label.setLabel(attachmentLabel, description, { iconPath: resolvedIcon });
+		} else {
+			const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
+			this.label.setLabel(withIcon, description);
 		}
 	}
 

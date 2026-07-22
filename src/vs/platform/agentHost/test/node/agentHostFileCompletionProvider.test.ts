@@ -114,7 +114,7 @@ suite('AgentHostFileCompletionProvider', () => {
 				createdAt: new Date(0).toISOString(),
 				modifiedAt: new Date(0).toISOString(),
 				project: { uri: 'file:///project', displayName: 'Project' },
-				workingDirectory,
+				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			};
 		}
 

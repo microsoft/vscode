@@ -17,7 +17,7 @@ This document covers the shared base and the **local** concrete provider. For th
 Agent host providers implement `IAgentHostSessionsProvider` (defined in sessions core at `src/vs/sessions/common/agentHostSessionsProvider.ts`), which extends `ISessionsProvider` with:
 
 - **Remote connection members** (optional, populated only by remote providers): `connectionStatus`, `remoteAddress`, `connect()`, `disconnect()`, `canConnectOnDemand`.
-- **Dynamic session config**: `onDidChangeSessionConfig`, `getSessionConfig`, `isSessionConfigResolving`, `setSessionConfigValue`, `replaceSessionConfig`, `getSessionConfigCompletions`. These power the per-session configuration picker (isolation, branch, and other host-declared properties resolved live from the backend schema).
+- **Dynamic session config**: `onDidChangeSessionConfig`, `getSessionConfig`, `isSessionConfigResolving`, `setSessionConfigValue`, `replaceSessionConfig`, `getSessionConfigCompletions`. These power the per-session configuration picker (isolation, branch, and other host-declared properties resolved live from the backend schema). When the host reports only read-only `folder` isolation because the workspace has no usable Git repository, the picker omits the isolation control rather than showing a disabled `Folder` label. This availability filter runs before presentation-specific `_shouldRenderProperty` overrides so the mobile-aware picker cannot reintroduce the unavailable control on desktop.
 
 `isAgentHostProvider(provider: ISessionsProvider)` (same file) is a type guard returning `true` for the local and remote agent host providers; `isAgentHostProviderId(providerId: string)` is the id-only variant, `true` for `local-agent-host` and any `agenthost-*` (remote) provider id.
 
@@ -26,6 +26,7 @@ Agent host providers implement `IAgentHostSessionsProvider` (defined in sessions
 Registered by `LocalAgentHostContribution` in `browser/localAgentHost.contribution.ts`:
 
 - **Gated on `chat.agentHost.enabled`** (`AgentHostEnabledSettingId`). If the setting is off the contribution returns early and registers nothing.
+- The local Codex session type is additionally gated directly on `chat.agentHost.codexAgent.enabled`. The Agents window does not register the OpenAI extension's Codex session type, so it has no separate Codex `preferAgentHost` setting.
 - The enablement bit is read once through the sessions-layer `AgentHostEnablementService`; the contribution does not subscribe to config changes.
 - Creates `LocalAgentHostSessionsProvider` via `IInstantiationService` and registers it through `ISessionsProvidersService.registerProvider`.
 - Registers a per-session-type **working-directory resolver** (`IAgentHostSessionWorkingDirectoryResolver`) for each `agent-host-${sessionType.id}` scheme, refreshed on `onDidChangeSessionTypes`.
@@ -71,7 +72,7 @@ A single agent host session uses several distinct identifiers:
 
 `ISession.sessionType` is intentionally the agent name (not the scheme) so a logical type like `copilotcli` covers local agent host, remote agent host, and extension-host Copilot CLI sessions in the filter menu and new-session picker. Routing (`registerChatSessionContentProvider`, model registration) is keyed off the per-provider `resource.scheme` instead.
 
-`getModels(sessionId)` filters registered language models by `session.resource.scheme` (see `getAgentHostModels` in `browser/agentHostModelPicker.ts`); `getModelPickerOptions` returns grouped/featured models with no "Manage Models" action.
+`getModelsSnapshot(sessionId, desiredModelId)` returns the current models for `session.resource.scheme` and reports that scheme as the snapshot's `modelTarget`, which keys the shared remembered-model preference. Its `desiredModelResolution` field reports whether the desired identifier is pending, available, or unavailable based on that scheme's language-model vendor readiness; it reports `notRequested` when no identifier is supplied. `getModelPickerOptions` returns grouped/featured models and whether Auto is supported. Desktop and phone picker surfaces both consume these provider APIs.
 
 ## Architecture
 
@@ -114,8 +115,8 @@ handed and sends through `IChatService`. The agent host plugs into chat through
    hydrates the model from the backend session state (turns → history) and owns
    the request stream.
 2. **`AgentHostLanguageModelProvider`** — publishes language models under
-   `targetChatSessionType` = the same resource scheme so the widget's model
-   picker resolves the right models (see `getAgentHostModels`).
+   `targetChatSessionType` = the same resource scheme so
+   `BaseAgentHostSessionsProvider.getModelsSnapshot` resolves the right models.
 
 End-to-end in the Agents window:
 
@@ -128,6 +129,15 @@ the `IChatSessionContentProvider` for content/send, but **not** on
 `IChatSessionItemController` — that API exists only to feed the classic chat
 sidebar list.
 
+User-input requests are unresolved `InputRequest` response parts on the active
+turn, not a separate chat-level queue. `AgentHostSessionHandler` renders and
+settles the question, plan-review, or URL elicitation directly from that part as
+its `response` and `request.answers` change. Replacing an unresolved request with
+the same id recreates the UI when its structure changes; completed turns restore
+the settled interaction and answers at the part's original stream position.
+Agent implementations decline or cancel requests raised without an active turn
+because there is no response stream in which to represent them.
+
 ## New Session Flow
 
 `createNewSession(workspaceUri, sessionTypeId)`:
@@ -135,6 +145,8 @@ sidebar list.
 1. Resolves the `ISessionType` and validates the workspace (`resolveWorkspace`).
 2. Constructs a `NewSession` draft, stores it in `_newSessions`, and fires `onDidChangeSessionConfig`. New-session model/mode selection is seeded by the existing model/agent pickers and sent on the first message.
 3. If a connection exists and authentication is **not** pending, eagerly starts the backend session and resolves its dynamic config in parallel. While auth is pending the draft waits; `_resumeNewSessionAfterAuthenticationSettles` (driven by the `authenticationPending` observable going false) starts the backend for all pending drafts.
+
+Portable string config picks are remembered in profile storage and seed later drafts. `branch` is deliberately excluded because it is repository-scoped; each new workspace instead gets the default branch for worktree isolation or the current branch for folder isolation from the host's Git-backed config resolution. Branch config and completions use local names such as `main`; when that local name denotes the repository default, worktree creation still uses its remote-tracking ref such as `origin/main` as the start point.
 
 The eager session-state subscription does not compute Git metadata while the host session lifecycle is `Creating`: its initial working directory is the selected checkout, not the final isolated worktree. Materialization publishes the resolved working directory through `notify/sessionAdded` and starts the first Git-state refresh against that path; the later `session/metaChanged` / `notify/sessionSummaryChanged` updates rebuild the adapter workspace with the resolved branch.
 
@@ -180,15 +192,15 @@ The provider ships a rich set of session-scoped UI in `browser/`:
 | `agentHostSessionConfigPicker.ts` | The per-session config picker (isolation, branch, and host-declared dynamic properties) backed by the dynamic-session-config API; includes `media/agentHostSessionConfigPicker.css`. On desktop the `isolation` property renders as a "Worktree" checkbox (checked = worktree, unchecked = folder) instead of a dropdown; the phone layout keeps the chip so it can route to the unified repo sheet. |
 | `agentHostAgentPicker.ts` | Custom-agent picker for a session. |
 | `agentHostModePicker.ts` | Agent mode enum picker (extends a shared `AgentHostSessionEnumPicker`), rendered immediately before approvals in the secondary toolbar for new and active sessions. |
-| `agentHostModelPicker.ts` | `getAgentHostModels` — filters language models by the session resource scheme. |
 | `agentHostClaudePermissionModePicker.ts` | Claude-specific permission-mode picker. |
+| `agentHostCodexApprovalsPicker.ts` | Codex-specific permissions-preset picker with Default Permissions, Auto-Review, and Full Access choices. Its bounded, wrapped action-list layout is shared with the editor composer through `vs/platform/agentHost/browser/codexApprovalsPicker.ts`. |
 | `agentHostPermissionPickerActionItem.ts` / `agentHostPermissionPickerDelegate.ts` | Toolbar action item + delegate for the permission picker. |
 | `agentHostSkillButtons.ts` | Built-in skill toolbar buttons; defines the `sessions.isAgentHostSession` (`IsAgentHostSession`) context key bound to the active session's provider. |
 | `agentHostSessionChangesets.ts` / `agentHostDiffs.ts` | Changeset model and diff conversion (`mapProtocolStatus` maps the protocol status bitset → `SessionStatus`). |
 | `agentHostSessionBranchActions.ts` | Branch-related session actions. |
 | `exportDebugLogsAction.ts` | "Export debug logs" developer action. |
 | `openSessionEventsFileActions.ts` | "Open Copilot CLI State File" — Sessions-app variant resolving the session via `ISessionsManagementService.activeSession`. |
-| `mobile/` | Phone-layout variants: `mobileAgentHostModePicker.ts`, `mobileChatInputConfigPicker.ts`, `mobileChatPhoneInputPresenter.ts`. |
+| `mobile/` | Phone-layout variants: `mobileAgentHostModePicker.ts`, the scoped-model-backed `mobileChatInputConfigPicker.ts`, and the provider-backed `mobileChatPhoneInputPresenter.ts`. |
 
 Skill buttons and the `openSessionEventsFile` action are gated on `IsAgentHostSession` (and `ChatContextKeys.enabled`).
 
@@ -217,4 +229,4 @@ Two synthetic filesystem providers expose JSONC settings editors:
 
 ## Tests
 
-`test/browser/` covers the provider and its pickers: `localAgentHostSessionsProvider.test.ts`, `agentHostAgentPicker.test.ts`, `agentHostAgents.test.ts`, `agentHostModelPicker.test.ts`, `agentHostClaudePermissionModePicker.test.ts`, `agentHostSkillButtons.test.ts`, `agentSessionSettingsFileSystemProvider.test.ts`, `openSessionEventsFile.test.ts`, and `agentHost/agentHostPermissionPickerDelegate.test.ts`.
+`test/browser/` covers the provider and its pickers: `localAgentHostSessionsProvider.test.ts`, `agentHostAgentPicker.test.ts`, `agentHostAgents.test.ts`, `mobileChatPhoneInputTarget.test.ts`, `agentHostClaudePermissionModePicker.test.ts`, `agentHostSkillButtons.test.ts`, `agentSessionSettingsFileSystemProvider.test.ts`, `openSessionEventsFile.test.ts`, and `agentHost/agentHostPermissionPickerDelegate.test.ts`.

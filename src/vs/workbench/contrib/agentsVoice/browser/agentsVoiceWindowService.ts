@@ -148,14 +148,14 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		// expand them via the chevron.
 		const widget = new AgentsVoiceWidget(auxiliaryWindow.container, {
 			copilotIconSrc: FileAccess.asBrowserUri('vs/sessions/browser/media/sessions-icon.svg').toString(true),
-			hideDisconnect: this.configurationService.getValue<boolean>('agents.voice.handsFree') !== false,
+			hideDisconnect: this.configurationService.getValue<boolean>('agents.voice.handsFree') === true,
 			connect: () => {
 				// Connecting from any surface marks onboarding as completed so
 				// the main panel drops it too.
 				this.storageService.store(AgentsVoiceStorageKeys.OnboardingCompleted, true, StorageScope.PROFILE, StorageTarget.USER);
 				this.voiceSessionController.connect(mainWindow);
 			},
-			disconnect: () => this.voiceSessionController.disconnect(),
+			disconnect: () => this.voiceSessionController.disconnect('explicit'),
 			pttDown: () => {
 				if (!this.voiceSessionController.isConnected.get() && !this.voiceSessionController.isConnecting.get()) {
 					this.voiceSessionController.connect(mainWindow).then(() => {
@@ -217,6 +217,11 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		}, {
 			defaultExpanded: false,
 			inputBoxLayout: true,
+			// Make the aux-window container focusable so keyboard Push-to-Talk
+			// (the `agentsVoice.pushToTalk` keybinding) can be received and its
+			// key-release tracking is registered. Without this the keyboard-PTT
+			// handlers are never wired and a held key never stops recording.
+			focusable: true,
 		});
 		this._windowDisposables.add(widget);
 

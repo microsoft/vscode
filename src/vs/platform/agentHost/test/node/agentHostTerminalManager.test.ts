@@ -56,18 +56,42 @@ class TestTerminalDataHandler {
 
 	/** Simulates AgentHostTerminalManager._handlePtyData */
 	handlePtyData(rawData: string): string {
-		const parseResult = this.tracker.parser.parse(rawData);
-		const cleanedData = removeServerHandledTerminalQueries(parseResult.cleanedData, this._terminalQueryFilterState);
+		let cleanedForClient = '';
 
-		for (const event of parseResult.events) {
-			this._handleOsc633Event(event);
+		// Data is dispatched in stream order relative to command events: flush
+		// pending data before handling each event so subscribers observe
+		// CommandExecuted -> data -> CommandFinished exactly like the raw
+		// stream — see _handlePtyData.
+		let pendingClientData = '';
+		const flushClientData = (): void => {
+			if (pendingClientData.length === 0) {
+				return;
+			}
+			this.dispatched.push({
+				type: ActionType.TerminalData,
+				data: pendingClientData,
+			});
+			cleanedForClient += pendingClientData;
+			pendingClientData = '';
+		};
+
+		for (const segment of this.tracker.parser.parseSegments(rawData)) {
+			if (segment.kind === 'event') {
+				flushClientData();
+				this._handleOsc633Event(segment.event);
+				continue;
+			}
+
+			const cleanedData = removeServerHandledTerminalQueries(segment.data, this._terminalQueryFilterState);
+			if (cleanedData.length > 0) {
+				this._appendToContent(cleanedData);
+				pendingClientData += cleanedData;
+			}
 		}
 
-		if (cleanedData.length > 0) {
-			this._appendToContent(cleanedData);
-		}
+		flushClientData();
 
-		return cleanedData;
+		return cleanedForClient;
 	}
 
 	private _handleOsc633Event(event: Osc633Event): void {
@@ -505,7 +529,11 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 
 		assert.strictEqual(cleaned, 'beforemidafter');
 		assert.deepStrictEqual(handler.content, [{ type: 'unclassified', value: 'beforemidafter' }]);
-		assert.strictEqual(handler.dispatched[0].type, ActionType.TerminalCommandDetectionAvailable);
+		assert.deepStrictEqual(handler.dispatched, [
+			{ type: ActionType.TerminalData, data: 'before' },
+			{ type: ActionType.TerminalCommandDetectionAvailable },
+			{ type: ActionType.TerminalData, data: 'midafter' },
+		]);
 	});
 
 	test('TerminalCommandDetectionAvailable is dispatched on first OSC 633', () => {
@@ -680,7 +708,9 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.deepStrictEqual(handler.content, [
 			{ type: 'unclassified', value: data },
 		]);
-		assert.deepStrictEqual(handler.dispatched, []);
+		assert.deepStrictEqual(handler.dispatched, [
+			{ type: ActionType.TerminalData, data },
+		]);
 	});
 
 	test('CommandFinished without active command is ignored', () => {
@@ -706,5 +736,61 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const cmdParts = handler.content.filter(p => p.type === 'command');
 		assert.strictEqual(cmdParts.length, 1);
 		assert.strictEqual(cmdParts[0].type === 'command' && cmdParts[0].output, 'line1\r\nline2\r\nline3\r\n');
+	});
+
+	test('output and CommandFinished arriving in one PTY read are attributed to the command', async () => {
+		// A fast command (e.g. `echo`) frequently emits its output and the
+		// CommandExecuted/CommandFinished markers in a single PTY read. The
+		// output that precedes the CommandFinished marker must be attributed to
+		// the command before the finished event snapshots it, otherwise it is
+		// lost from the command result (regression for the flaky agent-host
+		// sandbox smoke test, where the shell tool returned an empty output).
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+		const uri = 'agenthost-terminal://test/coalesced-command-finished';
+
+		const createTerminal = manager.createTerminal({
+			channel: uri,
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: process.platform === 'win32' ? 'pwsh.exe' : '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData(osc633('A'));
+		await createTerminal;
+
+		const completions: { readonly exitCode: number | undefined; readonly output: string }[] = [];
+		disposables.add(manager.onCommandFinished(uri, event => completions.push({
+			exitCode: event.exitCode,
+			output: event.output,
+		})));
+
+		// Clients rebuild per-command output from the action stream, so the
+		// data must also be DISPATCHED between the executed and finished
+		// actions, not after the whole chunk.
+		const dispatched: { type: string; data?: string }[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			const action = envelope.action;
+			if (action.type === ActionType.TerminalCommandExecuted || action.type === ActionType.TerminalCommandFinished) {
+				dispatched.push({ type: action.type });
+			} else if (action.type === ActionType.TerminalData) {
+				dispatched.push({ type: action.type, data: action.data });
+			}
+		}));
+
+		pty.fireData(`${osc633('C')}hi\r\n${osc633('D;0')}`);
+
+		assert.deepStrictEqual(completions, [{ exitCode: 0, output: 'hi\r\n' }]);
+		assert.deepStrictEqual(dispatched, [
+			{ type: ActionType.TerminalCommandExecuted },
+			{ type: ActionType.TerminalData, data: 'hi\r\n' },
+			{ type: ActionType.TerminalCommandFinished },
+		]);
 	});
 });

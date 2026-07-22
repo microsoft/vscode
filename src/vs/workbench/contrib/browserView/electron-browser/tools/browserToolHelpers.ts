@@ -12,7 +12,7 @@ import { IAgentNetworkFilterService } from '../../../../../platform/networkFilte
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IToolInvocation, IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
-import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { browserViewUrlMatches, BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IRemoteExplorerService } from '../../../../services/remote/common/remoteExplorerService.js';
 import { mapHasAddressLocalhostOrAllInterfaces } from '../../../../services/remote/common/tunnelModel.js';
 import { extractLocalHostUriMetaDataForPortMapping } from '../../../../../platform/tunnel/common/tunnel.js';
@@ -69,6 +69,42 @@ export function formatBrowserEditorList(editorService: IEditorService, editors: 
 		const bullet = (options?.numbered ?? options?.excludeIds) ? `${index + 1}. ` : '- ';
 		return `${indent}${bullet}${id}${title}${displayUrl}${hint}`;
 	}).join('\n');
+}
+
+export function getBrowserPagesContext(
+	editorService: IEditorService,
+	browserViewService: IBrowserViewWorkbenchService,
+	agentNetworkFilterService: IAgentNetworkFilterService,
+	options?: {
+		activeSessionId?: string;
+		canPromptUser?: boolean;
+	},
+): string | undefined {
+	const views = [...browserViewService.getContextualBrowserViews({ activeSessionId: options?.activeSessionId }).values()];
+	const sharedViews = views.filter(view => view.model?.sharingState === BrowserViewSharingState.Shared);
+	const unsharedCount = views.length - sharedViews.length;
+
+	if (sharedViews.length === 0 && unsharedCount === 0) {
+		return undefined;
+	}
+
+	let value: string;
+	if (sharedViews.length > 0) {
+		value = 'The following browser pages are currently shared with you and can be interacted with using the browser tools:';
+		value += '\n' + formatBrowserEditorList(editorService, sharedViews, { agentNetworkFilterService });
+	} else {
+		value = 'No browser pages are currently shared with you.';
+	}
+
+	if (unsharedCount > 0) {
+		value += '\n\n';
+		value += `${unsharedCount} ${unsharedCount === 1 ? 'page is' : 'pages are'} open but not shared.`;
+		value += options?.canPromptUser
+			? `\nUse the 'open_browser_page' tool to open a new page or to help the user share an existing page.`
+			: `\nUse the 'open_browser_page' tool to open a new page.`;
+	}
+
+	return value;
 }
 
 /**
@@ -226,11 +262,6 @@ export function findExistingPagesByHost(
 		activeSessionId?: string;
 	}
 ): BrowserEditorInput[] {
-	const parsed = URL.parse(url);
-	if (!parsed || (parsed.protocol !== 'file:' && !parsed.host)) {
-		return [];
-	}
-
 	const results: BrowserEditorInput[] = [];
 	for (const editor of browserViewService.getContextualBrowserViews({ activeSessionId: options?.activeSessionId }).values()) {
 		if (!(editor instanceof BrowserEditorInput)) {
@@ -239,16 +270,7 @@ export function findExistingPagesByHost(
 		if (options?.sharingState && editor.model?.sharingState !== options.sharingState) {
 			continue;
 		}
-		const editorUrl = URL.parse(editor.url || '');
-		if (
-			options?.includeBlank && (!editor.url || editor.url === 'about:blank') ||
-			editorUrl?.host === parsed.host ||
-			(parsed.protocol === 'file:' && editorUrl?.protocol === 'file:') ||
-			(editorUrl?.host && parsed.host && (
-				editorUrl.host.endsWith('.' + parsed.host) ||
-				parsed.host.endsWith('.' + editorUrl.host)
-			))
-		) {
+		if (browserViewUrlMatches(editor.url, url, options?.includeBlank)) {
 			results.push(editor);
 		}
 	}

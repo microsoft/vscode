@@ -13,12 +13,13 @@ import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registr
 import { ROOT_STATE_URI, type SessionState } from '../../../common/state/sessionState.js';
 import {
 	getActionEnvelope,
+	getAgentHostE2ETestTimeout,
 	isActionNotification,
 	IServerHandle,
 	nextSessionUri,
 	startServer,
 	TestProtocolClient,
-} from './testHelpers.js';
+} from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket - Session Config', function () {
 
@@ -26,7 +27,7 @@ suite('Protocol WebSocket - Session Config', function () {
 	let client: TestProtocolClient;
 
 	suiteSetup(async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
 		server = await startServer();
 	});
 
@@ -97,7 +98,7 @@ suite('Protocol WebSocket - Session Config', function () {
 		await client.call('createSession', {
 			channel: nextSessionUri(),
 			provider: 'mock',
-			workingDirectory: URI.file('/mock/workspace').toString(),
+			workingDirectories: [URI.file('/mock/workspace').toString()],
 			config,
 		});
 
@@ -164,7 +165,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 	});
 
 	test('persisted config values are restored on subscribe after server restart', async function () {
-		this.timeout(30_000);
+		this.timeout(getAgentHostE2ETestTimeout(30_000, 120_000));
 
 		const initialConfig = { isolation: 'worktree', branch: 'main' };
 		const updatedBranch = 'release';
@@ -180,7 +181,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 			await client1.call('createSession', {
 				channel: nextSessionUri(),
 				provider: 'mock',
-				workingDirectory: URI.file('/mock/workspace').toString(),
+				workingDirectories: [URI.file('/mock/workspace').toString()],
 				config: initialConfig,
 			});
 			const addedNotif = await client1.waitForNotification(n =>

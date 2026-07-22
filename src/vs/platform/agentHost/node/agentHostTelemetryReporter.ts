@@ -10,7 +10,7 @@ import { AgentSession } from '../common/agentService.js';
 import type { MessageAttachment, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
-import { multiplexProperties, type IAgentHostRestrictedTelemetry } from './agentHostRestrictedTelemetry.js';
+import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -41,25 +41,32 @@ export type IAgentHostUserMessageSentClassification = {
 };
 
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
+type AgentHostModelSelectionKind = 'default' | 'auto' | 'explicit';
 
 export interface IAgentHostTurnCompletedEvent {
 	provider: string;
 	agentSessionId: string;
+	turnId: string;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
 	model: string | undefined;
+	modelSelectionKind: AgentHostModelSelectionKind;
 	permissionLevel: string | undefined;
+	errorType: string | undefined;
 }
 
 export type IAgentHostTurnCompletedClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the turn within the agent host session.' };
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model identifier selected for the session at turn start (e.g. gemini-3.5-flash).' };
+	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the client used the provider default, Auto, or an explicit model.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
+	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type when the turn fails.' };
 	owner: 'roblourens';
 	comment: 'Tracks agent host turn performance including time to first visible progress and total turn duration.';
 };
@@ -67,11 +74,13 @@ export type IAgentHostTurnCompletedClassification = {
 export interface IAgentHostTurnCompletedReport {
 	provider: string;
 	session: string;
+	turnId: string;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
 	model: string | undefined;
 	permissionLevel: string | undefined;
+	errorType: string | undefined;
 }
 
 export interface IAgentHostToolInvokedReport {
@@ -114,11 +123,30 @@ export interface IAgentHostSkillContentReadReport {
 	pluginVersion: string | undefined;
 }
 
+export type AgentHostRepoInfoResult = 'success' | 'filesChanged' | 'diffTooLarge' | 'noChanges' | 'tooManyChanges' | 'mergeBaseTooOld' | 'virtualFileSystem' | 'tooManyCommits';
+
+export interface IAgentHostRepoInfoReport {
+	telemetryMessageId: string;
+	location: 'begin' | 'end';
+	remoteUrl: string;
+	repoId: string;
+	repoType: 'github' | 'ado';
+	headCommitHash: string;
+	headBranchName: string | undefined;
+	fileRelativePaths: string | undefined;
+	diffsJSON: string | undefined;
+	result: AgentHostRepoInfoResult;
+	isActiveRepository: 'true';
+	workspaceFileCount: number;
+	changedFileCount: number;
+	diffSizeBytes: number;
+}
+
 export interface IAgentHostToolCallStalledEvent {
 	provider: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
-	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolId: string;
 	toolSourceKind: string;
 	stalledTimeMs: number;
@@ -139,7 +167,7 @@ export type IAgentHostToolCallStalledClassification = {
 export interface IAgentHostToolCallStalledReport {
 	provider: string;
 	session: string;
-	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolId: string;
 	toolSourceKind: string;
 	stalledTimeMs: number;
@@ -149,7 +177,7 @@ export interface IAgentHostStalledToolCallCompletedEvent {
 	provider: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
-	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolId: string;
 	toolSourceKind: string;
 	result: ToolInvokedResult;
@@ -174,7 +202,7 @@ export type IAgentHostStalledToolCallCompletedClassification = {
 export interface IAgentHostStalledToolCallCompletedReport {
 	provider: string;
 	session: string;
-	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolId: string;
 	toolSourceKind: string;
 	result: ToolInvokedResult;
@@ -375,16 +403,49 @@ export class AgentHostTelemetryReporter {
 		restricted.sendInternalMSFTTelemetryEvent('skillContentRead', plaintextProps);
 	}
 
+	reportRepoInfo(context: IAgentHostRestrictedTelemetryContext, report: IAgentHostRepoInfoReport): void {
+		const restricted = this._restricted;
+		if (!restricted) {
+			return;
+		}
+		const properties = {
+			remoteUrl: report.remoteUrl,
+			repoId: report.repoId,
+			repoType: report.repoType,
+			headCommitHash: report.headCommitHash,
+			headBranchName: report.headBranchName,
+			fileRelativePaths: report.fileRelativePaths,
+			diffsJSON: report.diffsJSON,
+			result: report.result,
+			isActiveRepository: report.isActiveRepository,
+			location: report.location,
+			telemetryMessageId: report.telemetryMessageId,
+		};
+		const measurements = {
+			workspaceFileCount: report.workspaceFileCount,
+			changedFileCount: report.changedFileCount,
+			diffSizeBytes: report.diffSizeBytes,
+			repoIndex: 0,
+			repoCount: 1,
+		};
+		const { headBranchName: _, fileRelativePaths: _2, ...internalProperties } = properties;
+		restricted.sendEnhancedGHTelemetryEventForContext(context, 'request.repoInfo', multiplexProperties(properties), measurements);
+		restricted.sendInternalMSFTTelemetryEventForContext(context, 'request.repoInfo', multiplexProperties(internalProperties), measurements);
+	}
+
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
+			turnId: report.turnId,
 			timeToFirstProgress: report.timeToFirstProgress,
 			totalTime: report.totalTime,
 			result: report.result,
 			model: report.model,
+			modelSelectionKind: report.model === undefined ? 'default' : report.model === 'auto' ? 'auto' : 'explicit',
 			permissionLevel: report.permissionLevel,
+			errorType: report.errorType,
 		});
 	}
 

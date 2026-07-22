@@ -83,6 +83,23 @@ suite('VisibleSessions', () => {
 		};
 	}
 
+	test('forwards Git availability through visible and resource-override wrappers', () => {
+		const hasGitRepository = observableValue('hasGitRepository', false);
+		const session = { ...stubSession('A'), hasGitRepository };
+		const model = createModel();
+		model.setActive(session);
+		const visible = model.activeSession.get();
+		const resourceOverride = model.updateResourceOfSession(session, URI.parse('test:///override'));
+
+		assert.deepStrictEqual({
+			visible: visible?.hasGitRepository === hasGitRepository,
+			resourceOverride: resourceOverride.hasGitRepository === hasGitRepository,
+		}, {
+			visible: true,
+			resourceOverride: true,
+		});
+	});
+
 	suite('setActive', () => {
 
 		test('opening B after non-sticky A replaces A in place', () => {

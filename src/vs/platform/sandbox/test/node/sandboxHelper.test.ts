@@ -55,6 +55,7 @@ suite('SandboxHelperService', () => {
 			bubblewrapUsable: true,
 			bubblewrapError: undefined,
 			socatInstalled: true,
+			dependencyInstallCommand: undefined,
 		});
 	});
 
@@ -70,6 +71,94 @@ suite('SandboxHelperService', () => {
 			bubblewrapUsable: false,
 			bubblewrapError: 'No permissions to create namespace',
 			socatInstalled: true,
+			dependencyInstallCommand: undefined,
 		});
+	});
+
+	for (const [distributionId, packageManager, expectedCommand] of [
+		['debian', 'apt-get', 'sudo apt-get update && sudo apt-get install -y'],
+		['ubuntu', 'apt', 'sudo apt update && sudo apt install -y'],
+		['fedora', 'dnf', 'sudo dnf install -y'],
+		['centos', 'yum', 'sudo yum install -y'],
+		['arch', 'pacman', 'sudo pacman -S --needed --noconfirm'],
+		['opensuse', 'zypper', 'sudo zypper --non-interactive install'],
+		['alpine', 'apk', 'sudo apk add'],
+	] as const) {
+		test(`detects ${packageManager} for dependency installation`, async () => {
+			const result = await SandboxHelperService.checkSandboxDependenciesWith(
+				async command => command === 'socat' || command === 'sudo' || command === packageManager ? `/usr/bin/${command}` : undefined,
+				true,
+				undefined,
+				async () => ({ distributionIds: [distributionId], isRoot: false }),
+			);
+
+			strictEqual(result?.dependencyInstallCommand, expectedCommand);
+		});
+	}
+
+	test('uses ID_LIKE to detect a derivative distribution', async () => {
+		const result = await SandboxHelperService.checkSandboxDependenciesWith(
+			async command => ['socat', 'sudo', 'dnf'].includes(command) ? `/usr/bin/${command}` : undefined,
+			true,
+			undefined,
+			async () => ({ distributionIds: ['custom-linux', 'fedora'], isRoot: false }),
+		);
+
+		strictEqual(result?.dependencyInstallCommand, 'sudo dnf install -y');
+	});
+
+	test('uses the native package manager when multiple managers are available', async () => {
+		const result = await SandboxHelperService.checkSandboxDependenciesWith(
+			async command => ['socat', 'sudo', 'apt-get', 'pacman'].includes(command) ? `/usr/bin/${command}` : undefined,
+			true,
+			undefined,
+			async () => ({ distributionIds: ['arch'], isRoot: false }),
+		);
+
+		strictEqual(result?.dependencyInstallCommand, 'sudo pacman -S --needed --noconfirm');
+	});
+
+	test('does not use sudo when running as root', async () => {
+		const result = await SandboxHelperService.checkSandboxDependenciesWith(
+			async command => ['socat', 'apk'].includes(command) ? `/usr/bin/${command}` : undefined,
+			true,
+			undefined,
+			async () => ({ distributionIds: ['alpine'], isRoot: true }),
+		);
+
+		strictEqual(result?.dependencyInstallCommand, 'apk add');
+	});
+
+	test('does not use sudo for chained apt-get commands when running as root', async () => {
+		const result = await SandboxHelperService.checkSandboxDependenciesWith(
+			async command => ['socat', 'apt-get'].includes(command) ? `/usr/bin/${command}` : undefined,
+			true,
+			undefined,
+			async () => ({ distributionIds: ['debian'], isRoot: true }),
+		);
+
+		strictEqual(result?.dependencyInstallCommand, 'apt-get update && apt-get install -y');
+	});
+
+	test('does not offer dependency installation to a non-root user without sudo', async () => {
+		const result = await SandboxHelperService.checkSandboxDependenciesWith(
+			async command => ['socat', 'pacman'].includes(command) ? `/usr/bin/${command}` : undefined,
+			true,
+			undefined,
+			async () => ({ distributionIds: ['arch'], isRoot: false }),
+		);
+
+		strictEqual(result?.dependencyInstallCommand, undefined);
+	});
+
+	test('does not offer dependency installation without a supported package manager', async () => {
+		const result = await SandboxHelperService.checkSandboxDependenciesWith(
+			async command => command === 'socat' ? '/usr/bin/socat' : undefined,
+			true,
+			undefined,
+			async () => ({ distributionIds: ['unknown'], isRoot: false }),
+		);
+
+		strictEqual(result?.dependencyInstallCommand, undefined);
 	});
 });

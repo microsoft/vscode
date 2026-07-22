@@ -78,7 +78,7 @@ suite('AgentHostGitStateService', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
-			workingDirectory: options?.workingDirectory,
+			workingDirectories: options?.workingDirectory ? [options.workingDirectory] : undefined,
 		};
 		// `restoreSession` materializes the session in `ready` lifecycle so the
 		// persistence path (which skips `creating` sessions) actually runs.
@@ -113,7 +113,7 @@ suite('AgentHostGitStateService', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date(0).toISOString(),
 				modifiedAt: new Date(0).toISOString(),
-				workingDirectory: 'file:///original',
+				workingDirectories: ['file:///original'],
 			}, { emitNotification: false });
 			h.setGitResult({ branchName: 'feature' });
 

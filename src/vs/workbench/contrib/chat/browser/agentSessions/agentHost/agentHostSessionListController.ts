@@ -136,6 +136,14 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		this._sessionListStore.removeSession(this._provider, rawId);
 	}
 
+	setChatSessionItemArchived(resource: URI, archived: boolean): void {
+		if (resource.scheme !== this._sessionType) {
+			return;
+		}
+
+		this._sessionListStore.setSessionArchived(this._provider, AgentSession.id(resource), archived);
+	}
+
 	async refresh(token: CancellationToken): Promise<void> {
 		// The store fans out a delta during the await when its list changes, which
 		// projects into a change event. When nothing changed (e.g. the store cache
@@ -167,7 +175,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	}
 
 	private _makeItemFromSummary(rawId: string, summary: SessionSummary): IChatSessionItem {
-		const workingDir = typeof summary.workingDirectory === 'string' ? URI.parse(summary.workingDirectory) : summary.workingDirectory;
+		const workingDir = typeof summary.workingDirectories?.[0] === 'string' ? URI.parse(summary.workingDirectories?.[0]) : summary.workingDirectories?.[0];
 		return this._makeItem(rawId, {
 			title: summary.title,
 			status: summary.status,

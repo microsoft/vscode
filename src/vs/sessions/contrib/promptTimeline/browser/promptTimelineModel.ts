@@ -47,6 +47,12 @@ export interface IPromptScrollLayout {
 	readonly marks: readonly { readonly requestId: string; readonly top: number }[];
 	/** Total content height in the estimated space, matching `marks`. */
 	readonly total: number;
+	/** Current scroll offset (px, the transcript's real scroll space) — drives the rail's own scrollbar thumb. */
+	readonly scrollTop: number;
+	/** Full scrollable content height (px, the transcript's real scroll space). */
+	readonly scrollHeight: number;
+	/** Visible viewport height (px) of the transcript list — the scrollbar's `visibleSize`. */
+	readonly viewportHeight: number;
 }
 
 /** A single tick shown on the prompt timeline rail. */
@@ -95,6 +101,9 @@ const MAX_SIGNAL = 60;
 /** Seed pixels-per-signal-unit, used only until a row of that kind has been measured. */
 const PRIOR_PX_PER_UNIT: Record<PromptItemKind, number> = { request: 18, response: 20, other: 40 };
 
+/** Scroll distance (px) a button navigation's landing offset may drift before the pin is treated as scrolled away. */
+const NAV_ANCHOR_TOLERANCE = 4;
+
 /** First non-empty line of a prompt, trimmed and length-capped for previews. */
 function getPromptPreview(text: string): string {
 	const firstLine = text.split('\n').map(l => l.trim()).find(l => l.length > 0) ?? '';
@@ -107,12 +116,11 @@ function promptsEqual(a: readonly PromptItem[], b: readonly PromptItem[]): boole
 		p.requestId === b[i].requestId && p.text === b[i].text && p.timestamp === b[i].timestamp);
 }
 
-/** A user prompt entry (used by the keyboard "Go to Prompt" picker, independent of rail density). */
-export interface PromptEntry {
-	readonly requestId: string;
+/** The prompt currently pinned by the sticky header, with its 1-based position among all prompts. */
+export interface IActivePrompt {
 	readonly text: string;
-	readonly timestamp: number;
-	readonly stat?: PromptDiffStat;
+	readonly index: number;
+	readonly total: number;
 }
 
 /**
@@ -164,6 +172,40 @@ export class PromptTimelineModel extends Disposable {
 	private readonly _activeRequestId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
 	get activeRequestId(): IObservable<string | undefined> { return this._activeRequestId; }
 
+	/** The exact request currently scrolled to the top, unbucketed — drives the sticky header's label/position. */
+	private readonly _activePromptId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
+
+	/** True once the active prompt's own row has scrolled above the viewport top (drives the sticky header). */
+	private readonly _scrollPinned: ISettableObservable<boolean> = observableValue<boolean>(this, false);
+
+	/**
+	 * The prompt the sticky header is pinned to by button navigation, overriding the scroll-derived state.
+	 * Set when Previous/Next is used and cleared once the user scrolls away from where navigation landed
+	 * (see {@link _navAnchorScrollTop}). Needed because navigating to a prompt near the end can't scroll it
+	 * above the fold — the list clamps at its maximum offset — so the scroll-derived pin would drop and hide
+	 * the header (and its Previous button) right after the jump.
+	 */
+	private readonly _navPinnedId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
+	/** The (clamped) scrollTop at which the current navigation landed; scrolling away from it clears {@link _navPinnedId}. */
+	private _navAnchorScrollTop = 0;
+
+	/** Whether the sticky header should be pinned: scrolled off the top, or held there by button navigation. */
+	private readonly _activePinned = derived(this, reader => this._navPinnedId.read(reader) !== undefined || this._scrollPinned.read(reader));
+	get activePinned(): IObservable<boolean> { return this._activePinned; }
+
+	/** The active prompt with its 1-based position among all (unbucketed) prompts, for the sticky header. */
+	private readonly _activePrompt = derived<IActivePrompt | undefined>(this, reader => {
+		// A navigation pin names its target; otherwise the prompt scrolled to the top.
+		const id = this._navPinnedId.read(reader) ?? this._activePromptId.read(reader);
+		if (id === undefined) {
+			return undefined;
+		}
+		const prompts = this._prompts.read(reader);
+		const index = prompts.findIndex(p => p.requestId === id);
+		return index < 0 ? undefined : { text: prompts[index].text, index: index + 1, total: prompts.length };
+	});
+	get activePrompt(): IObservable<IActivePrompt | undefined> { return this._activePrompt; }
+
 	/** Fires when the transcript scroll offset or content height changes (drives the ruler rail). */
 	private readonly _scrollLayoutSignal: IObservableSignal<void> = observableSignal<void>(this);
 	get onDidChangeScrollLayout(): IObservable<void> { return this._scrollLayoutSignal; }
@@ -203,9 +245,10 @@ export class PromptTimelineModel extends Disposable {
 
 	/**
 	 * The prompts' positions for the overview-ruler rail, in an *estimated*
-	 * content space that stays stable while the transcript virtualizes. There is no
-	 * viewport thumb: the native scrollbar is the drag affordance and the active
-	 * mark is the "you-are-here", so the rail never draws a second slider.
+	 * content space that stays stable while the transcript virtualizes. The rail
+	 * draws its own scrollbar thumb from `scrollTop`/`scrollHeight` (the transcript's
+	 * native scrollbar is hidden while the rail is active) so the whole lane is one
+	 * surface: a plain scrollbar that blooms into the prompt fan on engagement.
 	 *
 	 * The chat list's own height model (`getElementTop`/`scrollHeight`) guesses
 	 * every un-rendered row at one flat default height (200px). Real turns are
@@ -231,7 +274,7 @@ export class PromptTimelineModel extends Disposable {
 				marks.push({ requestId: item.id, top: tops[i] });
 			}
 		}
-		return { marks, total };
+		return { marks, total, scrollTop: this.widget.scrollTop, scrollHeight: this.widget.scrollHeight, viewportHeight: this.widget.viewportHeight };
 	}
 
 	/**
@@ -337,7 +380,12 @@ export class PromptTimelineModel extends Disposable {
 		const ticks = this._baseTicks.get();
 		const items = this.widget.viewModel?.getItems();
 		if (!items || ticks.length === 0) {
-			this._activeRequestId.set(undefined, undefined);
+			transaction(tx => {
+				this._navPinnedId.set(undefined, tx);
+				this._activeRequestId.set(undefined, tx);
+				this._activePromptId.set(undefined, tx);
+				this._scrollPinned.set(false, tx);
+			});
 			return;
 		}
 
@@ -345,23 +393,35 @@ export class PromptTimelineModel extends Disposable {
 		// viewport top. Positions come from the list's layout height model, so
 		// off-screen prompts resolve correctly (not just rendered ones).
 		const scrollTop = this.widget.scrollTop;
+		// A button navigation holds the header pinned to its target until the user scrolls away from
+		// where it landed; recompute the scroll-derived state regardless so it is ready to take over.
+		const navPinned = this._navPinnedId.get() !== undefined && Math.abs(scrollTop - this._navAnchorScrollTop) <= NAV_ANCHOR_TOLERANCE;
 		const threshold = 24;
 		let activeRequestId: string | undefined;
 		let activeTimestamp = 0;
+		let activeTop = -1;
 		for (const item of items) {
 			if (isRequestVM(item)) {
 				const top = this.widget.getElementTop(item);
 				if (top !== undefined && top <= scrollTop + threshold) {
 					activeRequestId = item.id;
 					activeTimestamp = item.timestamp;
+					activeTop = top;
 				}
 			}
 		}
 
 		if (activeRequestId === undefined) {
 			// Scrolled above the oldest prompt: the oldest tick is the active one
-			// (the loop advances oldest -> newest as you scroll down).
-			this._activeRequestId.set(ticks.at(0)?.requestId, undefined);
+			// (the loop advances oldest -> newest as you scroll down). Nothing is pinned yet.
+			transaction(tx => {
+				if (!navPinned) {
+					this._navPinnedId.set(undefined, tx);
+				}
+				this._activeRequestId.set(ticks.at(0)?.requestId, tx);
+				this._activePromptId.set(this._prompts.get().at(0)?.requestId, tx);
+				this._scrollPinned.set(false, tx);
+			});
 			return;
 		}
 
@@ -377,19 +437,65 @@ export class PromptTimelineModel extends Disposable {
 				}
 			}
 		}
-		this._activeRequestId.set((activeTick ?? ticks[ticks.length - 1]).requestId, undefined);
+		// Pin the sticky header only once the active prompt's own row has scrolled above the
+		// viewport top; the small epsilon avoids flicker as its top crosses the edge.
+		const pinned = activeTop < scrollTop - 2;
+		transaction(tx => {
+			if (!navPinned) {
+				this._navPinnedId.set(undefined, tx);
+			}
+			this._activeRequestId.set((activeTick ?? ticks[ticks.length - 1]).requestId, tx);
+			// The sticky header names the exact current prompt (unbucketed), not the bucket representative.
+			this._activePromptId.set(activeRequestId, tx);
+			this._scrollPinned.set(pinned, tx);
+		});
 	}
 
-	/** Reveals the request with the given id near the top of the transcript. */
-	reveal(requestId: string): void {
-		const item = this.widget.viewModel?.getItems().find(i => isRequestVM(i) && i.id === requestId);
-		if (item) {
-			this.widget.reveal(item, 0);
+	/**
+	 * Reveals the request with the given id. By default it is aligned to the top of the transcript.
+	 * When `pin` is set, the row *following* the request (its response) is aligned to the top instead,
+	 * leaving the request scrolled just above the viewport so the sticky header keeps it pinned and
+	 * names it — revealing the request itself at the top would land it exactly at the fold, which
+	 * unpins it and hides the header.
+	 */
+	reveal(requestId: string, pin?: boolean): void {
+		const items = this.widget.viewModel?.getItems();
+		const index = items?.findIndex(i => isRequestVM(i) && i.id === requestId) ?? -1;
+		if (items && index >= 0) {
+			const target = pin ? (items[index + 1] ?? items[index]) : items[index];
+			this.widget.reveal(target, 0);
 		}
 		// Normalize to the owning tick's representative id so the active highlight
 		// works even when the id is a mid-bucket prompt (picker).
 		const owningTick = this._baseTicks.get().find(t => t.allRequestIds.includes(requestId));
 		this._activeRequestId.set(owningTick?.requestId ?? requestId, undefined);
+	}
+
+	/**
+	 * Reveal the prompt `delta` positions away from the one the header currently names (`-1` = previous,
+	 * `+1` = next), clamped to the ends of the prompt list. Used by the sticky header's navigation buttons:
+	 * it pins the header to the target (see {@link _navPinnedId}) so the header stays visible and names it
+	 * even when the target is near the end and can't be scrolled above the fold.
+	 */
+	navigate(delta: number): void {
+		const prompts = this._prompts.get();
+		if (prompts.length === 0) {
+			return;
+		}
+		// Step from the prompt the header currently shows (the navigation pin, else the scroll-active one).
+		const id = this._navPinnedId.get() ?? this._activePromptId.get();
+		const current = id ? prompts.findIndex(p => p.requestId === id) : 0;
+		const base = current < 0 ? 0 : current;
+		const target = Math.max(0, Math.min(prompts.length - 1, base + delta));
+		if (target === base) {
+			return;
+		}
+		const targetId = prompts[target].requestId;
+		this.reveal(targetId, true);
+		// Remember where the reveal landed (clamped) so a later user scroll away from it clears the pin,
+		// and pin the header to the target so it survives the bottom-boundary case.
+		this._navAnchorScrollTop = this.widget.scrollTop;
+		this._navPinnedId.set(targetId, undefined);
 	}
 
 	/** The changed files for a tick's prompts, aggregated per file (for the hover card / drill-down). */
@@ -504,19 +610,6 @@ export class PromptTimelineModel extends Disposable {
 		} catch {
 			return false;
 		}
-	}
-
-	/**
-	 * All user prompts (with diff stats where available) for the picker,
-	 * independent of the rail's bucketing. Stats are resolved one-shot, so
-	 * agent-host prompts not currently observed by the rail fall back to their
-	 * timestamp in the picker rather than holding a subscription per prompt.
-	 */
-	getAllPrompts(): readonly PromptEntry[] {
-		return this._prompts.get().map(prompt => {
-			const stat = this._statForRequests([prompt.requestId]);
-			return stat ? { ...prompt, stat } : { ...prompt };
-		});
 	}
 
 	/**

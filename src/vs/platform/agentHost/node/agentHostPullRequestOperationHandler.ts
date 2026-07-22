@@ -104,7 +104,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
 
-		const workingDirectoryStr = sessionState.workingDirectory;
+		const workingDirectoryStr = sessionState.workingDirectories?.[0];
 		if (!workingDirectoryStr) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
@@ -124,12 +124,11 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine current branch for ${workingDirectory}`);
 		}
 
-		const baseBranchName = gitState?.baseBranchName ?? await this._gitService.getDefaultBranch(workingDirectory);
+		const baseBranchName = gitState?.baseBranchName ?? (await this._gitService.getDefaultBranch(workingDirectory))?.name;
 		if (!baseBranchName) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine base branch for ${workingDirectory}`);
 		}
-		// `getDefaultBranch` may return `origin/<branch>` — `pulls` API wants the bare name.
-		const base = baseBranchName.startsWith('origin/') ? baseBranchName.substring('origin/'.length) : baseBranchName;
+		const base = baseBranchName;
 
 		const repoResource = this._gitHubEndpointService.getRepoResource();
 		const authToken = this._agentService.getAuthToken({

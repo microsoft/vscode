@@ -123,6 +123,7 @@ export interface IChatRequestViewModel {
 	readonly modelId?: string;
 	readonly resolvedModelId?: string;
 	readonly timestamp: number;
+	readonly requestTimestamp: number | undefined;
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
 	readonly isSystemInitiated?: boolean;
@@ -187,23 +188,6 @@ export interface IChatReferences {
 export interface IChatWorkingProgress {
 	kind: 'working';
 	content?: IMarkdownString;
-	/**
-	 * When present, the working progress will show elapsed time and token usage.
-	 */
-	state?: IChatWorkingProgressState;
-}
-
-export interface IChatWorkingProgressState {
-	/** The confirmation-adjusted timestamp observable for computing elapsed time */
-	readonly confirmationAdjustedTimestamp: IObservable<number>;
-	/** Observable for tracking completion token count as it arrives */
-	readonly completionTokenCountObs: IObservable<number | undefined>;
-	/** Whether the response is complete (for past-tense display) */
-	readonly isComplete: boolean;
-	/** The completedAt timestamp for completed responses */
-	readonly completedAt?: number;
-	/** Pre-computed elapsed generation time in ms (reliable for restored sessions) */
-	readonly elapsedMs?: number;
 }
 
 
@@ -545,6 +529,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get timestamp() {
 		return this._model.timestamp;
+	}
+
+	get requestTimestamp() {
+		return this._model.requestTimestamp;
 	}
 
 	get pendingKind() {

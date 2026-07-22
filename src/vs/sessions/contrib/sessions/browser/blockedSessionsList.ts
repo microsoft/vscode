@@ -5,16 +5,49 @@
 
 import './media/blockedSessionsList.css';
 import { $, append } from '../../../../base/browser/dom.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Menus } from '../../../browser/menus.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { IApprovedSession, SessionsFlatList } from './views/sessionsList.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { IApprovedSession, ISessionCIFixModel, SessionsFlatList, SessionItemStatusContext } from './views/sessionsList.js';
 import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+
+export const IGNORE_INPUT_NEEDED_COMMAND_ID = 'sessions.blockedSessions.ignoreInputNeeded';
+export const IGNORE_CI_FAILURE_COMMAND_ID = 'sessions.blockedSessions.ignoreCIFailure';
+
+/** Register the actions shown in blocked-session row toolbars. */
+export function registerBlockedSessionsItemActions(): IDisposable {
+	return combinedDisposable(
+		MenuRegistry.appendMenuItem(Menus.BlockedSessionsItem, {
+			command: {
+				id: IGNORE_INPUT_NEEDED_COMMAND_ID,
+				title: localize('ignoreInputNeeded', "Ignore Input Needed"),
+				icon: Codicon.bellSlash,
+			},
+			group: 'navigation',
+			order: 1,
+			when: ContextKeyExpr.equals(SessionItemStatusContext.key, SessionStatus.NeedsInput),
+		}),
+		MenuRegistry.appendMenuItem(Menus.BlockedSessionsItem, {
+			command: {
+				id: IGNORE_CI_FAILURE_COMMAND_ID,
+				title: localize('ignoreCIFailure', "Ignore CI Failure"),
+				icon: Codicon.bellSlash,
+			},
+			group: 'navigation',
+			order: 1,
+			when: ContextKeyExpr.notEquals(SessionItemStatusContext.key, SessionStatus.NeedsInput),
+		}),
+	);
+}
 
 /** Fixed width of the blocked-sessions list, in pixels. */
 const BLOCKED_LIST_WIDTH = 360;
@@ -30,6 +63,10 @@ export interface IBlockedSessionsListOptions {
 	readonly width?: number;
 	/** Approval model forwarded to the underlying list (see {@link ISessionsFlatListOptions.approvalModel}). */
 	readonly approvalModel?: AgentSessionApprovalModel;
+	/** Fix-CI model forwarded to the underlying list (see {@link ISessionsFlatListOptions.ciFixModel}). */
+	readonly ciFixModel?: ISessionCIFixModel;
+	/** Ignores the session's current blocked occurrence. */
+	readonly onIgnoreSession: (session: ISession) => void;
 }
 
 /**
@@ -84,8 +121,19 @@ export class BlockedSessionsList extends Disposable {
 			showSessionHover: true,
 			onSessionOpen: options.onSessionOpen,
 			approvalModel: options.approvalModel,
+			ciFixModel: options.ciFixModel,
 			approvalRowMaxLines: BLOCKED_LIST_APPROVAL_ROW_MAX_LINES,
-			toolbarActions: false,
+			toolbarMenuId: Menus.BlockedSessionsItem,
+			onToolbarAction: (action, session) => {
+				if (action.id !== IGNORE_INPUT_NEEDED_COMMAND_ID && action.id !== IGNORE_CI_FAILURE_COMMAND_ID) {
+					return false;
+				}
+				options.onIgnoreSession(session);
+				status(action.id === IGNORE_INPUT_NEEDED_COMMAND_ID
+					? localize('inputNeededIgnored', "Input needed ignored until this session needs input again.")
+					: localize('ciFailureIgnored', "CI failure ignored until this session has another CI failure."));
+				return true;
+			},
 		}));
 
 		this._register(this._list.onDidChangeContentHeight(() => {

@@ -8,7 +8,7 @@
 
 import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
-import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallState } from '../channels-chat/state.js';
+import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
 import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -73,12 +73,16 @@ export interface SessionMetadata {
 	/** Server-owned project for this session */
 	project?: ProjectInfo;
 	/**
-	 * The default working directory URI for this session. Individual chats
-	 * MAY override via {@link ChatSummary.workingDirectory | their own
-	 * `workingDirectory`}; this field acts as the fallback for any chat that
-	 * does not.
+	 * The working directories the session's agent has tool access to, as
+	 * maintained by the `session/workingDirectorySet` /
+	 * `session/workingDirectoryRemoved` actions. Directories are **equal peers** —
+	 * the session has no primary. Individual chats MAY restrict to a subset via
+	 * {@link ChatSummary.workingDirectories | their own `workingDirectories`} and
+	 * designate one of their own directories as primary (see
+	 * {@link ChatState.primaryWorkingDirectory}); a chat that sets no subset
+	 * operates against this full set.
 	 */
-	workingDirectory?: URI;
+	workingDirectories?: URI[];
 	/**
 	 * Lightweight summary of this session's inline annotations channel
 	 * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
@@ -181,7 +185,7 @@ export interface SessionState extends SessionMetadata {
 	 *
 	 * Clients MAY look for well-known keys here to provide enhanced UI.
 	 * For example, a `git` key may provide extra git metadata about the session's
-	 * workingDirectory.
+	 * working directories.
 	 */
 	_meta?: Record<string, unknown>;
 }
@@ -225,12 +229,14 @@ export interface SessionActiveClient {
  * @category Session Input Types
  */
 export const enum SessionInputRequestKind {
-	/** A user-facing elicitation mirrored from a chat's `inputRequests`. */
+	/** A user-facing elicitation mirrored from an unresolved chat response part. */
 	ChatInput = 'chatInput',
 	/** A tool call awaiting parameter- or result-confirmation. */
 	ToolConfirmation = 'toolConfirmation',
 	/** A running tool the session wants an active client to execute. */
 	ToolClientExecution = 'toolClientExecution',
+	/** A tool call blocked on MCP authentication mid-execution. */
+	ToolAuthentication = 'toolAuthentication',
 }
 
 /**
@@ -256,8 +262,8 @@ interface SessionInputRequestBase {
 }
 
 /**
- * A user-input elicitation surfaced at the session level, mirroring one entry
- * of the owning chat's {@link ChatState.inputRequests}.
+ * A user-input elicitation surfaced at the session level, mirroring the request
+ * from an unresolved {@link InputRequestResponsePart} in the owning chat.
  *
  * Respond by dispatching `chat/inputCompleted` (or syncing drafts with
  * `chat/inputAnswerChanged`) to {@link SessionInputRequestBase.chat | `chat`},
@@ -325,6 +331,31 @@ export interface SessionToolClientExecutionRequest extends SessionInputRequestBa
 }
 
 /**
+ * A tool call blocked on MCP authentication mid-execution, surfaced at the
+ * session level.
+ *
+ * The {@link toolCall} is always a {@link ToolCallAuthRequiredState} (a
+ * {@link ToolCallState} in `auth-required` status). Unlike
+ * {@link SessionToolConfirmationRequest}, this is **not** answered by
+ * dispatching a `chat/*` action directly: the client obtains a token for
+ * {@link ToolCallAuthRequiredState.auth | `toolCall.auth`}`.resource` and
+ * pushes it via the existing `authenticate` command (see
+ * {@link /specification/authentication | Authentication}). The host resumes
+ * the tool call and dispatches `chat/toolCallAuthResolved` once the token is
+ * accepted, at which point it also removes this entry with
+ * `session/inputNeededRemoved`.
+ *
+ * @category Session Input Types
+ */
+export interface SessionToolAuthenticationRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ToolAuthentication;
+	/** The turn the tool call belongs to. */
+	turnId: string;
+	/** The tool call awaiting authentication. */
+	toolCall: ToolCallAuthRequiredState;
+}
+
+/**
  * One outstanding piece of input a session is blocked on, aggregated across all
  * chats in {@link SessionState.inputNeeded}.
  *
@@ -333,15 +364,17 @@ export interface SessionToolClientExecutionRequest extends SessionInputRequestBa
  * to construct the response, so a client can answer by dispatching the ordinary
  * `chat/*` action (`chat/inputCompleted`, `chat/toolCallConfirmed`,
  * `chat/toolCallComplete`, …) to that chat's channel **without having subscribed
- * to the chat**. The host removes the entry with `session/inputNeededRemoved`
- * once the underlying request resolves.
+ * to the chat** — except {@link SessionToolAuthenticationRequest}, which is
+ * resolved via the `authenticate` command instead. The host removes the entry
+ * with `session/inputNeededRemoved` once the underlying request resolves.
  *
  * @category Session Input Types
  */
 export type SessionInputRequest =
 	| SessionChatInputRequest
 	| SessionToolConfirmationRequest
-	| SessionToolClientExecutionRequest;
+	| SessionToolClientExecutionRequest
+	| SessionToolAuthenticationRequest;
 
 /**
  * Server-owned project metadata for a session.
@@ -377,9 +410,9 @@ export interface ProjectInfo {
  *   chat currently driving the promoted status bits when a non-default chat
  *   wins (e.g. the chat that raised `InputNeeded`).
  * - `modifiedAt`: the max of all chats' `modifiedAt`.
- * - `workingDirectory`: the session-level **default**. Individual chats MAY
- *   override via {@link ChatSummary.workingDirectory}; aggregating these up
- *   is meaningless and SHOULD NOT be attempted.
+ * - `workingDirectories`: the session-level set. Individual chats MAY restrict
+ *   to a subset via {@link ChatSummary.workingDirectories}; aggregating these
+ *   up is meaningless and SHOULD NOT be attempted.
  * - `changes`: optional roll-up across all chats. Producers MAY sum the
  *   per-chat changeset stats or report the most expensive chat's stats —
  *   whichever is cheaper for the host to compute.
@@ -1189,6 +1222,70 @@ export interface McpServerReadyState {
 }
 
 /**
+ * A pre-registered OAuth client that clients use instead of dynamic client
+ * registration when resolving an MCP authentication challenge.
+ *
+ * @category MCP Server State
+ */
+export interface McpOAuthClient {
+	/** OAuth client identifier registered with the authorization server. */
+	clientId: string;
+	/**
+	 * OAuth client secret for a confidential client. Absence means the client is
+	 * public and uses a secretless flow such as authorization code with PKCE.
+	 */
+	clientSecret?: string;
+}
+
+/**
+ * Reusable MCP authentication challenge — the RFC 9728 discovery info a
+ * client needs to obtain a token and push it via the `authenticate` command.
+ * Deliberately carries **no token**: this describes what is being asked for,
+ * never the ****** itself.
+ *
+ * Shared by two independent state machines that describe the same OAuth
+ * challenge from different vantage points:
+ *
+ * - {@link McpServerAuthRequiredState} — the MCP server itself cannot serve
+ *   *any* request until the client authenticates.
+ * - {@link ToolCallAuthRequiredState} — a specific in-flight tool call is
+ *   paused pending authentication (typically
+ *   {@link McpAuthRequiredReason.InsufficientScope} step-up auth
+ *   mid-execution). The server state and the tool-call state remain
+ *   separate on purpose: the server saying "I need auth" and a tool
+ *   invocation saying "I am waiting on that auth" are different facts that
+ *   can be true independently.
+ *
+ * @category MCP Server State
+ */
+export interface McpAuthRequirement {
+	/** Why authentication is required. */
+	reason: McpAuthRequiredReason;
+	/**
+	 * Pre-registered OAuth client to use for authorization. When present, clients
+	 * MUST use these credentials instead of dynamic client registration.
+	 */
+	oauthClient?: McpOAuthClient;
+	/**
+	 * RFC 9728 Protected Resource Metadata. The `resource` field is the
+	 * canonical MCP server URI per RFC 8707, used as the OAuth `resource`
+	 * indicator. `authorization_servers` is REQUIRED by the MCP
+	 * authorization spec.
+	 */
+	resource: ProtectedResourceMetadata;
+	/**
+	 * Scopes required for the current challenge, parsed from the
+	 * `WWW-Authenticate: ******"…"` header (or `scopes_supported`
+	 * fallback). Authoritative for the next authorization request — clients
+	 * MUST NOT assume any subset/superset relationship to
+	 * `resource.scopes_supported`.
+	 */
+	requiredScopes?: string[];
+	/** Human-readable hint, typically from the OAuth `error_description`. */
+	description?: string;
+}
+
+/**
  * Server is reachable but cannot serve requests until the client
  * authenticates. Mirrors the discovery flow defined by
  * [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728)
@@ -1213,27 +1310,8 @@ export interface McpServerReadyState {
  *
  * @category MCP Server State
  */
-export interface McpServerAuthRequiredState {
+export interface McpServerAuthRequiredState extends McpAuthRequirement {
 	kind: McpServerStatus.AuthRequired;
-	/** Why authentication is required. */
-	reason: McpAuthRequiredReason;
-	/**
-	 * RFC 9728 Protected Resource Metadata. The `resource` field is the
-	 * canonical MCP server URI per RFC 8707, used as the OAuth `resource`
-	 * indicator. `authorization_servers` is REQUIRED by the MCP
-	 * authorization spec.
-	 */
-	resource: ProtectedResourceMetadata;
-	/**
-	 * Scopes required for the current challenge, parsed from the
-	 * `WWW-Authenticate: Bearer scope="…"` header (or `scopes_supported`
-	 * fallback). Authoritative for the next authorization request — clients
-	 * MUST NOT assume any subset/superset relationship to
-	 * `resource.scopes_supported`.
-	 */
-	requiredScopes?: string[];
-	/** Human-readable hint, typically from the OAuth `error_description`. */
-	description?: string;
 }
 
 /**

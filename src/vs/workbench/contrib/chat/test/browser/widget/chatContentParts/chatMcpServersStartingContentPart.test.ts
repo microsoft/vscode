@@ -32,14 +32,31 @@ suite('ChatMcpServersStartingContentPart', () => {
 			sessionResource: URI.parse('chat-session://test/session1'),
 			servers: servers$,
 		};
-		const part = disposables.add(instantiationService.createInstance(ChatMcpServersStartingContentPart, data));
-		return { part, servers$ };
+		let disposedSpinners = 0;
+		const createSpinner = (parent?: HTMLElement) => {
+			const spinner = document.createElement('span');
+			spinner.classList.add('monaco-pixel-spinner');
+			parent?.appendChild(spinner);
+			return { element: spinner, dispose: () => disposedSpinners++ };
+		};
+		let finishedCount = 0;
+		const part = disposables.add(instantiationService.createInstance(ChatMcpServersStartingContentPart, data, {
+			createSpinner,
+			onDidFinishStarting: () => finishedCount++,
+		}));
+		return { part, servers$, getFinishedCount: () => finishedCount, getDisposedSpinners: () => disposedSpinners };
 	}
 
 	test('reflects the starting servers and hides when empty as the observable updates', () => {
-		const { part, servers$ } = createPart([{ id: 'a', name: 'alpha' }, { id: 'b', name: 'beta' }]);
+		const { part, servers$, getFinishedCount, getDisposedSpinners } = createPart([{ id: 'a', name: 'alpha' }, { id: 'b', name: 'beta' }]);
 
-		const snapshot = () => ({ hidden: part.domNode.style.display === 'none', text: part.domNode.textContent ?? '' });
+		const snapshot = () => ({
+			hidden: part.domNode.style.display === 'none',
+			text: part.domNode.textContent ?? '',
+			hasPixelSpinner: !!part.domNode.querySelector('.monaco-pixel-spinner'),
+			disposedSpinners: getDisposedSpinners(),
+			finishedCount: getFinishedCount(),
+		});
 
 		const initial = snapshot();
 
@@ -50,9 +67,9 @@ suite('ChatMcpServersStartingContentPart', () => {
 		const afterAllFinished = snapshot();
 
 		assert.deepStrictEqual({ initial, afterOneFinished, afterAllFinished }, {
-			initial: { hidden: false, text: 'Starting MCP servers alpha, beta...' },
-			afterOneFinished: { hidden: false, text: 'Starting MCP servers alpha...' },
-			afterAllFinished: { hidden: true, text: '' },
+			initial: { hidden: false, text: 'Starting MCP servers alpha, beta...', hasPixelSpinner: true, disposedSpinners: 0, finishedCount: 0 },
+			afterOneFinished: { hidden: false, text: 'Starting MCP servers alpha...', hasPixelSpinner: true, disposedSpinners: 1, finishedCount: 0 },
+			afterAllFinished: { hidden: true, text: '', hasPixelSpinner: false, disposedSpinners: 2, finishedCount: 1 },
 		});
 	});
 

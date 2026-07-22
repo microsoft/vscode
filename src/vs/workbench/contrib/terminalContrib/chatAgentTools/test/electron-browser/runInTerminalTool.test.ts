@@ -518,6 +518,7 @@ suite('RunInTerminalTool', () => {
 				sandboxConfigPath: '/tmp/sandbox.json',
 				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
 				missingDependencies: ['bubblewrap'],
+				canInstallMissingDependencies: true,
 			};
 
 			const result = await executeToolTest({
@@ -532,6 +533,24 @@ suite('RunInTerminalTool', () => {
 			ok(result?.confirmationMessages?.customOptions?.length === 2, 'Expected two custom options');
 			// missingDependencies should be in toolSpecificData so invoke can handle it
 			strictEqual((result?.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.missingSandboxDependencies?.length, 1);
+		});
+
+		test('should request manual installation when no supported package manager is available', async () => {
+			sandboxEnabled = false;
+			sandboxPrereqResult = {
+				enabled: false,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
+				missingDependencies: ['bubblewrap'],
+				canInstallMissingDependencies: false,
+			};
+
+			const prepared = await executeToolTest({ command: 'echo hello' });
+			const result = await invokeToolTest({ command: 'echo hello' });
+
+			strictEqual(prepared?.confirmationMessages?.customOptions, undefined);
+			ok((result.content[0] as { value?: string }).value?.includes('system package manager'));
+			strictEqual(createTerminalCallCount, 0);
 		});
 
 		test('should show repair choices when bubblewrap is installed but unusable on Linux', async () => {
@@ -568,6 +587,7 @@ suite('RunInTerminalTool', () => {
 					sandboxConfigPath: '/tmp/sandbox.json',
 					failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
 					missingDependencies: ['bubblewrap'],
+					canInstallMissingDependencies: true,
 				};
 			};
 
@@ -576,6 +596,44 @@ suite('RunInTerminalTool', () => {
 			strictEqual(forceRefreshCalled, true, 'Expected dependency installation to force a new prerequisite check');
 			strictEqual(createTerminalCallCount, 1, 'Expected only the installation terminal, not original command execution');
 			ok((result.content[0] as { value?: string }).value?.includes('bubblewrap'), 'Expected result to identify the failed bubblewrap verification');
+		});
+
+		test('should suggest reloading and retrying if the issue persists after sandbox dependency installation', async () => {
+			terminalSandboxService.checkForSandboxingPrereqs = async forceRefresh => forceRefresh
+				? {
+					enabled: true,
+					sandboxConfigPath: '/tmp/sandbox.json',
+					failedCheck: undefined,
+				}
+				: {
+					enabled: true,
+					sandboxConfigPath: '/tmp/sandbox.json',
+					failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
+					missingDependencies: ['bubblewrap', 'socat'],
+					canInstallMissingDependencies: true,
+				};
+
+			const result = await invokeToolTest({ command: 'echo hello' }, 'install');
+
+			strictEqual(createTerminalCallCount, 1, 'Expected only the installation terminal, not original command execution');
+			ok((result.content[0] as { value?: string }).value?.includes('If the issue persists, reload the window and try running the command again'), 'Expected conditional reload and retry guidance');
+		});
+
+		test('should suggest reloading and retrying when bubblewrap remains unavailable after repair', async () => {
+			terminalSandboxService.checkForSandboxingPrereqs = async () => ({
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
+				remediations: [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction],
+			});
+
+			const result = await invokeToolTest(
+				{ command: 'echo hello' },
+				TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction,
+			);
+
+			strictEqual(createTerminalCallCount, 0, 'Expected the original command not to execute');
+			ok((result.content[0] as { value?: string }).value?.includes('Reload the window and try running the command again'), 'Expected reload and retry guidance after unsuccessful repair');
 		});
 
 		test('should not execute when bubblewrap is unusable and no supported remediation is available', async () => {
