@@ -46,6 +46,13 @@ const ROUTE_MAX_CHOICES = 6;
  */
 const ROUTE_AUTOSEND_DELAY_MS = 3000;
 
+/**
+ * How long the "Sent to …" confirmation badge lingers after a matched send
+ * before auto-dismissing. Long enough to register where the request went, short
+ * enough not to get in the way of firing the next one.
+ */
+const SENT_CONFIRMATION_MS = 4000;
+
 /** Workspace-scoped memory of the last routed session, biasing the next turn. */
 const LAST_TARGET_STORAGE_KEY = 'chat.sessionRouting.lastTarget';
 
@@ -339,7 +346,15 @@ export class ChatSessionRoutingController extends Disposable {
 			// Detach the badge (and its listeners) before dispatch so a clear of
 			// the input during send can't re-enter cancel().
 			this._pendingSend.clear();
-			void this._dispatchTo(current, submittedInput, utterance, attachedContext, cts.token);
+			const sent = current;
+			void this._dispatchTo(sent, submittedInput, utterance, attachedContext, cts.token).then(ok => {
+				// Confirm where the request went so an omni surface that can't show
+				// the response inline still gives feedback. Guard on the current
+				// submission so a newer one isn't overwritten.
+				if (ok && sent.kind === 'session' && this._submitCts.value === cts) {
+					this._showSentConfirmation(sent.label, sent.sessionId);
+				}
+			});
 		};
 
 		// Countdown lives in a MutableDisposable so it can be paused while the
@@ -436,6 +451,43 @@ export class ChatSessionRoutingController extends Disposable {
 
 		// Fire the request; the badge stays so the link remains usable.
 		void this._sendToNewSession(sessionResource, submittedInput, utterance, attachedContext, cts.token);
+	}
+
+	/**
+	 * Show a brief "Sent to …" confirmation after a matched send, so an omni
+	 * surface that can't render the response inline still confirms where the
+	 * request went. Offers an "Open" link and auto-dismisses.
+	 */
+	private _showSentConfirmation(label: string, sessionId: string): void {
+		let resource: URI;
+		try {
+			resource = URI.parse(sessionId);
+		} catch {
+			return;
+		}
+
+		const badge = dom.$('.chat-routing-badge');
+		const labelEl = dom.append(badge, dom.$('span.chat-routing-badge-label'));
+		labelEl.textContent = localize('chatSessionRouting.sentTo', "Sent to {0}", label);
+		this.host.placeBadge(badge);
+		if (!badge.parentElement) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		store.add(toDisposable(() => badge.remove()));
+		this._addActionLink(store, badge, localize('chatSessionRouting.open', "Open"), () => void this.chatWidgetService.openSession(resource));
+		this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => this._pendingSend.clear());
+
+		const targetWindow = dom.getWindow(badge);
+		const handle = targetWindow.setTimeout(() => {
+			if (this._pendingSend.value === store) {
+				this._pendingSend.clear();
+			}
+		}, SENT_CONFIRMATION_MS);
+		store.add(toDisposable(() => targetWindow.clearTimeout(handle)));
+
+		this._pendingSend.value = store;
 	}
 
 	/** Append an accessible link-style action to the badge. */
