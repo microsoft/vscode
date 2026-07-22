@@ -96,14 +96,14 @@ describe('resolveSkillConfigLocations', () => {
 		})).toEqual([URI.file('\\\\server\\share\\skills')]);
 	});
 
-	it('preserves remote authority for absolute and tilde paths', () => {
-		const userHome = URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/home/user' });
+	it('uses the remote workspace authority for absolute and tilde paths when user home is local', () => {
 		const result = resolve({
 			configLocations: {
 				'/opt/skills': true,
 				'~/skills': true,
 			},
-			userHome,
+			userHome: URI.file('/home/user'),
+			workspaceFolders: [URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace' })],
 		});
 
 		expect(result.map(uri => uri.toString())).toEqual([

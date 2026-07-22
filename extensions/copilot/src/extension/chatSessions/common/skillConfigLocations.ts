@@ -29,16 +29,19 @@ export function resolveSkillConfigLocations(
 
 	const userHome = envService.userHome;
 	const workspaceFolders = workspaceService.getWorkspaceFolders();
+	const locationRoot = userHome.scheme === Schemas.file
+		? workspaceFolders.find(folder => folder.scheme === Schemas.vscodeRemote) ?? userHome
+		: userHome;
 	for (const key in locations) {
 		const location = key.trim();
 		if (locations[key] !== true) {
 			continue;
 		}
 		if (location.startsWith('~/')) {
-			results.push(URI.joinPath(userHome, location.substring(2)));
+			results.push(URI.joinPath(locationRoot.with({ path: userHome.path }), location.substring(2)));
 		} else if (isAbsolute(location)) {
 			const uri = URI.file(location);
-			results.push(userHome.scheme === Schemas.file ? uri : userHome.with({ path: uri.path }));
+			results.push(locationRoot.scheme === Schemas.file ? uri : locationRoot.with({ path: uri.path }));
 		} else {
 			for (const workspaceFolder of workspaceFolders) {
 				results.push(URI.joinPath(workspaceFolder, location));

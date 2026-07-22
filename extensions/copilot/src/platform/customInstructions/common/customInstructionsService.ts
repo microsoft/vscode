@@ -239,6 +239,9 @@ export class CustomInstructionsService extends Disposable implements ICustomInst
 					const locations = this.configurationService.getNonExtensionConfig<Record<string, boolean>>(SKILLS_LOCATION_KEY);
 					const userHome = this.envService.userHome;
 					const workspaceFolders = this.workspaceService.getWorkspaceFolders();
+					const locationRoot = userHome.scheme === Schemas.file
+						? workspaceFolders.find(folder => folder.scheme === Schemas.vscodeRemote) ?? userHome
+						: userHome;
 					if (isObject(locations)) {
 						for (const key in locations) {
 							const location = key.trim();
@@ -248,10 +251,10 @@ export class CustomInstructionsService extends Disposable implements ICustomInst
 							}
 							// Expand ~/ to user home directory
 							if (location.startsWith('~/')) {
-								configSkillLocationUris.push(Uri.joinPath(userHome, location.substring(2)));
+								configSkillLocationUris.push(Uri.joinPath(locationRoot.with({ path: userHome.path }), location.substring(2)));
 							} else if (isAbsolute(location)) {
 								const uri = URI.file(location);
-								configSkillLocationUris.push(userHome.scheme === Schemas.file ? uri : userHome.with({ path: uri.path }));
+								configSkillLocationUris.push(locationRoot.scheme === Schemas.file ? uri : locationRoot.with({ path: uri.path }));
 							} else {
 								// Relative path - join to each workspace folder
 								for (const workspaceFolder of workspaceFolders) {
