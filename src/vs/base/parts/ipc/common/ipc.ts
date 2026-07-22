@@ -1140,9 +1140,24 @@ export namespace ProxyChannel {
 
 	export interface ICreateServiceChannelOptions extends IProxyOptions { }
 
+	let bufferUsageReporter: ((serviceName: string, eventName: string, bufferedCount: number) => void) | undefined;
+
+	/**
+	 * Sets a process-wide reporter invoked when a {@link fromService} channel flushes buffered events to a
+	 * late-attaching listener, to discover which channels rely on buffering. Pass `undefined` to clear.
+	 */
+	export function setBufferUsageReporter(reporter: ((serviceName: string, eventName: string, bufferedCount: number) => void) | undefined): void {
+		bufferUsageReporter = reporter;
+	}
+
 	export function fromService<TContext>(service: unknown, disposables: DisposableStore, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
 		const handler = service as { [key: string]: unknown };
 		const disableMarshalling = options?.disableMarshalling;
+		const serviceName = (service as { constructor?: { name?: string } })?.constructor?.name ?? 'unknownService';
+
+		const reportBufferUsage = (eventName: string, bufferedCount: number): void => {
+			bufferUsageReporter?.(serviceName, eventName, bufferedCount);
+		};
 
 		// Buffer any event that should be supported by
 		// iterating over all property keys and finding them
@@ -1152,7 +1167,7 @@ export namespace ProxyChannel {
 		const mapEventNameToEvent = new Map<string, Event<unknown>>();
 		for (const key in handler) {
 			if (propertyIsEvent(key)) {
-				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, key, true, undefined, disposables));
+				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, key, true, undefined, disposables, count => reportBufferUsage(key, count)));
 			}
 		}
 
@@ -1171,7 +1186,7 @@ export namespace ProxyChannel {
 					}
 
 					if (propertyIsEvent(event)) {
-						mapEventNameToEvent.set(event, Event.buffer(handler[event] as Event<unknown>, event, true, undefined, disposables));
+						mapEventNameToEvent.set(event, Event.buffer(handler[event] as Event<unknown>, event, true, undefined, disposables, count => reportBufferUsage(event, count)));
 
 						return mapEventNameToEvent.get(event) as Event<T>;
 					}
