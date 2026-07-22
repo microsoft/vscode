@@ -239,6 +239,7 @@ export interface ICommandDetectionCapability {
 	 */
 	getCwdForLine(line: number): string | undefined;
 	getCommandForLine(line: number): ITerminalCommand | ICurrentPartialCommand | undefined;
+	clearCommandsInViewport(): void;
 	handlePromptStart(options?: IHandleCommandOptions): void;
 	handleContinuationStart(): void;
 	handleContinuationEnd(): void;
