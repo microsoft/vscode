@@ -35,6 +35,14 @@ export class ExtensionGalleryManifestService extends Disposable implements IExte
 		super();
 	}
 
+	/**
+	 * The default marketplace is open (no authentication). Authenticated marketplaces are
+	 * handled by the workbench override, which negotiates and returns a resource-scoped token.
+	 */
+	async getAccessToken(): Promise<string | undefined> {
+		return undefined;
+	}
+
 	async getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null> {
 		const extensionsGallery = this.productService.extensionsGallery as ExtensionGalleryConfig | undefined;
 		if (!extensionsGallery?.serviceUrl) {

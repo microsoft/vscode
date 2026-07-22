@@ -30,6 +30,13 @@ export async function request(options: IRequestOptions, token: CancellationToken
 		if (options.disableCache) {
 			fetchInit.cache = 'no-store';
 		}
+		if (options.followRedirects === 0) {
+			// A request may carry a bearer/subject token in its body or headers. Refuse to follow
+			// redirects so `fetch` can't replay it to a (possibly cross-origin) redirect target and
+			// leak it (form-urlencoded bodies are CORS "simple requests", so a 307/308 would resend
+			// the body). An opaque redirect surfaces as status 0, which callers treat as a failure.
+			fetchInit.redirect = 'manual';
+		}
 		const res = await fetch(options.url || '', fetchInit);
 		return {
 			res: {

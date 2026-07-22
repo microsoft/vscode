@@ -22,6 +22,7 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 	override readonly onDidChangeExtensionGalleryManifestStatus = this._onDidChangeExtensionGalleryManifestStatus.event;
 
 	private _extensionGalleryManifest: IExtensionGalleryManifest | null | undefined;
+	private _accessToken: string | undefined;
 	private readonly barrier = new Barrier();
 
 	override get extensionGalleryManifestStatus(): ExtensionGalleryManifestStatus {
@@ -39,7 +40,8 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			call: async (context: any, command: string, args?: any): Promise<any> => {
 				switch (command) {
-					case 'setExtensionGalleryManifest': return Promise.resolve(this.setExtensionGalleryManifest(args[0]));
+					case 'setExtensionGalleryManifest': return Promise.resolve(this.setExtensionGalleryManifest(args[0], args[1]));
+					case 'setAccessToken': return Promise.resolve(this.setAccessToken(args[0]));
 				}
 				throw new Error('Invalid call');
 			}
@@ -51,12 +53,42 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 		return this._extensionGalleryManifest ?? null;
 	}
 
-	private setExtensionGalleryManifest(manifest: IExtensionGalleryManifest | null): void {
+	/**
+	 * Returns the resource-scoped bearer token negotiated by the window process for a
+	 * `[Authorize]`-gated marketplace, or `undefined` for an open marketplace. The token is pushed
+	 * over the channel alongside the manifest (see {@link setExtensionGalleryManifest}); this
+	 * process (shared process / remote server) never negotiates it itself, so protected marketplace
+	 * requests it initiates — extension `getManifest`, VSIX download — would otherwise be anonymous
+	 * and rejected with 401.
+	 */
+	override async getAccessToken(): Promise<string | undefined> {
+		await this.barrier.wait();
+		return this._accessToken;
+	}
+
+	private setExtensionGalleryManifest(manifest: IExtensionGalleryManifest | null, accessToken?: string): void {
 		this.logService.trace(`[Marketplace] Setting manifest ${manifest ? 'available' : 'unavailable'}`);
 		this._extensionGalleryManifest = manifest;
+		// The token is coherent with the manifest: the window sets it before an eligible→Available
+		// transition and clears it on every non-Available transition, so a null manifest always
+		// arrives with an undefined token and a stale token can never outlive its access.
+		this._accessToken = accessToken;
 		this._onDidChangeExtensionGalleryManifest.fire(manifest);
 		this._onDidChangeExtensionGalleryManifestStatus.fire(this.extensionGalleryManifestStatus);
 		this.barrier.open();
+	}
+
+	/**
+	 * Updates only the negotiated bearer token in place, without touching the manifest or firing
+	 * its change events. The window process calls this when it re-negotiates the resource-scoped
+	 * token for an already-Available marketplace (e.g. a GitHub session refresh or a proactive
+	 * pre-expiry refresh): the manifest itself is unchanged, so republishing it would be wrong, but
+	 * this process (shared process / remote server) must still receive the fresh token so its
+	 * protected requests — extension `getManifest`, VSIX download — keep succeeding instead of
+	 * failing with 401 once the previous token expires.
+	 */
+	private setAccessToken(accessToken: string | undefined): void {
+		this._accessToken = accessToken;
 	}
 
 }

@@ -4,29 +4,145 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IHeaders } from '../../../../base/parts/request/common/request.js';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, PRIVATE_MARKETPLACE_SCOPES, CONTEXT_MARKETPLACE_AUTH_PROVIDER, discoverMarketplaceProtectedResource, exchangeMarketplaceResourceToken, IMarketplaceProtectedResource } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 import { resolveMarketplaceHeaders } from '../../../../platform/externalServices/common/marketplace.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../host/browser/host.js';
-import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
+import { AuthenticationSession, IAuthenticationService } from '../../authentication/common/authentication.js';
+
+interface ICachedAccess {
+	authProvider: 'github' | 'microsoft';
+	accountId: string;
+	eligible: boolean;
+	/**
+	 * The `extensions.gallery.serviceUrl` the verdict was computed against. A verdict is scoped
+	 * to a specific marketplace (the eligibility endpoint is discovered per-marketplace), so a
+	 * cache written for one service URL must never be applied after the admin points the client
+	 * at a different marketplace.
+	 */
+	serviceUrl: string;
+}
+
+interface IEligibilityResponse {
+	readonly accountType?: 'Entra' | 'MSA';
+	readonly eligible?: boolean;
+	readonly reason?: string;
+}
+
+type MarketplaceAuthEvent = {
+	authProvider: string;
+	eligible: boolean;
+};
+
+type MarketplaceAuthClassification = {
+	authProvider: {
+		classification: 'SystemMetaData';
+		purpose: 'FeatureInsight';
+		comment: 'The auth provider used (github, microsoft).';
+	};
+	eligible: {
+		classification: 'SystemMetaData';
+		purpose: 'FeatureInsight';
+		isMeasurement: true;
+		comment: 'Whether the user was granted marketplace access.';
+	};
+	owner: 'sandy081';
+	comment: 'Reports marketplace authentication results for enterprise marketplace access.';
+};
+
+/**
+ * Thrown by the service-index (gallery manifest) fetch when the request is rejected for
+ * authentication/authorization reasons (HTTP 401/403). The service index MAY be protected
+ * at the administrator's discretion, so this is kept distinct from transient/network
+ * failures: callers on the Entra path use it to decide whether to prompt for sign-in
+ * (no token was presented) or to treat the identity as denied (a token was rejected),
+ * rather than mislabeling an auth-gated index as "unreachable".
+ */
+class MarketplaceAuthRequiredError extends Error {
+	constructor(
+		readonly statusCode: number,
+		/**
+		 * The raw `WWW-Authenticate` challenge header returned alongside a 401, when present.
+		 * RFC 9728 negotiation reads the `resource_metadata` (and optionally `scope`) parameters
+		 * from this challenge to discover the marketplace's Protected Resource Metadata and the
+		 * resource-scoped token to acquire. Absent on 403 (the identity is refused, not
+		 * un-authenticated) and on servers that omit the header.
+		 */
+		readonly wwwAuthenticate?: string,
+	) {
+		super(`Extension gallery request requires authentication (status ${statusCode}).`);
+	}
+}
+
+/**
+ * Reads a response header case-insensitively. HTTP header names are case-insensitive
+ * (RFC 7230 §3.2) and different transports normalize casing differently (Node lowercases,
+ * others preserve the wire casing), so a fixed-case lookup on `WWW-Authenticate` is unsafe.
+ */
+function getResponseHeader(headers: IHeaders | undefined, name: string): string | undefined {
+	if (!headers) {
+		return undefined;
+	}
+	const lowerName = name.toLowerCase();
+	for (const key of Object.keys(headers)) {
+		if (key.toLowerCase() === lowerName) {
+			const value = headers[key];
+			// A header may be delivered as a single string or, if repeated, an array of values.
+			// RFC 7235 permits multiple challenges in a single `WWW-Authenticate` value, so join
+			// repeated headers with commas to reconstruct the full challenge list for the parser.
+			return Array.isArray(value) ? value.join(', ') : value;
+		}
+	}
+	return undefined;
+}
 
 export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryManifestService implements IExtensionGalleryManifestService {
+
+	private static readonly MICROSOFT_AUTH_SCOPES = PRIVATE_MARKETPLACE_SCOPES;
+	private static readonly CACHED_ACCESS_KEY = 'marketplace.cachedAccess';
+
+	// Proactive-refresh schedule for the negotiated GitHub resource token. The exchanged token
+	// carries an `expires_in`; we re-mint at a fraction of its lifetime so a fresh token is in
+	// place before the current one expires (the marketplace never sees an expired bearer). When
+	// the server omits `expires_in` we fall back to a conservative default lifetime rather than
+	// leaving the token to expire silently.
+	private static readonly GITHUB_TOKEN_REFRESH_FRACTION = 0.75;
+	private static readonly GITHUB_TOKEN_DEFAULT_LIFETIME_SECONDS = 3600;
+	// Small hot-loop floor for the proactive re-mint delay. It is NOT a "typical" refresh interval:
+	// a genuinely short advertised lifetime (e.g. `expires_in: 30`) must refresh at a fraction of
+	// THAT lifetime (before it expires), not be clamped up past the expiry. The floor only stops a
+	// pathological near-zero lifetime from busy-spinning the exchange.
+	private static readonly GITHUB_TOKEN_MIN_REFRESH_MS = 5_000;
+	private static readonly GITHUB_TOKEN_MAX_REFRESH_MS = 6 * 60 * 60 * 1000;
+	// Capped exponential backoff used when a proactive re-mint fails: rather than giving up (which
+	// would wedge the marketplace until a window reload), we keep retrying so the token self-heals
+	// once connectivity/identity is restored.
+	private static readonly GITHUB_TOKEN_RETRY_MIN_MS = 30_000;
+	private static readonly GITHUB_TOKEN_RETRY_MAX_MS = 5 * 60 * 1000;
 
 	private readonly commonHeadersPromise: Promise<IHeaders>;
 	private extensionGalleryManifest: IExtensionGalleryManifest | null = null;
@@ -39,12 +155,51 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	private _onDidChangeExtensionGalleryManifestStatus = this._register(new Emitter<ExtensionGalleryManifestStatus>());
 	override readonly onDidChangeExtensionGalleryManifestStatus = this._onDidChangeExtensionGalleryManifestStatus.event;
 
+	// Monotonic counter used to discard results from superseded validations. Each call to a
+	// `validate` closure captures the current epoch (via ++this.validationEpoch); any async
+	// continuation that later finds the epoch has advanced MUST NOT mutate status/cache/
+	// manifest, because a newer validation (e.g. triggered by sign-out, an account switch, or
+	// a config change) has taken over. This closes a time-of-check/time-of-use window where a
+	// stale in-flight eligibility check could restore access for an account that is no longer
+	// current.
+	private validationEpoch = 0;
+
+	// The resource-scoped bearer token negotiated (RFC 9728) when the marketplace service index
+	// is `[Authorize]`-gated. It is set only when access was actually negotiated via a
+	// `WWW-Authenticate` challenge AND the user is eligible/Available, and is exposed via
+	// `getAccessToken()` so the gallery service can authenticate protected marketplace requests
+	// (extensionquery, asset download). It is cleared whenever access is revoked — every
+	// non-Available transition routes through `update(null, …)`, which resets it — so a stale
+	// token can never survive a sign-out, account switch, or config change.
+	private negotiatedAccessToken: string | undefined;
+
+	// IPC channels to the shared process and (optionally) the remote server. The manifest and the
+	// negotiated resource token are pushed over these so those processes — which never negotiate a
+	// token themselves — can authenticate the protected marketplace requests they initiate
+	// (extension getManifest, VSIX download).
+	private readonly channels: IChannel[] = [];
+
+	// Identity (`provider:session:accountName`) of the account the most recent GitHub validation
+	// resolved, or `undefined` when none. Deliberately excludes volatile fields (token info,
+	// entitlements) so `onDidChangeDefaultAccount` — which also fires on routine same-account data
+	// refreshes — can distinguish a genuine account switch/sign-out (tear down + revalidate) from a
+	// same-account refresh (revalidate in place, no flash, cache preserved).
+	private currentGitHubAccountIdentity: string | undefined;
+
+	// Timer that proactively re-mints the negotiated GitHub resource token before it expires (see
+	// the GITHUB_TOKEN_* constants). Armed on every successful negotiation and re-armed after each
+	// refresh; cleared at the single teardown choke point in `update(null)` so it never outlives an
+	// Available session. `gitHubTokenRefreshBackoffMs` tracks the current retry backoff (0 while
+	// healthy) so a run of failed re-mints escalates its delay up to the retry cap.
+	private readonly gitHubTokenRefreshTimer = this._register(new MutableDisposable<IDisposable>());
+	private gitHubTokenRefreshBackoffMs = 0;
+
 	constructor(
 		@IProductService productService: IProductService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -53,6 +208,8 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IHostService private readonly hostService: IHostService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(productService);
 		this.commonHeadersPromise = resolveMarketplaceHeaders(
@@ -64,23 +221,67 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			storageService,
 			telemetryService);
 
+		// Set the auth provider context key for UX. The Entra (microsoft) path is gated
+		// behind a product flag; when it is off, coerce to the GitHub/default provider so
+		// the UI never advertises Microsoft sign-in.
+		CONTEXT_MARKETPLACE_AUTH_PROVIDER.bindTo(contextKeyService).set(this.getEffectiveAuthProvider());
+
 		const channels = [sharedProcessService.getChannel('extensionGalleryManifest')];
 		const remoteConnection = remoteAgentService.getConnection();
 		if (remoteConnection) {
 			channels.push(remoteConnection.getChannel('extensionGalleryManifest'));
 		}
+		this.channels.push(...channels);
 		const updateChannels = (manifest: IExtensionGalleryManifest | null) => {
 			this.logService.trace(`[Marketplace] Updating channels with manifest ${manifest ? 'available' : 'unavailable'}`);
-			channels.forEach(channel => channel.call('setExtensionGalleryManifest', [manifest]));
+			// Push the negotiated resource token alongside the manifest so the shared process and
+			// remote server (which never negotiate it themselves) can authenticate the protected
+			// marketplace requests they initiate — extension getManifest and VSIX download. The
+			// token is coherent with the manifest here: it is set before the eligible→Available
+			// transition and cleared on every non-Available transition, so a null manifest always
+			// carries an undefined token.
+			this.channels.forEach(channel => channel.call('setExtensionGalleryManifest', [manifest, this.negotiatedAccessToken]));
 		};
-		this.getExtensionGalleryManifest().then(manifest => {
+		// Defer the initial manifest bootstrap to a microtask so this service is fully
+		// constructed and cached in the DI container before it runs. The Entra (microsoft)
+		// access path resolves IAuthenticationService, whose dependency graph transitively
+		// re-enters this service; kicking the bootstrap off synchronously from the
+		// constructor would resolve IAuthenticationService mid-construction and throw
+		// "RECURSIVELY instantiating service 'IAuthenticationService'", corrupting the
+		// container and breaking workbench startup.
+		Promise.resolve().then(() => this.getExtensionGalleryManifest()).then(manifest => {
 			if (this._store.isDisposed) {
 				this.logService.trace('[Marketplace] Store is already disposed, skipping channel initialization');
 				return;
 			}
 			updateChannels(manifest);
 			this._register(this.onDidChangeExtensionGalleryManifest(manifest => updateChannels(manifest)));
+		}).catch(error => {
+			// The deferred bootstrap must never surface as an unhandled rejection — any
+			// failure here already results in an appropriate manifest status, so just log.
+			this.logService.error('[Marketplace] Error during initial gallery manifest bootstrap', error);
 		});
+	}
+
+	/**
+	 * Pushes a freshly re-negotiated resource token to the shared process and remote server WITHOUT
+	 * republishing the (unchanged) manifest. Used by the in-place background refreshes — GitHub
+	 * session rotation and proactive pre-expiry refresh — where the manifest itself does not change
+	 * but those processes must still receive the new token so their protected marketplace requests
+	 * keep succeeding once the previous token expires. The window's own getAccessToken() reads
+	 * this.negotiatedAccessToken directly, so it needs no channel round-trip.
+	 */
+	private updateNegotiatedAccessToken(token: string | undefined): void {
+		this.negotiatedAccessToken = token;
+		this.channels.forEach(channel => channel.call('setAccessToken', [token]));
+	}
+
+	// Lazily resolved to break a service dependency cycle: eager construction of this
+	// service must not pull in IAuthenticationService (-> IExtensionService -> gallery),
+	// so it is resolved on first asynchronous use instead of via constructor injection.
+	private _authenticationService: IAuthenticationService | undefined;
+	private get authenticationService(): IAuthenticationService {
+		return this._authenticationService ??= this.instantiationService.invokeFunction(accessor => accessor.get(IAuthenticationService));
 	}
 
 	private extensionGalleryManifestPromise: Promise<void> | undefined;
@@ -92,42 +293,280 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		return this.extensionGalleryManifest;
 	}
 
+	/**
+	 * Returns the resource-scoped bearer token negotiated for a `[Authorize]`-gated marketplace,
+	 * or `undefined` for an open marketplace. Ensures the manifest resolution has completed first
+	 * so the token reflects the current access state.
+	 */
+	override async getAccessToken(): Promise<string | undefined> {
+		await this.getExtensionGalleryManifest();
+		return this.negotiatedAccessToken;
+	}
+
 	private async doGetExtensionGalleryManifest(): Promise<void> {
 		const defaultServiceUrl = this.productService.extensionsGallery?.serviceUrl;
 		if (!defaultServiceUrl) {
 			return;
 		}
 
+		// Register the configuration listener BEFORE running the initial validation so a
+		// serviceUrl/provider change that lands during a slow startup validation is observed
+		// (it bumps the epoch to supersede the in-flight result and clears the cache) rather
+		// than being missed while we await initialization.
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ExtensionGalleryServiceUrlConfigKey)
+				|| e.affectsConfiguration(ExtensionGalleryAuthProviderConfigKey)) {
+				// Supersede any in-flight background validation for the previous
+				// marketplace/provider so its late-arriving result cannot re-populate the
+				// cache we are about to clear (the restart prompt is dismissable, so the
+				// process may keep running).
+				this.validationEpoch++;
+				this.clearCachedAccess();
+				// The restart prompt is dismissable, so tear down the live marketplace now instead
+				// of leaving the previous config's manifest, negotiated token, and proactive-refresh
+				// timer running against a serviceUrl/provider the admin just abandoned. Routing
+				// through update(null) drops the token and cancels the timer at the single teardown
+				// choke point; the marketplace goes Unavailable until the (pending) restart re-runs
+				// validation for the new config.
+				this.update(null);
+				this.requestRestart();
+			}
+		}));
+
 		const configuredServiceUrl = this.configurationService.getValue<string>(ExtensionGalleryServiceUrlConfigKey);
 		if (configuredServiceUrl) {
 			this.logService.trace('[Marketplace] Private marketplace configured, checking access and fetching manifest', configuredServiceUrl);
-			await this.handleDefaultAccountAccess(configuredServiceUrl);
-			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.handleDefaultAccountAccess(configuredServiceUrl)));
+			await this.initializePrivateMarketplace(configuredServiceUrl);
 		} else {
 			const defaultExtensionGalleryManifest = await super.getExtensionGalleryManifest();
 			this.update(defaultExtensionGalleryManifest);
 		}
-
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (!e.affectsConfiguration(ExtensionGalleryServiceUrlConfigKey)) {
-				return;
-			}
-			this.requestRestart();
-		}));
 	}
 
-	private async handleDefaultAccountAccess(configuredServiceUrl: string): Promise<void> {
-		const account = await this.defaultAccountService.getDefaultAccount();
+	private async initializePrivateMarketplace(configuredServiceUrl: string): Promise<void> {
+		// 1. Resolve the auth strategy FIRST so provider/session change listeners are active
+		//    before we apply any cached verdict. This lets a mid-application account/session
+		//    switch supersede the cache via the validationEpoch guard in applyCachedAccess,
+		//    rather than racing an unguarded cache application. resolveAccessStrategy only
+		//    registers listeners and returns the validate function — it performs no auth calls
+		//    itself, so this reordering does not change when the network is first touched.
+		const validateAccess = await this.resolveAccessStrategy(configuredServiceUrl);
 
-		if (!account) {
-			this.logService.debug('[Marketplace] Enterprise marketplace configured but user not signed in');
-			this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
-		} else if (!this.checkAccess(account)) {
-			this.logService.debug('[Marketplace] User signed in but lacks access to enterprise marketplace');
-			this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
-		} else if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
-			try {
-				const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
+		// 2. Apply cache immediately (epoch-guarded) before awaiting foreground validation.
+		const cached = this.getCachedAccess(configuredServiceUrl);
+		if (cached) {
+			this.logService.debug('[Marketplace] Applying cached access result on startup');
+			await this.applyCachedAccess(cached, configuredServiceUrl, ++this.validationEpoch);
+		}
+
+		// 3. Validate (foreground if no cache, background if cache was applied)
+		if (cached) {
+			validateAccess();
+		} else {
+			await validateAccess();
+		}
+	}
+
+	/**
+	 * Resolves the effective marketplace auth provider, applying the Entra (microsoft)
+	 * product gate. When `product.enableExtensionGalleryEntraAuth` is falsy, a configured
+	 * `microsoft` provider is downgraded to the GitHub/default provider so the Entra path
+	 * stays dormant until the Private Marketplace is publicly released.
+	 */
+	private getEffectiveAuthProvider(): string {
+		const configuredAuthProvider = this.configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey);
+		if (configuredAuthProvider === 'microsoft' && !this.productService.enableExtensionGalleryEntraAuth) {
+			return 'github';
+		}
+		return configuredAuthProvider || 'github';
+	}
+
+	/**
+	 * Resolves the effective auth provider, registers event subscriptions for
+	 * re-validation, and returns a function that validates current access.
+	 *
+	 * When the effective provider is 'microsoft', eligibility discovery and
+	 * validation happen inside {@link handleMicrosoftAccess}. There is deliberately
+	 * NO fallback to GitHub: once an administrator has explicitly configured
+	 * 'microsoft', a server that does not advertise an EligibilityService is treated
+	 * as misconfigured rather than silently downgraded.
+	 */
+	private async resolveAccessStrategy(configuredServiceUrl: string): Promise<() => Promise<void>> {
+		const configuredAuthProvider = this.getEffectiveAuthProvider();
+
+		if (configuredAuthProvider === 'microsoft') {
+			const validate = () => this.handleMicrosoftAccess(configuredServiceUrl, ++this.validationEpoch);
+			this._register(this.authenticationService.onDidChangeSessions(e => {
+				if (e.providerId === 'microsoft') {
+					// Re-validate on any Microsoft session change, but deliberately do NOT clear the
+					// cache or revoke the manifest here. `onDidChangeSessions` also fires on routine
+					// token refreshes for the SAME account, and unconditionally clearing would force
+					// a redundant eligibility round-trip (and a brief manifest flash) on every
+					// refresh. handleMicrosoftAccess resolves the current account and, only when it
+					// actually differs from the cached verdict (or no verdict is cached), revokes the
+					// prior authorization and re-checks eligibility.
+					validate();
+				}
+			}));
+			return validate;
+		}
+
+		// Default: GitHub
+		const validate = () => this.handleGitHubAccess(configuredServiceUrl, ++this.validationEpoch);
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(account => {
+			const newIdentity = account ? WorkbenchExtensionGalleryManifestService.getAccountIdentity(account) : undefined;
+			if (newIdentity !== this.currentGitHubAccountIdentity) {
+				// The account identity actually changed (switch) or disappeared (sign-out): the
+				// previously authorized marketplace no longer applies. Drop its cache and revoke the
+				// manifest before revalidating (see the Microsoft path above) so a transient failure
+				// resolving the new account cannot preserve the old account's `Available` status.
+				this.clearCachedAccess();
+				this.update(null);
+			}
+			// Same identity → only the account DATA changed (token/entitlement refresh). Do NOT flash
+			// the marketplace to Unavailable or drop the cache; just revalidate in place. If the
+			// refreshed entitlements changed eligibility, handleGitHubAccess moves to the right state.
+			validate();
+		}));
+		this._register(this.authenticationService.onDidChangeSessions(e => {
+			if (e.providerId !== 'github' && e.providerId !== 'github-enterprise') {
+				return;
+			}
+			// Auth-enabled GitHub scheme: the marketplace resource token is minted (RFC 8693) from
+			// the GitHub session token, so a session change (refresh, re-consent, sign-out/in) can
+			// leave the previously negotiated token stale. Both the default 'github' provider and the
+			// 'github-enterprise' provider back the default account, so listen to either.
+			if (this.currentStatus === ExtensionGalleryManifestStatus.Available && this.negotiatedAccessToken) {
+				// The marketplace is already live on a gated index. Re-mint the resource token IN
+				// PLACE so a rotated GitHub session token doesn't leave us stuck on a stale token
+				// once it expires. This deliberately bypasses handleGitHubAccess (whose negotiation
+				// is gated on `currentStatus !== Available`) and never re-publishes the manifest (no
+				// view flash) nor tears down access on a failed refresh. Genuine account/entitlement
+				// changes and sign-out arrive via onDidChangeDefaultAccount above, which clears the
+				// cache and revalidates.
+				this.refreshNegotiatedGitHubToken(configuredServiceUrl, ++this.validationEpoch);
+			} else {
+				// Not yet Available (or an open, tokenless index): re-validate. As on the Microsoft
+				// path, do NOT clear the cache or revoke the manifest here — onDidChangeSessions also
+				// fires on routine token refreshes, and unconditionally clearing would force a
+				// redundant negotiation (and a brief manifest flash). handleGitHubAccess re-checks
+				// access and only re-negotiates. (Auth-disabled deployments simply re-confirm the
+				// open index — cheap and harmless.)
+				validate();
+			}
+		}));
+		return validate;
+	}
+
+	// --- GitHub access (existing DefaultAccountService-based check) ---
+
+	private async handleGitHubAccess(configuredServiceUrl: string, epoch: number): Promise<void> {
+		try {
+			const account = await this.defaultAccountService.getDefaultAccount();
+			if (this.validationEpoch !== epoch) {
+				// A newer validation superseded this one while we awaited — discard.
+				return;
+			}
+			// Record the resolved account identity so onDidChangeDefaultAccount can tell a genuine
+			// switch/sign-out from a same-account data refresh. Set before branching so it is
+			// captured even when we no-op below (already Available).
+			this.currentGitHubAccountIdentity = account ? WorkbenchExtensionGalleryManifestService.getAccountIdentity(account) : undefined;
+			const eligibility = account ? this.checkAccess(account) : 'ineligible';
+			if (!account) {
+				// Auth service responded: no account → invalidate cache
+				this.clearCachedAccess();
+				this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+			} else if (eligibility === 'ineligible') {
+				// Auth service responded: account exists but ineligible → cache the result
+				this.cacheAccess({ authProvider: 'github', accountId: account.accountName, eligible: false, serviceUrl: configuredServiceUrl });
+				this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
+			} else if (eligibility === 'unknown') {
+				// The account is signed in but we could NOT determine SKU eligibility — the
+				// entitlements endpoint was unreachable, returned an indeterminate response, or
+				// returned a 401/404 (token expired/revoked, or the account lacks the scope to query
+				// it). None of these is a definitive "ineligible" verdict. Never turn a
+				// transient/indeterminate condition into a cached denial, and never tear down a
+				// marketplace that is already Available; only surface a retryable "unreachable"
+				// message otherwise.
+				if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
+					this.update(null, ExtensionGalleryManifestStatus.Unreachable);
+				}
+			} else if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
+				// The account is eligible (client-side `checkAccess`). Fetch the service index. If
+				// the marketplace's index is `[Authorize]`-gated (RFC 9728 `401`), negotiate a
+				// resource-scoped token by exchanging the user's existing GitHub session token at
+				// the marketplace's advertised authorization server (RFC 8693), then retry the
+				// index presenting that token.
+				//
+				// Unlike the Entra scheme, GitHub deployments render NO server-side eligibility
+				// verdict — there is no `/eligibility` POST and the `EligibilityService` resource is
+				// absent from a GitHub-scheme service index. Access is decided entirely by the
+				// `checkAccess` gate above; the server-side token merely authenticates the API.
+				const subjectToken = await this.resolveGitHubSubjectToken(account);
+				if (this.validationEpoch !== epoch) {
+					return;
+				}
+				let manifest: IExtensionGalleryManifest;
+				let indexToken: string | undefined;
+				let indexWasNegotiated = false;
+				let indexExpiresInSeconds: number | undefined;
+				try {
+					const negotiated = await this.fetchServiceIndexNegotiated(
+						configuredServiceUrl,
+						// Probe the index anonymously first: a default (auth-disabled) GitHub
+						// deployment serves an open index and needs no token. Only a gated index
+						// (`401`) triggers the token exchange below.
+						undefined,
+						protectedResource => this.acquireGitHubResourceToken(configuredServiceUrl, protectedResource, subjectToken, () => this.validationEpoch === epoch),
+						() => this.validationEpoch === epoch,
+					);
+					manifest = negotiated.manifest;
+					indexToken = negotiated.token;
+					indexWasNegotiated = negotiated.negotiated;
+					indexExpiresInSeconds = negotiated.expiresInSeconds;
+				} catch (error) {
+					if (this.validationEpoch !== epoch) {
+						return;
+					}
+					if (error instanceof MarketplaceAuthRequiredError) {
+						if (error.statusCode === 403) {
+							// 403: the token is accepted but this identity is forbidden from reading
+							// the service index — a durable denial. Cache it so we don't re-probe.
+							this.cacheAccess({ authProvider: 'github', accountId: account.accountName, eligible: false, serviceUrl: configuredServiceUrl });
+							this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
+						} else {
+							// 401: no token could satisfy the gated index (no GitHub session, the
+							// token exchange could not complete, or the minted token was rejected).
+							// This is NOT a durable "ineligible" verdict — re-authentication may fix
+							// it — so do not cache a negative result; ask the user to (re-)sign in.
+							this.clearCachedAccess();
+							this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+						}
+						return;
+					}
+					// Eligible, but the marketplace manifest could not be fetched — the marketplace
+					// is currently unreachable. Preserve cache; surface a message. (We are already
+					// inside the `currentStatus !== Available` branch, so no extra guard is needed.)
+					this.logService.error('[Marketplace] Failed to fetch gallery manifest (GitHub path)', error);
+					this.update(null, ExtensionGalleryManifestStatus.Unreachable);
+					return;
+				}
+				if (this.validationEpoch !== epoch) {
+					return;
+				}
+				this.cacheAccess({ authProvider: 'github', accountId: account.accountName, eligible: true, serviceUrl: configuredServiceUrl });
+				// The index was gated and we negotiated a resource-scoped token for it: expose that
+				// token (via getAccessToken) for protected marketplace API requests. On the open-
+				// index path (indexWasNegotiated === false) the marketplace needs no bearer, so
+				// leave the token cleared. Any later non-Available transition routes through
+				// update(null, …) and clears it.
+				if (indexWasNegotiated && indexToken) {
+					this.negotiatedAccessToken = indexToken;
+					// Proactively re-mint the resource token before it expires so the marketplace is
+					// never wedged by a silently expired bearer. A failed re-mint self-heals via a
+					// capped-backoff retry (no window reload needed).
+					this.scheduleGitHubTokenRefresh(configuredServiceUrl, indexExpiresInSeconds);
+				}
 				this.update(manifest);
 				this.telemetryService.publicLog2<
 					{},
@@ -135,15 +574,854 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 						owner: 'sandy081';
 						comment: 'Reports when a user successfully accesses a custom marketplace';
 					}>('galleryservice:custom:marketplace');
-			} catch (error) {
-				this.logService.error('[Marketplace] Error retrieving enterprise gallery manifest', error);
-				this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
+			}
+		} catch (error) {
+			if (this.validationEpoch !== epoch) {
+				return;
+			}
+			this.logService.error('[Marketplace] Error in GitHub access check', error);
+			// Network/transient error resolving the account — never invalidate cache. Unless we
+			// already have a working manifest to keep showing, surface an "unreachable" message so
+			// a configured marketplace isn't left on a blank (Unavailable) view with no explanation.
+			if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
+				this.update(null, ExtensionGalleryManifestStatus.Unreachable);
 			}
 		}
 	}
 
+	/**
+	 * Re-mints the resource-scoped marketplace token for the GitHub scheme WITHOUT disturbing an
+	 * already-`Available` marketplace. Invoked when a GitHub session change fires while access is
+	 * live: the resource token is derived (RFC 8693) from the GitHub session token, so a rotated
+	 * subject token can leave the previously negotiated token stale. Unlike {@link handleGitHubAccess}
+	 * this never re-publishes the manifest (avoiding a view flash) and never tears down access on a
+	 * failed refresh — the existing token may still be valid, and a transient refresh failure must
+	 * not break a working marketplace. Fully epoch-guarded so a concurrent sign-out/account-switch
+	 * (which routes through the account listener) wins. Sign-out and entitlement changes are handled
+	 * by onDidChangeDefaultAccount, so a now-ineligible/absent account simply skips the refresh here.
+	 */
+	private async refreshNegotiatedGitHubToken(configuredServiceUrl: string, epoch: number): Promise<void> {
+		try {
+			const account = await this.defaultAccountService.getDefaultAccount();
+			if (this.validationEpoch !== epoch) {
+				// Superseded by a concurrent validation (session/account/config change); it now owns
+				// the refresh schedule, so leave the timer to that owner.
+				return;
+			}
+			if (!account || this.checkAccess(account) !== 'eligible') {
+				// Still our epoch, but the account is transiently absent or its entitlements are
+				// indeterminate (`checkAccess` -> 'unknown'). Sign-out and durable ineligibility are
+				// driven by onDidChangeDefaultAccount; treat this as a soft blip and re-arm on the
+				// backoff (while access is still live) rather than dropping the fired one-shot timer
+				// and letting the token silently expire.
+				this.rearmGitHubTokenRefreshAfterFailureIfLive(configuredServiceUrl, epoch);
+				return;
+			}
+			const subjectToken = await this.resolveGitHubSubjectToken(account);
+			if (this.validationEpoch !== epoch) {
+				return;
+			}
+			const negotiated = await this.fetchServiceIndexNegotiated(
+				configuredServiceUrl,
+				undefined,
+				protectedResource => this.acquireGitHubResourceToken(configuredServiceUrl, protectedResource, subjectToken, () => this.validationEpoch === epoch),
+				() => this.validationEpoch === epoch,
+			);
+			if (this.validationEpoch !== epoch) {
+				return;
+			}
+			// Only adopt a freshly negotiated (gated-index) token; on an open index there is nothing
+			// to refresh. A failed refresh throws and is handled below, leaving the current token
+			// intact.
+			if (negotiated.negotiated && negotiated.token) {
+				this.updateNegotiatedAccessToken(negotiated.token);
+				// Success: reset the failure backoff and schedule the next proactive re-mint from
+				// the freshly advertised lifetime.
+				this.scheduleGitHubTokenRefresh(configuredServiceUrl, negotiated.expiresInSeconds);
+			} else {
+				// The index no longer negotiates a token (e.g. an admin reopened a previously gated
+				// index): drop the now-stale resource token — clearing it also propagates the removal
+				// to the shared process — and stop the proactive schedule, since an open index needs
+				// no bearer.
+				this.updateNegotiatedAccessToken(undefined);
+			}
+		} catch (error) {
+			// A failed background token refresh must NOT break a working marketplace — keep the
+			// current token/status and re-arm on the capped backoff so the re-mint self-heals once
+			// connectivity/identity is restored (guarded to the still-live case).
+			this.logService.trace('[Marketplace] Background refresh of the negotiated GitHub marketplace token failed; will retry', error);
+			this.rearmGitHubTokenRefreshAfterFailureIfLive(configuredServiceUrl, epoch);
+		}
+	}
+
+	/**
+	 * Schedules the next PROACTIVE re-mint of the negotiated GitHub resource token, timed at a
+	 * fraction ({@link GITHUB_TOKEN_REFRESH_FRACTION}) of the token's advertised lifetime so a fresh
+	 * token is in place before the current one expires. Resets the failure backoff — this is the
+	 * healthy path. When the server omits `expires_in`, a conservative default lifetime is used so
+	 * the token is still refreshed rather than left to expire silently. Replacing the
+	 * {@link MutableDisposable} value disposes any previously armed timer.
+	 */
+	private scheduleGitHubTokenRefresh(configuredServiceUrl: string, expiresInSeconds: number | undefined): void {
+		this.gitHubTokenRefreshBackoffMs = 0;
+		this.armGitHubTokenRefresh(configuredServiceUrl, WorkbenchExtensionGalleryManifestService.computeRefreshDelay(expiresInSeconds));
+	}
+
+	/**
+	 * Computes the proactive re-mint delay from the token's advertised lifetime, distinguishing an
+	 * ABSENT lifetime from a PRESENT-but-invalid one:
+	 * - `expires_in` omitted (`undefined`) → the server didn't say; assume a conservative default
+	 *   lifetime and refresh at {@link GITHUB_TOKEN_REFRESH_FRACTION} of it.
+	 * - `expires_in` present and a finite positive number → refresh at that fraction of it (a short
+	 *   lifetime therefore refreshes SOON, before it expires — it is not clamped up past expiry).
+	 * - `expires_in` present but non-positive or non-finite → the advertised token is already
+	 *   expired/bogus; refresh almost immediately (the small hot-loop floor) rather than trusting a
+	 *   full default hour.
+	 * The result is clamped to [{@link GITHUB_TOKEN_MIN_REFRESH_MS}, {@link GITHUB_TOKEN_MAX_REFRESH_MS}].
+	 */
+	private static computeRefreshDelay(expiresInSeconds: number | undefined): number {
+		let lifetimeMs: number;
+		if (expiresInSeconds === undefined) {
+			lifetimeMs = WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_DEFAULT_LIFETIME_SECONDS * 1000;
+		} else if (Number.isFinite(expiresInSeconds) && expiresInSeconds > 0) {
+			lifetimeMs = expiresInSeconds * 1000;
+		} else {
+			lifetimeMs = 0;
+		}
+		return Math.min(
+			WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_MAX_REFRESH_MS,
+			Math.max(
+				WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_MIN_REFRESH_MS,
+				Math.floor(lifetimeMs * WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_REFRESH_FRACTION),
+			),
+		);
+	}
+
+	/**
+	 * Re-arms the proactive refresh after a failed re-mint using a capped exponential backoff
+	 * (30s → doubling → 5m), so a transient outage or a briefly-unavailable identity keeps being
+	 * retried instead of permanently wedging the marketplace.
+	 */
+	private rearmGitHubTokenRefreshAfterFailure(configuredServiceUrl: string): void {
+		const next = this.gitHubTokenRefreshBackoffMs === 0
+			? WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_RETRY_MIN_MS
+			: Math.min(this.gitHubTokenRefreshBackoffMs * 2, WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_RETRY_MAX_MS);
+		this.gitHubTokenRefreshBackoffMs = next;
+		this.armGitHubTokenRefresh(configuredServiceUrl, next);
+	}
+
+	/**
+	 * Re-arms the proactive refresh backoff after a SOFT failure (a transient identity/entitlement
+	 * blip or a failed re-mint) but ONLY while this validation still owns a live, token-backed
+	 * marketplace: the epoch is unchanged (a concurrent sign-out/account switch bumps it and disposes
+	 * the timer via `update(null)`, and must win), the marketplace is still `Available`, and a
+	 * negotiated token is still present (an open index / torn-down state needs no refresh). This is
+	 * what keeps a fired one-shot timer from being silently dropped while access is still live.
+	 */
+	private rearmGitHubTokenRefreshAfterFailureIfLive(configuredServiceUrl: string, epoch: number): void {
+		if (this.validationEpoch === epoch
+			&& this.currentStatus === ExtensionGalleryManifestStatus.Available
+			&& this.negotiatedAccessToken) {
+			this.rearmGitHubTokenRefreshAfterFailure(configuredServiceUrl);
+		}
+	}
+
+	/**
+	 * Arms the single proactive-refresh timer. The timer fires with a freshly bumped validation
+	 * epoch (matching the reactive session-change refresh) so a concurrent stale validation is
+	 * superseded; a sign-out/account switch that clears access first will have disposed this timer
+	 * via `update(null)`.
+	 */
+	private armGitHubTokenRefresh(configuredServiceUrl: string, delayMs: number): void {
+		this.gitHubTokenRefreshTimer.value = this.scheduleGitHubTokenRefreshTimeout(
+			() => this.refreshNegotiatedGitHubToken(configuredServiceUrl, ++this.validationEpoch),
+			delayMs,
+		);
+	}
+
+	/**
+	 * Seam over `disposableTimeout` so tests can drive the proactive-refresh schedule
+	 * deterministically (capturing the delay and firing the callback on demand) without waiting on
+	 * real wall-clock timers. Production uses the real timer.
+	 */
+	protected scheduleGitHubTokenRefreshTimeout(handler: () => void, delayMs: number): IDisposable {
+		return disposableTimeout(handler, delayMs);
+	}
+
+	private checkAccess(account: IDefaultAccount): 'eligible' | 'ineligible' | 'unknown' {
+		// Enterprise accounts are eligible for the private marketplace independent of any SKU.
+		if (account.enterprise) {
+			return 'eligible';
+		}
+		// entitlementsData tri-state (see IDefaultAccount): a resolved object carries the account's
+		// SKUs. Both `null` and `undefined` are indeterminate, NOT a durable "ineligible" verdict:
+		// `null` means the entitlements endpoint returned 401 (token expired/revoked) or 404 (the
+		// account lacks the scope to query it — the service pretends the endpoint is absent), and
+		// `undefined` means the endpoint was unreachable or returned an otherwise indeterminate
+		// response. None of these can decide eligibility, so all resolve to `unknown` — the caller
+		// must NOT turn a transient/indeterminate condition into a durable, cached denial. Only a
+		// resolved object whose SKU is absent from `accessSKUs` is a definitive `ineligible`.
+		if (account.entitlementsData === undefined || account.entitlementsData === null) {
+			return 'unknown';
+		}
+		if (account.entitlementsData?.access_type_sku
+			&& this.productService.extensionsGallery?.accessSKUs?.includes(
+				account.entitlementsData.access_type_sku)) {
+			return 'eligible';
+		}
+		return 'ineligible';
+	}
+
+	// --- Microsoft access (new Entra ID / VSS eligibility check) ---
+
+	private async handleMicrosoftAccess(configuredServiceUrl: string, epoch: number): Promise<void> {
+		// Acquire an existing Microsoft session first. `getSessions` reads existing sessions
+		// silently and never prompts for sign-in.
+		let sessions: readonly AuthenticationSession[];
+		try {
+			sessions = await this.authenticationService.getSessions(
+				'microsoft',
+				WorkbenchExtensionGalleryManifestService.MICROSOFT_AUTH_SCOPES);
+		} catch (error) {
+			if (this.validationEpoch !== epoch) {
+				return;
+			}
+			// Auth service unavailable — transient error, never invalidate cache. Unless we
+			// already have a working manifest to keep showing, surface an "unreachable" message so
+			// a configured marketplace isn't left on a blank (Unavailable) view with no explanation.
+			this.logService.error('[Marketplace] Error getting Microsoft sessions', error);
+			if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
+				this.update(null, ExtensionGalleryManifestStatus.Unreachable);
+			}
+			return;
+		}
+		if (this.validationEpoch !== epoch) {
+			// A newer validation superseded this one while we awaited — discard.
+			return;
+		}
+		const session = sessions[0];
+
+		if (!session) {
+			// No token. When 'microsoft' is configured the service index MAY itself be
+			// auth-gated (admin's discretion), so an anonymous probe would, at best, return
+			// a guaranteed 401. Rather than issue that certain-to-fail request, go straight
+			// to sign-in. Eligibility and any misconfiguration/unreachable state are only
+			// evaluated once we can present a token (on the post-sign-in re-validation
+			// triggered by onDidChangeSessions). There is deliberately NO fallback to GitHub.
+			this.clearCachedAccess();
+			this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+			return;
+		}
+
+		// Whether we already hold a durable eligibility verdict for THIS account against THIS
+		// marketplace. `getCachedAccess` returns the verdict only when it was written under the
+		// currently-effective provider and for the configured serviceUrl (dropping it otherwise),
+		// so a same-account match here means "same provider + same marketplace + same account".
+		// When present we skip the eligibility POST below — it is only needed on first sign-in or
+		// when the account changes. We still (re)negotiate the service index token so a gated
+		// marketplace's resource-scoped token is refreshed for this session.
+		const cached = this.getCachedAccess(configuredServiceUrl);
+		const matchedVerdict = cached && cached.accountId === session.account.id ? cached : undefined;
+		if (!matchedVerdict && this.currentStatus === ExtensionGalleryManifestStatus.Available) {
+			// No verdict for the current account, yet the marketplace is still showing Available
+			// for a previous account (e.g. an account switch). Revoke that authorization NOW,
+			// before the async negotiation/eligibility round-trip, so a transient failure below
+			// cannot preserve the prior account's manifest — the "unreachable" catch paths only
+			// overwrite the status when it is not already Available.
+			this.update(null);
+		}
+
+		// We have a token — fetch the service index (presenting the token so a gated index is
+		// readable), then discover the eligibility endpoint from it. The manifest is carried
+		// forward to `applyEligibilityResult` so it is fetched exactly once: this keeps the
+		// 401/403 vs transient classification below the single source of truth for the index
+		// fetch outcome.
+		if (!WorkbenchExtensionGalleryManifestService.isSafeTokenTarget(configuredServiceUrl, configuredServiceUrl)) {
+			// We will not attach a bearer token to a non-HTTPS service index. Without a token
+			// a gated index is unreadable, so this deployment is misconfigured for Entra auth.
+			this.logService.error('[Marketplace] Refusing to send the Microsoft token to a non-HTTPS service index URL — the marketplace is misconfigured for Entra auth.');
+			this.clearCachedAccess();
+			this.update(null, ExtensionGalleryManifestStatus.Misconfigured);
+			return;
+		}
+		let manifest: IExtensionGalleryManifest;
+		// The token that successfully reads the service index. Starts as the initially-acquired
+		// (OpenID) session token; if the index is auth-gated and returns an RFC 9728 challenge,
+		// `fetchServiceIndexNegotiated` upgrades this to a resource-scoped token, which is then
+		// reused for the protected eligibility POST below.
+		let indexToken: string = session.accessToken;
+		// Whether the index was actually behind an RFC 9728 challenge (i.e. `indexToken` is a
+		// resource-scoped token that protected marketplace API requests must present), as opposed
+		// to an open index read with the plain sign-in token.
+		let indexWasNegotiated = false;
+		try {
+			const negotiated = await this.fetchServiceIndexNegotiated(
+				configuredServiceUrl,
+				session.accessToken,
+				async protectedResource => {
+					const resourceSession = await this.acquireResourceToken(
+						'microsoft',
+						protectedResource,
+						WorkbenchExtensionGalleryManifestService.MICROSOFT_AUTH_SCOPES,
+					);
+					// The Microsoft/MSAL provider owns refresh of its own sessions (via getSessions +
+					// onDidChangeSessions), so no proactive expiry scheduling is needed here — leave
+					// `expiresInSeconds` undefined.
+					return resourceSession ? { token: resourceSession.accessToken } : undefined;
+				},
+				() => this.validationEpoch === epoch,
+			);
+			manifest = negotiated.manifest;
+			// `negotiated.token` is only undefined when the initial token was undefined; on the
+			// Microsoft path we always start with the signed-in session token, so fall back to it.
+			indexToken = negotiated.token ?? session.accessToken;
+			indexWasNegotiated = negotiated.negotiated;
+		} catch (error) {
+			if (this.validationEpoch !== epoch) {
+				return;
+			}
+			if (error instanceof MarketplaceAuthRequiredError) {
+				if (error.statusCode === 403) {
+					// 403: the token is accepted but this identity is forbidden from reading
+					// the service index — a durable denial. Cache it so we don't re-probe.
+					this.cacheAccess({ authProvider: 'microsoft', accountId: session.account.id, eligible: false, serviceUrl: configuredServiceUrl });
+					this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
+				} else {
+					// 401: the token was missing/expired/invalid (e.g. wrong audience). This
+					// is NOT a durable "ineligible" verdict — re-authentication may fix it —
+					// so do not cache a negative result; ask the user to (re-)sign in. A fresh
+					// sign-in fires onDidChangeSessions and re-runs this check with a new token.
+					this.clearCachedAccess();
+					this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+				}
+				return;
+			}
+			// Transient error fetching the manifest — the marketplace is currently
+			// unreachable. Preserve cache and, unless we already have a working manifest
+			// to keep showing, surface an "unreachable" message.
+			this.logService.error('[Marketplace] Error fetching the service index', error);
+			if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
+				this.update(null, ExtensionGalleryManifestStatus.Unreachable);
+			}
+			return;
+		}
+
+		if (this.validationEpoch !== epoch) {
+			return;
+		}
+
+		// The service index read above succeeded with the current session's token, so the token
+		// is valid. If we already hold a durable verdict for this account+marketplace, apply it
+		// without re-POSTing eligibility — that check is only needed on first sign-in or when the
+		// account changes (both of which arrive with no matching cache). The negotiation above
+		// refreshed the resource-scoped token for this session; expose it when the index was gated
+		// and the user is eligible. Verdict invalidation for a rejected/expired token is handled by
+		// the negotiation catch above (401 → RequiresSignIn, 403 → AccessDenied) before we get here.
+		if (matchedVerdict) {
+			if (matchedVerdict.eligible) {
+				if (indexWasNegotiated) {
+					this.updateNegotiatedAccessToken(indexToken);
+				}
+				this.applyEligibilityResult({ eligible: true }, manifest);
+			} else {
+				this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
+			}
+			return;
+		}
+
+		const eligibilityUrl = getExtensionGalleryManifestResourceUri(manifest, ExtensionGalleryResourceType.EligibilityService);
+		if (!eligibilityUrl) {
+			// Definitive: the manifest was fetched but advertises no EligibilityService.
+			this.logService.error('[Marketplace] authProvider is "microsoft" but the gallery manifest does not advertise an EligibilityService resource — the marketplace is misconfigured for Entra auth.');
+			this.clearCachedAccess();
+			this.update(null, ExtensionGalleryManifestStatus.Misconfigured);
+			return;
+		}
+
+		if (!WorkbenchExtensionGalleryManifestService.isSafeTokenTarget(eligibilityUrl, configuredServiceUrl)) {
+			// The manifest-advertised eligibility endpoint is not same-origin HTTPS with the
+			// admin-configured service index. Sending the Microsoft token there would risk
+			// leaking it to a foreign or cleartext origin (e.g. a compromised/misconfigured
+			// manifest), so refuse and treat the deployment as misconfigured.
+			this.logService.error('[Marketplace] The EligibilityService URL is not same-origin HTTPS with the configured service index — refusing to transmit the Microsoft token. The marketplace is misconfigured for Entra auth.');
+			this.clearCachedAccess();
+			this.update(null, ExtensionGalleryManifestStatus.Misconfigured);
+			return;
+		}
+
+		// Check eligibility via server
+		try {
+			const result = await this.checkMicrosoftEligibility(eligibilityUrl, indexToken);
+			if (this.validationEpoch !== epoch) {
+				return;
+			}
+			// Server responded with 200 — this is a definitive result, cache it. Note we do NOT
+			// persist the server-provided `reason` string: it is not used for any UI/gating
+			// decision and could carry account/tenant diagnostic text, so keeping it out of
+			// application storage avoids persisting unnecessary PII at rest.
+			this.cacheAccess({
+				authProvider: 'microsoft',
+				accountId: session.account.id,
+				eligible: result.eligible,
+				serviceUrl: configuredServiceUrl,
+			});
+			this.telemetryService.publicLog2<MarketplaceAuthEvent, MarketplaceAuthClassification>(
+				'marketplace:auth:checked',
+				{
+					authProvider: 'microsoft',
+					eligible: result.eligible,
+				}
+			);
+			// The index was gated and we negotiated a resource-scoped token for it: expose that
+			// token (via getAccessToken) for protected marketplace API requests when the user is
+			// eligible. On the open-index path (indexWasNegotiated === false) the marketplace
+			// needs no bearer, so leave the token cleared. Any later non-Available transition
+			// routes through update(null, …) and clears it.
+			if (indexWasNegotiated && result.eligible) {
+				this.negotiatedAccessToken = indexToken;
+			}
+			this.applyEligibilityResult(result, manifest);
+		} catch (error) {
+			if (this.validationEpoch !== epoch) {
+				// A newer validation superseded this one while we awaited — discard.
+				return;
+			}
+			if (error instanceof MarketplaceAuthRequiredError) {
+				if (error.statusCode === 403) {
+					// 403: the token is accepted but this identity is forbidden by the
+					// eligibility service — a durable denial. Cache it so we don't re-probe.
+					this.cacheAccess({ authProvider: 'microsoft', accountId: session.account.id, eligible: false, serviceUrl: configuredServiceUrl });
+					this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
+				} else {
+					// 401: the token was missing/expired/invalid (e.g. wrong audience) at the
+					// eligibility endpoint. This is NOT a durable "ineligible" verdict —
+					// re-authentication may fix it — so do not cache a negative result; ask
+					// the user to (re-)sign in. A fresh sign-in re-runs this check.
+					this.clearCachedAccess();
+					this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+				}
+				return;
+			}
+			this.logService.error('[Marketplace] Error checking Microsoft eligibility', error);
+			// Network/5xx/malformed response at the eligibility endpoint — never invalidate the
+			// cache. We could not obtain a definitive verdict, so unless we already have a working
+			// manifest to keep showing, surface an "unreachable" message rather than leaving the
+			// user on a blank (Unavailable) marketplace with no explanation.
+			if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
+				this.update(null, ExtensionGalleryManifestStatus.Unreachable);
+			}
+		}
+	}
+
+	/**
+	 * Fetches the service index, negotiating a resource-scoped bearer token if the marketplace's
+	 * index is protected (RFC 9728). It first presents `initialToken`; if the marketplace responds
+	 * `401`, the marketplace's Protected Resource Metadata is discovered via its well-known endpoint
+	 * (RFC 9728) and a token bound to the advertised authorization server + resource scopes is
+	 * acquired silently (RFC 8707), then the index fetch is retried once with that token.
+	 *
+	 * Discovery deliberately does NOT depend on the `WWW-Authenticate` challenge header: that header
+	 * is not CORS-safelisted, so the renderer's cross-origin index fetch usually cannot read it. The
+	 * challenge is passed only as a best-effort hint for the explicit metadata URL.
+	 *
+	 * Returns the manifest together with the token that successfully read the index, so callers can
+	 * reuse it for subsequent protected requests (e.g. the Microsoft eligibility POST). Any auth
+	 * failure that negotiation cannot resolve (no metadata, no session obtainable, or a `401`/`403`
+	 * on the retry) propagates as a {@link MarketplaceAuthRequiredError} for the caller to classify.
+	 */
+	private async fetchServiceIndexNegotiated(
+		configuredServiceUrl: string,
+		initialToken: string | undefined,
+		acquireToken: (protectedResource: IMarketplaceProtectedResource) => Promise<{ token: string; expiresInSeconds?: number } | undefined>,
+		isCurrent: () => boolean = () => true,
+	): Promise<{ manifest: IExtensionGalleryManifest; token: string | undefined; negotiated: boolean; expiresInSeconds?: number }> {
+		try {
+			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, initialToken);
+			return { manifest, token: initialToken, negotiated: false };
+		} catch (error) {
+			// Only a 401 (index is auth-gated) is negotiable. A 403 (identity refused) or any other
+			// error is not — let it propagate so the caller applies its existing classification.
+			if (!(error instanceof MarketplaceAuthRequiredError) || error.statusCode !== 401) {
+				throw error;
+			}
+			const protectedResource = await discoverMarketplaceProtectedResource(
+				this.requestService,
+				configuredServiceUrl,
+				error.wwwAuthenticate,
+				CancellationToken.None,
+			);
+			if (!protectedResource) {
+				// The index is gated but exposes no Protected Resource Metadata we can act on —
+				// re-throw the original 401 so the caller prompts for sign-in.
+				throw error;
+			}
+			if (!isCurrent()) {
+				// A sign-out/account-switch superseded this negotiation while we discovered the
+				// protected resource. Do NOT proceed to the token exchange: it would transmit a
+				// now-stale subject token (e.g. the just-revoked GitHub session) to the marketplace's
+				// authorization server. Bail; the caller's epoch guard discards this cancellation.
+				throw new CancellationError();
+			}
+			const acquired = await acquireToken(protectedResource);
+			if (!acquired) {
+				// No resource-scoped token could be obtained silently (e.g. consent not yet
+				// granted, or a token exchange that could not complete) — re-throw the original
+				// 401 so the caller prompts for sign-in rather than mislabeling it.
+				throw error;
+			}
+			if (!isCurrent()) {
+				// Superseded during token acquisition — do not retry the index with a token minted
+				// for an identity that may no longer be current.
+				throw new CancellationError();
+			}
+			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, acquired.token);
+			return { manifest, token: acquired.token, negotiated: true, expiresInSeconds: acquired.expiresInSeconds };
+		}
+	}
+
+	/**
+	 * Silently acquires a resource-scoped bearer token bound to the marketplace's advertised
+	 * authorization server (RFC 8707). `getSessions` never prompts, so this returns `undefined`
+	 * when no consented session exists yet, leaving interactive acquisition to the sign-in action.
+	 * The advertised authorization server is validated against the provider's configured globs by
+	 * the authentication service; a mismatch throws, which we treat as "no session".
+	 */
+	private async acquireResourceToken(
+		providerId: string,
+		protectedResource: { authorizationServer: string; scopes: readonly string[] },
+		fallbackScopes: readonly string[],
+	): Promise<AuthenticationSession | undefined> {
+		const scopes = protectedResource.scopes.length ? protectedResource.scopes : fallbackScopes;
+		try {
+			const sessions = await this.authenticationService.getSessions(
+				providerId,
+				[...scopes],
+				{ authorizationServer: URI.parse(protectedResource.authorizationServer) },
+			);
+			return sessions[0];
+		} catch (error) {
+			this.logService.error('[Marketplace] Error acquiring resource-scoped marketplace token', error);
+			return undefined;
+		}
+	}
+
+	/**
+	 * Resolves the raw GitHub session access token backing the current default account, used as the
+	 * `subject_token` for the marketplace token exchange. `getSessions` reads existing sessions
+	 * silently (never prompts). Returns `undefined` when the session can't be found or the lookup
+	 * fails, in which case the gated-index negotiation falls back to a sign-in prompt.
+	 */
+	private async resolveGitHubSubjectToken(account: IDefaultAccount): Promise<string | undefined> {
+		try {
+			const sessions = await this.authenticationService.getSessions(account.authenticationProvider.id);
+			return sessions.find(session => session.id === account.sessionId)?.accessToken;
+		} catch (error) {
+			this.logService.error('[Marketplace] Error resolving the GitHub session token for the marketplace token exchange', error);
+			return undefined;
+		}
+	}
+
+	/**
+	 * Acquires a resource-scoped marketplace token for the GitHub scheme by exchanging the user's
+	 * existing GitHub session token at the marketplace's advertised authorization server (RFC 8693).
+	 * VS Code's GitHub provider has no resource-token support, so — unlike the Microsoft/MSAL path
+	 * ({@link acquireResourceToken}) — the token is minted by the marketplace's embedded
+	 * authorization server. The raw GitHub token is only ever sent to a target that passes the
+	 * same-origin HTTPS `isSafeTokenTarget` guard (relative to the admin-configured service index).
+	 * Returns `undefined` when no GitHub token is available or the exchange fails.
+	 */
+	private async acquireGitHubResourceToken(
+		configuredServiceUrl: string,
+		protectedResource: IMarketplaceProtectedResource,
+		subjectToken: string | undefined,
+		isCurrent: () => boolean,
+	): Promise<{ token: string; expiresInSeconds?: number } | undefined> {
+		if (!subjectToken) {
+			return undefined;
+		}
+		const exchanged = await exchangeMarketplaceResourceToken(
+			this.requestService,
+			protectedResource,
+			subjectToken,
+			targetUrl => WorkbenchExtensionGalleryManifestService.isSafeTokenTarget(targetUrl, configuredServiceUrl),
+			CancellationToken.None,
+			isCurrent,
+		);
+		return exchanged ? { token: exchanged.accessToken, expiresInSeconds: exchanged.expiresInSeconds } : undefined;
+	}
+
+	/**
+	 * Applies a definitive (200) eligibility verdict using the already-fetched service index
+	 * manifest. No further network request is made here — the manifest was validated during
+	 * discovery, so an eligible user is taken straight to `Available`.
+	 */
+	private applyEligibilityResult(result: { eligible: boolean; reason?: string }, manifest: IExtensionGalleryManifest): void {
+		if (result.eligible) {
+			if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
+				this.update(manifest);
+			}
+		} else {
+			this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
+		}
+	}
+
+	private async checkMicrosoftEligibility(
+		url: string, token: string
+	): Promise<{ eligible: boolean; reason?: string }> {
+		const context = await this.requestService.request({
+			type: 'POST',
+			url,
+			headers: {
+				'Authorization': `Bearer ${token}`,
+				'Content-Type': 'application/json',
+			},
+			callSite: 'extensionGalleryManifestService.checkMicrosoftEligibility',
+			// A bearer token is attached, so never follow redirects: the request service would
+			// forward the Authorization header to the (possibly cross-origin) redirect target and
+			// leak the token. A 3xx is treated as a non-200 error below.
+			followRedirects: 0,
+		}, CancellationToken.None);
+
+		if (context.res.statusCode !== 200) {
+			if (context.res.statusCode === 401 || context.res.statusCode === 403) {
+				// Auth-specific outcome at the eligibility endpoint. Surface the status code
+				// so the caller can distinguish 401 (token missing/expired/wrong-audience —
+				// re-auth may fix it) from 403 (token accepted but identity forbidden — a
+				// durable denial), mirroring the service-index fetch classification.
+				throw new MarketplaceAuthRequiredError(context.res.statusCode);
+			}
+			// Any other non-200 is NOT a definitive eligibility result — throw a generic
+			// error so callers treat it as transient/server error and don't cache it.
+			throw new Error(`Eligibility endpoint returned status ${context.res.statusCode}`);
+		}
+
+		const response = await asJson<IEligibilityResponse>(context);
+		if (!response || typeof response.eligible !== 'boolean') {
+			// A 200 with a missing/non-boolean `eligible` is not a definitive verdict — a server
+			// contract drift must not be coerced into a durable allow/deny. Throw so the caller
+			// treats it as transient and never caches it.
+			throw new Error('Eligibility endpoint returned a malformed response');
+		}
+		return { eligible: response.eligible, reason: response.reason };
+	}
+
+	/**
+	 * A stable identity string for a default account: `provider:session:accountName`. Deliberately
+	 * excludes volatile data (token info, entitlements) so a routine data refresh that fires
+	 * `onDidChangeDefaultAccount` for the SAME account is not mistaken for an account switch.
+	 */
+	private static getAccountIdentity(account: IDefaultAccount): string {
+		return `${account.authenticationProvider.id}:${account.sessionId}:${account.accountName}`;
+	}
+
+	/**
+	 * Guards bearer-token transport. A Microsoft token must only ever be attached to a request
+	 * whose target is (a) HTTPS and (b) same-origin as the admin-configured service index URL.
+	 * This prevents a compromised or misconfigured gallery manifest from redirecting a resource
+	 * URL (e.g. the EligibilityService) at a foreign or cleartext endpoint and exfiltrating the
+	 * token. Returns false on any parse failure so callers fail closed.
+	 */
+	private static isSafeTokenTarget(targetUrl: string, baseUrl: string): boolean {
+		let target: URI;
+		let base: URI;
+		try {
+			target = URI.parse(targetUrl, true);
+			base = URI.parse(baseUrl, true);
+		} catch {
+			return false;
+		}
+		if (target.scheme !== 'https') {
+			return false;
+		}
+		// Same-origin: scheme + authority (host:port) must match exactly.
+		return target.scheme === base.scheme && target.authority.toLowerCase() === base.authority.toLowerCase();
+	}
+
+	// --- Access caching (provider-agnostic) ---
+
+	private getCachedAccess(configuredServiceUrl: string): ICachedAccess | null {
+		const raw = this.storageService.get(
+			WorkbenchExtensionGalleryManifestService.CACHED_ACCESS_KEY,
+			StorageScope.APPLICATION);
+		if (!raw) { return null; }
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(raw);
+		} catch {
+			// Corrupt cache entry — drop it so a bad value can't wedge startup.
+			this.clearCachedAccess();
+			return null;
+		}
+		if (!this.isValidCachedAccess(parsed)) {
+			// Unexpected shape (e.g. written by an incompatible/older build that predates a
+			// cache-schema field) — don't trust it.
+			this.clearCachedAccess();
+			return null;
+		}
+		// The cached verdict is an authorization input, so only trust it for the provider
+		// that is currently in effect. A cache written under a different provider (e.g. the
+		// admin switched `extensions.gallery.authProvider`, or the Entra product gate flipped)
+		// must not grant access here; drop it and let foreground validation re-establish
+		// access for the effective provider. Cross-account staleness within the same provider
+		// is corrected by the background re-validation that runs on every startup and by the
+		// onDidChangeSessions/onDidChangeDefaultAccount handlers which clear the cache.
+		if (parsed.authProvider !== this.getEffectiveAuthProvider()) {
+			this.clearCachedAccess();
+			return null;
+		}
+		// The verdict is also scoped to the marketplace it was computed against. If the admin
+		// has pointed the client at a different `extensions.gallery.serviceUrl` since the cache
+		// was written, the eligibility verdict for the previous marketplace does not apply —
+		// drop it so a stale verdict can't briefly grant access to a different marketplace.
+		if (parsed.serviceUrl !== configuredServiceUrl) {
+			this.clearCachedAccess();
+			return null;
+		}
+		return parsed;
+	}
+
+	private isValidCachedAccess(value: unknown): value is ICachedAccess {
+		if (!value || typeof value !== 'object') {
+			return false;
+		}
+		const candidate = value as Partial<ICachedAccess>;
+		return (candidate.authProvider === 'github' || candidate.authProvider === 'microsoft')
+			&& typeof candidate.accountId === 'string'
+			&& typeof candidate.eligible === 'boolean'
+			&& typeof candidate.serviceUrl === 'string';
+	}
+
+	/**
+	 * Resolves the account currently signed in for the given provider, WITHOUT prompting.
+	 * Returns `'account'` (with the account id, plus the session token for microsoft) when an
+	 * account is present, `'none'` when the provider responded but there is no account (durable),
+	 * and `'error'` when the lookup failed (transient — callers must not invalidate the cache).
+	 */
+	private async resolveCurrentAccount(authProvider: string): Promise<{ kind: 'account'; accountId: string; token?: string } | { kind: 'none' } | { kind: 'error' }> {
+		if (authProvider === 'microsoft') {
+			try {
+				const sessions = await this.authenticationService.getSessions(
+					'microsoft',
+					WorkbenchExtensionGalleryManifestService.MICROSOFT_AUTH_SCOPES);
+				const session = sessions[0];
+				return session
+					? { kind: 'account', accountId: session.account.id, token: session.accessToken }
+					: { kind: 'none' };
+			} catch {
+				return { kind: 'error' };
+			}
+		}
+		try {
+			const account = await this.defaultAccountService.getDefaultAccount();
+			return account ? { kind: 'account', accountId: account.accountName } : { kind: 'none' };
+		} catch {
+			return { kind: 'error' };
+		}
+	}
+
+	private async applyCachedAccess(cached: ICachedAccess, configuredServiceUrl: string, epoch: number): Promise<void> {
+		// A cached verdict is an authorization input, so only trust it for the account it was
+		// written for. Resolve the current account (silently) and require it to match before
+		// applying an eligible cache — otherwise a stale cross-account entry could briefly grant
+		// access at cold start before background validation corrects it.
+		const current = await this.resolveCurrentAccount(cached.authProvider);
+		if (this.validationEpoch !== epoch) {
+			// A newer validation (e.g. an account/session change that fired while we resolved the
+			// account) superseded this cache application — let it own the outcome and don't touch
+			// status or cache here.
+			return;
+		}
+		if (current.kind === 'error') {
+			// Could not determine the current account (transient auth failure). Don't grant access
+			// from an unverifiable cache, but don't invalidate it either — background validation
+			// will retry. Surface "unreachable" so the marketplace isn't left blank.
+			if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
+				this.update(null, ExtensionGalleryManifestStatus.Unreachable);
+			}
+			return;
+		}
+		if (current.kind === 'none' || current.accountId !== cached.accountId) {
+			// No account, or a different account than the cache was written for — drop it and let
+			// foreground/background validation re-establish access for the current identity.
+			this.clearCachedAccess();
+			return;
+		}
+
+		if (!cached.eligible) {
+			this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
+			return;
+		}
+
+		// Eligible for the current account — fetch the manifest to render Available. On the
+		// Microsoft path present the session token so a gated index is readable, applying the
+		// same-origin token-transport guard first.
+		let accessToken: string | undefined;
+		if (cached.authProvider === 'microsoft') {
+			if (!WorkbenchExtensionGalleryManifestService.isSafeTokenTarget(configuredServiceUrl, configuredServiceUrl)) {
+				this.update(null, ExtensionGalleryManifestStatus.Misconfigured);
+				return;
+			}
+			accessToken = current.token;
+		}
+		try {
+			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, accessToken);
+			if (this.validationEpoch !== epoch) {
+				// A newer validation superseded this cache application while we fetched the
+				// manifest — do not apply a manifest for a possibly-stale account.
+				return;
+			}
+			this.update(manifest);
+		} catch (error) {
+			if (this.validationEpoch !== epoch) {
+				return;
+			}
+			if (error instanceof MarketplaceAuthRequiredError) {
+				// The cached token was rejected/expired at cold start. Leave the definitive
+				// classification (RequiresSignIn vs AccessDenied) to the background validation that
+				// runs right after; don't flash a misleading Unreachable.
+				return;
+			}
+			this.logService.error('[Marketplace] Error fetching manifest from cached access', error);
+			// Transient failure fetching the manifest — don't invalidate cache. Background
+			// validation will retry; surface an "unreachable" message in the meantime unless we
+			// already have a working manifest to keep showing.
+			if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
+				this.update(null, ExtensionGalleryManifestStatus.Unreachable);
+			}
+		}
+	}
+
+	private cacheAccess(data: ICachedAccess): void {
+		this.storageService.store(
+			WorkbenchExtensionGalleryManifestService.CACHED_ACCESS_KEY,
+			JSON.stringify(data),
+			StorageScope.APPLICATION,
+			StorageTarget.MACHINE);
+		this.logService.debug('[Marketplace] Cached access result:', data.authProvider, data.eligible);
+	}
+
+	private clearCachedAccess(): void {
+		this.storageService.remove(
+			WorkbenchExtensionGalleryManifestService.CACHED_ACCESS_KEY,
+			StorageScope.APPLICATION);
+		this.logService.debug('[Marketplace] Cleared cached access');
+	}
+
+	// --- Status management ---
+
 	private update(manifest: IExtensionGalleryManifest | null, status?: ExtensionGalleryManifestStatus): void {
 		this.logService.debug(`[Marketplace] Updating manifest ${manifest ? 'available' : 'unavailable'}`);
+		if (!manifest) {
+			// Any transition to a non-Available state (sign-out, account switch, config change,
+			// access denied, unreachable, …) routes through here with a null manifest. Drop the
+			// negotiated resource token so it can never outlive the access that produced it; the
+			// eligible→Available path re-sets it after a successful negotiation. Cancel the pending
+			// proactive re-mint (and reset its backoff) for the same reason — a fresh negotiation
+			// re-arms it. This is the single teardown choke point for the refresh timer.
+			this.negotiatedAccessToken = undefined;
+			this.gitHubTokenRefreshTimer.clear();
+			this.gitHubTokenRefreshBackoffMs = 0;
+		}
 		if (this.extensionGalleryManifest !== manifest) {
 			this.extensionGalleryManifest = manifest;
 			this._onDidChangeExtensionGalleryManifest.fire(manifest);
@@ -158,16 +1436,6 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}
 	}
 
-	private checkAccess(account: IDefaultAccount): boolean {
-		this.logService.debug('[Marketplace] Checking Account SKU access for configured gallery', account.entitlementsData?.access_type_sku);
-		if (account.entitlementsData?.access_type_sku && this.productService.extensionsGallery?.accessSKUs?.includes(account.entitlementsData.access_type_sku)) {
-			this.logService.debug('[Marketplace] Account has access to configured gallery');
-			return true;
-		}
-		this.logService.debug('[Marketplace] Checking enterprise account access for configured gallery', account.enterprise);
-		return account.enterprise;
-	}
-
 	private async requestRestart(): Promise<void> {
 		const confirmation = await this.dialogService.confirm({
 			message: localize('extensionGalleryManifestService.accountChange', "{0} is now configured to a different Marketplace. Please restart to apply the changes.", this.productService.nameLong),
@@ -178,21 +1446,48 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}
 	}
 
-	private async getExtensionGalleryManifestFromServiceUrl(url: string): Promise<IExtensionGalleryManifest> {
+	private async getExtensionGalleryManifestFromServiceUrl(url: string, accessToken?: string): Promise<IExtensionGalleryManifest> {
 		const commonHeaders = await this.commonHeadersPromise;
-		const headers = {
+		const headers: IHeaders = {
 			...commonHeaders,
 			'Content-Type': 'application/json',
 			'Accept-Encoding': 'gzip',
 		};
+		// The service index MAY be protected (admin's discretion). Present a bearer token
+		// when we have one; it is harmless on a public index and required on a gated one.
+		if (accessToken) {
+			headers['Authorization'] = `Bearer ${accessToken}`;
+		}
 
 		try {
 			const context = await this.requestService.request({
 				type: 'GET',
 				url,
 				headers,
+				// When a bearer token is attached, never follow redirects — the request service
+				// would forward the Authorization header to the redirect target (possibly a
+				// different origin) and leak the token. Anonymous fetches may still redirect.
+				followRedirects: accessToken ? 0 : undefined,
 				callSite: 'extensionGalleryManifestService.fetchManifest'
 			}, CancellationToken.None);
+
+			if (context.res.statusCode === 401 || context.res.statusCode === 403) {
+				// The service index is auth-gated and this request was not authorized.
+				// Surface a typed error so the Entra path can prompt for sign-in (or treat a
+				// rejected token as denied) rather than mislabeling it as unreachable. Capture
+				// the `WWW-Authenticate` challenge (present on a 401) so RFC 9728 negotiation
+				// can discover the Protected Resource Metadata and resource-scoped token.
+				throw new MarketplaceAuthRequiredError(
+					context.res.statusCode,
+					getResponseHeader(context.res.headers, 'WWW-Authenticate'),
+				);
+			}
+
+			if (context.res.statusCode && (context.res.statusCode < 200 || context.res.statusCode >= 300)) {
+				// Any other non-2xx (404/5xx/…) is an error, not a manifest. Reject before
+				// parsing so a JSON error body can never be mistaken for a valid service index.
+				throw new Error(`Service index returned status ${context.res.statusCode}`);
+			}
 
 			const extensionGalleryManifest = await asJson<IExtensionGalleryManifest>(context);
 
@@ -200,9 +1495,39 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				throw new Error('Unable to retrieve extension gallery manifest.');
 			}
 
+			if (!Array.isArray(extensionGalleryManifest.resources)) {
+				// A 200 whose body is valid JSON but not a service index (e.g. a server error
+				// object, or an HTML/JSON captive-portal page) must not be treated as a
+				// manifest — `resources` is required to discover gallery endpoints (including
+				// the EligibilityService). Reject here so callers classify it as a failed
+				// fetch, rather than letting resource-URI discovery throw on a non-iterable
+				// `resources` outside this try/catch.
+				throw new Error('Service index response is not a valid extension gallery manifest.');
+			}
+
+			if (!extensionGalleryManifest.resources.every(resource => resource && typeof resource.id === 'string' && typeof resource.type === 'string')) {
+				// `resources` is an array but at least one entry is malformed (missing/non-string
+				// `id` or `type`). `getExtensionGalleryManifestResourceUri` calls `resource.type.split()`
+				// outside this fetch's try/catch during endpoint discovery, so an undefined `type`
+				// would throw there and reject initialization instead of being classified as a failed
+				// fetch. Reject here so the caller surfaces `Unreachable`.
+				throw new Error('Service index response contains malformed extension gallery resources.');
+			}
+
 			return extensionGalleryManifest;
 		} catch (error) {
-			this.logService.error('[Marketplace] Error retrieving extension gallery manifest', error);
+			// A 401/403 here is an expected step of RFC 9728 negotiation, not a failure: a gated
+			// service index answers the initial (anonymous or plain-token) read with a
+			// `WWW-Authenticate` challenge, which the caller uses to discover the Protected
+			// Resource Metadata and negotiate a resource-scoped token before retrying. Logging it
+			// at `error` surfaces a spurious "Error retrieving extension gallery manifest" for a
+			// normal handshake, so downgrade auth-required outcomes to `trace` and reserve
+			// `error` for genuinely unexpected failures.
+			if (error instanceof MarketplaceAuthRequiredError) {
+				this.logService.trace('[Marketplace] Service index requires authentication (status', error.statusCode, ') — RFC 9728 negotiation will handle it');
+			} else {
+				this.logService.error('[Marketplace] Error retrieving extension gallery manifest', error);
+			}
 			throw error;
 		}
 	}

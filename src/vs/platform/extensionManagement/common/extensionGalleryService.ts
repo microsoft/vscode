@@ -638,6 +638,46 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		return this.extensionGalleryManifestService.extensionGalleryManifestStatus === ExtensionGalleryManifestStatus.Available;
 	}
 
+	/**
+	 * Returns an `Authorization` header for an authenticated marketplace API request, or an empty
+	 * object when no token applies. The negotiated bearer token (see
+	 * {@link IExtensionGalleryManifestService.getAccessToken}) is attached ONLY when `targetUrl` is
+	 * same-origin HTTPS with the marketplace's `extensionquery` service endpoint — this prevents the
+	 * resource-scoped token from leaking to foreign origins (e.g. asset/statistics endpoints hosted
+	 * on a third-party CDN, or a cleartext URL from a tampered manifest).
+	 *
+	 * @param manifest the current gallery manifest (source of the marketplace origin)
+	 * @param targetUrl the absolute URL the request will be sent to
+	 */
+	private async getMarketplaceAuthorizationHeader(manifest: IExtensionGalleryManifest, targetUrl: string): Promise<IHeaders> {
+		const token = await this.extensionGalleryManifestService.getAccessToken();
+		if (!token) {
+			return {};
+		}
+		const marketplaceApi = getExtensionGalleryManifestResourceUri(manifest, ExtensionGalleryResourceType.ExtensionQueryService);
+		if (!marketplaceApi || !AbstractExtensionGalleryService.isSameSecureOrigin(targetUrl, marketplaceApi)) {
+			return {};
+		}
+		return { Authorization: `Bearer ${token}` };
+	}
+
+	/**
+	 * True when both URLs are `https:` and share the same origin (scheme + authority). Fails closed:
+	 * any parse error or scheme mismatch returns false so a token is never attached to an
+	 * unverifiable or cleartext target.
+	 */
+	private static isSameSecureOrigin(targetUrl: string, baseUrl: string): boolean {
+		try {
+			const target = URI.parse(targetUrl);
+			const base = URI.parse(baseUrl);
+			return target.scheme === 'https'
+				&& base.scheme === 'https'
+				&& target.authority.toLowerCase() === base.authority.toLowerCase();
+		} catch {
+			return false;
+		}
+	}
+
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]>;
 	async getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, arg1: CancellationToken | IExtensionQueryOptions, arg2?: CancellationToken): Promise<IGalleryExtension[]> {
@@ -1417,8 +1457,10 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		});
 
 		const commonHeaders = await this.commonHeadersPromise;
+		const authHeader = await this.getMarketplaceAuthorizationHeader(extensionGalleryManifest, extensionsQueryApi);
 		const headers = {
 			...commonHeaders,
+			...authHeader,
 			'Content-Type': 'application/json',
 			'Accept': 'application/json;api-version=3.0-preview.1',
 			'Accept-Encoding': 'gzip',
@@ -1571,9 +1613,12 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const stopWatch = new StopWatch();
 
 		try {
+			const manifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
 			const commonHeaders = await this.commonHeadersPromise;
+			const authHeader = manifest ? await this.getMarketplaceAuthorizationHeader(manifest, uri.toString(true)) : {};
 			const headers = {
 				...commonHeaders,
+				...authHeader,
 				'Content-Type': 'application/json',
 				'Accept': 'application/json;api-version=7.2-preview',
 				'Accept-Encoding': 'gzip',
@@ -1677,7 +1722,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		const Accept = '*/*;api-version=4.0-preview.1';
 		const commonHeaders = await this.commonHeadersPromise;
-		const headers = { ...commonHeaders, Accept };
+		const authHeader = await this.getMarketplaceAuthorizationHeader(manifest, url);
+		const headers = { ...commonHeaders, ...authHeader, Accept };
 		try {
 			await this.requestService.request({
 				type: 'POST',
@@ -1874,7 +1920,12 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		const url = asset.uri;
 		const fallbackUrl = asset.fallbackUri;
-		const firstOptions = { ...options, url, timeout: this.getRequestTimeout(), callSite };
+		// The negotiated token is only attached when the asset is served from the marketplace's own
+		// (same) secure origin. Assets on a third-party CDN (a different origin) get no token. The
+		// primary and fallback URLs can differ in origin, so evaluate the guard independently for each.
+		const manifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
+		const primaryAuthHeader = manifest ? await this.getMarketplaceAuthorizationHeader(manifest, url) : {};
+		const firstOptions = { ...options, headers: { ...headers, ...primaryAuthHeader }, url, timeout: this.getRequestTimeout(), callSite };
 
 		let context;
 		try {
@@ -1920,7 +1971,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				endToEndId: this.getHeaderValue(context?.res.headers, END_END_ID_HEADER_NAME),
 			});
 
-			const fallbackOptions = { ...options, url: fallbackUrl, timeout: this.getRequestTimeout(), callSite: `${callSite}.fallback` };
+			const fallbackAuthHeader = manifest ? await this.getMarketplaceAuthorizationHeader(manifest, fallbackUrl) : {};
+			const fallbackOptions = { ...options, headers: { ...headers, ...fallbackAuthHeader }, url: fallbackUrl, timeout: this.getRequestTimeout(), callSite: `${callSite}.fallback` };
 			return this.requestService.request(fallbackOptions, token);
 		}
 	}
@@ -1936,9 +1988,11 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			return { malicious: [], deprecated: {}, search: [], autoUpdate: {} };
 		}
 
+		const authHeader = await this.getMarketplaceAuthorizationHeader(manifest, this.extensionsControlUrl);
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: this.extensionsControlUrl,
+			headers: authHeader,
 			timeout: this.getRequestTimeout(),
 			callSite: 'extensionGalleryService.getExtensionsControlManifest'
 		}, CancellationToken.None);

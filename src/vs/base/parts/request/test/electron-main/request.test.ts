@@ -17,13 +17,25 @@ suite('Request', () => {
 
 	let port: number;
 	let server: http.Server;
+	let redirectTargetHits: number;
 
 	setup(async () => {
+		redirectTargetHits = 0;
 		const http = await import('http');
 		port = await new Promise<number>((resolvePort, rejectPort) => {
 			server = http.createServer((req, res) => {
 				if (req.url === '/noreply') {
 					return; // never respond
+				}
+				if (req.url === '/redirect') {
+					// 307 preserves the method and body on the follow-up request (unlike 301/302/303).
+					res.statusCode = 307;
+					res.setHeader('location', '/redirect-target');
+					res.end();
+					return;
+				}
+				if (req.url === '/redirect-target') {
+					redirectTargetHits++;
 				}
 				res.setHeader('Content-Type', 'application/json');
 				if (req.headers['echo-header']) {
@@ -120,6 +132,35 @@ suite('Request', () => {
 				assert.strictEqual(err.message, 'Canceled');
 			}
 		});
+	});
+
+	test('follows a 307 redirect by default, replaying the POST body to the target', async () => {
+		const context = await request({
+			type: 'POST',
+			url: `http://127.0.0.1:${port}/redirect`,
+			data: 'post-payload',
+			callSite: 'request.test.redirect.follow'
+		}, CancellationToken.None);
+		assert.strictEqual(context.res.statusCode, 200);
+		const body = JSON.parse((await streamToBuffer(context.stream)).toString());
+		assert.deepStrictEqual(
+			{ hits: redirectTargetHits, method: body.method, url: body.url, data: body.data },
+			{ hits: 1, method: 'POST', url: '/redirect-target', data: 'post-payload' }
+		);
+	});
+
+	test('does not follow redirects when followRedirects is 0 (no body replay)', async () => {
+		const context = await request({
+			type: 'POST',
+			url: `http://127.0.0.1:${port}/redirect`,
+			data: 'post-payload',
+			followRedirects: 0,
+			callSite: 'request.test.redirect.manual'
+		}, CancellationToken.None);
+		assert.deepStrictEqual(
+			{ hits: redirectTargetHits, followed: context.res.statusCode === 200 },
+			{ hits: 0, followed: false }
+		);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
