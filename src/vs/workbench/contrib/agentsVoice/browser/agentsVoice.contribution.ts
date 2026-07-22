@@ -347,28 +347,15 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// --- Open Voice Mode Settings (gear button, shown left of Disconnect when connected) ---
+// --- Open Voice Mode Settings (surfaced via the mic button context menu, no toolbar gear) ---
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'agentsVoice.openSettings',
 			title: nls.localize2('agentsVoice.openSettings', "Voice Mode Settings"),
-			icon: Codicon.settingsGear,
 			f1: true,
 			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
-			menu: {
-				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					ChatContextKeys.currentlyEditing.negate(),
-					AGENTS_VOICE_CONNECTED.isEqualTo(true),
-				),
-				group: 'navigation',
-				// Just before the Disconnect button (order -9) and after the mic/stop button (order -10).
-				order: -9.5
-			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
