@@ -52,22 +52,21 @@ export const COPILOT_VENDOR_ID = 'copilot';
 
 /**
  * Whether the given model vendor is an agent-host vendor (local `agent-host-*` or a remote agent
- * host). Agent-host vendors publish their models asynchronously after the agent host connects, so —
- * like Copilot — an empty result during startup is transient rather than conclusive.
+ * host). Agent-host vendors publish their models asynchronously after the agent host connects, so
+ * during startup an empty model list is transient rather than conclusive.
+ *
+ * NOTE: this grace is applied to model-restore *resolution* only (see
+ * `resolveModelIdentifierFromCatalog`). It deliberately does NOT relax cache-retention
+ * (`mergeModelsWithCache`) or send-availability, where a resolved-empty list must stay
+ * authoritative so stale/removed models are not offered.
  */
-function isAgentHostVendor(vendor: string): boolean {
+export function isAgentHostVendor(vendor: string): boolean {
 	return vendor.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || isRemoteAgentHostSessionType(vendor);
 }
 
-/**
- * Whether a missing model is conclusively absent from a vendor's live model list. Empty results are
- * treated as transient (still loading) for vendors whose models are discovered asynchronously —
- * Copilot (token-backed discovery) and agent-host vendors (models arrive after the agent host
- * connects) — so a remembered/restored selection waits for the pool instead of resetting to a
- * default (Auto).
- */
+/** Whether a missing model is conclusively absent from a vendor's live model list. Empty Copilot results remain transient while token-backed discovery completes. */
 export function isLanguageModelVendorAbsenceConclusive(vendor: string, hasLiveModels: boolean, hasResolved: boolean): boolean {
-	return hasLiveModels || (hasResolved && vendor !== COPILOT_VENDOR_ID && !isAgentHostVendor(vendor));
+	return hasLiveModels || (hasResolved && vendor !== COPILOT_VENDOR_ID);
 }
 
 /**

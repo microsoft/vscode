@@ -574,14 +574,17 @@ suite('ChatModelSelectionModel', () => {
 		});
 	});
 
-	test('waits through a resolved-but-empty session pool and applies the restored model when it loads', () => {
-		// Reproduces the cold-restart race: the agent-host vendor is registered (resolved) with an
-		// empty model list before its real models arrive, so an absent session model resolves as
-		// `unavailable` (not `pending`). The restore must keep waiting through the intermediate
-		// empty re-resolutions and apply the model once the pool loads, instead of defaulting to Auto.
+	test('syncFromConversationState waits through a resolved-but-empty agent-host pool and restores the model', () => {
+		// Cold-restart race: the agent-host vendor is registered ("resolved") but its models arrive
+		// later. Routed through the real catalog resolver, the agent-host grace keeps the absent
+		// model `pending` (not `unavailable`), so the restore waits through the intermediate empty
+		// re-resolutions and applies the model once the pool loads — instead of defaulting to Auto.
+		// (If the grace in resolveModelIdentifierFromCatalog is removed, resolution is `unavailable`,
+		// no wait is armed, and this test fails.)
 		const selection = new ChatModelSelectionModel();
-		const sessionType = 'agent-host-test';
-		const desired = targetedModel('agent-host-test:desired', sessionType);
+		const sessionType = 'agent-host-copilotcli';
+		const base = targetedModel('agent-host-copilotcli:gpt-5.6-sol', sessionType);
+		const desired = { ...base, metadata: { ...base.metadata, vendor: sessionType } };
 		const modelChanges = disposables.add(new Emitter<string>());
 		let models: ILanguageModelChatMetadataAndIdentifier[] = [];
 		const applied: string[] = [];
@@ -595,8 +598,11 @@ suite('ChatModelSelectionModel', () => {
 			getAllModels: () => models,
 			requiresCustomModels: () => true,
 			getConfiguredModelValue: () => undefined,
-			// `resolved: true` — the vendor is registered but empty, so absent models are `unavailable`.
-			resolveModelIdentifier: identifier => resolveModelIdentifier(models, identifier, true),
+			// Faithful to production: vendor is resolved but publishes models asynchronously.
+			resolveModelIdentifier: identifier => resolveModelIdentifierFromCatalog(models, identifier, {
+				hasLiveModels: vendor => models.some(m => m.metadata.vendor === vendor),
+				hasResolved: () => true,
+			}),
 			subscribeToModelChanges: listener => modelChanges.event(listener),
 			getBoundConversationKey: () => 'chat:one',
 			getVisibleConversationKey: () => 'chat:one',

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isLanguageModelVendorAbsenceConclusive } from './languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAgentHostVendor, isLanguageModelVendorAbsenceConclusive } from './languageModels.js';
 
 export type ModelIdentifierResolution =
 	| { readonly kind: 'notRequested' }
@@ -48,11 +48,18 @@ export function resolveModelIdentifierFromCatalog(
 
 	const separator = identifier.search(/[/:]/);
 	const vendor = separator === -1 ? undefined : identifier.substring(0, separator);
-	const isAbsenceConclusive = !vendor || isLanguageModelVendorAbsenceConclusive(
+	const hasLive = vendor ? vendorResolution.hasLiveModels(vendor) : false;
+	// Agent-host vendors publish their models asynchronously after the agent host connects, so an
+	// empty (not-yet-populated) list is transient: keep the remembered/restored model `pending`
+	// (wait) rather than `unavailable` (give up). Once the vendor HAS live models, an absent model
+	// is genuinely gone, so stay conclusive. This grace is scoped to restore *resolution* only —
+	// cache-retention (`mergeModelsWithCache`) and send-availability keep treating a resolved-empty
+	// list as authoritative.
+	const isAbsenceConclusive = !vendor || (isLanguageModelVendorAbsenceConclusive(
 		vendor,
-		vendorResolution.hasLiveModels(vendor),
+		hasLive,
 		vendorResolution.hasResolved(vendor),
-	);
+	) && (hasLive || !isAgentHostVendor(vendor)));
 	return resolveModelIdentifier(models, identifier, isAbsenceConclusive);
 }
 
