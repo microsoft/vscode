@@ -297,6 +297,9 @@ export class ExpectedError extends Error {
 	readonly isExpected = true;
 }
 
+const noTelemetryFlag = '__vscodeNoTelemetry';
+type ErrorWithNoTelemetryFlag = Error & { [noTelemetryFlag]?: boolean };
+
 /**
  * Error that when thrown won't be logged in telemetry as an unhandled error.
  */
@@ -306,6 +309,7 @@ export class ErrorNoTelemetry extends Error {
 	constructor(msg?: string) {
 		super(msg);
 		this.name = 'CodeExpectedError';
+		(<ErrorWithNoTelemetryFlag>this)[noTelemetryFlag] = true;
 	}
 
 	public static fromError(err: Error): ErrorNoTelemetry {
@@ -320,8 +324,23 @@ export class ErrorNoTelemetry extends Error {
 	}
 
 	public static isErrorNoTelemetry(err: Error): err is ErrorNoTelemetry {
-		return err.name === 'CodeExpectedError';
+		return err.name === 'CodeExpectedError' || (<ErrorWithNoTelemetryFlag>err)?.[noTelemetryFlag] === true;
 	}
+}
+
+/**
+ * Marks an error so that {@link ErrorNoTelemetry.isErrorNoTelemetry} detects it
+ * and the error telemetry pipeline does not report it as an unhandled error.
+ * Useful when the original error class (e.g. `FileSystemProviderError`) needs
+ * to be preserved for callers but the error itself represents an expected
+ * condition that should not surface in error telemetry. Unlike using
+ * {@link ErrorNoTelemetry} directly, this preserves the original error's
+ * `name`, prototype chain, and any additional properties (such as the error
+ * code that some IPC channels carry through `Error#name`).
+ */
+export function markAsErrorNoTelemetry<T extends Error>(error: T): T {
+	(<ErrorWithNoTelemetryFlag>error)[noTelemetryFlag] = true;
+	return error;
 }
 
 /**
