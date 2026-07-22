@@ -214,6 +214,7 @@ suite('ModelSelection', () => {
 
 	test('a new conversation reapplies the configured default after an explicit selection', () => {
 		assert.deepStrictEqual(summarize(transition({
+			session: { modelId: first.identifier },
 			models: { configuredModel: second.metadata.id },
 			previous: {
 				currentModel: first,
@@ -232,7 +233,7 @@ suite('ModelSelection', () => {
 
 	test('switching untitled drafts for the same provider restores the incoming draft model', () => {
 		assert.deepStrictEqual(summarize(transition({
-			session: { modelId: first.identifier },
+			session: { key: 'provider/other-session', modelId: first.identifier },
 			models: {
 				configuredModel: second.metadata.id,
 				desiredModelResolution: { kind: 'available', model: first },

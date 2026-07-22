@@ -234,7 +234,7 @@ export function transitionModelSelection(input: IModelSelectionTransitionInput):
 		|| currentReason === ModelSelectionReason.Remembered
 		|| currentReason === ModelSelectionReason.NewChatRepush;
 	const configuredModelValue = session.kind === 'untitled'
-		&& ((!sessionModelId && newConversation)
+		&& (newConversation
 			|| (!newConversation && (!sessionModelId || automaticSelection) && currentReason !== ModelSelectionReason.UserSelection && currentReason !== ModelSelectionReason.SessionRestore))
 		? models.configuredModel
 		: undefined;

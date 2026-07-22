@@ -286,6 +286,7 @@ export class ChatInputModelSelectionController extends Disposable {
 					this.clearAuthoritativeModelWait();
 					const lateMatch = findBestMatchingModel(desiredModel, this._runtime.getModels(sessionType));
 					if (lateMatch) {
+						this._model.setSelectionReason(ModelSelectionReason.SessionRestore);
 						this._runtime.applyModel(lateMatch);
 					} else {
 						this.selectDefault(sessionType);
@@ -293,6 +294,7 @@ export class ChatInputModelSelectionController extends Disposable {
 				}
 			});
 		} else {
+			this.clearAuthoritativeModelWait();
 			this.selectDefault(sessionType);
 		}
 	}

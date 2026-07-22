@@ -304,7 +304,7 @@ export class SessionModelSelectionModel extends Disposable implements ISessionMo
 	}
 
 	private _sessionKey(session: IActiveSession): string {
-		return `${session.providerId}/${session.sessionType}`;
+		return session.sessionId;
 	}
 
 }

@@ -36,6 +36,40 @@ function targetedModel(identifier: string, sessionType: string): ILanguageModelC
 	return { ...result, metadata: { ...result.metadata, targetChatSessionType: sessionType } };
 }
 
+interface IRuntimeState {
+	models: ILanguageModelChatMetadataAndIdentifier[];
+	resolved: boolean;
+	readonly sessionType: string;
+	readonly configuredModel?: string;
+}
+
+function createRuntime(
+	selection: ChatModelSelectionModel,
+	state: IRuntimeState,
+	modelChanges: Emitter<string>,
+	applied: string[],
+): IChatInputModelSelectionRuntime {
+	return {
+		location: ChatAgentLocation.Chat,
+		getCurrentModeKind: () => ChatModeKind.Ask,
+		getCurrentSessionType: () => state.sessionType,
+		isEmpty: () => true,
+		getModels: () => state.models,
+		getAllModels: () => state.models,
+		requiresCustomModels: () => false,
+		getConfiguredModelValue: () => state.configuredModel,
+		resolveModelIdentifier: identifier => resolveModelIdentifier(state.models, identifier, state.resolved),
+		subscribeToModelChanges: listener => modelChanges.event(listener),
+		getBoundConversationKey: () => 'chat:one',
+		getVisibleConversationKey: () => 'chat:one',
+		restoreModelConfiguration: () => { },
+		applyModel: model => {
+			applied.push(model.identifier);
+			selection.setCurrentModel(model, false);
+		},
+	};
+}
+
 suite('ChatModelSelectionModel', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -537,6 +571,59 @@ suite('ChatModelSelectionModel', () => {
 			pendingAfterResolve: false,
 			applied: [desired.identifier],
 			restored: [{ modelId: desired.identifier, configuration: { effort: 'high' } }],
+		});
+	});
+
+	test('late best-match restore remains authoritative after configured-model refresh', () => {
+		const selection = new ChatModelSelectionModel();
+		const modelChanges = disposables.add(new Emitter<string>());
+		const sessionType = 'agent-host-test';
+		const desired = targetedModel('test/desired', sessionType);
+		const matchBase = targetedModel('test/match', sessionType);
+		const match = { ...matchBase, metadata: { ...matchBase.metadata, id: desired.metadata.id } };
+		const configured = targetedModel('test/configured', sessionType);
+		const state: IRuntimeState = { models: [], resolved: false, sessionType, configuredModel: configured.metadata.id };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(selection, createRuntime(selection, state, modelChanges, applied)));
+
+		controller.syncFromConversationState(desired, undefined, sessionType, 'chat:one');
+		state.models = [match, configured];
+		state.resolved = true;
+		modelChanges.fire('test');
+		controller.reconcileModelListChange(state.models);
+
+		assert.deepStrictEqual({
+			applied,
+			current: selection.currentModel.get()?.identifier,
+			reason: selection.selectionReason,
+		}, {
+			applied: [match.identifier],
+			current: match.identifier,
+			reason: ModelSelectionReason.SessionRestore,
+		});
+	});
+
+	test('terminal restore fallback cancels an obsolete authoritative wait', () => {
+		const selection = new ChatModelSelectionModel();
+		const modelChanges = disposables.add(new Emitter<string>());
+		const sessionType = 'agent-host-test';
+		const staleDesired = targetedModel('test/stale', sessionType);
+		const fallback = targetedModel('test/fallback', sessionType);
+		const inapplicable = model('test/inapplicable');
+		const state: IRuntimeState = { models: [], resolved: false, sessionType };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(selection, createRuntime(selection, state, modelChanges, applied)));
+
+		controller.syncFromConversationState(staleDesired, undefined, sessionType, 'chat:one');
+		state.models = [fallback];
+		state.resolved = true;
+		controller.syncFromConversationState(inapplicable, undefined, sessionType, 'chat:one');
+		state.models = [fallback, staleDesired];
+		modelChanges.fire('test');
+
+		assert.deepStrictEqual({ pending: controller.hasAuthoritativeModelWait(), applied }, {
+			pending: false,
+			applied: [fallback.identifier],
 		});
 	});
 

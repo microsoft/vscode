@@ -62,7 +62,7 @@ interface ITestSession {
 	readonly activeChat: ReturnType<typeof observableValue<IChat>>;
 }
 
-function createSession(providerId: string, status: SessionStatus, selectedModelId?: string): ITestSession {
+function createSession(providerId: string, status: SessionStatus, selectedModelId?: string, sessionId = `${providerId}:session`): ITestSession {
 	const modelId = observableValue<string | undefined>(`${providerId}.model`, selectedModelId);
 	const activeChat = observableValue<IChat>(`${providerId}.activeChat`, { resource: URI.parse(`chat:/${providerId}/one`) } as IChat);
 	return {
@@ -71,7 +71,7 @@ function createSession(providerId: string, status: SessionStatus, selectedModelI
 		session: {
 			providerId,
 			sessionType: 'type',
-			sessionId: `${providerId}:session`,
+			sessionId,
 			resource: URI.parse(`session:/${providerId}`),
 			modelId,
 			status: observableValue(`${providerId}.status`, status),
@@ -597,22 +597,43 @@ suite('SessionModelSelectionModel', () => {
 		});
 	});
 
-	test('re-pushes the current model when an untitled chat is reused', () => {
-		const testSession = createSession('provider', SessionStatus.Untitled);
+	test('reapplies the configured default when an untitled chat is reused', () => {
+		const testSession = createSession('provider', SessionStatus.Untitled, first.identifier);
 		const provider = disposables.add(createProvider('provider', identifier => testSession.modelId.set(identifier, undefined)));
 		const selection = disposables.add(new SessionModelSelectionModel(
 			observableValue<IActiveSession | undefined>('session', testSession.session),
 			createProvidersService([provider]),
 			disposables.add(new InMemoryStorageService()),
-			createConfigurationService(),
+			createConfigurationService(second.metadata.id),
 			disposables.add(new NullLogService()),
 		));
 
 		testSession.activeChat.set({ resource: URI.parse('chat:/provider/two') } as IChat, undefined);
 
 		assert.deepStrictEqual({ current: selection.state.get().currentModel?.identifier, writes: provider.writes }, {
+			current: second.identifier,
+			writes: [second.identifier],
+		});
+	});
+
+	test('restores a different untitled session from the same provider', () => {
+		const firstSession = createSession('provider', SessionStatus.Untitled, second.identifier, 'provider:first');
+		const secondSession = createSession('provider', SessionStatus.Untitled, first.identifier, 'provider:second');
+		const provider = disposables.add(createProvider('provider'));
+		const session = observableValue<IActiveSession | undefined>('session', firstSession.session);
+		const selection = disposables.add(new SessionModelSelectionModel(
+			session,
+			createProvidersService([provider]),
+			disposables.add(new InMemoryStorageService()),
+			createConfigurationService(second.metadata.id),
+			disposables.add(new NullLogService()),
+		));
+
+		session.set(secondSession.session, undefined);
+
+		assert.deepStrictEqual({ current: selection.state.get().currentModel?.identifier, writes: provider.writes }, {
 			current: first.identifier,
-			writes: [first.identifier, first.identifier],
+			writes: [],
 		});
 	});
 
