@@ -89,6 +89,7 @@ import { DarwinUpdateService } from '../../platform/update/electron-main/updateS
 import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
 import { SnapUpdateService } from '../../platform/update/electron-main/updateService.snap.js';
 import { Win32UpdateService } from '../../platform/update/electron-main/updateService.win32.js';
+import { isInnoSetupInstall } from '../../platform/update/electron-main/win32UpdateType.js';
 import { IOpenURLOptions, IURLService } from '../../platform/url/common/url.js';
 import { URLHandlerChannelClient, URLHandlerRouter } from '../../platform/url/common/urlIpc.js';
 import { NativeURLService } from '../../platform/url/common/urlService.js';
@@ -152,6 +153,13 @@ type OSProxyConfigEvent = {
 	readonly durationMs: number;
 	readonly platformKind?: string;
 	readonly autoDetect?: boolean;
+	readonly httpProxyEnvironmentState?: string;
+	readonly httpsProxyEnvironmentState?: string;
+	readonly allProxyEnvironmentState?: string;
+	readonly noProxyEnvironmentState?: string;
+	readonly wpadDhcpState?: string;
+	readonly wpadDnsState?: string;
+	readonly configuredPacState?: string;
 	readonly hasConfiguredPac?: boolean;
 	readonly hasLoadedPac?: boolean;
 	readonly pacSource?: string;
@@ -170,9 +178,16 @@ type OSProxyConfigClassification = {
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock duration of the operating system proxy configuration read in milliseconds.' };
 	platformKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The operating system proxy configuration source (windows, macos, linux, unknown, or none).' };
 	autoDetect?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether automatic proxy discovery is enabled.' };
+	httpProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective HTTP proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	httpsProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective HTTPS proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	allProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective all-proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	noProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective no-proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	wpadDhcpState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The DHCP WPAD inspection state. Discovered URLs and errors are not collected.' };
+	wpadDnsState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The DNS WPAD inspection state. Discovered URLs and errors are not collected.' };
+	configuredPacState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configured PAC inspection state. Configured URLs and errors are not collected.' };
 	hasConfiguredPac?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the operating system has a PAC URL configured. The URL is not collected.' };
 	hasLoadedPac?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a PAC script was discovered and loaded. The URL and script contents are not collected.' };
-	pacSource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the loaded PAC script was selected (wpad, configured, unknown, or none).' };
+	pacSource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the loaded PAC script was selected (wpad-dhcp, wpad-dns, configured, unknown, or none).' };
 	pacScriptCharacterCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of characters in the loaded PAC script. The script contents are not collected.' };
 	pacScriptLineCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of lines in the loaded PAC script. The script contents are not collected.' };
 	pacScriptReturnCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of return keyword occurrences in the loaded PAC script. The script contents are not collected.' };
@@ -336,6 +351,14 @@ export class CodeApplication extends Disposable {
 		// But allow them if they are made from inside an webview
 		const isSafeFrame = (requestFrame: WebFrameMain | null | undefined): boolean => {
 			for (let frame: WebFrameMain | null | undefined = requestFrame; frame; frame = frame.parent) {
+				// The render frame backing this WebFrameMain may already be disposed
+				// (e.g. the originating webview/window was closed or navigated away)
+				// by the time this webRequest callback runs. Accessing any property
+				// of a disposed frame throws "Render frame was disposed before
+				// WebFrameMain could be accessed", so guard before reading it.
+				if (frame.isDestroyed()) {
+					return false;
+				}
 				if (frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
 					return true;
 				}
@@ -349,7 +372,7 @@ export class CodeApplication extends Disposable {
 
 		const isAllowedVsCodeFileRequest = (details: Electron.OnBeforeRequestListenerDetails) => {
 			const frame = details.frame;
-			if (!frame || !this.windowsMainService) {
+			if (!frame || frame.isDestroyed() || !this.windowsMainService) {
 				return false;
 			}
 
@@ -370,7 +393,7 @@ export class CodeApplication extends Disposable {
 			}
 
 			const frame = details.frame;
-			if (!frame || !this.windowsMainService) {
+			if (!frame || frame.isDestroyed() || !this.windowsMainService) {
 				return false;
 			}
 
@@ -1739,7 +1762,7 @@ export class CodeApplication extends Disposable {
 
 	private async installMutex(): Promise<void> {
 		const win32MutexName = this.productService.win32MutexName;
-		if (isWindows && win32MutexName) {
+		if (isWindows && win32MutexName && isInnoSetupInstall()) {
 			try {
 				const WindowsMutex = await import('@vscode/windows-mutex');
 				const mutex = new WindowsMutex.Mutex(win32MutexName);
@@ -1839,6 +1862,13 @@ export class CodeApplication extends Disposable {
 				durationMs,
 				platformKind: config.platform?.kind ?? 'none',
 				autoDetect: config.autoDetect,
+				httpProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.httpProxy),
+				httpsProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.httpsProxy),
+				allProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.allProxy),
+				noProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.noProxy),
+				wpadDhcpState: config.wpadDhcp.state,
+				wpadDnsState: config.wpadDns.state,
+				configuredPacState: config.configuredPac.state,
 				hasConfiguredPac: !!config.pacUrl,
 				hasLoadedPac: !!config.pac,
 				pacSource: config.pac?.source ?? 'none',
@@ -1867,6 +1897,10 @@ function hasOSProxyBypassRules(config: IOSProxyConfig): boolean {
 		case 'linux': return config.platform.ignoreHosts.length > 0;
 		default: return false;
 	}
+}
+
+function getOSProxyEnvironmentState(status: IOSProxyConfig['environment']['httpProxy']): 'unset' | 'configured' | 'invalid' {
+	return status ? status.error ? 'invalid' : 'configured' : 'unset';
 }
 
 function getPACScriptStats(content: string): { characterCount: number; lineCount: number; returnCount: number } {

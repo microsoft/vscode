@@ -12,6 +12,7 @@ export interface ISandboxDependencyStatus {
 	readonly bubblewrapUsable: boolean;
 	readonly socatInstalled: boolean;
 	readonly bubblewrapError?: string;
+	readonly dependencyInstallCommand?: string;
 }
 
 export interface IWindowsMxcFilesystemPolicy {

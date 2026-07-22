@@ -83,6 +83,7 @@ export interface ICopilotUtilityChatCompletionRequest {
  */
 interface ICopilotUserResponse {
 	readonly login?: string;
+	readonly copilotignore_enabled?: boolean;
 	readonly endpoints?: {
 		readonly api?: string;
 		readonly telemetry?: string;
@@ -101,6 +102,7 @@ interface ICachedClient {
 	readonly telemetryEndpoint?: string;
 	/** The CAPI `endpoints.api` base URL discovered (or overridden) for this token, if any. */
 	readonly apiEndpoint?: string;
+	readonly copilotIgnoreEnabled?: boolean;
 }
 
 /**
@@ -434,6 +436,8 @@ export interface IRestrictedTelemetryContext {
 	readonly userName?: string;
 	/** Whether the token identifies a VS Code team member. */
 	readonly isVscodeTeamMember?: boolean;
+	/** Whether content exclusion is enabled; undefined when discovery could not determine it. */
+	readonly copilotIgnoreEnabled?: boolean;
 }
 
 export interface ICopilotApiService {
@@ -906,6 +910,7 @@ export class CopilotApiService implements ICopilotApiService {
 			isInternal: token.isInternal,
 			userName: client.login,
 			isVscodeTeamMember: token.isVscodeTeamMember,
+			copilotIgnoreEnabled: client.copilotIgnoreEnabled,
 		};
 	}
 
@@ -1015,6 +1020,7 @@ export class CopilotApiService implements ICopilotApiService {
 			login: envelope.login,
 			telemetryEndpoint: envelope.endpoints?.telemetry,
 			apiEndpoint: envelope.endpoints?.api,
+			copilotIgnoreEnabled: envelope.copilotignore_enabled,
 		};
 	}
 

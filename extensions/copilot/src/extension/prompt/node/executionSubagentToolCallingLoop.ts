@@ -15,6 +15,7 @@ import { ProxyAgenticEndpoint } from '../../../platform/endpoint/node/proxyAgent
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
+import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
@@ -67,6 +68,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 	 * toolCallId. */
 	private readonly _backgroundCommands: IBackgroundCommand[] = [];
 	private readonly _seenBackgroundCallIds = new Set<string>();
+	private _endpoint: Promise<IChatEndpoint> | undefined;
 
 	public get backgroundCommands(): readonly IBackgroundCommand[] {
 		return this._backgroundCommands;
@@ -112,7 +114,16 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 	/**
 	 * Get the endpoint to use for the execution subagent
 	 */
-	private async getEndpoint() {
+	private getEndpoint(): Promise<IChatEndpoint> {
+		return this._endpoint ??= this.resolveEndpoint();
+	}
+
+	/** Returns the display name of the endpoint used for this execution. */
+	public async getModelName(): Promise<string> {
+		return (await this.getEndpoint()).name;
+	}
+
+	private async resolveEndpoint(): Promise<IChatEndpoint> {
 		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentModel, this._experimentationService);
 		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentUseAgenticProxy, this._experimentationService);
 		const shellType = this.terminalService.terminalShellType;
@@ -129,8 +140,13 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 
 		if (modelName) {
 			try {
-				// Try to get the specified model
-				const endpoint = await this.endpointProvider.getChatEndpoint(modelName);
+				// The setting is model-name based, so prefer an exact model-id match.
+				// IChatEndpoint exposes the model id, so we can resolve it directly
+				// from the known endpoints. Fall back to family resolution (the prior
+				// behavior) when no id matches, e.g. when the setting is a CAPI family.
+				const allEndpoints = await this.endpointProvider.getAllChatEndpoints();
+				const endpoint = allEndpoints.find(e => e.model === modelName)
+					?? await this.endpointProvider.getChatEndpoint(modelName);
 				if (endpoint.supportsToolCalls) {
 					return endpoint;
 				}

@@ -96,6 +96,27 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		assert.strictEqual(result.incomingChanges, undefined);
 	});
 
+	(hasGit ? test : test.skip)('resolves the default branch name and remote-tracking start point', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'refs/heads/main'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main'], { cwd: dir, stdio: 'pipe' });
+
+		assert.deepStrictEqual(await svc!.getDefaultBranch(URI.file(dir)), {
+			name: 'main',
+			startPoint: 'origin/main',
+		});
+	});
+
+	(hasGit ? test : test.skip)('falls back to the local branch when the default remote-tracking ref is missing', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main'], { cwd: dir, stdio: 'pipe' });
+
+		assert.deepStrictEqual(await svc!.getDefaultBranch(URI.file(dir)), {
+			name: 'main',
+			startPoint: 'main',
+		});
+	});
+
 	(hasGit ? test : test.skip)('counts uncommitted changes', async () => {
 		const dir = initRepo({ remote: 'git@gitlab.com:owner/repo.git' });
 		const fs = await import('fs/promises');
@@ -349,6 +370,48 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 			.sort();
 
 		assert.deepStrictEqual(treePaths, ['fresh.txt', 'new.txt']);
+	});
+
+	(hasGit ? test : test.skip)('computes bounded per-file patches from an immutable working-tree snapshot', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		await fs.writeFile(join(dir, 'tracked.txt'), 'before\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'init');
+		const baseline = run('rev-parse', 'HEAD').toString().trim();
+
+		await fs.writeFile(join(dir, 'tracked.txt'), 'after\n');
+		await fs.writeFile(join(dir, 'untracked.txt'), 'new\n');
+		const tree = await svc!.captureWorkingTreeAsTree(URI.file(dir));
+		assert.ok(tree);
+		const fileDiffs = await svc!.computeFileDiffsBetweenRefs(URI.file(dir), { sessionUri: 'copilot:/s', fromRef: baseline, toRef: tree });
+		assert.ok(fileDiffs);
+		const snapshots = await Promise.all(fileDiffs.map(async fileDiff => {
+			const before = fileDiff.before?.uri ? URI.parse(fileDiff.before.uri).path.split('/').pop() : undefined;
+			const after = fileDiff.after?.uri ? URI.parse(fileDiff.after.uri).path.split('/').pop() : undefined;
+			const paths = [before, after].filter((path): path is string => path !== undefined);
+			const patch = await svc!.getDiffPatchBetweenRefs(URI.file(dir), { fromRef: baseline, toRef: tree, paths, maxBuffer: 900 * 1024 });
+			return { before, after, patch };
+		}));
+
+		assert.deepStrictEqual(snapshots.map(snapshot => ({
+			before: snapshot.before,
+			after: snapshot.after,
+			tooLarge: snapshot.patch?.tooLarge,
+			containsExpectedContent: snapshot.after === 'tracked.txt'
+				? snapshot.patch?.patch?.includes('-before\n+after')
+				: snapshot.patch?.patch?.includes('+new'),
+		})).sort((a, b) => (a.after ?? '').localeCompare(b.after ?? '')), [{
+			before: 'tracked.txt',
+			after: 'tracked.txt',
+			tooLarge: false,
+			containsExpectedContent: true,
+		}, {
+			before: undefined,
+			after: 'untracked.txt',
+			tooLarge: false,
+			containsExpectedContent: true,
+		}]);
 	});
 
 	(hasGit && !isWindows ? test : test.skip)('captureWorkingTreeAsTree returns undefined when staging fails', async () => {

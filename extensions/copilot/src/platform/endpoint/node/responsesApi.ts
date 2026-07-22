@@ -45,10 +45,14 @@ export function getResponsesApiCompactionThreshold(configService: IConfiguration
 		: 50000;
 }
 
+export function getVerbosityForModelSyncBasedOnExp(configService: IConfigurationService, expService: IExperimentationService, endpoint: IChatEndpoint): 'low' | 'medium' | 'high' | undefined {
+	return getVerbosityForModelSync(endpoint, configService.getExperimentBasedConfig(ConfigKey.EnableGpt56Verbosity, expService));
+}
+
 export function createResponsesRequestBody(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions, model: string, endpoint: IChatEndpoint): IEndpointBody {
 	const configService = accessor.get(IConfigurationService);
 	const expService = accessor.get(IExperimentationService);
-	const verbosity = getVerbosityForModelSync(endpoint);
+	const verbosity = getVerbosityForModelSyncBasedOnExp(configService, expService, endpoint);
 	const compactThreshold = getResponsesApiCompactionThreshold(configService, expService, endpoint);
 	// compaction supported for all the models but works well for codex models and any future models after 5.3
 

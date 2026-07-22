@@ -17,7 +17,7 @@ This document covers the shared base and the **local** concrete provider. For th
 Agent host providers implement `IAgentHostSessionsProvider` (defined in sessions core at `src/vs/sessions/common/agentHostSessionsProvider.ts`), which extends `ISessionsProvider` with:
 
 - **Remote connection members** (optional, populated only by remote providers): `connectionStatus`, `remoteAddress`, `connect()`, `disconnect()`, `canConnectOnDemand`.
-- **Dynamic session config**: `onDidChangeSessionConfig`, `getSessionConfig`, `isSessionConfigResolving`, `setSessionConfigValue`, `replaceSessionConfig`, `getSessionConfigCompletions`. These power the per-session configuration picker (isolation, branch, and other host-declared properties resolved live from the backend schema).
+- **Dynamic session config**: `onDidChangeSessionConfig`, `getSessionConfig`, `isSessionConfigResolving`, `setSessionConfigValue`, `replaceSessionConfig`, `getSessionConfigCompletions`. These power the per-session configuration picker (isolation, branch, and other host-declared properties resolved live from the backend schema). When the host reports only read-only `folder` isolation because the workspace has no usable Git repository, the picker omits the isolation control rather than showing a disabled `Folder` label. This availability filter runs before presentation-specific `_shouldRenderProperty` overrides so the mobile-aware picker cannot reintroduce the unavailable control on desktop.
 
 `isAgentHostProvider(provider: ISessionsProvider)` (same file) is a type guard returning `true` for the local and remote agent host providers; `isAgentHostProviderId(providerId: string)` is the id-only variant, `true` for `local-agent-host` and any `agenthost-*` (remote) provider id.
 
@@ -72,7 +72,7 @@ A single agent host session uses several distinct identifiers:
 
 `ISession.sessionType` is intentionally the agent name (not the scheme) so a logical type like `copilotcli` covers local agent host, remote agent host, and extension-host Copilot CLI sessions in the filter menu and new-session picker. Routing (`registerChatSessionContentProvider`, model registration) is keyed off the per-provider `resource.scheme` instead.
 
-`getModelsSnapshot(sessionId, restoredModelId)` returns the current models for `session.resource.scheme`. Its `isResolved` bit follows readiness of that scheme's language-model vendor, while `getModelPickerOptions` returns grouped/featured models and whether Auto is supported. Desktop and phone picker surfaces both consume these provider APIs.
+`getModelsSnapshot(sessionId, desiredModelId)` returns the current models for `session.resource.scheme` and reports that scheme as the snapshot's `modelTarget`, which keys the shared remembered-model preference. Its `desiredModelResolution` field reports whether the desired identifier is pending, available, or unavailable based on that scheme's language-model vendor readiness; it reports `notRequested` when no identifier is supplied. `getModelPickerOptions` returns grouped/featured models and whether Auto is supported. Desktop and phone picker surfaces both consume these provider APIs.
 
 ## Architecture
 
@@ -145,6 +145,8 @@ because there is no response stream in which to represent them.
 1. Resolves the `ISessionType` and validates the workspace (`resolveWorkspace`).
 2. Constructs a `NewSession` draft, stores it in `_newSessions`, and fires `onDidChangeSessionConfig`. New-session model/mode selection is seeded by the existing model/agent pickers and sent on the first message.
 3. If a connection exists and authentication is **not** pending, eagerly starts the backend session and resolves its dynamic config in parallel. While auth is pending the draft waits; `_resumeNewSessionAfterAuthenticationSettles` (driven by the `authenticationPending` observable going false) starts the backend for all pending drafts.
+
+Portable string config picks are remembered in profile storage and seed later drafts. `branch` is deliberately excluded because it is repository-scoped; each new workspace instead gets the default branch for worktree isolation or the current branch for folder isolation from the host's Git-backed config resolution. Branch config and completions use local names such as `main`; when that local name denotes the repository default, worktree creation still uses its remote-tracking ref such as `origin/main` as the start point.
 
 The eager session-state subscription does not compute Git metadata while the host session lifecycle is `Creating`: its initial working directory is the selected checkout, not the final isolated worktree. Materialization publishes the resolved working directory through `notify/sessionAdded` and starts the first Git-state refresh against that path; the later `session/metaChanged` / `notify/sessionSummaryChanged` updates rebuild the adapter workspace with the resolved branch.
 

@@ -9,6 +9,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { agentsPanelBackground, agentsPanelBorder, agentsPanelForeground } from '../../common/theme.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../common/sizes.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
@@ -58,7 +59,7 @@ export class SessionsPart extends Part {
 	/** Visual margin values for the card-like appearance */
 	static readonly MARGIN_TOP = 0;
 	static readonly MARGIN_LEFT = 0;
-	static readonly MARGIN_RIGHT = 5;
+	static readonly MARGIN_RIGHT = AGENTS_FLOATING_PANEL_GAP;
 	static readonly MARGIN_RIGHT_NO_EDITOR_PANE = 0;
 	static readonly MARGIN_BOTTOM = 0;
 
@@ -422,9 +423,6 @@ export class SessionsPart extends Part {
 		this._lastLayout = { width, height, top, left };
 
 		// Compute content dimensions accounting for visual margins and border.
-		// MARGIN_BOTTOM applies only when the panel is visible (paired with the panel's
-		// 5px top margin to center the sash). When the panel is hidden the card fills its
-		// cell; the workbench grid's 10px bottom gutter provides the visible gap.
 		const borderTotal = SessionsPart.BORDER_WIDTH * 2;
 		const marginLeft = SessionsPart.MARGIN_LEFT;
 		const marginBottom = SessionsPart.MARGIN_BOTTOM;

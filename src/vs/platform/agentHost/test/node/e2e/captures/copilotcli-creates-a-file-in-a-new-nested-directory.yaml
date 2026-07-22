@@ -1,0 +1,41 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create output/report.txt containing exactly NESTED_CREATED.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: bash
+          input:
+            command: mkdir -p output && printf 'NESTED_CREATED' > output/report.txt && cat output/report.txt
+            description: Create nested output directory and report file
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create output/report.txt containing exactly NESTED_CREATED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: mkdir -p output && printf 'NESTED_CREATED' > output/report.txt && cat output/report.txt
+                description: Create nested output directory and report file
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                NESTED_CREATED
+                <shellId: 0 completed with exit code 0>
+    response:
+      content: Created [output/report.txt](${workdir}/ahp-coverage-nested-create-${temp}/output/report.txt) containing exactly `NESTED_CREATED`.
+      stopReason: end_turn

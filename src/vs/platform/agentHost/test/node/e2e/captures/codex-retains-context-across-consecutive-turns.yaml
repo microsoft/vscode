@@ -1,0 +1,25 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word ORCHID. Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word ORCHID. Reply exactly "ready".
+        - role: assistant
+          content: ready
+        - role: user
+          content: What code word did I ask you to remember? Reply with only the code word.
+    response:
+      content: ORCHID
+      stopReason: end_turn
