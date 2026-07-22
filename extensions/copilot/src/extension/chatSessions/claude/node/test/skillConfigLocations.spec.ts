@@ -12,6 +12,7 @@ import { NullNativeEnvService } from '../../../../../platform/env/common/nullEnv
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { Event } from '../../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
+import { isWindows } from '../../../../../util/vs/base/common/platform';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { resolveSkillConfigLocations } from '../../../common/skillConfigLocations';
@@ -89,7 +90,7 @@ describe('resolveSkillConfigLocations', () => {
 		expect(result[0].path).toBe('/absolute/skills/path');
 	});
 
-	it('preserves UNC authority for local absolute paths', () => {
+	it.skipIf(!isWindows)('preserves UNC authority for local absolute paths', () => {
 		expect(resolve({
 			configLocations: { '\\\\server\\share\\skills': true },
 			userHome: URI.file('C:\\Users\\user'),
