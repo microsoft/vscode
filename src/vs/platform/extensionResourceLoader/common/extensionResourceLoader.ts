@@ -132,7 +132,7 @@ export abstract class AbstractExtensionResourceLoaderService extends Disposable 
 		return !!this._extensionGalleryAuthority && this._extensionGalleryAuthority === this._getExtensionGalleryAuthority(uri);
 	}
 
-	protected async getExtensionGalleryRequestHeaders(): Promise<Record<string, string>> {
+	protected async getExtensionGalleryRequestHeaders(resource?: URI): Promise<Record<string, string>> {
 		const headers: Record<string, string> = {
 			'X-Client-Name': `${this._productService.applicationName}${isWeb ? '-web' : ''}`,
 			'X-Client-Version': this._productService.version
@@ -143,7 +143,42 @@ export abstract class AbstractExtensionResourceLoaderService extends Disposable 
 		if (this._productService.commit) {
 			headers['X-Client-Commit'] = this._productService.commit;
 		}
+		if (resource) {
+			Object.assign(headers, await this.getMarketplaceAuthorizationHeader(resource));
+		}
 		return headers;
+	}
+
+	/**
+	 * Returns an `Authorization` header for a `[Authorize]`-gated marketplace resource request, or an
+	 * empty object when no token applies. The negotiated bearer token (see
+	 * {@link IExtensionGalleryManifestService.getAccessToken}) is attached ONLY when `resource` is
+	 * same-origin HTTPS with the marketplace's `extensionquery` service endpoint — this prevents the
+	 * resource-scoped token from leaking to a foreign origin (e.g. a third-party resource CDN whose
+	 * URL was advertised by the gallery manifest, or a cleartext URL). Mirrors the guard applied to
+	 * gallery API/asset requests in `ExtensionGalleryService`.
+	 */
+	private async getMarketplaceAuthorizationHeader(resource: URI): Promise<Record<string, string>> {
+		const token = await this._extensionGalleryManifestService.getAccessToken();
+		if (!token) {
+			return {};
+		}
+		const manifest = await this._extensionGalleryManifestService.getExtensionGalleryManifest();
+		const marketplaceApi = manifest ? getExtensionGalleryManifestResourceUri(manifest, ExtensionGalleryResourceType.ExtensionQueryService) : undefined;
+		if (!marketplaceApi || !AbstractExtensionResourceLoaderService.isSameSecureOrigin(resource, URI.parse(marketplaceApi))) {
+			return {};
+		}
+		return { Authorization: `Bearer ${token}` };
+	}
+
+	/**
+	 * True when both URIs are `https:` and share the same origin (scheme + authority). Fails closed:
+	 * a scheme mismatch returns false so a token is never attached to a cleartext target.
+	 */
+	private static isSameSecureOrigin(target: URI, base: URI): boolean {
+		return target.scheme === 'https'
+			&& base.scheme === 'https'
+			&& target.authority.toLowerCase() === base.authority.toLowerCase();
 	}
 
 	private _serviceMachineIdPromise: Promise<string> | undefined;

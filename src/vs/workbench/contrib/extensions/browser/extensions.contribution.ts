@@ -24,7 +24,7 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService, PRIVATE_MARKETPLACE_SCOPES, discoverMarketplaceProtectedResource } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, ExtensionRequestsTimeoutConfigKey, ExtensionsLocalizedLabel, FilterType, IExtensionGalleryService, IExtensionManagementService, PreferencesLocalizedLabel, SortBy, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions, getIdAndVersion } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ExtensionStorageService } from '../../../../platform/extensionManagement/common/extensionStorage.js';
@@ -69,6 +69,9 @@ import { IWebview } from '../../webview/browser/webview.js';
 import { Query } from '../common/extensionQuery.js';
 import { AutoRestartConfigurationKey, AutoUpdateConfigurationKey, CONTEXT_EXTENSIONS_GALLERY_STATUS, CONTEXT_HAS_GALLERY, DefaultViewsContext, ExtensionEditorTab, ExtensionRuntimeActionType, EXTENSIONS_CATEGORY, extensionsFilterSubMenu, extensionsSearchActionsMenu, HasOutdatedExtensionsContext, IExtensionArg, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, INSTALL_ACTIONS_GROUP, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, IWorkspaceRecommendedExtensionsView, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, OUTDATED_EXTENSIONS_VIEW_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, TOGGLE_IGNORE_EXTENSION_ACTION_ID, UPDATE_ACTIONS_GROUP, VIEWLET_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID } from '../common/extensions.js';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '../common/extensionsFileTemplate.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IRequestService } from '../../../../platform/request/common/request.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { KeymapExtensions } from '../common/extensionsUtils.js';
 import { SearchExtensionsTool, SearchExtensionsToolData } from '../common/searchExtensionsTool.js';
@@ -356,6 +359,46 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 							key: 'extensions.gallery.serviceUrl',
 							value: localize('extensions.gallery.serviceUrl', "Configure the Marketplace service URL to connect to"),
 						}
+					}
+				},
+			},
+			[ExtensionGalleryAuthProviderConfigKey]: {
+				type: 'string',
+				// The enum and its descriptions are intentionally NOT gated on
+				// `product.enableExtensionGalleryEntraAuth`: the policy metadata below always
+				// exports both enum descriptions, and the policy-artifact generator requires the
+				// schema `enum` and `enumDescriptions` to have equal length, so gating the enum
+				// would make a clean policy export invalid. The Entra product gate is enforced at
+				// runtime in `getEffectiveAuthProvider()` instead, and this setting is hidden
+				// (`included: false`), so listing `microsoft` here does not advertise it in the UI.
+				enum: ['github', 'microsoft'],
+				enumDescriptions: [
+					localize('extensions.gallery.authProvider.github', "Authenticate to the Extensions Marketplace using GitHub."),
+					localize('extensions.gallery.authProvider.microsoft', "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."),
+				],
+				description: localize('extensions.gallery.authProvider', "Configure the authentication provider for the Extensions Marketplace"),
+				default: '',
+				scope: ConfigurationScope.APPLICATION,
+				included: false,
+				policy: {
+					name: 'ExtensionGalleryAuthProvider',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.121',
+					localization: {
+						description: {
+							key: 'extensions.gallery.authProvider',
+							value: localize('extensions.gallery.authProvider', "Configure the authentication provider for the Extensions Marketplace"),
+						},
+						enumDescriptions: [
+							{
+								key: 'extensions.gallery.authProvider.github',
+								value: localize('extensions.gallery.authProvider.github', "Authenticate to the Extensions Marketplace using GitHub."),
+							},
+							{
+								key: 'extensions.gallery.authProvider.microsoft',
+								value: localize('extensions.gallery.authProvider.microsoft', "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."),
+							},
+						]
 					}
 				},
 			},
@@ -2116,12 +2159,44 @@ registerAction2(class ExtensionsGallerySignInAction extends Action2 {
 			title: localize2('signInToMarketplace', 'Sign in to access Extensions Marketplace'),
 			menu: {
 				id: MenuId.AccountsContext,
-				when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn)
+				when: ContextKeyExpr.or(
+					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn),
+					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied),
+				)
 			},
 		});
 	}
-	run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(ICommandService).executeCommand(DEFAULT_ACCOUNT_SIGN_IN_COMMAND);
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const productService = accessor.get(IProductService);
+		const authProvider = configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey);
+
+		if (authProvider === 'microsoft' && productService.enableExtensionGalleryEntraAuth) {
+			const authenticationService = accessor.get(IAuthenticationService);
+			// Establish the identity session used for the eligibility check.
+			await authenticationService.createSession(
+				'microsoft',
+				PRIVATE_MARKETPLACE_SCOPES);
+			// If the marketplace service index is itself Entra-gated, additionally acquire a
+			// resource-scoped token now (interactive consent). The silent negotiation on the
+			// re-validation cannot prompt, so first-time consent must happen here or the user
+			// would be returned to the sign-in prompt after authenticating.
+			const serviceUrl = configurationService.getValue<string>(ExtensionGalleryServiceUrlConfigKey);
+			if (serviceUrl) {
+				const requestService = accessor.get(IRequestService);
+				const protectedResource = await discoverMarketplaceProtectedResource(requestService, serviceUrl, undefined, CancellationToken.None);
+				if (protectedResource) {
+					const scopes = protectedResource.scopes.length ? protectedResource.scopes : PRIVATE_MARKETPLACE_SCOPES;
+					await authenticationService.createSession(
+						'microsoft',
+						[...scopes],
+						{ authorizationServer: URI.parse(protectedResource.authorizationServer) });
+				}
+			}
+		} else {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand(DEFAULT_ACCOUNT_SIGN_IN_COMMAND);
+		}
 	}
 });
 
