@@ -83,22 +83,3 @@
 .agent-sessions-workbench .chat-subagent-part.chat-subagent-has-chat .chat-used-context-label .monaco-button-mdlabel {
 	display: none;
 }
-
-/* The subagent's agent name (e.g. "General-purpose", "Task") rendered before the
-	pill (outside the chip) within the subagent header toolbar, with a trailing
-	colon separating it from the pill. Muted so the pill title stays the focus. */
-.chat-subagent-open-chat-toolbar .chat-subagent-pill-prefix {
-	margin-right: 6px;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-chat-font-size-body-s);
-	white-space: nowrap;
-	flex-shrink: 0;
-}
-
-.chat-subagent-open-chat-toolbar .chat-subagent-pill-prefix::after {
-	content: ':';
-}
-
-.interactive-session .chat-used-context-label .monaco-button:hover .chat-subagent-open-chat-toolbar .chat-subagent-pill-prefix {
-	color: var(--vscode-foreground);
-}

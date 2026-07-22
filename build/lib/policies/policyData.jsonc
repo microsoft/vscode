@@ -457,6 +457,42 @@
             "included": true
         },
         {
+            "key": "chat.mcp.allowedServers",
+            "name": "ChatAllowedMcpServers",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.130",
+            "localization": {
+                "description": {
+                    "key": "chat.mcp.allowedServers.policy",
+                    "value": "Allowlist of Model Context Protocol servers. When set, only servers matching an entry may be installed or run; omit entirely to allow all servers (subject to the deny list)."
+                }
+            },
+            "type": [
+                "array",
+                "null"
+            ],
+            "default": null,
+            "included": false
+        },
+        {
+            "key": "chat.mcp.deniedServers",
+            "name": "ChatDeniedMcpServers",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.130",
+            "localization": {
+                "description": {
+                    "key": "chat.mcp.deniedServers.policy",
+                    "value": "Denylist of Model Context Protocol servers. Servers matching any entry are blocked from being installed or run, even if they also match the allow list; deny rules always take precedence."
+                }
+            },
+            "type": [
+                "array",
+                "null"
+            ],
+            "default": null,
+            "included": false
+        },
+        {
             "key": "chat.extensionTools.enabled",
             "name": "ChatAgentExtensionTools",
             "category": "InteractiveSession",

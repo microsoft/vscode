@@ -1,0 +1,41 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Read nested/value.txt and reply with its exact contents only.
+    response:
+      content:
+        - type: text
+          text: I'll read the file.
+        - type: tool_use
+          id: toolcall_0
+          name: Read
+          input:
+            file_path: ${workdir}/ahp-coverage-nested-read-${temp}/nested/value.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Read nested/value.txt and reply with its exact contents only.
+        - role: assistant
+          content:
+            - type: text
+              text: I'll read the file.
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/ahp-coverage-nested-read-${temp}/nested/value.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tNESTED_VALUE_42"
+    response:
+      content: NESTED_VALUE_42
+      stopReason: end_turn

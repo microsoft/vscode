@@ -41,7 +41,7 @@ import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotClo
 import { StreamBaseline, TaskTurnStreamer } from './taskTurnStreamer';
 import { JobsApiBackend } from './jobsApiBackend';
 import { CloudBackendInstrumentation, CloudBackendVersion } from './cloudBackendTelemetry';
-import { TaskApiBackend, TaskApiHttpClient } from './taskApiBackend';
+import { parseRepoFromTaskUrl, TaskApiBackend, TaskApiHttpClient } from './taskApiBackend';
 import { resolvePullArtifact } from './pullArtifactResolver';
 import { IPullRequestFileChangesService } from './pullRequestFileChangesService';
 import MarkdownIt = require('markdown-it');
@@ -444,7 +444,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				let intervalMs: number;
 				let hasHistoricalSessions: boolean;
 				try {
-					const sessionList = await this._backend.fetchSessionList(repoIds, false, false);
+					const sessionList = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace, false);
 					hasHistoricalSessions = sessionList.length > 0;
 					intervalMs = this.getRefreshIntervalTime(hasHistoricalSessions);
 				} catch (e) {
@@ -457,7 +457,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				telemetryObj.hasHistoricalSessions = hasHistoricalSessions;
 				const schedulerCallback = async () => {
 					try {
-						const sessionList = await this._backend.fetchSessionList(repoIds, false, true);
+						const sessionList = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace, true);
 						if (this.cachedSessionsSize !== sessionList.length) {
 							this.refresh();
 						}
@@ -1303,7 +1303,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			//   `pullArtifact` (so we know it's a Task API entry); PR-less Jobs entries are skipped.
 			const sessionItems = await Promise.all(sessionList.map(async entry => {
 				const pr = entry.pullRequest
-					?? (entry.pullArtifact ? await resolvePullArtifact(this._octoKitService, this.logService, entry.pullArtifact, undefined, this.telemetry) : undefined);
+					?? (entry.pullArtifact ? await resolvePullArtifact(this._octoKitService, this.logService, entry.pullArtifact, entry.repo, undefined, this.telemetry) : undefined);
 				const sessionItem = entry.latestSession;
 				const createdAt = validateISOTimestamp(sessionItem.created_at);
 
@@ -1332,6 +1332,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 						label: entry.latestSession.name || taskId,
 						status,
 						...(changes?.length ? { changes } : {}),
+						...(entry.repo ? { metadata: { owner: entry.repo.owner, name: entry.repo.name } } : {}),
 						...(createdAt ? {
 							timing: {
 								created: createdAt,
@@ -1581,7 +1582,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		// Best-effort PR decoration for the header card.
 		let pullRequest: PullRequestSearchItem | undefined;
 		if (taskContent.pullArtifact) {
-			pullRequest = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, [...(taskContent.task.sessions || [])], this.telemetry);
+			pullRequest = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, parseRepoFromTaskUrl(taskContent.task.html_url), [...(taskContent.task.sessions || [])], this.telemetry);
 		}
 
 		const storedReferences: Promise<vscode.ChatPromptReference[]> = Promise.resolve([...(this.sessionReferencesMap.get(resource) ?? [])]);
@@ -2383,7 +2384,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 		let url = taskContent.task.html_url;
 		if (taskContent.pullArtifact) {
-			const pr = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, [...(taskContent.task.sessions || [])], this.telemetry);
+			const pr = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, parseRepoFromTaskUrl(taskContent.task.html_url), [...(taskContent.task.sessions || [])], this.telemetry);
 			url = pr?.url ?? url;
 		}
 		if (!url) {

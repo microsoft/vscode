@@ -1,0 +1,428 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Replace the complete contents of edit.txt with AFTER_VALUE.
+            origin:
+              kind: user
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallConfirmed
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_7}
+          approved: true
+          confirmed: user-action
+    serverToClient:
+      - channel: ${session_0}
+        action:
+          type: session/chatUpdated
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Replace the complete contents of edit.txt with AFTER_VALUE.
+            origin:
+              kind: user
+      - channel: ${session_0}
+        action:
+          type: session/titleChanged
+      - channel: ${session_0}
+        action:
+          type: session/serverToolsChanged
+      - method: root/sessionAdded
+      - channel: ${session_0}
+        action:
+          type: session/ready
+      - channel: ${session_0}
+        action:
+          type: session/changesetsChanged
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          toolName: bash
+          displayName: Run Shell Command
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          invocationMessage: Running `find / -maxdepth 6 -iname "edit.txt" 2>/dev/null`
+          toolInput: find / -maxdepth 6 -iname "edit.txt" 2>/dev/null
+          confirmed: not-needed
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          invocationMessage: Locate edit.txt file
+          toolInput: find / -maxdepth 6 -iname "edit.txt" 2>/dev/null
+          confirmed: not-needed
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          result:
+            success: true
+            pastTenseMessage: Ran `find / -maxdepth 6 -iname "edit.txt" 2>/dev/null`
+            content:
+              - type: text
+                text: |-
+
+                  <shellId: ${shellId} completed with exit code 1>
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_1}
+          toolName: bash
+          displayName: Run Shell Command
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_1}
+          invocationMessage: Running `find / -iname "edit.txt" 2>/dev/null`
+          toolInput: find / -iname "edit.txt" 2>/dev/null
+          confirmed: not-needed
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_1}
+          invocationMessage: Locate edit.txt file anywhere
+          toolInput: find / -iname "edit.txt" 2>/dev/null
+          confirmed: not-needed
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_1}
+          result:
+            success: true
+            pastTenseMessage: Ran `find / -iname "edit.txt" 2>/dev/null`
+            content:
+              - type: text
+                text: '<command with shellId: 1 is still running after 30 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_2}
+          toolName: read_bash
+          displayName: Read Terminal
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_2}
+          invocationMessage: Reading Terminal
+          toolInput: |-
+            {
+              "shellId": "1",
+              "delay": 30
+            }
+          confirmed: not-needed
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_2}
+          result:
+            success: true
+            pastTenseMessage: Read Terminal
+            content:
+              - type: text
+                text: '<command with shellId: 1 is still running after 30 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_3}
+          toolName: read_bash
+          displayName: Read Terminal
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_3}
+          invocationMessage: Reading Terminal
+          toolInput: |-
+            {
+              "delay": 60,
+              "shellId": "1"
+            }
+          confirmed: not-needed
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_3}
+          result:
+            success: true
+            pastTenseMessage: Read Terminal
+            content:
+              - type: text
+                text: '<command with shellId: 1 is still running after 60 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_4}
+          toolName: stop_bash
+          displayName: Stop Terminal Session
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_4}
+          invocationMessage: Stop Terminal Session
+          toolInput: |-
+            {
+              "shellId": "1"
+            }
+          confirmed: not-needed
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_4}
+          result:
+            success: true
+            pastTenseMessage: Stop Terminal Session
+            content:
+              - type: text
+                text: '<command with id: 1 stopped>'
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_5}
+          toolName: bash
+          displayName: Run Shell Command
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_5}
+          invocationMessage: Running `ls -la`
+          toolInput: ls -la
+          confirmed: not-needed
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_5}
+          invocationMessage: List files in working directory
+          toolInput: ls -la
+          confirmed: not-needed
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_5}
+          result:
+            success: true
+            pastTenseMessage: Ran `ls -la`
+            content:
+              - type: text
+                text: |-
+                  total 8
+                  ${listing} .
+                  ${listing} ..
+                  ${listing} edit.txt
+                  <shellId: ${shellId} completed with exit code 0>
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: Found it in the working directory.
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_6}
+          toolName: bash
+          displayName: Run Shell Command
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_6}
+          invocationMessage: Running `cat ${workdir}...`
+          toolInput: cat ${workdir}/edit.txt
+          confirmed: not-needed
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_6}
+          invocationMessage: Show current contents of edit.txt
+          toolInput: cat ${workdir}/edit.txt
+          confirmed: not-needed
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_6}
+          result:
+            success: true
+            pastTenseMessage: Ran `cat ${workdir}...`
+            content:
+              - type: text
+                text: |-
+                  BEFORE_VALUE
+                  <shellId: ${shellId} completed with exit code 0>
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_7}
+          toolName: edit
+          displayName: Edit File
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_7}
+          invocationMessage: Editing [edit.txt](file://${workdir}/edit.txt)
+          toolInput: |-
+            {
+              "path": "${workdir}/edit.txt",
+              "old_str": "BEFORE_VALUE",
+              "new_str": "AFTER_VALUE"
+            }
+          confirmed: not-needed
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${session_0}
+        action:
+          type: session/chatUpdated
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_7}
+          invocationMessage: Editing [edit.txt](file://${workdir}/edit.txt)
+          toolInput: '{"path":"${workdir}/edit.txt"}'
+      - channel: ${session_0}
+        action:
+          type: session/inputNeededSet
+      - channel: ${session_0}
+        action:
+          type: session/chatUpdated
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallConfirmed
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_7}
+          approved: true
+          confirmed: user-action
+      - channel: ${session_0}
+        action:
+          type: session/inputNeededRemoved
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_7}
+          result:
+            success: true
+            pastTenseMessage: Edited [edit.txt](file://${workdir}/edit.txt)
+            content:
+              - type: text
+                text: File ${workdir}/edit.txt updated with changes.
+              - type: fileEdit
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: Replaced the contents of [edit.txt](${workdir}/edit.txt) with `AFTER_VALUE`.
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${session_0}
+        action:
+          type: session/chatUpdated
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}

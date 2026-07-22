@@ -28,7 +28,6 @@ import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/co
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID, LocalAgentHostDefaultProviderSettingId } from '../../../../common/agentHostSessionsProvider.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AGENT_HOST_LOG_OUTPUT_CHANNEL_ID } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -69,10 +68,6 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	/** `true` when running in the dedicated Agents window vs. a regular editor window. */
 	private readonly _isSessionsWindow: boolean;
-
-	protected override getLogOutputChannelId(): string | undefined {
-		return AGENT_HOST_LOG_OUTPUT_CHANNEL_ID;
-	}
 
 	/**
 	 * When the experimental {@link LocalAgentHostDefaultProviderSettingId}

@@ -132,6 +132,40 @@ describe('ExtensionContributedChatTokenizer', () => {
 			const result = await tokenizer.countMessageTokens(message);
 			expect(result).toBeGreaterThanOrEqual(3);
 		});
+
+		// https://github.com/microsoft/vscode/issues/313920: the token-count path must not hand the
+		// internal cache_control sentinel to providers that can't consume it.
+		it('gates the cache_control sentinel on the model vendor', async () => {
+			const toolMessage: Raw.ChatMessage = {
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call-1',
+				content: [
+					{ type: Raw.ChatCompletionContentPartKind.Text, text: 'the tool output' },
+					{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: 'ephemeral' },
+				],
+			};
+
+			const countedForVendor = async (vendor: string) => {
+				let captured: LanguageModelChatMessage | LanguageModelChatMessage2 | undefined;
+				const model = {
+					vendor,
+					countTokens: (input: string | LanguageModelChatMessage | LanguageModelChatMessage2) => {
+						if (typeof input !== 'string') {
+							captured = input;
+						}
+						return Promise.resolve(0);
+					},
+				} as unknown as LanguageModelChat;
+				await new ExtensionContributedChatTokenizer(model).countMessageTokens(toolMessage);
+				const toolResult = captured!.content[0] as { content: { mimeType?: string }[] };
+				return toolResult.content.some(part => part.mimeType === 'cache_control');
+			};
+
+			expect({ anthropic: await countedForVendor('anthropic'), ollama: await countedForVendor('ollama') }).toEqual({
+				anthropic: true,
+				ollama: false,
+			});
+		});
 	});
 
 	describe('countMessagesTokens', () => {

@@ -155,7 +155,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 				this.storageService.store(AgentsVoiceStorageKeys.OnboardingCompleted, true, StorageScope.PROFILE, StorageTarget.USER);
 				this.voiceSessionController.connect(mainWindow);
 			},
-			disconnect: () => this.voiceSessionController.disconnect(),
+			disconnect: () => this.voiceSessionController.disconnect('explicit'),
 			pttDown: () => {
 				if (!this.voiceSessionController.isConnected.get() && !this.voiceSessionController.isConnecting.get()) {
 					this.voiceSessionController.connect(mainWindow).then(() => {
@@ -217,6 +217,11 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		}, {
 			defaultExpanded: false,
 			inputBoxLayout: true,
+			// Make the aux-window container focusable so keyboard Push-to-Talk
+			// (the `agentsVoice.pushToTalk` keybinding) can be received and its
+			// key-release tracking is registered. Without this the keyboard-PTT
+			// handlers are never wired and a held key never stops recording.
+			focusable: true,
 		});
 		this._windowDisposables.add(widget);
 

@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.58.0",
+  "version": "0.59.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.130.0",
+    "vscode": "^1.131.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -4187,6 +4187,15 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.gpt56Verbosity.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%github.copilot.config.gpt56Verbosity.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.gemini3GetChangedFilesTool.enabled": {
             "type": "boolean",
             "default": false,
@@ -4416,7 +4425,7 @@
           },
           "github.copilot.chat.tools.grepSearch.defaultMaxResults": {
             "type": "number",
-            "default": 20,
+            "default": 100,
             "markdownDescription": "%github.copilot.chat.tools.grepSearch.defaultMaxResults%",
             "tags": [
               "experimental",
@@ -7261,7 +7270,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.70-0",
+    "@github/copilot": "^1.0.72",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",

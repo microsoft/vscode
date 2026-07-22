@@ -64,7 +64,7 @@ suite('WorktreeIsolation', () => {
 			getRepositoryRoot: async () => repoRoot,
 			revParse: async (_root, expr) => expr === 'HEAD' ? headCommit : undefined,
 			getCurrentBranch: async () => 'feature',
-			getDefaultBranch: async () => 'main',
+			getDefaultBranch: async () => ({ name: 'main', startPoint: 'main' }),
 			getBranches: async () => ['main', 'feature'],
 			branchExists: async () => branchExists,
 			hasUncommittedChanges: async () => hasUncommittedChanges,
@@ -171,6 +171,34 @@ suite('WorktreeIsolation', () => {
 		}, {
 			withDir: { items: [{ value: 'main', label: 'main' }, { value: 'feature', label: 'feature' }] },
 			noDir: { items: [] },
+		});
+	});
+
+	test('uses the local default branch name in config and its remote ref as the worktree start point', async () => {
+		const gitService = createGitService();
+		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+		const isolation = createIsolation(disposables, { gitService });
+
+		const config = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
+		await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'main',
+			},
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			branchDefault: config.branchDefault,
+			branchEnum: config.branchProperty?.protocol.enum,
+			startPoint: addWorktreeCalls[0]?.startPoint,
+		}, {
+			branchDefault: 'main',
+			branchEnum: ['main'],
+			startPoint: 'origin/main',
 		});
 	});
 

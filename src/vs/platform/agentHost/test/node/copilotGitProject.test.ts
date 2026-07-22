@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import type { IAgentHostGitService, IDefaultBranch } from '../../common/agentHostGitService.js';
 import { projectFromCopilotContext, projectFromRepository, resolveGitProject } from '../../node/copilot/copilotGitProject.js';
 
 class TestAgentHostGitService implements IAgentHostGitService {
@@ -16,7 +16,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	worktreeRoots: URI[] = [];
 
 	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
-	async getDefaultBranch(): Promise<string | undefined> { return undefined; }
+	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return undefined; }
 	async getBranches(): Promise<string[]> { return []; }
 	async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
 	async getWorktreeRoots(): Promise<URI[]> { return this.worktreeRoots; }
@@ -43,6 +43,10 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
 	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<undefined> { return undefined; }
+	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
+	async getUntrackedPaths(): Promise<[]> { return []; }
+	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
+	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
 suite('Copilot Git Project', () => {

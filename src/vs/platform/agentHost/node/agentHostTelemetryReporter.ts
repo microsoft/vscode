@@ -10,7 +10,7 @@ import { AgentSession } from '../common/agentService.js';
 import type { MessageAttachment, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
-import { multiplexProperties, type IAgentHostRestrictedTelemetry } from './agentHostRestrictedTelemetry.js';
+import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -112,6 +112,25 @@ export interface IAgentHostSkillContentReadReport {
 	pluginName: string | undefined;
 	/** Version of the plugin the skill came from, when applicable. */
 	pluginVersion: string | undefined;
+}
+
+export type AgentHostRepoInfoResult = 'success' | 'filesChanged' | 'diffTooLarge' | 'noChanges' | 'tooManyChanges' | 'mergeBaseTooOld' | 'virtualFileSystem' | 'tooManyCommits';
+
+export interface IAgentHostRepoInfoReport {
+	telemetryMessageId: string;
+	location: 'begin' | 'end';
+	remoteUrl: string;
+	repoId: string;
+	repoType: 'github' | 'ado';
+	headCommitHash: string;
+	headBranchName: string | undefined;
+	fileRelativePaths: string | undefined;
+	diffsJSON: string | undefined;
+	result: AgentHostRepoInfoResult;
+	isActiveRepository: 'true';
+	workspaceFileCount: number;
+	changedFileCount: number;
+	diffSizeBytes: number;
 }
 
 export interface IAgentHostToolCallStalledEvent {
@@ -373,6 +392,36 @@ export class AgentHostTelemetryReporter {
 		});
 		restricted.sendEnhancedGHTelemetryEvent('skillContentRead', plaintextProps);
 		restricted.sendInternalMSFTTelemetryEvent('skillContentRead', plaintextProps);
+	}
+
+	reportRepoInfo(context: IAgentHostRestrictedTelemetryContext, report: IAgentHostRepoInfoReport): void {
+		const restricted = this._restricted;
+		if (!restricted) {
+			return;
+		}
+		const properties = {
+			remoteUrl: report.remoteUrl,
+			repoId: report.repoId,
+			repoType: report.repoType,
+			headCommitHash: report.headCommitHash,
+			headBranchName: report.headBranchName,
+			fileRelativePaths: report.fileRelativePaths,
+			diffsJSON: report.diffsJSON,
+			result: report.result,
+			isActiveRepository: report.isActiveRepository,
+			location: report.location,
+			telemetryMessageId: report.telemetryMessageId,
+		};
+		const measurements = {
+			workspaceFileCount: report.workspaceFileCount,
+			changedFileCount: report.changedFileCount,
+			diffSizeBytes: report.diffSizeBytes,
+			repoIndex: 0,
+			repoCount: 1,
+		};
+		const { headBranchName: _, fileRelativePaths: _2, ...internalProperties } = properties;
+		restricted.sendEnhancedGHTelemetryEventForContext(context, 'request.repoInfo', multiplexProperties(properties), measurements);
+		restricted.sendInternalMSFTTelemetryEventForContext(context, 'request.repoInfo', multiplexProperties(internalProperties), measurements);
 	}
 
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {

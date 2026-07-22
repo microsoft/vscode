@@ -23,6 +23,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-linux-x64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-linux-x64/mxc-bin/**',
 			'!node_modules/@github/copilot-linux-x64/pvrecorder/**',
+			'!node_modules/@github/copilot-linux-x64/webview/**',
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/computer.node',
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/computer-use-mcp',
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/computer-use-mcp.exe',
@@ -52,6 +53,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-linuxmusl-x64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/mxc-bin/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/pvrecorder/**',
+			'!node_modules/@github/copilot-linuxmusl-x64/webview/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/computer.node',
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/computer-use-mcp',
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/computer-use-mcp.exe',
@@ -78,6 +80,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-win32-x64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-win32-x64/mxc-bin/**',
 			'!node_modules/@github/copilot-win32-x64/pvrecorder/**',
+			'!node_modules/@github/copilot-win32-x64/webview/**',
 			'!node_modules/@github/copilot-win32-x64/prebuilds/*/computer.node',
 			'!node_modules/@github/copilot-win32-x64/prebuilds/*/computer-use-mcp',
 			'!node_modules/@github/copilot-win32-x64/prebuilds/*/computer-use-mcp.exe',
@@ -105,6 +108,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-win32-arm64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-win32-arm64/mxc-bin/**',
 			'!node_modules/@github/copilot-win32-arm64/pvrecorder/**',
+			'!node_modules/@github/copilot-win32-arm64/webview/**',
 			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/computer.node',
 			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/computer-use-mcp',
 			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/computer-use-mcp.exe',
@@ -260,7 +264,7 @@ function assertCopilotStandaloneExecutableExcluded(patterns: string[], packageDi
 }
 
 function assertOptionalCopilotNativeDependenciesExcluded(patterns: string[], packageDir: string): void {
-	for (const dir of ['clipboard', 'foundry-local-sdk', 'mxc-bin', 'pvrecorder']) {
+	for (const dir of ['clipboard', 'foundry-local-sdk', 'mxc-bin', 'pvrecorder', 'webview']) {
 		assert(patterns.includes(`!${packageDir}/${dir}/**`), dir);
 		assert(!matchesGlob(`${packageDir}/${dir}/index.js`, patterns), dir);
 	}
