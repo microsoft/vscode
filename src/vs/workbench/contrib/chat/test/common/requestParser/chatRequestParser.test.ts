@@ -7,6 +7,7 @@ import { mockObject } from '../../../../../../base/test/common/mock.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -16,7 +17,7 @@ import { IExtensionService, nullExtensionDescription } from '../../../../../serv
 import { TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatAgentService, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestParser } from '../../../common/requestParser/chatRequestParser.js';
-import { ChatRequestAgentSubcommandPart, getPromptText } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, getPromptText } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -63,6 +64,42 @@ suite('ChatRequestParser', () => {
 		const text = 'line 1\nline 2\r\nline 3';
 		const result = parser.parseChatRequest(testSessionUri, text);
 		await assertSnapshot(result);
+	});
+
+	test('inline attachment reference only preserves reference metadata', () => {
+		const text = 'compare #attachment:design.png here';
+		variableService.setDynamicVariables(testSessionUri, [{
+			id: 'image-1',
+			fullName: 'design.png',
+			range: new Range(1, 9, 1, 31),
+			isAttachmentReference: true,
+			data: undefined,
+		}]);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, text);
+		const part = result.parts.find((part): part is ChatRequestDynamicVariablePart => part instanceof ChatRequestDynamicVariablePart);
+		const entry = part?.toVariableEntry();
+
+		assert.deepStrictEqual({
+			kind: entry?.kind,
+			id: entry?.id,
+			name: entry?.name,
+			range: entry?.range && { start: entry.range.start, endExclusive: entry.range.endExclusive },
+			value: entry?.value,
+			fullName: entry?.fullName,
+			hasAttachment: part ? Object.hasOwn(part, 'attachment') : undefined,
+			isAttachmentReference: part?.isAttachmentReference,
+		}, {
+			kind: 'generic',
+			id: 'image-1',
+			name: 'attachment:design.png',
+			range: { start: 8, endExclusive: 30 },
+			value: undefined,
+			fullName: 'design.png',
+			hasAttachment: false,
+			isAttachmentReference: true,
+		});
 	});
 
 	test('slash in text', async () => {

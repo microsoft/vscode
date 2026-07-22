@@ -115,6 +115,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: () => activeDictationComposer?.toggleDictation(),
 });
 
+// Preserve the command id so push-to-talk hold mode can track this chord.
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'agentsVoice.startVoiceInChat',
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	when: ContextKeyExpr.and(
+		SessionsChatInputHasDictationFocus,
+		ContextKeyExpr.equals('config.agents.voice.enabled', true),
+	),
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
+});
+
 interface IDraftState {
 	inputText: string;
 	attachments: readonly IChatRequestVariableEntry[];
@@ -675,7 +686,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			SessionReferenceCompletionHandler, this._editor, this._contextAttachments,
 		));
 
-		this._agentHostInputCompletionHandler = this._register(this.instantiationService.createInstance(
+		this._agentHostInputCompletionHandler = this._register(this._scopedInstantiationService.createInstance(
 			AgentHostInputCompletionHandler, this._editor, this._contextAttachments,
 		));
 

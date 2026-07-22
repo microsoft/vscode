@@ -196,6 +196,14 @@ suite('ChatToolProgressSubPart', () => {
 		));
 	}
 
+	test('does not retain an ordinary tool part when it becomes a parent subagent', () => {
+		const invocation = createToolInvocation();
+		const part = renderToolInvocation(invocation);
+		(invocation as { toolSpecificData: IChatToolInvocation['toolSpecificData'] }).toolSpecificData = { kind: 'subagent' };
+
+		assert.strictEqual(part.hasSameContent(invocation, [], {} as never), false);
+	});
+
 	test('detects MCP tool invocations for live and serialized rows', () => {
 		const mcpSource: ToolDataSourceType = {
 			type: 'mcp',

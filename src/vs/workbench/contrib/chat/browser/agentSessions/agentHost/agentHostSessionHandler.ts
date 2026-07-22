@@ -184,6 +184,33 @@ interface ISubagentContext {
 	readonly observedToolIds: Set<string>;
 }
 
+function getMcpAuthenticationRequiredServers(sessionResource: URI, state: ISessionWithDefaultChat | undefined): IChatMcpAuthenticationRequiredServer[] {
+	const servers = state?.customizations?.flatMap(c => c.type === CustomizationType.McpServer
+		? [c]
+		: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
+	const toolAuthServerIds = new Set(state?.inputNeeded
+		?.filter(request => request.kind === SessionInputRequestKind.ToolAuthentication)
+		.map(request => request.kind === SessionInputRequestKind.ToolAuthentication
+			? request.toolCall.contributor.customizationId
+			: undefined)
+		.filter(id => id !== undefined));
+	return servers
+		.filter(server => server.enabled && server.state.kind === McpServerStatus.AuthRequired && !toolAuthServerIds.has(server.id))
+		.map((server): IChatMcpAuthenticationRequiredServer => {
+			const state = server.state as McpServerAuthRequiredState;
+			return {
+				id: sessionResource.authority + '/' + server.id,
+				name: server.name,
+				resource: state.resource.resource,
+				oauthClient: state.oauthClient,
+				authorizationServers: state.resource.authorization_servers,
+				supportedScopes: state.resource.scopes_supported,
+				requiredScopes: state.requiredScopes,
+				reason: state.reason,
+			};
+		});
+}
+
 interface IStartServerRequestOptions {
 	readonly isSystemInitiated?: boolean;
 	readonly timestamp?: number;
@@ -272,8 +299,33 @@ function confirmedReasonToProtocol(reason: ConfirmedReason | undefined): ToolCal
 	}
 }
 
-function shouldAutoApproveClientToolCall(toolCall: ToolCallState): boolean {
-	return readToolCallMeta(toolCall).autoApproveBySetting === true;
+function getClientToolPreApproval(toolCall: ToolCallState): ConfirmedReason | undefined {
+	if (readToolCallMeta(toolCall).autoApproveBySetting === true) {
+		return { type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove };
+	}
+
+	// Only trust `Running` and `AuthRequired` as evidence of a genuine
+	// approval: they can only be entered after the agent host confirmed the
+	// call, so their `confirmed` reason is authoritative. `Completed` and
+	// `PendingResultConfirmation` are excluded because the reducer
+	// synthesizes a `NotNeeded` confirmation when a `ChatToolCallComplete`
+	// arrives while the call is still `PendingConfirmation`, which would
+	// otherwise let us falsely confirm and execute a call that was never
+	// approved.
+	switch (toolCall.status) {
+		case ToolCallStatus.Running:
+		case ToolCallStatus.AuthRequired:
+			switch (toolCall.confirmed) {
+				case ToolCallConfirmationReason.NotNeeded:
+					return { type: ToolConfirmKind.ConfirmationNotNeeded };
+				case ToolCallConfirmationReason.Setting:
+					return { type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove };
+				case ToolCallConfirmationReason.UserAction:
+					return { type: ToolConfirmKind.UserAction };
+			}
+	}
+
+	return undefined;
 }
 
 /**
@@ -592,6 +644,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _draftSyncSubscriptions = this._register(new DisposableResourceMap());
 	/** Per-session subscription watching for server-initiated turns. */
 	private readonly _serverTurnWatchers = this._register(new DisposableResourceMap());
+	/** Per-session subscription silently resolving existing MCP authentication grants. */
+	private readonly _mcpAuthWatchers = this._register(new DisposableResourceMap());
 	/** Historical turns with file edits, pending hydration into the editing session. */
 	private readonly _pendingHistoryTurns = new ResourceMap<readonly Turn[]>();
 	/**
@@ -602,6 +656,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * the prompt repeating on every message.
 	 */
 	private readonly _surfacedMcpAuthServers = new ResourceMap<Set<string>>();
+	private readonly _pendingMcpAutoAuthentication = new Map<string, Promise<boolean>>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
 	private readonly _clientDispatchedTurnIds = new Set<string>();
 	private readonly _turnStopWatches = new Map<string, StopWatch>();
@@ -799,6 +854,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			insertText: raw.insertText,
 			attachment
 		};
+		if (raw.label !== undefined) {
+			item.label = raw.label;
+		}
 		if (raw.rangeStart !== undefined) {
 			item.start = offsetToPosition(text, raw.rangeStart);
 		}
@@ -1045,6 +1103,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
 				this._draftSyncSubscriptions.deleteAndDispose(sessionResource);
 				this._serverTurnWatchers.deleteAndDispose(sessionResource);
+				this._mcpAuthWatchers.deleteAndDispose(sessionResource);
 				this._pendingHistoryTurns.delete(sessionResource);
 				this._surfacedMcpAuthServers.delete(sessionResource);
 				const chatURI = this._chatURIsBySessionResource.get(sessionResource);
@@ -1541,6 +1600,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _watchForServerInitiatedTurns(backendSession: URI, sessionResource: URI): void {
 		const sessionStr = backendSession.toString();
 		const chatURI = this._getChatURI(sessionResource);
+		this._watchForMcpAuthentication(backendSession, sessionResource, chatURI);
 
 		// Seed from the current state so we don't treat any pre-existing active
 		// turn (e.g. one being handled by _reconnectToActiveTurn) as new.
@@ -1636,6 +1696,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		disposables.add(chatSub.onDidChange(onChange));
 
 		this._serverTurnWatchers.set(sessionResource, disposables);
+	}
+
+	private _watchForMcpAuthentication(backendSession: URI, sessionResource: URI, chatURI: string): void {
+		const sessionSub = this._ensureSessionSubscription(backendSession.toString());
+		let previousServers: readonly IChatMcpAuthenticationRequiredServer[] | undefined;
+		const reconcile = () => {
+			const servers = getMcpAuthenticationRequiredServers(sessionResource, this._getSessionState(backendSession.toString(), chatURI));
+			if (equals(previousServers, servers)) {
+				return;
+			}
+			previousServers = servers;
+			void this._filterAutoGrantedMcpAuthentication(sessionResource, servers);
+		};
+		const disposables = new DisposableStore();
+		disposables.add(sessionSub.onDidChange(reconcile));
+		reconcile();
+		this._mcpAuthWatchers.set(sessionResource, disposables);
 	}
 
 	/**
@@ -1923,30 +2000,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}));
 		const mcpAuthRequired$ = derivedOpts({ equalsFn: equals }, reader => {
-			const state = mergedState$.read(reader);
-			const servers = state?.customizations?.flatMap(c => c.type === CustomizationType.McpServer
-				? [c]
-				: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
-			const toolAuthServerIds = new Set(state?.inputNeeded
-				?.filter(request => request.kind === SessionInputRequestKind.ToolAuthentication)
-				.map(request => request.kind === SessionInputRequestKind.ToolAuthentication
-					? request.toolCall.contributor.customizationId
-					: undefined)
-				.filter(id => id !== undefined));
-			const authRequiredServers = servers.filter(server => server.enabled && server.state.kind === McpServerStatus.AuthRequired && !toolAuthServerIds.has(server.id));
-			return authRequiredServers.map((server): IChatMcpAuthenticationRequiredServer => {
-				const state = server.state as McpServerAuthRequiredState;
-				return {
-					id: opts.sessionResource.authority + '/' + server.id,
-					name: server.name,
-					resource: state.resource.resource,
-					oauthClient: state.oauthClient,
-					authorizationServers: state.resource.authorization_servers,
-					supportedScopes: state.resource.scopes_supported,
-					requiredScopes: state.requiredScopes,
-					reason: state.reason,
-				};
-			});
+			return getMcpAuthenticationRequiredServers(opts.sessionResource, mergedState$.read(reader));
 		});
 		const mcpStarting$ = derivedOpts({ equalsFn: equals }, reader => {
 			const state = mergedState$.read(reader);
@@ -2354,32 +2408,50 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private async _filterAutoGrantedMcpAuthentication(sessionResource: URI, servers: readonly IChatMcpAuthenticationRequiredServer[]): Promise<readonly IChatMcpAuthenticationRequiredServer[]> {
 		const remaining: IChatMcpAuthenticationRequiredServer[] = [];
 		for (const server of servers) {
-			try {
-				const authenticated = await this._instantiationService.invokeFunction(resolveMcpServerAuthentication, {
-					resource: server.resource,
-					resource_name: server.name,
-					authorization_servers: server.authorizationServers ? [...server.authorizationServers] : undefined,
-					scopes_supported: server.supportedScopes ? [...server.supportedScopes] : undefined,
-				}, {
-					allowInteraction: false,
-					logPrefix: '[AgentHost]',
-					mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.resource),
-					mcpServerName: server.name,
-					mcpServerUrl: server.resource,
-					oauthClient: server.oauthClient,
-					scopes: server.requiredScopes ?? [],
-					agentHost: { scheme: sessionResource.scheme, authority: sessionResource.authority },
-					authenticate: request => this._config.connection.authenticate(request),
-				});
-				if (!authenticated) {
-					remaining.push(server);
-				}
-			} catch (err) {
-				this._logService.error(`[AgentHost] Failed to auto-authenticate MCP server '${server.name}'`, err);
+			if (!await this._autoAuthenticateMcpServer(sessionResource, server)) {
 				remaining.push(server);
 			}
 		}
 		return remaining;
+	}
+
+	private async _autoAuthenticateMcpServer(sessionResource: URI, server: IChatMcpAuthenticationRequiredServer): Promise<boolean> {
+		const key = JSON.stringify([
+			agentHostMcpServerId(sessionResource.authority, server.name, server.resource),
+			[...(server.requiredScopes ?? [])].sort(),
+			server.oauthClient?.clientId,
+		]);
+		const pending = this._pendingMcpAutoAuthentication.get(key);
+		if (pending) {
+			return pending;
+		}
+		const operation = this._instantiationService.invokeFunction(resolveMcpServerAuthentication, {
+			resource: server.resource,
+			resource_name: server.name,
+			authorization_servers: server.authorizationServers ? [...server.authorizationServers] : undefined,
+			scopes_supported: server.supportedScopes ? [...server.supportedScopes] : undefined,
+		}, {
+			allowInteraction: false,
+			logPrefix: '[AgentHost]',
+			mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.resource),
+			mcpServerName: server.name,
+			mcpServerUrl: server.resource,
+			oauthClient: server.oauthClient,
+			scopes: server.requiredScopes ?? [],
+			agentHost: { scheme: sessionResource.scheme, authority: sessionResource.authority },
+			authenticate: request => this._config.connection.authenticate(request),
+		}).catch(err => {
+			this._logService.error(`[AgentHost] Failed to auto-authenticate MCP server '${server.name}'`, err);
+			return false;
+		});
+		this._pendingMcpAutoAuthentication.set(key, operation);
+		try {
+			return await operation;
+		} finally {
+			if (this._pendingMcpAutoAuthentication.get(key) === operation) {
+				this._pendingMcpAutoAuthentication.delete(key);
+			}
+		}
 	}
 
 	private _setupMarkdownPart(
@@ -2757,8 +2829,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store.add(autorun(reader => {
 			const state = invocation.state.read(reader);
 			const tc = part$.read(reader).toolCall;
-			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && shouldAutoApproveClientToolCall(tc)) {
-				state.confirm({ type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove });
+			const preApproval = getClientToolPreApproval(tc);
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && preApproval) {
+				state.confirm(preApproval);
 				return;
 			}
 			if (confirmationDispatched) {
@@ -2830,8 +2903,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store.add(autorun(reader => {
 			const tc = part$.read(reader).toolCall;
 			const state = invocation.state.read(reader);
-			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && shouldAutoApproveClientToolCall(tc)) {
-				state.confirm({ type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove });
+			const preApproval = getClientToolPreApproval(tc);
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && preApproval) {
+				state.confirm(preApproval);
 			}
 			if (tc.status === ToolCallStatus.Cancelled || tc.status === ToolCallStatus.Completed) {
 				// The protocol tool call reached a terminal state. If this was
@@ -2902,9 +2976,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// pass it through so the invocation transitions straight to
 				// executing instead of briefly flashing a confirmation prompt
 				// (which would flicker "needs input" in the sessions list).
-				preApproved: shouldAutoApproveClientToolCall(tc)
-					? { type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove }
-					: undefined,
+				preApproved: getClientToolPreApproval(tc),
 			};
 			const noOpCountTokens = async () => 0;
 			this._logService.info(`[AgentHost] Invoking client tool: ${toolName} (callId=${toolCallId})`);
