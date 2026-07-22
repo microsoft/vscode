@@ -619,7 +619,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			if (!trimmed || enabled === false) {
 				continue;
 			}
-			for (const resource of this._resolvePluginPath(trimmed, userHome)) {
+			for (const resource of await this._resolvePluginPath(trimmed, userHome)) {
 				await this._addPluginSource(sources, resource, 'plugin path', () => this._removePluginPath(key));
 			}
 		}
@@ -674,13 +674,13 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	 * Supports absolute paths, tilde paths (expanded to user home), and
 	 * workspace-relative paths.
 	 */
-	protected _resolvePluginPath(path: string, userHome: URI): URI[] {
+	protected async _resolvePluginPath(path: string, userHome: URI): Promise<URI[]> {
 		if (/^~($|\/|\\)/.test(path)) {
 			return [userHome.with({ path: URI.file(untildify(path, userHome.path)).path })];
 		}
 
 		if (win32.isAbsolute(path) || posix.isAbsolute(path)) {
-			const uri = URI.file(path);
+			const uri = await this._pathService.fileURI(path);
 			return [userHome.scheme === Schemas.file ? uri : userHome.with({ path: uri.path })];
 		}
 
