@@ -773,8 +773,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	clearBuffer(): void {
-		this._capabilities.get(TerminalCapability.CommandDetection)?.clearCommandsInViewport();
-		this._capabilities.get(TerminalCapability.PartialCommandDetection)?.clearCommandsInViewport();
+		this._decorationAddon.clearDecorations();
+		this._capabilities.get(TerminalCapability.CommandDetection)?.clearCommands();
+		this._capabilities.get(TerminalCapability.PartialCommandDetection)?.clearCommands();
 		this.raw.clear();
 		// xterm.js does not clear the first prompt, so trigger these to simulate
 		// the prompt being written
