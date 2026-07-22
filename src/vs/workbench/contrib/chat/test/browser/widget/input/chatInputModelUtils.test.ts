@@ -746,6 +746,24 @@ suite('ChatInputModelUtils', () => {
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id).sort(), ['a-model', 'b-model']);
 		});
+
+		test('evicts cached agent-host entries when the vendor is resolved with zero live models', () => {
+			// The agent-host "empty is transient" grace is scoped to restore *resolution* only
+			// (resolveModelIdentifierFromCatalog); it must NOT relax cache-retention. A resolved
+			// agent-host vendor with no live models is authoritative here, so its cache is evicted
+			// like any other vendor — otherwise a removed/unentitled agent-host model could be
+			// offered from cache (and the input's "no models"/send-blocked state would be masked).
+			const liveCopilot = createModel('gpt', 'GPT');
+			const staleAgentHost = createVendorModel('agent-host-copilotcli', 'gpt-5.6-sol', 'GPT 5.6 Sol');
+			const result = mergeModelsWithCache(
+				[liveCopilot],
+				[staleAgentHost],
+				new Set(['copilot', 'agent-host-copilotcli']),
+				new Set(['copilot', 'agent-host-copilotcli']),
+			);
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].metadata.vendor, 'copilot');
+		});
 	});
 
 	suite('model switching scenarios', () => {

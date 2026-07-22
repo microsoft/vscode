@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { ModelSelectionReason, resolveModelIdentifier } from '../../../../common/modelSelection.js';
+import { ModelSelectionReason, resolveModelIdentifier, resolveModelIdentifierFromCatalog } from '../../../../common/modelSelection.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from '../../../../browser/widget/input/chatInputModelSelectionController.js';
 import { ChatModelSelectionModel } from '../../../../browser/widget/input/chatModelSelectionModel.js';
 
@@ -571,6 +571,143 @@ suite('ChatModelSelectionModel', () => {
 			pendingAfterResolve: false,
 			applied: [desired.identifier],
 			restored: [{ modelId: desired.identifier, configuration: { effort: 'high' } }],
+		});
+	});
+
+	test('syncFromConversationState waits through a resolved-but-empty agent-host pool and restores the model', () => {
+		// Cold-restart race: the agent-host vendor is registered ("resolved") but its models arrive
+		// later. Routed through the real catalog resolver, the agent-host grace keeps the absent
+		// model `pending` (not `unavailable`), so the restore waits through the intermediate empty
+		// re-resolutions and applies the model once the pool loads — instead of defaulting to Auto.
+		// (If the grace in resolveModelIdentifierFromCatalog is removed, resolution is `unavailable`,
+		// no wait is armed, and this test fails.)
+		const selection = new ChatModelSelectionModel();
+		const sessionType = 'agent-host-copilotcli';
+		const base = targetedModel('agent-host-copilotcli:gpt-5.6-sol', sessionType);
+		const desired = { ...base, metadata: { ...base.metadata, vendor: sessionType } };
+		const modelChanges = disposables.add(new Emitter<string>());
+		let models: ILanguageModelChatMetadataAndIdentifier[] = [];
+		const applied: string[] = [];
+		const restored: { modelId: string; configuration: Record<string, unknown> | undefined }[] = [];
+		const runtime: IChatInputModelSelectionRuntime = {
+			location: ChatAgentLocation.Chat,
+			getCurrentModeKind: () => ChatModeKind.Ask,
+			getCurrentSessionType: () => sessionType,
+			isEmpty: () => false,
+			getModels: () => models,
+			getAllModels: () => models,
+			requiresCustomModels: () => true,
+			getConfiguredModelValue: () => undefined,
+			// Faithful to production: vendor is resolved but publishes models asynchronously.
+			resolveModelIdentifier: identifier => resolveModelIdentifierFromCatalog(models, identifier, {
+				hasLiveModels: vendor => models.some(m => m.metadata.vendor === vendor),
+				hasResolved: () => true,
+			}),
+			subscribeToModelChanges: listener => modelChanges.event(listener),
+			getBoundConversationKey: () => 'chat:one',
+			getVisibleConversationKey: () => 'chat:one',
+			restoreModelConfiguration: (modelId, configuration) => restored.push({ modelId, configuration }),
+			applyModel: selected => {
+				applied.push(selected.identifier);
+				selection.setCurrentModel(selected, false);
+			},
+		};
+		const controller = disposables.add(new ChatInputModelSelectionController(selection, runtime));
+
+		controller.syncFromConversationState(desired, { effort: 'high' }, sessionType, 'chat:one');
+		const pending = controller.hasAuthoritativeModelWait();
+		// An intermediate empty re-resolution must not end the wait or apply a default.
+		modelChanges.fire('still-empty');
+		const stillPendingAfterEmpty = controller.hasAuthoritativeModelWait();
+		const appliedAfterEmpty = [...applied];
+		// The real models finally arrive.
+		models = [desired];
+		modelChanges.fire('loaded');
+
+		assert.deepStrictEqual({
+			pending,
+			stillPendingAfterEmpty,
+			appliedAfterEmpty,
+			pendingAfterLoad: controller.hasAuthoritativeModelWait(),
+			applied,
+			restored,
+		}, {
+			pending: true,
+			stillPendingAfterEmpty: true,
+			appliedAfterEmpty: [],
+			pendingAfterLoad: false,
+			applied: [desired.identifier],
+			restored: [{ modelId: desired.identifier, configuration: { effort: 'high' } }],
+		});
+	});
+
+	test('initialize waits for a resolved-but-empty agent-host pool and restores the remembered model', () => {
+		// Root-fix regression test (Option 1). A NEW/untitled agent-host session restores its
+		// remembered model via `initialize`. At cold start the agent-host vendor is registered
+		// ("resolved") but its models have not arrived yet. Using the real catalog resolver, the
+		// agent-host "empty is transient" grace must make the remembered model resolve as `pending`
+		// (not `unavailable`) so `initialize` waits for the pool and applies the model on load,
+		// instead of returning `none` and leaving the picker on Auto.
+		//
+		// If the fix in `isLanguageModelVendorAbsenceConclusive` is reverted, the resolution becomes
+		// `unavailable`, `initialize` gets `none`, no wait is armed, and nothing is applied — this
+		// test then fails on `pendingAfterInit`/`applied`/`current`.
+		const selection = new ChatModelSelectionModel();
+		const sessionType = 'agent-host-copilotcli';
+		const remembered = targetedModel('agent-host-copilotcli:gpt-5.6-sol', sessionType);
+		const modelChanges = disposables.add(new Emitter<string>());
+		let models: ILanguageModelChatMetadataAndIdentifier[] = [];
+		const applied: string[] = [];
+		const runtime: IChatInputModelSelectionRuntime = {
+			location: ChatAgentLocation.Chat,
+			getCurrentModeKind: () => ChatModeKind.Ask,
+			getCurrentSessionType: () => sessionType,
+			isEmpty: () => true,
+			getModels: () => models,
+			getAllModels: () => models,
+			requiresCustomModels: () => true,
+			getConfiguredModelValue: () => undefined,
+			// Faithful to production wiring: the vendor is resolved but publishes models
+			// asynchronously, so route through the catalog resolver that applies the grace.
+			resolveModelIdentifier: identifier => resolveModelIdentifierFromCatalog(models, identifier, {
+				hasLiveModels: vendor => models.some(m => m.metadata.vendor === vendor),
+				hasResolved: () => true,
+			}),
+			subscribeToModelChanges: listener => modelChanges.event(listener),
+			getBoundConversationKey: () => 'chat:one',
+			getVisibleConversationKey: () => 'chat:one',
+			restoreModelConfiguration: () => { },
+			applyModel: selected => {
+				applied.push(selected.identifier);
+				selection.setCurrentModel(selected, false);
+			},
+		};
+		const controller = disposables.add(new ChatInputModelSelectionController(selection, runtime));
+
+		controller.initialize(remembered.identifier, () => { });
+		const pendingAfterInit = controller.hasAuthoritativeModelWait();
+		const appliedAfterInit = [...applied];
+		// An intermediate empty re-resolution must not end the wait or apply a default.
+		modelChanges.fire('still-empty');
+		const pendingAfterEmpty = controller.hasAuthoritativeModelWait();
+		// The agent-host pool finally publishes its models.
+		models = [remembered];
+		modelChanges.fire('loaded');
+
+		assert.deepStrictEqual({
+			pendingAfterInit,
+			appliedAfterInit,
+			pendingAfterEmpty,
+			pendingAfterLoad: controller.hasAuthoritativeModelWait(),
+			applied,
+			current: selection.currentModel.get()?.identifier,
+		}, {
+			pendingAfterInit: true,
+			appliedAfterInit: [],
+			pendingAfterEmpty: true,
+			pendingAfterLoad: false,
+			applied: [remembered.identifier],
+			current: remembered.identifier,
 		});
 	});
 

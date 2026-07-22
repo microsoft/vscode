@@ -32,12 +32,17 @@
 	border-right: none !important;
 	border-radius: var(--vscode-cornerRadius-small);
 	font-size: var(--vscode-fontSize-body1) !important;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-regular);
 	box-shadow: none !important;
 	margin-right: var(--vscode-spacing-size40) !important;
 	padding: 0 0 0 4px !important;
 	--tab-border-top-color: transparent !important;
 }
+
+.style-override .part.editor .tabs-container > .tab > .tab-label > .monaco-icon-label-container {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
 
 .style-override .part.editor .tabs-container > .tab.sticky-compact {
 	justify-content: center;

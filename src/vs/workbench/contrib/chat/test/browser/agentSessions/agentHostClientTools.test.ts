@@ -292,7 +292,16 @@ suite('AgentHostClientTools', () => {
 							throw new CancellationError();
 						}
 					} else {
-						toolInvocation?.transitionFromStreaming(undefined, invocation.parameters, { type: ToolConfirmKind.ConfirmationNotNeeded });
+						const prepared = toolInvocation?.toolSpecificData?.kind === 'subagent'
+							? {
+								invocationMessage: 'Delegating task',
+								toolSpecificData: {
+									kind: 'subagent' as const,
+									description: 'Prepared delegated task',
+								},
+							}
+							: undefined;
+						toolInvocation?.transitionFromStreaming(prepared, invocation.parameters, { type: ToolConfirmKind.ConfirmationNotNeeded });
 					}
 					const result: IToolResult = { content: [{ kind: 'text', value: 'done' }] };
 					await toolInvocation?.didExecuteTool(result);
@@ -584,6 +593,15 @@ suite('AgentHostClientTools', () => {
 			modelDescription: 'Runs a VS Code task',
 			source: ToolDataSource.Internal,
 			inputSchema: { type: 'object', properties: { task: { type: 'string' } } },
+		};
+
+		const testSubagentTool: IToolData = {
+			id: 'runSubagent',
+			toolReferenceName: 'task',
+			displayName: 'Run Subagent',
+			modelDescription: 'Runs a delegated task',
+			source: ToolDataSource.Internal,
+			inputSchema: { type: 'object', properties: {} },
 		};
 
 		const testUnlistedTool: IToolData = {
@@ -1208,6 +1226,88 @@ suite('AgentHostClientTools', () => {
 				subagentChat,
 				'completion should target the subagent default chat URI'
 			);
+		});
+
+		test('observes child tools from a client-provided delegated task', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testSubagentTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const parentToolCallId = 'client-task-1';
+			const subagentChat = buildSubagentChatUri(backendSession, parentToolCallId);
+
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'delegate work', origin: { kind: MessageKind.User } },
+			});
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: parentToolCallId,
+				toolName: 'task',
+				displayName: 'Delegated Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+				_meta: { toolKind: 'subagent', subagentChatUri: subagentChat },
+			});
+
+			const session = await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			const parentInvocation = toolsService.begunToolCalls.find(part => part.toolCallId === parentToolCallId);
+			assert.strictEqual(parentInvocation?.toolSpecificData?.kind, 'subagent');
+
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: parentToolCallId,
+				invocationMessage: 'Delegating task',
+				toolInput: '{}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			connection.applySessionAction(URI.parse(subagentChat), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'sub-turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: '', origin: { kind: MessageKind.User } },
+			});
+			connection.applySessionAction(URI.parse(subagentChat), {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'sub-turn-1',
+				toolCallId: 'child-tool-1',
+				toolName: 'bash',
+				displayName: 'Bash',
+			});
+			connection.applySessionAction(URI.parse(subagentChat), {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'sub-turn-1',
+				toolCallId: 'child-tool-1',
+				invocationMessage: 'Inspecting changes',
+				toolInput: '{}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			await timeout(0);
+			await timeout(0);
+
+			const progress = (session as unknown as { progressObs: { get(): IChatProgress[] } }).progressObs.get();
+			const childInvocations = progress.filter((part): part is ChatToolInvocation =>
+				part instanceof ChatToolInvocation && part.toolCallId === 'child-tool-1');
+			assert.deepStrictEqual({
+				parent: parentInvocation?.toolSpecificData,
+				childCount: childInvocations.length,
+				childSubAgentInvocationId: childInvocations[0]?.subAgentInvocationId,
+			}, {
+				parent: {
+					kind: 'subagent',
+					description: 'Prepared delegated task',
+					agentName: undefined,
+					chatResource: subagentChat,
+					isActive: true,
+				},
+				childCount: 1,
+				childSubAgentInvocationId: parentToolCallId,
+			});
 		});
 
 		test('invokes a client tool inside a nested (level-2) subagent and groups it under the root', async () => {

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -215,6 +216,41 @@ suite('AutomationSchedulerCore', () => {
 			lastRunAt: undefined,
 			nextRunAt: automation.nextRunAt,
 			runCount: 0,
+		});
+	});
+
+	test('retries a still-due automation when target availability changes', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const log = new NullLogService();
+		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
+		service.setClockForTesting(() => T0);
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
+		const runner = new SkippingRunner();
+		const leader = new FakeLeaderElection(false);
+		const onDidChangeTargetAvailability = teardown.add(new Emitter<void>());
+		const core = teardown.add(new AutomationSchedulerCore(service, runner, storage, log, {
+			leaderElection: leader,
+			disableAutoTick: true,
+			now: () => T_PAST_DUE,
+			onDidChangeTargetAvailability: onDidChangeTargetAvailability.event,
+		}));
+
+		leader.set(true);
+		await core.waitForPendingRuns();
+		onDidChangeTargetAvailability.fire();
+		await core.waitForPendingRuns();
+
+		assert.deepStrictEqual({
+			dispatches: runner.runs,
+			lastRunAt: service.getAutomation(automation.id)?.lastRunAt,
+			nextRunAt: service.getAutomation(automation.id)?.nextRunAt,
+		}, {
+			dispatches: [
+				{ automationId: automation.id, trigger: 'catch_up' },
+				{ automationId: automation.id, trigger: 'schedule' },
+			],
+			lastRunAt: undefined,
+			nextRunAt: automation.nextRunAt,
 		});
 	});
 

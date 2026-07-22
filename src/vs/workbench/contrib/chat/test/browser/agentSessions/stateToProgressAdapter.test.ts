@@ -1144,6 +1144,29 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(IChatToolInvocation.isComplete(invocation), false);
 		});
 
+		test('toolCallStateToStreamingInvocation preserves subagent metadata before ready', () => {
+			const sessionResource = URI.parse('copilotcli:/session-1');
+			const invocation = toolCallStateToStreamingInvocation({
+				toolCallId: 'tc-subagent',
+				toolName: 'task',
+				displayName: 'Delegate Task',
+				status: ToolCallStatus.Streaming,
+				_meta: {
+					toolKind: 'subagent',
+					subagentDescription: 'Review current branch',
+					subagentAgentName: 'code-review',
+					subagentChatUri: buildSubagentChatUri(sessionResource.toString(), 'tc-subagent'),
+				},
+			}, undefined, sessionResource, '');
+
+			assert.deepStrictEqual(invocation.toolSpecificData, {
+				kind: 'subagent',
+				description: 'Review current branch',
+				agentName: 'code-review',
+				chatResource: buildSubagentChatUri(sessionResource.toString(), 'tc-subagent'),
+			});
+		});
+
 		test('transitionFromStreaming with a pending terminal prepared invocation yields a single terminal confirmation card', () => {
 			// A terminal command streamed its args, then requested confirmation.
 			const streaming = toolCallStateToStreamingInvocation({ toolCallId: 'tc-term', toolName: 'bash', displayName: 'Bash', status: ToolCallStatus.Streaming }, undefined);

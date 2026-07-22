@@ -111,6 +111,32 @@ suite('ModelSelection', () => {
 		});
 	});
 
+	test('treats a resolved-but-empty agent-host vendor as still loading (pending)', () => {
+		// Agent-host vendors publish their models asynchronously after the agent host connects, so —
+		// like Copilot — an empty resolution during startup is transient (pending), not conclusive.
+		// This is the root fix for the "restored agent-host session shows Auto" bug: without it the
+		// absent model resolves as `unavailable`, and the restore gives up instead of waiting.
+		const resolvedVendors = new Set(['agent-host-copilotcli', 'remote-abc-copilotcli']);
+		const liveVendors = new Set<string>();
+		const vendorResolution = {
+			hasLiveModels: (vendor: string) => liveVendors.has(vendor),
+			hasResolved: (vendor: string) => resolvedVendors.has(vendor),
+		};
+		const localDesired = 'agent-host-copilotcli:gpt-5.6-sol';
+		const remoteDesired = 'remote-abc-copilotcli:gpt-5.6-sol';
+		const emptyLocal = resolveModelIdentifierFromCatalog([], localDesired, vendorResolution);
+		const emptyRemote = resolveModelIdentifierFromCatalog([], remoteDesired, vendorResolution);
+		// Once the agent-host pool has published models (but not this one) the absence is conclusive.
+		liveVendors.add('agent-host-copilotcli');
+		const loadedWithout = resolveModelIdentifierFromCatalog([], localDesired, vendorResolution);
+
+		assert.deepStrictEqual({ emptyLocal, emptyRemote, loadedWithout }, {
+			emptyLocal: { kind: 'pending', identifier: localDesired },
+			emptyRemote: { kind: 'pending', identifier: remoteDesired },
+			loadedWithout: { kind: 'unavailable', identifier: localDesired },
+		});
+	});
+
 	test('shares configured, desired, pending, then fallback precedence', () => {
 		assert.deepStrictEqual([
 			resolveInitialModelSelection({ configuredModelValue: 'second', configuredModel: second, waitForConfiguredModel: true, desiredModelResolution: { kind: 'available', model: first }, desiredReason: ModelSelectionReason.Remembered, fallbackModel: first, fallbackReason: ModelSelectionReason.FirstAvailable }),
