@@ -3230,8 +3230,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					return this.instantiationService.createInstance(DictationActionViewItem, action, options);
 				}
 				// Voice Mode mic button: add a right-click context menu (Select
-				// Microphone / Disable Voice Mode) mirroring dictation.
-				if (action.id === 'agentsVoice.startVoiceInChat' && action instanceof MenuItemAction) {
+				// Microphone / Disable Voice Mode) mirroring dictation. While
+				// listening the toolbar swaps the start action for the
+				// push-to-talk stop action, so cover both so the menu stays put.
+				if ((action.id === 'agentsVoice.startVoiceInChat' || action.id === 'agentsVoice.pttStopInChat') && action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(VoiceModeActionViewItem, action, options);
 				}
 				return undefined;

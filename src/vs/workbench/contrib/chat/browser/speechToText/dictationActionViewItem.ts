@@ -3,12 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
-import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
-import { IAction } from '../../../../../base/common/actions.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { createConfigureKeybindingAction } from '../../../../../platform/actions/common/menuService.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -17,7 +13,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { createDisableDictationAction, createSelectMicrophoneAction } from './micButtonMenuActions.js';
+import { addMicButtonContextMenuListener, getDictationContextMenuActions } from './micButtonMenuActions.js';
 
 /**
  * Action view item for the chat-input dictation mic button. Behaves like a
@@ -46,28 +42,10 @@ export class DictationActionViewItem extends MenuEntryActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 
-		this._register(addDisposableListener(container, 'contextmenu', e => {
-			// Stop the event before it reaches the toolbar's generic context-menu
-			// handler so we show our dictation-specific menu instead.
-			e.preventDefault();
-			e.stopPropagation();
-			this._showContextMenu(new StandardMouseEvent(getWindow(container), e));
-		}));
-	}
-
-	private _showContextMenu(event: StandardMouseEvent): void {
-		const commandId = this._action.id;
-		const supportsKeybindings = !!this._keybindingService.lookupKeybinding(commandId);
-
-		const actions: IAction[] = [
-			createConfigureKeybindingAction(this._commandService, this._keybindingService, commandId, undefined, supportsKeybindings),
-			createSelectMicrophoneAction(this._commandService),
-			createDisableDictationAction(this._configurationService),
-		];
-
-		this._contextMenuService.showContextMenu({
-			getAnchor: () => event,
-			getActions: () => actions,
-		});
+		this._register(addMicButtonContextMenuListener(
+			container,
+			() => getDictationContextMenuActions(this._commandService, this._configurationService, this._keybindingService, this._action.id),
+			this._contextMenuService,
+		));
 	}
 }

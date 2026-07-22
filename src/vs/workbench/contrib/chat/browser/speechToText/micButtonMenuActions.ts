@@ -3,25 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
+import { createConfigureKeybindingAction } from '../../../../../platform/actions/common/menuService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 
 /** Command that opens the microphone picker shared by dictation and Voice Mode. */
 export const SELECT_MICROPHONE_COMMAND = 'workbench.action.chat.selectSpeechToTextMicrophone';
+/** Command that cancels the active/preparing dictation session. */
+const CANCEL_DICTATION_COMMAND = 'workbench.action.chat.cancelSpeechToText';
+/** Command that tears down an active Voice Mode session. */
+const VOICE_DISCONNECT_COMMAND = 'agentsVoice.disconnect';
 /** Setting that enables dictation; toggled off by "Disable Dictation". */
 const DICTATION_ENABLED_SETTING = 'chat.speechToText.enabled';
 /** Setting that enables Voice Mode; toggled off by "Disable Voice Mode". */
 const VOICE_ENABLED_SETTING = 'agents.voice.enabled';
-/** Command that tears down an active Voice Mode session. */
-const VOICE_DISCONNECT_COMMAND = 'agentsVoice.disconnect';
 
 /**
  * "Select Microphone" entry shared by every dictation / Voice Mode mic button
  * context menu. Opens the picker shared by both features.
  */
-export function createSelectMicrophoneAction(commandService: ICommandService): IAction {
+function createSelectMicrophoneAction(commandService: ICommandService): IAction {
 	return toAction({
 		id: SELECT_MICROPHONE_COMMAND,
 		label: localize('mic.selectMicrophone', "Select Microphone"),
@@ -29,12 +37,19 @@ export function createSelectMicrophoneAction(commandService: ICommandService): I
 	});
 }
 
-/** "Disable Dictation" entry — turns off the dictation feature setting. */
-export function createDisableDictationAction(configurationService: IConfigurationService): IAction {
+/**
+ * "Disable Dictation" entry. Cancels any active/preparing dictation first so
+ * disabling the setting doesn't leave the microphone capturing while the toolbar
+ * affordance disappears, then turns off the feature setting.
+ */
+function createDisableDictationAction(commandService: ICommandService, configurationService: IConfigurationService): IAction {
 	return toAction({
 		id: 'chat.dictation.disable',
 		label: localize('dictation.disable', "Disable Dictation"),
-		run: () => configurationService.updateValue(DICTATION_ENABLED_SETTING, false),
+		run: async () => {
+			await commandService.executeCommand(CANCEL_DICTATION_COMMAND);
+			await configurationService.updateValue(DICTATION_ENABLED_SETTING, false);
+		},
 	});
 }
 
@@ -43,7 +58,7 @@ export function createDisableDictationAction(configurationService: IConfiguratio
  * the setting doesn't leave the microphone capturing while the toolbar
  * affordance disappears, then turns off the feature setting.
  */
-export function createDisableVoiceModeAction(commandService: ICommandService, configurationService: IConfigurationService): IAction {
+function createDisableVoiceModeAction(commandService: ICommandService, configurationService: IConfigurationService): IAction {
 	return toAction({
 		id: 'chat.voiceMode.disable',
 		label: localize('voiceMode.disable', "Disable Voice Mode"),
@@ -51,5 +66,49 @@ export function createDisableVoiceModeAction(commandService: ICommandService, co
 			await commandService.executeCommand(VOICE_DISCONNECT_COMMAND);
 			await configurationService.updateValue(VOICE_ENABLED_SETTING, false);
 		},
+	});
+}
+
+/**
+ * Actions for the dictation mic button context menu: "Configure Keybinding"
+ * (always enabled so a removed binding can be restored), "Select Microphone"
+ * and "Disable Dictation". `keybindingCommandId` is the stable command the
+ * keybinding entry targets.
+ */
+export function getDictationContextMenuActions(commandService: ICommandService, configurationService: IConfigurationService, keybindingService: IKeybindingService, keybindingCommandId: string): IAction[] {
+	return [
+		createConfigureKeybindingAction(commandService, keybindingService, keybindingCommandId),
+		createSelectMicrophoneAction(commandService),
+		createDisableDictationAction(commandService, configurationService),
+	];
+}
+
+/**
+ * Actions for the Voice Mode mic button context menu, mirroring
+ * {@link getDictationContextMenuActions} but with "Disable Voice Mode".
+ */
+export function getVoiceModeContextMenuActions(commandService: ICommandService, configurationService: IConfigurationService, keybindingService: IKeybindingService, keybindingCommandId: string): IAction[] {
+	return [
+		createConfigureKeybindingAction(commandService, keybindingService, keybindingCommandId),
+		createSelectMicrophoneAction(commandService),
+		createDisableVoiceModeAction(commandService, configurationService),
+	];
+}
+
+/**
+ * Wire a right-click context menu onto a mic button. Stops the event before it
+ * reaches the toolbar's generic context-menu handler so the mic-specific menu is
+ * shown instead. Works for both `MenuEntryActionViewItem` containers and the
+ * Agents-window custom mic `<div>`s.
+ */
+export function addMicButtonContextMenuListener(container: HTMLElement, getActions: () => IAction[], contextMenuService: IContextMenuService): IDisposable {
+	return addDisposableListener(container, 'contextmenu', e => {
+		e.preventDefault();
+		e.stopPropagation();
+		const event = new StandardMouseEvent(getWindow(container), e);
+		contextMenuService.showContextMenu({
+			getAnchor: () => event,
+			getActions,
+		});
 	});
 }
