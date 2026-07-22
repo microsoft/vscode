@@ -2198,6 +2198,55 @@ describe('CopilotCLISession', () => {
 			expect(session.status).toBe(ChatSessionStatus.Completed);
 		});
 
+		it('records the steering prompt as a user message in the transcript', async () => {
+			const userMessages: string[] = [];
+			const recordingTranscriptService = new class extends NullSessionTranscriptService {
+				override logUserMessage(_sessionId: string, content: string): void {
+					userMessages.push(content);
+				}
+			}();
+
+			let resolveFirstSend: () => void = () => { };
+			let sendCallCount = 0;
+			sdkSession.send = async (options: any) => {
+				sendCallCount++;
+				sdkSession.lastSendOptions = options;
+				if (sendCallCount === 1) {
+					await new Promise<void>(r => { resolveFirstSend = r; });
+				}
+				sdkSession.emit('assistant.turn_start', {});
+				sdkSession.emit('assistant.message', { messageId: `m${sendCallCount}`, content: `Echo: ${options.prompt}` });
+				sdkSession.emit('assistant.turn_end', {});
+			};
+
+			const otel = new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' }));
+			const session = await createSessionWith(otel, false, recordingTranscriptService);
+			session.attachStream(new MockChatResponseStream());
+
+			// First request blocks in `send`, keeping the session InProgress.
+			const firstRequest = session.handleRequest(
+				{ id: 'req-1', toolInvocationToken: undefined as never },
+				{ prompt: 'First prompt' }, [], undefined, authInfo, CancellationToken.None
+			);
+			await new Promise(r => setTimeout(r, 10));
+			expect(session.status).toBe(ChatSessionStatus.InProgress);
+
+			// Second request arrives while busy → routed through the steering path.
+			const steeringRequest = session.handleRequest(
+				{ id: 'req-2', toolInvocationToken: undefined as never },
+				{ prompt: 'Steer this' }, [], undefined, authInfo, CancellationToken.None
+			);
+			await new Promise(r => setTimeout(r, 10));
+
+			resolveFirstSend();
+			await Promise.all([firstRequest, steeringRequest]);
+
+			// Both the initial prompt (normal path) and the steering prompt (steering path) are recorded,
+			// so the steering action's usage/messages have a corresponding user message.
+			expect(userMessages).toContain('First prompt');
+			expect(userMessages).toContain('Steer this');
+		});
+
 		it('lets interrupted output finish before running a local /remote command', async () => {
 			let resolveFirstSend: () => void = () => { };
 			sdkSession.send = async (options: any) => {

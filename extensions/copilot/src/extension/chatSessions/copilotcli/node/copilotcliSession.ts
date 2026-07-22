@@ -1069,6 +1069,11 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		this.attachments.push(...attachments);
 		const prompt = getPromptLabel(input);
 		this._pendingPrompt = prompt;
+		// Record the steering prompt in the transcript. The in-flight request's SDK listeners will
+		// attribute any resulting `assistant.usage`/messages to this session, so without this the
+		// transcript would show usage and responses with no corresponding user message. The transcript
+		// session was already started by the in-flight `_handleRequestImplInner`.
+		this._sessionTranscriptService.logUserMessage(this.sessionId, prompt);
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
 		disposables.add(token.onCancellationRequested(() => {
@@ -1096,6 +1101,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			this._logConversation(prompt, '', model?.model || '', attachments, logStartTime, 'Failed', error instanceof Error ? error.message : String(error));
 			throw error;
 		} finally {
+			this._sessionTranscriptService.flush(this.sessionId).catch(error => {
+				this.logService.error(`[CopilotCLISession] Failed to flush session transcript for ${this.sessionId}`, error);
+			});
 			disposables.dispose();
 		}
 	}
