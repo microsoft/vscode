@@ -108,8 +108,8 @@ describe('resolveSkillConfigLocations', () => {
 		});
 
 		expect(result.map(uri => uri.toString())).toEqual([
-			'vscode-remote://wsl+ubuntu/opt/skills',
-			'vscode-remote://wsl+ubuntu/home/user/skills',
+			'vscode-remote://wsl%2Bubuntu/opt/skills',
+			'vscode-remote://wsl%2Bubuntu/home/user/skills',
 		]);
 	});
 

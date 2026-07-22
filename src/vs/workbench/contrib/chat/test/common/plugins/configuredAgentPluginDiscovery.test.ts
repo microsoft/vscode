@@ -73,7 +73,7 @@ suite('ConfiguredAgentPluginDiscovery', () => {
 
 		assert.deepStrictEqual(
 			await discovery.resolvePluginPath('C:\\plugins\\my-plugin', remoteUserHome),
-			[URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+windows', path: 'C:/plugins/my-plugin' })],
+			[URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+windows', path: '/C:/plugins/my-plugin' })],
 		);
 	});
 
