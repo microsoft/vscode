@@ -14,7 +14,3 @@ export const PROMPT_TIMELINE_STICKY_HEADER_SETTING = 'sessions.promptTimeline.st
 
 /** Minimum number of user prompts before the rail is shown. */
 export const MIN_PROMPTS = 2;
-
-export const enum PromptTimelineCommandId {
-	GoToPrompt = 'sessions.promptTimeline.goToPrompt',
-}

@@ -54,7 +54,8 @@
  * A flat, opaque band pinned to the top of the transcript (editor "sticky scroll" pattern): it
  * shares the transcript surface, carries only a hairline bottom border and a soft downward shadow,
  * and names the prompt currently scrolled off the top. Independent of the rail: `.hidden` (toggled
- * in JS once a prompt is pinned) drives the reveal, so it also works in header-only mode. */
+ * in JS once a prompt is pinned, alongside the `inert` attribute) drives the reveal, so it also
+ * works in header-only mode. */
 .prompt-timeline-sticky {
 	position: absolute;
 	top: 0;
@@ -65,6 +66,10 @@
 	transform: translateY(-6px);
 	transition: opacity 140ms ease, transform 140ms ease;
 	pointer-events: none;
+	border-bottom: 1px solid var(--vscode-agentsPanel-border, transparent);
+	background: var(--vscode-agentsPanel-background);
+	box-shadow: 0 6px 6px -6px var(--vscode-widget-shadow, transparent);
+	color: var(--vscode-foreground);
 }
 
 .prompt-timeline-sticky:not(.hidden) {
@@ -80,36 +85,10 @@
 	}
 }
 
-.prompt-timeline-sticky-button {
-	display: block;
-	width: 100%;
-	padding: 0;
-	border: none;
-	border-bottom: 1px solid var(--vscode-agentsPanel-border, transparent);
-	background: var(--vscode-agentsPanel-background);
-	box-shadow: 0 6px 6px -6px var(--vscode-widget-shadow, transparent);
-	color: var(--vscode-foreground);
-	font: inherit;
-	text-align: left;
-	cursor: pointer;
-}
-
 /* High-contrast themes rely on the explicit contrast border and suppress decorative shadows. */
-.hc-black .prompt-timeline-sticky-button,
-.hc-light .prompt-timeline-sticky-button {
+.hc-black .prompt-timeline-sticky,
+.hc-light .prompt-timeline-sticky {
 	box-shadow: none;
-}
-
-/* Layer the (translucent) hover tint over the opaque surface so the band never turns see-through. */
-.prompt-timeline-sticky-button:hover {
-	background:
-		linear-gradient(var(--vscode-toolbar-hoverBackground), var(--vscode-toolbar-hoverBackground)),
-		var(--vscode-agentsPanel-background);
-}
-
-.prompt-timeline-sticky-button:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
 }
 
 /* Match the transcript's centered message column (chatView.css: max-width 950, margin auto, 32px inset)
@@ -131,6 +110,23 @@
 	padding-right: calc(var(--prompt-timeline-rail-width) + var(--prompt-timeline-content-gap) + var(--prompt-timeline-scrollbar-gutter));
 }
 
+/* The label area names the pinned prompt and opens the prompt picker when activated. */
+.prompt-timeline-sticky-label-button {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 100%;
+	padding: 0;
+	border: none;
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
 .prompt-timeline-sticky-label {
 	flex: 1 1 auto;
 	min-width: 0;
@@ -139,15 +135,29 @@
 	text-overflow: ellipsis;
 }
 
+/* The label is the picker target, so underline the prompt text on hover/focus to distinguish it from
+ * the static header. Underline (rather than a background) keeps the text aligned with the prompts below. */
+.prompt-timeline-sticky-label-button:hover .prompt-timeline-sticky-label,
+.prompt-timeline-sticky-label-button:focus-visible .prompt-timeline-sticky-label {
+	text-decoration: underline;
+}
+
 .prompt-timeline-sticky-count {
 	flex: 0 0 auto;
 	color: var(--vscode-descriptionForeground);
 	font-variant-numeric: tabular-nums;
 }
 
-.prompt-timeline-sticky-chevron {
+/* Hosts the Previous/Next toolbar; the toolbar supplies its own theming and spacing. */
+.prompt-timeline-sticky-nav {
+	display: flex;
+	align-items: center;
 	flex: 0 0 auto;
-	color: var(--vscode-descriptionForeground);
+}
+
+.prompt-timeline-sticky-label-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 /* Interactive hover/focus card: prompt text, clickable diff stat, and files. */

@@ -336,6 +336,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 				toolReferences: [],
 				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
 				availableTools: [toolInfo],
+				subAgentInvocationId: 'execution-parent-call',
 			},
 		};
 
@@ -358,6 +359,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		// Tool invoked with updatedInput from hook
 		expect(toolsService.lastInvocation?.name).toBe(toolName);
 		expect(toolsService.lastInvocation?.options.input).toEqual(updatedInput);
+		expect(toolsService.lastInvocation?.options.subAgentInvocationId).toBe('execution-parent-call');
 		expect(toolsService.lastInvocation?.options.preToolUseResult).toEqual({
 			permissionDecision: 'ask',
 			permissionDecisionReason: 'Needs confirmation',

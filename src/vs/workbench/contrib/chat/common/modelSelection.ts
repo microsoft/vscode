@@ -228,7 +228,16 @@ export function transitionModelSelection(input: IModelSelectionTransitionInput):
 	const currentReason = sessionChanged ? undefined : previous.currentReason;
 	const sessionModel = sessionModelId ? models.available.find(model => model.identifier === sessionModelId) : undefined;
 	const fallbackModel = models.available.find(model => model.identifier === models.rememberedModelId) ?? models.fallbackModel;
-	const configuredModelValue = session.kind === 'untitled' && (chatKey !== previous.lastPushedChatKey || currentReason !== ModelSelectionReason.UserSelection) ? models.configuredModel : undefined;
+	const newConversation = session.kind === 'untitled' && !sessionChanged && chatKey !== previous.lastPushedChatKey;
+	const automaticSelection = currentReason === ModelSelectionReason.ConfiguredDefault
+		|| currentReason === ModelSelectionReason.FirstAvailable
+		|| currentReason === ModelSelectionReason.Remembered
+		|| currentReason === ModelSelectionReason.NewChatRepush;
+	const configuredModelValue = session.kind === 'untitled'
+		&& (newConversation
+			|| (!newConversation && (!sessionModelId || automaticSelection) && currentReason !== ModelSelectionReason.UserSelection && currentReason !== ModelSelectionReason.SessionRestore))
+		? models.configuredModel
+		: undefined;
 	const configuredModel = configuredModelValue
 		? resolveConfiguredModel(models.configuredModel, models.available)
 		: undefined;
@@ -254,6 +263,16 @@ export function transitionModelSelection(input: IModelSelectionTransitionInput):
 			currentReason: undefined,
 			pendingSelection: { source: 'desired', reference: models.desiredModelResolution.identifier },
 			effect: currentModel ? { kind: 'clear', reason: ModelSelectionReason.SessionRestore } : { kind: 'none' },
+			sessionKey,
+			lastPushedChatKey: chatKey,
+		};
+	}
+	if (!currentModel && session.kind === 'untitled' && sessionModel) {
+		return {
+			currentModel: sessionModel,
+			currentReason: ModelSelectionReason.SessionRestore,
+			pendingSelection: undefined,
+			effect: { kind: 'none' },
 			sessionKey,
 			lastPushedChatKey: chatKey,
 		};

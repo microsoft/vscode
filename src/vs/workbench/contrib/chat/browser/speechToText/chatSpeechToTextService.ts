@@ -23,14 +23,20 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
 
 /** Sample rate (Hz) of the PCM16 audio streamed to the transcription backend. */
 const SAMPLE_RATE = 16000;
 
+/** Number of samples buffered in the worklet before a chunk is posted to the main thread. */
+const PCM_CAPTURE_CHUNK_SIZE = 4096;
+
 /** Setting that enables the dictation feature; a kill-switch for rollout. */
 const ENABLED_SETTING = 'chat.speechToText.enabled';
+/** On-device model (Whisper or Nemotron) to use for dictation. */
+const MODEL_SETTING = 'chat.speechToText.model';
 /** Setting that controls the tap-vs-hold behavior of the dictation shortcut. */
 const MODE_SETTING = 'chat.speechToText.mode';
 
@@ -198,7 +204,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _mediaStream: MediaStream | undefined;
 	private _audioContext: AudioContext | undefined;
 	private _sourceNode: MediaStreamAudioSourceNode | undefined;
-	private _processorNode: ScriptProcessorNode | undefined;
+	private _workletNode: AudioWorkletNode | undefined;
 
 	private readonly _localSessionDisposables = this._register(new DisposableStore());
 
@@ -380,7 +386,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 
 		try {
-			this._startCapture(window, stream);
+			await this._startCapture(window, stream);
 		} catch (err) {
 			// Capture setup (AudioContext/nodes) can fail after the mic and the
 			// utility-process session are already live; make sure both are torn
@@ -419,7 +425,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			this._onDidUpdateTranscript.fire({ text: this._transcript, finalizedText: result.finalizedText ?? '' });
 		}));
 		const cacheDir = joinPath(this._environmentService.cacheHome, 'chatDictationModels').fsPath;
-		await local.start({ cacheDir });
+		const model = this._getModelId();
+		await local.start({ cacheDir, model });
 
 		// The model loads in the utility process in the background (start()
 		// returns immediately). On first use it may download hundreds of MB, so
@@ -429,6 +436,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		if (status.state !== LocalTranscriptionModelState.Ready && status.state !== LocalTranscriptionModelState.Error) {
 			this._trackModelPreparation();
 		}
+	}
+
+	private _getModelId(): string | undefined {
+		const value = this._configurationService.getValue<string>(MODEL_SETTING);
+		return value ? value.trim() || undefined : undefined;
 	}
 
 	/**
@@ -632,33 +644,39 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 	}
 
-	private _startCapture(window: Window & typeof globalThis, stream: MediaStream): void {
+	private async _startCapture(window: Window & typeof globalThis, stream: MediaStream): Promise<void> {
 		const ctx = new window.AudioContext({ sampleRate: SAMPLE_RATE });
 		this._audioContext = ctx;
 		// The context is created several awaits after the user gesture (mic
 		// acquisition + model startup), so it can start suspended; resume it or
-		// `onaudioprocess` never fires and no audio is streamed.
+		// the worklet never runs and no audio is streamed.
 		ctx.resume().catch(() => { /* ignore */ });
 		const source = ctx.createMediaStreamSource(stream);
 		this._sourceNode = source;
 
-		const processor = ctx.createScriptProcessor(4096, 1, 1);
-		this._processorNode = processor;
-
-		processor.onaudioprocess = e => {
-			const samples = e.inputBuffer.getChannelData(0);
+		// Load the capture worklet (see `createPcmCaptureNode`). ScriptProcessorNode
+		// is deprecated and its `onaudioprocess` callback is throttled/stops on the
+		// main thread; the worklet runs on the audio thread and streams PCM reliably.
+		const node = await createPcmCaptureNode(window, ctx, PCM_CAPTURE_CHUNK_SIZE, samples => {
 			this._localTranscription.pushAudio(encodeRawPcm16Buffer(samples)).catch(err => this._onAudioPushError(err));
-		};
+		});
 
-		source.connect(processor);
-		processor.connect(ctx.destination);
+		// The session may have been torn down while the module was loading.
+		if (this._audioContext !== ctx) {
+			try { node.disconnect(); } catch { /* ignore */ }
+			return;
+		}
+
+		this._workletNode = node;
+		source.connect(node);
+		node.connect(ctx.destination);
 	}
 
 	private _stopCapture(): void {
-		if (this._processorNode) {
-			this._processorNode.onaudioprocess = null;
-			try { this._processorNode.disconnect(); } catch { /* ignore */ }
-			this._processorNode = undefined;
+		if (this._workletNode) {
+			this._workletNode.port.onmessage = null;
+			try { this._workletNode.disconnect(); } catch { /* ignore */ }
+			this._workletNode = undefined;
 		}
 		try { this._sourceNode?.disconnect(); } catch { /* ignore */ }
 		this._sourceNode = undefined;

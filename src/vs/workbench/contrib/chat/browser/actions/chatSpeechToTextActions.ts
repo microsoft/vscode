@@ -131,7 +131,7 @@ class ToggleChatSpeechToTextAction extends Action2 {
 			f1: false,
 			toggled: {
 				condition: ChatContextKeys.speechToTextRecording,
-				icon: Codicon.stopCircle,
+				icon: Codicon.micFilled,
 				title: localize2('chat.speechToText.stop', "Stop Dictation").value,
 			},
 			menu: [{

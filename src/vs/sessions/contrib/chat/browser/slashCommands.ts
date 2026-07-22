@@ -19,6 +19,7 @@ import { ILanguageFeaturesService } from '../../../../editor/common/services/lan
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { localize } from '../../../../nls.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { IChatSubmitRequestHandlerService, type IChatSubmitRequest, type IChatSubmitRequestHandler } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { IChatPromptSlashCommand } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
 import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -54,10 +55,11 @@ interface ISessionsSlashCommandData {
  * Manages slash commands for the sessions new-chat input widget — registration,
  * autocompletion, decorations (syntax highlighting + placeholder text), and execution.
  */
-export class SlashCommandHandler extends Disposable {
+export class SlashCommandHandler extends Disposable implements IChatSubmitRequestHandler {
 
 	private static readonly _commandClassName = 'sessions-slash-command';
 	private static readonly _placeholderClassName = 'sessions-slash-placeholder';
+	readonly id = 'sessions.slashCommands';
 
 	private readonly _slashCommands: ISessionsSlashCommandData[] = [];
 	private _cachedPromptCommands: readonly IChatPromptSlashCommand[] = [];
@@ -73,11 +75,13 @@ export class SlashCommandHandler extends Disposable {
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@INewChatModelPickerService private readonly newChatModelPickerService: INewChatModelPickerService,
 		@ISessionContext private readonly sessionContext: ISessionContext,
+		@IChatSubmitRequestHandlerService submitRequestHandlerService: IChatSubmitRequestHandlerService,
 	) {
 		super();
 		this._commandDecorations = this._editor.createDecorationsCollection();
 		this._placeholderDecorations = this._editor.createDecorationsCollection();
 		this._registerSlashCommands();
+		this._register(submitRequestHandlerService.register(this));
 		this._registerCompletions();
 		this._registerDecorations();
 
@@ -95,6 +99,14 @@ export class SlashCommandHandler extends Disposable {
 
 	clearInput(): void {
 		this._editor.getModel()?.setValue('');
+	}
+
+	async tryHandle(request: IChatSubmitRequest): Promise<boolean> {
+		const currentSessionResource = this.sessionContext.session.get()?.resource;
+		if (!currentSessionResource || !request.providerId || !request.sessionId || !isEqual(currentSessionResource, request.sessionResource)) {
+			return false;
+		}
+		return this.tryExecuteSlashCommand(request.input);
 	}
 
 	private _refreshPromptCommands(sessionResource: URI | undefined): void {

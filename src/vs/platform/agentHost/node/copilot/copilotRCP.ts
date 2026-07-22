@@ -93,3 +93,66 @@ export interface InstructionsDiscoverRequest {
 	 */
 	excludeHostInstructions?: boolean;
 }
+
+export interface InstructionSource {
+	/**
+	 * Unique identifier for this source (used for toggling)
+	 */
+	id: string;
+	/**
+	 * Human-readable label
+	 */
+	label: string;
+	/**
+	 * File path relative to repo or absolute for home
+	 */
+	sourcePath: string;
+	/**
+	 * Raw content of the instruction file
+	 */
+	content: string;
+	type: InstructionSourceType;
+	location: InstructionSourceLocation;
+	/**
+	 * Glob pattern(s) from frontmatter — when set, this instruction applies only to matching files
+	 */
+	applyTo?: string[];
+	/**
+	 * Short description (body after frontmatter) for use in instruction tables
+	 */
+	description?: string;
+	/**
+	 * When true, this source starts disabled and must be toggled on by the user
+	 */
+	defaultDisabled?: boolean;
+	/**
+	 * The project path this source was discovered from. Only set by sessionless discovery for repository/working-directory sources, where it disambiguates same-named files (e.g. .github/copilot-instructions.md) across multiple workspace roots. The session-scoped getSources leaves it unset.
+	 */
+	projectPath?: string;
+}
+
+export type InstructionSourceType =
+	/** Instructions loaded from the user's home configuration. */
+	'home'
+	/** Instructions loaded from repository-scoped files. */
+	| 'repo'
+	/** Instructions loaded from model-specific files. */
+	| 'model'
+	/** Instructions loaded from VS Code instruction files. */
+	| 'vscode'
+	/** Instructions discovered from nested agent files. */
+	| 'nested-agents'
+	/** Instructions inherited from child instruction files. */
+	| 'child-instructions'
+	/** Instructions supplied by an installed plugin. */
+	| 'plugin';
+
+export type InstructionSourceLocation =
+	/** Instructions live in user-level configuration. */
+	'user'
+	/** Instructions live in repository-level configuration. */
+	| 'repository'
+	/** Instructions live under the current working directory. */
+	| 'working-directory'
+	/** Instructions live in plugin-provided configuration. */
+	| 'plugin';

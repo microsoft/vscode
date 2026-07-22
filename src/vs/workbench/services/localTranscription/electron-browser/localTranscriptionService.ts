@@ -6,6 +6,7 @@
 import { getDelayedChannel, IChannel, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { arch, platform } from '../../../../base/common/process.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILocalTranscriptionService, localTranscriptionChannelName } from '../../../../platform/localTranscription/common/localTranscription.js';
 import { IUtilityProcessWorkerWorkbenchService } from '../../utilityProcess/electron-browser/utilityProcessWorkerWorkbenchService.js';
 
@@ -46,6 +47,7 @@ export class LocalTranscriptionService {
 
 	constructor(
 		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	private _getChannel(): IChannel {
@@ -73,10 +75,30 @@ export class LocalTranscriptionService {
 	get onDidTranscribe() { return this._getProxy().onDidTranscribe; }
 
 	getModelStatus() { return this._getProxy().getModelStatus(); }
-	start(options: { readonly cacheDir: string; readonly language?: string }) { return this._getProxy().start({ cacheDir: options.cacheDir, language: options.language }); }
+	start(options: { cacheDir: string; model?: string; language?: string }) {
+		const { proxyUrl, noProxy, proxyStrictSSL, proxyAuthorization } = this._resolveProxyConfig();
+		return this._getProxy().start({ cacheDir: options.cacheDir, model: options.model, language: options.language, proxyUrl, noProxy, proxyStrictSSL, proxyAuthorization });
+	}
 	pushAudio(chunk: Parameters<ILocalTranscriptionService['pushAudio']>[0]) { return this._getProxy().pushAudio(chunk); }
 	stop() { return this._getProxy().stop(); }
 	cancel() { return this._getProxy().cancel(); }
+
+	/**
+	 * Read VS Code's `http.proxy`/`http.noProxy`/`http.proxyStrictSSL`/
+	 * `http.proxyAuthorization` settings so the utility process can honor a proxy
+	 * configured only in VS Code (not in the OS environment). Returns empty values
+	 * when unset, in which case the process's inherited environment proxy still
+	 * applies and TLS verification stays on.
+	 */
+	private _resolveProxyConfig(): { proxyUrl: string | undefined; noProxy: string | undefined; proxyStrictSSL: boolean | undefined; proxyAuthorization: string | undefined } {
+		const proxyUrl = this.configurationService.getValue<string>('http.proxy')?.trim() || undefined;
+		const noProxyList = this.configurationService.getValue<string[]>('http.noProxy');
+		const noProxy = Array.isArray(noProxyList) && noProxyList.length ? noProxyList.join(',') : undefined;
+		const strictSSL = this.configurationService.getValue<boolean>('http.proxyStrictSSL');
+		const proxyStrictSSL = strictSSL === false ? false : undefined;
+		const proxyAuthorization = this.configurationService.getValue<string>('http.proxyAuthorization')?.trim() || undefined;
+		return { proxyUrl, noProxy, proxyStrictSSL, proxyAuthorization };
+	}
 }
 
 registerSingleton(ILocalTranscriptionService, LocalTranscriptionService, InstantiationType.Delayed);

@@ -8,6 +8,12 @@ import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IWordAtPosition, getWordAtText } from '../../../../../../../editor/common/core/wordHelper.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 
+export const attachedContextCompletionSortText = '\u0000';
+
+export function getAttachedContextCompletionFilterText(leader: string, name: string, kind: string): string {
+	return `${leader}${name} ${leader}attachment:${name} ${name} ${kind}`;
+}
+
 export function escapeForCharClass(text: string): string {
 	return text.replace(/[-\\^\]]/g, '\\$&');
 }

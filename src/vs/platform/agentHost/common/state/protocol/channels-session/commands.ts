@@ -251,6 +251,15 @@ export interface CompletionItem {
 	insertText: string;
 
 	/**
+	 * Optional display label for the completion item. When omitted, the client
+	 * SHOULD display {@link insertText}. Provide an explicit label when the
+	 * inserted text differs from the label shown in the picker — e.g. a pure
+	 * action item that inserts nothing (`insertText: ''`) but should still be
+	 * shown to the user.
+	 */
+	label?: string;
+
+	/**
 	 * If defined, the start of the range in the input's `text` that is replaced
 	 * by `insertText`. The range is the half-open interval
 	 * `[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code

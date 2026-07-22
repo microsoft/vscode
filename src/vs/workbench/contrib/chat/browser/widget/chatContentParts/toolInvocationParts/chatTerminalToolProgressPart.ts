@@ -158,7 +158,7 @@ class TerminalCommandDecoration extends Disposable {
 		super();
 		const decorationElements = h('span.chat-terminal-command-decoration@decoration', { role: 'img', tabIndex: 0 });
 		this._element = decorationElements.decoration;
-		createPixelSpinner(this._element);
+		this._register(createPixelSpinner(this._element));
 		this._attachElementToContainer();
 	}
 

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -34,7 +36,7 @@ type RedundantDictationExtensionPromptClassification = {
  *   2. the extension is installed and currently enabled.
  * The prompt is shown at most once ever (guarded by an application-scoped storage flag).
  */
-export class RedundantDictationExtensionNotifier implements IWorkbenchContribution {
+export class RedundantDictationExtensionNotifier extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.redundantDictationExtensionNotifier';
 
@@ -42,7 +44,7 @@ export class RedundantDictationExtensionNotifier implements IWorkbenchContributi
 	private static readonly EXTENSION_ID = 'ms-vscode.vscode-speech';
 
 	/** Application-scoped flag so the prompt fires at most once per machine. */
-	private static readonly STORAGE_KEY = 'chat.dictation.redundantExtensionPromptShown';
+	private static readonly STORAGE_KEY = 'chat.dictation.redundantExtensionPromptWasShown';
 
 	constructor(
 		@ILocalTranscriptionService private readonly localTranscriptionService: ILocalTranscriptionService,
@@ -53,6 +55,7 @@ export class RedundantDictationExtensionNotifier implements IWorkbenchContributi
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
+		super();
 		this.check();
 	}
 
@@ -62,7 +65,7 @@ export class RedundantDictationExtensionNotifier implements IWorkbenchContributi
 			return;
 		}
 
-		// (1b) Only when built-in dictation is actually enabled, so we never suggest
+		// (2) Only when built-in dictation is actually enabled, so we never suggest
 		// disabling a working extension before its replacement is turned on.
 		if (this.configurationService.getValue<boolean>('chat.speechToText.enabled') !== true) {
 			return;
@@ -73,7 +76,7 @@ export class RedundantDictationExtensionNotifier implements IWorkbenchContributi
 			return;
 		}
 
-		// (2) Only when the extension is installed and currently enabled.
+		// (4) Only when the extension is installed.
 		let extension: IExtension | undefined;
 		try {
 			const installed = await this.extensionsWorkbenchService.queryLocal();
@@ -87,26 +90,27 @@ export class RedundantDictationExtensionNotifier implements IWorkbenchContributi
 			return;
 		}
 
+		// (5) Only when the extension is enabled in a state that `setEnablement` can disable.
+		// Environment-enabled extensions are excluded because `setEnablement` cannot disable
+		// them, so the prompt's primary action would be guaranteed to fail.
 		const isEnabled =
 			extension.enablementState === EnablementState.EnabledGlobally ||
-			extension.enablementState === EnablementState.EnabledWorkspace ||
-			extension.enablementState === EnablementState.EnabledByEnvironment;
+			extension.enablementState === EnablementState.EnabledWorkspace;
 		if (!isEnabled) {
 			return;
 		}
 
-		// Guard now so the prompt is shown at most once regardless of the outcome.
-		this.markShown();
 		this.telemetryService.publicLog2<RedundantDictationExtensionPromptEvent, RedundantDictationExtensionPromptClassification>('chat.dictation.redundantExtensionPrompt', { action: 'shown' });
 
 		const displayName = extension.displayName || extension.identifier.id;
-		this.notificationService.prompt(
+		const handle = this.notificationService.prompt(
 			Severity.Info,
 			localize('redundantDictationExtension', "VS Code now has built-in dictation. Disable the '{0}' extension to avoid conflicts?", displayName),
 			[
 				{
 					label: localize('disableExtension', "Disable Extension"),
 					run: async () => {
+						this.markShown();
 						this.telemetryService.publicLog2<RedundantDictationExtensionPromptEvent, RedundantDictationExtensionPromptClassification>('chat.dictation.redundantExtensionPrompt', { action: 'disable' });
 						try {
 							await this.extensionsWorkbenchService.setEnablement(extension!, EnablementState.DisabledGlobally);
@@ -118,16 +122,30 @@ export class RedundantDictationExtensionNotifier implements IWorkbenchContributi
 				{
 					label: localize('keepExtension', "Keep"),
 					run: () => {
+						this.markShown();
 						this.telemetryService.publicLog2<RedundantDictationExtensionPromptEvent, RedundantDictationExtensionPromptClassification>('chat.dictation.redundantExtensionPrompt', { action: 'keep' });
 					}
 				}
 			],
 			{
+				sticky: true,
 				onCancel: () => {
+					this.markShown();
 					this.telemetryService.publicLog2<RedundantDictationExtensionPromptEvent, RedundantDictationExtensionPromptClassification>('chat.dictation.redundantExtensionPrompt', { action: 'dismissed' });
 				}
 			}
 		);
+
+		// Multi-window coordination: the flag is only recorded once the user responds, so
+		// every already-open window can show its own prompt. When any window records a
+		// response, close the prompts still open in the others so it is answered once.
+		const listeners = this._register(new DisposableStore());
+		listeners.add(this.storageService.onDidChangeValue(StorageScope.APPLICATION, RedundantDictationExtensionNotifier.STORAGE_KEY, listeners)(() => {
+			if (this.storageService.getBoolean(RedundantDictationExtensionNotifier.STORAGE_KEY, StorageScope.APPLICATION, false)) {
+				handle.close();
+			}
+		}));
+		listeners.add(Event.once(handle.onDidClose)(() => listeners.dispose()));
 	}
 
 	private markShown(): void {

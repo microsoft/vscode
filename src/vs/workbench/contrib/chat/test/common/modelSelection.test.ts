@@ -187,6 +187,90 @@ suite('ModelSelection', () => {
 		}]);
 	});
 
+	test('configured default applies to fresh conversations but not restored drafts or existing sessions', () => {
+		assert.deepStrictEqual([
+			summarize(transition({
+				session: { modelId: undefined },
+				models: { configuredModel: second.metadata.id },
+				previous: { currentModel: undefined, currentReason: undefined, lastPushedChatKey: 'chat:one' },
+			})),
+			summarize(transition({
+				session: { modelId: first.identifier },
+				models: { configuredModel: second.metadata.id, desiredModelResolution: { kind: 'available', model: first } },
+				previous: { currentModel: undefined, currentReason: undefined, lastPushedChatKey: 'chat:one' },
+			})),
+			summarize(transition({
+				session: { kind: 'existing', modelId: first.identifier },
+				models: { configuredModel: second.metadata.id, desiredModelResolution: { kind: 'available', model: first } },
+			})),
+		], [{
+			current: second.identifier, pending: undefined, effect: 'apply', applied: second.identifier, reason: ModelSelectionReason.ConfiguredDefault, lastPushedChatKey: 'chat:one',
+		}, {
+			current: first.identifier, pending: undefined, effect: 'none', applied: undefined, reason: undefined, lastPushedChatKey: 'chat:one',
+		}, {
+			current: first.identifier, pending: undefined, effect: 'none', applied: undefined, reason: undefined, lastPushedChatKey: 'chat:one',
+		}]);
+	});
+
+	test('a new conversation reapplies the configured default after an explicit selection', () => {
+		assert.deepStrictEqual(summarize(transition({
+			session: { modelId: first.identifier },
+			models: { configuredModel: second.metadata.id },
+			previous: {
+				currentModel: first,
+				currentReason: ModelSelectionReason.UserSelection,
+				lastPushedChatKey: 'chat:previous',
+			},
+		})), {
+			current: second.identifier,
+			pending: undefined,
+			effect: 'apply',
+			applied: second.identifier,
+			reason: ModelSelectionReason.ConfiguredDefault,
+			lastPushedChatKey: 'chat:one',
+		});
+	});
+
+	test('switching untitled drafts for the same provider restores the incoming draft model', () => {
+		assert.deepStrictEqual(summarize(transition({
+			session: { key: 'provider/other-session', modelId: first.identifier },
+			models: {
+				configuredModel: second.metadata.id,
+				desiredModelResolution: { kind: 'available', model: first },
+			},
+			previous: {
+				currentModel: second,
+				currentReason: ModelSelectionReason.ConfiguredDefault,
+				lastPushedChatKey: 'chat:previous',
+			},
+		})), {
+			current: first.identifier,
+			pending: undefined,
+			effect: 'none',
+			applied: undefined,
+			reason: undefined,
+			lastPushedChatKey: 'chat:one',
+		});
+	});
+
+	test('same-chat automatic selection still upgrades to the configured default', () => {
+		assert.deepStrictEqual(summarize(transition({
+			session: { modelId: first.identifier },
+			models: { configuredModel: second.metadata.id },
+			previous: {
+				currentModel: first,
+				currentReason: ModelSelectionReason.FirstAvailable,
+			},
+		})), {
+			current: second.identifier,
+			pending: undefined,
+			effect: 'apply',
+			applied: second.identifier,
+			reason: ModelSelectionReason.ConfiguredDefault,
+			lastPushedChatKey: 'chat:one',
+		});
+	});
+
 	test('does not reapply an unchanged configured model for the same chat', () => {
 		assert.deepStrictEqual([
 			summarize(transition({

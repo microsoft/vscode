@@ -225,6 +225,12 @@ export interface ISessionsManagementService {
 	 */
 	getQuickChatSessionTypes(): IProviderSessionType[];
 
+	/** Whether the requested workspace session target is currently advertised. */
+	isNewSessionTargetAvailable(folderUri: URI, options?: ICreateNewSessionOptions): boolean;
+
+	/** Whether the requested quick-chat target is currently advertised. */
+	isQuickChatTargetAvailable(options?: ICreateNewSessionOptions): boolean;
+
 	/**
 	 * Resolve a workspace URI to a workspace using the first provider whose
 	 * {@link ISessionsProvider.resolveWorkspace} succeeds. Returns `undefined`

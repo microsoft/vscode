@@ -17,17 +17,12 @@ export const SELECTED_MODEL_STORAGE_KEY_PREFIX = 'chat.currentLanguageModel.';
 export const SELECTED_MODEL_STORAGE_SCOPE = StorageScope.PROFILE;
 export const SELECTED_MODEL_STORAGE_TARGET = StorageTarget.USER;
 
-export interface IStoredSelectedModel {
-	readonly identifier: string;
-	readonly isDefault: boolean;
-}
-
 /**
  * Builds the storage key used to persist the selected language model for a
  * given chat location and optional model target.
  *
- * Matches the keys written by `chatInputPart.ts` so that other consumers
- * can read the persisted model selection without depending on widget internals.
+ * Shared by model-selection surfaces so they can read and write the explicit
+ * remembered preference without depending on widget internals.
  */
 export function getSelectedModelStorageKey(location: string, modelTarget?: string): string {
 	if (modelTarget) {
@@ -36,18 +31,13 @@ export function getSelectedModelStorageKey(location: string, modelTarget?: strin
 	return `${SELECTED_MODEL_STORAGE_KEY_PREFIX}${location}`;
 }
 
-export function getSelectedModelIsDefaultStorageKey(location: string, modelTarget?: string): string {
-	return `${getSelectedModelStorageKey(location, modelTarget)}.isDefault`;
-}
-
 export function storeSelectedModel(
 	storageService: IStorageService,
 	location: string,
 	modelTarget: string | undefined,
-	selection: IStoredSelectedModel,
+	identifier: string,
 ): void {
-	storageService.store(getSelectedModelStorageKey(location, modelTarget), selection.identifier, SELECTED_MODEL_STORAGE_SCOPE, SELECTED_MODEL_STORAGE_TARGET);
-	storageService.store(getSelectedModelIsDefaultStorageKey(location, modelTarget), selection.isDefault, SELECTED_MODEL_STORAGE_SCOPE, SELECTED_MODEL_STORAGE_TARGET);
+	storageService.store(getSelectedModelStorageKey(location, modelTarget), identifier, SELECTED_MODEL_STORAGE_SCOPE, SELECTED_MODEL_STORAGE_TARGET);
 }
 
 /** Reads the selected model and lazily migrates the previous application-scoped value. */
@@ -55,15 +45,18 @@ export function getStoredSelectedModel(
 	storageService: IStorageService,
 	location: string,
 	modelTarget?: string,
-): IStoredSelectedModel | undefined {
+): string | undefined {
 	const key = getSelectedModelStorageKey(location, modelTarget);
-	const isDefaultKey = getSelectedModelIsDefaultStorageKey(location, modelTarget);
+	const isDefaultKey = `${key}.isDefault`;
 	const identifier = storageService.get(key, SELECTED_MODEL_STORAGE_SCOPE);
 	if (identifier) {
-		return {
-			identifier,
-			isDefault: storageService.getBoolean(isDefaultKey, SELECTED_MODEL_STORAGE_SCOPE, true),
-		};
+		const wasAutomaticDefault = storageService.getBoolean(isDefaultKey, SELECTED_MODEL_STORAGE_SCOPE);
+		storageService.remove(isDefaultKey, SELECTED_MODEL_STORAGE_SCOPE);
+		if (wasAutomaticDefault) {
+			storageService.remove(key, SELECTED_MODEL_STORAGE_SCOPE);
+			return undefined;
+		}
+		return identifier;
 	}
 
 	const legacyIdentifier = storageService.get(key, StorageScope.APPLICATION);
@@ -71,12 +64,15 @@ export function getStoredSelectedModel(
 		return undefined;
 	}
 
-	const selection = {
-		identifier: legacyIdentifier,
-		isDefault: storageService.getBoolean(isDefaultKey, StorageScope.APPLICATION, true),
-	};
-	storeSelectedModel(storageService, location, modelTarget, selection);
-	return selection;
+	const wasAutomaticDefault = storageService.getBoolean(isDefaultKey, StorageScope.APPLICATION, true);
+	storageService.remove(key, StorageScope.APPLICATION);
+	storageService.remove(isDefaultKey, StorageScope.APPLICATION);
+	if (wasAutomaticDefault) {
+		return undefined;
+	}
+
+	storeSelectedModel(storageService, location, modelTarget, legacyIdentifier);
+	return legacyIdentifier;
 }
 
 /**
@@ -84,7 +80,7 @@ export function getStoredSelectedModel(
  * strategy:
  *
  * 1. Read the `chatModelId` context key (set when a chat widget is active).
- * 2. Fall back to the persisted storage value written by `chatInputPart`.
+ * 2. Fall back to the persisted explicit model preference.
  *
  * Returns the raw model identifier string (may include a vendor prefix like
  * `"copilot/gpt-4.1"` from storage, or a short id like `"gpt-4.1"` from
@@ -100,13 +96,13 @@ export function getSelectedModelIdentifier(
 		return contextKeyModelId;
 	}
 
-	// Step 2: Persisted storage (survives reload, written by chatInputPart)
+	// Step 2: Persisted explicit preference (survives reload)
 	return getPersistedSelectedModelIdentifier(contextKeyService, storageService);
 }
 
 /**
- * Reads the persisted, fully-qualified model identifier written by
- * `chatInputPart` (e.g. `"copilot/gpt-4.1"` or `"customendpoint/ANT/gpt-4.1"`).
+ * Reads the persisted, fully-qualified model identifier written by a model
+ * selection surface (e.g. `"copilot/gpt-4.1"` or `"customendpoint/ANT/gpt-4.1"`).
  *
  * Unlike the `chatModelId` context key (which holds only the short, lower-cased
  * model id), the persisted identifier carries the vendor and therefore
@@ -124,7 +120,7 @@ export function getPersistedSelectedModelIdentifier(
 		: [undefined];
 
 	for (const modelTarget of candidateKeys) {
-		const persisted = getStoredSelectedModel(storageService, location, modelTarget)?.identifier;
+		const persisted = getStoredSelectedModel(storageService, location, modelTarget);
 		if (persisted) {
 			return persisted;
 		}

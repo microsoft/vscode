@@ -52,10 +52,6 @@ const FILES_TO_SKIP = [
 	'**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-*/**',
 	'**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/**',
 	'**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-*/**',
-	// foundry-local-sdk (on-device transcription) ships only darwin/arm64 native
-	// libraries, not darwin/x64; the universal app carries the arm64 binaries as-is.
-	'**/node_modules.asar.unpacked/foundry-local-sdk/prebuilds/**',
-	'**/node_modules.asar.unpacked/foundry-local-sdk/foundry-local-core/**',
 ];
 
 

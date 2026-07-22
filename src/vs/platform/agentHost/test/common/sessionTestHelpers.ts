@@ -267,6 +267,10 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		overlayPathIntoTree: async () => undefined,
 		diffTreePaths: async () => undefined,
 		computeFileDiffsBetweenRefs: async () => undefined,
+		getFetchRemoteUrls: async () => undefined,
+		getUntrackedPaths: async () => [],
+		getBranchDiffSafetyInfo: async () => undefined,
+		getDiffPatchBetweenRefs: async () => undefined,
 	};
 }
 

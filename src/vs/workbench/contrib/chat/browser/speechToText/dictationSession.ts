@@ -302,6 +302,13 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	}
 	const inserter = new LiveTranscriptInserter(editor, logService);
 	const disposables = new DisposableStore();
+	// Hide the editor's blinking caret for the duration of the dictation
+	// session. During dictation the caret is parked at the start of the dictated
+	// region (see LiveTranscriptInserter.update), so a blinking cursor there is
+	// distracting as transcript text streams in.
+	const HIDE_CURSOR_CLASS = 'dictation-hide-cursor';
+	editor.getDomNode()?.classList.add(HIDE_CURSOR_CLASS);
+	disposables.add(toDisposable(() => editor.getDomNode()?.classList.remove(HIDE_CURSOR_CLASS)));
 	// Show a "Listening…" placeholder only once the session is actually
 	// connected and recording, i.e. the service is in the Recording state and
 	// the on-device model has finished preparing (downloading/loading). It must
@@ -397,6 +404,10 @@ export async function stopDictation(): Promise<void> {
 	} finally {
 		active.logService.trace(`${LOG_PREFIX} stopDictation dispose`);
 		active.disposables.dispose();
+		// Return focus to the dictation editor so the caret (just un-hidden by
+		// disposing the hide-cursor class) reappears immediately at the end of the
+		// inserted transcript, ready for the user to continue typing.
+		active.editor.focus();
 	}
 }
 

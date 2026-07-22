@@ -38,14 +38,18 @@ import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentH
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
-import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
+import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import type { IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, IAgentHostInternalTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
 
@@ -232,6 +236,8 @@ class TestCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
 
 	apiEndpoint: string | undefined;
+	restrictedTelemetryContext: IRestrictedTelemetryContext = { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined };
+	restrictedTelemetryContextError: Error | undefined;
 
 	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsStreaming, _options?: ICopilotApiServiceRequestOptions): AsyncGenerator<Anthropic.MessageStreamEvent>;
 	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsNonStreaming, _options?: ICopilotApiServiceRequestOptions): Promise<Anthropic.Message>;
@@ -240,7 +246,12 @@ class TestCopilotApiService implements ICopilotApiService {
 	async models(): Promise<CCAModel[]> { return []; }
 	async responses(): Promise<Response> { throw new Error('not used'); }
 	async utilityChatCompletion(_githubToken: string, _request: ICopilotUtilityChatCompletionRequest): Promise<string> { throw new Error('not used'); }
-	async resolveRestrictedTelemetryContext() { return { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }; }
+	async resolveRestrictedTelemetryContext() {
+		if (this.restrictedTelemetryContextError) {
+			throw this.restrictedTelemetryContextError;
+		}
+		return this.restrictedTelemetryContext;
+	}
 	async resolveApiEndpoint() { return this.apiEndpoint; }
 }
 
@@ -345,6 +356,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	platform?: NodeJS.Platform;
 	githubToken?: string;
 	copilotApiEndpoint?: string;
+	gitService?: IAgentHostGitService;
+	gitHubEndpointService?: IAgentHostGitHubEndpointService;
+	restrictedTelemetryContext?: IRestrictedTelemetryContext;
+	restrictedTelemetryContextError?: Error;
+	isLaunchTokenCurrent?: () => boolean;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: ICopilotSessionRuntime;
@@ -417,8 +433,14 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const services = new ServiceCollection();
 	services.set(ILogService, options?.logService ?? new NullLogService());
 	services.set(ITelemetryService, options?.telemetryService ?? new NullTelemetryServiceShape());
+	services.set(IAgentHostGitService, options?.gitService ?? createNoopGitService());
+	services.set(IAgentHostGitHubEndpointService, options?.gitHubEndpointService ?? createTestGitHubEndpointService());
 	const copilotApiService = new TestCopilotApiService();
 	copilotApiService.apiEndpoint = options?.copilotApiEndpoint;
+	if (options?.restrictedTelemetryContext) {
+		copilotApiService.restrictedTelemetryContext = options.restrictedTelemetryContext;
+	}
+	copilotApiService.restrictedTelemetryContextError = options?.restrictedTelemetryContextError;
 	services.set(ICopilotApiService, copilotApiService);
 	const storedFileContents = new Map(Object.entries(options?.fileContents ?? {}));
 	services.set(IFileService, {
@@ -509,6 +531,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			workingDirectory: options?.workingDirectory,
 			serverToolHost: options?.serverToolHost,
 			platform: options?.platform ?? 'linux',
+			isLaunchTokenCurrent: options?.isLaunchTokenCurrent,
 		},
 	));
 
@@ -6088,6 +6111,174 @@ suite('CopilotAgentSession', () => {
 
 			const docsLogs = logService.infos.filter(i => i.message.includes('MCP server \'docs\''));
 			assert.strictEqual(docsLogs.length, 1);
+		});
+	});
+
+	suite('repoInfo telemetry', () => {
+		class CapturingRestrictedTelemetryService implements ITelemetryService, IAgentHostRestrictedTelemetry {
+			declare readonly _serviceBrand: undefined;
+			readonly telemetryLevel = TelemetryLevel.USAGE;
+			readonly sendErrorTelemetry = true;
+			readonly sessionId = 'sessionId';
+			readonly machineId = 'machineId';
+			readonly sqmId = 'sqmId';
+			readonly devDeviceId = 'devDeviceId';
+			readonly firstSessionDate = 'firstSessionDate';
+			readonly events: Array<{ destination: 'enhanced' | 'internal'; eventName: string; properties: TelemetryProps | undefined }> = [];
+
+			publicLog(): void { }
+			publicLog2(): void { }
+			publicLogError(): void { }
+			publicLogError2(): void { }
+			setExperimentProperty(): void { }
+			setCommonProperty(): void { }
+			sendGHTelemetryEvent(): void { }
+			sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
+				this.events.push({ destination: 'enhanced', eventName, properties });
+			}
+			sendEnhancedGHTelemetryEventForContext(_context: IAgentHostRestrictedTelemetryContext, eventName: string, properties?: TelemetryProps): void {
+				this.events.push({ destination: 'enhanced', eventName, properties });
+			}
+			sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
+				this.events.push({ destination: 'internal', eventName, properties });
+			}
+			sendInternalMSFTTelemetryEventForContext(_context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps): void {
+				this.events.push({ destination: 'internal', eventName, properties });
+			}
+			setCopilotTrackingId(): void { }
+			setRestrictedTelemetryEndpoint(): void { }
+			setRestrictedTelemetryEnabled(): void { }
+			setInternalTelemetryContext(): void { }
+		}
+
+		test('captures one begin and end across root SDK rounds', async () => {
+			const workingDirectory = URI.file('/repo');
+			const gitService: IAgentHostGitService = {
+				...createNoopGitService(),
+				getRepositoryRoot: async () => workingDirectory,
+				getSessionGitState: async () => ({ branchName: 'feature', baseBranchName: 'main' }),
+				getFetchRemoteUrls: async () => ['https://github.com/microsoft/vscode'],
+				resolveBranchBaselineCommit: async () => 'base',
+				getBranchDiffSafetyInfo: async () => ({ hasVirtualFileSystem: false, baselineCommitTimestamp: Date.now(), commitCount: 1, workspaceFileCount: 10 }),
+				captureWorkingTreeAsTree: async () => 'tree',
+				computeFileDiffsBetweenRefs: async () => [],
+			};
+			const telemetryService = new CapturingRestrictedTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, {
+				workingDirectory,
+				gitService,
+				telemetryService,
+				githubToken: 'github-token',
+				restrictedTelemetryContext: {
+					restrictedTelemetryEnabled: true,
+					trackingId: 'tracking-id',
+					telemetryEndpoint: 'https://telemetry.example',
+					isInternal: true,
+					userName: 'octocat',
+					isVscodeTeamMember: true,
+					copilotIgnoreEnabled: false,
+				},
+			});
+
+			mockSession.fire('assistant.turn_start', { turnId: 'subagent-turn' }, { agentId: 'subagent-1' });
+			mockSession.fire('assistant.turn_end', { turnId: 'subagent-turn' }, { agentId: 'subagent-1' });
+			session.resetTurnState('request-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'root-round-1' });
+			await timeout(0);
+			mockSession.fire('assistant.turn_end', { turnId: 'root-round-1' });
+			mockSession.fire('assistant.turn_start', { turnId: 'root-round-2' });
+			mockSession.fire('assistant.turn_end', { turnId: 'root-round-2' });
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await timeout(0);
+
+			assert.deepStrictEqual(telemetryService.events
+				.filter(event => event.eventName === 'request.repoInfo')
+				.map(event => ({ destination: event.destination, location: event.properties?.location, telemetryMessageId: event.properties?.telemetryMessageId, result: event.properties?.result })), [
+				{ destination: 'enhanced', location: 'begin', telemetryMessageId: 'request-1', result: 'noChanges' },
+				{ destination: 'internal', location: 'begin', telemetryMessageId: 'request-1', result: 'noChanges' },
+				{ destination: 'enhanced', location: 'end', telemetryMessageId: 'request-1', result: 'noChanges' },
+				{ destination: 'internal', location: 'end', telemetryMessageId: 'request-1', result: 'noChanges' },
+			]);
+		});
+
+		test('drops an in-flight capture when the launch token is no longer current', async () => {
+			let tokenCurrent = true;
+			const workingDirectory = URI.file('/repo');
+			const telemetryService = new CapturingRestrictedTelemetryService();
+			const gitService: IAgentHostGitService = {
+				...createNoopGitService(),
+				getRepositoryRoot: async () => workingDirectory,
+				getSessionGitState: async () => ({ branchName: 'feature', baseBranchName: 'main' }),
+				getFetchRemoteUrls: async () => ['https://github.com/microsoft/vscode'],
+				resolveBranchBaselineCommit: async () => 'base',
+				getBranchDiffSafetyInfo: async () => ({ hasVirtualFileSystem: false, baselineCommitTimestamp: Date.now(), commitCount: 1, workspaceFileCount: 10 }),
+				captureWorkingTreeAsTree: async () => 'tree',
+				computeFileDiffsBetweenRefs: async () => [],
+			};
+			const { mockSession } = await createAgentSession(disposables, {
+				workingDirectory,
+				gitService,
+				telemetryService,
+				githubToken: 'github-token',
+				isLaunchTokenCurrent: () => tokenCurrent,
+				restrictedTelemetryContext: {
+					restrictedTelemetryEnabled: true,
+					trackingId: 'tracking-id',
+					telemetryEndpoint: 'https://telemetry.example',
+					isInternal: true,
+					userName: 'octocat',
+					isVscodeTeamMember: true,
+					copilotIgnoreEnabled: false,
+				},
+			});
+			mockSession.fire('assistant.turn_start', { turnId: 'root-turn' });
+			tokenCurrent = false;
+			await timeout(0);
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'request.repoInfo'), []);
+		});
+
+		test('does not touch Git when repo-info telemetry is disabled', async () => {
+			let gitCalls = 0;
+			const { mockSession } = await createAgentSession(disposables, {
+				workingDirectory: URI.file('/repo'),
+				githubToken: 'github-token',
+				rootValues: { [AgentHostDisableRepoInfoTelemetryConfigKey]: true },
+				gitService: {
+					...createNoopGitService(),
+					getSessionGitState: async () => { gitCalls++; return undefined; },
+				},
+			});
+
+			mockSession.fire('assistant.turn_start', { turnId: 'root-turn' });
+			await timeout(0);
+
+			assert.strictEqual(gitCalls, 0);
+		});
+
+		test('skips capture when repository telemetry context resolution fails', async () => {
+			const logService = new CapturingLogService();
+			const telemetryService = new CapturingRestrictedTelemetryService();
+			const { mockSession } = await createAgentSession(disposables, {
+				workingDirectory: URI.file('/repo'),
+				githubToken: 'github-token',
+				logService,
+				telemetryService,
+				restrictedTelemetryContextError: new Error('context failed'),
+			});
+
+			mockSession.fire('assistant.turn_start', { turnId: 'root-turn' });
+			await timeout(0);
+			mockSession.fire('assistant.turn_end', { turnId: 'root-turn' });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				events: telemetryService.events.filter(event => event.eventName === 'request.repoInfo'),
+				warnings: logService.warnings.map(warning => warning.message).filter(message => message.includes('repository info telemetry context')),
+			}, {
+				events: [],
+				warnings: ['[Copilot:test-session-1] Failed to resolve repository info telemetry context: context failed'],
+			});
 		});
 	});
 
