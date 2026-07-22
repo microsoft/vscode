@@ -1533,7 +1533,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 		while (rootSession.parentSession) {
 			rootSession = rootSession.parentSession;
 		}
-		return rootSession.configuration.name === newSession.configuration.name;
+		return rootSession.state === State.Inactive && rootSession.configuration.name === newSession.configuration.name;
 	}
 
 	addSession(session: IDebugSession): void {
