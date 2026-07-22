@@ -29,6 +29,8 @@ import { ITerminalChatService } from '../../../../../terminal/browser/terminal.j
 import { TerminalContribCommandId, TerminalContribSettingId } from '../../../../../terminal/terminalContribExports.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
+import { localChatSessionType } from '../../../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
 import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../../actions/chatToolActions.js';
@@ -109,10 +111,17 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		const isReadOnly = !!terminalData.presentationOverrides;
 
 		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === true;
-		const autoApproveWarningAccepted = this.storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-		let moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined = undefined;
-		if (autoApproveEnabled) {
-			moreActions = [];
+		// Custom actions typically come pre-computed from the run in terminal tool, but they can
+		// also be generated asynchronously for confirmations that arrive without them (eg. agent
+		// host sessions), so track them in a mutable local shared by the builder below and the
+		// button click handler.
+		let customActions = terminalCustomActions;
+		const buildMoreActions = (): (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined => {
+			if (!autoApproveEnabled) {
+				return undefined;
+			}
+			const autoApproveWarningAccepted = this.storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
+			const moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] = [];
 			if (!autoApproveWarningAccepted) {
 				moreActions.push({
 					label: localize('autoApprove.enable', 'Enable Auto Approve...'),
@@ -121,21 +130,19 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 					}
 				});
 				moreActions.push(new Separator());
-				if (terminalCustomActions) {
-					for (const action of terminalCustomActions) {
+				if (customActions) {
+					for (const action of customActions) {
 						if (!(action instanceof Separator)) {
 							action.disabled = true;
 						}
 					}
 				}
 			}
-			if (terminalCustomActions) {
-				moreActions.push(...terminalCustomActions);
+			if (customActions) {
+				moreActions.push(...customActions);
 			}
-			if (moreActions.length === 0) {
-				moreActions = undefined;
-			}
-		}
+			return moreActions.length === 0 ? undefined : moreActions;
+		};
 
 		const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 			hideToolbar: true,
@@ -201,9 +208,27 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				icon: Codicon.terminal,
 				message: elements.root,
 				footerBanner: riskBadge?.domNode,
-				buttons: this._createButtons(moreActions)
+				buttons: this._createButtons(buildMoreActions())
 			},
 		));
+
+		// Confirmations for sessions whose approval is decided outside the built-in run in
+		// terminal tool (eg. agent host sessions) arrive without pre-computed actions. Generate
+		// them from the command line so the same rule-creating options are offered.
+		if (autoApproveEnabled && !customActions && getChatSessionType(this.context.element.sessionResource) !== localChatSessionType) {
+			const commandForAnalysis = terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+			const analysisLanguage = terminalData.language === 'powershell' ? 'powershell' : 'shellscript';
+			this.terminalChatService.getAutoApproveActions(commandForAnalysis, analysisLanguage, this.context.element.sessionResource).then(actions => {
+				if (this._store.isDisposed || !actions?.length || customActions) {
+					return;
+				}
+				if (toolInvocation.state.get().type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+					return;
+				}
+				customActions = actions;
+				confirmWidget.updateButtons(this._createButtons(buildMoreActions()));
+			});
+		}
 
 		// Build the unsandboxed-execution reason and disclaimer markdown. When
 		// the risk badge is shown, surface them via its details hover (with
@@ -321,14 +346,16 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 							}
 							// If this would not have been auto approved, enable the options and
 							// do not complete
-							else if (terminalCustomActions) {
-								for (const action of terminalCustomActions) {
-									if (!(action instanceof Separator)) {
-										action.disabled = false;
+							else {
+								if (customActions) {
+									for (const action of customActions) {
+										if (!(action instanceof Separator)) {
+											action.disabled = false;
+										}
 									}
 								}
 
-								confirmWidget.updateButtons(this._createButtons(terminalCustomActions));
+								confirmWidget.updateButtons(this._createButtons(buildMoreActions()));
 								doComplete = false;
 							}
 						} else {
