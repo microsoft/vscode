@@ -562,6 +562,12 @@ suite('ChatListRenderer', () => {
 		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Some initial content') });
 		renderer.renderElement(node, 0, template);
+		// Complete the response so progressive rendering stops. Otherwise a streaming response keeps
+		// scheduling `runProgressiveRender` on animation frames, which creates a
+		// ChatWorkingProgressContentPart that outlives the test (leaked disposable + stray console
+		// output during teardown).
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
 
 		const privateRenderer = renderer as unknown as {
 			_elementBeingRendered: IChatResponseViewModel | undefined;
