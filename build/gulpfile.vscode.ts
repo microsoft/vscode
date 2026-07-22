@@ -30,7 +30,6 @@ import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, 
 import { copyCodiconsTask } from './lib/compilation.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
-import { ensureFoundryLocalCorePackage } from './lib/foundryLocal.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
@@ -236,28 +235,19 @@ function computeChecksum(filename: string): string {
 	return hash;
 }
 
-// foundry-local-sdk (on-device chat dictation) ships prebuilt N-API addons for
-// every platform/arch inside its tarball, and its native core libraries are
-// fetched per-RID into `foundry-local-core/<platform>-<arch>/` (the host RID at
-// install time, plus the target RID via `ensureFoundryLocalCorePackage` during
-// packaging). Keep only the target build's addon and core libraries so we don't
-// bloat each package with unused — or host-mismatched — native code.
-const foundryLocalShippedTargets: readonly [string, string][] = [
-	['darwin', 'arm64'],
-	['linux', 'x64'],
-	['linux', 'arm64'],
-	['win32', 'x64'],
-	['win32', 'arm64'],
-];
-function getFoundryLocalExcludeFilter(platform: string, arch: string): string[] {
+// foundry-local-sdk (on-device chat dictation) ships a prebuilt N-API addon
+// (`foundry_local_napi.node`) inside its tarball, and its native core libraries
+// are fetched per-RID into `foundry-local-core/<platform>-<arch>/` at install
+// time. The addon requires a newer glibc than VS Code's minimum supported Linux
+// distros, so we deliberately do NOT ship any of this native payload: it is
+// downloaded on demand at runtime, only on supported platforms, into a per-user
+// cache (see `src/vs/platform/localTranscription/node/foundryLocalRuntime.ts`).
+// Exclude every prebuilt addon and core library from the package here.
+function getFoundryLocalExcludeFilter(): string[] {
 	return [
 		'**',
-		...foundryLocalShippedTargets
-			.filter(([p, a]) => !(p === platform && a === arch))
-			.flatMap(([p, a]) => [
-				`!**/foundry-local-sdk/prebuilds/${p}-${a}/**`,
-				`!**/foundry-local-sdk/foundry-local-core/${p}-${a}/**`,
-			]),
+		'!**/foundry-local-sdk/prebuilds/**',
+		'!**/foundry-local-sdk/foundry-local-core/**',
 	];
 }
 
@@ -371,15 +361,12 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
 		ensureOSProxyResolverPlatformPackage(platform, arch);
 		const osProxyResolverPlatformPackage = gulp.src(getOSProxyResolverPlatformFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
-		// Fetch the target-RID Foundry Local core libraries (on-device dictation).
-		// npm only installs the host RID's libraries; cross-builds need the target's.
-		ensureFoundryLocalCorePackage(platform, arch);
 		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds, osProxyResolverPlatformPackage)
 			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
 			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getMxcExcludeFilter(arch)))
-			.pipe(filter(getFoundryLocalExcludeFilter(platform, arch)))
+			.pipe(filter(getFoundryLocalExcludeFilter()))
 			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
@@ -410,14 +397,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'**/node-pty/package.json',
 				'**/*.wasm',
 				'**/@vscode/vsce-sign/bin/*',
-				// foundry-local-sdk (on-device chat dictation) ships a prebuilt
-				// N-API addon (foundry_local_napi.node) that dlopen's sibling
-				// shared libraries (Foundry Local Core + libonnxruntime.* +
-				// libonnxruntime-genai.*). The OS loader resolves those by on-disk
-				// path relative to the addon, so the addon and the native core
-				// libraries must live outside the archive as real files.
-				'**/foundry-local-sdk/prebuilds/**',
-				'**/foundry-local-sdk/foundry-local-core/**',
 			], [
 				'**/*.mk',
 			], [
@@ -637,6 +616,8 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' }),
 			glob('**/rg.exe', { cwd }),
 			glob('**/tgrep.exe', { cwd }),
+			glob('**/node_modules.asar.unpacked/@github/copilot-win32-*/builtin-plugins/computer-use/*/win32-*/computer-use-mcp.exe', { cwd }),
+			glob('**/node_modules.asar.unpacked/@github/copilot-win32-*/builtin-plugins/computer-use/*/win32-*/CopilotComputerUse.exe', { cwd }),
 			glob('**/*explorer_command*.dll', { cwd }),
 		])).flatMap(o => o);
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));

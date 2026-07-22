@@ -23,6 +23,7 @@ import { ChatTipService, CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND, CREATE_AGEN
 import { AgentInstructionFileType, IPromptPath, IPromptsService, IAgentInstructionFile, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { storeSelectedModel } from '../../common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
@@ -401,7 +402,7 @@ suite('ChatTipService', () => {
 	});
 
 	test('returns Auto switch tip when current model is persisted and context key is empty', () => {
-		storageService.store('chat.currentLanguageModel.panel', 'copilot/gpt-4.1-2025-04-14', StorageScope.APPLICATION, StorageTarget.USER);
+		storeSelectedModel(storageService, ChatAgentLocation.Chat, undefined, 'copilot/gpt-4.1-2025-04-14');
 		const service = createService();
 		contextKeyService.createKey(ChatContextKeys.chatModelId.key, '');
 

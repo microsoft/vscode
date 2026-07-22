@@ -66,9 +66,10 @@ export interface ILocalTranscriptionResult {
  * Microsoft's Foundry Local streaming ASR engine (onnxruntime + onnxruntime-genai
  * native runtime), which handles decoding, VAD and endpointing internally; the
  * default model is NVIDIA's `nemotron-speech-streaming-en-0.6b` streaming RNN-T
- * (the model the GitHub Copilot app ships for dictation). Runs in a utility
- * process. A single transcription session is active at a time (dictation is a
- * singleton in the renderer).
+ * (the model the GitHub Copilot app ships for dictation). The model is chosen by
+ * the `chat.speechToText.model` setting. Runs in a utility process. A single
+ * transcription session is active at a time (dictation is a singleton in the
+ * renderer).
  *
  * The renderer streams PCM16 mono 16 kHz audio via `pushAudio`; the service
  * emits interim transcripts on `onDidTranscribe` and a final one after `stop`.
@@ -95,16 +96,26 @@ export interface ILocalTranscriptionService {
 
 	/**
 	 * Ensure the model is downloaded/loaded (idempotent) and begin a new
-	 * transcription session. `cacheDir` is where model files are stored.
-	 * `language` optionally hints the spoken language.
+	 * transcription session. `cacheDir` is where model files are stored. `model`
+	 * selects the on-device Foundry Local model; when omitted the service default
+	 * is used. `language` optionally hints the spoken language.
 	 *
-	 * NOTE: Foundry Local performs the first-use model download itself and does
-	 * not currently expose a hook for VS Code's `http.proxy`/`http.proxyStrictSSL`
-	 * settings, so those are not honoured for the model download. Behind a
-	 * corporate proxy the first-use download may fail until Foundry Local gains a
-	 * supported proxy mechanism.
+	 * `proxyUrl`/`noProxy` bridge VS Code's `http.proxy`/`http.noProxy` settings
+	 * into this utility process: when set, they are applied as the standard proxy
+	 * environment variables before any download, so all provisioning legs — the
+	 * addon tarball and NuGet core libraries (our own fetches) and the native
+	 * Foundry Local *model* download — route through the proxy. When they are
+	 * omitted, the process's inherited OS environment proxy vars still apply.
+	 *
+	 * `proxyStrictSSL === false` (VS Code's `http.proxyStrictSSL`) disables TLS
+	 * certificate verification for the JavaScript download legs. `proxyAuthorization`
+	 * (VS Code's `http.proxyAuthorization`, a `Basic <base64>` value) is folded into
+	 * the proxy URL's credentials so both our fetches and the native model download
+	 * authenticate to the proxy. TLS-intercepting proxies otherwise rely on the CA
+	 * being in the OS trust store (matching `@vscode/proxy-agent` and the desktop
+	 * app).
 	 */
-	start(options: { readonly cacheDir: string; readonly language?: string }): Promise<void>;
+	start(options: { readonly cacheDir: string; readonly model?: string; readonly language?: string; readonly proxyUrl?: string; readonly noProxy?: string; readonly proxyStrictSSL?: boolean; readonly proxyAuthorization?: string }): Promise<void>;
 
 	/** Append captured audio (raw little-endian PCM16 mono 16 kHz). */
 	pushAudio(chunk: VSBuffer): Promise<void>;

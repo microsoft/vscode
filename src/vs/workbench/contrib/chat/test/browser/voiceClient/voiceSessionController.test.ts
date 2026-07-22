@@ -646,6 +646,10 @@ suite('VoiceSessionController', () => {
 		);
 		await controller.connect(mainWindow);
 		Reflect.get(controller, '_isConnected').set(true, undefined);
+		// Install a focused window so the multi-window hands-free focus gate
+		// (#8507) lets the passive barge-in turn open; the headless test window
+		// reports `document.hasFocus()` as false.
+		Reflect.set(controller, '_window', { document: { hasFocus: () => true } });
 
 		voiceClientService.fireAudioResponse({
 			audio: 'story-start',
@@ -770,12 +774,85 @@ suite('VoiceSessionController', () => {
 		const mic = new RecordingMicCaptureService();
 		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
 		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		Reflect.set(controller, '_window', { document: { hasFocus: () => true } });
 
 		const enterAutoListen = Reflect.get(controller, '_enterAutoListen') as () => void;
 		enterAutoListen.call(controller);
 
 		assert.strictEqual(mic.pttDownCalls.length, 1);
 		assert.strictEqual(mic.pttDownCalls[0].passive, true);
+	});
+
+	test('auto-listen is skipped when window does not have focus (multi-window hands-free)', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		Reflect.set(controller, '_window', { document: { hasFocus: () => false } });
+
+		const enterAutoListen = Reflect.get(controller, '_enterAutoListen') as () => void;
+		enterAutoListen.call(controller);
+
+		assert.strictEqual(mic.pttDownCalls.length, 0);
+	});
+
+	test('window blur aborts an open passive turn so the background window stops recording', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		Reflect.set(controller, '_pttCurrentTurnId', 'passive-turn');
+		Reflect.set(controller, '_pttCurrentTurnPassive', true);
+		Reflect.set(controller, '_pttHeld', true);
+
+		(Reflect.get(controller, '_onWindowBlur') as () => void).call(controller);
+
+		assert.strictEqual(mic.abortCalls, 1);
+		assert.strictEqual(Reflect.get(controller, '_pttHeld'), false);
+	});
+
+	test('window blur does not abort a deliberate (non-passive) turn', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		Reflect.set(controller, '_pttCurrentTurnId', 'deliberate-turn');
+		Reflect.set(controller, '_pttCurrentTurnPassive', false);
+		Reflect.set(controller, '_pttHeld', true);
+
+		(Reflect.get(controller, '_onWindowBlur') as () => void).call(controller);
+
+		assert.strictEqual(mic.abortCalls, 0);
+		assert.strictEqual(Reflect.get(controller, '_pttHeld'), true);
+	});
+
+	test('window focus re-arms hands-free auto-listen in the focused window', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }));
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		Reflect.set(controller, '_window', { document: { hasFocus: () => true } });
+
+		(Reflect.get(controller, '_onWindowFocus') as () => void).call(controller);
+
+		assert.strictEqual(mic.pttDownCalls.length, 1);
+		assert.strictEqual(mic.pttDownCalls[0].passive, true);
+	});
+
+	test('window focus does not re-arm auto-listen when hands-free is disabled', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic,
+			new TestConfigurationService({ 'agents.voice.handsFree': false }));
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		Reflect.set(controller, '_window', { document: { hasFocus: () => true } });
+
+		(Reflect.get(controller, '_onWindowFocus') as () => void).call(controller);
+
+		assert.strictEqual(mic.pttDownCalls.length, 0);
 	});
 
 	test('a deliberate user press opens a non-passive mic turn', () => {

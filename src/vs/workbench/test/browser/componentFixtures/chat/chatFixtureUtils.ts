@@ -53,6 +53,7 @@ import { IChatContextPickService } from '../../../../contrib/chat/browser/attach
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
 import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from '../../../../contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IChatModeService } from '../../../../contrib/chat/common/chatModes.js';
@@ -246,6 +247,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getActiveNotification() { return undefined; }
 		override announceRendered() { }
 	}());
+	reg.defineInstance(IChatSubmitRequestHandlerService, new ChatSubmitRequestHandlerService());
 	reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { override readonly model = new class extends mock<IAgentSessionsService['model']>() { override readonly onDidChangeSessions = Event.None; }(); }());
 	// Agent-host chat widgets (e.g. the turn changes summary fixtures) create the
 	// generic config chips lane, which opens a session subscription. Return an
