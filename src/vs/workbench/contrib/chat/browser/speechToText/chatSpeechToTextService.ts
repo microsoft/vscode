@@ -20,13 +20,18 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { ILocalTranscriptionModelStatus, ILocalTranscriptionService, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
 
 /** Sample rate (Hz) of the PCM16 audio streamed to the transcription backend. */
 const SAMPLE_RATE = 16000;
+
+/** Number of samples buffered in the worklet before a chunk is posted to the main thread. */
+const PCM_CAPTURE_CHUNK_SIZE = 4096;
 
 /** Setting that enables the dictation feature; a kill-switch for rollout. */
 const ENABLED_SETTING = 'chat.speechToText.enabled';
@@ -78,6 +83,18 @@ export const enum ChatSpeechToTextState {
 	Transcribing = 'transcribing',
 }
 
+/** A live dictation transcript update. */
+export interface IChatDictationTranscript {
+	/** Full cumulative transcript to display. */
+	readonly text: string;
+	/**
+	 * The leading portion of `text` that is finalized (committed): it should be
+	 * rendered without the shimmer. The remainder is the in-progress interim
+	 * tail that keeps shimmering until it is finalized.
+	 */
+	readonly finalizedText: string;
+}
+
 export interface IChatSpeechToTextService {
 	readonly _serviceBrand: undefined;
 
@@ -87,9 +104,10 @@ export interface IChatSpeechToTextService {
 	/**
 	 * Fires with the cumulative transcript while recording, so callers can
 	 * render dictation live as the user speaks. The value grows monotonically
-	 * (finalized utterances plus any in-progress delta).
+	 * (finalized utterances plus any in-progress delta), and carries the
+	 * finalized (non-shimmering) portion of that transcript.
 	 */
-	readonly onDidUpdateTranscript: Event<string>;
+	readonly onDidUpdateTranscript: Event<IChatDictationTranscript>;
 
 	/**
 	 * Whether on-device speech-to-text is available on this platform. Callers
@@ -105,6 +123,20 @@ export interface IChatSpeechToTextService {
 	readonly onDidChangePreparingModel: Event<boolean>;
 	/** Whether the on-device model is currently downloading/loading. */
 	readonly isPreparingModel: boolean;
+
+	/**
+	 * Fires whenever the on-device model download progress changes while the
+	 * model is being prepared, so callers can update a progress ring.
+	 */
+	readonly onDidChangeModelDownloadProgress: Event<void>;
+
+	/**
+	 * Fractional download progress in `[0, 1]` while the model is downloading,
+	 * or `undefined` when the fraction is not yet known (indeterminate), the
+	 * download has finished and the model is loading into memory, or no
+	 * preparation is in progress.
+	 */
+	readonly modelDownloadProgress: number | undefined;
 
 	/**
 	 * Begin capturing microphone audio in the given window and streaming it to
@@ -130,7 +162,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private readonly _onDidChangeState = this._register(new Emitter<ChatSpeechToTextState>());
 	readonly onDidChangeState = this._onDidChangeState.event;
 
-	private readonly _onDidUpdateTranscript = this._register(new Emitter<string>());
+	private readonly _onDidUpdateTranscript = this._register(new Emitter<IChatDictationTranscript>());
 	readonly onDidUpdateTranscript = this._onDidUpdateTranscript.event;
 
 	private readonly _onDidChangePreparingModel = this._register(new Emitter<boolean>());
@@ -141,6 +173,14 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		return this._isPreparingModel;
 	}
 
+	private readonly _onDidChangeModelDownloadProgress = this._register(new Emitter<void>());
+	readonly onDidChangeModelDownloadProgress = this._onDidChangeModelDownloadProgress.event;
+
+	private _modelDownloadProgress: number | undefined;
+	get modelDownloadProgress(): number | undefined {
+		return this._modelDownloadProgress;
+	}
+
 	/**
 	 * Active download-progress notification, shown while the on-device model is
 	 * downloading to disk. `report` drives the progress bar, `complete` resolves
@@ -148,6 +188,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 * percentage pushed, so we can translate absolute progress into increments.
 	 */
 	private _downloadNotification: { readonly report: IProgress<IProgressStep>; readonly complete: () => void; lastReported: number } | undefined;
+
+	/** Most recent model status, used to re-sync the notification on screen-reader changes. */
+	private _lastModelStatus: ILocalTranscriptionModelStatus | undefined;
 
 	private _state = ChatSpeechToTextState.Idle;
 	get state(): ChatSpeechToTextState {
@@ -161,7 +204,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _mediaStream: MediaStream | undefined;
 	private _audioContext: AudioContext | undefined;
 	private _sourceNode: MediaStreamAudioSourceNode | undefined;
-	private _processorNode: ScriptProcessorNode | undefined;
+	private _workletNode: AudioWorkletNode | undefined;
 
 	private readonly _localSessionDisposables = this._register(new DisposableStore());
 
@@ -201,6 +244,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILocalTranscriptionService private readonly _localTranscription: ILocalTranscriptionService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this._recordingContextKey = ChatContextKeys.speechToTextRecording.bindTo(contextKeyService);
@@ -224,7 +268,18 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 		this._isPreparingModel = preparing;
 		this._preparingContextKey.set(preparing);
+		if (!preparing) {
+			this._setModelDownloadProgress(undefined);
+		}
 		this._onDidChangePreparingModel.fire(preparing);
+	}
+
+	private _setModelDownloadProgress(progress: number | undefined): void {
+		if (this._modelDownloadProgress === progress) {
+			return;
+		}
+		this._modelDownloadProgress = progress;
+		this._onDidChangeModelDownloadProgress.fire();
 	}
 
 	private _logSessionTelemetry(outcome: 'completed' | 'cancelled' | 'error'): void {
@@ -317,8 +372,6 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			throw err;
 		}
 
-		this._finalizedText = '';
-		this._deltaText = '';
 		this._mediaStream = stream;
 
 		try {
@@ -333,7 +386,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 
 		try {
-			this._startCapture(window, stream);
+			await this._startCapture(window, stream);
 		} catch (err) {
 			// Capture setup (AudioContext/nodes) can fail after the mic and the
 			// utility-process session are already live; make sure both are torn
@@ -347,7 +400,13 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			throw err;
 		}
 		this._setState(ChatSpeechToTextState.Recording);
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+		// Only cue "recording started" once we are actually listening. If the
+		// model is still downloading/loading, defer the cue until it becomes
+		// ready (see _handleModelStatus), so it lands with the "Listening…"
+		// placeholder rather than at the start of the download.
+		if (!this._isPreparingModel) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+		}
 	}
 
 	/**
@@ -363,7 +422,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			if (!result.isFinal) {
 				this._sessionSegments++;
 			}
-			this._onDidUpdateTranscript.fire(this._transcript);
+			this._onDidUpdateTranscript.fire({ text: this._transcript, finalizedText: result.finalizedText ?? '' });
 		}));
 		const cacheDir = joinPath(this._environmentService.cacheHome, 'chatDictationModels').fsPath;
 		const model = this._getModelId();
@@ -399,7 +458,18 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._prepareStartMs = Date.now();
 		// Guarantee the download notification is dismissed no matter how the
 		// session ends (teardown, cancel, or the service being disposed).
-		this._localSessionDisposables.add(toDisposable(() => this._completeDownloadNotification()));
+		this._localSessionDisposables.add(toDisposable(() => {
+			this._lastModelStatus = undefined;
+			this._completeDownloadNotification();
+		}));
+		// The accessible progress notification is only shown to screen-reader
+		// users, so re-sync it whenever screen-reader optimization is toggled
+		// mid-preparation (a change on its own emits no model status).
+		this._localSessionDisposables.add(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			if (this._lastModelStatus) {
+				this._updateDownloadNotification(this._lastModelStatus);
+			}
+		}));
 		// Register the status listener BEFORE snapshotting the current status. A
 		// Downloading→Ready/Error transition can land between the snapshot and the
 		// subscription; if it did, the completion event would be missed and the
@@ -412,16 +482,24 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	/**
-	 * Drive the spinner, download notification, and error handling from a model
-	 * status. Safe to call repeatedly and from both the status snapshot and the
-	 * change listener, since the notification and preparing-state updates are
+	 * Drive the progress ring, download notification, and error handling from a
+	 * model status. Safe to call repeatedly and from both the status snapshot and
+	 * the change listener, since the progress and preparing-state updates are
 	 * idempotent.
 	 */
 	private _handleModelStatus(status: ILocalTranscriptionModelStatus): void {
+		this._lastModelStatus = status;
+		this._updateModelDownloadProgress(status);
 		this._updateDownloadNotification(status);
 		if (status.state === LocalTranscriptionModelState.Ready) {
 			this._logModelPrepareTelemetry(status);
+			const wasPreparing = this._isPreparingModel;
 			this._setPreparingModel(false);
+			// The recording-started cue was deferred while the model prepared;
+			// now that we are actually listening, play it (if still recording).
+			if (wasPreparing && this._state === ChatSpeechToTextState.Recording) {
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+			}
 		} else if (status.state === LocalTranscriptionModelState.Error) {
 			this._logModelPrepareTelemetry(status);
 			this._setPreparingModel(false);
@@ -430,21 +508,30 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	/**
-	 * Show a progress notification while the model is being prepared, and keep it
-	 * visible across both preparation phases so dictation never appears to hang
-	 * with no feedback:
-	 *  - `Downloading`: a determinate bar advances as bytes arrive (or an
-	 *    indeterminate "Downloading…" message before the first byte total is
-	 *    known).
-	 *  - `Loading`: the download is complete but the (often multi-second) load
-	 *    into memory is still running, so the message switches to "Loading model…"
-	 *    instead of leaving the bar stuck at a full download and then vanishing.
-	 * The notification is dismissed only once the model reaches `Ready`/`Error`.
+	 * Feed the toolbar progress ring: expose the download fraction while it is
+	 * known, and `undefined` (indeterminate ring) before the first byte total
+	 * arrives or once the download completes and the model is loading.
+	 */
+	private _updateModelDownloadProgress(status: ILocalTranscriptionModelStatus): void {
+		if (status.state === LocalTranscriptionModelState.Downloading && typeof status.progress === 'number') {
+			this._setModelDownloadProgress(Math.max(0, Math.min(1, status.progress)));
+		} else {
+			this._setModelDownloadProgress(undefined);
+		}
+	}
+
+	/**
+	 * Surface model-preparation progress to screen-reader users via a progress
+	 * notification that stays visible across the download and load phases.
 	 */
 	private _updateDownloadNotification(status: ILocalTranscriptionModelStatus): void {
 		const preparing = status.state === LocalTranscriptionModelState.Downloading
 			|| status.state === LocalTranscriptionModelState.Loading;
-		if (!preparing) {
+		// Only screen-reader users get this notification (sighted users get the
+		// toolbar download ring and its rich hover, which assistive technology
+		// cannot reach). Dismiss it once preparation ends or if a screen reader
+		// is no longer active.
+		if (!preparing || !this._accessibilityService.isScreenReaderOptimized()) {
 			this._completeDownloadNotification();
 			return;
 		}
@@ -504,8 +591,6 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._logSessionTelemetry('error');
 		this._localTranscription.cancel();
 		this._teardown();
-		this._finalizedText = '';
-		this._deltaText = '';
 		this._setState(ChatSpeechToTextState.Idle);
 		this._notificationService.error(message);
 	}
@@ -553,41 +638,45 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._logSessionTelemetry('cancelled');
 		this._localTranscription.cancel();
 		this._teardown();
-		this._finalizedText = '';
-		this._deltaText = '';
 		this._setState(ChatSpeechToTextState.Idle);
 		if (wasRecording) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
 		}
 	}
 
-	private _startCapture(window: Window & typeof globalThis, stream: MediaStream): void {
+	private async _startCapture(window: Window & typeof globalThis, stream: MediaStream): Promise<void> {
 		const ctx = new window.AudioContext({ sampleRate: SAMPLE_RATE });
 		this._audioContext = ctx;
 		// The context is created several awaits after the user gesture (mic
 		// acquisition + model startup), so it can start suspended; resume it or
-		// `onaudioprocess` never fires and no audio is streamed.
+		// the worklet never runs and no audio is streamed.
 		ctx.resume().catch(() => { /* ignore */ });
 		const source = ctx.createMediaStreamSource(stream);
 		this._sourceNode = source;
 
-		const processor = ctx.createScriptProcessor(4096, 1, 1);
-		this._processorNode = processor;
-
-		processor.onaudioprocess = e => {
-			const samples = e.inputBuffer.getChannelData(0);
+		// Load the capture worklet (see `createPcmCaptureNode`). ScriptProcessorNode
+		// is deprecated and its `onaudioprocess` callback is throttled/stops on the
+		// main thread; the worklet runs on the audio thread and streams PCM reliably.
+		const node = await createPcmCaptureNode(window, ctx, PCM_CAPTURE_CHUNK_SIZE, samples => {
 			this._localTranscription.pushAudio(encodeRawPcm16Buffer(samples)).catch(err => this._onAudioPushError(err));
-		};
+		});
 
-		source.connect(processor);
-		processor.connect(ctx.destination);
+		// The session may have been torn down while the module was loading.
+		if (this._audioContext !== ctx) {
+			try { node.disconnect(); } catch { /* ignore */ }
+			return;
+		}
+
+		this._workletNode = node;
+		source.connect(node);
+		node.connect(ctx.destination);
 	}
 
 	private _stopCapture(): void {
-		if (this._processorNode) {
-			this._processorNode.onaudioprocess = null;
-			try { this._processorNode.disconnect(); } catch { /* ignore */ }
-			this._processorNode = undefined;
+		if (this._workletNode) {
+			this._workletNode.port.onmessage = null;
+			try { this._workletNode.disconnect(); } catch { /* ignore */ }
+			this._workletNode = undefined;
 		}
 		try { this._sourceNode?.disconnect(); } catch { /* ignore */ }
 		this._sourceNode = undefined;
@@ -605,6 +694,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		// model reached a terminal state does not emit a model-prepare event.
 		this._prepareStartMs = 0;
 		this._localSessionDisposables.clear();
+		// Do not retain transcript text beyond the session that produced it.
+		this._finalizedText = '';
+		this._deltaText = '';
 	}
 
 	private async _acquireStream(window: Window & typeof globalThis): Promise<MediaStream> {

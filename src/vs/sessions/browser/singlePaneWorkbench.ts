@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISerializableView, ISerializedNode, IViewSize } from '../../base/browser/ui/grid/grid.js';
+import { alert } from '../../base/browser/ui/aria/aria.js';
+import { mainWindow } from '../../base/browser/window.js';
 import { Emitter, Event } from '../../base/common/event.js';
+import { localize } from '../../nls.js';
 import { IEditorWillOpenEvent } from '../../workbench/common/editor.js';
 import { Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { DockedEditorInput } from '../common/dockedEditorInput.js';
@@ -67,6 +70,18 @@ export class SinglePaneWorkbench extends Workbench {
 		return this.workbenchGrid
 			? this.workbenchGrid.isViewVisible(this.editorPartView)
 			: super.isEditorPaneVisible();
+	}
+
+	override toggleSecondarySideBar(): void {
+		this.toggleEditorPane();
+	}
+
+	toggleEditorPane(): void {
+		const visible = !this.isVisible(Parts.EDITOR_PART, mainWindow);
+		this.setEditorHidden(!visible, /* explicit */ true);
+		alert(visible
+			? localize('editorPaneVisible', "Editor pane shown")
+			: localize('editorPaneHidden', "Editor pane hidden"));
 	}
 
 	protected override _onSidePaneRevealed(): void {

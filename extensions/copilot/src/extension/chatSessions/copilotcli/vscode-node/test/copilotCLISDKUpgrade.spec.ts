@@ -30,22 +30,6 @@ describe('CopilotCLI SDK Upgrade', function () {
 			// ripgrep
 			path.join('ripgrep', 'bin', 'win32-arm64', 'rg.exe'),
 			path.join('ripgrep', 'bin', 'win32-x64', 'rg.exe'),
-			// Computer-use payloads present in the raw package. Root prebuilds
-			// are stripped from the shipped extension by .vscodeignore.
-			path.join('prebuilds', 'darwin-arm64', 'computer-use-mcp'),
-			path.join('prebuilds', 'darwin-arm64', 'Copilot Computer Use.app', 'Contents', 'CodeResources'),
-			path.join('prebuilds', 'darwin-arm64', 'Copilot Computer Use.app', 'Contents', 'Resources', 'Assets.car'),
-			path.join('prebuilds', 'darwin-arm64', 'Copilot Computer Use.app', 'Contents', 'Resources', 'icon.icns'),
-			path.join('prebuilds', 'darwin-arm64', 'Copilot Computer Use.app', 'Contents', 'MacOS', 'Copilot Computer Use'),
-			path.join('prebuilds', 'darwin-x64', 'computer-use-mcp'),
-			path.join('prebuilds', 'darwin-x64', 'Copilot Computer Use.app', 'Contents', 'CodeResources'),
-			path.join('prebuilds', 'darwin-x64', 'Copilot Computer Use.app', 'Contents', 'Resources', 'Assets.car'),
-			path.join('prebuilds', 'darwin-x64', 'Copilot Computer Use.app', 'Contents', 'Resources', 'icon.icns'),
-			path.join('prebuilds', 'darwin-x64', 'Copilot Computer Use.app', 'Contents', 'MacOS', 'Copilot Computer Use'),
-			path.join('prebuilds', 'win32-arm64', 'CopilotComputerUse.exe'),
-			path.join('prebuilds', 'win32-arm64', 'computer-use-mcp.exe'),
-			path.join('prebuilds', 'win32-x64', 'CopilotComputerUse.exe'),
-			path.join('prebuilds', 'win32-x64', 'computer-use-mcp.exe'),
 			// cli-native to be included
 			path.join('prebuilds', 'darwin-arm64', 'cli-native.node'),
 			path.join('prebuilds', 'darwin-x64', 'cli-native.node'),

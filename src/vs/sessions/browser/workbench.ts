@@ -44,7 +44,8 @@ import { setBaseLayerHoverDelegate } from '../../base/browser/ui/hover/hoverDele
 import { Registry } from '../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../workbench/common/contributions.js';
 import { IEditorFactoryRegistry, EditorExtensions, IEditorWillOpenEvent } from '../../workbench/common/editor.js';
-import { setARIAContainer } from '../../base/browser/ui/aria/aria.js';
+import { alert, setARIAContainer } from '../../base/browser/ui/aria/aria.js';
+import { localize } from '../../nls.js';
 import { FontMeasurements } from '../../editor/browser/config/fontMeasurements.js';
 import { createBareFontInfoFromRawSettings } from '../../editor/common/config/fontInfoFromSettings.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
@@ -1984,6 +1985,14 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				this.setSessionsHidden(hidden);
 				break;
 		}
+	}
+
+	toggleSecondarySideBar(): void {
+		const visible = !this.isVisible(Parts.AUXILIARYBAR_PART);
+		this.setAuxiliaryBarHidden(!visible);
+		alert(visible
+			? localize('auxiliaryBarVisible', "Secondary Side Bar shown")
+			: localize('auxiliaryBarHidden', "Secondary Side Bar hidden"));
 	}
 
 	private setSideBarHidden(hidden: boolean): void {

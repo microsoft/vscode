@@ -132,6 +132,7 @@ suite('CopilotApiService', () => {
 			if (url.endsWith('/copilot_internal/user')) {
 				return new Response(JSON.stringify({
 					login: 'octocat',
+					copilotignore_enabled: true,
 					endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example' },
 				}), { status: 200 });
 			}
@@ -154,6 +155,7 @@ suite('CopilotApiService', () => {
 			isInternal: true,
 			userName: 'octocat',
 			isVscodeTeamMember: true,
+			copilotIgnoreEnabled: true,
 		});
 	});
 

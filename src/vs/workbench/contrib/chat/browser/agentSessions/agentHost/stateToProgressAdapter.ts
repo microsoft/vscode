@@ -1130,7 +1130,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 				if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
 					parts.push(completedToolCallToSerialized(tc as ICompletedToolCall, undefined, sessionResource, connectionAuthority));
 				} else if (tc.status === ToolCallStatus.Streaming && !isOtherClientToolCall) {
-					parts.push(toolCallStateToStreamingInvocation(tc, undefined));
+					parts.push(toolCallStateToStreamingInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority));
 				} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.AuthRequired || tc.status === ToolCallStatus.Streaming || tc.status === ToolCallStatus.PendingConfirmation) {
 					parts.push(toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority, toolInvocationOptions));
 				}
@@ -2155,8 +2155,8 @@ export function toolCallAuthenticationServer(tc: ToolCallState & { status: ToolC
  * the tool reaches confirmation/running, so a single card represents the whole
  * lifecycle instead of a settled placeholder plus a replacement.
  */
-export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined): ChatToolInvocation {
-	return ChatToolInvocation.createStreaming({
+export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource?: URI, connectionAuthority?: string, mcpServerAuthority?: string): ChatToolInvocation {
+	const invocation = ChatToolInvocation.createStreaming({
 		toolCallId: tc.toolCallId,
 		toolId: tc.toolName,
 		toolData: {
@@ -2167,6 +2167,10 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 		},
 		subagentInvocationId: subAgentInvocationId,
 	});
+	if (sessionResource && isSubagentTool(tc)) {
+		invocation.toolSpecificData = toolCallStateToInvocation(tc, subAgentInvocationId, sessionResource, connectionAuthority ?? '', mcpServerAuthority).toolSpecificData;
+	}
+	return invocation;
 }
 
 /**

@@ -16,7 +16,7 @@ type BubblewrapProbe = (command: string) => Promise<{ usable: boolean; error?: s
 type ResolveLinuxInstallEnvironment = () => Promise<{ distributionIds: readonly string[]; isRoot: boolean }>;
 
 const linuxDependencyInstallCommands: readonly { distributionIds: readonly string[]; commands: readonly [executable: string, command: string][] }[] = [
-	{ distributionIds: ['debian', 'ubuntu', 'linuxmint', 'pop', 'elementary', 'kali', 'raspbian'], commands: [['apt-get', 'apt-get install -y'], ['apt', 'apt install -y']] },
+	{ distributionIds: ['debian', 'ubuntu', 'linuxmint', 'pop', 'elementary', 'kali', 'raspbian'], commands: [['apt-get', 'apt-get update && apt-get install -y'], ['apt', 'apt update && apt install -y']] },
 	{ distributionIds: ['fedora', 'rhel', 'centos', 'rocky', 'almalinux'], commands: [['dnf', 'dnf install -y'], ['yum', 'yum install -y']] },
 	{ distributionIds: ['arch', 'manjaro', 'endeavouros'], commands: [['pacman', 'pacman -S --needed --noconfirm']] },
 	{ distributionIds: ['suse', 'opensuse', 'opensuse-leap', 'opensuse-tumbleweed'], commands: [['zypper', 'zypper --non-interactive install']] },
@@ -61,7 +61,7 @@ export class SandboxHelperService implements ISandboxHelperService {
 		}
 		for (const [executable, command] of installer.commands) {
 			if (await findCommand(executable)) {
-				return `${elevation}${command}`;
+				return command.split(' && ').map(command => `${elevation}${command}`).join(' && ');
 			}
 		}
 		return undefined;

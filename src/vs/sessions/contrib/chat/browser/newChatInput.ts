@@ -9,7 +9,6 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -26,11 +25,12 @@ import { SuggestController } from '../../../../editor/contrib/suggest/browser/su
 import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
 import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -73,6 +73,7 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
+import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
 import { ISessionModelSelectionModel, SessionModelSelectionModel } from './sessionModelSelectionModel.js';
@@ -82,7 +83,9 @@ import { IChatStatusItemService } from '../../../../workbench/contrib/chat/brows
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
-import { isDictating, startDictation, stopDictation } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
+import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { DictationDownloadRing } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -93,6 +96,36 @@ const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
 const NEW_CHAT_INPUT_FONT_FAMILY = 'system-ui, -apple-system, sans-serif';
+
+/** True while focus is in an Agents window composer that supports dictation. */
+const SessionsChatInputHasDictationFocus = new RawContextKey<boolean>('sessionsChatInputHasDictationFocus', false, localize('sessionsChatInputHasDictationFocus', "True when focus is in an Agents window chat composer that supports dictation."));
+
+const TOGGLE_DICTATION_COMMAND_ID = 'sessions.action.chat.toggleDictation';
+
+/** Composer the dictation shortcut targets (the composer isn't an `IChatWidget`). */
+let activeDictationComposer: NewChatInputWidget | undefined;
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: TOGGLE_DICTATION_COMMAND_ID,
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	when: ContextKeyExpr.and(
+		SessionsChatInputHasDictationFocus,
+		ContextKeyExpr.has(ChatContextKeys.speechToTextConfigured.key),
+	),
+	primary: KeyMod.CtrlCmd | KeyCode.KeyI,
+	handler: () => activeDictationComposer?.toggleDictation(),
+});
+
+// Preserve the command id so push-to-talk hold mode can track this chord.
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'agentsVoice.startVoiceInChat',
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	when: ContextKeyExpr.and(
+		SessionsChatInputHasDictationFocus,
+		ContextKeyExpr.equals('config.agents.voice.enabled', true),
+	),
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
+});
 
 interface IDraftState {
 	inputText: string;
@@ -275,7 +308,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private readonly _contextAttachments: NewChatContextAttachments;
 
 	// Slash commands
-	private _slashCommandHandler: SlashCommandHandler | undefined;
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _newChatModelPickerService = new NewChatModelPickerService();
@@ -326,6 +358,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatSpeechToTextService private readonly chatSpeechToTextService: IChatSpeechToTextService,
+		@IChatSubmitRequestHandlerService private readonly chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
 	) {
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
@@ -570,8 +603,24 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			}
 		}));
 
-		this._register(this._editor.onDidFocusEditorWidget(() => this._onDidFocus.fire()));
-		this._register(this._editor.onDidBlurEditorWidget(() => this._onDidBlur.fire()));
+		const dictationFocusKey = SessionsChatInputHasDictationFocus.bindTo(inputScopedContextKeyService);
+		this._register(this._editor.onDidFocusEditorWidget(() => {
+			dictationFocusKey.set(true);
+			activeDictationComposer = this;
+			this._onDidFocus.fire();
+		}));
+		this._register(this._editor.onDidBlurEditorWidget(() => {
+			dictationFocusKey.set(false);
+			if (activeDictationComposer === this) {
+				activeDictationComposer = undefined;
+			}
+			this._onDidBlur.fire();
+		}));
+		this._register(toDisposable(() => {
+			if (activeDictationComposer === this) {
+				activeDictationComposer = undefined;
+			}
+		}));
 
 		this._register(this._editor.onKeyDown(e => {
 			if (e.keyCode === KeyCode.Enter && !e.shiftKey && !e.ctrlKey && !e.altKey) {
@@ -594,13 +643,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				e.preventDefault();
 				e.stopPropagation();
 				this._contextAttachments.showPicker(this.options.getContextFolderUri());
-			}
-			// Cmd+I / Ctrl+I — dictate into the input using on-device speech-to-text.
-			// The global Dictate action can't reach this composer, so route here.
-			if (this.chatSpeechToTextService.isConfigured && e.equals(KeyMod.CtrlCmd | KeyCode.KeyI)) {
-				e.preventDefault();
-				e.stopPropagation();
-				void this._toggleDictation();
 			}
 		}));
 
@@ -633,7 +675,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 
 		// Slash commands
-		this._slashCommandHandler = this._register(this._scopedInstantiationService.createInstance(SlashCommandHandler, this._editor));
+		this._register(this._scopedInstantiationService.createInstance(SlashCommandHandler, this._editor));
 
 		// Variable completions (#file, #folder)
 		this._register(this.instantiationService.createInstance(
@@ -645,7 +687,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			SessionReferenceCompletionHandler, this._editor, this._contextAttachments,
 		));
 
-		this._agentHostInputCompletionHandler = this._register(this.instantiationService.createInstance(
+		this._agentHostInputCompletionHandler = this._register(this._scopedInstantiationService.createInstance(
 			AgentHostInputCompletionHandler, this._editor, this._contextAttachments,
 		));
 
@@ -762,13 +804,23 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			appearance: { showPointer: true }
 		}));
 
+		const downloadRing = this._register(new MutableDisposable<DictationDownloadRing>());
 		const renderState = () => {
 			const preparing = sttService.isPreparingModel;
 			const recording = sttService.state !== ChatSpeechToTextState.Idle;
 			dom.clearNode(button);
-			const icon = preparing ? spinningLoading : (recording ? Codicon.stopCircle : Codicon.mic);
-			dom.append(button, renderIcon(icon));
+			downloadRing.clear();
+			if (preparing) {
+				// First-use only: render a download icon wrapped by a determinate
+				// progress ring instead of a plain spinner, matching the chat
+				// toolbar, so the model download reads as progress rather than a hang.
+				dom.append(button, renderIcon(Codicon.cloudDownload));
+				downloadRing.value = new DictationDownloadRing(button, sttService);
+			} else {
+				dom.append(button, renderIcon(recording ? Codicon.stopCircle : Codicon.mic));
+			}
 			button.classList.toggle('recording', recording && !preparing);
+			button.classList.toggle('preparing', preparing);
 			button.ariaLabel = preparing
 				? localize('sessionsStt.preparing', "Preparing Speech to Text Model…")
 				: (recording ? stopLabel : micLabel);
@@ -787,7 +839,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			}
 		}));
 
-		const toggle = () => this._toggleDictation();
+		const toggle = () => this.toggleDictation();
 		// A styled div doesn't get Enter/Space activation or touch tap for free;
 		// wire them explicitly so the button is keyboard- and touch-accessible.
 		this._register(Gesture.addTarget(button));
@@ -807,24 +859,21 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	/**
-	 * Toggle on-device dictation into this composer's editor. Shared by the mic
-	 * button and the Cmd/Ctrl+I chord. The global Dictate action can't target
-	 * this composer (it isn't an IChatWidget), so routing is handled here.
+	 * Toggle on-device dictation into this composer's editor, honoring the
+	 * tap-vs-hold `chat.speechToText.mode` setting. Shared by the mic button and
+	 * the Cmd/Ctrl+I chord ({@link TOGGLE_DICTATION_COMMAND_ID}); the shared
+	 * Dictate action can't target this composer since it isn't an `IChatWidget`.
 	 */
-	private async _toggleDictation(): Promise<void> {
-		const sttService = this.chatSpeechToTextService;
-		if (isDictating()) {
-			await stopDictation();
+	async toggleDictation(): Promise<void> {
+		if (!this._editor) {
 			return;
 		}
-		if (!sttService.isConfigured || sttService.state !== ChatSpeechToTextState.Idle || !this._editor) {
-			return;
-		}
-		const domNode = this._editor.getDomNode();
-		if (!domNode) {
-			return;
-		}
-		await startDictation(sttService, this._editor, dom.getWindow(domNode), this.logService);
+		await runDictationShortcut({
+			speechService: this.chatSpeechToTextService,
+			keybindingService: this.keybindingService,
+			configurationService: this.configurationService,
+			logService: this.logService,
+		}, TOGGLE_DICTATION_COMMAND_ID, this._editor);
 	}
 
 	// --- Input History (IHistoryNavigationWidget) ---
@@ -904,8 +953,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return;
 		}
 
-		// Check for slash commands first
-		if (query && this._slashCommandHandler?.tryExecuteSlashCommand(query)) {
+		const session = this.options.session.get();
+		if (session && await this.chatSubmitRequestHandlerService.tryHandle({
+			sessionResource: session.resource,
+			providerId: session.providerId,
+			sessionId: session.sessionId,
+			input: query,
+		})) {
 			this._editor.getModel()?.setValue('');
 			return;
 		}
