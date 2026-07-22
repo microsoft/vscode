@@ -874,7 +874,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return infosCount > 0;
 	}
 
-	public registerTaskSystem(key: string, info: ITaskSystemInfo): void {
+	public registerTaskSystem(key: string, info: ITaskSystemInfo): IDisposable {
 		// Ideally the Web caller of registerRegisterTaskSystem would use the correct key.
 		// However, the caller doesn't know about the workspace folders at the time of the call, even though we know about them here.
 		if (info.platform === Platform.Platform.Web) {
@@ -895,6 +895,20 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this.hasTaskSystemInfo) {
 			this._onDidChangeTaskSystemInfo.fire();
 		}
+
+		return toDisposable(() => {
+			const infos = this._taskSystemInfos.get(key);
+			if (!infos) {
+				return;
+			}
+			const index = infos.indexOf(info);
+			if (index !== -1) {
+				infos.splice(index, 1);
+			}
+			if (infos.length === 0) {
+				this._taskSystemInfos.delete(key);
+			}
+		});
 	}
 
 	private _getTaskSystemInfo(key: string): ITaskSystemInfo | undefined {
