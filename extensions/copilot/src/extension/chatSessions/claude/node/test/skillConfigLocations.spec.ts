@@ -89,6 +89,13 @@ describe('resolveSkillConfigLocations', () => {
 		expect(result[0].path).toBe('/absolute/skills/path');
 	});
 
+	it('preserves UNC authority for local absolute paths', () => {
+		expect(resolve({
+			configLocations: { '\\\\server\\share\\skills': true },
+			userHome: URI.file('C:\\Users\\user'),
+		})).toEqual([URI.file('\\\\server\\share\\skills')]);
+	});
+
 	it('preserves remote authority for absolute and tilde paths', () => {
 		const userHome = URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/home/user' });
 		const result = resolve({

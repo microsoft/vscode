@@ -21,6 +21,10 @@ class TestConfiguredAgentPluginDiscovery extends ConfiguredAgentPluginDiscovery 
 	public resolvePluginPath(path: string, userHome: URI): URI[] {
 		return this._resolvePluginPath(path, userHome);
 	}
+
+	public resolveEnterprisePluginId(id: string, userHome: URI): URI | undefined {
+		return this._resolveEnterprisePluginId(id, userHome);
+	}
 }
 
 suite('ConfiguredAgentPluginDiscovery', () => {
@@ -52,6 +56,24 @@ suite('ConfiguredAgentPluginDiscovery', () => {
 				URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/home/user/plugins/my-plugin' }),
 				URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace/~shared/plugin' }),
 			],
+		);
+	});
+
+	test('preserves UNC authority for local absolute plugin locations', () => {
+		const discovery = createDiscovery(URI.file('C:\\workspace'));
+
+		assert.deepStrictEqual(
+			discovery.resolvePluginPath('\\\\server\\share\\plugin', URI.file('C:\\Users\\user')),
+			[URI.file('\\\\server\\share\\plugin')],
+		);
+	});
+
+	test('resolves enterprise plugin IDs relative to a remote user home', () => {
+		const discovery = createDiscovery(URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace' }));
+
+		assert.deepStrictEqual(
+			discovery.resolveEnterprisePluginId('plugin@marketplace', URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/home/user' })),
+			URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/home/user/.copilot/installed-plugins/marketplace/plugin' }),
 		);
 	});
 });

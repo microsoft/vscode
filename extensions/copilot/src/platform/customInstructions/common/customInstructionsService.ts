@@ -250,7 +250,8 @@ export class CustomInstructionsService extends Disposable implements ICustomInst
 							if (location.startsWith('~/')) {
 								configSkillLocationUris.push(Uri.joinPath(userHome, location.substring(2)));
 							} else if (isAbsolute(location)) {
-								configSkillLocationUris.push(userHome.with({ path: URI.file(location).path }));
+								const uri = URI.file(location);
+								configSkillLocationUris.push(userHome.scheme === Schemas.file ? uri : userHome.with({ path: uri.path }));
 							} else {
 								// Relative path - join to each workspace folder
 								for (const workspaceFolder of workspaceFolders) {

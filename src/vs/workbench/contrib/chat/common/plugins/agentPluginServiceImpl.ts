@@ -9,6 +9,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { untildify } from '../../../../../base/common/labels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import {
@@ -679,7 +680,8 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		}
 
 		if (win32.isAbsolute(path) || posix.isAbsolute(path)) {
-			return [userHome.with({ path: URI.file(path).path })];
+			const uri = URI.file(path);
+			return [userHome.scheme === Schemas.file ? uri : userHome.with({ path: uri.path })];
 		}
 
 		return this._workspaceContextService.getWorkspace().folders.map(
@@ -692,7 +694,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	 * the Copilot CLI install convention `~/.copilot/installed-plugins/<marketplace>/<plugin>/`.
 	 * Returns `undefined` for anything that doesn't match the ID shape.
 	 */
-	private _resolveEnterprisePluginId(id: string, userHome: URI): URI | undefined {
+	protected _resolveEnterprisePluginId(id: string, userHome: URI): URI | undefined {
 		const idMatch = id.match(/^([^@/\\~]+)@([^@/\\~]+)$/);
 		if (!idMatch) {
 			return undefined;

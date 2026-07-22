@@ -214,6 +214,16 @@ suite('CustomInstructionsService - Skills', () => {
 			expect(skillInfo?.skillFolderUri.toString()).toBe(URI.file('/custom/skills/myskill').toString());
 		});
 
+		test('should preserve UNC authority for absolute path skill locations', async () => {
+			await configService.setNonExtensionConfig('chat.agentSkillsLocations', {
+				'\\\\server\\share\\skills': true
+			});
+
+			const skillInfo = customInstructionsService.getSkillInfo(URI.file('\\\\server\\share\\skills\\myskill\\SKILL.md'));
+
+			expect(skillInfo?.skillFolderUri).toEqual(URI.file('\\\\server\\share\\skills\\myskill'));
+		});
+
 		test('should return skill info for nested file in absolute path skill location', async () => {
 			await configService.setNonExtensionConfig('chat.agentSkillsLocations', {
 				'/custom/skills': true

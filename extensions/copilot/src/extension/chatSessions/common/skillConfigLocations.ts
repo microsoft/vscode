@@ -7,6 +7,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { SKILLS_LOCATION_KEY } from '../../../platform/customInstructions/common/promptTypes';
 import { INativeEnvService } from '../../../platform/env/common/envService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
+import { Schemas } from '../../../util/vs/base/common/network';
 import { isAbsolute } from '../../../util/vs/base/common/path';
 import { isObject } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
@@ -36,7 +37,8 @@ export function resolveSkillConfigLocations(
 		if (location.startsWith('~/')) {
 			results.push(URI.joinPath(userHome, location.substring(2)));
 		} else if (isAbsolute(location)) {
-			results.push(userHome.with({ path: URI.file(location).path }));
+			const uri = URI.file(location);
+			results.push(userHome.scheme === Schemas.file ? uri : userHome.with({ path: uri.path }));
 		} else {
 			for (const workspaceFolder of workspaceFolders) {
 				results.push(URI.joinPath(workspaceFolder, location));
