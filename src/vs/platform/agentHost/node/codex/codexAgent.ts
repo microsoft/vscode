@@ -2846,6 +2846,28 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private _evictStalePrewarm(session: ICodexSession): void {
+		if (session.prewarmTimer) {
+			clearTimeout(session.prewarmTimer);
+			session.prewarmTimer = undefined;
+		}
+		const threadId = session.threadId;
+		if (threadId === undefined) {
+			return;
+		}
+		session.threadId = undefined;
+		this._sessionIdByThreadId.delete(threadId);
+		// Tear down the prewarmed thread only if a connection already exists;
+		// unlike `_expirePrewarm` we must never spawn codex just to evict a
+		// prewarm that a config change (folder->worktree) has invalidated.
+		const conn = this._connection;
+		if (conn.kind === 'ready') {
+			conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId }).catch(err => {
+				this._logService.warn(`[Codex] stale prewarm unsubscribe failed session=${session.sessionUri.toString()} threadId=${threadId}: ${err instanceof Error ? err.message : String(err)}`);
+			});
+		}
+	}
+
 	private _startTurnStopWatch(session: ICodexSession): StopWatch {
 		const stopWatch = StopWatch.create(false);
 		session.turnStopWatch = stopWatch;
@@ -3248,6 +3270,16 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		} catch (err) {
 			this._logService.warn(`[Codex:${threadId}] thread/${isArchived ? 'archive' : 'unarchive'} failed: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+
+	onSessionConfigChanged(session: URI, _values: Record<string, unknown>): void {
+		const entry = this._sessions.get(AgentSession.id(session));
+		if (!entry || entry.prewarmClaimed || entry.threadId === undefined) {
+			return;
+		}
+		if (this._configurationService.isWorkingDirectoryPending(entry.sessionUri.toString())) {
+			this._evictStalePrewarm(entry);
 		}
 	}
 
