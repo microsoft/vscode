@@ -9,8 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
@@ -46,10 +45,12 @@ suite('ConfiguredAgentPluginDiscovery', () => {
 			[
 				...discovery.resolvePluginPath('/opt/plugins/my-plugin', remoteUserHome),
 				...discovery.resolvePluginPath('~/plugins/my-plugin', remoteUserHome),
+				...discovery.resolvePluginPath('~shared/plugin', remoteUserHome),
 			],
 			[
 				URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/opt/plugins/my-plugin' }),
 				URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/home/user/plugins/my-plugin' }),
+				URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace/~shared/plugin' }),
 			],
 		);
 	});

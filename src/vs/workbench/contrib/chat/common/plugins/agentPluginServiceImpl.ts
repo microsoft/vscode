@@ -7,6 +7,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
+import { untildify } from '../../../../../base/common/labels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -673,8 +674,8 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	 * workspace-relative paths.
 	 */
 	protected _resolvePluginPath(path: string, userHome: URI): URI[] {
-		if (path.startsWith('~')) {
-			return [userHome.with({ path: URI.file(`${userHome.path}${path.substring(1)}`).path })];
+		if (/^~($|\/|\\)/.test(path)) {
+			return [userHome.with({ path: URI.file(untildify(path, userHome.path)).path })];
 		}
 
 		if (win32.isAbsolute(path) || posix.isAbsolute(path)) {
