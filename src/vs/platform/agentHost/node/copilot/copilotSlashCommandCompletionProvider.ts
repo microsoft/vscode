@@ -52,9 +52,8 @@ export interface ICopilotRuntimeSlashCommandQueryOptions {
  *
  * The returned items carry a {@link MessageAttachmentKind.Simple}
  * attachment, which the workbench bridge maps into command/skill completion
- * attachments. Command dispatch happens text-side in
- * `CopilotAgentSession.send` via {@link parseLeadingSlashCommand}, so the
- * feature works whether the user picks the item or types it manually.
+ * attachments. Runtime command dispatch is text-side in `CopilotAgentSession.send`;
+ * client-side config commands also share the same leading slash parser.
  */
 export class CopilotSlashCommandCompletionProvider implements IAgentHostCompletionItemProvider {
 	readonly kinds: ReadonlySet<CompletionItemKind> = new Set([CompletionItemKind.UserMessage]);

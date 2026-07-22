@@ -310,7 +310,7 @@
 
 .style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .codicon,
 .style-override.monaco-workbench .pane-composite-part.basepanel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .codicon {
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 /* Space the composite items apart with a small gap in the auxiliary bar and base panel. */

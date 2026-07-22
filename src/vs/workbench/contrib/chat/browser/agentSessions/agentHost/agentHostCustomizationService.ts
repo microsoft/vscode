@@ -454,7 +454,7 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 		const channel = target.backendSession.toString();
 		return {
 			customizations: sessionState?.customizations ?? [],
-			workingDirectory: sessionState?.workingDirectory,
+			workingDirectory: sessionState?.workingDirectories?.[0],
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
 			authenticate: request => target.connection.authenticate(request),
 			setCustomizationEnabled: (rawId, enabled) => {

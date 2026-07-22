@@ -98,7 +98,7 @@ suite('Protocol WebSocket - Session Config', function () {
 		await client.call('createSession', {
 			channel: nextSessionUri(),
 			provider: 'mock',
-			workingDirectory: URI.file('/mock/workspace').toString(),
+			workingDirectories: [URI.file('/mock/workspace').toString()],
 			config,
 		});
 
@@ -181,7 +181,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 			await client1.call('createSession', {
 				channel: nextSessionUri(),
 				provider: 'mock',
-				workingDirectory: URI.file('/mock/workspace').toString(),
+				workingDirectories: [URI.file('/mock/workspace').toString()],
 				config: initialConfig,
 			});
 			const addedNotif = await client1.waitForNotification(n =>

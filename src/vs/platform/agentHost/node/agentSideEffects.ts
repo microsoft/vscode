@@ -728,7 +728,7 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (action.type === ActionType.ChatError) {
-			this._turnTracker.turnCompleted(sessionKey, turnId, 'error');
+			this._turnTracker.turnCompleted(sessionKey, turnId, 'error', action.error.errorType);
 			this._toolCallTracker.clearSession(sessionKey);
 			this._markSessionUnread(sessionUri);
 		}
@@ -1311,6 +1311,15 @@ export class AgentSideEffects extends Disposable {
 				if (values) {
 					this._persistSessionFlag(channel, 'configValues', JSON.stringify(values));
 				}
+				if (this._worktree && sessionState?.lifecycle === SessionLifecycle.Creating) {
+					const sessionId = AgentSession.id(channel);
+					const isolation = values?.[SessionConfigKey.Isolation];
+					if (isolation === 'worktree') {
+						this._worktree.notePending(sessionId);
+					} else if (isolation === 'folder') {
+						this._worktree.clearPending(sessionId);
+					}
+				}
 				// This case is reached only for client-dispatched config changes
 				// (a user picker edit); internal server-side writes use
 				// `dispatchServerAction` and never land here. So the provider can
@@ -1524,16 +1533,17 @@ export class AgentSideEffects extends Disposable {
 		const sessionStatus = this._stateManager.getSessionSummary(options.sessionChannel)?.status ?? 0;
 		const sessionArchived = (sessionStatus & SessionStatus.IsArchived) === SessionStatus.IsArchived;
 		if (isChatReadOnly(chatState?.interactivity, sessionArchived)) {
+			const error = sessionArchived
+				? { errorType: 'archived', message: 'This session is archived and read-only. Restore the session to continue the conversation.' }
+				: { errorType: 'readOnly', message: 'This chat is read-only.' };
 			this._logService.warn(`[AgentSideEffects] Rejecting turn on read-only chat=${chat} (archived=${sessionArchived}), turnId=${turnId}`);
 			this._stateManager.dispatchServerAction(turnChannel, {
 				type: ActionType.ChatError,
 				turnId,
 				duration: this._turnDuration(turnStopWatch),
-				error: sessionArchived
-					? { errorType: 'archived', message: 'This session is archived and read-only. Restore the session to continue the conversation.' }
-					: { errorType: 'readOnly', message: 'This chat is read-only.' },
+				error,
 			});
-			this._turnTracker.turnCompleted(turnChannel, turnId, 'error');
+			this._turnTracker.turnCompleted(turnChannel, turnId, 'error', error.errorType);
 			this._toolCallTracker.clearSession(turnChannel);
 			return;
 		}
@@ -1562,14 +1572,15 @@ export class AgentSideEffects extends Disposable {
 			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectory, message.attachments, turnId, senderClientId);
 		} catch (err) {
 			const errCode = (err as { code?: number })?.code;
+			const error = buildSendFailedError(err);
 			this._logService.error(`[AgentSideEffects] sendMessage failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 			this._stateManager.dispatchServerAction(turnChannel, {
 				type: ActionType.ChatError,
 				turnId,
 				duration: this._turnDuration(turnStopWatch),
-				error: buildSendFailedError(err),
+				error,
 			});
-			this._turnTracker.turnCompleted(turnChannel, turnId, 'error');
+			this._turnTracker.turnCompleted(turnChannel, turnId, 'error', error.errorType);
 			this._toolCallTracker.clearSession(turnChannel);
 			this._failSessionCreationIfStillCreating(sessionChannel, err);
 		}

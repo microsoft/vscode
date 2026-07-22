@@ -51,7 +51,7 @@ export class AgentHostTurnTracker {
 		}
 	}
 
-	turnCompleted(session: string, turnId: string, result: AgentHostTurnResult): void {
+	turnCompleted(session: string, turnId: string, result: AgentHostTurnResult, errorType?: string): void {
 		const key = this._key(session, turnId);
 		const timing = this._turnTimings.get(key);
 		if (!timing) {
@@ -62,11 +62,13 @@ export class AgentHostTurnTracker {
 		this._reporter.turnCompleted({
 			provider: timing.provider,
 			session: timing.session,
+			turnId,
 			timeToFirstProgress: timing.firstProgressMs,
 			totalTime: timing.stopWatch.elapsed(),
 			result,
 			model: timing.model,
 			permissionLevel: timing.permissionLevel,
+			errorType,
 		});
 	}
 

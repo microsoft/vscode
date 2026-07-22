@@ -436,7 +436,7 @@ function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?:
 			createdAt: opts?.createdAt ?? new Date().toISOString(),
 			modifiedAt: opts?.modifiedAt ?? new Date().toISOString(),
 			project: opts?.project,
-			workingDirectory: opts?.workingDirectory,
+			workingDirectories: opts?.workingDirectory ? [opts.workingDirectory] : undefined,
 			changes: opts?.changes,
 			...(opts?.workspaceless ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
 		},

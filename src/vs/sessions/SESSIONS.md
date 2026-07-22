@@ -79,6 +79,8 @@ send:           composer → management.sendNewChatRequest()  // model: provider
 focus a slot:   part.onDidFocusSession → view.setActive → updates active visible slot
 ```
 
+The Agents-window chat surface also registers the workbench chat pre-submit handlers. These handlers can consume provider-specific client-side commands before the normal send path, while the actual send still routes through the sessions provider model.
+
 The part (interface `services/sessions/browser/sessionsPartService.ts`; concrete `browser/parts/sessionsPart.ts`) is a **passive renderer**: it injects neither the model nor the view, and only exposes `updateVisibleSessions(visible, active)`, `focusSession`, and `onDidFocusSession`. The view owns the reconcile autorun and focus and wires `part.onDidFocusSession → view.setActive`.
 
 ### Layer 3 — Providers (`contrib/providers/`)
@@ -192,6 +194,8 @@ Session types are surfaced ordered by each provider's `order` property (lower fi
 The session type picker persists the last selection as `{ providerId, sessionTypeId }` (the `providerId` disambiguates when two providers offer the same `sessionType.id`, e.g. `copilotcli`). Like any picker, it writes storage whenever the value changes — both on a manual dropdown pick and whenever the active session's type changes — so an auto-selected or defaulted type also survives reload (otherwise the stored preference would be empty and the restored draft would fall back to the first provider by `order`).
 
 On reload, providers register asynchronously and agent hosts connect lazily, so the preferred provider may not have surfaced its session types when the restored draft is created. Rather than blocking on a "ready" gate, `NewChatWidget` creates the draft immediately with the best available provider, then upgrades it in place once the preferred `(providerId, sessionTypeId)` pair becomes servable (driven by `onDidChangeSessionTypes`). The upgrade listener lives for the widget's lifetime — there is **no** timeout or `LifecyclePhase` give-up, since an agent host can connect arbitrarily late — and is cancelled if the user picks a different type or the draft is sent.
+
+Scheduled automations follow the same lazy-registration rule. Before claiming a run row, `AutomationRunner` checks whether its exact target is currently advertised; an unavailable target is deferred without advancing `nextRunAt`, and `AutomationScheduler` retries due automations when `onDidChangeSessionTypes` fires. Once a draft exists, an explicitly selected model waits on `getModelsSnapshot` / `onDidChangeModels` until it is available or conclusively unavailable, re-checking folder-specific session types for workspace-backed drafts. No startup delay or readiness timeout is used.
 
 ### Quick Chats
 

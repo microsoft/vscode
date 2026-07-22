@@ -117,6 +117,34 @@ export class ChatInputModelSelectionController extends Disposable {
 		const selection = resolveSelection();
 		onInitialSelection(selection);
 		this._reportInitialization(this._runtime.getConfiguredModelValue(), rememberedModelId, selection);
+		this._applyInitialSelection(selection);
+
+		// The remembered model has not been honored yet when we only applied a provisional fallback
+		// (`FirstAvailable`) or are still waiting for the pool to load (`pending`). In both cases,
+		// watch the catalog and swap the remembered model in once it appears; a configured or
+		// otherwise-available model — or an explicit user pick — supersedes it. Routing both cases
+		// through one wait (instead of arming it only for `pending`) means a remembered model that
+		// lands *after* the first, possibly non-empty, catalog batch is no longer lost.
+		if (rememberedModelId && (selection.kind === 'pending' || (selection.kind === 'apply' && selection.reason === ModelSelectionReason.FirstAvailable))) {
+			const desiredIdentifier = rememberedModelId;
+			this._watchModelChanges(this._authoritativeModelWait, () => true, () => {
+				const lateSelection = resolveSelection();
+				if (lateSelection.kind === 'apply' && lateSelection.reason !== ModelSelectionReason.FirstAvailable) {
+					this._provisionalModelId = undefined;
+					this._model.setSelectionReason(lateSelection.reason);
+					this._runtime.applyModel(lateSelection.model);
+					this.ensureCurrentModelSupported();
+					return 'settled';
+				}
+				// Keep waiting only while the remembered model's vendor still reports its absence as
+				// transient (`pending`); once it is conclusively gone (`unavailable`/`notRequested`)
+				// settle on the applied fallback so the wait cannot linger forever.
+				return this._runtime.resolveModelIdentifier(desiredIdentifier).kind === 'pending' ? 'waiting' : 'settled';
+			});
+		}
+	}
+
+	private _applyInitialSelection(selection: InitialModelSelectionResult): void {
 		if (selection.kind === 'apply') {
 			this._model.setSelectionReason(selection.reason);
 			this._provisionalModelId = selection.reason === ModelSelectionReason.FirstAvailable
@@ -134,19 +162,30 @@ export class ChatInputModelSelectionController extends Disposable {
 					: fallbackModel.identifier;
 				this._runtime.applyModel(fallbackModel);
 			}
-			this._authoritativeModelWait.value = this._runtime.subscribeToModelChanges(() => {
-				const lateSelection = resolveSelection();
-				if (lateSelection.kind === 'apply') {
-					this.clearAuthoritativeModelWait();
-					this._provisionalModelId = undefined;
-					this._model.setSelectionReason(lateSelection.reason);
-					this._runtime.applyModel(lateSelection.model);
-					this.ensureCurrentModelSupported();
-				} else if (lateSelection.kind === 'none') {
-					this.clearAuthoritativeModelWait();
-				}
-			});
 		}
+	}
+
+	/**
+	 * Subscribes to catalog changes and re-runs `reevaluate` on each one, tearing the subscription
+	 * down as soon as it reports `'settled'` — or when `isRelevant()` becomes false (the bound/visible
+	 * conversation moved on) or the controller is disposed. Shared by the restore waits so the
+	 * subscription lifecycle and relevance guard live in one place; `reevaluate` is responsible for
+	 * applying any model change and returning whether the wait is done.
+	 */
+	private _watchModelChanges(
+		wait: MutableDisposable<IDisposable>,
+		isRelevant: () => boolean,
+		reevaluate: () => 'settled' | 'waiting',
+	): void {
+		wait.value = this._runtime.subscribeToModelChanges(() => {
+			if (!isRelevant()) {
+				wait.clear();
+				return;
+			}
+			if (reevaluate() === 'settled') {
+				wait.clear();
+			}
+		});
 	}
 
 	ensureCurrentModelSupported(): void {
@@ -271,28 +310,30 @@ export class ChatInputModelSelectionController extends Disposable {
 			this._model.setSelectionReason(ModelSelectionReason.SessionRestore);
 			this._runtime.applyModel(match);
 		} else if (resolution.kind === 'pending' && shouldWaitForSessionModel(desiredModel, sessionType, allModels)) {
-			this._authoritativeModelWait.value = this._runtime.subscribeToModelChanges(() => {
-				if (this._runtime.getBoundConversationKey() !== conversationKey) {
-					this.clearAuthoritativeModelWait();
-					return;
-				}
-				const lateResolution = this._runtime.resolveModelIdentifier(desiredModel.identifier);
-				if (lateResolution.kind === 'available') {
-					this.clearAuthoritativeModelWait();
-					this._model.setSelectionReason(ModelSelectionReason.SessionRestore);
-					this._runtime.restoreModelConfiguration(desiredModel.identifier, modelConfiguration);
-					this._runtime.applyModel(lateResolution.model);
-				} else if (lateResolution.kind === 'unavailable') {
-					this.clearAuthoritativeModelWait();
-					const lateMatch = findBestMatchingModel(desiredModel, this._runtime.getModels(sessionType));
-					if (lateMatch) {
+			this._watchModelChanges(
+				this._authoritativeModelWait,
+				() => this._runtime.getBoundConversationKey() === conversationKey,
+				() => {
+					const lateResolution = this._runtime.resolveModelIdentifier(desiredModel.identifier);
+					if (lateResolution.kind === 'available') {
 						this._model.setSelectionReason(ModelSelectionReason.SessionRestore);
-						this._runtime.applyModel(lateMatch);
-					} else {
-						this.selectDefault(sessionType);
+						this._runtime.restoreModelConfiguration(desiredModel.identifier, modelConfiguration);
+						this._runtime.applyModel(lateResolution.model);
+						return 'settled';
 					}
-				}
-			});
+					if (lateResolution.kind === 'unavailable') {
+						const lateMatch = findBestMatchingModel(desiredModel, this._runtime.getModels(sessionType));
+						if (lateMatch) {
+							this._model.setSelectionReason(ModelSelectionReason.SessionRestore);
+							this._runtime.applyModel(lateMatch);
+						} else {
+							this.selectDefault(sessionType);
+						}
+						return 'settled';
+					}
+					return 'waiting';
+				},
+			);
 		} else {
 			this.clearAuthoritativeModelWait();
 			this.selectDefault(sessionType);
@@ -340,18 +381,19 @@ export class ChatInputModelSelectionController extends Disposable {
 			this._runtime.applyModel(match);
 			return;
 		}
-		this._historyModelWait.value = this._runtime.subscribeToModelChanges(() => {
-			if (this._runtime.getVisibleConversationKey() !== conversationKey) {
-				this.clearHistoryModelWait();
-				return;
-			}
-			const lateMatch = tryMatch();
-			if (lateMatch) {
-				this.clearHistoryModelWait();
-				this._model.setSelectionReason(ModelSelectionReason.SessionRestore);
-				this._runtime.applyModel(lateMatch);
-			}
-		});
+		this._watchModelChanges(
+			this._historyModelWait,
+			() => this._runtime.getVisibleConversationKey() === conversationKey,
+			() => {
+				const lateMatch = tryMatch();
+				if (lateMatch) {
+					this._model.setSelectionReason(ModelSelectionReason.SessionRestore);
+					this._runtime.applyModel(lateMatch);
+					return 'settled';
+				}
+				return 'waiting';
+			},
+		);
 	}
 
 	resolveDraftModel(

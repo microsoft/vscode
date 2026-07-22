@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { ModelSelectionReason, resolveModelIdentifier } from '../../../../common/modelSelection.js';
+import { ModelSelectionReason, resolveModelIdentifier, resolveModelIdentifierFromCatalog } from '../../../../common/modelSelection.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from '../../../../browser/widget/input/chatInputModelSelectionController.js';
 import { ChatModelSelectionModel } from '../../../../browser/widget/input/chatModelSelectionModel.js';
 
@@ -574,6 +574,143 @@ suite('ChatModelSelectionModel', () => {
 		});
 	});
 
+	test('syncFromConversationState waits through a resolved-but-empty agent-host pool and restores the model', () => {
+		// Cold-restart race: the agent-host vendor is registered ("resolved") but its models arrive
+		// later. Routed through the real catalog resolver, the agent-host grace keeps the absent
+		// model `pending` (not `unavailable`), so the restore waits through the intermediate empty
+		// re-resolutions and applies the model once the pool loads — instead of defaulting to Auto.
+		// (If the grace in resolveModelIdentifierFromCatalog is removed, resolution is `unavailable`,
+		// no wait is armed, and this test fails.)
+		const selection = new ChatModelSelectionModel();
+		const sessionType = 'agent-host-copilotcli';
+		const base = targetedModel('agent-host-copilotcli:gpt-5.6-sol', sessionType);
+		const desired = { ...base, metadata: { ...base.metadata, vendor: sessionType } };
+		const modelChanges = disposables.add(new Emitter<string>());
+		let models: ILanguageModelChatMetadataAndIdentifier[] = [];
+		const applied: string[] = [];
+		const restored: { modelId: string; configuration: Record<string, unknown> | undefined }[] = [];
+		const runtime: IChatInputModelSelectionRuntime = {
+			location: ChatAgentLocation.Chat,
+			getCurrentModeKind: () => ChatModeKind.Ask,
+			getCurrentSessionType: () => sessionType,
+			isEmpty: () => false,
+			getModels: () => models,
+			getAllModels: () => models,
+			requiresCustomModels: () => true,
+			getConfiguredModelValue: () => undefined,
+			// Faithful to production: vendor is resolved but publishes models asynchronously.
+			resolveModelIdentifier: identifier => resolveModelIdentifierFromCatalog(models, identifier, {
+				hasLiveModels: vendor => models.some(m => m.metadata.vendor === vendor),
+				hasResolved: () => true,
+			}),
+			subscribeToModelChanges: listener => modelChanges.event(listener),
+			getBoundConversationKey: () => 'chat:one',
+			getVisibleConversationKey: () => 'chat:one',
+			restoreModelConfiguration: (modelId, configuration) => restored.push({ modelId, configuration }),
+			applyModel: selected => {
+				applied.push(selected.identifier);
+				selection.setCurrentModel(selected, false);
+			},
+		};
+		const controller = disposables.add(new ChatInputModelSelectionController(selection, runtime));
+
+		controller.syncFromConversationState(desired, { effort: 'high' }, sessionType, 'chat:one');
+		const pending = controller.hasAuthoritativeModelWait();
+		// An intermediate empty re-resolution must not end the wait or apply a default.
+		modelChanges.fire('still-empty');
+		const stillPendingAfterEmpty = controller.hasAuthoritativeModelWait();
+		const appliedAfterEmpty = [...applied];
+		// The real models finally arrive.
+		models = [desired];
+		modelChanges.fire('loaded');
+
+		assert.deepStrictEqual({
+			pending,
+			stillPendingAfterEmpty,
+			appliedAfterEmpty,
+			pendingAfterLoad: controller.hasAuthoritativeModelWait(),
+			applied,
+			restored,
+		}, {
+			pending: true,
+			stillPendingAfterEmpty: true,
+			appliedAfterEmpty: [],
+			pendingAfterLoad: false,
+			applied: [desired.identifier],
+			restored: [{ modelId: desired.identifier, configuration: { effort: 'high' } }],
+		});
+	});
+
+	test('initialize waits for a resolved-but-empty agent-host pool and restores the remembered model', () => {
+		// Root-fix regression test (Option 1). A NEW/untitled agent-host session restores its
+		// remembered model via `initialize`. At cold start the agent-host vendor is registered
+		// ("resolved") but its models have not arrived yet. Using the real catalog resolver, the
+		// agent-host "empty is transient" grace must make the remembered model resolve as `pending`
+		// (not `unavailable`) so `initialize` waits for the pool and applies the model on load,
+		// instead of returning `none` and leaving the picker on Auto.
+		//
+		// If the fix in `isLanguageModelVendorAbsenceConclusive` is reverted, the resolution becomes
+		// `unavailable`, `initialize` gets `none`, no wait is armed, and nothing is applied — this
+		// test then fails on `pendingAfterInit`/`applied`/`current`.
+		const selection = new ChatModelSelectionModel();
+		const sessionType = 'agent-host-copilotcli';
+		const remembered = targetedModel('agent-host-copilotcli:gpt-5.6-sol', sessionType);
+		const modelChanges = disposables.add(new Emitter<string>());
+		let models: ILanguageModelChatMetadataAndIdentifier[] = [];
+		const applied: string[] = [];
+		const runtime: IChatInputModelSelectionRuntime = {
+			location: ChatAgentLocation.Chat,
+			getCurrentModeKind: () => ChatModeKind.Ask,
+			getCurrentSessionType: () => sessionType,
+			isEmpty: () => true,
+			getModels: () => models,
+			getAllModels: () => models,
+			requiresCustomModels: () => true,
+			getConfiguredModelValue: () => undefined,
+			// Faithful to production wiring: the vendor is resolved but publishes models
+			// asynchronously, so route through the catalog resolver that applies the grace.
+			resolveModelIdentifier: identifier => resolveModelIdentifierFromCatalog(models, identifier, {
+				hasLiveModels: vendor => models.some(m => m.metadata.vendor === vendor),
+				hasResolved: () => true,
+			}),
+			subscribeToModelChanges: listener => modelChanges.event(listener),
+			getBoundConversationKey: () => 'chat:one',
+			getVisibleConversationKey: () => 'chat:one',
+			restoreModelConfiguration: () => { },
+			applyModel: selected => {
+				applied.push(selected.identifier);
+				selection.setCurrentModel(selected, false);
+			},
+		};
+		const controller = disposables.add(new ChatInputModelSelectionController(selection, runtime));
+
+		controller.initialize(remembered.identifier, () => { });
+		const pendingAfterInit = controller.hasAuthoritativeModelWait();
+		const appliedAfterInit = [...applied];
+		// An intermediate empty re-resolution must not end the wait or apply a default.
+		modelChanges.fire('still-empty');
+		const pendingAfterEmpty = controller.hasAuthoritativeModelWait();
+		// The agent-host pool finally publishes its models.
+		models = [remembered];
+		modelChanges.fire('loaded');
+
+		assert.deepStrictEqual({
+			pendingAfterInit,
+			appliedAfterInit,
+			pendingAfterEmpty,
+			pendingAfterLoad: controller.hasAuthoritativeModelWait(),
+			applied,
+			current: selection.currentModel.get()?.identifier,
+		}, {
+			pendingAfterInit: true,
+			appliedAfterInit: [],
+			pendingAfterEmpty: true,
+			pendingAfterLoad: false,
+			applied: [remembered.identifier],
+			current: remembered.identifier,
+		});
+	});
+
 	test('late best-match restore remains authoritative after configured-model refresh', () => {
 		const selection = new ChatModelSelectionModel();
 		const modelChanges = disposables.add(new Emitter<string>());
@@ -694,6 +831,203 @@ suite('ChatModelSelectionModel', () => {
 		assert.deepStrictEqual({ applied, current: selection.currentModel.get()?.identifier }, {
 			applied: [targeted.identifier],
 			current: targeted.identifier,
+		});
+	});
+
+	test('initialize waits for a conclusively-absent remembered model and swaps it in when it appears', () => {
+		// Grace-independent restore. With the simple (conclusive) resolver the remembered model is
+		// `unavailable` at cold start, so `initialize` applies a provisional fallback. The refactor
+		// watches the catalog from the provisional-fallback path too (not only the `pending` path),
+		// so when the remembered model shows up on a later change it is swapped in — instead of being
+		// lost. Reverting the `initialize` restructure (arming the wait only for `pending`) leaves no
+		// wait armed here, so `pendingAfterInit` is false and the remembered model is never applied.
+		const selection = new ChatModelSelectionModel();
+		const modelChanges = disposables.add(new Emitter<string>());
+		const fallback = model('test/fallback');
+		const remembered = model('test/remembered');
+		let models = [fallback];
+		const applied: string[] = [];
+		const runtime: IChatInputModelSelectionRuntime = {
+			location: ChatAgentLocation.Chat,
+			getCurrentModeKind: () => ChatModeKind.Ask,
+			getCurrentSessionType: () => undefined,
+			isEmpty: () => true,
+			getModels: () => models,
+			getAllModels: () => models,
+			requiresCustomModels: () => false,
+			getConfiguredModelValue: () => undefined,
+			resolveModelIdentifier: identifier => resolveModelIdentifier(models, identifier, true),
+			subscribeToModelChanges: listener => modelChanges.event(listener),
+			getBoundConversationKey: () => 'chat:one',
+			getVisibleConversationKey: () => 'chat:one',
+			restoreModelConfiguration: () => { },
+			applyModel: selected => {
+				applied.push(selected.identifier);
+				selection.setCurrentModel(selected, false);
+			},
+		};
+		const controller = disposables.add(new ChatInputModelSelectionController(selection, runtime));
+
+		controller.initialize(remembered.identifier, () => { });
+		const pendingAfterInit = controller.hasAuthoritativeModelWait();
+		const provisional = controller.provisionalModelId;
+		models = [fallback, remembered];
+		modelChanges.fire('loaded');
+
+		assert.deepStrictEqual({
+			pendingAfterInit,
+			provisional,
+			pendingAfterLoad: controller.hasAuthoritativeModelWait(),
+			applied,
+			current: selection.currentModel.get()?.identifier,
+		}, {
+			pendingAfterInit: true,
+			provisional: fallback.identifier,
+			pendingAfterLoad: false,
+			applied: [fallback.identifier, remembered.identifier],
+			current: remembered.identifier,
+		});
+	});
+
+	test('initialize stops waiting when the pool loads without the remembered model', () => {
+		// Termination guard: the wait must not linger. Once the remembered model is conclusively
+		// absent (the pool loaded with other models but not it), settle on the already-applied
+		// fallback and tear the subscription down — without re-applying the fallback.
+		const selection = new ChatModelSelectionModel();
+		const modelChanges = disposables.add(new Emitter<string>());
+		const fallback = model('test/fallback');
+		const other = model('test/other');
+		const remembered = model('test/remembered');
+		let models = [fallback];
+		const applied: string[] = [];
+		const runtime: IChatInputModelSelectionRuntime = {
+			location: ChatAgentLocation.Chat,
+			getCurrentModeKind: () => ChatModeKind.Ask,
+			getCurrentSessionType: () => undefined,
+			isEmpty: () => true,
+			getModels: () => models,
+			getAllModels: () => models,
+			requiresCustomModels: () => false,
+			getConfiguredModelValue: () => undefined,
+			resolveModelIdentifier: identifier => resolveModelIdentifier(models, identifier, true),
+			subscribeToModelChanges: listener => modelChanges.event(listener),
+			getBoundConversationKey: () => 'chat:one',
+			getVisibleConversationKey: () => 'chat:one',
+			restoreModelConfiguration: () => { },
+			applyModel: selected => {
+				applied.push(selected.identifier);
+				selection.setCurrentModel(selected, false);
+			},
+		};
+		const controller = disposables.add(new ChatInputModelSelectionController(selection, runtime));
+
+		controller.initialize(remembered.identifier, () => { });
+		const pendingAfterInit = controller.hasAuthoritativeModelWait();
+		models = [fallback, other];
+		modelChanges.fire('loaded-without-remembered');
+
+		assert.deepStrictEqual({
+			pendingAfterInit,
+			pendingAfterLoad: controller.hasAuthoritativeModelWait(),
+			applied,
+			current: selection.currentModel.get()?.identifier,
+		}, {
+			pendingAfterInit: true,
+			pendingAfterLoad: false,
+			applied: [fallback.identifier],
+			current: fallback.identifier,
+		});
+	});
+
+	test('initialize does not arm a restore wait when there is nothing to wait for', () => {
+		// Guard against over-arming: no remembered model, or a remembered model that is already
+		// available, must not leave a catalog subscription armed.
+		const build = (rememberedId: string | undefined, models: ILanguageModelChatMetadataAndIdentifier[]) => {
+			const selection = new ChatModelSelectionModel();
+			const applied: string[] = [];
+			const runtime: IChatInputModelSelectionRuntime = {
+				location: ChatAgentLocation.Chat,
+				getCurrentModeKind: () => ChatModeKind.Ask,
+				getCurrentSessionType: () => undefined,
+				isEmpty: () => true,
+				getModels: () => models,
+				getAllModels: () => models,
+				requiresCustomModels: () => false,
+				getConfiguredModelValue: () => undefined,
+				resolveModelIdentifier: identifier => resolveModelIdentifier(models, identifier, true),
+				subscribeToModelChanges: () => toDisposable(() => { }),
+				getBoundConversationKey: () => 'chat:one',
+				getVisibleConversationKey: () => 'chat:one',
+				restoreModelConfiguration: () => { },
+				applyModel: selected => {
+					applied.push(selected.identifier);
+					selection.setCurrentModel(selected, false);
+				},
+			};
+			const controller = disposables.add(new ChatInputModelSelectionController(selection, runtime));
+			controller.initialize(rememberedId, () => { });
+			return controller.hasAuthoritativeModelWait();
+		};
+		const first = model('test/first');
+		const remembered = model('test/remembered');
+
+		assert.deepStrictEqual({
+			noRememberedModel: build(undefined, [first]),
+			rememberedAlreadyAvailable: build(remembered.identifier, [first, remembered]),
+		}, {
+			noRememberedModel: false,
+			rememberedAlreadyAvailable: false,
+		});
+	});
+
+	test('an explicit selection cancels the initialize restore wait', () => {
+		// While the wait is armed, an explicit user pick must win permanently: the wait is cancelled
+		// and a later appearance of the remembered model does not override the explicit selection.
+		const selection = new ChatModelSelectionModel();
+		const modelChanges = disposables.add(new Emitter<string>());
+		const fallback = model('test/fallback');
+		const explicit = model('test/explicit');
+		const remembered = model('test/remembered');
+		let models = [fallback, explicit];
+		const applied: string[] = [];
+		const runtime: IChatInputModelSelectionRuntime = {
+			location: ChatAgentLocation.Chat,
+			getCurrentModeKind: () => ChatModeKind.Ask,
+			getCurrentSessionType: () => undefined,
+			isEmpty: () => true,
+			getModels: () => models,
+			getAllModels: () => models,
+			requiresCustomModels: () => false,
+			getConfiguredModelValue: () => undefined,
+			resolveModelIdentifier: identifier => resolveModelIdentifier(models, identifier, true),
+			subscribeToModelChanges: listener => modelChanges.event(listener),
+			getBoundConversationKey: () => 'chat:one',
+			getVisibleConversationKey: () => 'chat:one',
+			restoreModelConfiguration: () => { },
+			applyModel: selected => {
+				applied.push(selected.identifier);
+				selection.setCurrentModel(selected, false);
+			},
+		};
+		const controller = disposables.add(new ChatInputModelSelectionController(selection, runtime));
+
+		controller.initialize(remembered.identifier, () => { });
+		const pendingAfterInit = controller.hasAuthoritativeModelWait();
+		controller.applyExplicitSelection(explicit, undefined, 'chat:one', () => applied.push(explicit.identifier), false);
+		const pendingAfterExplicit = controller.hasAuthoritativeModelWait();
+		models = [fallback, explicit, remembered];
+		modelChanges.fire('loaded');
+
+		assert.deepStrictEqual({
+			pendingAfterInit,
+			pendingAfterExplicit,
+			applied,
+			current: selection.currentModel.get()?.identifier,
+		}, {
+			pendingAfterInit: true,
+			pendingAfterExplicit: false,
+			applied: [fallback.identifier, explicit.identifier],
+			current: explicit.identifier,
 		});
 	});
 });
