@@ -270,7 +270,13 @@ export class ChatInputModelSelectionController extends Disposable {
 			this.clearHistoryModelWait();
 			this._model.setSelectionReason(ModelSelectionReason.SessionRestore);
 			this._runtime.applyModel(match);
-		} else if (resolution.kind === 'pending' && shouldWaitForSessionModel(desiredModel, sessionType, allModels)) {
+		} else if (shouldWaitForSessionModel(desiredModel, sessionType, allModels)
+			&& (resolution.kind === 'pending' || !hasModelsTargetingSession(allModels, sessionType))) {
+			// Wait for the session-type model pool to load before giving up on the restored model.
+			// `resolution.kind` can be `unavailable` (not `pending`) when the agent-host vendor was
+			// registered with an empty model list before its real models arrived — an empty
+			// session-type pool means "still loading", not "removed", so keep waiting instead of
+			// defaulting to Auto.
 			this._authoritativeModelWait.value = this._runtime.subscribeToModelChanges(() => {
 				if (this._runtime.getBoundConversationKey() !== conversationKey) {
 					this.clearAuthoritativeModelWait();
@@ -282,7 +288,10 @@ export class ChatInputModelSelectionController extends Disposable {
 					this._model.setSelectionReason(ModelSelectionReason.SessionRestore);
 					this._runtime.restoreModelConfiguration(desiredModel.identifier, modelConfiguration);
 					this._runtime.applyModel(lateResolution.model);
-				} else if (lateResolution.kind === 'unavailable') {
+				} else if (lateResolution.kind === 'unavailable' && hasModelsTargetingSession(this._runtime.getAllModels(), sessionType)) {
+					// The session-type pool has loaded but the desired model is not in it — it is
+					// genuinely gone (removed), so fall back. While the pool is still empty an
+					// `unavailable` resolution is transient and we keep waiting.
 					this.clearAuthoritativeModelWait();
 					const lateMatch = findBestMatchingModel(desiredModel, this._runtime.getModels(sessionType));
 					if (lateMatch) {

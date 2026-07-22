@@ -24,6 +24,8 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
+import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -48,9 +50,24 @@ import { ILanguageModelsProviderGroup, ILanguageModelsConfigurationService } fro
  */
 export const COPILOT_VENDOR_ID = 'copilot';
 
-/** Whether a missing model is conclusively absent from a vendor's live model list. Empty Copilot results remain transient while token-backed discovery completes. */
+/**
+ * Whether the given model vendor is an agent-host vendor (local `agent-host-*` or a remote agent
+ * host). Agent-host vendors publish their models asynchronously after the agent host connects, so —
+ * like Copilot — an empty result during startup is transient rather than conclusive.
+ */
+function isAgentHostVendor(vendor: string): boolean {
+	return vendor.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || isRemoteAgentHostSessionType(vendor);
+}
+
+/**
+ * Whether a missing model is conclusively absent from a vendor's live model list. Empty results are
+ * treated as transient (still loading) for vendors whose models are discovered asynchronously —
+ * Copilot (token-backed discovery) and agent-host vendors (models arrive after the agent host
+ * connects) — so a remembered/restored selection waits for the pool instead of resetting to a
+ * default (Auto).
+ */
 export function isLanguageModelVendorAbsenceConclusive(vendor: string, hasLiveModels: boolean, hasResolved: boolean): boolean {
-	return hasLiveModels || (hasResolved && vendor !== COPILOT_VENDOR_ID);
+	return hasLiveModels || (hasResolved && vendor !== COPILOT_VENDOR_ID && !isAgentHostVendor(vendor));
 }
 
 /**
