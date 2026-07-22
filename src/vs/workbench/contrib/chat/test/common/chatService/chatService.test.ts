@@ -46,7 +46,7 @@ import { IChatVariablesService } from '../../../common/attachments/chatVariables
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
-import { backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { backfillRestoredModel, backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
@@ -2650,6 +2650,44 @@ suite('backfillRestoredPickerState', () => {
 	test('returns the chosen state unchanged when there is no stored state', () => {
 		const chosen = state(AGENT, undefined);
 		assert.strictEqual(backfillRestoredPickerState(chosen, undefined, AGENT), chosen);
+	});
+});
+
+suite('backfillRestoredModel', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const AGENT = 'agent';
+	const model = (identifier: string): ISerializableChatModelInputState['selectedModel'] => ({
+		identifier,
+		metadata: {
+			id: identifier, name: identifier, vendor: 'copilot', version: '1.0', family: 'test',
+			extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024,
+			isDefaultForLocation: {}
+		}
+	});
+	const state = (selectedModel: ISerializableChatModelInputState['selectedModel']): ISerializableChatModelInputState => ({
+		attachments: [], mode: { id: AGENT, kind: ChatModeKind.Agent }, selectedModel, inputText: '', selections: [], contrib: {}
+	});
+
+	test('backfills the history model when the restored state dropped its model (cold restore)', () => {
+		const history = model('agent-host-copilotcli:gpt-5.6-sol');
+		const result = backfillRestoredModel(state(undefined), history);
+		assert.strictEqual(result?.selectedModel?.identifier, 'agent-host-copilotcli:gpt-5.6-sol');
+	});
+
+	test('never overrides a model already present on the restored state', () => {
+		const result = backfillRestoredModel(state(model('agent-host-copilotcli:gpt-5.6-terra')), model('agent-host-copilotcli:gpt-5.6-sol'));
+		assert.strictEqual(result?.selectedModel?.identifier, 'agent-host-copilotcli:gpt-5.6-terra');
+	});
+
+	test('leaves the state unchanged when there is no history model', () => {
+		const chosen = state(undefined);
+		assert.strictEqual(backfillRestoredModel(chosen, undefined), chosen);
+		assert.strictEqual(chosen.selectedModel, undefined);
+	});
+
+	test('returns undefined state as-is', () => {
+		assert.strictEqual(backfillRestoredModel(undefined, model('agent-host-copilotcli:gpt-5.6-sol')), undefined);
 	});
 });
 

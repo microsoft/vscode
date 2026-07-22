@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isLanguageModelVendorAbsenceConclusive } from './languageModels.js';
+import { isAgentHostTarget } from './chatSessionsService.js';
 
 export type ModelIdentifierResolution =
 	| { readonly kind: 'notRequested' }
@@ -48,11 +49,19 @@ export function resolveModelIdentifierFromCatalog(
 
 	const separator = identifier.search(/[/:]/);
 	const vendor = separator === -1 ? undefined : identifier.substring(0, separator);
-	const isAbsenceConclusive = !vendor || isLanguageModelVendorAbsenceConclusive(
+	const hasLive = vendor ? vendorResolution.hasLiveModels(vendor) : false;
+	// Agent-host vendors publish their models asynchronously after the agent host connects, so an
+	// empty (not-yet-populated) list is transient: keep the remembered/restored model `pending`
+	// (wait) rather than `unavailable` (give up). Once the vendor HAS live models, an absent model
+	// is genuinely gone, so stay conclusive. This grace is scoped to restore *resolution* only —
+	// cache-retention (`mergeModelsWithCache`) and send-availability keep treating a resolved-empty
+	// list as authoritative. The vendor id equals the session type for agent-host models, so
+	// `isAgentHostTarget` classifies it directly.
+	const isAbsenceConclusive = !vendor || (isLanguageModelVendorAbsenceConclusive(
 		vendor,
-		vendorResolution.hasLiveModels(vendor),
+		hasLive,
 		vendorResolution.hasResolved(vendor),
-	);
+	) && (hasLive || !isAgentHostTarget(vendor)));
 	return resolveModelIdentifier(models, identifier, isAbsenceConclusive);
 }
 
@@ -228,7 +237,16 @@ export function transitionModelSelection(input: IModelSelectionTransitionInput):
 	const currentReason = sessionChanged ? undefined : previous.currentReason;
 	const sessionModel = sessionModelId ? models.available.find(model => model.identifier === sessionModelId) : undefined;
 	const fallbackModel = models.available.find(model => model.identifier === models.rememberedModelId) ?? models.fallbackModel;
-	const configuredModelValue = session.kind === 'untitled' && (chatKey !== previous.lastPushedChatKey || currentReason !== ModelSelectionReason.UserSelection) ? models.configuredModel : undefined;
+	const newConversation = session.kind === 'untitled' && !sessionChanged && chatKey !== previous.lastPushedChatKey;
+	const automaticSelection = currentReason === ModelSelectionReason.ConfiguredDefault
+		|| currentReason === ModelSelectionReason.FirstAvailable
+		|| currentReason === ModelSelectionReason.Remembered
+		|| currentReason === ModelSelectionReason.NewChatRepush;
+	const configuredModelValue = session.kind === 'untitled'
+		&& (newConversation
+			|| (!newConversation && (!sessionModelId || automaticSelection) && currentReason !== ModelSelectionReason.UserSelection && currentReason !== ModelSelectionReason.SessionRestore))
+		? models.configuredModel
+		: undefined;
 	const configuredModel = configuredModelValue
 		? resolveConfiguredModel(models.configuredModel, models.available)
 		: undefined;
@@ -254,6 +272,16 @@ export function transitionModelSelection(input: IModelSelectionTransitionInput):
 			currentReason: undefined,
 			pendingSelection: { source: 'desired', reference: models.desiredModelResolution.identifier },
 			effect: currentModel ? { kind: 'clear', reason: ModelSelectionReason.SessionRestore } : { kind: 'none' },
+			sessionKey,
+			lastPushedChatKey: chatKey,
+		};
+	}
+	if (!currentModel && session.kind === 'untitled' && sessionModel) {
+		return {
+			currentModel: sessionModel,
+			currentReason: ModelSelectionReason.SessionRestore,
+			pendingSelection: undefined,
+			effect: { kind: 'none' },
 			sessionKey,
 			lastPushedChatKey: chatKey,
 		};

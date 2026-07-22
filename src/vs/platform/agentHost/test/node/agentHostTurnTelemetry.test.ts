@@ -195,8 +195,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const data = events[0].data as Record<string, unknown>;
 		assert.strictEqual(data.provider, 'mock');
 		assert.strictEqual(data.agentSessionId, 'session-1');
+		assert.strictEqual(data.turnId, 'turn-1');
 		assert.strictEqual(data.result, 'success');
 		assert.strictEqual(data.model, 'gpt-5.5');
+		assert.strictEqual(data.modelSelectionKind, 'explicit');
 		assert.strictEqual(data.permissionLevel, 'autopilot');
 		assert.strictEqual(typeof data.totalTime, 'number');
 		assert.strictEqual(typeof data.timeToFirstProgress, 'number');
@@ -216,12 +218,13 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	test('emits result=cancelled on ChatTurnCancelled', () => {
 		setupSession();
-		startTurn('turn-1');
+		startTurn('turn-1', 'hello', 'auto');
 		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1000 });
 
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
 		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'cancelled');
+		assert.strictEqual((events[0].data as Record<string, unknown>).modelSelectionKind, 'auto');
 	});
 
 	test('emits result=error on ChatError', () => {
@@ -232,6 +235,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
 		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'error');
+		assert.strictEqual((events[0].data as Record<string, unknown>).errorType, 'oops');
 	});
 
 	test('emits a single turnCompleted per turn even when followed by duplicate completions', () => {
@@ -266,6 +270,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.model, undefined);
+		assert.strictEqual(data.modelSelectionKind, 'default');
 		assert.strictEqual(data.permissionLevel, undefined);
 	});
 
@@ -302,6 +307,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
 		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'error');
+		assert.strictEqual((events[0].data as Record<string, unknown>).errorType, 'sendFailed');
 	});
 
 	test('emits result=error when a queued sendMessage rejects', async () => {

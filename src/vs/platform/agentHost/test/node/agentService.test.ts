@@ -1625,6 +1625,10 @@ suite('AgentService (node dispatcher)', () => {
 				overlayPathIntoTree: async () => undefined,
 				diffTreePaths: async () => undefined,
 				computeFileDiffsBetweenRefs: async () => undefined,
+				getFetchRemoteUrls: async () => undefined,
+				getUntrackedPaths: async () => [],
+				getBranchDiffSafetyInfo: async () => undefined,
+				getDiffPatchBetweenRefs: async () => undefined,
 			};
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const agent = new MockAgent('copilot');
@@ -1725,6 +1729,10 @@ suite('AgentService (node dispatcher)', () => {
 				overlayPathIntoTree: async () => undefined,
 				diffTreePaths: async () => undefined,
 				computeFileDiffsBetweenRefs: async () => undefined,
+				getFetchRemoteUrls: async () => undefined,
+				getUntrackedPaths: async () => [],
+				getBranchDiffSafetyInfo: async () => undefined,
+				getDiffPatchBetweenRefs: async () => undefined,
 			};
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const agent = new MockAgent('copilot');

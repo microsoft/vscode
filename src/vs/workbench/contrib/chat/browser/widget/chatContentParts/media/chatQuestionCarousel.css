@@ -328,6 +328,11 @@
 			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
 		}
 
+		.chat-question-list-item.multi-select:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: -1px;
+		}
+
 		/* Checkbox for multi-select */
 		.chat-question-list-checkbox {
 			flex-shrink: 0;
