@@ -64,6 +64,10 @@ const VoiceChatSessionContexts: VoiceChatSessionContext[] = ['view', 'inline', '
 const CanVoiceChat = ContextKeyExpr.and(ChatContextKeys.enabled, HasSpeechProvider);
 const FocusInChatInput = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, ChatContextKeys.inChatInput);
 
+// When the segmented Dictation/Voice-Mode toggle is enabled, the legacy standalone
+// dictation buttons are hidden in favor of the unified pill.
+const SegmentedVoiceInputModeDisabled = ContextKeyExpr.notEquals('config.chat.voiceInputMode.segmentedToggle', true);
+
 // Scoped Context Keys (set on per-chat-context scoped context key service)
 const ScopedVoiceChatGettingReady = new RawContextKey<boolean>('scopedVoiceChatGettingReady', false, { type: 'boolean', description: localize('scopedVoiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat. This key is only defined scoped, per chat context.") });
 const ScopedVoiceChatInProgress = new RawContextKey<VoiceChatSessionContext | undefined>('scopedVoiceChatInProgress', undefined, { type: 'string', description: localize('scopedVoiceChatInProgress', "Defined as a location where voice recording from microphone is in progress for voice chat. This key is only defined scoped, per chat context.") });
@@ -569,6 +573,7 @@ export class StartVoiceChatAction extends Action2 {
 				SpeechToTextInProgress.negate()			// disable when speech to text is in progress
 			),
 			menu: primaryVoiceActionMenu(ContextKeyExpr.and(
+				SegmentedVoiceInputModeDisabled,		// hide when the segmented voice/dictation toggle is enabled
 				HasSpeechProvider,
 				ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
 				AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
@@ -607,7 +612,7 @@ export class StopListeningAction extends Action2 {
 			},
 			icon: spinningLoading,
 			precondition: GlobalVoiceChatInProgress, // need global context here because of `f1: true`
-			menu: primaryVoiceActionMenu(AnyScopedVoiceChatInProgress)
+			menu: primaryVoiceActionMenu(ContextKeyExpr.and(SegmentedVoiceInputModeDisabled, AnyScopedVoiceChatInProgress))
 		});
 	}
 

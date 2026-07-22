@@ -54,6 +54,10 @@ const AGENTS_VOICE_ACTIVE = new RawContextKey<boolean>('agentsVoiceActive', fals
 /** Set on the specific widget where voice was initiated — used to scope connecting/connected UI to that widget only. */
 const AGENTS_VOICE_INITIATED_HERE = new RawContextKey<boolean>('agentsVoiceInitiatedHere', false);
 
+// When the segmented Dictation/Voice-Mode toggle is enabled, the standalone Voice Mode
+// toolbar buttons are hidden in favor of the unified pill.
+const SegmentedVoiceInputModeDisabled = ContextKeyExpr.notEquals('config.chat.voiceInputMode.segmentedToggle', true);
+
 // --- Context Key Binding ---
 
 // Separate contribution for voice connected state — runs later to avoid
@@ -146,6 +150,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
+					SegmentedVoiceInputModeDisabled,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					AGENTS_VOICE_CONNECTING.isEqualTo(true),
@@ -171,6 +176,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
+					SegmentedVoiceInputModeDisabled,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
@@ -220,6 +226,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
+					SegmentedVoiceInputModeDisabled,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),

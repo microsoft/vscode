@@ -180,7 +180,6 @@ export class AgentsVoiceWidget extends Disposable {
 	private readonly _inputBoxPlaceholder: HTMLElement | undefined;
 	private readonly _inputBoxToolbar: HTMLElement | undefined;
 	private readonly _inputBoxMicBtn: HTMLElement | undefined;
-	private readonly _inputBoxGearBtn: HTMLElement | undefined;
 	private readonly _inputBoxConnIndicator: HTMLElement | undefined;
 	private readonly _inputBoxFeedbackBtn: HTMLElement | undefined;
 	private readonly _inputBoxSessionsBtn: HTMLElement | undefined;
@@ -340,11 +339,6 @@ export class AgentsVoiceWidget extends Disposable {
 				localize('agentsVoice.disconnect', "Disconnect"),
 				localize('agentsVoice.disconnect', "Disconnect"));
 
-			// Gear button
-			this._inputBoxGearBtn = toolbarBtn('codicon-gear',
-				localize('agentsVoice.configureKeybinding', "Configure keybinding"),
-				localize('agentsVoice.configureKeybinding', "Configure keybinding"));
-
 			// Feedback button
 			this._inputBoxFeedbackBtn = toolbarBtn('codicon-feedback',
 				localize('agentsVoice.sendFeedback', "Send feedback"),
@@ -370,7 +364,6 @@ export class AgentsVoiceWidget extends Disposable {
 			this._inputBoxToolbar.append(
 				this._inputBoxMicBtn,
 				this._inputBoxConnIndicator,
-				this._inputBoxGearBtn,
 				toolbarSpacer,
 				this._inputBoxFeedbackBtn,
 				this._inputBoxSessionsBtn,
@@ -693,10 +686,6 @@ export class AgentsVoiceWidget extends Disposable {
 		this._inputBoxConnIndicator!.style.display = showConnected ? '' : 'none';
 		this._inputBoxConnIndicator!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.disconnect(); };
 
-		// Gear button — always visible
-		this._inputBoxGearBtn!.style.display = '';
-		this._inputBoxGearBtn!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); };
-
 		// Feedback button — always visible
 		this._inputBoxFeedbackBtn!.onclick = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._toggleFeedbackDialog(); };
 
@@ -774,7 +763,6 @@ export class AgentsVoiceWidget extends Disposable {
 				onDisconnectClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.disconnect(); },
 				onCloseClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.closeWindow(); },
 				onToggleClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._expanded.set(!this._expanded.get(), undefined); },
-				onPttKeyClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); },
 				onPopoutClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPopout?.(); },
 				onFeedbackClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._toggleFeedbackDialog(); },
 				pttKeyLabel: this._pttKeyLabel.read(reader),
