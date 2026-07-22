@@ -44,7 +44,7 @@ const ROUTE_MAX_CHOICES = 6;
  * routed target. Long enough to read the target and intervene, short enough to
  * keep a hands-free/voice flow moving.
  */
-const ROUTE_AUTOSEND_DELAY_MS = 8000;
+const ROUTE_AUTOSEND_DELAY_MS = 10000;
 
 /**
  * How long the "Sent to …" confirmation badge lingers after a matched send
