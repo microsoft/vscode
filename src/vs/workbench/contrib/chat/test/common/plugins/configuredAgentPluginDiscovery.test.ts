@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IFileService, IFileStat } from '../../../../../../platform/files/common/files.js';
+import { IFileService, IFileStat, IFileStatWithMetadata, IResolveFileOptions, IResolveMetadataFileOptions } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
@@ -41,8 +41,24 @@ suite('ConfiguredAgentPluginDiscovery', () => {
 				[ChatConfiguration.EnabledPlugins]: enabledPlugins,
 			}),
 			new class extends mock<IFileService>() {
-				override resolve(resource: URI): Promise<IFileStat> {
-					return Promise.resolve({ resource, isDirectory: true } as IFileStat);
+				override resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+				override resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
+				override resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStatWithMetadata> {
+					return Promise.resolve({
+						resource,
+						name: '',
+						size: 0,
+						mtime: 0,
+						ctime: 0,
+						etag: '',
+						readonly: false,
+						locked: false,
+						executable: false,
+						isFile: false,
+						isDirectory: true,
+						isSymbolicLink: false,
+						children: undefined,
+					});
 				}
 			},
 			new class extends mock<IPluginMarketplaceService>() { },
@@ -52,8 +68,10 @@ suite('ConfiguredAgentPluginDiscovery', () => {
 					return fileURI(path);
 				}
 
-				override userHome(): Promise<URI> {
-					return Promise.resolve(userHome);
+				override userHome(options: { preferLocal: true }): URI;
+				override userHome(options?: { preferLocal: boolean }): Promise<URI>;
+				override userHome(options?: { preferLocal: boolean }): URI | Promise<URI> {
+					return options?.preferLocal ? userHome : Promise.resolve(userHome);
 				}
 			},
 			new NullLogService(),
