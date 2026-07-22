@@ -12,6 +12,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
@@ -77,7 +78,8 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 					// Let the user review edited input before submitting.
 					widget.input.setValue(text, false);
 				} else {
-					widget.acceptInput(text, { preserveFocus: true });
+					// Preserve any text the user already typed in the input.
+					widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
 				}
 			}
 		}));

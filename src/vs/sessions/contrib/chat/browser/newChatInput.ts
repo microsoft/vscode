@@ -85,6 +85,7 @@ import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
+import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { DictationDownloadRing } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
@@ -1097,8 +1098,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 		const model = this._editor?.getModel();
 		if (model) {
-			const existing = model.getValue();
-			const combined = existing && !/\s$/.test(existing) ? `${existing} ${text}` : `${existing}${text}`;
+			const combined = combineVoiceInput(model.getValue(), text);
 			model.setValue(combined);
 			this._send();
 		}
