@@ -1,0 +1,51 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-input-window-pending {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	padding: 2px 10px;
+	overflow: hidden;
+	font-size: 12px;
+	line-height: 20px;
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-editorWidget-background);
+	border-bottom: 1px solid var(--vscode-editorWidget-border, transparent);
+}
+
+.chat-input-window-pending .chat-input-window-pending-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-input-window-pending .chat-input-window-pending-countdown {
+	color: var(--vscode-descriptionForeground);
+	font-variant-numeric: tabular-nums;
+}
+
+.chat-input-window-pending .chat-input-window-pending-action {
+	flex-shrink: 0;
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+	/* Frameless-window drag regions swallow clicks; keep actions interactive. */
+	-webkit-app-region: no-drag;
+}
+
+.chat-input-window-pending .chat-input-window-pending-action:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.chat-input-window-pending .chat-input-window-pending-action:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+	border-radius: var(--vscode-cornerRadius-small, 2px);
+}
