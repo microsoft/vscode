@@ -89,6 +89,7 @@ import { DarwinUpdateService } from '../../platform/update/electron-main/updateS
 import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
 import { SnapUpdateService } from '../../platform/update/electron-main/updateService.snap.js';
 import { Win32UpdateService } from '../../platform/update/electron-main/updateService.win32.js';
+import { isInnoSetupInstall } from '../../platform/update/electron-main/win32UpdateType.js';
 import { IOpenURLOptions, IURLService } from '../../platform/url/common/url.js';
 import { URLHandlerChannelClient, URLHandlerRouter } from '../../platform/url/common/urlIpc.js';
 import { NativeURLService } from '../../platform/url/common/urlService.js';
@@ -1761,7 +1762,7 @@ export class CodeApplication extends Disposable {
 
 	private async installMutex(): Promise<void> {
 		const win32MutexName = this.productService.win32MutexName;
-		if (isWindows && win32MutexName) {
+		if (isWindows && win32MutexName && isInnoSetupInstall()) {
 			try {
 				const WindowsMutex = await import('@vscode/windows-mutex');
 				const mutex = new WindowsMutex.Mutex(win32MutexName);

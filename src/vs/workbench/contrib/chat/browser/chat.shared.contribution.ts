@@ -145,6 +145,7 @@ import { ChatEditingEditorOverlay } from './chatEditing/chatEditingEditorOverlay
 import { ChatEditingService } from './chatEditing/chatEditingServiceImpl.js';
 import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditing/notebook/chatEditingNotebookFileSystemProvider.js';
 import { ChatEditor, IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
+import { ChatOutlineCreator } from './chatOutlineCreator.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './widgetHosts/editor/chatEditorInput.js';
 import { ChatLayoutService } from './widget/chatLayoutService.js';
 import { ChatLanguageModelsDataContribution, LanguageModelsConfigurationService } from './languageModelsConfigurationService.js';
@@ -257,6 +258,19 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.speechToText.enabled', "Enables dictation into the chat input using on-device speech-to-text. When enabled on a supported platform, a microphone button appears in the chat input; the transcription model is downloaded on first use and runs locally."),
 			default: product.quality !== 'stable',
+			tags: ['experimental']
+		},
+		'chat.speechToText.model': {
+			type: 'string',
+			enum: [
+				'nemotron-speech-streaming-en-0.6b',
+			],
+			enumItemLabels: ['Nemotron Streaming (English)'],
+			markdownEnumDescriptions: [
+				nls.localize('chat.speechToText.model.nemotronStreaming', "NVIDIA Nemotron streaming RNN-T (English), run through Microsoft Foundry Local. Low-latency, high accuracy, matches the GitHub Copilot app."),
+			],
+			markdownDescription: nls.localize('chat.speechToText.model', "The on-device model used for chat dictation. The model is downloaded on first use and cached on disk. Transcription runs locally through Microsoft Foundry Local."),
+			default: 'nemotron-speech-streaming-en-0.6b',
 			tags: ['experimental']
 		},
 		'chat.speechToText.mode': {
@@ -574,6 +588,9 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			default: '',
 			markdownDescription: nls.localize('chat.defaultModel.description', "The default model for new chat conversations. Use \"auto\" to let Copilot pick a model, a model family name (such as \"opus\" or \"gemini\") to use the latest available model in that family, or a full model id. You can still switch the model within a conversation; each new conversation starts at this model."),
+			experiment: {
+				mode: 'auto'
+			},
 			policy: {
 				name: 'ChatDefaultModel',
 				category: PolicyCategory.InteractiveSession,
@@ -837,15 +854,10 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.verbose', "Show request and completion timestamps. Hover over a completion timestamp to show the elapsed response time."),
 		},
-		[ChatConfiguration.ChatPersistentProgressEnabled]: {
-			type: 'boolean',
-			default: product.quality !== 'stable',
-			description: nls.localize('chat.persistentProgress.enabled', "Always show progress in chat."),
-		},
 		[ChatConfiguration.ProgressBorder]: {
 			type: 'boolean',
 			default: true,
-			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. When enabled and reduced motion is not enabled, this overrides {0} to be off. Has no effect when reduced motion is enabled.", '`#chat.persistentProgress.enabled#`'),
+			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. Has no effect when reduced motion is enabled."),
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'string',
@@ -2265,12 +2277,23 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 		}
 	},
 	{
-		// The chat dictation model is no longer configurable; the on-device
-		// runtime always uses NVIDIA Nemotron streaming ASR through Foundry Local.
-		// Clear any explicitly-stored value from the removed setting so it does
-		// not linger as an unknown setting in user configuration.
+		// The on-device dictation runtime moved to Foundry Local; the old
+		// transformers.js/onnxruntime model IDs no longer resolve and would fail
+		// with an unknown-model error. Map any explicitly-stored legacy value to
+		// the new default so existing users keep working.
 		key: 'chat.speechToText.model',
-		migrateFn: () => ({ value: undefined })
+		migrateFn: (value: unknown) => {
+			const legacyModelIds = [
+				'onnx-community/whisper-tiny',
+				'onnx-community/whisper-base',
+				'onnx-community/whisper-small',
+				'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
+			];
+			if (typeof value === 'string' && legacyModelIds.includes(value)) {
+				return { value: 'nemotron-speech-streaming-en-0.6b' };
+			}
+			return [];
+		}
 	},
 ]);
 
@@ -2728,6 +2751,7 @@ registerWorkbenchContribution2(AgentHostChatDebugContribution.ID, AgentHostChatD
 registerWorkbenchContribution2(ChatLanguageModelsDataContribution.ID, ChatLanguageModelsDataContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSlashCommandsContribution.ID, ChatSlashCommandsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatSessionOptionSlashCommandsContribution.ID, ChatSessionOptionSlashCommandsContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ChatOutlineCreator.ID, ChatOutlineCreator, WorkbenchPhase.AfterRestored);
 
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.BlockRestore);

@@ -365,6 +365,11 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
+			&& other.toolSpecificData?.kind === 'subagent'
+			&& !other.subAgentInvocationId) {
+			return false;
+		}
 		return (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && this.toolInvocation.toolCallId === other.toolCallId;
 	}
 

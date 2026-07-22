@@ -279,11 +279,13 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 		};
 	}
 
-	async fetchSessionList(repoIds: GithubRepoId[] | undefined, _isAgentWorkspace: boolean, _refresh: boolean): Promise<CloudSessionData[]> {
+	async fetchSessionList(repoIds: GithubRepoId[] | undefined, isAgentWorkspace: boolean, _refresh: boolean): Promise<CloudSessionData[]> {
 		const listOpts: ListTasksOptions = { per_page: 100 };
 		const tasksWithRepo: { task: AgentTask; repo: { owner: string; name: string } | undefined }[] = [];
 
-		if (!repoIds || repoIds.length === 0) {
+		// In the agents window we surface all of the user's sessions rather than scoping to the
+		// active workspace's repositories, so always use the global user-scoped list there.
+		if (isAgentWorkspace || !repoIds || repoIds.length === 0) {
 			// The global `agents/tasks` endpoint is already scoped to the authenticated user, so
 			// no creator filter is needed here.
 			const response = await this._taskApiClient.listTasks(listOpts);

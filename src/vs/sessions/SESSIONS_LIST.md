@@ -37,6 +37,8 @@ Each session row displays:
 
 Quick-chat rows (`.session-item.quick-chat`, driven by the reactive `ISession.isQuickChat` observable) are single-line entries: the details (second) row is hidden entirely and its content is never built — smaller icon, one line of title only, tighter row height (see `SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT`). Regular sessions keep the standard two-line row (title + details row).
 
+Continuous row animations preserve their existing appearance while limiting rendering work: the title shimmer follows the same three-second path with at most 60 visual updates per second, and both it and the shared pixel spinner pause outside the viewport and whenever their document is hidden.
+
 `SessionsFlatList` reuses the same session row renderer for sectionless surfaces, including the approval row and dynamic row height updates. Consumers that size their own container listen for content-height changes and relayout the list. When embedded inside another hover, consumers disable row hovers so moving over the list does not replace the parent hover.
 
 ### Grouping

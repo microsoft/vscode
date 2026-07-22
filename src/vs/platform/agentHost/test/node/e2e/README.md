@@ -55,7 +55,7 @@ Key properties:
 - **Wire-agnostic**: works for Anthropic Messages (`/v1/messages`) and OpenAI Responses (`/responses`) SSE dialects.
 - **Strict on replay**: a request with no recorded response is a hard cache miss that fails the test — CI can never silently reach real CAPI.
 - **Ancillary bootstrap endpoints are stubbed, not recorded** (see [What's stubbed](#whats-stubbed-vs-recorded)) — keeps identity, tokens, and the model catalog out of fixtures.
-- **Isolated persistent state**: each shared test uses a temporary home and VS Code user-data directory, which teardown removes after the agent host exits.
+- **Isolated persistent state**: each provider suite uses a temporary home and VS Code user-data directory. Provider config roots resolve under that home, with ambient overrides such as `CLAUDE_CONFIG_DIR` and `CODEX_HOME` cleared, so local config, MCP servers, and session state cannot affect the run. Teardown removes the directory after the agent host exits.
 
 ---
 
@@ -132,6 +132,8 @@ Provider availability:
 ## Server lifecycle
 
 Each test needs an agent host server (a forked subprocess) fronted by a `CapiReplayProxy`. `AgentHostE2EServerLease` (in `harness/agentHostE2ETestHarness.ts`) owns that lifecycle and picks one of two strategies:
+
+The lease also owns a fresh suite data directory. Every server it starts uses that directory as its home and VS Code user-data directory and prevents provider-specific config overrides from escaping it, so both shared and provider-specific scenarios are isolated from developer-machine configuration.
 
 - **Per-test** (always while recording) — fork a fresh server + proxy for every test and kill it in teardown. Full isolation: nothing carries over between tests. The cost is that every test re-pays the server fork **and** the provider SDK/CLI cold start (`_ensureClient` spawns and caches the CLI subprocess per server).
 

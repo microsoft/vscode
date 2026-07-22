@@ -76,8 +76,8 @@ suite('SandboxHelperService', () => {
 	});
 
 	for (const [distributionId, packageManager, expectedCommand] of [
-		['debian', 'apt-get', 'sudo apt-get install -y'],
-		['ubuntu', 'apt', 'sudo apt install -y'],
+		['debian', 'apt-get', 'sudo apt-get update && sudo apt-get install -y'],
+		['ubuntu', 'apt', 'sudo apt update && sudo apt install -y'],
 		['fedora', 'dnf', 'sudo dnf install -y'],
 		['centos', 'yum', 'sudo yum install -y'],
 		['arch', 'pacman', 'sudo pacman -S --needed --noconfirm'],
@@ -127,6 +127,17 @@ suite('SandboxHelperService', () => {
 		);
 
 		strictEqual(result?.dependencyInstallCommand, 'apk add');
+	});
+
+	test('does not use sudo for chained apt-get commands when running as root', async () => {
+		const result = await SandboxHelperService.checkSandboxDependenciesWith(
+			async command => ['socat', 'apt-get'].includes(command) ? `/usr/bin/${command}` : undefined,
+			true,
+			undefined,
+			async () => ({ distributionIds: ['debian'], isRoot: true }),
+		);
+
+		strictEqual(result?.dependencyInstallCommand, 'apt-get update && apt-get install -y');
 	});
 
 	test('does not offer dependency installation to a non-root user without sudo', async () => {

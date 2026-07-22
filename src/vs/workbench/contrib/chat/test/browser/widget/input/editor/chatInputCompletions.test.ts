@@ -10,7 +10,7 @@ import { Position } from '../../../../../../../../editor/common/core/position.js
 import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
-import { computeCompletionRanges, escapeForCharClass, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
+import { attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
 
 suite('escapeForCharClass', () => {
@@ -51,6 +51,24 @@ suite('escapeForCharClass', () => {
 		assert.ok(re.test('@'));
 		assert.ok(!re.test('a'));
 		assert.ok(!re.test('/'));
+	});
+});
+
+suite('attached context completion ranking', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('sorts before other chat input completions', () => {
+		assert.ok(attachedContextCompletionSortText < ' ');
+	});
+
+	test('matches bare and partial leaders from the start of filter text', () => {
+		assert.deepStrictEqual({
+			at: getAttachedContextCompletionFilterText('@', 'Screen Recording.mov', 'file'),
+			hash: getAttachedContextCompletionFilterText('#', 'Screen Recording.mov', 'file'),
+		}, {
+			at: '@Screen Recording.mov @attachment:Screen Recording.mov Screen Recording.mov file',
+			hash: '#Screen Recording.mov #attachment:Screen Recording.mov Screen Recording.mov file',
+		});
 	});
 });
 

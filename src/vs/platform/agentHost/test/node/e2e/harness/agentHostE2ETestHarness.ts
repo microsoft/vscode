@@ -604,11 +604,20 @@ export class AgentHostE2EServerLease {
 	private _server: IServerHandle | undefined;
 	private _client: TestProtocolClient | undefined;
 	private readonly _shared: boolean;
+	private _dataDir: string | undefined;
+	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir: string; readonly userDataDir: string };
 
 	constructor(
 		private readonly _config: IAgentHostE2EProviderConfig,
-		private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir?: string; readonly userDataDir?: string },
+		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string } = {},
 	) {
+		const dataDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
+		this._dataDir = dataDir;
+		this._startOptions = {
+			...startOptions,
+			homeDir: dataDir,
+			userDataDir: join(dataDir, 'user-data'),
+		};
 		// Server reuse is a replay-only optimization: recording writes one fixture
 		// per proxy and so needs a fresh proxy (hence a fresh server) per test.
 		// In replay it is always safe because every test drains its turns, so the
@@ -681,12 +690,20 @@ export class AgentHostE2EServerLease {
 
 	/** Tear down a shared server at the end of the suite (no-op for per-test). */
 	async dispose(): Promise<void> {
-		if (this._server) {
-			try {
-				await this._server.capiReplay?.close();
-			} finally {
-				await stopServer(this._server);
-				this._server = undefined;
+		const dataDir = this._dataDir;
+		this._dataDir = undefined;
+		try {
+			if (this._server) {
+				try {
+					await this._server.capiReplay?.close();
+				} finally {
+					await stopServer(this._server);
+					this._server = undefined;
+				}
+			}
+		} finally {
+			if (dataDir) {
+				await removeTempDirs([dataDir]);
 			}
 		}
 	}

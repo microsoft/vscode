@@ -94,6 +94,7 @@ const copilotOptionalNativePayloadDirs = [
 	'foundry-local-sdk',
 	'mxc-bin',
 	'pvrecorder',
+	'webview',
 ];
 
 function getCopilotOptionalNativePayloadFiles(platform: string): string[] {

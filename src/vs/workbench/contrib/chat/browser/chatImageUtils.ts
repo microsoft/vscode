@@ -154,6 +154,7 @@ const thumbnailCache = new LRUCache<string, Promise<Blob | undefined>>(50);
  * the decode settles, so this adds negligible cost.
  */
 const THUMBNAIL_DECODE_TIMEOUT_MS = 10_000;
+export const CHAT_IMAGE_HOVER_THUMBNAIL_MAX_SIZE = 768;
 
 /**
  * Memoized variant of {@link createImageThumbnail}. Repeated calls with the same

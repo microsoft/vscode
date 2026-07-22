@@ -3,9 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdtempSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from '../../../../../../base/common/path.js';
 import { AgentHostE2EServerLease, type IAgentHostE2EProviderConfig, removeTempDirs } from '../harness/agentHostE2ETestHarness.js';
 import type { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { defineCoreTests } from './coreSuite.js';
@@ -28,7 +25,6 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 		const stableNewScenarioResponse = config.provider !== 'codex';
 		let client: TestProtocolClient;
 		let lease: AgentHostE2EServerLease | undefined;
-		let suiteDataDir: string | undefined;
 		const createdSessions: string[] = [];
 		const tempDirs: string[] = [];
 		const noModelTrafficTestTitles = new Set<string>();
@@ -46,12 +42,9 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 
 		suiteSetup(async function () {
 			this.timeout(60_000);
-			suiteDataDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
 			lease = new AgentHostE2EServerLease(config, {
 				claudeSdkRoot: config.claudeSdkRoot,
 				codexSdkRoot: config.codexSdkRoot,
-				homeDir: suiteDataDir,
-				userDataDir: join(suiteDataDir, 'user-data'),
 			});
 		});
 
@@ -60,10 +53,6 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 			try {
 				await lease?.dispose();
 			} finally {
-				if (suiteDataDir) {
-					tempDirs.push(suiteDataDir);
-					suiteDataDir = undefined;
-				}
 				await removeTempDirs(tempDirs);
 			}
 		});
