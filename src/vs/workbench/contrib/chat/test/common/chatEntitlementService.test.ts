@@ -11,10 +11,11 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatEntitlementService, parseQuotas } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('parseQuotas', () => {
 
@@ -506,7 +507,7 @@ suite('ChatEntitlementService', () => {
 	function createService(): ChatEntitlementService {
 		return store.add(new ChatEntitlementService(
 			store.add(new TestInstantiationService()),
-			{ ...TestProductService, defaultChatAgent: undefined },
+			new class extends mock<IProductService>() { },
 			new class extends mock<IWorkbenchEnvironmentService>() { },
 			store.add(new MockContextKeyService()),
 			new TestConfigurationService(),
