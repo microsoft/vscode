@@ -1311,6 +1311,15 @@ export class AgentSideEffects extends Disposable {
 				if (values) {
 					this._persistSessionFlag(channel, 'configValues', JSON.stringify(values));
 				}
+				if (this._worktree && sessionState?.lifecycle === SessionLifecycle.Creating) {
+					const sessionId = AgentSession.id(channel);
+					const isolation = values?.[SessionConfigKey.Isolation];
+					if (isolation === 'worktree') {
+						this._worktree.notePending(sessionId);
+					} else if (isolation === 'folder') {
+						this._worktree.clearPending(sessionId);
+					}
+				}
 				// This case is reached only for client-dispatched config changes
 				// (a user picker edit); internal server-side writes use
 				// `dispatchServerAction` and never land here. So the provider can
