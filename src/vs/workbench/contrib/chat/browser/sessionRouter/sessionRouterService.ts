@@ -38,7 +38,10 @@ export class SessionRouterService implements ISessionRouter {
 	private async scoreWithModel(request: ISessionRouteRequest, token: CancellationToken): Promise<ISessionRouteResult[] | undefined> {
 		let modelId: string | undefined;
 		try {
-			const models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot' });
+			// Use the small utility model for this background scoring task, matching
+			// other internal utility features (e.g. chatGoalSummaryService,
+			// chatToolRiskAssessmentService) rather than consuming a premium model.
+			const models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
 			modelId = models.at(0);
 		} catch (err) {
 			this.logService.trace('[SessionRouter] model selection failed, falling back to heuristic', err);
