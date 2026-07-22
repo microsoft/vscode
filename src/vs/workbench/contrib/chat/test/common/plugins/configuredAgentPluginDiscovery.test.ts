@@ -8,38 +8,52 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFileService, IFileStat } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { ConfiguredAgentPluginDiscovery } from '../../../common/plugins/agentPluginServiceImpl.js';
 import { IPluginMarketplaceService } from '../../../common/plugins/pluginMarketplaceService.js';
 
 class TestConfiguredAgentPluginDiscovery extends ConfiguredAgentPluginDiscovery {
 
-	public resolvePluginPath(path: string, userHome: URI): Promise<URI[]> {
-		return this._resolvePluginPath(path, userHome);
-	}
-
-	public resolveEnterprisePluginId(id: string, userHome: URI): URI | undefined {
-		return this._resolveEnterprisePluginId(id, userHome);
+	public discoverPluginSources() {
+		return this._discoverPluginSources();
 	}
 }
 
 suite('ConfiguredAgentPluginDiscovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createDiscovery(workspaceUri: URI, fileURI: (path: string) => Promise<URI> = path => Promise.resolve(URI.file(path))): TestConfiguredAgentPluginDiscovery {
+	function createDiscovery(
+		workspaceUri: URI,
+		userHome: URI,
+		pluginLocations: Record<string, boolean> = {},
+		enabledPlugins: Record<string, boolean> = {},
+		fileURI: (path: string) => Promise<URI> = path => Promise.resolve(URI.file(path)),
+	): TestConfiguredAgentPluginDiscovery {
 		return store.add(new TestConfiguredAgentPluginDiscovery(
-			new class extends mock<IConfigurationService>() { },
-			new class extends mock<IFileService>() { },
+			new TestConfigurationService({
+				[ChatConfiguration.PluginLocations]: pluginLocations,
+				[ChatConfiguration.EnabledPlugins]: enabledPlugins,
+			}),
+			new class extends mock<IFileService>() {
+				override resolve(resource: URI): Promise<IFileStat> {
+					return Promise.resolve({ resource, isDirectory: true } as IFileStat);
+				}
+			},
 			new class extends mock<IPluginMarketplaceService>() { },
 			new TestContextService(testWorkspace(workspaceUri)),
 			new class extends mock<IPathService>() {
 				override fileURI(path: string): Promise<URI> {
 					return fileURI(path);
+				}
+
+				override userHome(): Promise<URI> {
+					return Promise.resolve(userHome);
 				}
 			},
 			new NullLogService(),
@@ -48,14 +62,18 @@ suite('ConfiguredAgentPluginDiscovery', () => {
 
 	test('preserves remote authority for absolute and tilde plugin locations', async () => {
 		const remoteUserHome = URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/home/user' });
-		const discovery = createDiscovery(URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace' }));
+		const discovery = createDiscovery(
+			URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace' }),
+			remoteUserHome,
+			{
+				'/opt/plugins/my-plugin': true,
+				'~/plugins/my-plugin': true,
+				'~shared/plugin': true,
+			},
+		);
 
 		assert.deepStrictEqual(
-			[
-				...(await discovery.resolvePluginPath('/opt/plugins/my-plugin', remoteUserHome)),
-				...(await discovery.resolvePluginPath('~/plugins/my-plugin', remoteUserHome)),
-				...(await discovery.resolvePluginPath('~shared/plugin', remoteUserHome)),
-			],
+			(await discovery.discoverPluginSources()).map(source => source.uri),
 			[
 				URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/opt/plugins/my-plugin' }),
 				URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/home/user/plugins/my-plugin' }),
@@ -68,11 +86,14 @@ suite('ConfiguredAgentPluginDiscovery', () => {
 		const remoteUserHome = URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+windows', path: '/C:/Users/user' });
 		const discovery = createDiscovery(
 			URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+windows', path: '/C:/workspace' }),
+			remoteUserHome,
+			{ 'C:\\plugins\\my-plugin': true },
+			{},
 			path => Promise.resolve(URI.from({ scheme: Schemas.file, path: path.replace(/\\/g, '/') })),
 		);
 
 		assert.deepStrictEqual(
-			await discovery.resolvePluginPath('C:\\plugins\\my-plugin', remoteUserHome),
+			(await discovery.discoverPluginSources()).map(source => source.uri),
 			[URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+windows', path: '/C:/plugins/my-plugin' })],
 		);
 	});
@@ -81,6 +102,9 @@ suite('ConfiguredAgentPluginDiscovery', () => {
 		let fileURIPath: string | undefined;
 		const discovery = createDiscovery(
 			URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+windows', path: '/C:/workspace' }),
+			URI.from({ scheme: Schemas.file, path: '/C:/Users/user' }),
+			{ '~\\plugins\\my-plugin': true },
+			{},
 			path => {
 				fileURIPath = path;
 				return Promise.resolve(URI.from({ scheme: Schemas.file, path: path.replace(/\\/g, '/') }));
@@ -89,7 +113,7 @@ suite('ConfiguredAgentPluginDiscovery', () => {
 
 		assert.deepStrictEqual(
 			[
-				await discovery.resolvePluginPath('~\\plugins\\my-plugin', URI.from({ scheme: Schemas.file, path: '/C:/Users/user' })),
+				(await discovery.discoverPluginSources()).map(source => source.uri),
 				fileURIPath,
 			],
 			[
@@ -102,21 +126,30 @@ suite('ConfiguredAgentPluginDiscovery', () => {
 	test('preserves UNC authority for local absolute plugin locations', async () => {
 		const discovery = createDiscovery(
 			URI.file('C:\\workspace'),
+			URI.file('C:\\Users\\user'),
+			{ '\\\\server\\share\\plugin': true },
+			{},
 			() => Promise.resolve(URI.from({ scheme: Schemas.file, authority: 'server', path: '/share/plugin' })),
 		);
 
 		assert.deepStrictEqual(
-			await discovery.resolvePluginPath('\\\\server\\share\\plugin', URI.file('C:\\Users\\user')),
+			(await discovery.discoverPluginSources()).map(source => source.uri),
 			[URI.from({ scheme: Schemas.file, authority: 'server', path: '/share/plugin' })],
 		);
 	});
 
-	test('resolves enterprise plugin IDs relative to a remote user home', () => {
-		const discovery = createDiscovery(URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace' }));
+	test('resolves enterprise plugin IDs relative to a remote user home', async () => {
+		const remoteUserHome = URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/home/user' });
+		const discovery = createDiscovery(
+			URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace' }),
+			remoteUserHome,
+			{},
+			{ 'plugin@marketplace': true },
+		);
 
 		assert.deepStrictEqual(
-			discovery.resolveEnterprisePluginId('plugin@marketplace', URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/home/user' })),
-			URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/home/user/.copilot/installed-plugins/marketplace/plugin' }),
+			(await discovery.discoverPluginSources()).map(source => source.uri),
+			[URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/home/user/.copilot/installed-plugins/marketplace/plugin' })],
 		);
 	});
 });

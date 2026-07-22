@@ -674,7 +674,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	 * Supports absolute paths, tilde paths (expanded to user home), and
 	 * workspace-relative paths.
 	 */
-	protected async _resolvePluginPath(path: string, userHome: URI): Promise<URI[]> {
+	private async _resolvePluginPath(path: string, userHome: URI): Promise<URI[]> {
 		if (/^~($|\/|\\)/.test(path)) {
 			const uri = await this._pathService.fileURI(untildify(path, userHome.path));
 			return [userHome.scheme === Schemas.file ? uri : userHome.with({ path: uri.path })];
@@ -695,7 +695,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	 * the Copilot CLI install convention `~/.copilot/installed-plugins/<marketplace>/<plugin>/`.
 	 * Returns `undefined` for anything that doesn't match the ID shape.
 	 */
-	protected _resolveEnterprisePluginId(id: string, userHome: URI): URI | undefined {
+	private _resolveEnterprisePluginId(id: string, userHome: URI): URI | undefined {
 		const idMatch = id.match(/^([^@/\\~]+)@([^@/\\~]+)$/);
 		if (!idMatch) {
 			return undefined;
