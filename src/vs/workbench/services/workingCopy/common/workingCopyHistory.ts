@@ -83,32 +83,32 @@ export interface IWorkingCopyHistoryService {
 	/**
 	 * An event when an entry is added to the history.
 	 */
-	onDidAddEntry: Event<IWorkingCopyHistoryEvent>;
+	readonly onDidAddEntry: Event<IWorkingCopyHistoryEvent>;
 
 	/**
 	 * An event when an entry is changed in the history.
 	 */
-	onDidChangeEntry: Event<IWorkingCopyHistoryEvent>;
+	readonly onDidChangeEntry: Event<IWorkingCopyHistoryEvent>;
 
 	/**
 	 * An event when an entry is replaced in the history.
 	 */
-	onDidReplaceEntry: Event<IWorkingCopyHistoryEvent>;
+	readonly onDidReplaceEntry: Event<IWorkingCopyHistoryEvent>;
 
 	/**
 	 * An event when an entry is removed from the history.
 	 */
-	onDidRemoveEntry: Event<IWorkingCopyHistoryEvent>;
+	readonly onDidRemoveEntry: Event<IWorkingCopyHistoryEvent>;
 
 	/**
 	 * An event when entries are moved in history.
 	 */
-	onDidMoveEntries: Event<void>;
+	readonly onDidMoveEntries: Event<void>;
 
 	/**
 	 * An event when all entries are removed from the history.
 	 */
-	onDidRemoveEntries: Event<void>;
+	readonly onDidRemoveEntries: Event<void>;
 
 	/**
 	 * Adds a new entry to the history for the given working copy

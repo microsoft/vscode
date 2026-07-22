@@ -24,7 +24,7 @@ export enum DiagnosticSeverity {
 @es5ClassCompat
 export class DiagnosticRelatedInformation {
 
-	static is(thing: any): thing is DiagnosticRelatedInformation {
+	static is(thing: unknown): thing is DiagnosticRelatedInformation {
 		if (!thing) {
 			return false;
 		}
@@ -78,7 +78,7 @@ export class Diagnostic {
 		this.severity = severity;
 	}
 
-	toJSON(): any {
+	toJSON(): { severity: string; message: string; range: Range; source?: string; code?: string | number } {
 		return {
 			severity: DiagnosticSeverity[this.severity],
 			message: this.message,

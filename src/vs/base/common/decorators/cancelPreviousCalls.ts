@@ -87,7 +87,7 @@ type TWithOptionalCancellationToken<TFunction extends Function> = TFunction exte
 export function cancelPreviousCalls<
 	TObject extends Disposable,
 	TArgs extends unknown[],
-	TReturn extends unknown,
+	TReturn,
 >(
 	_proto: TObject,
 	methodName: string,

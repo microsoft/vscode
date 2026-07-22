@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { unthemedInboxStyles } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { unthemedListStyles } from '../../../../base/browser/ui/list/listWidget.js';
@@ -19,7 +20,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { QuickPick } from '../../browser/quickInput.js';
-import { IQuickPickItem, ItemActivation } from '../../common/quickInput.js';
+import { IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS } from '../../common/quickInput.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IThemeService } from '../../../theme/common/themeService.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
@@ -53,9 +54,10 @@ async function setupWaitTilShownListener(controller: QuickInputController): Prom
 suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let controller: QuickInputController;
+	let fixture: HTMLElement;
 
 	setup(() => {
-		const fixture = document.createElement('div');
+		fixture = document.createElement('div');
 		mainWindow.document.body.appendChild(fixture);
 		store.add(toDisposable(() => fixture.remove()));
 
@@ -66,7 +68,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
 		instantiationService.stub(IListService, store.add(new ListService()));
-		instantiationService.stub(ILayoutService, { activeContainer: fixture, onDidLayoutContainer: Event.None } as any);
+		instantiationService.stub(ILayoutService, { _serviceBrand: undefined, activeContainer: fixture, onDidLayoutContainer: Event.None });
 		instantiationService.stub(IContextViewService, store.add(instantiationService.createInstance(ContextViewService)));
 		instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
 		instantiationService.stub(IKeybindingService, {
@@ -115,6 +117,47 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 
 		// initial layout
 		controller.layout({ height: 20, width: 40 }, 0);
+	});
+
+	teardown(() => {
+		sinon.restore();
+	});
+
+	test('close motion requires modern UI with motion enabled', () => {
+		const clock = sinon.useFakeTimers();
+		const quickpick = store.add(controller.createQuickPick());
+		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const states: { display: string; closing: boolean; inert: boolean; visible: boolean }[] = [];
+		const recordState = () => states.push({
+			display: widget.style.display,
+			closing: widget.classList.contains('quick-input-widget-closing'),
+			inert: widget.inert,
+			visible: controller.isVisible(),
+		});
+
+		fixture.classList.add('style-override', 'monaco-reduce-motion');
+		quickpick.show();
+		quickpick.hide();
+		recordState();
+
+		fixture.classList.replace('monaco-reduce-motion', 'monaco-enable-motion');
+		quickpick.show();
+		quickpick.hide();
+		recordState();
+
+		quickpick.show();
+		recordState();
+
+		quickpick.hide();
+		clock.tick(150);
+		recordState();
+
+		assert.deepStrictEqual(states, [
+			{ display: 'none', closing: false, inert: false, visible: false },
+			{ display: '', closing: true, inert: true, visible: false },
+			{ display: '', closing: false, inert: false, visible: true },
+			{ display: 'none', closing: false, inert: false, visible: false },
+		]);
 	});
 
 	test('pick - basecase', async () => {
@@ -277,5 +320,17 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 
 		assert.strictEqual(activeItemsFromEvent.length, 0);
 		assert.strictEqual(quickpick.activeItems.length, 0);
+	});
+
+	test('isKeyModified - returns false when no modifiers are pressed', () => {
+		assert.strictEqual(isKeyModified(NO_KEY_MODS), false);
+		assert.strictEqual(isKeyModified({ ctrlCmd: false, alt: false, shift: false }), false);
+	});
+
+	test('isKeyModified - returns true when any modifier is pressed', () => {
+		assert.strictEqual(isKeyModified({ ctrlCmd: true, alt: false, shift: false }), true);
+		assert.strictEqual(isKeyModified({ ctrlCmd: false, alt: true, shift: false }), true);
+		assert.strictEqual(isKeyModified({ ctrlCmd: false, alt: false, shift: true }), true);
+		assert.strictEqual(isKeyModified({ ctrlCmd: true, alt: true, shift: true }), true);
 	});
 });

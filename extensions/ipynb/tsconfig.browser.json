@@ -1,0 +1,11 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {},
+	"exclude": [
+		"./src/test/**"
+	],
+	"files": [
+		"./src/ipynbMain.browser.ts",
+		"./src/notebookSerializerWorker.web.ts"
+	]
+}

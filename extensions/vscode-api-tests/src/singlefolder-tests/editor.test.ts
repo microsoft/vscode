@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { commands, env, Position, Range, Selection, SnippetString, TextDocument, TextEditor, TextEditorCursorStyle, TextEditorLineNumbersStyle, Uri, window, workspace } from 'vscode';
+import { env, Position, Range, Selection, SnippetString, TextDocument, TextEditor, TextEditorCursorStyle, TextEditorLineNumbersStyle, Uri, window, workspace } from 'vscode';
 import { assertNoRpc, closeAllEditors, createRandomFile, deleteFile } from '../utils';
 
 suite('vscode API - editors', () => {
@@ -163,53 +163,6 @@ suite('vscode API - editors', () => {
 				assert.ok(applied);
 				assert.strictEqual(doc.getText(), 'new');
 				assert.ok(doc.isDirty);
-			});
-		});
-	});
-
-	function executeReplace(editor: TextEditor, range: Range, text: string, undoStopBefore: boolean, undoStopAfter: boolean): Thenable<boolean> {
-		return editor.edit((builder) => {
-			builder.replace(range, text);
-		}, { undoStopBefore: undoStopBefore, undoStopAfter: undoStopAfter });
-	}
-
-	test.skip('TextEditor.edit can control undo/redo stack 1', () => {
-		return withRandomFileEditor('Hello world!', async (editor, doc) => {
-			const applied1 = await executeReplace(editor, new Range(0, 0, 0, 1), 'h', false, false);
-			assert.ok(applied1);
-			assert.strictEqual(doc.getText(), 'hello world!');
-			assert.ok(doc.isDirty);
-
-			const applied2 = await executeReplace(editor, new Range(0, 1, 0, 5), 'ELLO', false, false);
-			assert.ok(applied2);
-			assert.strictEqual(doc.getText(), 'hELLO world!');
-			assert.ok(doc.isDirty);
-
-			await commands.executeCommand('undo');
-			if (doc.getText() === 'hello world!') {
-				// see https://github.com/microsoft/vscode/issues/109131
-				// it looks like an undo stop was inserted in between these two edits
-				// it is unclear why this happens, but it can happen for a multitude of reasons
-				await commands.executeCommand('undo');
-			}
-			assert.strictEqual(doc.getText(), 'Hello world!');
-		});
-	});
-
-	test.skip('TextEditor.edit can control undo/redo stack 2', () => {
-		return withRandomFileEditor('Hello world!', (editor, doc) => {
-			return executeReplace(editor, new Range(0, 0, 0, 1), 'h', false, false).then(applied => {
-				assert.ok(applied);
-				assert.strictEqual(doc.getText(), 'hello world!');
-				assert.ok(doc.isDirty);
-				return executeReplace(editor, new Range(0, 1, 0, 5), 'ELLO', true, false);
-			}).then(applied => {
-				assert.ok(applied);
-				assert.strictEqual(doc.getText(), 'hELLO world!');
-				assert.ok(doc.isDirty);
-				return commands.executeCommand('undo');
-			}).then(_ => {
-				assert.strictEqual(doc.getText(), 'hello world!');
 			});
 		});
 	});

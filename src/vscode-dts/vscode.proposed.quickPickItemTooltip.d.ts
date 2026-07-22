@@ -9,7 +9,10 @@ declare module 'vscode' {
 
 	export interface QuickPickItem {
 		/**
-		 * A tooltip that is rendered when hovering over the item.
+		 * An optional tooltip that is displayed when hovering over this item.
+		 *
+		 * When specified, this tooltip takes precedence over the default hover behavior which shows
+		 * the {@link QuickPickItem.description description}.
 		 */
 		tooltip?: string | MarkdownString;
 	}

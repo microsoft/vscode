@@ -171,4 +171,8 @@ export class MockKeybindingService implements IKeybindingService {
 	public registerSchemaContribution() {
 		return Disposable.None;
 	}
+
+	public appendKeybinding(label: string, _commandId: string, _context?: IContextKeyService, _enforceContextCheck?: boolean): string {
+		return label;
+	}
 }

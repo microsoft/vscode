@@ -6,11 +6,11 @@
 import { timeout } from '../../../../../../base/common/async.js';
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, IObservable, observableValue, runOnChange, runOnChangeWithCancellationToken } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableValue, runOnChange, runOnChangeWithCancellationToken } from '../../../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { InlineEditsGutterIndicator } from './components/gutterIndicatorView.js';
-import { IInlineEditHost, IInlineEditModel } from './inlineEditsViewInterface.js';
+import { ModelPerInlineEdit } from './inlineEditsModel.js';
 import { InlineEditsCollapsedView } from './inlineEditsViews/inlineEditsCollapsedView.js';
 
 enum UserKind {
@@ -38,8 +38,7 @@ export class InlineEditsOnboardingExperience extends Disposable {
 	});
 
 	constructor(
-		private readonly _host: IObservable<IInlineEditHost | undefined>,
-		private readonly _model: IObservable<IInlineEditModel | undefined>,
+		private readonly _model: IObservable<ModelPerInlineEdit | undefined>,
 		private readonly _indicator: IObservable<InlineEditsGutterIndicator | undefined>,
 		private readonly _collapsedView: InlineEditsCollapsedView,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -115,10 +114,10 @@ export class InlineEditsOnboardingExperience extends Disposable {
 		}));
 
 		// Remember when the user has hovered over the icon
-		disposableStore.add(autorunWithStore((reader, store) => {
+		disposableStore.add(autorun((reader) => {
 			const indicator = this._indicator.read(reader);
 			if (!indicator) { return; }
-			store.add(runOnChange(indicator.isHoveredOverIcon, async (isHovered) => {
+			reader.store.add(runOnChange(indicator.isHoveredOverIcon, async (isHovered) => {
 				if (isHovered) {
 					userHasHoveredOverIcon = true;
 				}
@@ -126,10 +125,10 @@ export class InlineEditsOnboardingExperience extends Disposable {
 		}));
 
 		// Remember when the user has accepted an inline edit
-		disposableStore.add(autorunWithStore((reader, store) => {
-			const host = this._host.read(reader);
-			if (!host) { return; }
-			store.add(host.onDidAccept(() => {
+		disposableStore.add(autorun((reader) => {
+			const model = this._model.read(reader);
+			if (!model) { return; }
+			reader.store.add(model.onDidAccept(() => {
 				inlineEditHasBeenAccepted = true;
 			}));
 		}));

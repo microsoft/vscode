@@ -86,7 +86,7 @@ export class RequestQueue {
 		return false;
 	}
 
-	public createRequest(command: string, args: any): Proto.Request {
+	public createRequest(command: string, args: unknown): Proto.Request {
 		return {
 			seq: this.sequenceNumber++,
 			type: 'request',

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<dict>
+		<key>PayloadContent</key>
+		<array>
+			<dict>
+				<key>PayloadDisplayName</key>
+				<string>Code - OSS</string>
+				<key>PayloadIdentifier</key>
+				<string>com.visualstudio.code.oss.47827DD9-4734-49A0-AF80-7E19B11495CC</string>
+				<key>PayloadType</key>
+				<string>com.visualstudio.code.oss</string>
+				<key>PayloadUUID</key>
+				<string>47827DD9-4734-49A0-AF80-7E19B11495CC</string>
+				<key>PayloadVersion</key>
+				<integer>1</integer>
+				<key>ChatAgentExtensionTools</key>
+				<false/>
+				<key>ChatAgentMode</key>
+				<false/>
+				<key>ChatMCP</key>
+				<string>none</string>
+				<key>ChatPromptFiles</key>
+				<false/>
+				<key>ChatToolsAutoApprove</key>
+				<false/>
+				<key>McpGalleryServiceUrl</key>
+				<string></string>
+				<key>AllowedExtensions</key>
+				<string></string>
+				<key>ExtensionGalleryServiceUrl</key>
+				<string></string>
+				<key>ChatToolsTerminalEnableAutoApprove</key>
+				<false/>
+				<key>EnableFeedback</key>
+				<false/>
+				<key>TelemetryLevel</key>
+				<string>all</string>
+				<key>UpdateMode</key>
+				<string>none</string>
+			</dict>
+		</array>
+		<key>PayloadDescription</key>
+		<string>This profile manages Code - OSS. For more information see https://code.visualstudio.com/docs/setup/enterprise</string>
+		<key>PayloadDisplayName</key>
+		<string>Code - OSS</string>
+		<key>PayloadIdentifier</key>
+		<string>com.visualstudio.code.oss</string>
+		<key>PayloadOrganization</key>
+		<string>Microsoft</string>
+		<key>PayloadType</key>
+		<string>Configuration</string>
+		<key>PayloadUUID</key>
+		<string>CF808BE7-53F3-46C6-A7E2-7EDB98A5E959</string>
+		<key>PayloadVersion</key>
+		<integer>1</integer>
+		<key>TargetDeviceType</key>
+		<integer>5</integer>
+	</dict>
+</plist>

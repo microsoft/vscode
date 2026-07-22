@@ -5,7 +5,15 @@
 
 import { getWindowId, onDidUnregisterWindow } from './dom.js';
 import { Emitter, Event } from '../common/event.js';
-import { Disposable, markAsSingleton } from '../common/lifecycle.js';
+import { Disposable, markAsSingleton, toDisposable } from '../common/lifecycle.js';
+
+type BackingStoreContext = CanvasRenderingContext2D & {
+	webkitBackingStorePixelRatio?: number;
+	mozBackingStorePixelRatio?: number;
+	msBackingStorePixelRatio?: number;
+	oBackingStorePixelRatio?: number;
+	backingStorePixelRatio?: number;
+};
 
 /**
  * See https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio#monitoring_screen_resolution_or_zoom_level_changes
@@ -24,6 +32,8 @@ class DevicePixelRatioMonitor extends Disposable {
 		this._listener = () => this._handleChange(targetWindow, true);
 		this._mediaQueryList = null;
 		this._handleChange(targetWindow, false);
+
+		this._register(toDisposable(() => this._mediaQueryList?.removeEventListener('change', this._listener)));
 	}
 
 	private _handleChange(targetWindow: Window, fireEvent: boolean): void {
@@ -67,13 +77,13 @@ class PixelRatioMonitorImpl extends Disposable implements IPixelRatioMonitor {
 	}
 
 	private _getPixelRatio(targetWindow: Window): number {
-		const ctx: any = document.createElement('canvas').getContext('2d');
+		const ctx = document.createElement('canvas').getContext('2d') as BackingStoreContext | null;
 		const dpr = targetWindow.devicePixelRatio || 1;
-		const bsr = ctx.webkitBackingStorePixelRatio ||
-			ctx.mozBackingStorePixelRatio ||
-			ctx.msBackingStorePixelRatio ||
-			ctx.oBackingStorePixelRatio ||
-			ctx.backingStorePixelRatio || 1;
+		const bsr = ctx?.webkitBackingStorePixelRatio ||
+			ctx?.mozBackingStorePixelRatio ||
+			ctx?.msBackingStorePixelRatio ||
+			ctx?.oBackingStorePixelRatio ||
+			ctx?.backingStorePixelRatio || 1;
 		return dpr / bsr;
 	}
 }

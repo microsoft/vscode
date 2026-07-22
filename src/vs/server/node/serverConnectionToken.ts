@@ -5,7 +5,7 @@
 
 import * as cookie from 'cookie';
 import * as fs from 'fs';
-import * as http from 'http';
+import type * as http from 'http';
 import * as url from 'url';
 import * as path from '../../base/common/path.js';
 import { generateUuid } from '../../base/common/uuid.js';
@@ -24,7 +24,7 @@ export const enum ServerConnectionTokenType {
 export class NoneServerConnectionToken {
 	public readonly type = ServerConnectionTokenType.None;
 
-	public validate(connectionToken: any): boolean {
+	public validate(connectionToken: unknown): boolean {
 		return true;
 	}
 }
@@ -35,7 +35,7 @@ export class MandatoryServerConnectionToken {
 	constructor(public readonly value: string) {
 	}
 
-	public validate(connectionToken: any): boolean {
+	public validate(connectionToken: unknown): boolean {
 		return (connectionToken === this.value);
 	}
 }

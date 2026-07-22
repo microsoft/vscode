@@ -30,7 +30,7 @@ class ExtHostSaveParticipant implements ITextFileSaveParticipant {
 			return undefined;
 		}
 
-		const p = new Promise<any>((resolve, reject) => {
+		const p = new Promise<void>((resolve, reject) => {
 
 			setTimeout(
 				() => reject(new Error(localize('timeout.onWillSave', "Aborted onWillSaveTextDocument-event after 1750ms"))),

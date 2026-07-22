@@ -188,7 +188,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 	//#region events
 
-	private readonly _onDidModelChange = this._register(new Emitter<IGroupModelChangeEvent>({ leakWarningThreshold: 500 /* increased for users with hundreds of inputs opened */ }));
+	private readonly _onDidModelChange = this._register(new Emitter<IGroupModelChangeEvent>({ leakWarningThreshold: 500, leakWarningName: 'EditorGroupModel._onDidModelChange' /* increased for users with hundreds of inputs opened */ }));
 	readonly onDidModelChange = this._onDidModelChange.event;
 
 	//#endregion
@@ -373,7 +373,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				if (this.preview) {
 					const indexOfPreview = this.indexOf(this.preview);
 					if (targetIndex > indexOfPreview) {
-						targetIndex--; // accomodate for the fact that the preview editor closes
+						targetIndex--; // accommodate for the fact that the preview editor closes
 					}
 
 					this.replaceEditor(this.preview, newEditor, targetIndex, !makeActive);
@@ -640,7 +640,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	}
 
 	setActive(candidate: EditorInput | undefined): EditorInput | undefined {
-		let result: EditorInput | undefined = undefined;
+		let result: EditorInput | undefined;
 
 		if (!candidate) {
 			this.setGroupActive();
@@ -1231,7 +1231,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		}
 
 		this.editors = coalesce(data.editors.map((e, index) => {
-			let editor: EditorInput | undefined = undefined;
+			let editor: EditorInput | undefined;
 
 			const editorSerializer = registry.getEditorSerializer(e.id);
 			if (editorSerializer) {

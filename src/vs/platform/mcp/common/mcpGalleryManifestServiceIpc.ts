@@ -6,7 +6,7 @@
 import { Barrier } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { IPCServer } from '../../../base/parts/ipc/common/ipc.js';
+import { IChannelServer } from '../../../base/parts/ipc/common/ipc.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from './mcpGalleryManifest.js';
 
 export class McpGalleryManifestIPCService extends Disposable implements IMcpGalleryManifestService {
@@ -26,13 +26,16 @@ export class McpGalleryManifestIPCService extends Disposable implements IMcpGall
 		return this._mcpGalleryManifest ? McpGalleryManifestStatus.Available : McpGalleryManifestStatus.Unavailable;
 	}
 
-	constructor(server: IPCServer<any>) {
+	constructor(server: IChannelServer<unknown>) {
 		super();
 		server.registerChannel('mcpGalleryManifest', {
 			listen: () => Event.None,
-			call: async (context: any, command: string, args?: any): Promise<any> => {
+			call: async <T>(context: unknown, command: string, args?: unknown): Promise<T> => {
 				switch (command) {
-					case 'setMcpGalleryManifest': return Promise.resolve(this.setMcpGalleryManifest(args[0]));
+					case 'setMcpGalleryManifest': {
+						const manifest = Array.isArray(args) ? args[0] as IMcpGalleryManifest | null : null;
+						return Promise.resolve(this.setMcpGalleryManifest(manifest)) as T;
+					}
 				}
 				throw new Error('Invalid call');
 			}

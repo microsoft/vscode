@@ -239,7 +239,7 @@ class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvid
 			} else {
 				let tempID = '';
 				let maxTotalSumOfRanges = -1;
-				let optimalOutlineGroup = undefined;
+				let optimalOutlineGroup: OutlineGroup | OutlineElement | undefined = undefined;
 				for (const [_key, outlineGroup] of outlineModel.children.entries()) {
 					const totalSumRanges = this._findSumOfRangesOfGroup(outlineGroup);
 					if (totalSumRanges > maxTotalSumOfRanges) {

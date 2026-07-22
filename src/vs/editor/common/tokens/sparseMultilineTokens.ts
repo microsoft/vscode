@@ -298,6 +298,9 @@ class SparseMultilineTokensStorage {
 					tokens[destOffset + 1] = tokenStartCharacter;
 					tokens[destOffset + 2] = tokenEndCharacter;
 					tokens[destOffset + 3] = tokenMetadata;
+				} else if (firstDeltaLine !== 0) {
+					// must adjust the delta line in place
+					tokens[srcOffset] = tokenDeltaLine - firstDeltaLine;
 				}
 				newTokenCount++;
 			}

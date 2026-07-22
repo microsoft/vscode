@@ -10,20 +10,20 @@ import { Color, RGBA } from '../../../../base/common/color.js';
 import { registerColor, transparent } from '../colorUtils.js';
 
 // Import the colors we need
-import { editorInfoForeground, editorWarningForeground, editorWarningBorder, editorInfoBorder } from './editorColors.js';
-import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from './miscColors.js';
+import { editorFindMatchHighlight, editorInfoBorder, editorInfoForeground, editorSelectionBackground, editorSelectionHighlight, editorWarningBorder, editorWarningForeground } from './editorColors.js';
+import { scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from './miscColors.js';
 
 
 export const minimapFindMatch = registerColor('minimap.findMatchHighlight',
-	{ light: '#d18616', dark: '#d18616', hcDark: '#AB5A00', hcLight: '#0F4A85' },
+	editorFindMatchHighlight,
 	nls.localize('minimapFindMatchHighlight', 'Minimap marker color for find matches.'), true);
 
 export const minimapSelectionOccurrenceHighlight = registerColor('minimap.selectionOccurrenceHighlight',
-	{ light: '#c9c9c9', dark: '#676767', hcDark: '#ffffff', hcLight: '#0F4A85' },
+	editorSelectionHighlight,
 	nls.localize('minimapSelectionOccurrenceHighlight', 'Minimap marker color for repeating editor selections.'), true);
 
 export const minimapSelection = registerColor('minimap.selectionHighlight',
-	{ light: '#ADD6FF', dark: '#264F78', hcDark: '#ffffff', hcLight: '#0F4A85' },
+	editorSelectionBackground,
 	nls.localize('minimapSelectionHighlight', 'Minimap marker color for the editor selection.'), true);
 
 export const minimapInfo = registerColor('minimap.infoHighlight',

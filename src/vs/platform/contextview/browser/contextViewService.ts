@@ -61,7 +61,7 @@ export class ContextViewHandler extends Disposable implements IContextViewProvid
 		this.contextView.layout();
 	}
 
-	hideContextView(data?: any): void {
+	hideContextView(data?: unknown): void {
 		this.contextView.hide(data);
 		this.openContextView = undefined;
 	}

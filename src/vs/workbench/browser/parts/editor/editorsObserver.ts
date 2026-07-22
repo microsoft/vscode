@@ -273,7 +273,7 @@ export class EditorsObserver extends Disposable {
 
 			// Remove from key map
 			const map = this.keyMap.get(group.id);
-			if (map && map.delete(key.editor) && map.size === 0) {
+			if (map?.delete(key.editor) && map.size === 0) {
 				this.keyMap.delete(group.id);
 			}
 

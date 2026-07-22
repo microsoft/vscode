@@ -13,7 +13,7 @@ export class ConfigurePluginCommand implements Command {
 		private readonly pluginManager: PluginManager,
 	) { }
 
-	public execute(pluginId: string, configuration: any) {
+	public execute(pluginId: string, configuration: unknown) {
 		this.pluginManager.setConfiguration(pluginId, configuration);
 	}
 }

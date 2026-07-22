@@ -36,6 +36,7 @@ export interface IReducerOptions<T, TChangeSummary = void, TOutChange = void> {
  * Additionally, a reducer can report how that state changed.
 */
 export function observableReducer<T, TInChanges, TOutChange = void>(owner: DebugOwner, options: IReducerOptions<T, TInChanges, TOutChange>): SimplifyObservableWithChange<T, TOutChange> {
+	// eslint-disable-next-line local/code-no-any-casts
 	return observableReducerSettable<T, TInChanges, TOutChange>(owner, options) as any;
 }
 

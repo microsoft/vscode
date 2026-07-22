@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../common/policy.js';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from '../common/policy.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Throttler } from '../../../base/common/async.js';
 import type { PolicyUpdate, Watcher } from '@vscode/policy-watcher';
@@ -12,7 +12,7 @@ import { ILogService } from '../../log/common/log.js';
 
 export class NativePolicyService extends AbstractPolicyService implements IPolicyService {
 
-	private throttler = new Throttler();
+	private throttler = this._register(new Throttler());
 	private readonly watcher = this._register(new MutableDisposable<Watcher>());
 
 	constructor(
@@ -29,6 +29,7 @@ export class NativePolicyService extends AbstractPolicyService implements IPolic
 
 		await this.throttler.queue(() => new Promise<void>((c, e) => {
 			try {
+				this.logService.trace(`Creating watcher for productName ${this.productName}`);
 				this.watcher.value = createWatcher(this.productName, policyDefinitions, update => {
 					this._onDidPolicyChange(update);
 					c();
@@ -43,8 +44,8 @@ export class NativePolicyService extends AbstractPolicyService implements IPolic
 	private _onDidPolicyChange(update: PolicyUpdate<IStringDictionary<PolicyDefinition>>): void {
 		this.logService.trace(`NativePolicyService#_onDidPolicyChange - Updated policy values: ${JSON.stringify(update)}`);
 
-		for (const key in update) {
-			const value = update[key] as any;
+		for (const key in update as Record<string, PolicyValue | undefined>) {
+			const value = update[key];
 
 			if (value === undefined) {
 				this.policies.delete(key);

@@ -53,7 +53,6 @@ export interface ISettingsGroup {
 }
 
 export interface ISettingsSection {
-	titleRange?: IRange;
 	title?: string;
 	settings: ISetting[];
 }
@@ -65,6 +64,7 @@ export interface ISetting {
 	value: any;
 	valueRange: IRange;
 	description: string[];
+	keywords?: string[];
 	descriptionIsMarkdown?: boolean;
 	descriptionRanges: IRange[];
 	overrides?: ISetting[];
@@ -79,6 +79,7 @@ export interface ISetting {
 	objectProperties?: IJSONSchemaMap;
 	objectPatternProperties?: IJSONSchemaMap;
 	objectAdditionalProperties?: boolean | IJSONSchema;
+	propertyNames?: IJSONSchema;
 	enum?: string[];
 	enumDescriptions?: string[];
 	enumDescriptionsAreMarkdown?: boolean;
@@ -351,5 +352,6 @@ export const FOLDER_SETTINGS_JSONC_PATH = '.vscode/settings.jsonc';
 export const FOLDER_SETTINGS_PATH_CANDIDATES = [FOLDER_SETTINGS_PATH, FOLDER_SETTINGS_JSONC_PATH];
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
 export const USE_SPLIT_JSON_SETTING = 'workbench.settings.useSplitJSON';
+export const ALWAYS_SHOW_ADVANCED_SETTINGS_SETTING = 'workbench.settings.alwaysShowAdvancedSettings';
 
 export const SETTINGS_AUTHORITY = 'settings';

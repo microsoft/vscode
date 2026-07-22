@@ -9,9 +9,9 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::sync::LazyLock;
 
 use crate::{
 	constants::{PRODUCT_DOWNLOAD_URL, QUALITY, QUALITYLESS_PRODUCT_NAME},
@@ -33,9 +33,7 @@ pub enum RequestedVersion {
 	Path(String),
 }
 
-lazy_static! {
-	static ref COMMIT_RE: Regex = Regex::new(r"(?i)^[0-9a-f]{40}$").unwrap();
-}
+static COMMIT_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^[0-9a-f]{40}$").unwrap());
 
 impl RequestedVersion {
 	pub fn get_command(&self) -> String {

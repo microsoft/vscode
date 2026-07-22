@@ -68,12 +68,12 @@ export interface IWordRange {
  * @internal
  */
 export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelServer, IWebWorkerServerRequestHandler {
-	_requestHandlerBrand: any;
+	_requestHandlerBrand: void = undefined;
 
 	private readonly _workerTextModelSyncServer = new WorkerTextModelSyncServer();
 
 	constructor(
-		private readonly _foreignModule: any | null = null
+		private readonly _foreignModule: unknown | null = null
 	) { }
 
 	dispose(): void {
@@ -128,12 +128,12 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 			return null;
 		}
 
-		const result = EditorWorker.computeDiff(original, modified, options, algorithm);
+		const diffAlgorithm = await resolveLinesDiffComputer(algorithm);
+		const result = EditorWorker.computeDiff(original, modified, options, diffAlgorithm);
 		return result;
 	}
 
-	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): IDiffComputationResult {
-		const diffAlgorithm: ILinesDiffComputer = algorithm === 'advanced' ? linesDiffComputers.getDefault() : linesDiffComputers.getLegacy();
+	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, diffAlgorithm: ILinesDiffComputer): IDiffComputationResult {
 
 		const originalLines = originalTextModel.getLinesContent();
 		const modifiedLines = modifiedTextModel.getLinesContent();
@@ -204,8 +204,8 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 		return diffComputer.computeDiff().changes;
 	}
 
-	public $computeStringDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): ISerializedStringEdit {
-		return computeStringDiff(original, modified, options, algorithm).toJson();
+	public async $computeStringDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<ISerializedStringEdit> {
+		return (await computeStringDiff(original, modified, options, algorithm)).toJson();
 	}
 
 	// ---- END diff --------------------------------------------------------------------------
@@ -513,13 +513,13 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 	// ---- BEGIN foreign module support --------------------------------------------------------------------------
 
 	// foreign method request
-	public $fmr(method: string, args: any[]): Promise<any> {
-		if (!this._foreignModule || typeof this._foreignModule[method] !== 'function') {
+	public $fmr(method: string, args: unknown[]): Promise<unknown> {
+		if (!this._foreignModule || typeof (this._foreignModule as Record<string, unknown>)[method] !== 'function') {
 			return Promise.reject(new Error('Missing requestHandler or method: ' + method));
 		}
 
 		try {
-			return Promise.resolve(this._foreignModule[method].apply(this._foreignModule, args));
+			return Promise.resolve((this._foreignModule as Record<string, Function>)[method].apply(this._foreignModule, args));
 		} catch (e) {
 			return Promise.reject(e);
 		}
@@ -536,11 +536,20 @@ if (typeof importScripts === 'function') {
 	globalThis.monaco = createMonacoBaseAPI();
 }
 
+function resolveLinesDiffComputer(algorithm: DiffAlgorithmName): ILinesDiffComputer | Promise<ILinesDiffComputer> {
+	switch (algorithm) {
+		case 'legacy': return linesDiffComputers.getLegacy();
+		case 'advanced': return linesDiffComputers.getDefault();
+		case 'advanced-external': return linesDiffComputers.getAdvancedExternal();
+		case 'advanced-wasm': return linesDiffComputers.getAdvancedWasm();
+	}
+}
+
 /**
  * @internal
 */
-export function computeStringDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): StringEdit {
-	const diffAlgorithm: ILinesDiffComputer = algorithm === 'advanced' ? linesDiffComputers.getDefault() : linesDiffComputers.getLegacy();
+export async function computeStringDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<StringEdit> {
+	const diffAlgorithm = await resolveLinesDiffComputer(algorithm);
 
 	ensureDependenciesAreSet();
 

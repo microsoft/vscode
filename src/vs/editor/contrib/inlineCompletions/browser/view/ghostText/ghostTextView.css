@@ -64,6 +64,13 @@
 	border-bottom: 4px double var(--vscode-editorWarning-border);
 }
 
+.monaco-editor .ghost-text-decoration.short-text,
+.monaco-editor .ghost-text-decoration-preview.short-text,
+.monaco-editor .suggest-preview-text .ghost-text.short-text {
+	text-decoration: underline dotted var(--vscode-editorGhostText-foreground);
+	text-underline-position: under;
+}
+
 .ghost-text-view-warning-widget-icon {
 	.codicon {
 		color: var(--vscode-editorWarning-foreground) !important;

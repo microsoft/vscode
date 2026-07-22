@@ -78,7 +78,7 @@ export class ParameterHintsModel extends Disposable {
 		this.editor = editor;
 		this.providers = providers;
 
-		this.throttledDelayer = new Delayer(delay);
+		this.throttledDelayer = this._register(new Delayer(delay));
 
 		this._register(this.editor.onDidBlurEditorWidget(() => this.cancel()));
 		this._register(this.editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()));

@@ -233,7 +233,9 @@ class LanguageStatus {
 			// when severity is warning or error, don't show animation when showing progress/busy
 			const userHasInteractedWithStatus = this._interactionCounter.value >= 3;
 			const targetWindow = dom.getWindow(editor?.getContainerDomNode());
+			// eslint-disable-next-line no-restricted-syntax
 			const node = targetWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus A>SPAN.codicon');
+			// eslint-disable-next-line no-restricted-syntax
 			const container = targetWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus');
 			if (dom.isHTMLElement(node) && container) {
 				const _wiggle = 'wiggle';
@@ -254,6 +256,7 @@ class LanguageStatus {
 			// track when the hover shows (this is automagic and DOM mutation spying is needed...)
 			//  use that as signal that the user has interacted/learned language status items work
 			if (!userHasInteractedWithStatus) {
+				// eslint-disable-next-line no-restricted-syntax
 				const hoverTarget = targetWindow.document.querySelector('.monaco-workbench .context-view');
 				if (dom.isHTMLElement(hoverTarget)) {
 					const observer = new MutationObserver(() => {
@@ -272,7 +275,11 @@ class LanguageStatus {
 		const newDedicatedEntries = new Map<string, IStatusbarEntryAccessor>();
 		for (const status of model.dedicated) {
 			const props = LanguageStatus._asStatusbarEntry(status);
-			let entry = this._dedicatedEntries.get(status.id);
+
+			// First check if we already processed a status with this id in the current update
+			// (can happen when duplicate status ids exist momentarily during status updates).
+			// Also check the previous entries map for an existing accessor to reuse.
+			let entry = newDedicatedEntries.get(status.id) ?? this._dedicatedEntries.get(status.id);
 			if (!entry) {
 				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 			} else {

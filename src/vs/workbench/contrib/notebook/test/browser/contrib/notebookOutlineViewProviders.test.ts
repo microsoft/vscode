@@ -644,14 +644,14 @@ suite('Notebook Outline View Providers', function () {
 		// Validate
 		assert.equal(results.length, 3);
 
-		assert.equal(results[0].label, 'fakeRoot');
-		assert.equal(results[0].level, -1);
+		assert.equal(results[0].element.label, 'fakeRoot');
+		assert.equal(results[0].element.level, -1);
 
-		assert.equal(results[1].label, 'h1');
-		assert.equal(results[1].level, 1);
+		assert.equal(results[1].element.label, 'h1');
+		assert.equal(results[1].element.level, 1);
 
-		assert.equal(results[2].label, '# code cell 2');
-		assert.equal(results[2].level, 7);
+		assert.equal(results[2].element.label, '# code cell 2');
+		assert.equal(results[2].element.level, 7);
 	});
 
 	test('Breadcrumbs 1: Code Cells Off ', async function () {
@@ -695,11 +695,11 @@ suite('Notebook Outline View Providers', function () {
 		// Validate
 		assert.equal(results.length, 2);
 
-		assert.equal(results[0].label, 'fakeRoot');
-		assert.equal(results[0].level, -1);
+		assert.equal(results[0].element.label, 'fakeRoot');
+		assert.equal(results[0].element.level, -1);
 
-		assert.equal(results[1].label, 'h1');
-		assert.equal(results[1].level, 1);
+		assert.equal(results[1].element.label, 'h1');
+		assert.equal(results[1].element.level, 1);
 	});
 
 	// #endregion

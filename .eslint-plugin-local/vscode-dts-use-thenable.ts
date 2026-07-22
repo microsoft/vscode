@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import type * as ESTree from 'estree';
 
-export = new class ApiEventNaming implements eslint.Rule.RuleModule {
+export default new class ApiEventNaming implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
@@ -19,7 +20,7 @@ export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 
 
 		return {
-			['TSTypeAnnotation TSTypeReference Identifier[name="Promise"]']: (node: any) => {
+			['TSTypeAnnotation TSTypeReference Identifier[name="Promise"]']: (node: ESTree.Identifier) => {
 
 				context.report({
 					node,

@@ -141,13 +141,14 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			this.handleURL(URI.revive(JSON.parse(urlToHandleValue)), { trusted: true });
 		}
 
+		const cache = ExtensionUrlBootstrapHandler.cache;
+		const drainTimeout = setTimeout(() => cache.forEach(([uri, option]) => this.handleURL(uri, option)));
+
 		this.disposable = combinedDisposable(
 			urlService.registerHandler(this),
-			interval
+			interval,
+			toDisposable(() => clearTimeout(drainTimeout))
 		);
-
-		const cache = ExtensionUrlBootstrapHandler.cache;
-		setTimeout(() => cache.forEach(([uri, option]) => this.handleURL(uri, option)));
 	}
 
 	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
@@ -271,7 +272,8 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 					reason: `${localize('installDetail', "This extension wants to open a URI:")}\n${uri.toString()}`,
 					action: localize('openUri', "Open URI")
 				},
-				enable: true
+				enable: true,
+				installPreReleaseVersion: this.productService.quality !== 'stable'
 			});
 		} catch (error) {
 			if (!isCancellationError(error)) {

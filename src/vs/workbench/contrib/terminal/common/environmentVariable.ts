@@ -32,7 +32,7 @@ export interface IEnvironmentVariableService {
 	 * An event that is fired when an extension's environment variable collection changes, the event
 	 * provides the new merged collection.
 	 */
-	onDidChangeCollections: Event<IMergedEnvironmentVariableCollection>;
+	readonly onDidChangeCollections: Event<IMergedEnvironmentVariableCollection>;
 
 	/**
 	 * Sets an extension's environment variable collection.

@@ -134,6 +134,7 @@ export class TopBottomDragScrollingOperation extends DragScrollingOperation {
 
 		const viewportData = this._context.viewLayout.getLinesViewportData();
 		const edgeLineNumber = (this._position.outsidePosition === 'above' ? viewportData.startLineNumber : viewportData.endLineNumber);
+		const cannotScrollAnymore = (this._position.outsidePosition === 'above' ? viewportData.startLineNumber === 1 : viewportData.endLineNumber === this._context.viewModel.getLineCount());
 
 		// First, try to find a position that matches the horizontal position of the mouse
 		let mouseTarget: IMouseTarget;
@@ -144,7 +145,7 @@ export class TopBottomDragScrollingOperation extends DragScrollingOperation {
 			const relativePos = createCoordinatesRelativeToEditor(this._viewHelper.viewDomNode, editorPos, pos);
 			mouseTarget = this._mouseTargetFactory.createMouseTarget(this._viewHelper.getLastRenderData(), editorPos, pos, relativePos, null);
 		}
-		if (!mouseTarget.position || mouseTarget.position.lineNumber !== edgeLineNumber) {
+		if (!mouseTarget.position || mouseTarget.position.lineNumber !== edgeLineNumber || cannotScrollAnymore) {
 			if (this._position.outsidePosition === 'above') {
 				mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, 1), 'above', this._position.outsideDistance);
 			} else {

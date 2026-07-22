@@ -76,7 +76,7 @@ export class SymbolInformation {
 		SymbolInformation.validate(this);
 	}
 
-	toJSON(): any {
+	toJSON(): { name: string; kind: string; location: Location; containerName: string | undefined } {
 		return {
 			name: this.name,
 			kind: SymbolKind[this.kind],

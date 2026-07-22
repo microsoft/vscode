@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
+// @ts-check
 
 const fs = require('fs');
 const path = require('path');
-const util = require('../../../build/lib/util');
 const playwright = require('@playwright/test');
 const yaserver = require('yaserver');
 const http = require('http');
+const { glob } = require('glob');
 
 const DEBUG_TESTS = false;
 const SRC_DIR = path.join(__dirname, '../../../out-monaco-editor-core/esm');
@@ -76,10 +76,9 @@ async function startServer() {
 }
 
 async function extractSourcesWithoutCSS() {
-	await util.rimraf(DST_DIR);
+	fs.rmSync(DST_DIR, { recursive: true, force: true });
 
-	const files = util.rreddir(SRC_DIR);
-	for (const file of files) {
+	for (const file of glob.sync('**/*', { cwd: SRC_DIR, nodir: true })) {
 		const srcFilename = path.join(SRC_DIR, file);
 		if (!/\.js$/.test(srcFilename)) {
 			continue;
@@ -90,7 +89,7 @@ async function extractSourcesWithoutCSS() {
 		let contents = fs.readFileSync(srcFilename).toString();
 		contents = contents.replace(/import '[^']+\.css';/g, '');
 
-		util.ensureDir(path.dirname(dstFilename));
+		fs.mkdirSync(path.dirname(dstFilename), { recursive: true });
 		fs.writeFileSync(dstFilename, contents);
 	}
 }

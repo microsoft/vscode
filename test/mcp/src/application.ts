@@ -3,78 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as playwright from 'playwright';
 import { getDevElectronPath, Quality, ConsoleLogger, FileLogger, Logger, MultiLogger, getBuildElectronPath, getBuildVersion, measureAndLog, Application } from '../../automation';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as vscodetest from '@vscode/test-electron';
-import { createApp, retry } from './utils';
-import * as minimist from 'minimist';
+import { createApp, retry, parseVersion } from './utils';
+import { opts } from './options';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
-
-const [, , ...args] = process.argv;
-const opts = minimist(args, {
-	string: [
-		'browser',
-		'build',
-		'stable-build',
-		'wait-time',
-		'test-repo',
-		'electronArgs'
-	],
-	boolean: [
-		'verbose',
-		'remote',
-		'web',
-		'headless',
-		'tracing'
-	],
-	default: {
-		verbose: false
-	}
-}) as {
-	verbose?: boolean;
-	remote?: boolean;
-	headless?: boolean;
-	web?: boolean;
-	tracing?: boolean;
-	build?: string;
-	'stable-build'?: string;
-	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome' | undefined;
-	electronArgs?: string;
-};
-
-const logsRootPath = (() => {
-	const logsParentPath = path.join(rootPath, '.build', 'logs');
-
-	let logsName: string;
-	if (opts.web) {
-		logsName = 'smoke-tests-browser';
-	} else if (opts.remote) {
-		logsName = 'smoke-tests-remote';
-	} else {
-		logsName = 'smoke-tests-electron';
-	}
-
-	return path.join(logsParentPath, logsName);
-})();
-
-const crashesRootPath = (() => {
-	const crashesParentPath = path.join(rootPath, '.build', 'crashes');
-
-	let crashesName: string;
-	if (opts.web) {
-		crashesName = 'smoke-tests-browser';
-	} else if (opts.remote) {
-		crashesName = 'smoke-tests-remote';
-	} else {
-		crashesName = 'smoke-tests-electron';
-	}
-
-	return path.join(crashesParentPath, crashesName);
-})();
+const logsRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'logs');
+const crashesRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'crashes');
+const videoRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'videos');
 
 const logger = createLogger();
 
@@ -119,11 +59,6 @@ function fail(errorMessage): void {
 
 let quality: Quality;
 let version: string | undefined;
-
-function parseVersion(version: string): { major: number; minor: number; patch: number } {
-	const [, major, minor, patch] = /^(\d+)\.(\d+)\.(\d+)/.exec(version)!;
-	return { major: parseInt(major), minor: parseInt(minor), patch: parseInt(patch) };
-}
 
 function parseQuality(): Quality {
 	if (process.env.VSCODE_DEV === '1') {
@@ -261,7 +196,7 @@ async function ensureStableCode(): Promise<void> {
 		}));
 
 		if (process.platform === 'darwin') {
-			// Visual Studio Code.app/Contents/MacOS/Electron
+			// Visual Studio Code.app/Contents/MacOS/Code
 			stableCodePath = path.dirname(path.dirname(path.dirname(stableCodeExecutable)));
 		} else {
 			// VSCode/Code.exe (Windows) | VSCode/code (Linux)
@@ -291,7 +226,7 @@ async function setup(): Promise<void> {
 	logger.log('Smoketest setup done!\n');
 }
 
-export async function getApplication() {
+export async function getApplication({ recordVideo, workspacePath }: { recordVideo?: boolean; workspacePath?: string } = {}) {
 	const testCodePath = getDevElectronPath();
 	const electronPath = testCodePath;
 	if (!fs.existsSync(electronPath || '')) {
@@ -304,23 +239,23 @@ export async function getApplication() {
 
 	await setup();
 	const application = createApp({
-		// Pass the alpha version of Playwright down... This is a hack since Playwright MCP
-		// doesn't play nice with Playwright Test: https://github.com/microsoft/playwright-mcp/issues/917
-		playwright: playwright as any,
 		quality,
 		version: parseVersion(version ?? '0.0.0'),
 		codePath: opts.build,
-		workspacePath: rootPath,
+		// Use provided workspace path, or fall back to rootPath on CI (GitHub Actions)
+		workspacePath: workspacePath ?? (process.env.GITHUB_ACTIONS ? rootPath : undefined),
 		logger,
-		logsPath: path.join(logsRootPath, 'suite_unknown'),
-		crashesPath: path.join(crashesRootPath, 'suite_unknown'),
+		logsPath: logsRootPath,
+		crashesPath: crashesRootPath,
+		videosPath: (recordVideo || opts.video) ? videoRootPath : undefined,
 		verbose: opts.verbose,
 		remote: opts.remote,
 		web: opts.web,
-		tracing: opts.tracing,
+		tracing: true,
 		headless: opts.headless,
 		browser: opts.browser,
 		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg),
+		extensionDevelopmentPath: opts.extensionDevelopmentPath,
 	});
 	await application.start();
 	application.code.driver.currentPage.on('close', async () => {
@@ -332,9 +267,9 @@ export async function getApplication() {
 export class ApplicationService {
 	private _application: Application | undefined;
 	private _closing: Promise<void> | undefined;
-	private _listeners: ((app: Application | undefined) => void)[] = [];
+	private _listeners: ((app: Application | undefined) => Promise<void> | void)[] = [];
 
-	onApplicationChange(listener: (app: Application | undefined) => void): void {
+	onApplicationChange(listener: (app: Application | undefined) => Promise<void> | void): void {
 		this._listeners.push(listener);
 	}
 
@@ -349,31 +284,31 @@ export class ApplicationService {
 		return this._application;
 	}
 
-	async getOrCreateApplication(): Promise<Application> {
+	async getOrCreateApplication({ recordVideo, workspacePath }: { recordVideo?: boolean; workspacePath?: string } = {}): Promise<Application> {
 		if (this._closing) {
 			await this._closing;
 		}
 		if (!this._application) {
-			this._application = await getApplication();
+			this._application = await getApplication({ recordVideo, workspacePath });
 			this._application.code.driver.currentPage.on('close', () => {
 				this._closing = (async () => {
 					if (this._application) {
 						this._application.code.driver.browserContext.removeAllListeners();
 						await this._application.stop();
 						this._application = undefined;
-						this._runAllListeners();
+						await this._runAllListeners();
 					}
 				})();
 			});
-			this._runAllListeners();
+			await this._runAllListeners();
 		}
 		return this._application;
 	}
 
-	private _runAllListeners() {
+	private async _runAllListeners() {
 		for (const listener of this._listeners) {
 			try {
-				listener(this._application);
+				await listener(this._application);
 			} catch (error) {
 				console.error('Error occurred in application change listener:', error);
 			}

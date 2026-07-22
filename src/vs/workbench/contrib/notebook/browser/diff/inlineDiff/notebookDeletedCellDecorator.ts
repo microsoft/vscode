@@ -21,6 +21,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { overviewRulerDeletedForeground } from '../../../../scm/common/quickDiff.js';
+import { IActionViewItemProvider } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 
 const ttPolicy = createTrustedTypesPolicy('notebookRenderer', { createHTML: value => value });
 
@@ -35,7 +36,7 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 	private readonly deletedCellInfos = new Map<number, { height: number; previousIndex: number; offset: number }>();
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		private readonly toolbar: { menuId: MenuId; className: string; telemetrySource?: string; argFactory: (deletedCellIndex: number) => any } | undefined,
+		private readonly toolbar: { menuId: MenuId; className: string; telemetrySource?: string; argFactory: (deletedCellIndex: number) => any; actionViewItemProvider?: IActionViewItemProvider } | undefined,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -178,7 +179,7 @@ export class NotebookDeletedCellWidget extends Disposable {
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		private readonly _toolbarOptions: { menuId: MenuId; className: string; telemetrySource?: string; argFactory: (deletedCellIndex: number) => any } | undefined,
+		private readonly _toolbarOptions: { menuId: MenuId; className: string; telemetrySource?: string; argFactory: (deletedCellIndex: number) => any; actionViewItemProvider?: IActionViewItemProvider } | undefined,
 		private readonly code: string,
 		private readonly language: string,
 		container: HTMLElement,
@@ -232,8 +233,8 @@ export class NotebookDeletedCellWidget extends Disposable {
 					renderShortTitle: true,
 					arg: this._toolbarOptions.argFactory(this._originalIndex),
 				},
+				actionViewItemProvider: this._toolbarOptions.actionViewItemProvider
 			});
-
 			this._store.add(toolbarWidget);
 
 			toolbar.style.position = 'absolute';

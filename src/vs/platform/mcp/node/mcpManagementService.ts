@@ -8,7 +8,7 @@ import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
-import { IGalleryMcpServer, IMcpGalleryService, IMcpManagementService, InstallOptions, ILocalMcpServer, RegistryType, IInstallableMcpServer } from '../common/mcpManagement.js';
+import { IGalleryMcpServer, IMcpGalleryService, IMcpManagementService, InstallOptions, ILocalMcpServer, RegistryType, IInstallableMcpServer, IAllowedMcpServersService } from '../common/mcpManagement.js';
 import { McpUserResourceManagementService as CommonMcpUserResourceManagementService, McpManagementService as CommonMcpManagementService } from '../common/mcpManagementService.js';
 import { IMcpResourceScannerService } from '../common/mcpResourceScannerService.js';
 
@@ -20,31 +20,42 @@ export class McpUserResourceManagementService extends CommonMcpUserResourceManag
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService,
 		@IMcpResourceScannerService mcpResourceScannerService: IMcpResourceScannerService,
+		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
-		super(mcpResource, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, environmentService);
+		super(mcpResource, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService, environmentService);
 	}
 
 	override async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
-		this.logService.trace('MCP Management Service: installGallery', server.url);
+		this.logService.trace('MCP Management Service: installGallery', server.name, server.galleryUrl);
 
 		this._onInstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
 
 		try {
 			const manifest = await this.updateMetadataFromGallery(server);
-			const packageType = options?.packageType ?? manifest.packages?.[0]?.registry_type ?? RegistryType.REMOTE;
+			const packageType = options?.packageType ?? (
+				manifest.remotes?.length
+					? RegistryType.REMOTE
+					: (manifest.packages?.[0]?.registryType ?? RegistryType.REMOTE)
+			);
 
-			const { config, inputs } = this.getMcpServerConfigurationFromManifest(manifest, packageType);
+			const { mcpServerConfiguration, notices } = this.getMcpServerConfigurationFromManifest(manifest, packageType);
+
+			if (notices.length > 0) {
+				this.logService.warn(`MCP Management Service: Warnings while installing ${server.name}`, notices);
+			}
 
 			const installable: IInstallableMcpServer = {
 				name: server.name,
 				config: {
-					...config,
-					gallery: server.url ?? true,
+					...mcpServerConfiguration.config,
+					gallery: server.galleryUrl ?? true,
 					version: server.version
 				},
-				inputs
+				inputs: mcpServerConfiguration.inputs
 			};
+
+			this.ensureServerAllowed(installable);
 
 			await this.mcpResourceScannerService.addMcpServers([installable], this.mcpResource, this.target);
 

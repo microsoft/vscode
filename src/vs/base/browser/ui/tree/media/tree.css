@@ -33,7 +33,7 @@
 	opacity: 0;
 }
 
-.monaco-workbench:not(.reduce-motion) .monaco-tl-indent > .indent-guide {
+.monaco-enable-motion .monaco-tl-indent > .indent-guide {
 	transition: opacity 0.1s linear;
 }
 
@@ -70,6 +70,8 @@
 .monaco-tl-twistie.codicon-tree-item-loading::before {
 	/* Use steps to throttle FPS to reduce CPU usage */
 	animation: codicon-spin 1.25s steps(30) infinite;
+	/* Ensure rotation happens around exact center to prevent wobble */
+	transform-origin: center center;
 }
 
 .monaco-tree-type-filter {
@@ -86,7 +88,7 @@
 	border-bottom-right-radius: 4px;
 }
 
-.monaco-workbench:not(.reduce-motion) .monaco-tree-type-filter {
+.monaco-enable-motion .monaco-tree-type-filter {
 	transition: top 0.3s;
 }
 

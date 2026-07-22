@@ -128,6 +128,7 @@ suite('EditorPane', () => {
 		assert(!editor.input);
 
 		await editor.setInput(input, options, Object.create(null), CancellationToken.None);
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual(<any>input, editor.input);
 		editor.setVisible(true);
 		assert(editor.isVisible());

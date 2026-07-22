@@ -34,9 +34,9 @@ export interface INotebookTextDiffEditor {
 	readonly textModel?: NotebookTextModel;
 	inlineNotebookEditor: INotebookEditor | undefined;
 	readonly currentChangedIndex: IObservable<number>;
-	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: IDiffElementViewModelBase }>;
-	onDidScroll: Event<void>;
-	onDidDynamicOutputRendered: Event<{ cell: IGenericCellViewModel; output: ICellOutputViewModel }>;
+	readonly onMouseUp: Event<{ readonly event: MouseEvent; readonly target: IDiffElementViewModelBase }>;
+	readonly onDidScroll: Event<void>;
+	readonly onDidDynamicOutputRendered: Event<{ cell: IGenericCellViewModel; output: ICellOutputViewModel }>;
 	getOverflowContainerDomNode(): HTMLElement;
 	getLayoutInfo(): NotebookLayoutInfo;
 	getScrollTop(): number;
@@ -112,7 +112,7 @@ export interface NotebookDocumentDiffElementRenderTemplate extends CellDiffCommo
 }
 
 export interface IDiffCellMarginOverlay extends IDisposable {
-	onAction: Event<void>;
+	readonly onAction: Event<void>;
 	show(): void;
 	hide(): void;
 }
@@ -185,7 +185,7 @@ export interface INotebookDiffViewModel extends IDisposable {
 	/**
 	 * Triggered when ever there's a change in the view model items.
 	 */
-	onDidChangeItems: Event<INotebookDiffViewModelUpdateEvent>;
+	readonly onDidChangeItems: Event<INotebookDiffViewModelUpdateEvent>;
 	/**
 	 * Computes the differences and generates the viewmodel.
 	 * If view models are generated, then the onDidChangeItems is triggered.

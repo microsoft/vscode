@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import cp from 'child_process';
-const root = fs.realpathSync(path.dirname(path.dirname(__dirname)));
+const root = fs.realpathSync(path.dirname(path.dirname(import.meta.dirname)));
 
 function getNpmProductionDependencies(folder: string): string[] {
 	let raw: string;
@@ -51,6 +51,6 @@ export function getProductionDependencies(folderPath: string): string[] {
 	return [...new Set(result)];
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	console.log(JSON.stringify(getProductionDependencies(root), null, '  '));
 }

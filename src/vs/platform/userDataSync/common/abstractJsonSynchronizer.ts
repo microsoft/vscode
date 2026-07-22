@@ -243,6 +243,11 @@ export abstract class AbstractJsonSynchronizer extends AbstractFileSynchroniser 
 			return { content: null, hasLocalChanged: false, hasRemoteChanged: false, hasConflicts: false };
 		}
 
+		// Normalize nulls to empty strings for easier comparison
+		originalRemoteContent = originalRemoteContent ?? '';
+		originalLocalContent = originalLocalContent ?? '';
+		baseContent = baseContent ?? '';
+
 		/* no changes */
 		if (originalLocalContent === originalRemoteContent) {
 			return { content: null, hasLocalChanged: false, hasRemoteChanged: false, hasConflicts: false };

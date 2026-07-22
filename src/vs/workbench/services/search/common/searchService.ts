@@ -175,7 +175,7 @@ export class SearchService extends Disposable implements ISearchService {
 
 		const schemesInQuery = this.getSchemesInQuery(query);
 
-		const providerActivations: Promise<any>[] = [Promise.resolve(null)];
+		const providerActivations: Promise<unknown>[] = [Promise.resolve(null)];
 		schemesInQuery.forEach(scheme => providerActivations.push(this.extensionService.activateByEvent(`onSearch:${scheme}`)));
 		providerActivations.push(this.extensionService.activateByEvent('onSearch:file'));
 

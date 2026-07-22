@@ -218,10 +218,10 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 			}
 		}
 	},
-	activationEventsGenerator: (walkthroughContributions, result) => {
+	activationEventsGenerator: function* (walkthroughContributions) {
 		for (const walkthroughContribution of walkthroughContributions) {
 			if (walkthroughContribution.id) {
-				result.push(`onWalkthrough:${walkthroughContribution.id}`);
+				yield `onWalkthrough:${walkthroughContribution.id}`;
 			}
 		}
 	}

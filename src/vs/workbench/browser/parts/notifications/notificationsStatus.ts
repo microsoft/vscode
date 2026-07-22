@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, IStatusMessageChangeEvent, StatusMessageChangeType, IStatusMessageViewItem } from '../../../common/notifications.js';
+import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, IStatusMessageChangeEvent, StatusMessageChangeType, IStatusMessageViewItem, NotificationsPosition, NotificationsSettings, getNotificationsPosition } from '../../../common/notifications.js';
 import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
 import { Disposable, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from './notificationsCommands.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class NotificationsStatus extends Disposable {
 
@@ -20,10 +21,13 @@ export class NotificationsStatus extends Disposable {
 	private isNotificationsCenterVisible: boolean = false;
 	private isNotificationsToastsVisible: boolean = false;
 
+	private currentAlignment: StatusbarAlignment | undefined;
+
 	constructor(
 		private readonly model: INotificationsModel,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -40,6 +44,11 @@ export class NotificationsStatus extends Disposable {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.model.onDidChangeStatusMessage(e => this.onDidChangeStatusMessage(e)));
 		this._register(this.notificationService.onDidChangeFilter(() => this.updateNotificationsCenterStatusItem()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION)) {
+				this.updateNotificationsCenterStatusItem();
+			}
+		}));
 	}
 
 	private onDidChangeNotification(e: INotificationChangeEvent): void {
@@ -92,15 +101,52 @@ export class NotificationsStatus extends Disposable {
 			};
 		}
 
-		if (!this.notificationsCenterStatusItem) {
-			this.notificationsCenterStatusItem = this.statusbarService.addEntry(
-				statusProperties,
-				'status.notifications',
-				StatusbarAlignment.RIGHT,
-				Number.NEGATIVE_INFINITY /* last entry */
-			);
-		} else {
-			this.notificationsCenterStatusItem.update(statusProperties);
+		// For top-right position, hide the status bar bell entirely
+		// (it is shown in the title bar instead via menu registration)
+		const position = getNotificationsPosition(this.configurationService);
+		if (position === NotificationsPosition.TOP_RIGHT) {
+			this.notificationsCenterStatusItem?.dispose();
+			this.notificationsCenterStatusItem = undefined;
+
+			this.currentAlignment = undefined;
+		}
+
+		// For other positions, figure out the desired alignment
+		else {
+			const desiredAlignment = this.getDesiredAlignment();
+
+			// If alignment changed, dispose old entry and create a new one
+			if (this.currentAlignment !== desiredAlignment) {
+				this.notificationsCenterStatusItem?.dispose();
+				this.notificationsCenterStatusItem = undefined;
+
+				this.currentAlignment = desiredAlignment;
+			}
+
+			if (!this.notificationsCenterStatusItem) {
+				this.notificationsCenterStatusItem = this.statusbarService.addEntry(
+					statusProperties,
+					'status.notifications',
+					this.currentAlignment,
+					this.currentAlignment === StatusbarAlignment.LEFT
+						? Number.MAX_SAFE_INTEGER 	// almost leftmost on the left side
+						: Number.NEGATIVE_INFINITY 	// rightmost on the right side
+				);
+			} else {
+				this.notificationsCenterStatusItem.update(statusProperties);
+			}
+		}
+	}
+
+	private getDesiredAlignment(): StatusbarAlignment {
+		const position = getNotificationsPosition(this.configurationService);
+		switch (position) {
+			case NotificationsPosition.BOTTOM_LEFT:
+				return StatusbarAlignment.LEFT;
+			case NotificationsPosition.TOP_RIGHT:
+			case NotificationsPosition.BOTTOM_RIGHT:
+			default:
+				return StatusbarAlignment.RIGHT;
 		}
 	}
 

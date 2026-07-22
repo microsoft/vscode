@@ -6,8 +6,10 @@
 import esbuild from 'esbuild';
 import ts from 'typescript';
 import threads from 'node:worker_threads';
+import path from 'node:path';
 import Vinyl from 'vinyl';
 import { cpus } from 'node:os';
+import { getTargetStringFromTsConfig } from '../tsconfigUtils.ts';
 
 interface TranspileReq {
 	readonly tsSrcs: string[];
@@ -64,7 +66,7 @@ class OutputFileNameOracle {
 			try {
 
 				// windows: path-sep normalizing
-				file = (<InternalTsApi>ts).normalizePath(file);
+				file = (ts as InternalTsApi).normalizePath(file);
 
 				if (!cmdLine.options.configFilePath) {
 					// this is needed for the INTERNAL getOutputFileNames-call below...
@@ -75,7 +77,7 @@ class OutputFileNameOracle {
 					file = file.slice(0, -5) + '.ts';
 					cmdLine.fileNames.push(file);
 				}
-				const outfile = (<InternalTsApi>ts).getOutputFileNames(cmdLine, file, true)[0];
+				const outfile = (ts as InternalTsApi).getOutputFileNames(cmdLine, file, true)[0];
 				if (isDts) {
 					cmdLine.fileNames.pop();
 				}
@@ -96,7 +98,7 @@ class TranspileWorker {
 
 	readonly id = TranspileWorker.pool++;
 
-	private _worker = new threads.Worker(__filename);
+	private _worker = new threads.Worker(import.meta.filename);
 	private _pending?: [resolve: Function, reject: Function, file: Vinyl[], options: ts.TranspileOptions, t1: number];
 	private _durations: number[] = [];
 
@@ -123,11 +125,11 @@ class TranspileWorker {
 					diag.push(...diag);
 					continue;
 				}
-				const enum SuffixTypes {
-					Dts = 5,
-					Ts = 3,
-					Unknown = 0
-				}
+				const SuffixTypes = {
+					Dts: 5,
+					Ts: 3,
+					Unknown: 0
+				} as const;
 				const suffixLen = file.path.endsWith('.d.ts') ? SuffixTypes.Dts
 					: file.path.endsWith('.ts') ? SuffixTypes.Ts
 						: SuffixTypes.Unknown;
@@ -200,16 +202,23 @@ export class TscTranspiler implements ITranspiler {
 
 	private _workerPool: TranspileWorker[] = [];
 	private _queue: Vinyl[] = [];
-	private _allJobs: Promise<any>[] = [];
+	private _allJobs: Promise<unknown>[] = [];
+
+	private readonly _logFn: (topic: string, message: string) => void;
+	private readonly _onError: (err: any) => void;
+	private readonly _cmdLine: ts.ParsedCommandLine;
 
 	constructor(
 		logFn: (topic: string, message: string) => void,
-		private readonly _onError: (err: any) => void,
+		onError: (err: any) => void,
 		configFilePath: string,
-		private readonly _cmdLine: ts.ParsedCommandLine
+		cmdLine: ts.ParsedCommandLine
 	) {
-		logFn('Transpile', `will use ${TscTranspiler.P} transpile worker`);
-		this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
+		this._logFn = logFn;
+		this._onError = onError;
+		this._cmdLine = cmdLine;
+		this._logFn('Transpile', `will use ${TscTranspiler.P} transpile worker`);
+		this._outputFileNames = new OutputFileNameOracle(this._cmdLine, configFilePath);
 	}
 
 	async join() {
@@ -299,20 +308,31 @@ export class ESBuildTranspiler implements ITranspiler {
 	onOutfile?: ((file: Vinyl) => void) | undefined;
 
 	private readonly _transformOpts: esbuild.TransformOptions;
+	private readonly _logFn: (topic: string, message: string) => void;
+	private readonly _onError: (err: any) => void;
+	private readonly _cmdLine: ts.ParsedCommandLine;
 
 	constructor(
-		private readonly _logFn: (topic: string, message: string) => void,
-		private readonly _onError: (err: any) => void,
+		logFn: (topic: string, message: string) => void,
+		onError: (err: any) => void,
 		configFilePath: string,
-		private readonly _cmdLine: ts.ParsedCommandLine
+		cmdLine: ts.ParsedCommandLine
 	) {
-		_logFn('Transpile', `will use ESBuild to transpile source files`);
-		this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
+		this._logFn = logFn;
+		this._onError = onError;
+		this._cmdLine = cmdLine;
+		this._logFn('Transpile', `will use ESBuild to transpile source files`);
+		this._outputFileNames = new OutputFileNameOracle(this._cmdLine, configFilePath);
 
-		const isExtension = configFilePath.includes('extensions');
+		// Determine whether this project is a built-in extension by looking for an `extensions`
+		// path *segment* (not a substring, so a checkout/worktree folder whose name merely contains
+		// "extensions" is not mistaken for the `extensions/` directory).
+		const isExtension = configFilePath.split(path.sep).includes('extensions');
+
+		const target = getTargetStringFromTsConfig(configFilePath);
 
 		this._transformOpts = {
-			target: ['es2022'],
+			target: [target],
 			format: isExtension ? 'cjs' : 'esm',
 			platform: isExtension ? 'node' : undefined,
 			loader: 'ts',

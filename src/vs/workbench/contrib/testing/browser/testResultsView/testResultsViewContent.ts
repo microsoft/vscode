@@ -22,6 +22,7 @@ import { createActionViewItem } from '../../../../../platform/actions/browser/me
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -29,6 +30,7 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { AnyStackFrame, CallStackFrame, CallStackWidget, CustomStackFrame } from '../../../debug/browser/callStackWidget.js';
 import { TestCommandId } from '../../common/constants.js';
+import { getTestingConfiguration, TestingConfigKeys, TestingResultsViewLayout } from '../../common/configuration.js';
 import { IObservableValue } from '../../common/observableValue.js';
 import { capabilityContextKeys, ITestProfileService } from '../../common/testProfileService.js';
 import { LiveTestResult } from '../../common/testResult.js';
@@ -40,11 +42,6 @@ import { DiffContentProvider, IPeekOutputRenderer, MarkdownTestMessagePeek, Plai
 import { equalsSubject, getSubjectTestItem, InspectSubject, MessageSubject, TaskSubject, TestOutputSubject } from './testResultsSubject.js';
 import { OutputPeekTree } from './testResultsTree.js';
 import './testResultsViewContent.css';
-
-const enum SubView {
-	Diff = 0,
-	History = 1,
-}
 
 /** UI state that can be saved/restored, used to give a nice experience when switching stack frames */
 export interface ITestResultsViewContentUiState {
@@ -191,6 +188,7 @@ export class TestResultsViewContent extends Disposable {
 	private messageContainer!: HTMLElement;
 	private contentProviders!: IPeekOutputRenderer[];
 	private contentProvidersUpdateLimiter = this._register(new Limiter(1));
+	private isTreeLeft = false; // Track layout setting
 
 	public current?: InspectSubject;
 
@@ -216,6 +214,14 @@ export class TestResultsViewContent extends Disposable {
 		return this.callStackWidget?.contentHeight || 0;
 	}
 
+	private get diffViewIndex() {
+		return this.isTreeLeft ? 1 : 0; // Content view index
+	}
+
+	private get historyViewIndex() {
+		return this.isTreeLeft ? 0 : 1; // Tree view index
+	}
+
 	constructor(
 		private readonly editor: ICodeEditor | undefined,
 		private readonly options: {
@@ -227,8 +233,19 @@ export class TestResultsViewContent extends Disposable {
 		@ITextModelService protected readonly modelService: ITextModelService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+	}
+
+	private swapViews() {
+		const leftSize = this.splitView.getViewSize(0);
+		const rightSize = this.splitView.getViewSize(1);
+		const leftView = this.splitView.removeView(1);
+		const rightView = this.splitView.removeView(0);
+
+		this.splitView.addView(leftView, rightSize);
+		this.splitView.addView(rightView, leftSize);
 	}
 
 	public fillBody(containerElement: HTMLElement): void {
@@ -237,6 +254,18 @@ export class TestResultsViewContent extends Disposable {
 
 		const { historyVisible, showRevealLocationOnMessages } = this.options;
 		const isInPeekView = this.editor !== undefined;
+		const layout = getTestingConfiguration(this.configurationService, TestingConfigKeys.ResultsViewLayout);
+		this.isTreeLeft = layout === TestingResultsViewLayout.TreeLeft;
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TestingConfigKeys.ResultsViewLayout)) {
+				const newLayout = getTestingConfiguration(this.configurationService, TestingConfigKeys.ResultsViewLayout);
+				const newIsTreeLeft = newLayout === TestingResultsViewLayout.TreeLeft;
+				if (newIsTreeLeft !== this.isTreeLeft) {
+					this.isTreeLeft = newIsTreeLeft;
+					this.swapViews();
+				}
+			}
+		}));
 
 		const messageContainer = this.messageContainer = dom.$('.test-output-peek-message-container');
 		this.stackContainer = dom.append(containerElement, dom.$('.test-output-call-stack-container'));
@@ -265,12 +294,13 @@ export class TestResultsViewContent extends Disposable {
 
 		this.onDidRequestReveal = tree.onDidRequestReview;
 
-		this.splitView.addView({
+		// Add views in the correct order based on layout setting
+		const stackView = {
 			onDidChange: Event.None,
 			element: this.stackContainer,
 			minimumSize: 200,
 			maximumSize: Number.MAX_VALUE,
-			layout: width => {
+			layout: (width: number) => {
 				TestResultsViewContent.lastSplitWidth = width;
 
 				if (this.dimension) {
@@ -278,28 +308,34 @@ export class TestResultsViewContent extends Disposable {
 					this.layoutContentWidgets(this.dimension, width);
 				}
 			},
-		}, Sizing.Distribute);
+		};
 
-		this.splitView.addView({
+		const treeView = {
 			onDidChange: Event.None,
 			element: treeContainer,
 			minimumSize: 100,
 			maximumSize: Number.MAX_VALUE,
-			layout: width => {
+			layout: (width: number) => {
 				if (this.dimension) {
 					tree.layout(this.dimension.height, width);
 				}
 			},
-		}, Sizing.Distribute);
+		};
 
+		this.splitView.addView(stackView, Sizing.Distribute);
+		this.splitView.addView(treeView, Sizing.Distribute);
+		if (this.isTreeLeft) {
+			this.swapViews();
+		}
 
-		this.splitView.setViewVisible(SubView.History, historyVisible.value);
+		// Configure visibility for the tree view
+		this.splitView.setViewVisible(this.historyViewIndex, historyVisible.value);
 		this._register(historyVisible.onDidChange(visible => {
-			this.splitView.setViewVisible(SubView.History, visible);
+			this.splitView.setViewVisible(this.historyViewIndex, visible);
 		}));
 
 		if (initialSpitWidth) {
-			queueMicrotask(() => this.splitView.resizeView(0, initialSpitWidth));
+			queueMicrotask(() => this.splitView.resizeView(this.diffViewIndex, initialSpitWidth));
 		}
 	}
 
@@ -380,7 +416,7 @@ export class TestResultsViewContent extends Disposable {
 
 		const provider = await findAsync(this.contentProviders, p => p.update(subject));
 		if (provider) {
-			const width = this.splitView.getViewSize(SubView.Diff);
+			const width = this.splitView.getViewSize(this.diffViewIndex);
 			if (width !== -1 && this.dimension) {
 				topFrame.height.set(provider.layout({ width, height: this.dimension?.height }, hasMultipleFrames)!, undefined);
 			}
@@ -393,7 +429,7 @@ export class TestResultsViewContent extends Disposable {
 
 			if (provider.onDidContentSizeChange) {
 				this.currentSubjectStore.add(provider.onDidContentSizeChange(() => {
-					const width = this.splitView.getViewSize(SubView.Diff);
+					const width = this.splitView.getViewSize(this.diffViewIndex);
 					if (this.dimension && !this.isDoingLayoutUpdate && width !== -1) {
 						this.isDoingLayoutUpdate = true;
 						topFrame.height.set(provider.layout({ width, height: this.dimension.height }, hasMultipleFrames)!, undefined);
@@ -406,7 +442,7 @@ export class TestResultsViewContent extends Disposable {
 		return topFrame;
 	}
 
-	private layoutContentWidgets(dimension: dom.Dimension, width = this.splitView.getViewSize(SubView.Diff)) {
+	private layoutContentWidgets(dimension: dom.Dimension, width = this.splitView.getViewSize(this.diffViewIndex)) {
 		this.isDoingLayoutUpdate = true;
 		for (const provider of this.contentProviders) {
 			const frameHeight = provider.layout({ height: dimension.height, width }, !!this.currentTopFrame?.showHeader.get());
@@ -457,6 +493,8 @@ export class TestResultsViewContent extends Disposable {
 	public onWidth(width: number) {
 		this.splitView.layout(width);
 	}
+
+
 }
 
 const FOLLOWUP_ANIMATION_MIN_TIME = 500;

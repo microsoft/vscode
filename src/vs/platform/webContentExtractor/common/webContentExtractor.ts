@@ -11,10 +11,27 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 export const IWebContentExtractorService = createDecorator<IWebContentExtractorService>('IWebContentExtractorService');
 export const ISharedWebContentExtractorService = createDecorator<ISharedWebContentExtractorService>('ISharedWebContentExtractorService');
 
+export interface IWebContentExtractorOptions {
+	/**
+	 * Whether to allow cross-authority redirects on the web content.
+	 * 'false' by default.
+	 */
+	followRedirects?: boolean;
+
+	/**
+	 * List of trusted domain patterns for redirect validation.
+	 */
+	trustedDomains?: string[];
+}
+
+export type WebContentExtractResult =
+	| { status: 'ok'; result: string; title?: string }
+	| { status: 'error'; error: string; statusCode?: number; result?: string; title?: string }
+	| { status: 'redirect'; toURI: URI };
 
 export interface IWebContentExtractorService {
 	_serviceBrand: undefined;
-	extract(uri: URI[]): Promise<string[]>;
+	extract(uri: URI[], options?: IWebContentExtractorOptions): Promise<WebContentExtractResult[]>;
 }
 
 /*
@@ -33,7 +50,7 @@ export interface ISharedWebContentExtractorService {
 export class NullWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;
 
-	extract(_uri: URI[]): Promise<string[]> {
+	extract(_uri: URI[]): Promise<WebContentExtractResult[]> {
 		throw new Error('Not implemented');
 	}
 }

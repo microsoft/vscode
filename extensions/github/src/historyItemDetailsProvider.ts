@@ -5,7 +5,7 @@
 
 import { Command, l10n, LogOutputChannel, workspace } from 'vscode';
 import { Commit, Repository as GitHubRepository, Maybe } from '@octokit/graphql-schema';
-import { API, AvatarQuery, AvatarQueryCommit, Repository, SourceControlHistoryItemDetailsProvider } from './typings/git.js';
+import type { API, AvatarQuery, AvatarQueryCommit, Repository, SourceControlHistoryItemDetailsProvider } from './typings/git.d.ts';
 import { DisposableStore, getRepositoryDefaultRemote, getRepositoryDefaultRemoteUrl, getRepositoryFromUrl, groupBy, sequentialize } from './util.js';
 import { AuthenticationError, OctokitService } from './auth.js';
 import { getAvatarLink } from './links.js';
@@ -114,7 +114,8 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 			return undefined;
 		}
 
-		const descriptor = getRepositoryDefaultRemote(repository);
+		// upstream -> origin -> first
+		const descriptor = getRepositoryDefaultRemote(repository, ['upstream', 'origin']);
 		if (!descriptor) {
 			this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][provideAvatar] Repository does not have a GitHub remote.`);
 			return undefined;
@@ -206,7 +207,8 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 	}
 
 	async provideHoverCommands(repository: Repository): Promise<Command[] | undefined> {
-		const url = getRepositoryDefaultRemoteUrl(repository);
+		// origin -> upstream -> first
+		const url = getRepositoryDefaultRemoteUrl(repository, ['origin', 'upstream']);
 		if (!url) {
 			return undefined;
 		}
@@ -220,7 +222,8 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 	}
 
 	async provideMessageLinks(repository: Repository, message: string): Promise<string | undefined> {
-		const descriptor = getRepositoryDefaultRemote(repository);
+		// upstream -> origin -> first
+		const descriptor = getRepositoryDefaultRemote(repository, ['upstream', 'origin']);
 		if (!descriptor) {
 			return undefined;
 		}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { localize2 } from '../../../../../nls.js';
 import { AccessibleViewProviderId } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -46,31 +46,37 @@ class TerminalHistoryContribution extends Disposable implements ITerminalContrib
 
 		this._terminalInRunCommandPicker = TerminalContextKeys.inTerminalRunCommandPicker.bindTo(contextKeyService);
 
-		this._register(_ctx.instance.capabilities.onDidAddCapabilityType(e => {
-			switch (e) {
+		// Track listeners per capability to avoid leaking disposables
+		const capabilityListeners = this._register(new DisposableMap<TerminalCapability, DisposableStore>());
+
+		this._register(_ctx.instance.capabilities.onDidAddCapability(e => {
+			// Dispose any existing listener for this capability before adding new one
+			capabilityListeners.deleteAndDispose(e.id);
+
+			switch (e.id) {
 				case TerminalCapability.CwdDetection: {
-					const cwdDetection = _ctx.instance.capabilities.get(TerminalCapability.CwdDetection);
-					if (!cwdDetection) {
-						return;
-					}
-					this._register(cwdDetection.onDidChangeCwd(e => {
+					const store = new DisposableStore();
+					store.add(e.capability.onDidChangeCwd(e => {
 						this._instantiationService.invokeFunction(getDirectoryHistory)?.add(e, { remoteAuthority: _ctx.instance.remoteAuthority });
 					}));
+					capabilityListeners.set(e.id, store);
 					break;
 				}
 				case TerminalCapability.CommandDetection: {
-					const commandDetection = _ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
-					if (!commandDetection) {
-						return;
-					}
-					this._register(commandDetection.onCommandFinished(e => {
+					const store = new DisposableStore();
+					store.add(e.capability.onCommandFinished(e => {
 						if (e.command.trim().length > 0) {
 							this._instantiationService.invokeFunction(getCommandHistory)?.add(e.command, { shellType: _ctx.instance.shellType });
 						}
 					}));
+					capabilityListeners.set(e.id, store);
 					break;
 				}
 			}
+		}));
+
+		this._register(_ctx.instance.capabilities.onDidRemoveCapability(e => {
+			capabilityListeners.deleteAndDispose(e.id);
 		}));
 	}
 

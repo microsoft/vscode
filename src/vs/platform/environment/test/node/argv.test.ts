@@ -44,6 +44,7 @@ suite('formatOptions', () => {
 	test('Text should wrap', () => {
 		assert.deepStrictEqual(
 			formatOptions({
+				// eslint-disable-next-line local/code-no-any-casts
 				'add': o((<any>'bar ').repeat(9))
 			}, 40),
 			[
@@ -55,6 +56,7 @@ suite('formatOptions', () => {
 	test('Text should revert to the condensed view when the terminal is too narrow', () => {
 		assert.deepStrictEqual(
 			formatOptions({
+				// eslint-disable-next-line local/code-no-any-casts
 				'add': o((<any>'bar ').repeat(9))
 			}, 30),
 			[

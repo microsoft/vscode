@@ -12,7 +12,7 @@ import { IEditorService } from '../../editor/common/editorService.js';
 import { GoFilter, GoScope, IHistoryService } from '../common/history.js';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from '../../../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { dispose, Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { EditorServiceImpl } from '../../../browser/parts/editor/editor.js';
 import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { coalesce, remove } from '../../../../base/common/arrays.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { addDisposableListener, EventType, EventHelper, WindowIdleValue } from '../../../../base/browser/dom.js';
 import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
@@ -48,6 +48,13 @@ interface IRecentlyClosedEditor {
 
 	readonly index: number;
 	readonly sticky: boolean;
+
+	/**
+	 * Identifies the batch of editors that were closed together (e.g. via
+	 * "Close All Editors" or "Close Others"). Editors sharing the same batch
+	 * identifier are reopened together by "Reopen Closed Editor".
+	 */
+	readonly batchId: number;
 }
 
 export class HistoryService extends Disposable implements IHistoryService {
@@ -659,6 +666,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private recentlyClosedEditors: IRecentlyClosedEditor[] = [];
 	private ignoreEditorCloseEvent = false;
 
+	private recentlyClosedEditorsBatchId = 0;
+	private recentlyClosedEditorsBatchScheduled = false;
+
 	private handleEditorCloseEventInReopen(event: IEditorCloseEvent): void {
 		if (this.ignoreEditorCloseEvent) {
 			return; // blocked
@@ -667,6 +677,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const { editor, context } = event;
 		if (context === EditorCloseContext.REPLACE || context === EditorCloseContext.MOVE) {
 			return; // ignore if editor was replaced or moved
+		}
+
+		if (!editor.canReopen()) {
+			return; // only editors that can be reopened
 		}
 
 		const untypedEditor = editor.toUntyped();
@@ -692,7 +706,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 			resource: EditorResourceAccessor.getOriginalUri(editor),
 			associatedResources,
 			index: event.index,
-			sticky: event.sticky
+			sticky: event.sticky,
+			batchId: this.currentRecentlyClosedEditorsBatchId()
 		});
 
 		// Bounding
@@ -704,13 +719,29 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.canReopenClosedEditorContextKey.set(true);
 	}
 
+	private currentRecentlyClosedEditorsBatchId(): number {
+
+		// All editors that are closed within the same synchronous turn
+		// (e.g. "Close All Editors" or "Close Others") share the same batch
+		// identifier so that they are reopened together. We open a new batch
+		// on the first close event and reset it on the next microtask, after
+		// all synchronously fired close events have been handled.
+		if (!this.recentlyClosedEditorsBatchScheduled) {
+			this.recentlyClosedEditorsBatchScheduled = true;
+			this.recentlyClosedEditorsBatchId++;
+			queueMicrotask(() => this.recentlyClosedEditorsBatchScheduled = false);
+		}
+
+		return this.recentlyClosedEditorsBatchId;
+	}
+
 	async reopenLastClosedEditor(): Promise<void> {
 
-		// Open editor if we have one
-		const lastClosedEditor = this.recentlyClosedEditors.pop();
+		// Reopen the last batch of editors that were closed together
+		const lastClosedEditors = this.takeLastClosedEditorsBatch();
 		let reopenClosedEditorPromise: Promise<void> | undefined = undefined;
-		if (lastClosedEditor) {
-			reopenClosedEditorPromise = this.doReopenLastClosedEditor(lastClosedEditor);
+		if (lastClosedEditors.length) {
+			reopenClosedEditorPromise = this.doReopenLastClosedEditors(lastClosedEditors);
 		}
 
 		// Update context
@@ -719,7 +750,44 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return reopenClosedEditorPromise;
 	}
 
-	private async doReopenLastClosedEditor(lastClosedEditor: IRecentlyClosedEditor): Promise<void> {
+	private takeLastClosedEditorsBatch(): IRecentlyClosedEditor[] {
+		const lastClosedEditor = this.recentlyClosedEditors.at(-1);
+		if (!lastClosedEditor) {
+			return [];
+		}
+
+		// Collect all trailing editors that belong to the same batch. They are
+		// contiguous at the end of the list because editors are appended in the
+		// order they are closed.
+		const batch: IRecentlyClosedEditor[] = [];
+		while (this.recentlyClosedEditors.length && this.recentlyClosedEditors[this.recentlyClosedEditors.length - 1].batchId === lastClosedEditor.batchId) {
+			batch.unshift(this.recentlyClosedEditors.pop()!);
+		}
+
+		return batch;
+	}
+
+	private async doReopenLastClosedEditors(lastClosedEditors: IRecentlyClosedEditor[]): Promise<void> {
+
+		// Reopen all editors of the batch in the order they were originally closed
+		let anyReopened = false;
+		for (const lastClosedEditor of lastClosedEditors) {
+			const editorPane = await this.doReopenLastClosedEditor(lastClosedEditor);
+			if (editorPane) {
+				anyReopened = true;
+			}
+		}
+
+		// Fix for https://github.com/microsoft/vscode/issues/67882
+		// If none of the editors in the batch could be reopened, make sure to
+		// try the previous batch. The failing editors have already been removed
+		// from the list of recently closed editors to prevent endless loops.
+		if (!anyReopened && this.recentlyClosedEditors.length) {
+			return this.reopenLastClosedEditor();
+		}
+	}
+
+	private async doReopenLastClosedEditor(lastClosedEditor: IRecentlyClosedEditor): Promise<IEditorPane | undefined> {
 		const options: IEditorOptions = { pinned: true, sticky: lastClosedEditor.sticky, index: lastClosedEditor.index, ignoreError: true };
 
 		// Special sticky handling: remove the index property from options
@@ -756,18 +824,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			}
 		}
 
-		// If no editor was opened, try with the next one
-		if (!editorPane) {
-
-			// Fix for https://github.com/microsoft/vscode/issues/67882
-			// If opening of the editor fails, make sure to try the next one
-			// but make sure to remove this one from the list to prevent
-			// endless loops.
-			remove(this.recentlyClosedEditors, lastClosedEditor);
-
-			// Try with next one
-			this.reopenLastClosedEditor();
-		}
+		return editorPane;
 	}
 
 	private removeFromRecentlyClosedEditors(arg1: EditorInput | FileChangesEvent | FileOperationEvent): void {
@@ -800,7 +857,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private history: Array<EditorInput | IResourceEditorInput> | undefined = undefined;
 
-	private readonly editorHistoryListeners = new Map<EditorInput, DisposableStore>();
+	private readonly editorHistoryListeners = this._register(new DisposableMap<EditorInput, DisposableStore>());
 
 	private readonly resourceExcludeMatcher = this._register(new WindowIdleValue(mainWindow, () => {
 		const matcher = this._register(this.instantiationService.createInstance(
@@ -980,10 +1037,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	clearRecentlyOpened(): void {
 		this.history = [];
 
-		for (const [, disposable] of this.editorHistoryListeners) {
-			dispose(disposable);
-		}
-		this.editorHistoryListeners.clear();
+		this.editorHistoryListeners.clearAndDisposeAll();
 	}
 
 	getHistory(): readonly (EditorInput | IResourceEditorInput)[] {
@@ -1434,8 +1488,8 @@ export class EditorNavigationStack extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private readonly mapEditorToDisposable = new Map<EditorInput, DisposableStore>();
-	private readonly mapGroupToDisposable = new Map<GroupIdentifier, IDisposable>();
+	private readonly mapEditorToDisposable = this._register(new DisposableMap<EditorInput, DisposableStore>());
+	private readonly mapGroupToDisposable = this._register(new DisposableMap<GroupIdentifier, IDisposable>);
 
 	private readonly editorHelper: EditorHelper;
 
@@ -1444,7 +1498,7 @@ export class EditorNavigationStack extends Disposable {
 	private index = -1;
 	private previousIndex = -1;
 
-	private navigating: boolean = false;
+	private navigating = false;
 
 	private currentSelectionState: EditorSelectionState | undefined = undefined;
 
@@ -1476,6 +1530,9 @@ export class EditorNavigationStack extends Disposable {
 	private registerListeners(): void {
 		this._register(this.onDidChange(() => this.traceStack()));
 		this._register(this.logService.onDidChangeLogLevel(() => this.traceStack()));
+		this._register(this.editorGroupService.onDidRemoveGroup(group => {
+			this.mapGroupToDisposable.deleteAndDispose(group.id);
+		}));
 	}
 
 	private traceStack(): void {
@@ -1807,8 +1864,7 @@ ${entryLabels.join('\n')}
 
 		// Clear group listener
 		if (typeof arg1 === 'number') {
-			this.mapGroupToDisposable.get(arg1)?.dispose();
-			this.mapGroupToDisposable.delete(arg1);
+			this.mapGroupToDisposable.deleteAndDispose(arg1);
 		}
 
 		// Event
@@ -1836,21 +1892,14 @@ ${entryLabels.join('\n')}
 		this.previousIndex = -1;
 		this.stack.splice(0);
 
-		for (const [, disposable] of this.mapEditorToDisposable) {
-			dispose(disposable);
-		}
-		this.mapEditorToDisposable.clear();
-
-		for (const [, disposable] of this.mapGroupToDisposable) {
-			dispose(disposable);
-		}
-		this.mapGroupToDisposable.clear();
+		this.mapEditorToDisposable.clearAndDisposeAll();
+		this.mapGroupToDisposable.clearAndDisposeAll();
 	}
 
 	override dispose(): void {
-		super.dispose();
-
 		this.clear();
+
+		super.dispose();
 	}
 
 	//#endregion
@@ -2132,7 +2181,7 @@ class EditorHelper {
 		return editorPane.input ? identifier.editor.matches(editorPane.input) : false;
 	}
 
-	onEditorDispose(editor: EditorInput, listener: Function, mapEditorToDispose: Map<EditorInput, DisposableStore>): void {
+	onEditorDispose(editor: EditorInput, listener: Function, mapEditorToDispose: DisposableMap<EditorInput, DisposableStore>): void {
 		const toDispose = Event.once(editor.onWillDispose)(() => listener());
 
 		let disposables = mapEditorToDispose.get(editor);
@@ -2144,15 +2193,11 @@ class EditorHelper {
 		disposables.add(toDispose);
 	}
 
-	clearOnEditorDispose(editor: EditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent, mapEditorToDispose: Map<EditorInput, DisposableStore>): void {
+	clearOnEditorDispose(editor: EditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent, mapEditorToDispose: DisposableMap<EditorInput, DisposableStore>): void {
 		if (!isEditorInput(editor)) {
 			return; // only supported when passing in an actual editor input
 		}
 
-		const disposables = mapEditorToDispose.get(editor);
-		if (disposables) {
-			dispose(disposables);
-			mapEditorToDispose.delete(editor);
-		}
+		mapEditorToDispose.deleteAndDispose(editor);
 	}
 }

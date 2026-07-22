@@ -8,13 +8,15 @@ import { applyFontInfo } from '../../../../config/domFontInfo.js';
 import { ICodeEditor } from '../../../../editorBrowser.js';
 import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById } from '../../../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../../../common/config/fontInfo.js';
+import { Position } from '../../../../../common/core/position.js';
 import { StringBuilder } from '../../../../../common/core/stringBuilder.js';
 import { ModelLineProjectionData } from '../../../../../common/modelLineProjectionData.js';
 import { IViewLineTokens, LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
-import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, ForeignElementType, RenderLineInput, RenderLineOutput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
 import { ViewLineRenderingData } from '../../../../../common/viewModel.js';
 import { InlineDecoration } from '../../../../../common/viewModel/inlineDecorations.js';
+import { getColumnOfNodeOffset } from '../../../../viewParts/viewLines/viewLine.js';
 
 const ttPolicy = createTrustedTypesPolicy('diffEditorWidget', { createHTML: value => value });
 
@@ -27,6 +29,7 @@ export function renderLines(source: LineSource, options: RenderOptions, decorati
 	let maxCharsPerLine = 0;
 	let renderedLineCount = 0;
 	const viewLineCounts: number[] = [];
+	const renderOutputs: RenderLineOutputWithOffset[] = [];
 	for (let lineIndex = 0; lineIndex < source.lineTokens.length; lineIndex++) {
 		const lineNumber = lineIndex + 1;
 		const lineTokens = source.lineTokens[lineIndex];
@@ -37,7 +40,7 @@ export function renderLines(source: LineSource, options: RenderOptions, decorati
 			let lastBreakOffset = 0;
 			for (const breakOffset of lineBreakData.breakOffsets) {
 				const viewLineTokens = lineTokens.sliceAndInflate(lastBreakOffset, breakOffset, 0);
-				maxCharsPerLine = Math.max(maxCharsPerLine, renderOriginalLine(
+				const result = renderOriginalLine(
 					renderedLineCount,
 					viewLineTokens,
 					LineDecoration.extractWrapped(actualDecorations, lastBreakOffset, breakOffset),
@@ -47,14 +50,16 @@ export function renderLines(source: LineSource, options: RenderOptions, decorati
 					options,
 					sb,
 					noExtra,
-				));
+				);
+				maxCharsPerLine = Math.max(maxCharsPerLine, result.maxCharWidth);
+				renderOutputs.push(new RenderLineOutputWithOffset(result.output.characterMapping, result.output.containsForeignElements, lastBreakOffset));
 				renderedLineCount++;
 				lastBreakOffset = breakOffset;
 			}
 			viewLineCounts.push(lineBreakData.breakOffsets.length);
 		} else {
 			viewLineCounts.push(1);
-			maxCharsPerLine = Math.max(maxCharsPerLine, renderOriginalLine(
+			const result = renderOriginalLine(
 				renderedLineCount,
 				lineTokens,
 				actualDecorations,
@@ -64,7 +69,9 @@ export function renderLines(source: LineSource, options: RenderOptions, decorati
 				options,
 				sb,
 				noExtra,
-			));
+			);
+			maxCharsPerLine = Math.max(maxCharsPerLine, result.maxCharWidth);
+			renderOutputs.push(new RenderLineOutputWithOffset(result.output.characterMapping, result.output.containsForeignElements, 0));
 			renderedLineCount++;
 		}
 	}
@@ -75,13 +82,14 @@ export function renderLines(source: LineSource, options: RenderOptions, decorati
 	domNode.innerHTML = trustedhtml as string;
 	const minWidthInPx = (maxCharsPerLine * options.typicalHalfwidthCharacterWidth);
 
-	return {
-		heightInLines: renderedLineCount,
+	return new RenderLinesResult(
+		renderedLineCount,
 		minWidthInPx,
 		viewLineCounts,
-	};
+		renderOutputs,
+		source,
+	);
 }
-
 
 export class LineSource {
 	constructor(
@@ -170,10 +178,83 @@ export class RenderOptions {
 	}
 }
 
-export interface RenderLinesResult {
-	minWidthInPx: number;
-	heightInLines: number;
-	viewLineCounts: number[];
+export class RenderLinesResult {
+	constructor(
+		public readonly heightInLines: number,
+		public readonly minWidthInPx: number,
+		public readonly viewLineCounts: number[],
+		private readonly _renderOutputs: RenderLineOutputWithOffset[],
+		private readonly _source: LineSource,
+	) { }
+
+	/**
+	 * Returns the model position for a given DOM node and offset within that node.
+	 * @param domNode The span node within a view-line where the offset is located
+	 * @param offset The offset within the span node
+	 * @returns The Position in the model, or undefined if the position cannot be determined
+	 */
+	public getModelPositionAt(domNode: HTMLElement, offset: number): Position | undefined {
+		// Find the view-line element that contains this span
+		let viewLineElement: HTMLElement | null = domNode;
+		while (viewLineElement && !viewLineElement.classList.contains('view-line')) {
+			viewLineElement = viewLineElement.parentElement;
+		}
+
+		if (!viewLineElement) {
+			return undefined;
+		}
+
+		// Find the container that has all view lines
+		const container = viewLineElement.parentElement;
+		if (!container) {
+			return undefined;
+		}
+
+		// Find the view line index based on the element
+		// eslint-disable-next-line no-restricted-syntax
+		const viewLines = container.querySelectorAll('.view-line');
+		let viewLineIndex = -1;
+		for (let i = 0; i < viewLines.length; i++) {
+			if (viewLines[i] === viewLineElement) {
+				viewLineIndex = i;
+				break;
+			}
+		}
+
+		if (viewLineIndex === -1 || viewLineIndex >= this._renderOutputs.length) {
+			return undefined;
+		}
+
+		// Map view line index back to model line
+		let modelLineNumber = 1;
+		let remainingViewLines = viewLineIndex;
+		for (let i = 0; i < this.viewLineCounts.length; i++) {
+			if (remainingViewLines < this.viewLineCounts[i]) {
+				modelLineNumber = i + 1;
+				break;
+			}
+			remainingViewLines -= this.viewLineCounts[i];
+		}
+
+		if (modelLineNumber > this._source.lineTokens.length) {
+			return undefined;
+		}
+
+		const renderOutput = this._renderOutputs[viewLineIndex];
+		if (!renderOutput) {
+			return undefined;
+		}
+
+		const column = getColumnOfNodeOffset(renderOutput.characterMapping, domNode, offset) + renderOutput.offset;
+
+		return new Position(modelLineNumber, column);
+	}
+}
+
+class RenderLineOutputWithOffset extends RenderLineOutput {
+	constructor(characterMapping: CharacterMapping, containsForeignElements: ForeignElementType, public readonly offset: number) {
+		super(characterMapping, containsForeignElements);
+	}
 }
 
 function renderOriginalLine(
@@ -186,7 +267,7 @@ function renderOriginalLine(
 	options: RenderOptions,
 	sb: StringBuilder,
 	noExtra: boolean,
-): number {
+): { output: RenderLineOutput; maxCharWidth: number } {
 
 	sb.appendString('<div class="view-line');
 	if (!noExtra && !hasCharChanges) {
@@ -230,5 +311,6 @@ function renderOriginalLine(
 
 	sb.appendString('</div>');
 
-	return output.characterMapping.getHorizontalOffset(output.characterMapping.length);
+	const maxCharWidth = output.characterMapping.getHorizontalOffset(output.characterMapping.length);
+	return { output, maxCharWidth };
 }

@@ -8,7 +8,7 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel, ConfigurationModelParser, mergeChanges } from '../../common/configurationModels.js';
-import { IConfigurationRegistry, Extensions, ConfigurationScope } from '../../common/configurationRegistry.js';
+import { IConfigurationRegistry, Extensions, ConfigurationScope, IConfigurationNode } from '../../common/configurationRegistry.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { Registry } from '../../../registry/common/platform.js';
 import { WorkspaceFolder } from '../../../workspace/common/workspace.js';
@@ -107,7 +107,7 @@ suite('ConfigurationModelParser - Excluded Properties', () => {
 
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
-	let testConfigurationNodes: any[] = [];
+	let testConfigurationNodes: IConfigurationNode[] = [];
 
 	setup(() => reset());
 	teardown(() => reset());
@@ -393,11 +393,11 @@ suite('ConfigurationModel', () => {
 
 		testObject.setValue('b.c', 1);
 
-		const expected: any = {};
+		const expected: Record<string, unknown> = {};
 		expected['a'] = { 'b': 1 };
 		expected['f'] = 1;
 		expected['b'] = Object.create(null);
-		expected['b']['c'] = 1;
+		(expected['b'] as Record<string, unknown>)['c'] = 1;
 		assert.deepStrictEqual(testObject.contents, expected);
 		assert.deepStrictEqual(testObject.keys, ['a.b', 'f', 'b.c']);
 	});
@@ -508,7 +508,7 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration if the value of overriding identifier is not object', () => {
 		const testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': { 'g': 1 } }, [],
-			[{ identifiers: ['c'], contents: 'abc', keys: [] }], [], new NullLogService());
+			[{ identifiers: ['c'], contents: 'abc' as unknown as Record<string, unknown>, keys: [] }], [], new NullLogService());
 
 		assert.deepStrictEqual(testObject.override('c').contents, { 'a': { 'b': 1 }, 'f': { 'g': 1 } });
 	});
@@ -992,7 +992,7 @@ suite('Configuration', () => {
 
 	});
 
-	function parseConfigurationModel(content: any): ConfigurationModel {
+	function parseConfigurationModel(content: Record<string, unknown>): ConfigurationModel {
 		const parser = new ConfigurationModelParser('test', new NullLogService());
 		parser.parse(JSON.stringify(content));
 		return parser.configurationModel;
@@ -1601,7 +1601,7 @@ suite('Configuration.Parse', () => {
 
 });
 
-function toConfigurationModel(obj: any): ConfigurationModel {
+function toConfigurationModel(obj: Record<string, unknown>): ConfigurationModel {
 	const parser = new ConfigurationModelParser('test', new NullLogService());
 	parser.parse(JSON.stringify(obj));
 	return parser.configurationModel;

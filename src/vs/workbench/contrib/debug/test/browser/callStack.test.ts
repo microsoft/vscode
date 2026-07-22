@@ -8,12 +8,14 @@ import * as sinon from 'sinon';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Constants } from '../../../../../base/common/uint.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { upcastDeepPartial, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { createDecorationsForStackFrame } from '../../browser/callStackEditorContribution.js';
 import { getContext, getContextForContributedActions, getSpecificSourceName } from '../../browser/callStackView.js';
 import { debugStackframe, debugStackframeFocused } from '../../browser/debugIcons.js';
@@ -22,16 +24,17 @@ import { DebugSession } from '../../browser/debugSession.js';
 import { IDebugService, IDebugSessionOptions, State } from '../../common/debug.js';
 import { DebugModel, StackFrame, Thread } from '../../common/debugModel.js';
 import { Source } from '../../common/debugSource.js';
-import { createMockDebugModel, mockUriIdentityService } from './mockDebugModel.js';
 import { MockRawSession } from '../common/mockDebug.js';
+import { createMockDebugModel, mockUriIdentityService } from './mockDebugModel.js';
+import { RawDebugSession } from '../../browser/rawDebugSession.js';
 
-const mockWorkspaceContextService = {
+const mockWorkspaceContextService = upcastDeepPartial<IWorkspaceContextService>({
 	getWorkspace: () => {
 		return {
 			folders: []
 		};
 	}
-} as any;
+});
 
 export function createTestSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
 	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, options, {
@@ -120,7 +123,7 @@ suite('Debug - CallStack', () => {
 		disposables.add(session);
 		model.addSession(session);
 
-		session['raw'] = <any>mockRawSession;
+		session.raw = upcastPartial<RawDebugSession>(mockRawSession);
 
 		model.rawUpdate({
 			sessionId: session.getId(),
@@ -201,7 +204,7 @@ suite('Debug - CallStack', () => {
 		disposables.add(session);
 		model.addSession(session);
 
-		session['raw'] = <any>mockRawSession;
+		session.raw = upcastPartial<RawDebugSession>(mockRawSession);
 
 		// Stopped event with all threads stopped
 		model.rawUpdate({
@@ -255,7 +258,7 @@ suite('Debug - CallStack', () => {
 		disposables.add(session);
 		model.addSession(session);
 
-		session['raw'] = <any>mockRawSession;
+		session.raw = upcastPartial<RawDebugSession>(mockRawSession);
 
 		// Add the threads
 		model.rawUpdate({
@@ -412,19 +415,19 @@ suite('Debug - CallStack', () => {
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
 		let context = getContext(firstStackFrame);
-		assert.strictEqual(context.sessionId, firstStackFrame.thread.session.getId());
-		assert.strictEqual(context.threadId, firstStackFrame.thread.getId());
-		assert.strictEqual(context.frameId, firstStackFrame.getId());
+		assert.strictEqual(context?.sessionId, firstStackFrame.thread.session.getId());
+		assert.strictEqual(context?.threadId, firstStackFrame.thread.getId());
+		assert.strictEqual(context?.frameId, firstStackFrame.getId());
 
 		context = getContext(secondStackFrame.thread);
-		assert.strictEqual(context.sessionId, secondStackFrame.thread.session.getId());
-		assert.strictEqual(context.threadId, secondStackFrame.thread.getId());
-		assert.strictEqual(context.frameId, undefined);
+		assert.strictEqual(context?.sessionId, secondStackFrame.thread.session.getId());
+		assert.strictEqual(context?.threadId, secondStackFrame.thread.getId());
+		assert.strictEqual(context?.frameId, undefined);
 
 		context = getContext(session);
-		assert.strictEqual(context.sessionId, session.getId());
-		assert.strictEqual(context.threadId, undefined);
-		assert.strictEqual(context.frameId, undefined);
+		assert.strictEqual(context?.sessionId, session.getId());
+		assert.strictEqual(context?.threadId, undefined);
+		assert.strictEqual(context?.frameId, undefined);
 
 		let contributedContext = getContextForContributedActions(firstStackFrame);
 		assert.strictEqual(contributedContext, firstStackFrame.source.raw.path);
@@ -454,7 +457,7 @@ suite('Debug - CallStack', () => {
 		model.addSession(runningSession);
 		model.addSession(session);
 
-		session['raw'] = <any>mockRawSession;
+		session.raw = upcastPartial<RawDebugSession>(mockRawSession);
 
 		model.rawUpdate({
 			sessionId: session.getId(),

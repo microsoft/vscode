@@ -9,7 +9,7 @@ var updateGrammar = require('vscode-grammar-updater');
 function adaptJSON(grammar, name, replacementScope, replaceeScope = 'json') {
 	grammar.name = name;
 	grammar.scopeName = `source${replacementScope}`;
-	const regex = new RegExp(`\.${replaceeScope}`, 'g');
+	const regex = new RegExp(`\\.${replaceeScope}`, 'g');
 	var fixScopeNames = function (rule) {
 		if (typeof rule.name === 'string') {
 			rule.name = rule.name.replace(regex, replacementScope);

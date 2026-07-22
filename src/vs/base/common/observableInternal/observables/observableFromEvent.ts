@@ -48,6 +48,7 @@ export function observableFromEvent(...args:
 export function observableFromEventOpts<T, TArgs = unknown>(
 	options: IDebugNameData & {
 		equalsFn?: EqualityComparer<T>;
+		getTransaction?: () => ITransaction | undefined;
 	},
 	event: Event<TArgs>,
 	getValue: (args: TArgs | undefined) => T,
@@ -56,7 +57,10 @@ export function observableFromEventOpts<T, TArgs = unknown>(
 	return new FromEventObservable(
 		new DebugNameData(options.owner, options.debugName, options.debugReferenceFn ?? getValue),
 		event,
-		getValue, () => FromEventObservable.globalTransaction, options.equalsFn ?? strictEquals, debugLocation
+		getValue,
+		() => options.getTransaction?.() ?? FromEventObservable.globalTransaction,
+		options.equalsFn ?? strictEquals,
+		debugLocation
 	);
 }
 
@@ -148,6 +152,7 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 	}
 
 	public debugSetValue(value: unknown): void {
+		// eslint-disable-next-line local/code-no-any-casts
 		this._value = value as any;
 	}
 

@@ -65,6 +65,7 @@ export interface IRemoteAgentConnection {
 	withChannel<T extends IChannel, R>(channelName: string, callback: (channel: T) => Promise<R>): Promise<R>;
 	registerChannel<T extends IServerChannel<RemoteAgentConnectionContext>>(channelName: string, channel: T): void;
 	getInitialConnectionTimeMs(): Promise<number>;
+	updateGraceTime(graceTime: number): void;
 }
 
 export interface IRemoteConnectionLatencyMeasurement {

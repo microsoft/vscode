@@ -43,7 +43,11 @@ CommandsRegistry.registerCommand('_executeDocumentColorProvider', function (acce
 
 CommandsRegistry.registerCommand('_executeColorPresentationProvider', function (accessor, ...args) {
 	const [color, context] = args;
-	const { uri, range } = context;
+	if (!context) {
+		return;
+	}
+
+	const { uri, range } = context as { uri?: unknown; range?: unknown };
 	if (!(uri instanceof URI) || !Array.isArray(color) || color.length !== 4 || !Range.isIRange(range)) {
 		throw illegalArgument();
 	}

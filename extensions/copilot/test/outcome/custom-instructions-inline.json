@@ -1,0 +1,26 @@
+[
+	{
+		"name": "custom instructions [inline] - Custom instructions for language",
+		"requests": [
+			"35cd240996bf27960c8e054f7cb292da577f8a10ed9946c611c92744ee1a906c"
+		]
+	},
+	{
+		"name": "custom instructions [inline] - Custom instructions from file",
+		"requests": [
+			"0972b0d987494609cc9cf56c10035688e8cd566ccf06a71efb5519189b80c1ef"
+		]
+	},
+	{
+		"name": "custom instructions [inline] - Custom instructions not applicable to language",
+		"requests": [
+			"c5a2834c4fd60c1be2f76a3001a371ede217c55a49148a6f1a92e0b00ec83e67"
+		]
+	},
+	{
+		"name": "custom instructions [inline] - Custom instructions with missing file",
+		"requests": [
+			"631aeb93cfea2293d7fe869b84d7bb74bf9c1baceaedc26fec3bdb4313034259"
+		]
+	}
+]

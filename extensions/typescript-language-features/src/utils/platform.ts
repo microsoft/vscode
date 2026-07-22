@@ -10,9 +10,9 @@ export function isWeb(): boolean {
 }
 
 export function isWebAndHasSharedArrayBuffers(): boolean {
-	return isWeb() && (globalThis as any)['crossOriginIsolated'];
+	return isWeb() && !!(globalThis as Record<string, unknown>)['crossOriginIsolated'];
 }
 
 export function supportsReadableByteStreams(): boolean {
-	return isWeb() && 'ReadableByteStreamController' in globalThis;
+	return isWeb() && typeof ReadableByteStreamController !== 'undefined';
 }

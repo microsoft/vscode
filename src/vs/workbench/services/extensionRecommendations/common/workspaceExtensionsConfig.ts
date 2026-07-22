@@ -34,7 +34,7 @@ export const IWorkspaceExtensionsConfigService = createDecorator<IWorkspaceExten
 export interface IWorkspaceExtensionsConfigService {
 	readonly _serviceBrand: undefined;
 
-	onDidChangeExtensionsConfigs: Event<void>;
+	readonly onDidChangeExtensionsConfigs: Event<void>;
 	getExtensionsConfigs(): Promise<IExtensionsConfigContent[]>;
 	getRecommendations(): Promise<string[]>;
 	getUnwantedRecommendations(): Promise<string[]>;

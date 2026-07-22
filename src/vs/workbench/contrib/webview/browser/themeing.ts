@@ -6,9 +6,11 @@
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions, EditorFontLigatures } from '../../../../editor/common/config/editorOptions.js';
+import { IEditorOptions, EditorFontLigatures } from '../../../../editor/common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import * as colorRegistry from '../../../../platform/theme/common/colorRegistry.js';
+import { getSizeRegistry, sizeValueToCss } from '../../../../platform/theme/common/sizeRegistry.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { IWorkbenchColorTheme, IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 import { WebviewStyles } from './webview.js';
@@ -67,6 +69,15 @@ export class WebviewThemeDataProvider extends Disposable {
 				return colors;
 			}, {});
 
+			const sizeRegistry = getSizeRegistry();
+			const exportedSizes = sizeRegistry.getSizes().reduce<Record<string, string>>((sizes, entry) => {
+				const sizeValue = sizeRegistry.resolveDefaultSize(entry.id, theme);
+				if (sizeValue) {
+					sizes['vscode-' + entry.id.replace(/\./g, '-')] = sizeValueToCss(sizeValue);
+				}
+				return sizes;
+			}, {});
+
 			const styles = {
 				'vscode-font-family': DEFAULT_FONT_FAMILY,
 				'vscode-font-weight': 'normal',
@@ -76,6 +87,7 @@ export class WebviewThemeDataProvider extends Disposable {
 				'vscode-editor-font-size': editorFontSize + 'px',
 				'text-link-decoration': linkUnderlines ? 'underline' : 'none',
 				...exportedColors,
+				...exportedSizes,
 				'vscode-editor-font-feature-settings': editorFontLigatures,
 			};
 

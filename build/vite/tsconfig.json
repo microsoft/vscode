@@ -1,0 +1,11 @@
+{
+	"compilerOptions": {
+		"allowImportingTsExtensions": true,
+		"checkJs": true,
+		"module": "preserve",
+		"noEmit": true,
+		"strict": true,
+		"experimentalDecorators": true,
+		"types": ["vite/client"]
+	}
+}

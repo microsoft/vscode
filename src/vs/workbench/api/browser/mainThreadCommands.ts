@@ -78,7 +78,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		}
 	}
 
-	async $executeCommand<T>(id: string, args: any[] | SerializableObjectWithBuffers<any[]>, retry: boolean): Promise<T | undefined> {
+	async $executeCommand<T>(id: string, args: unknown[] | SerializableObjectWithBuffers<unknown[]>, retry: boolean): Promise<T | undefined> {
 		if (args instanceof SerializableObjectWithBuffers) {
 			args = args.value;
 		}

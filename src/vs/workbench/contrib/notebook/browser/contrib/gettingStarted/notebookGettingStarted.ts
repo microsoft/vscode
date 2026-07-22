@@ -24,6 +24,11 @@ import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecyc
 const hasOpenedNotebookKey = 'hasOpenedNotebook';
 const hasShownGettingStartedKey = 'hasShownNotebookGettingStarted';
 
+interface INotebookGettingStartedMemento {
+	hasOpenedNotebook?: boolean;
+	hasShownNotebookGettingStarted?: boolean;
+}
+
 /**
  * Sets a context key when a notebook has ever been opened by the user
  */
@@ -39,7 +44,7 @@ export class NotebookGettingStarted extends Disposable implements IWorkbenchCont
 		super();
 
 		const hasOpenedNotebook = HAS_OPENED_NOTEBOOK.bindTo(_contextKeyService);
-		const memento = new Memento('notebookGettingStarted2', _storageService);
+		const memento = new Memento<INotebookGettingStartedMemento>('notebookGettingStarted2', _storageService);
 		const storedValue = memento.getMemento(StorageScope.PROFILE, StorageTarget.USER);
 		if (storedValue[hasOpenedNotebookKey]) {
 			hasOpenedNotebook.set(true);
@@ -89,7 +94,7 @@ registerAction2(class NotebookClearNotebookLayoutAction extends Action2 {
 	}
 	run(accessor: ServicesAccessor): void {
 		const storageService = accessor.get(IStorageService);
-		const memento = new Memento('notebookGettingStarted', storageService);
+		const memento = new Memento<INotebookGettingStartedMemento>('notebookGettingStarted', storageService);
 
 		const storedValue = memento.getMemento(StorageScope.PROFILE, StorageTarget.USER);
 		storedValue[hasOpenedNotebookKey] = undefined;

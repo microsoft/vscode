@@ -36,6 +36,6 @@ suite('Markdown Document Renderer Test', () => {
 			}
 		});
 
-		assert.strictEqual(result.toString(), `<p><img alt="alt" src="src/img.png"></p>\n`);
+		assert.strictEqual(result.toString(), `<p><img src="src/img.png" alt="alt"></p>\n`);
 	});
 });

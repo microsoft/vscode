@@ -7,24 +7,22 @@
 .monaco-editor .find-widget {
 	position: absolute;
 	z-index: 35;
-	height: 33px;
+	height: 34px;
 	overflow: hidden;
 	line-height: 19px;
 	transition: transform 200ms linear;
-	padding: 0 4px;
+	padding: 0 4px 0 9px;
+	margin-top: 4px;
 	box-sizing: border-box;
 	transform: translateY(calc(-100% - 10px)); /* shadow (10px) */
-	box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-lg);
 	color: var(--vscode-editorWidget-foreground);
-	border-left: 1px solid var(--vscode-widget-border);
-	border-right: 1px solid var(--vscode-widget-border);
-	border-bottom: 1px solid var(--vscode-widget-border);
-	border-bottom-left-radius: 4px;
-	border-bottom-right-radius: 4px;
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-editorWidget-background);
 }
 
-.monaco-workbench.reduce-motion .monaco-editor .find-widget {
+.monaco-reduce-motion .monaco-editor .find-widget {
 	transition: transform 0ms linear;
 }
 
@@ -41,7 +39,7 @@
 	display: flex;
 }
 
-.monaco-editor .find-widget.visible  {
+.monaco-editor .find-widget.visible {
 	transform: translateY(0);
 }
 
@@ -101,7 +99,7 @@
 .monaco-editor .find-widget .monaco-findInput {
 	vertical-align: middle;
 	display: flex;
-	flex:1;
+	flex: 1;
 }
 
 .monaco-editor .find-widget .monaco-findInput .monaco-scrollable-element {
@@ -151,8 +149,7 @@
 }
 
 .monaco-editor .find-widget .button.left {
-	margin-left: 0;
-	margin-right: 3px;
+	margin: 4px 0 4px 5px;
 }
 
 .monaco-editor .find-widget .button.wide {
@@ -164,10 +161,10 @@
 .monaco-editor .find-widget .button.toggle {
 	position: absolute;
 	top: 0;
-	left: 3px;
+	left: 0;
 	width: 18px;
-	height: 100%;
-	border-radius: 0;
+	height: -webkit-fill-available;
+	border-radius: var(--vscode-cornerRadius-small);
 	box-sizing: border-box;
 }
 
@@ -201,7 +198,7 @@
 
 /* REDUCED */
 .monaco-editor .find-widget.reduced-find-widget .matchesCount {
-	display:none;
+	display: none;
 }
 
 /* NARROW (SMALLER THAN REDUCED) */
@@ -219,7 +216,7 @@
 .monaco-editor .find-widget.collapsed-find-widget .button.replace,
 .monaco-editor .find-widget.collapsed-find-widget .button.replace-all,
 .monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-findInput .controls {
-	display:none;
+	display: none;
 }
 
 .monaco-editor .find-widget.no-results .matchesCount {

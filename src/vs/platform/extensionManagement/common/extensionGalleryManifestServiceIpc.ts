@@ -5,7 +5,8 @@
 
 import { Barrier } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IPCServer } from '../../../base/parts/ipc/common/ipc.js';
+import { IChannelServer } from '../../../base/parts/ipc/common/ipc.js';
+import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from './extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from './extensionGalleryManifestService.js';
@@ -28,12 +29,14 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 	}
 
 	constructor(
-		server: IPCServer<any>,
-		@IProductService productService: IProductService
+		server: IChannelServer<unknown>,
+		@ILogService private readonly logService: ILogService,
+		@IProductService productService: IProductService,
 	) {
 		super(productService);
 		server.registerChannel('extensionGalleryManifest', {
 			listen: () => Event.None,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			call: async (context: any, command: string, args?: any): Promise<any> => {
 				switch (command) {
 					case 'setExtensionGalleryManifest': return Promise.resolve(this.setExtensionGalleryManifest(args[0]));
@@ -49,6 +52,7 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 	}
 
 	private setExtensionGalleryManifest(manifest: IExtensionGalleryManifest | null): void {
+		this.logService.trace(`[Marketplace] Setting manifest ${manifest ? 'available' : 'unavailable'}`);
 		this._extensionGalleryManifest = manifest;
 		this._onDidChangeExtensionGalleryManifest.fire(manifest);
 		this._onDidChangeExtensionGalleryManifestStatus.fire(this.extensionGalleryManifestStatus);

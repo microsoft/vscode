@@ -17,7 +17,7 @@ suite('escapeTerminalCompletionLabel', () => {
 		{ char: ']', label: 'abc]', expected: 'abc\\]' },
 		{ char: '(', label: '(abc', expected: '\\(abc' },
 		{ char: ')', label: 'abc)', expected: 'abc\\)' },
-		{ char: '\'', label: "'abc", expected: "\\'abc" },
+		{ char: '\'', label: `'abc`, expected: `\\'abc` },
 		{ char: '"', label: '"abc', expected: '\\"abc' },
 		{ char: '\\', label: 'abc\\', expected: 'abc\\\\' },
 		{ char: '`', label: '`abc', expected: '\\`abc' },

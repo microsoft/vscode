@@ -25,6 +25,7 @@ suite('RawDebugSession', () => {
 
 		const session = new RawDebugSession(
 			debugAdapter,
+			// eslint-disable-next-line local/code-no-any-casts
 			dbgr as any as IDebugger,
 			'sessionId',
 			'name',

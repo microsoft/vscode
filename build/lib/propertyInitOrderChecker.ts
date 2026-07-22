@@ -8,7 +8,7 @@ import * as ts from 'typescript';
 import * as path from 'path';
 import * as fs from 'fs';
 
-const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
+const TS_CONFIG_PATH = path.join(import.meta.dirname, '../../', 'src', 'tsconfig.json');
 
 //
 // #############################################################################################
@@ -22,13 +22,15 @@ const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
 // #############################################################################################
 //
 
-enum EntryKind {
-	Span,
-	Node,
-	StringLiteral,
-	SearchedLocalFoundProperty,
-	SearchedPropertyFoundLocal,
-}
+const EntryKind = Object.freeze({
+	Span: 'Span',
+	Node: 'Node',
+	StringLiteral: 'StringLiteral',
+	SearchedLocalFoundProperty: 'SearchedLocalFoundProperty',
+	SearchedPropertyFoundLocal: 'SearchedPropertyFoundLocal'
+});
+
+type EntryKind = typeof EntryKind[keyof typeof EntryKind];
 
 const cancellationToken: ts.CancellationToken = {
 	isCancellationRequested: () => false,
@@ -248,12 +250,32 @@ function* findAllReferencesInClass(node: ts.Node): Generator<ts.Node> {
 
 // NOTE: The following uses TypeScript internals and are subject to change from version to version.
 
+interface TypeScriptInternals {
+	getTouchingPropertyName(sourceFile: ts.SourceFile, position: number): ts.Node;
+	FindAllReferences: {
+		FindReferencesUse: {
+			References: number;
+		};
+		Core: {
+			getReferencedSymbolsForNode(
+				position: number,
+				node: ts.Node,
+				program: ts.Program,
+				sourceFiles: readonly ts.SourceFile[],
+				cancellationToken: ts.CancellationToken,
+				options: { use: number }
+			): readonly SymbolAndEntries[] | undefined;
+		};
+	};
+}
+
 function findAllReferences(node: ts.Node): readonly SymbolAndEntries[] {
 	const sourceFile = node.getSourceFile();
 	const position = node.getStart();
-	const name: ts.Node = (ts as any).getTouchingPropertyName(sourceFile, position);
-	const options = { use: (ts as any).FindAllReferences.FindReferencesUse.References };
-	return (ts as any).FindAllReferences.Core.getReferencedSymbolsForNode(position, name, program, [sourceFile], cancellationToken, options) ?? [];
+	const tsInternal = ts as unknown as TypeScriptInternals;
+	const name: ts.Node = tsInternal.getTouchingPropertyName(sourceFile, position);
+	const options = { use: tsInternal.FindAllReferences.FindReferencesUse.References };
+	return tsInternal.FindAllReferences.Core.getReferencedSymbolsForNode(position, name, program, [sourceFile], cancellationToken, options) ?? [];
 }
 
 interface SymbolAndEntries {
@@ -261,24 +283,25 @@ interface SymbolAndEntries {
 	readonly references: readonly Entry[];
 }
 
-const enum DefinitionKind {
-	Symbol,
-	Label,
-	Keyword,
-	This,
-	String,
-	TripleSlashReference,
-}
+const DefinitionKind = Object.freeze({
+	Symbol: 0,
+	Label: 1,
+	Keyword: 2,
+	This: 3,
+	String: 4,
+	TripleSlashReference: 5,
+});
+type DefinitionKind = typeof DefinitionKind[keyof typeof DefinitionKind];
 
 type Definition =
-	| { readonly type: DefinitionKind.Symbol; readonly symbol: ts.Symbol }
-	| { readonly type: DefinitionKind.Label; readonly node: ts.Identifier }
-	| { readonly type: DefinitionKind.Keyword; readonly node: ts.Node }
-	| { readonly type: DefinitionKind.This; readonly node: ts.Node }
-	| { readonly type: DefinitionKind.String; readonly node: ts.StringLiteralLike }
-	| { readonly type: DefinitionKind.TripleSlashReference; readonly reference: ts.FileReference; readonly file: ts.SourceFile };
+	| { readonly type: DefinitionKind; readonly symbol: ts.Symbol }
+	| { readonly type: DefinitionKind; readonly node: ts.Identifier }
+	| { readonly type: DefinitionKind; readonly node: ts.Node }
+	| { readonly type: DefinitionKind; readonly node: ts.Node }
+	| { readonly type: DefinitionKind; readonly node: ts.StringLiteralLike }
+	| { readonly type: DefinitionKind; readonly reference: ts.FileReference; readonly file: ts.SourceFile };
 
-type NodeEntryKind = EntryKind.Node | EntryKind.StringLiteral | EntryKind.SearchedLocalFoundProperty | EntryKind.SearchedPropertyFoundLocal;
+type NodeEntryKind = typeof EntryKind.Node | typeof EntryKind.StringLiteral | typeof EntryKind.SearchedLocalFoundProperty | typeof EntryKind.SearchedPropertyFoundLocal;
 type Entry = NodeEntry | SpanEntry;
 interface ContextWithStartAndEndNode {
 	start: ts.Node;
@@ -291,7 +314,7 @@ interface NodeEntry {
 	readonly context?: ContextNode;
 }
 interface SpanEntry {
-	readonly kind: EntryKind.Span;
+	readonly kind: typeof EntryKind.Span;
 	readonly fileName: string;
 	readonly textSpan: ts.TextSpan;
 }

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
 import { TSESTree } from '@typescript-eslint/utils';
-import * as ESTree from 'estree';
+import * as eslint from 'eslint';
+import type * as ESTree from 'estree';
 
-export = new class NoReaderAfterAwait implements eslint.Rule.RuleModule {
+export default new class NoReaderAfterAwait implements eslint.Rule.RuleModule {
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		return {
-			'CallExpression': (node: any) => {
+			'CallExpression': (node: ESTree.CallExpression) => {
 				const callExpression = node as TSESTree.CallExpression;
 
 				if (!isFunctionWithReader(callExpression.callee)) {
@@ -59,7 +59,7 @@ function checkFunctionForAwaitBeforeReader(
 			if (awaitPositions.length > 0) {
 				const methodName = getMethodName(node);
 				context.report({
-					node: node as any as ESTree.Node,
+					node: node,
 					message: `Reader method '${methodName}' should not be called after 'await'. The reader becomes invalid after async operations.`
 				});
 			}

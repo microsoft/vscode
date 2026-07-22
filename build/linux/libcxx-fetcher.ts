@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Can be removed once https://github.com/electron/electron-rebuild/pull/703 is available.
-
 import fs from 'fs';
 import path from 'path';
 import debug from 'debug';
 import extract from 'extract-zip';
 import { downloadArtifact } from '@electron/get';
 
-const root = path.dirname(path.dirname(__dirname));
+const root = path.dirname(path.dirname(import.meta.dirname));
 
 const d = debug('libcxx-fetcher');
 
@@ -71,7 +69,7 @@ async function main(): Promise<void> {
 	await downloadLibcxxHeaders(libcxxabiHeadersDownloadDir, electronVersion, 'libcxxabi');
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main().catch(err => {
 		console.error(err);
 		process.exit(1);

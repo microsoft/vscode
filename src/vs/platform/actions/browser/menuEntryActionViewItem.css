@@ -43,6 +43,15 @@
 	background-size: 16px;
 }
 
+.monaco-dropdown-with-default > .action-container.disabled {
+	cursor: default;
+}
+
+.monaco-dropdown-with-default > .action-container.disabled > .action-label {
+	opacity: 0.4;
+	pointer-events: none;
+}
+
 .monaco-dropdown-with-default:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }

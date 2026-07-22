@@ -18,7 +18,7 @@ export class WorkspaceTrustEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.input.workspaceTrust';
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
 	}
 
 	override get typeId(): string {

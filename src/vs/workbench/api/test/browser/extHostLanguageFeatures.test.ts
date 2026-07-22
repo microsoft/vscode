@@ -1065,6 +1065,7 @@ suite('ExtHostLanguageFeatures', function () {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
 				provideCompletionItems(): any {
+					// eslint-disable-next-line local/code-no-any-casts
 					return new types.CompletionList([<any>new types.CompletionItem('hello')], true);
 				}
 			}, []));

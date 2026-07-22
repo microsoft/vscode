@@ -9,6 +9,9 @@
 		"sourceMap": true,
 		"skipLibCheck": true,
 		"declaration": true,
+		"types": [
+			"mocha"
+		],
 		"lib": [
 			"esnext", // for #201187
 			"dom"

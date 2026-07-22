@@ -31,6 +31,8 @@ export const TERMINAL_SYMBOL_ICON_PULL_REQUEST_DONE_FOREGROUND = registerColor('
 export const TERMINAL_SYMBOL_ICON_SYMBOLIC_LINK_FILE_FOREGROUND = registerColor('terminalSymbolIcon.symbolicLinkFileForeground', SYMBOL_ICON_FILE_FOREGROUND, localize('terminalSymbolIcon.symbolicLinkFileForeground', 'The foreground color for a symbolic link file icon. These icons will appear in the terminal suggest widget.'));
 export const TERMINAL_SYMBOL_ICON_SYMBOLIC_LINK_FOLDER_FOREGROUND = registerColor('terminalSymbolIcon.symbolicLinkFolderForeground', SYMBOL_ICON_FOLDER_FOREGROUND, localize('terminalSymbolIcon.symbolicLinkFolderForeground', 'The foreground color for a symbolic link folder icon. These icons will appear in the terminal suggest widget.'));
 
+export const TERMINAL_SYMBOL_ICON_SYMBOL_TEXT_FOREGROUND = registerColor('terminalSymbolIcon.symbolText', SYMBOL_ICON_FILE_FOREGROUND, localize('terminalSymbolIcon.symbolTextForeground', 'The foreground color for a plaintext suggestion. These icons will appear in the terminal suggest widget.'));
+
 export const terminalSymbolFlagIcon = registerIcon('terminal-symbol-flag', Codicon.flag, localize('terminalSymbolFlagIcon', 'Icon for flags in the terminal suggest widget.'), TERMINAL_SYMBOL_ICON_FLAG_FOREGROUND);
 export const terminalSymbolAliasIcon = registerIcon('terminal-symbol-alias', Codicon.symbolMethod, localize('terminalSymbolAliasIcon', 'Icon for aliases in the terminal suggest widget.'), TERMINAL_SYMBOL_ICON_ALIAS_FOREGROUND);
 export const terminalSymbolEnumMember = registerIcon('terminal-symbol-option-value', Codicon.symbolEnumMember, localize('terminalSymbolOptionValue', 'Icon for enum members in the terminal suggest widget.'), TERMINAL_SYMBOL_ICON_OPTION_VALUE_FOREGROUND);
@@ -51,3 +53,5 @@ export const terminalSymbolPullRequestDoneIcon = registerIcon('terminal-symbol-p
 
 export const terminalSymbolSymbolicLinkFileIcon = registerIcon('terminal-symbol-symbolic-link-file', Codicon.fileSymlinkFile, localize('terminalSymbolSymbolicLinkFileIcon', 'Icon for symbolic link files in the terminal suggest widget.'), TERMINAL_SYMBOL_ICON_SYMBOLIC_LINK_FILE_FOREGROUND);
 export const terminalSymbolSymbolicLinkFolderIcon = registerIcon('terminal-symbol-symbolic-link-folder', Codicon.fileSymlinkDirectory, localize('terminalSymbolSymbolicLinkFolderIcon', 'Icon for symbolic link folders in the terminal suggest widget.'), TERMINAL_SYMBOL_ICON_SYMBOLIC_LINK_FOLDER_FOREGROUND);
+
+export const terminalSymbolSymbolTextIcon = registerIcon('terminal-symbol-symbol-text', Codicon.symbolKey, localize('terminalSymbolSymboTextIcon', 'Icon for plain text suggestions in the terminal suggest widget.'), TERMINAL_SYMBOL_ICON_SYMBOL_TEXT_FOREGROUND);

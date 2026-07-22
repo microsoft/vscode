@@ -90,7 +90,8 @@ export const enum VSCodeOscPt {
 
 export const enum VSCodeOscProperty {
 	Task = 'Task',
-	Cwd = 'Cwd'
+	Cwd = 'Cwd',
+	HasRichCommandDetection = 'HasRichCommandDetection',
 }
 
 /**

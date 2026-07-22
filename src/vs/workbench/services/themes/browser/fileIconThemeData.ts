@@ -119,6 +119,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 					case 'hidesExplorerArrows':
 					case 'hasFolderIcons':
 					case 'watch':
+						// eslint-disable-next-line local/code-no-any-casts
 						(theme as any)[key] = data[key];
 						break;
 					case 'location':

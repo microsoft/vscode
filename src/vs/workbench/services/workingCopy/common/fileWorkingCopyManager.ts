@@ -184,7 +184,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 			async (workingCopy, options) => {
 				const result = await this.saveAs(workingCopy.resource, undefined, options);
 
-				return result ? true : false;
+				return !!result;
 			},
 			fileService, labelService, logService, workingCopyBackupService, workingCopyService
 		));

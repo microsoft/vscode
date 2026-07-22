@@ -68,7 +68,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	private _forwardPortProvider: ((tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions, token?: vscode.CancellationToken) => Thenable<vscode.Tunnel | undefined> | undefined) | undefined;
 	private _showCandidatePort: (host: string, port: number, detail: string) => Thenable<boolean> = () => { return Promise.resolve(true); };
 	private _extensionTunnels: Map<string, Map<number, { tunnel: vscode.Tunnel; disposeListener: IDisposable }>> = new Map();
-	private _onDidChangeTunnels: Emitter<void> = new Emitter<void>();
+	private _onDidChangeTunnels: Emitter<void> = this._register(new Emitter<void>());
 	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
 
 	private _providerHandleCounter: number = 0;
@@ -130,7 +130,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 					providedAttributes = await provider.provider.providePortAttributes({ port, pid, commandLine }, cancellationToken);
 				} catch (e) {
 					// Call with old signature for breaking API change
-					providedAttributes = await (provider.provider.providePortAttributes as any as (port: number, pid: number | undefined, commandLine: string | undefined, token: vscode.CancellationToken) => vscode.ProviderResult<vscode.PortAttributes>)(port, pid, commandLine, cancellationToken);
+					providedAttributes = await (provider.provider.providePortAttributes as unknown as (port: number, pid: number | undefined, commandLine: string | undefined, token: vscode.CancellationToken) => vscode.ProviderResult<vscode.PortAttributes>)(port, pid, commandLine, cancellationToken);
 				}
 				return { providedAttributes, port };
 			}))));

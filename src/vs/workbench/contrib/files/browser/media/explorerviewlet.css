@@ -9,10 +9,6 @@
 	height: 100%;
 }
 
-.explorer-folders-view .monaco-list-row {
-	padding-left: 4px; /* align top level twistie with `Explorer` title label */
-}
-
 .explorer-folders-view .explorer-folders-view.highlight .monaco-list .explorer-item:not(.explorer-item-edited),
 .explorer-folders-view .explorer-folders-view.highlight .monaco-list .monaco-tl-twistie {
 	opacity: 0.3;

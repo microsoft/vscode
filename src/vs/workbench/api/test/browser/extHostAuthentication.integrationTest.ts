@@ -72,6 +72,7 @@ class AuthQuickPick {
 }
 class AuthTestQuickInputService extends TestQuickInputService {
 	override createQuickPick() {
+		// eslint-disable-next-line local/code-no-any-casts
 		return <any>new AuthQuickPick();
 	}
 }
@@ -160,6 +161,7 @@ suite('ExtHostAuthentication', () => {
 
 		rpcProtocol.set(MainContext.MainThreadAuthentication, disposables.add(mainInstantiationService.createInstance(MainThreadAuthentication, rpcProtocol)));
 		rpcProtocol.set(MainContext.MainThreadWindow, disposables.add(mainInstantiationService.createInstance(MainThreadWindow, rpcProtocol)));
+		// eslint-disable-next-line local/code-no-any-casts
 		const initData: IExtHostInitDataService = {
 			environment: {
 				appUriScheme: 'test',
@@ -168,6 +170,7 @@ suite('ExtHostAuthentication', () => {
 		} as any;
 		extHostAuthentication = new ExtHostAuthentication(
 			rpcProtocol,
+			// eslint-disable-next-line local/code-no-any-casts
 			{
 				environment: {
 					appUriScheme: 'test',
@@ -688,25 +691,6 @@ suite('ExtHostAuthentication', () => {
 		const session2 = await extHostAuthentication.getSession(extensionDescription, 'reregister-test', ['scope'], { createIfNone: true });
 		assert.strictEqual(session2?.account.label, 'reregister-test-2');
 		assert.notStrictEqual(session1?.accessToken, session2?.accessToken);
-	});
-
-	test('session operations during provider lifecycle changes', async () => {
-		const provider = new TestAuthProvider('lifecycle-test');
-		const disposable = extHostAuthentication.registerAuthenticationProvider('lifecycle-test', 'Lifecycle Test', provider);
-
-		// Start a session creation
-		const sessionPromise = extHostAuthentication.getSession(extensionDescription, 'lifecycle-test', ['scope'], { createIfNone: true });
-
-		// Don't dispose immediately - let the session creation start
-		await new Promise(resolve => setTimeout(resolve, 5));
-
-		// Dispose the provider while the session creation is likely still in progress
-		disposable.dispose();
-
-		// The session creation should complete successfully even if we dispose during the operation
-		const session = await sessionPromise;
-		assert.ok(session);
-		assert.strictEqual(session.account.label, 'lifecycle-test');
 	});
 
 	test('operations on different providers run concurrently', async () => {

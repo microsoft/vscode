@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n, LogOutputChannel } from 'vscode';
-import { Branch, RefType, Status } from './api/git';
+import type { Branch } from './api/git';
+import { RefType, Status } from './api/git.constants';
 import { OperationKind } from './operation';
 import { CommitCommandsCenter } from './postCommitCommands';
 import { Repository } from './repository';

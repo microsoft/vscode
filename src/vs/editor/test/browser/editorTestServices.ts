@@ -19,7 +19,8 @@ export class TestCodeEditorService extends AbstractCodeEditorService {
 	}
 
 	getActiveCodeEditor(): ICodeEditor | null {
-		return null;
+		const editors = this.listCodeEditors();
+		return editors.length > 0 ? editors[editors.length - 1] : null;
 	}
 	public lastInput?: IResourceEditorInput;
 	override openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
@@ -69,7 +70,7 @@ export class TestCommandService implements ICommandService {
 		this._instantiationService = instantiationService;
 	}
 
-	public executeCommand<T>(id: string, ...args: any[]): Promise<T> {
+	public executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
 		const command = CommandsRegistry.getCommand(id);
 		if (!command) {
 			return Promise.reject(new Error(`command '${id}' not found`));

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList, FormattingOptions, workspace, l10n } from 'vscode';
+import { CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList, FormattingOptions, workspace, l10n } from 'vscode';
 import { Disposable, LanguageClientOptions, ProvideCompletionItemsSignature, NotificationType, BaseLanguageClient, DocumentRangeFormattingParams, DocumentRangeFormattingRequest } from 'vscode-languageclient';
 import { getCustomDataSource } from './customData';
 import { RequestService, serveFileSystemRequests } from './requests';
@@ -83,7 +83,9 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 					}
 					return r;
 				}
-				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
+				function isThenable<T>(obj: unknown): obj is Thenable<T> {
+					return !!obj && typeof (obj as unknown as Thenable<T>).then === 'function';
+				}
 
 				const r = next(document, position, context, token);
 				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
@@ -143,26 +145,6 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 				return null;
 			}
 		});
-	}
-
-	commands.registerCommand('_css.applyCodeAction', applyCodeAction);
-
-	function applyCodeAction(uri: string, documentVersion: number, edits: TextEdit[]) {
-		const textEditor = window.activeTextEditor;
-		if (textEditor && textEditor.document.uri.toString() === uri) {
-			if (textEditor.document.version !== documentVersion) {
-				window.showInformationMessage(l10n.t('CSS fix is outdated and can\'t be applied to the document.'));
-			}
-			textEditor.edit(mutator => {
-				for (const edit of edits) {
-					mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
-				}
-			}).then(success => {
-				if (!success) {
-					window.showErrorMessage(l10n.t('Failed to apply CSS fix to the document. Please consider opening an issue with steps to reproduce.'));
-				}
-			});
-		}
 	}
 
 	function updateFormatterRegistration(registration: FormatterRegistration) {

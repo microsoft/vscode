@@ -73,6 +73,7 @@ suite('Debug - Memory', () => {
 				});
 			});
 
+			// eslint-disable-next-line local/code-no-any-casts
 			region = new MemoryRegion('ref', session as any);
 		});
 

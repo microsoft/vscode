@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { isString } from '../../../../../base/common/types.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPromptInputModel } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
@@ -46,7 +47,7 @@ export class TerminalSuggestTelemetry extends Disposable {
 			return;
 		}
 		this._acceptedCompletions = this._acceptedCompletions || [];
-		this._acceptedCompletions.push({ label: typeof completion.label === 'string' ? completion.label : completion.label.label, kind: this._kindMap.get(completion.kind!), sessionId, provider: completion.provider });
+		this._acceptedCompletions.push({ label: isString(completion.label) ? completion.label : completion.label.label, kind: this._kindMap.get(completion.kind!), sessionId, provider: completion.provider });
 	}
 
 	/**

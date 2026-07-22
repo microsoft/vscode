@@ -14,9 +14,7 @@ async function createRandomNotebookFile() {
 }
 
 async function openRandomNotebookDocument() {
-	console.log('Creating a random notebook file');
 	const uri = await createRandomNotebookFile();
-	console.log('Created a random notebook file');
 	return vscode.workspace.openNotebookDocument(uri);
 }
 
@@ -121,7 +119,6 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 				}
 			]
 		};
-		console.log('Returning NotebookData in deserializeNotebook');
 		return dto;
 	}
 };

@@ -23,6 +23,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
 import { ILogService } from '../../log/common/log.js';
 import { Registry } from '../../registry/common/platform.js';
+import { StorageScope } from '../../storage/common/storage.js';
 import { IUserDataProfile, UseDefaultProfileFlags } from '../../userDataProfile/common/userDataProfile.js';
 import { IUserDataSyncMachine } from './userDataSyncMachines.js';
 
@@ -423,6 +424,7 @@ export interface IRemoteSyncExtension {
 export interface IStorageValue {
 	version: number;
 	value: string;
+	scope?: StorageScope;
 }
 
 export interface IGlobalState {
@@ -545,7 +547,7 @@ export function getEnablementKey(resource: SyncResource) { return `sync.enable.$
 // #region User Data Sync Services
 export const IUserDataSyncEnablementService = createDecorator<IUserDataSyncEnablementService>('IUserDataSyncEnablementService');
 export interface IUserDataSyncEnablementService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onDidChangeEnablement: Event<boolean>;
 	isEnabled(): boolean;
@@ -580,7 +582,7 @@ export interface IUserDataManualSyncTask {
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 export interface IUserDataSyncService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
@@ -617,7 +619,7 @@ export interface IUserDataSyncService {
 
 export const IUserDataSyncResourceProviderService = createDecorator<IUserDataSyncResourceProviderService>('IUserDataSyncResourceProviderService');
 export interface IUserDataSyncResourceProviderService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	getRemoteSyncedProfiles(): Promise<ISyncUserDataProfile[]>;
 	getLocalSyncedProfiles(location?: URI): Promise<ISyncUserDataProfile[]>;
 	getRemoteSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile): Promise<ISyncResourceHandle[]>;
@@ -633,7 +635,7 @@ export type SyncOptions = { immediately?: boolean; skipIfSyncedRecently?: boolea
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
 export interface IUserDataAutoSyncService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	readonly onError: Event<UserDataSyncError>;
 	turnOn(): Promise<void>;
 	turnOff(everywhere: boolean): Promise<void>;

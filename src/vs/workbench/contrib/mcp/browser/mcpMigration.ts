@@ -125,7 +125,7 @@ export class McpConfigMigrationContribution extends Disposable implements IWorkb
 	private async parseMcpConfig(settingsFile: URI): Promise<IMcpConfiguration | undefined> {
 		try {
 			const content = await this.fileService.readFile(settingsFile);
-			const settingsObject: IStringDictionary<any> = parse(content.value.toString());
+			const settingsObject: IStringDictionary<unknown> = parse(content.value.toString());
 			if (!isObject(settingsObject)) {
 				return undefined;
 			}

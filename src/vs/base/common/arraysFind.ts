@@ -5,9 +5,9 @@
 
 import { Comparator } from './arrays.js';
 
-export function findLast<T, R extends T>(array: readonly T[], predicate: (item: T) => item is R, fromIndex?: number): R | undefined;
-export function findLast<T>(array: readonly T[], predicate: (item: T) => unknown, fromIndex?: number): T | undefined;
-export function findLast<T>(array: readonly T[], predicate: (item: T) => unknown, fromIndex = array.length - 1): T | undefined {
+export function findLast<T, R extends T>(array: readonly T[], predicate: (item: T, index: number) => item is R, fromIndex?: number): R | undefined;
+export function findLast<T>(array: readonly T[], predicate: (item: T, index: number) => unknown, fromIndex?: number): T | undefined;
+export function findLast<T>(array: readonly T[], predicate: (item: T, index: number) => unknown, fromIndex = array.length - 1): T | undefined {
 	const idx = findLastIdx(array, predicate, fromIndex);
 	if (idx === -1) {
 		return undefined;
@@ -15,11 +15,33 @@ export function findLast<T>(array: readonly T[], predicate: (item: T) => unknown
 	return array[idx];
 }
 
-export function findLastIdx<T>(array: readonly T[], predicate: (item: T) => unknown, fromIndex = array.length - 1): number {
+export function findLastIdx<T>(array: readonly T[], predicate: (item: T, index: number) => unknown, fromIndex = array.length - 1): number {
 	for (let i = fromIndex; i >= 0; i--) {
 		const element = array[i];
 
-		if (predicate(element)) {
+		if (predicate(element, i)) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+export function findFirst<T, R extends T>(array: readonly T[], predicate: (item: T, index: number) => item is R, fromIndex?: number): R | undefined;
+export function findFirst<T>(array: readonly T[], predicate: (item: T, index: number) => unknown, fromIndex?: number): T | undefined;
+export function findFirst<T>(array: readonly T[], predicate: (item: T, index: number) => unknown, fromIndex = 0): T | undefined {
+	const idx = findFirstIdx(array, predicate, fromIndex);
+	if (idx === -1) {
+		return undefined;
+	}
+	return array[idx];
+}
+
+export function findFirstIdx<T>(array: readonly T[], predicate: (item: T, index: number) => unknown, fromIndex = 0): number {
+	for (let i = fromIndex; i < array.length; i++) {
+		const element = array[i];
+
+		if (predicate(element, i)) {
 			return i;
 		}
 	}

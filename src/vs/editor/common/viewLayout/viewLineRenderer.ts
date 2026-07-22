@@ -22,6 +22,31 @@ export const enum RenderWhitespace {
 	All = 4
 }
 
+export interface IRenderLineInputOptions {
+	useMonospaceOptimizations: boolean;
+	canUseHalfwidthRightwardsArrow: boolean;
+	lineContent: string;
+	continuesWithWrappedLine: boolean;
+	isBasicASCII: boolean;
+	containsRTL: boolean;
+	fauxIndentLength: number;
+	lineTokens: IViewLineTokens;
+	lineDecorations: LineDecoration[];
+	tabSize: number;
+	startVisibleColumn: number;
+	spaceWidth: number;
+	middotWidth: number;
+	wsmiddotWidth: number;
+	stopRenderingLineAfter: number;
+	renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
+	renderControlCharacters: boolean;
+	fontLigatures: boolean;
+	selectionsOnLine: OffsetRange[] | null;
+	textDirection: TextDirection | null;
+	verticalScrollbarSize: number;
+	renderNewLineWhenEmpty: boolean;
+}
+
 export class RenderLineInput {
 
 	public readonly useMonospaceOptimizations: boolean;
@@ -484,6 +509,9 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	if (!input.containsRTL) {
 		// We can never split RTL text, as it ruins the rendering
 		tokens = splitLargeTokens(lineContent, tokens, !input.isBasicASCII || input.fontLigatures);
+	} else {
+		// Split the first token if it contains both leading whitespace and RTL text
+		tokens = splitLeadingWhitespaceFromRTL(lineContent, tokens);
 	}
 
 	return new ResolvedRenderLineInput(
@@ -608,6 +636,48 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
 			}
 			lastTokenEndIndex = tokenEndIndex;
 		}
+	}
+
+	return result;
+}
+
+/**
+ * Splits leading whitespace from the first token if it contains RTL text.
+ */
+function splitLeadingWhitespaceFromRTL(lineContent: string, tokens: LinePart[]): LinePart[] {
+	if (tokens.length === 0) {
+		return tokens;
+	}
+
+	const firstToken = tokens[0];
+	if (!firstToken.containsRTL) {
+		return tokens;
+	}
+
+	// Check if the first token starts with whitespace
+	const firstTokenEndIndex = firstToken.endIndex;
+	let firstNonWhitespaceIndex = 0;
+	for (let i = 0; i < firstTokenEndIndex; i++) {
+		const charCode = lineContent.charCodeAt(i);
+		if (charCode !== CharCode.Space && charCode !== CharCode.Tab) {
+			firstNonWhitespaceIndex = i;
+			break;
+		}
+	}
+
+	if (firstNonWhitespaceIndex === 0) {
+		// No leading whitespace
+		return tokens;
+	}
+
+	// Split the first token into leading whitespace and the rest
+	const result: LinePart[] = [];
+	result.push(new LinePart(firstNonWhitespaceIndex, firstToken.type, firstToken.metadata, false));
+	result.push(new LinePart(firstTokenEndIndex, firstToken.type, firstToken.metadata, firstToken.containsRTL));
+
+	// Add remaining tokens
+	for (let i = 1; i < tokens.length; i++) {
+		result.push(tokens[i]);
 	}
 
 	return result;

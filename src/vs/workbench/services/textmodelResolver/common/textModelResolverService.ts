@@ -5,7 +5,6 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITextModel } from '../../../../editor/common/model.js';
 import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable, AsyncReferenceCollection } from '../../../../base/common/lifecycle.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { TextResourceEditorModel } from '../../../common/editor/textResourceEditorModel.js';
@@ -23,7 +22,7 @@ import { UntitledTextEditorModel } from '../../untitled/common/untitledTextEdito
 class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextEditorModel>> {
 
 	private readonly providers = new Map<string, ITextModelContentProvider[]>();
-	private readonly modelsToDispose = new Set<string>();
+	private readonly modelsToDispose = new Map<string, Promise<ITextEditorModel>>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -39,23 +38,11 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 	}
 
 	private async doCreateReferencedObject(key: string, skipActivateProvider?: boolean): Promise<IResolvedTextEditorModel> {
+		const resource = URI.parse(key);
 
 		// Untrack as being disposed
+		const pendingModel = this.modelsToDispose.get(key);
 		this.modelsToDispose.delete(key);
-
-		// inMemory Schema: go through model service cache
-		const resource = URI.parse(key);
-		if (resource.scheme === Schemas.inMemory) {
-			const cachedModel = this.modelService.getModel(resource);
-			if (!cachedModel) {
-				throw new Error(`Unable to resolve inMemory resource ${key}`);
-			}
-
-			const model = this.instantiationService.createInstance(TextResourceEditorModel, resource);
-			if (this.ensureResolvedModel(model, key)) {
-				return model;
-			}
-		}
 
 		// Untitled Schema: go through untitled text service
 		if (resource.scheme === Schemas.untitled) {
@@ -73,11 +60,27 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 			}
 		}
 
-		// Virtual documents
-		if (this.providers.has(resource.scheme)) {
-			await this.resolveTextModelContent(key);
+		// In-Memory / Virtual documents
+		if (resource.scheme === Schemas.inMemory || this.providers.has(resource.scheme)) {
+			await this.ensureResolvedTextModelContent(resource); // throws if failing to resolve content
 
-			const model = this.instantiationService.createInstance(TextResourceEditorModel, resource);
+			let model: ITextEditorModel | undefined = undefined;
+			if (pendingModel) {
+				try {
+					// if we have a pending model for this key, we try to await that and prevent
+					// creating a new model so that we are not leaking models. we only do this for
+					// in-memory or virtual documents where we create models here, the others are
+					// already shared by their respective services.
+					model = await pendingModel;
+				} catch {
+					// ignore and re-create below
+				}
+			}
+
+			if (!model) {
+				model = this.instantiationService.createInstance(TextResourceEditorModel, resource);
+			}
+
 			if (this.ensureResolvedModel(model, key)) {
 				return model;
 			}
@@ -103,15 +106,9 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 
 	protected destroyReferencedObject(key: string, modelPromise: Promise<ITextEditorModel>): void {
 
-		// inMemory is bound to a different lifecycle
-		const resource = URI.parse(key);
-		if (resource.scheme === Schemas.inMemory) {
-			return;
-		}
-
 		// Track as being disposed before waiting for model to load
 		// to handle the case that the reference is acquired again
-		this.modelsToDispose.add(key);
+		this.modelsToDispose.set(key, modelPromise);
 
 		(async () => {
 			try {
@@ -179,18 +176,25 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 		return this.providers.get(scheme) !== undefined;
 	}
 
-	private async resolveTextModelContent(key: string): Promise<ITextModel> {
-		const resource = URI.parse(key);
-		const providersForScheme = this.providers.get(resource.scheme) || [];
+	private async ensureResolvedTextModelContent(resource: URI): Promise<void> {
 
-		for (const provider of providersForScheme) {
-			const value = await provider.provideTextContent(resource);
-			if (value) {
-				return value;
+		// in-memory based
+		if (resource.scheme === Schemas.inMemory) {
+			if (this.modelService.getModel(resource)) {
+				return;
 			}
 		}
 
-		throw new Error(`Unable to resolve text model content for resource ${key}`);
+		// provider based
+		const providersForScheme = this.providers.get(resource.scheme) || [];
+
+		for (const provider of providersForScheme) {
+			if (await provider.provideTextContent(resource)) {
+				return;
+			}
+		}
+
+		throw new Error(`Unable to resolve text model content for resource ${resource.toString()}`);
 	}
 }
 

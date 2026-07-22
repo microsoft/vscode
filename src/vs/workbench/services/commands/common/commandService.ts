@@ -22,7 +22,7 @@ export class CommandService extends Disposable implements ICommandService {
 	private readonly _onWillExecuteCommand: Emitter<ICommandEvent> = this._register(new Emitter<ICommandEvent>());
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
 
-	private readonly _onDidExecuteCommand: Emitter<ICommandEvent> = new Emitter<ICommandEvent>();
+	private readonly _onDidExecuteCommand = this._register(new Emitter<ICommandEvent>());
 	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
 
 	constructor(
@@ -49,7 +49,7 @@ export class CommandService extends Disposable implements ICommandService {
 		return notCancellablePromise(this._starActivation);
 	}
 
-	async executeCommand<T>(id: string, ...args: any[]): Promise<T> {
+	async executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
 		this._logService.trace('CommandService#executeCommand', id);
 
 		const activationEvent = `onCommand:${id}`;
@@ -89,7 +89,7 @@ export class CommandService extends Disposable implements ICommandService {
 		return this._tryExecuteCommand(id, args);
 	}
 
-	private _tryExecuteCommand(id: string, args: any[]): Promise<any> {
+	private _tryExecuteCommand(id: string, args: unknown[]): Promise<any> {
 		const command = CommandsRegistry.getCommand(id);
 		if (!command) {
 			return Promise.reject(new Error(`command '${id}' not found`));

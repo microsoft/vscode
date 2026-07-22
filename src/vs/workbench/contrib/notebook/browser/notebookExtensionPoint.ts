@@ -158,7 +158,7 @@ const notebookRendererContribution: IJSONSchema = {
 						],
 						enumDescriptions: [
 							nls.localize('contributes.notebook.renderer.requiresMessaging.always', 'Messaging is required. The renderer will only be used when it\'s part of an extension that can be run in an extension host.'),
-							nls.localize('contributes.notebook.renderer.requiresMessaging.optional', 'The renderer is better with messaging available, but it\'s not requried.'),
+							nls.localize('contributes.notebook.renderer.requiresMessaging.optional', 'The renderer is better with messaging available, but it\'s not required.'),
 							nls.localize('contributes.notebook.renderer.requiresMessaging.never', 'The renderer does not require messaging.'),
 						],
 						description: nls.localize('contributes.notebook.renderer.requiresMessaging', 'Defines how and if the renderer needs to communicate with an extension host, via `createRendererMessaging`. Renderers with stronger messaging requirements may not work in all environments.'),
@@ -245,10 +245,10 @@ const notebookPreloadContribution: IJSONSchema = {
 export const notebooksExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookEditorContribution[]>({
 	extensionPoint: 'notebooks',
 	jsonSchema: notebookProviderContribution,
-	activationEventsGenerator: (contribs: INotebookEditorContribution[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs: readonly INotebookEditorContribution[]) {
 		for (const contrib of contribs) {
 			if (contrib.type) {
-				result.push(`onNotebookSerializer:${contrib.type}`);
+				yield `onNotebookSerializer:${contrib.type}`;
 			}
 		}
 	}
@@ -257,10 +257,10 @@ export const notebooksExtensionPoint = ExtensionsRegistry.registerExtensionPoint
 export const notebookRendererExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookRendererContribution[]>({
 	extensionPoint: 'notebookRenderer',
 	jsonSchema: notebookRendererContribution,
-	activationEventsGenerator: (contribs: INotebookRendererContribution[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs: readonly INotebookRendererContribution[]) {
 		for (const contrib of contribs) {
 			if (contrib.id) {
-				result.push(`onRenderer:${contrib.id}`);
+				yield `onRenderer:${contrib.id}`;
 			}
 		}
 	}

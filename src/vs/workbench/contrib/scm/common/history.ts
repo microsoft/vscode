@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IMenu } from '../../../../platform/actions/common/actions.js';
 import { ColorIdentifier } from '../../../../platform/theme/common/colorUtils.js';
 import { ISCMRepository } from './scm.js';
 
-export interface ISCMHistoryProviderMenus {
-	getHistoryItemMenu(historyItem: SCMHistoryItemViewModelTreeElement): IMenu;
-}
+export const SCMIncomingHistoryItemId = 'scm-graph-incoming-changes';
+export const SCMOutgoingHistoryItemId = 'scm-graph-outgoing-changes';
 
 export interface ISCMHistoryProvider {
 	readonly historyItemRef: IObservable<ISCMHistoryItemRef | undefined>;
@@ -73,6 +72,7 @@ export interface ISCMHistoryItem {
 	readonly timestamp?: number;
 	readonly statistics?: ISCMHistoryItemStatistics;
 	readonly references?: ISCMHistoryItemRef[];
+	readonly tooltip?: IMarkdownString | Array<IMarkdownString> | undefined;
 }
 
 export interface ISCMHistoryItemGraphNode {
@@ -82,9 +82,9 @@ export interface ISCMHistoryItemGraphNode {
 
 export interface ISCMHistoryItemViewModel {
 	readonly historyItem: ISCMHistoryItem;
-	readonly isCurrent: boolean;
 	readonly inputSwimlanes: ISCMHistoryItemGraphNode[];
 	readonly outputSwimlanes: ISCMHistoryItemGraphNode[];
+	readonly kind: 'HEAD' | 'node' | 'incoming-changes' | 'outgoing-changes';
 }
 
 export interface SCMHistoryItemViewModelTreeElement {

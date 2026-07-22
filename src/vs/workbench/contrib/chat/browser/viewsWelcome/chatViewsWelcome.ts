@@ -22,7 +22,7 @@ export interface IChatViewsWelcomeDescriptor {
 }
 
 export interface IChatViewsWelcomeContributionRegistry {
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 	get(): ReadonlyArray<IChatViewsWelcomeDescriptor>;
 	register(descriptor: IChatViewsWelcomeDescriptor): void;
 }
