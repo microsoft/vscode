@@ -24,8 +24,6 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
-import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -49,20 +47,6 @@ import { ILanguageModelsProviderGroup, ILanguageModelsConfigurationService } fro
  * vendor across the chat stack (see `ILanguageModelProviderDescriptor.isDefault`).
  */
 export const COPILOT_VENDOR_ID = 'copilot';
-
-/**
- * Whether the given model vendor is an agent-host vendor (local `agent-host-*` or a remote agent
- * host). Agent-host vendors publish their models asynchronously after the agent host connects, so
- * during startup an empty model list is transient rather than conclusive.
- *
- * NOTE: this grace is applied to model-restore *resolution* only (see
- * `resolveModelIdentifierFromCatalog`). It deliberately does NOT relax cache-retention
- * (`mergeModelsWithCache`) or send-availability, where a resolved-empty list must stay
- * authoritative so stale/removed models are not offered.
- */
-export function isAgentHostVendor(vendor: string): boolean {
-	return vendor.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || isRemoteAgentHostSessionType(vendor);
-}
 
 /** Whether a missing model is conclusively absent from a vendor's live model list. Empty Copilot results remain transient while token-backed discovery completes. */
 export function isLanguageModelVendorAbsenceConclusive(vendor: string, hasLiveModels: boolean, hasResolved: boolean): boolean {

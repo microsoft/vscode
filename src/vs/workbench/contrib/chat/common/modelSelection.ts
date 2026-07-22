@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAgentHostVendor, isLanguageModelVendorAbsenceConclusive } from './languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isLanguageModelVendorAbsenceConclusive } from './languageModels.js';
+import { isAgentHostTarget } from './chatSessionsService.js';
 
 export type ModelIdentifierResolution =
 	| { readonly kind: 'notRequested' }
@@ -54,12 +55,13 @@ export function resolveModelIdentifierFromCatalog(
 	// (wait) rather than `unavailable` (give up). Once the vendor HAS live models, an absent model
 	// is genuinely gone, so stay conclusive. This grace is scoped to restore *resolution* only —
 	// cache-retention (`mergeModelsWithCache`) and send-availability keep treating a resolved-empty
-	// list as authoritative.
+	// list as authoritative. The vendor id equals the session type for agent-host models, so
+	// `isAgentHostTarget` classifies it directly.
 	const isAbsenceConclusive = !vendor || (isLanguageModelVendorAbsenceConclusive(
 		vendor,
 		hasLive,
 		vendorResolution.hasResolved(vendor),
-	) && (hasLive || !isAgentHostVendor(vendor)));
+	) && (hasLive || !isAgentHostTarget(vendor)));
 	return resolveModelIdentifier(models, identifier, isAbsenceConclusive);
 }
 
