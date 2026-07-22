@@ -65,4 +65,18 @@ suite('PartialCommandDetectionCapability', () => {
 		onDidExecuteTextEmitter.fire();
 		deepEqual(addEvents.length, 2);
 	});
+
+	test('should clear commands in the viewport', async () => {
+		await writeP(xterm, 'ab');
+		xterm.input('\x0d');
+		await writeP(xterm, '\r\n\r\n');
+		await writeP(xterm, 'cd');
+		xterm.input('\x0d');
+		await writeP(xterm, '\r\n');
+		deepStrictEqual(capability.commands.map(e => e.line), [0, 2]);
+
+		capability.clearCommandsInViewport();
+
+		deepStrictEqual(capability.commands, []);
+	});
 });

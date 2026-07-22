@@ -37,7 +37,7 @@ export class PartialCommandDetectionCapability extends DisposableStore implement
 		this.add(this._terminal.onData(e => this._onData(e)));
 		this.add(this._terminal.parser.registerCsiHandler({ final: 'J' }, params => {
 			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
-				this._clearCommandsInViewport();
+				this.clearCommandsInViewport();
 			}
 			// We don't want to override xterm.js' default behavior, just augment it
 			return false;
@@ -66,7 +66,7 @@ export class PartialCommandDetectionCapability extends DisposableStore implement
 		}
 	}
 
-	private _clearCommandsInViewport(): void {
+	clearCommandsInViewport(): void {
 		// Find the number of commands on the tail end of the array that are within the viewport
 		let count = 0;
 		for (let i = this._commands.length - 1; i >= 0; i--) {
