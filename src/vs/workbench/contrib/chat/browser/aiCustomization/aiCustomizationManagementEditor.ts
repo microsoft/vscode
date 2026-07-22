@@ -1422,6 +1422,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const useTrash = this.fileService.hasCapability(promptFile.uri, FileSystemProviderCapabilities.Trash);
 		await this.fileService.del(promptFile.uri, { useTrash });
+		if (promptFile.storage === PromptsStorage.local) {
+			const projectRoot = this.workspaceService.getActiveProjectRoot();
+			if (projectRoot) {
+				await this.workspaceService.deleteFiles(projectRoot, [promptFile.uri]);
+			}
+		}
 
 		// Remove the deleted file from the list and re-render immediately
 		const updatedFiles = this.promptFilesToMigrate.filter(f => !isEqual(f.uri, promptFile.uri));
