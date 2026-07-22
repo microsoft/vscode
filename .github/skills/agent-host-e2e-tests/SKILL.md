@@ -19,6 +19,7 @@ It documents the mental model, the fixture format, every config flag, and a symp
 3. **Recording needs a real token** (`GITHUB_TOKEN` or `gh auth token`) and talks to real CAPI. Only run it intentionally, with trivial/read-only prompts in temp dirs.
 4. **Never hand-write or hand-edit fixture contents** (especially not secrets/paths). Fixtures are always produced by recording; normalization/redaction is the proxy's job.
 5. **Gate, don't fight.** If a behavior can't replay deterministically, gate the test (see Workflow C) instead of loosening timeouts or the strict check.
+6. **Track every disabled variant.** Keep `e2e/KNOWN_ISSUES.md` current with the test title, scope, expected and observed behavior, and a focused reproduction command. Record symptoms, not speculative root causes.
 
 ## Workflow A — Add a cross-provider test
 
@@ -54,7 +55,7 @@ Real-time streaming, mid-turn aborts, and POSIX-specific local execution (shell 
 - **POSIX-only** (fails on Windows): gate with `!isWindows`, or a targeted per-provider flag when only one provider diverges. See the worktree and subagent-reopen tests.
 - **Provider/OS-specific replay**: add a targeted config gate that still permits recording and unaffected platforms. See the Codex shell-tool Linux gate.
 
-Always add a comment explaining *why* the gate exists.
+Always add a comment explaining *why* the gate exists. Also add or update the corresponding entry in `e2e/KNOWN_ISSUES.md`. When the variant is enabled again, remove or update the entry in the same change.
 
 ## Verifying & troubleshooting
 

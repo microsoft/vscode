@@ -1,0 +1,38 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Read the file at ${workdir}/peer file.txt and reply with its exact contents only.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: Read
+          input:
+            file_path: ${workdir}/peer file.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Read the file at ${workdir}/peer file.txt and reply with its exact contents only.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/peer file.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tPEER_SPACED"
+    response:
+      content: PEER_SPACED
+      stopReason: end_turn

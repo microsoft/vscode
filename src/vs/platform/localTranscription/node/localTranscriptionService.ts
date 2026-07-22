@@ -202,6 +202,12 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	/** In-flight (or resolved) model download+load for the selected model. */
 	private _modelPromise: Promise<IModel> | undefined;
 
+	/**
+	 * Where to download the native runtime from (product.dictationRuntime), or
+	 * `undefined` in dev builds where the SDK's own node_modules payload is used.
+	 */
+	private _runtimeDownload: { urlTemplate: string; version: string } | undefined;
+
 	/** The active streaming session, once `start()` has opened it. */
 	private _session: LiveAudioTranscriptionSession | undefined;
 	/** Resolves when the background stream consumer for `_session` has drained. */
@@ -262,12 +268,18 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		this._onDidChangeModelStatus.fire(status);
 	}
 
-	async start(options: { cacheDir: string; model?: string; language?: string; proxyUrl?: string; noProxy?: string; proxyStrictSSL?: boolean; proxyAuthorization?: string }): Promise<void> {
+	async start(options: { cacheDir: string; model?: string; language?: string; proxyUrl?: string; noProxy?: string; proxyStrictSSL?: boolean; proxyAuthorization?: string; runtimeUrlTemplate?: string; runtimeVersion?: string }): Promise<void> {
 		// Bridge VS Code's proxy settings into this process's environment before any
 		// first-use download, so both our own fetches and the native Foundry Local
 		// model download route through the configured proxy (they read the OS/env
 		// proxy, not VS Code settings directly).
 		this._applyProxyEnv(options.proxyUrl, options.noProxy, options.proxyStrictSSL, options.proxyAuthorization);
+
+		// Record where the native runtime is published (from product.json). When
+		// unset (dev builds), the SDK's own node_modules payload is used instead.
+		this._runtimeDownload = options.runtimeUrlTemplate && options.runtimeVersion
+			? { urlTemplate: options.runtimeUrlTemplate, version: options.runtimeVersion }
+			: undefined;
 
 		// Reset any prior session before starting a new one.
 		await this._disposeSession();
@@ -455,11 +467,16 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 				// Ensure the Foundry Local native runtime (N-API addon + core
 				// libraries) is available before loading the SDK. We do not ship
 				// it — the addon requires a newer glibc than our minimum supported
-				// Linux distros — so it is downloaded on demand into a per-user
-				// cache and the SDK loader is pointed at it via env var. This is a
-				// no-op once cached.
-				const nativeDir = await ensureFoundryLocalRuntime(runtimeCacheDir(cacheDir), CancellationToken.None);
-				process.env.VSCODE_FOUNDRY_LOCAL_NATIVE_DIR = nativeDir;
+				// Linux distros — so in packaged builds it is downloaded on demand
+				// from VS Code's CDN (per `product.dictationRuntime`) into a
+				// per-user cache and the SDK loader is pointed at it via env var.
+				// This is a no-op once cached. In dev builds (no product config)
+				// the SDK resolves its addon + core libs from node_modules, so we
+				// skip provisioning and leave the loader on its default path.
+				if (this._runtimeDownload) {
+					const nativeDir = await ensureFoundryLocalRuntime(runtimeCacheDir(cacheDir), this._runtimeDownload, CancellationToken.None);
+					process.env.VSCODE_FOUNDRY_LOCAL_NATIVE_DIR = nativeDir;
+				}
 
 				if (!this._sdk) {
 					this._sdk = await import('foundry-local-sdk');

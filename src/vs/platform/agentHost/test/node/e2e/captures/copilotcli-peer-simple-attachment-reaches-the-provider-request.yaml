@@ -1,0 +1,19 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: Reply exactly "attachment".
+            - type: text
+              text: |-
+                <attachment mimeType="text/plain" name="peer-note.txt">
+                PEER_SIMPLE_ATTACHMENT
+                </attachment>
+    response:
+      content: attachment
+      stopReason: end_turn

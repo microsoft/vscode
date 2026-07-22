@@ -15,6 +15,8 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
@@ -49,6 +51,19 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	 * (restoring any pending draft).
 	 */
 	readonly folderUri?: URI;
+}
+
+/**
+ * Result of {@link ISessionsService.openNewSession}. `session` holds the
+ * created/restored draft on success. `trustDeclined` is `true` only when a
+ * `folderUri` was supplied, the folder required workspace trust, and the
+ * user explicitly declined it — distinct from any other resolution/creation
+ * failure (where `session` is also `undefined` but `trustDeclined` is
+ * `false`, since that may still succeed later once a provider registers).
+ */
+export interface IOpenNewSessionResult {
+	readonly session: ISession | undefined;
+	readonly trustDeclined: boolean;
 }
 
 /**
@@ -153,12 +168,17 @@ export interface ISessionsService {
 	 *   the pending (composed-but-not-sent) draft if one exists, otherwise
 	 *   showing the empty placeholder. No-op when the empty placeholder is
 	 *   already showing (no session active). Returns the restored pending
-	 *   draft, or `undefined` when none.
-	 * - With `options.folderUri`: create a concrete draft session for that
-	 *   folder (via {@link ISessionsManagementService.createNewSession}) and
-	 *   show it as the active session. Returns the created draft.
+	 *   draft as `result.session`, or `undefined` when none; `trustDeclined`
+	 *   is always `false`.
+	 * - With `options.folderUri`: resolve the workspace and, when it requires
+	 *   workspace trust, prompt for it first (single gate for every path that
+	 *   creates a concrete session for a folder). If trust is declined,
+	 *   returns `{ session: undefined, trustDeclined: true }` without
+	 *   creating a session. Otherwise creates a concrete draft session for
+	 *   that folder (via {@link ISessionsManagementService.createNewSession})
+	 *   and shows it as the active session, returning it as `result.session`.
 	 */
-	openNewSession(options?: IOpenNewSessionOptions): ISession | undefined;
+	openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult>;
 
 	/**
 	 * Open a new **quick chat**: create a concrete workspace-less draft session
@@ -286,6 +306,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 
@@ -688,14 +709,32 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._activate(undefined);
 	}
 
-	openNewSession(options?: IOpenNewSessionOptions): ISession | undefined {
+	async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
 		const folderUri = options?.folderUri;
 		if (folderUri) {
+			// Single trust gate for every path that creates a concrete session for
+			// a folder (the workspace picker dropdown, the folder Quick Pick, etc.):
+			// resolve the workspace and, if it requires trust, prompt before
+			// creating the session. A no-op if the folder is already trusted.
+			// Resolved with the same provider `createNewSession` below will use
+			// (honoring `options.providerId`), so the trust decision always
+			// reflects the workspace that is actually about to be created.
+			const resolved = this.sessionsManagementService.resolveWorkspace(folderUri, options?.providerId);
+			if (resolved?.workspace.requiresWorkspaceTrust) {
+				const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
+					uri: folderUri,
+					message: localize('sessionsService.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+				});
+				if (!trusted) {
+					return { session: undefined, trustDeclined: true };
+				}
+			}
+
 			this._startOpenSession();
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);
 				this._activate(session);
-				return session;
+				return { session, trustDeclined: false };
 			} catch (e) {
 				// When the folder cannot be resolved (e.g. the active session's
 				// workspace uses an unsupported scheme like 'unknown:/'), fall
@@ -708,7 +747,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// the new-session composer view.
 		// No-op when no session is active (empty new-session placeholder showing).
 		if (this._visibility.activeSession.get() === undefined) {
-			return undefined;
+			return { session: undefined, trustDeclined: false };
 		}
 		if (!folderUri) {
 			this._startOpenSession();
@@ -725,11 +764,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (newSession?.isQuickChat?.get()) {
 			this.sessionsManagementService.discardNewSession(newSession);
 			this._activate(undefined);
-			return undefined;
+			return { session: undefined, trustDeclined: false };
 		}
 
 		this._activate(newSession ?? undefined);
-		return newSession ?? undefined;
+		return { session: newSession ?? undefined, trustDeclined: false };
 	}
 
 	openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined {

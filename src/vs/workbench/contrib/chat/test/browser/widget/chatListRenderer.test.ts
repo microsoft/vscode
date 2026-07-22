@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -15,13 +16,13 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, getWorkingProgressRelevantParts, isWaitingForMcpServers, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, getWorkingProgressRelevantParts, IChatListItemTemplate, isWaitingForMcpServers, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
 import { IChatMcpServersStartingSlow, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
-import { ChatViewModel, IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatRendererContent, IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -46,6 +47,64 @@ suite('ChatListRenderer', () => {
 				false,
 				true,
 				true,
+			]);
+		});
+	});
+
+	suite('reconcileChatItemHeight', () => {
+		// Helper: run a sequence of measurements through the reconciler, threading
+		// `currentRenderedHeight` the way `fireItemHeightChange` does, and capture the
+		// notification kind + the stored height after each step. `initialStored` is the
+		// element's `currentRenderedHeight` before the first step (undefined = never measured).
+		const run = (steps: readonly { measured: number; isBeingRendered: boolean }[], allocatedHeight: number | undefined, initialStored: number | undefined) => {
+			let stored: number | undefined = initialStored;
+			return steps.map(({ measured, isBeingRendered }) => {
+				const update = reconcileChatItemHeight(measured, stored, isBeingRendered, allocatedHeight);
+				stored = update.nextRenderedHeight;
+				return { kind: update.kind, height: update.height, stored };
+			});
+		};
+
+		// Regression test for https://github.com/microsoft/vscode/issues/326952.
+		// A row grows during streaming and is measured synchronously while it is being rendered
+		// (notification suppressed). The stored height must NOT advance, and a deferred re-measure
+		// must be requested, so a follow-up measurement of the grown height actually reaches the
+		// tree instead of being deduped away (which would strand the content until a window resize).
+		test('does not strand a grown height first seen while the row is being rendered', () => {
+			assert.deepStrictEqual(
+				run([
+					{ measured: 900, isBeingRendered: true },   // grew mid-render -> suppressed, defer
+					{ measured: 900, isBeingRendered: false },  // deferred re-measure delivers the height
+				], /*allocatedHeight*/ 500, /*initialStored*/ 500),
+				[
+					{ kind: 'deferReMeasure', height: 900, stored: 500 },
+					{ kind: 'fire', height: 900, stored: 900 },
+				],
+			);
+		});
+
+		test('notifies the tree on async growth and ignores an unchanged measurement', () => {
+			assert.deepStrictEqual(
+				run([
+					{ measured: 700, isBeingRendered: false },  // async growth -> notify
+					{ measured: 700, isBeingRendered: false },  // unchanged -> no-op
+				], /*allocatedHeight*/ 500, /*initialStored*/ 500),
+				[
+					{ kind: 'fire', height: 700, stored: 700 },
+					{ kind: 'none', height: 700, stored: 700 },
+				],
+			);
+		});
+
+		test('first measurement (no stored height) only schedules an update when content would clip', () => {
+			assert.deepStrictEqual([
+				// Initial measurement that fits within the allocated height -> no notification.
+				run([{ measured: 500, isBeingRendered: false }], /*allocatedHeight*/ 500, /*initialStored*/ undefined),
+				// Initial measurement larger than the allocation -> schedule an initial update.
+				run([{ measured: 700, isBeingRendered: false }], /*allocatedHeight*/ 500, /*initialStored*/ undefined),
+			], [
+				[{ kind: 'none', height: 500, stored: 500 }],
+				[{ kind: 'scheduleInitial', height: 700, stored: 700 }],
 			]);
 		});
 	});
@@ -456,6 +515,96 @@ suite('ChatListRenderer', () => {
 			mountedWhileStreaming: true,
 			mountedAfterCompletion: true,
 		});
+
+		disposables.dispose();
+	});
+
+	// End-to-end regression test for https://github.com/microsoft/vscode/issues/326952: a height
+	// measured synchronously *during* the render pass must be deferred (not fired re-entrantly and
+	// not stored), then reliably delivered to the tree afterwards via a re-measure — so streamed
+	// content can't get stranded below a stale row height until a window resize.
+	test('fireItemHeightChange defers a mid-render measurement and delivers it after the render pass', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const text = 'test';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, 0);
+		const response = viewModel.getItems().find(isResponseVM);
+		assert.ok(response);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{ progressMessageAtBottomOfResponse: true },
+			{
+				getListLength: () => 1,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+			},
+			undefined,
+			viewModel,
+		));
+		const template = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Some initial content') });
+		renderer.renderElement(node, 0, template);
+		// Complete the response so progressive rendering stops. Otherwise a streaming response keeps
+		// scheduling `runProgressiveRender` on animation frames, which creates a
+		// ChatWorkingProgressContentPart that outlives the test (leaked disposable + stray console
+		// output during teardown).
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+
+		const privateRenderer = renderer as unknown as {
+			_elementBeingRendered: IChatResponseViewModel | undefined;
+			fireItemHeightChange(template: IChatListItemTemplate, measuredHeight?: number): void;
+		};
+		const nextFrame = () => new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), () => resolve()));
+
+		// Let the initial render's height activity (ResizeObserver / scheduled updates) settle.
+		await nextFrame();
+		await nextFrame();
+
+		// The row's real rendered height. The DOM is NOT mutated after this point, so the row's
+		// ResizeObserver stays quiet and only the code under test can deliver a further update.
+		const renderedHeight = Math.ceil(template.rowContainer.getBoundingClientRect().height);
+		assert.ok(renderedHeight > 1, 'row should have a real rendered height');
+
+		// Simulate streaming that grew the row past the height the tree last acknowledged.
+		response.currentRenderedHeight = renderedHeight - 1;
+		const heightEvents: number[] = [];
+		disposables.add(renderer.onDidChangeItemHeight(e => heightEvents.push(e.height)));
+
+		// (a) A measurement seen synchronously during the render pass must not notify the tree
+		// re-entrantly and must not advance the stored height.
+		privateRenderer._elementBeingRendered = response;
+		privateRenderer.fireItemHeightChange(template);
+		assert.deepStrictEqual(
+			{ events: [...heightEvents], stored: response.currentRenderedHeight },
+			{ events: [], stored: renderedHeight - 1 },
+		);
+
+		// (b) Once the render pass is over the deferred re-measure delivers the real height.
+		privateRenderer._elementBeingRendered = undefined;
+		await nextFrame();
+		assert.deepStrictEqual(
+			{ events: [...heightEvents], stored: response.currentRenderedHeight },
+			{ events: [renderedHeight], stored: renderedHeight },
+		);
 
 		disposables.dispose();
 	});

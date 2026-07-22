@@ -1,0 +1,39 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create the file at ${workdir}/peer-created.txt containing exactly PEER_CREATED.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: create
+          input:
+            path: ${workdir}/peer-created.txt
+            file_text: PEER_CREATED
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create the file at ${workdir}/peer-created.txt containing exactly PEER_CREATED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/peer-created.txt
+                file_text: PEER_CREATED
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Created file ${workdir}/peer-created.txt with 12 characters
+    response:
+      content: Created [peer-created.txt](${workdir}/peer-created.txt) with the content `PEER_CREATED`.
+      stopReason: end_turn

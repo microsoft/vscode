@@ -365,6 +365,30 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 		case ActionType.ChatActivityChanged:
 			return { ...state, activity: action.activity };
 
+		// ── Working Directories ───────────────────────────────────────────────
+
+		case ActionType.ChatWorkingDirectorySet: {
+			const list = state.workingDirectories ?? [];
+			if (list.includes(action.directory)) {
+				return state;
+			}
+			return { ...state, workingDirectories: [...list, action.directory] };
+		}
+
+		case ActionType.ChatWorkingDirectoryRemoved: {
+			const list = state.workingDirectories;
+			if (!list) {
+				return state;
+			}
+			const idx = list.indexOf(action.directory);
+			if (idx < 0) {
+				return state;
+			}
+			const updated = list.slice();
+			updated.splice(idx, 1);
+			return { ...state, workingDirectories: updated };
+		}
+
 		// ── Tool Call State Machine ───────────────────────────────────────────
 
 		case ActionType.ChatToolCallStart:

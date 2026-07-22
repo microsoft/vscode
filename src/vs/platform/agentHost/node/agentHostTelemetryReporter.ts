@@ -41,25 +41,32 @@ export type IAgentHostUserMessageSentClassification = {
 };
 
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
+type AgentHostModelSelectionKind = 'default' | 'auto' | 'explicit';
 
 export interface IAgentHostTurnCompletedEvent {
 	provider: string;
 	agentSessionId: string;
+	turnId: string;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
 	model: string | undefined;
+	modelSelectionKind: AgentHostModelSelectionKind;
 	permissionLevel: string | undefined;
+	errorType: string | undefined;
 }
 
 export type IAgentHostTurnCompletedClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the turn within the agent host session.' };
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model identifier selected for the session at turn start (e.g. gemini-3.5-flash).' };
+	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the client used the provider default, Auto, or an explicit model.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
+	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type when the turn fails.' };
 	owner: 'roblourens';
 	comment: 'Tracks agent host turn performance including time to first visible progress and total turn duration.';
 };
@@ -67,11 +74,13 @@ export type IAgentHostTurnCompletedClassification = {
 export interface IAgentHostTurnCompletedReport {
 	provider: string;
 	session: string;
+	turnId: string;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
 	model: string | undefined;
 	permissionLevel: string | undefined;
+	errorType: string | undefined;
 }
 
 export interface IAgentHostToolInvokedReport {
@@ -429,11 +438,14 @@ export class AgentHostTelemetryReporter {
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
+			turnId: report.turnId,
 			timeToFirstProgress: report.timeToFirstProgress,
 			totalTime: report.totalTime,
 			result: report.result,
 			model: report.model,
+			modelSelectionKind: report.model === undefined ? 'default' : report.model === 'auto' ? 'auto' : 'explicit',
 			permissionLevel: report.permissionLevel,
+			errorType: report.errorType,
 		});
 	}
 

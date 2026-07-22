@@ -98,7 +98,6 @@ import { ModelIdentifierResolution, getRegisteredLanguageModels, resolveModelIde
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from './chatInputModelSelectionController.js';
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
-import { ChatModelSelectionModel } from './chatModelSelectionModel.js';
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel, logChangesToStateModel } from '../../../common/model/chatModel.js';
 import { filterModelsForSession, hasModelsTargetingSession, isModelHiddenInPicker, mergeModelsWithCache, shouldResetOnModelListChange } from './chatInputModelUtils.js';
@@ -145,7 +144,7 @@ import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { DelegationSessionPickerActionItem } from './delegationSessionPickerActionItem.js';
-import { ModelPickerActionItem, IModelPickerDelegate } from './modelPicker/modelPickerActionItem.js';
+import { ModelPickerActionItem, IModelPickerDelegate, IModelPickerPresentationOptions } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, isModeConsideredBuiltIn, ModePickerActionItem } from './modePickerActionItem.js';
 import { IPermissionPickerDelegate, PermissionPickerActionItem } from './permissionPickerActionItem.js';
 import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
@@ -529,7 +528,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _optionContextKeys: Map<string, IContextKey<string>> = new Map();
 
 	private readonly _modelSelectionDiagnostics: ChatModelSelectionDiagnostics;
-	private readonly _modelSelectionModel: ChatModelSelectionModel;
 	private readonly _modelSelectionController: ChatInputModelSelectionController;
 	private readonly _currentLanguageModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	private readonly _modelSelectionRuntime: IChatInputModelSelectionRuntime;
@@ -713,11 +711,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			conversationKey: this._inputModelSessionResource?.toString(),
 			metadata: { widgetViewKind: this.options.widgetViewKindTag },
 		}));
-		this._modelSelectionModel = new ChatModelSelectionModel(this._modelSelectionDiagnostics);
-		this._currentLanguageModel = this._modelSelectionModel.currentModel;
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(event => {
-			this._modelSelectionDiagnostics.logStorageChange(event, this._currentLanguageModel.get()?.identifier);
-		}));
 		this._modelSelectionRuntime = {
 			location: this.location,
 			getCurrentModeKind: () => this.currentModeKind,
@@ -732,9 +725,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			getBoundConversationKey: () => this._inputModelSessionResource?.toString(),
 			getVisibleConversationKey: () => this._widget?.viewModel?.model.sessionResource.toString(),
 			restoreModelConfiguration: (modelId, configuration) => this.restoreModelConfiguration(modelId, configuration),
-			applyModel: model => this.setCurrentLanguageModel(model, false, false),
+			applyModel: () => {
+				if (this.cachedWidth) {
+					this.layout(this.cachedWidth);
+				}
+				this._syncInputStateToModel();
+			},
 		};
-		this._modelSelectionController = this._register(new ChatInputModelSelectionController(this._modelSelectionModel, this._modelSelectionRuntime, this._modelSelectionDiagnostics));
+		this._modelSelectionController = this._register(new ChatInputModelSelectionController(this._modelSelectionRuntime, this._modelSelectionDiagnostics));
+		this._currentLanguageModel = this._modelSelectionController.currentModel;
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(event => {
+			this._modelSelectionDiagnostics.logStorageChange(event, this._currentLanguageModel.get()?.identifier);
+		}));
 
 		this._modelConfigStore = this._register(new ChatModelConfigurationStore(
 			() => this.getModelConfigurationStorageKey(),
@@ -896,7 +898,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.checkModelSupported();
 		}));
 
-		const resetCurrentLanguageModelIfUnavailable = () => {
+		const updateAfterModelListChange = (reconcileSelection: boolean) => {
 			const modelIdentifier = this._currentLanguageModel.get()?.identifier;
 			const models = this.getModels();
 			if (canLog(this.logService.getLevel(), LogLevel.Debug)) {
@@ -932,14 +934,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				logChangesToStateModel(this._inputModel, messageparts.join(', '), undefined, undefined, this.logService);
 			}
-			this._modelSelectionController.reconcileModelListChange(models);
+			if (reconcileSelection) {
+				this._modelSelectionController.reconcileModelListChange(models);
+			}
 			// The available-model set changed: re-evaluate whether sending is
 			// possible (a `requiresCustomModels` session may now have, or have
 			// lost, its models).
 			this._updateInputContentContextKeys();
 		};
-		this._register(this.languageModelsService.onDidChangeLanguageModels(resetCurrentLanguageModelIfUnavailable));
-		this._register(this.languageModelsService.onDidChangeModelVisibility(resetCurrentLanguageModelIfUnavailable));
+		this._register(this.languageModelsService.onDidChangeLanguageModels(() => updateAfterModelListChange(false)));
+		this._register(this.languageModelsService.onDidChangeModelVisibility(() => updateAfterModelListChange(true)));
 
 		this._register(this.onDidChangeCurrentChatMode(() => {
 			this.accessibilityService.alert(this._currentModeObservable.get().label.get());
@@ -1052,7 +1056,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const models = this.getModels();
 		const model = models.find(m => m.identifier === identifier);
 		if (model) {
-			this.setCurrentLanguageModel(model, isUserAction, storeSelection);
+			if (isUserAction) {
+				this.setCurrentLanguageModel(model, true, storeSelection);
+			} else {
+				this._applyProgrammaticLanguageModel(model);
+			}
 			return true;
 		}
 		return false;
@@ -1063,12 +1071,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		for (const qualifiedModelName of qualifiedModelNames) {
 			const model = models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedModelName, m.metadata));
 			if (model) {
-				this.setCurrentLanguageModel(model);
+				this._applyProgrammaticLanguageModel(model);
 				return true;
 			}
 		}
 		this.logService.warn(`[chat] Node of the models "${qualifiedModelNames.join(', ')}" not found. Use format "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
 		return false;
+	}
+
+	public requestModelByIdentifier(identifier: string): Promise<boolean> {
+		return this._requestProgrammaticLanguageModel(() => this.getModels().find(model => model.identifier === identifier));
+	}
+
+	public requestModelByQualifiedName(qualifiedModelNames: readonly string[]): Promise<boolean> {
+		return this._requestProgrammaticLanguageModel(() => {
+			const models = this.getModels();
+			return qualifiedModelNames.map(name => models.find(model => ILanguageModelChatMetadata.matchesQualifiedName(name, model.metadata))).find(isDefined);
+		});
+	}
+
+	get hasPendingProgrammaticModelSelection(): boolean {
+		return this._modelSelectionController.hasPendingProgrammaticSelection();
 	}
 
 
@@ -1138,35 +1161,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			getModels: () => this.getModels(),
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
-			useGroupedModelPicker: () => {
-				// Agent-host session types (local and remote) reuse the same
-				// grouped/featured model picker as the default chat session, so
-				// the editor matches the agents window experience.
-				const sessionType = this.getCurrentSessionType();
-				return !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
-			},
-			showManageModelsAction: () => {
-				// Agent-host session types (local and remote) also surface the
-				// "Manage Models" action so users can add/configure BYOK models
-				// directly from the picker, matching the agents window experience.
-				const sessionType = this.getCurrentSessionType();
-				return !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
-			},
-			showUnavailableFeatured: () => {
-				// Agent-host session types also surface unavailable featured
-				// models (upgrade/update/admin states) so the picker is as
-				// informative as the default chat session, matching the agents
-				// window experience.
-				const sessionType = this.getCurrentSessionType();
-				return !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
-			},
-			showFeatured: () => {
-				const sessionType = this.getCurrentSessionType();
-				return !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
-			},
-			useGenericModelIcon: () => !this.options.isSessionsWindow && this._usesHarnessProviderIcon(),
-			showAutoModel: () => this._showAutoModel(),
+			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
 			modelConfiguration: this._modelConfigStore,
+		};
+	}
+
+	private _getModelPickerPresentationOptions(): IModelPickerPresentationOptions {
+		const sessionType = this.getCurrentSessionType();
+		const useRichPicker = !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
+		return {
+			useGroupedModelPicker: useRichPicker,
+			showManageModelsAction: useRichPicker,
+			showUnavailableFeatured: useRichPicker,
+			showFeatured: useRichPicker,
+			showAutoModel: this._showAutoModel(),
+			useGenericModelIcon: !this.options.isSessionsWindow && this._usesHarnessProviderIcon(),
 		};
 	}
 
@@ -1394,9 +1403,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const ownsPool = !!this._currentSessionType && this.sessionTypeHasOwnModelPool(this._currentSessionType);
 		const hadIncomingModel = !!model.state.get()?.selectedModel;
 		this._modelSelectionController.beginSessionSwitch(chatSessionIsEmpty, ownsPool, hadIncomingModel);
-		// Drop any pending persisted-model wait from a PREVIOUS session so it can't later fire
-		// into this (or a subsequent) session's storage key.
-		this._modelSelectionController.clearAuthoritativeModelWait();
 
 		if (chatSessionIsEmpty) {
 			const persistedState = model.state.get() ? undefined : this._getPersistedEmptyInputState();
@@ -1639,11 +1645,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._syncInputStateToModel();
 		};
 		if (isUserAction) {
-			this._modelSelectionController.applyExplicitSelection(model, this.getCurrentSessionType(), this._inputModelSessionResource?.toString(), apply, false);
+			this._modelSelectionController.applyExplicitSelection(model, apply, false);
 		} else {
-			this._modelSelectionModel.setCurrentModel(model, false);
-			apply();
+			this._modelSelectionController.applyAutomaticSelection(model, apply);
 		}
+	}
+
+	private _applyProgrammaticLanguageModel(model: ILanguageModelChatMetadataAndIdentifier): void {
+		this._modelSelectionController.applyProgrammaticSelection(model);
+	}
+
+	private _requestProgrammaticLanguageModel(resolveModel: () => ILanguageModelChatMetadataAndIdentifier | undefined): Promise<boolean> {
+		const result = this._modelSelectionController.requestProgrammaticSelection(
+			resolveModel,
+			this._inputModelSessionResource?.toString(),
+		);
+		this._updateInputContentContextKeys();
+		void result.finally(() => this._updateInputContentContextKeys());
+		return result;
 	}
 
 	private checkModelSupported(): void {
@@ -1824,10 +1843,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	private preselectModelFromSessionHistory(): void {
 		// Session-history preselection is delayed when extension-provided models
-		// have not arrived yet. Always clear the previous session-history wait
+		// have not arrived yet. Always clear the previous session-history intent
 		// before any early return so a listener captured for another session cannot
 		// later apply its model to the active session.
-		this._modelSelectionController.clearHistoryModelWait();
+		this._modelSelectionController.clearHistoryIntent();
 
 		const sessionModel = this._widget?.viewModel?.model;
 		const sessionResource = sessionModel?.sessionResource;
@@ -1866,9 +1885,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return model ? model : undefined;
 	}
 
-	/** Resets the language model to the location default and cancels any pending persisted-model waiter. */
+	/** Resets the language model to the location default and cancels any pending model-selection intent. */
 	public resetLanguageModelToDefault(): void {
-		this._modelSelectionController.clearAuthoritativeModelWait();
+		this._modelSelectionController.clearIntent();
 		this.setCurrentLanguageModelToDefault();
 	}
 
@@ -2200,7 +2219,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const hasSendableContent = inputHasText || this._attachmentModel.attachments.some(isExplicitFileOrImageVariableEntry);
 		// Block sending when the session type has no usable model (and can't
 		// fall back to Auto): there is nothing to send the request with.
-		this.inputEditorHasSendableContent.set(hasSendableContent && !this.hasNoAvailableModel());
+		this.inputEditorHasSendableContent.set(hasSendableContent && !this.hasNoAvailableModel() && !this.hasPendingProgrammaticModelSelection);
 	}
 
 	private getOrCreateOptionEmitter(optionGroupId: string): Emitter<IChatSessionProviderOptionItem> {
@@ -2786,7 +2805,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// move away from the model that will be applied when it appears.
 		if (this._modelSelectionController.restorePerTypeModel) {
 			this.initSelectedModel();
-			if (!this._modelSelectionController.hasAuthoritativeModelWait()) {
+			if (!this._modelSelectionController.hasPendingIntent()) {
 				this.checkModelInSessionPool();
 			}
 		}

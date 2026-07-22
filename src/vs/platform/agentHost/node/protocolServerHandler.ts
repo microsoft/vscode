@@ -59,6 +59,21 @@ const REPLAY_BUFFER_CAPACITY = 1000;
 
 const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
 
+/**
+ * Client-dispatchable actions that are declared in the protocol but not yet
+ * operational in this build. The multiroot working-directory mutations
+ * (`session|chat/workingDirectorySet|Removed`) would mutate the synchronized
+ * working-directory set without reconfiguring the agent's actual directory
+ * access, so they are rejected in the dispatch path until capability-backed
+ * multiroot support lands.
+ */
+const UNSUPPORTED_CLIENT_ACTION_TYPES: ReadonlySet<ActionType> = new Set([
+	ActionType.SessionWorkingDirectorySet,
+	ActionType.SessionWorkingDirectoryRemoved,
+	ActionType.ChatWorkingDirectorySet,
+	ActionType.ChatWorkingDirectoryRemoved,
+]);
+
 /** A client tool call in any of these statuses is still awaiting its result. */
 function isPendingToolCallStatus(status: ToolCallStatus): boolean {
 	return status === ToolCallStatus.Streaming
@@ -442,7 +457,22 @@ export class ProtocolServerHandler extends Disposable {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
 							const action = msg.params.action as SessionAction | ChatAction | TerminalAction | IRootConfigChangedAction;
 							const channel = msg.params.channel;
-							if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || action.type === ActionType.RootConfigChanged) {
+							// Multiroot working-directory mutations are declared in the
+							// protocol but not yet supported: they would mutate the
+							// synchronized access set without reconfiguring the agent's
+							// actual directory access. Reject them through the normal
+							// reconciliation path (preserving the client's origin) so the
+							// client rolls back its optimistic action instead of leaving
+							// it pending, until capability-backed multiroot support lands.
+							if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
+								this._logService.warn(`[ProtocolServer] rejecting unsupported client action: ${action.type}`);
+								this._stateManager.rejectClientAction(
+									channel,
+									action,
+									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
+									`Unsupported action: ${action.type}`,
+								);
+							} else if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || action.type === ActionType.RootConfigChanged) {
 								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq);
 							}
 						}
@@ -1141,7 +1171,7 @@ export class ProtocolServerHandler extends Disposable {
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
-					workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
+					workingDirectory: params.workingDirectories?.[0] ? URI.parse(params.workingDirectories[0]) : undefined,
 					session: URI.parse(params.channel),
 					fork,
 					config: params.config,

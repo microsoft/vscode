@@ -239,6 +239,7 @@ export function resolveCopilotConfigSlashCommandOnSend(command: string, rest: st
 	}
 	const trimmedRest = rest.trim();
 	const namedOptions = descriptor.options.filter(o => o.arg !== undefined);
+	const baseOption = descriptor.options.find(o => o.arg === undefined);
 	if (namedOptions.length > 0 && trimmedRest.length > 0) {
 		const match = /^(\S+)(?:\s+([\s\S]*))?$/.exec(trimmedRest);
 		const firstToken = match?.[1]?.toLowerCase();
@@ -246,8 +247,11 @@ export function resolveCopilotConfigSlashCommandOnSend(command: string, rest: st
 		if (matched) {
 			return { applyConfig: matched.config, strippedPrompt: (match?.[2] ?? '').trim() };
 		}
+		if (!baseOption) {
+			return undefined;
+		}
 	}
 	// Fall back to the bare command form (the base/prompt option or the sole option).
-	const baseOption = descriptor.options.find(o => o.arg === undefined) ?? descriptor.options[0];
-	return { applyConfig: baseOption.config, strippedPrompt: trimmedRest };
+	const fallback = baseOption ?? descriptor.options[0];
+	return { applyConfig: fallback.config, strippedPrompt: trimmedRest };
 }

@@ -87,6 +87,24 @@ export function getAnchoredScrollTop(scrollTop: number, currentTargetTop: number
 	return scrollTop + currentTargetTop - anchorTargetTop;
 }
 
+/**
+ * Computes the scroll-down state for the chat list, keeping two concerns decoupled:
+ *
+ * - `showButton`: whether the "scroll to bottom" affordance is shown. Driven purely by the actual
+ *   scroll position so the user can always jump to the latest content when the view is not at the
+ *   bottom — including during an auto-scroll (agent) turn where the view has fallen behind. See
+ *   https://github.com/microsoft/vscode/issues/326952 (previously this was also suppressed by the
+ *   scroll lock, hiding the button for the whole agent turn).
+ * - `atBottom`: the `chat-list-at-bottom` visual state that reserves streaming-response padding.
+ *   Intentionally still honours the scroll lock so padding during auto-scroll turns is unchanged.
+ */
+export function computeScrollDownState(isScrolledToBottom: boolean, scrollLock: boolean): { showButton: boolean; atBottom: boolean } {
+	return {
+		showButton: !isScrolledToBottom,
+		atBottom: isScrolledToBottom || scrollLock,
+	};
+}
+
 class UserToggleResizeTracker extends Disposable {
 
 	private readonly state = new UserToggleResizeState(2);
@@ -609,8 +627,11 @@ export class ChatListWidget extends Disposable {
 	 * Update scroll-down button visibility based on scroll position and scroll lock.
 	 */
 	private updateScrollDownButtonVisibility(): void {
-		const atBottom = this.isScrolledToBottom || this._scrollLock;
-		this._scrollDownButton.element.style.display = atBottom ? 'none' : '';
+		const { showButton, atBottom } = computeScrollDownState(this.isScrolledToBottom, this._scrollLock);
+		// Use an explicit `flex` (the `.monaco-button` default) rather than '' when showing: the
+		// stylesheet applies `display: none` to `.interactive-session .chat-scroll-down`, so clearing
+		// the inline style would let that rule win and keep the button hidden.
+		this._scrollDownButton.element.style.display = showButton ? 'flex' : 'none';
 		this._container.classList.toggle('chat-list-at-bottom', atBottom);
 	}
 

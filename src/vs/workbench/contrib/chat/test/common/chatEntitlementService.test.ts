@@ -5,8 +5,17 @@
 
 import assert from 'assert';
 import { IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { parseQuotas } from '../../../../services/chat/common/chatEntitlementService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ChatEntitlementService, parseQuotas } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('parseQuotas', () => {
 
@@ -489,5 +498,92 @@ suite('parseQuotas', () => {
 		assert.strictEqual(quotas.additionalUsageEntitlement, 50);
 		assert.strictEqual(quotas.additionalUsageCount, 3);
 		assert.strictEqual(quotas.additionalUsageEnabled, true);
+	});
+});
+
+suite('ChatEntitlementService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createService(): ChatEntitlementService {
+		return store.add(new ChatEntitlementService(
+			store.add(new TestInstantiationService()),
+			new class extends mock<IProductService>() { },
+			new class extends mock<IWorkbenchEnvironmentService>() { },
+			store.add(new MockContextKeyService()),
+			new TestConfigurationService(),
+			NullTelemetryService,
+			new NullLogService(),
+			store.add(new TestStorageService()),
+		));
+	}
+
+	test('merges defined snapshot fields until the snapshot is removed', () => {
+		const service = createService();
+		service.acceptQuotas({
+			premiumChat: {
+				percentRemaining: 90,
+				unlimited: true,
+				hasQuota: true,
+				resetAt: 100,
+				usageBasedBilling: true,
+				entitlement: 1000,
+				quotaRemaining: 900,
+				creditsUsed: 100,
+			},
+		});
+
+		service.acceptQuotas({
+			premiumChat: {
+				percentRemaining: 80,
+				unlimited: true,
+				hasQuota: undefined,
+				resetAt: undefined,
+				usageBasedBilling: undefined,
+				entitlement: undefined,
+				quotaRemaining: undefined,
+				creditsUsed: undefined,
+			},
+		});
+		const merged = service.quotas.premiumChat;
+
+		service.acceptQuotas({
+			premiumChat: {
+				percentRemaining: 70,
+				unlimited: false,
+				hasQuota: false,
+				resetAt: 200,
+				usageBasedBilling: false,
+				entitlement: 2000,
+				quotaRemaining: 1300,
+				creditsUsed: 700,
+			},
+		});
+		const updated = service.quotas.premiumChat;
+
+		service.acceptQuotas({});
+
+		assert.deepStrictEqual({ merged, updated, removed: service.quotas.premiumChat }, {
+			merged: {
+				percentRemaining: 80,
+				unlimited: true,
+				hasQuota: true,
+				resetAt: 100,
+				usageBasedBilling: true,
+				entitlement: 1000,
+				quotaRemaining: 900,
+				creditsUsed: 100,
+			},
+			updated: {
+				percentRemaining: 70,
+				unlimited: false,
+				hasQuota: false,
+				resetAt: 200,
+				usageBasedBilling: false,
+				entitlement: 2000,
+				quotaRemaining: 1300,
+				creditsUsed: 700,
+			},
+			removed: undefined,
+		});
 	});
 });

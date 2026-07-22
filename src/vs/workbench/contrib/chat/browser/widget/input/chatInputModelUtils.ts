@@ -214,18 +214,6 @@ export function findDefaultModel(
 	return models.find(m => m.metadata.isDefaultForLocation[location]) || models[0];
 }
 
-export function findReplacementForProvisionalModel(
-	currentModelId: string | undefined,
-	provisionalModelId: string | undefined,
-	models: readonly ILanguageModelChatMetadataAndIdentifier[],
-	location: ChatAgentLocation,
-): ILanguageModelChatMetadataAndIdentifier | undefined {
-	if (!provisionalModelId || currentModelId !== provisionalModelId) {
-		return undefined;
-	}
-	return models.find(model => model.metadata.isDefaultForLocation[location]);
-}
-
 /**
  * Determines whether the current model should be reset because it is no longer
  * compatible with the current mode, session, or availability.

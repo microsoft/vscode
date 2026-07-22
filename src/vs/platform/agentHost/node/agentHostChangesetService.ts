@@ -569,7 +569,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private async _computeUncommittedDiffs(session: ProtocolURI): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 		if (!workingDirectory) {
 			return undefined;
 		}
@@ -1003,7 +1003,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * branch git falls back to `HEAD`.
 	 */
 	private async _tryComputeGitDiffs(session: ProtocolURI, db: ISessionDatabase, kind: StaticChangesetKind): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 		if (!workingDirectory) {
 			return undefined;
 		}
@@ -1081,7 +1081,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * no git working directory (review status is then simply omitted).
 	 */
 	private async _computeReviewedInfo(session: ProtocolURI, db: ISessionDatabase): Promise<{ readonly repoRoot: URI; readonly paths: ReadonlySet<string> } | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 		if (!workingDirectory) {
 			return undefined;
 		}

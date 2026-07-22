@@ -46,6 +46,13 @@ const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateSnapshotsEnvVar] === '1';
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || UPDATE_SNAPSHOTS;
 const REPLAY_MODE: CapiReplayMode = RECORD ? 'record' : 'replay';
 const SERVER_SHUTDOWN_TIMEOUT_MS = 30_000;
+
+/**
+ * Upper bound on tests served by a single shared replay server before it is
+ * proactively recycled. Amortizes startup across many tests while keeping each
+ * cached provider subprocess well within the range where it stays healthy.
+ */
+const MAX_TESTS_PER_SHARED_SERVER = 25;
 const TEMP_DIR_CLEANUP_TIMEOUT_MS = 30_000;
 /** A synthetic token used on replay (no real credential needed). */
 export const REPLAY_PLACEHOLDER_TOKEN = 'replay-no-token';
@@ -236,6 +243,11 @@ export interface IAgentHostE2EProviderConfig {
 	 * shared test prompt doesn't reliably drive it to `ExitPlanMode`.
 	 */
 	readonly supportsPlanMode: boolean;
+	/** Whether the provider supports additional peer chats and chat forks. */
+	readonly supportsMultipleChats: boolean;
+	readonly supportsChatFork: boolean;
+	/** Whether provider-backed fork context can be tested end-to-end. */
+	readonly supportsChatForkE2E: boolean;
 
 	/**
 	 * The github token to use. If not provided, the test will attempt to resolve it from the environment or `gh auth token`.
@@ -605,6 +617,15 @@ export class AgentHostE2EServerLease {
 	private _client: TestProtocolClient | undefined;
 	private readonly _shared: boolean;
 	private _dataDir: string | undefined;
+	/**
+	 * Number of tests served by the current shared server. A single long-lived
+	 * host caches one provider SDK/CLI subprocess and reuses it across every
+	 * test; after enough sessions that subprocess can accumulate state and
+	 * eventually wedge a turn (turn starts, but no model response arrives even
+	 * though replay is instant). Recycling the server well before that keeps each
+	 * host instance within its reliable range while still amortizing startup.
+	 */
+	private _testsOnCurrentServer = 0;
 	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir: string; readonly userDataDir: string };
 
 	constructor(
@@ -628,6 +649,11 @@ export class AgentHostE2EServerLease {
 	/** Acquire a server + connected client for a test, returning both. */
 	async acquire(testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): Promise<{ server: IServerHandle; client: TestProtocolClient }> {
 		const capiReplay = capiReplayFor(this._config.provider, testTitle, modelTraffic);
+		// Proactively recycle a shared server that has served enough tests, before
+		// its cached provider subprocess can degrade and wedge a turn.
+		if (this._shared && this._server && this._testsOnCurrentServer >= MAX_TESTS_PER_SHARED_SERVER) {
+			await this._recycleSharedServer();
+		}
 		if (this._shared && this._server) {
 			const proxy = this._server.capiReplay;
 			if (!proxy) {
@@ -636,7 +662,9 @@ export class AgentHostE2EServerLease {
 			proxy.resetForReplay(capiReplay.fixturePath);
 		} else {
 			this._server = await startRealServer({ ...this._startOptions, capiReplay });
+			this._testsOnCurrentServer = 0;
 		}
+		this._testsOnCurrentServer++;
 		this._client = new TestProtocolClient(
 			this._server.port,
 			() => this._server?.capiReplay?.takeCacheMissError(),
@@ -646,12 +674,35 @@ export class AgentHostE2EServerLease {
 		return { server: this._server, client: this._client };
 	}
 
+	/** Stop the current shared server so the next {@link acquire} starts a fresh one. */
+	private async _recycleSharedServer(): Promise<void> {
+		try {
+			await this._server?.capiReplay?.close();
+		} finally {
+			await stopServer(this._server);
+			this._server = undefined;
+			this._testsOnCurrentServer = 0;
+		}
+	}
+
+	get observedModelRequestBodies(): readonly string[] {
+		return this._server?.capiReplay?.observedModelRequestBodies ?? [];
+	}
+
 	/**
 	 * Release a test: dispose its sessions, disconnect the client, and verify the
-	 * replay traffic. A shared server is kept alive (with its cached SDK client)
-	 * for the next test; a per-test server is stopped.
+	 * replay traffic. A shared server is normally kept alive (with its cached SDK
+	 * client) for the next test; a per-test server is stopped.
+	 *
+	 * Pass `forceRestart` when the just-run test failed. A failed test can leave
+	 * a mid-turn session that wedges (or has already killed) the shared host, so
+	 * reusing it would cascade `ECONNREFUSED` / `createSession` timeouts into the
+	 * next, unrelated test. Restarting isolates the failure to the one test that
+	 * caused it. The strict cache-miss assertion is also skipped on restart: the
+	 * test already failed for its own reason, and a secondary cache-miss throw
+	 * would only obscure it.
 	 */
-	async release(createdSessions: string[]): Promise<void> {
+	async release(createdSessions: string[], forceRestart = false): Promise<void> {
 		const client = this._client;
 		if (client) {
 			for (const session of createdSessions) {
@@ -672,15 +723,19 @@ export class AgentHostE2EServerLease {
 		createdSessions.length = 0;
 		this._client = undefined;
 
-		if (this._shared) {
+		if (this._shared && !forceRestart) {
 			// Surface this test's strict cache-misses but keep the server (and its
 			// cached SDK client) alive for the next test.
 			this._server?.capiReplay?.assertNoCacheMisses();
 		} else {
-			// Flush the recording / surface strict replay cache-misses before the
-			// process goes away. Kill even if the strict check throws.
+			// Per-test server, or a shared server being restarted after a failure.
+			// Flush the recording / surface strict replay cache-misses (unless the
+			// test already failed) before the process goes away. Kill even if the
+			// strict check throws.
 			try {
-				await this._server?.capiReplay?.stop();
+				if (!forceRestart) {
+					await this._server?.capiReplay?.stop();
+				}
 			} finally {
 				await stopServer(this._server);
 				this._server = undefined;

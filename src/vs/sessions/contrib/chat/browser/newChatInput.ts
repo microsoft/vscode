@@ -73,6 +73,7 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
+import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
 import { ISessionModelSelectionModel, SessionModelSelectionModel } from './sessionModelSelectionModel.js';
@@ -307,7 +308,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private readonly _contextAttachments: NewChatContextAttachments;
 
 	// Slash commands
-	private _slashCommandHandler: SlashCommandHandler | undefined;
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _newChatModelPickerService = new NewChatModelPickerService();
@@ -358,6 +358,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatSpeechToTextService private readonly chatSpeechToTextService: IChatSpeechToTextService,
+		@IChatSubmitRequestHandlerService private readonly chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
 	) {
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
@@ -674,7 +675,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 
 		// Slash commands
-		this._slashCommandHandler = this._register(this._scopedInstantiationService.createInstance(SlashCommandHandler, this._editor));
+		this._register(this._scopedInstantiationService.createInstance(SlashCommandHandler, this._editor));
 
 		// Variable completions (#file, #folder)
 		this._register(this.instantiationService.createInstance(
@@ -952,8 +953,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return;
 		}
 
-		// Check for slash commands first
-		if (query && this._slashCommandHandler?.tryExecuteSlashCommand(query)) {
+		const session = this.options.session.get();
+		if (session && await this.chatSubmitRequestHandlerService.tryHandle({
+			sessionResource: session.resource,
+			providerId: session.providerId,
+			sessionId: session.sessionId,
+			input: query,
+		})) {
 			this._editor.getModel()?.setValue('');
 			return;
 		}

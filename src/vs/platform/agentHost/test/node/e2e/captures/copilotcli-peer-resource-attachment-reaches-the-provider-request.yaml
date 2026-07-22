@@ -1,0 +1,17 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Reply exactly "attachment".
+
+            <tagged_files>
+            * ${workdir}/peer-resource.txt (1 lines)
+            </tagged_files>
+    response:
+      content: attachment
+      stopReason: end_turn

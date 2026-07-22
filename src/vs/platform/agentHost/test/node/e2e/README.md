@@ -68,6 +68,7 @@ Key properties:
 | `harness/` | Record/replay, AHP snapshots, shared turn drivers, and server lifecycle. |
 | `captures/*.yaml` | Committed model fixtures, plus one shared strict empty fixture for tests that declare no model traffic. |
 | `providers/__snapshots__/` | Semantic AHP snapshots for deterministic provider tests. |
+| [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) | Inventory and reevaluation process for disabled or conditional tests. |
 
 Use these deterministic E2E tests when the value comes from running the bundled provider process with realistic captured model behavior: SDK event ordering, tool schemas and execution, provider persistence, protocol-to-provider mapping, or cross-provider parity. Use `../providerIntegration/` for a real provider with a synthetic local LLM, `../protocol/` when `ScriptedMockAgent` can express the AHP contract precisely, and an ordinary unit test when no server process is required.
 
@@ -172,6 +173,20 @@ Outputs:
 Every successful coverage run rewrites the checked-in stats. Test, report, or normalization failures leave the previous stats untouched. The stats are informational for now: there is no threshold, regression check, or commit gate yet. Asynchronous host and provider startup can cover slightly different executable ranges across otherwise identical runs, so a future gate must define an intentional tolerance or ratchet policy rather than assuming byte-identical stats.
 
 Per-provider reports are deferred until there is a concrete need. Per-test attribution is also intentionally out of scope for native aggregate coverage; it would require inspector-based precise coverage snapshots and deltas.
+
+### Coverage expansion strategy
+
+Coverage is a discovery tool, not the goal by itself. A coverage expansion round should add tests for meaningful full-stack contracts, not manufacture line hits or add equivalent prompt variants.
+
+1. **Measure before selecting work.** Save a fresh baseline from `npm run test-agent-host-e2e-coverage`, rank loaded files by uncovered executable lines/functions, then inspect the exact LCOV ranges and existing lower-layer tests. Compare the final result against that same run, not an older checked-in baseline.
+2. **Choose behavior that belongs at this boundary.** Prefer behavior whose value comes from the real server, provider SDK/CLI, AHP transport, persistence, or local tools working together. Pure reducer rules and provider-independent validation usually belong in protocol or unit tests instead.
+3. **Prioritize useful breadth.** Favor underrepresented host-owned behavior and cross-provider contracts over more variants of an already-covered prompt. Count shared test declarations separately from provider executions (one shared declaration normally executes once per enabled provider).
+4. **Choose the model boundary explicitly.** Use `hostOnlyTest(...)` when crossing the model boundary would be a bug. Use a normal test plus a per-test capture when realistic model behavior drives the scenario.
+5. **Use the narrowest durable oracle.** Follow the snapshot/direct/hybrid guidance below. Assert external effects directly, and snapshot a protocol transcript only when its ordering, routing, or lifecycle is part of the contract.
+6. **Design for every CI platform.** Do not assume POSIX paths, shell syntax, PTY chunk boundaries, shell-integration events, persistent terminal titles, or immediately releasable filesystem locks. Use precise platform/provider gates for genuinely unsupported behavior rather than weakening assertions, and keep [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) current when a variant is disabled.
+7. **Keep shared-server isolation.** Drain every model-backed turn, dispose terminals and other owned resources, and keep temporary work inside tracked test directories. A failure that wedges later tests is a lifecycle bug in the test even if its own assertion passed.
+
+A round is complete when TypeScript type-checks, focused replay passes for every enabled provider, model-backed artifacts are reviewed, host-only tests remain strict in recording mode, the full coverage command succeeds, hygiene and layer checks pass, and the measured covered counts/percentages are reported. Native V8 totals have small asynchronous variance; treat broad unrelated failures by rerunning the exact failures in a fresh process before changing code.
 
 ---
 
