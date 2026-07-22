@@ -51,6 +51,10 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		this.overlay.focus();
 		this._register(toDisposable(() => this.overlay.remove()));
 
+		const workbenchRoot = container.closest('.monaco-workbench') ?? container;
+		workbenchRoot.classList.add('sessions-policy-blocked');
+		this._register(toDisposable(() => workbenchRoot.classList.remove('sessions-policy-blocked')));
+
 		const card = append(this.overlay, $('.sessions-policy-blocked-card'));
 
 		this._register(addDisposableListener(getWindow(this.overlay), EventType.KEY_DOWN, (e: KeyboardEvent) => {

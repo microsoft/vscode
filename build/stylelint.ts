@@ -30,6 +30,10 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 	const restrictedPathPattern = /^src[\/\\]vs[\/\\](base|platform|editor)[\/\\]/;
 	const designSystemPattern = /^src[\/\\]vs[\/\\]sessions[\/\\]/;
 	const layerCheckerDisablePattern = /\/\*\s*stylelint-disable\s+layer-checker\s*\*\//;
+	// Root-anchored :has() makes every DOM mutation pay workbench-wide style invalidation
+	// (microsoft/vscode#324985). Matches contiguous compounds only: `.monaco-workbench.foo:has()` yes, `.monaco-workbench .foo:has()` no.
+	const rootAnchoredHasPattern = /(^|[\s,{])(body|html|:root|\.monaco-workbench)[^\s,{}>+~]*:has\(/;
+	const hasAnchorCheckerDisablePattern = /\/\*\s*stylelint-disable\s+has-anchor-checker\s*\*\//;
 
 	// Per-category tally of design-token suggestions for the summary footer.
 	const designTokenCounts: Record<string, number> = { codicon: 0, 'font-size': 0, weight: 0, radius: 0, spacing: 0, stroke: 0, deprecated: 0 };
@@ -44,6 +48,9 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 		// Check if layer-checker is disabled for the entire file
 		const isLayerCheckerDisabled = lines.some(line => layerCheckerDisablePattern.test(line));
 
+		// Check if has-anchor-checker is disabled for the entire file
+		const isHasAnchorCheckerDisabled = lines.some(line => hasAnchorCheckerDisablePattern.test(line));
+
 		lines.forEach((line, i) => {
 			variableValidator(line, (unknownVariable: string) => {
 				reporter(file.relative + '(' + (i + 1) + ',1): Unknown variable: ' + unknownVariable, true);
@@ -52,6 +59,11 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 
 			if (isRestrictedPath && !isLayerCheckerDisabled && monacoWorkbenchPattern.test(line)) {
 				reporter(file.relative + '(' + (i + 1) + ',1): The class .monaco-workbench cannot be used in files under src/vs/{base,platform,editor} because only src/vs/workbench applies it', true);
+				errorCount++;
+			}
+
+			if (!isHasAnchorCheckerDisabled && rootAnchoredHasPattern.test(line)) {
+				reporter(file.relative + '(' + (i + 1) + ',1): Root-anchored :has() (on body/html/:root/.monaco-workbench) makes every DOM mutation pay workbench-wide style invalidation (see microsoft/vscode#324985). Toggle a class from code instead', true);
 				errorCount++;
 			}
 		});
