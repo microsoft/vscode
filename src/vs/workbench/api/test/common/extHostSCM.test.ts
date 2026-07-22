@@ -56,7 +56,7 @@ suite('ExtHostSCM', () => {
 		assert.strictEqual(extHostSCM.getLastInputBox(extension), undefined);
 	});
 
-	test('repository names are forwarded when source controls are registered', () => {
+	test('repository names are forwarded when source controls are registered', async () => {
 		const registeredNames: (string | undefined)[] = [];
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(MainContext.MainThreadSCM, new class extends mock<MainThreadSCMShape>() {
@@ -91,9 +91,11 @@ suite('ExtHostSCM', () => {
 		const unnamedSourceControl = extHostSCM.createSourceControl(extension, 'git', 'Git', URI.file('/repo'), undefined, undefined, undefined, undefined);
 		const namedSourceControl = extHostSCM.createSourceControl(extension, 'git', 'Git', URI.file('/submodule'), undefined, undefined, undefined, 'configured-name');
 
+		await rpcProtocol.sync();
 		assert.deepStrictEqual(registeredNames, [undefined, 'configured-name']);
 
 		unnamedSourceControl.dispose();
 		namedSourceControl.dispose();
+		await rpcProtocol.sync();
 	});
 });
