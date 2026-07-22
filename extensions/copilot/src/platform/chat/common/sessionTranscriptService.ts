@@ -114,6 +114,35 @@ export interface AssistantTurnEndEntry extends TranscriptEntryBase {
 	readonly data: AssistantTurnEndData;
 }
 
+/**
+ * Token / accounting information reported by the model for a single assistant
+ * action or turn. All fields are optional because different runtimes surface
+ * different subsets of this data.
+ */
+export interface UsageData {
+	/** Model that produced this turn (e.g. `gpt-4o`). */
+	readonly model?: string;
+	/** Prompt (input) tokens consumed. */
+	readonly inputTokens?: number;
+	/** Completion (output) tokens produced. */
+	readonly outputTokens?: number;
+	/** Total tokens (input + output) when reported directly. */
+	readonly totalTokens?: number;
+	/** Prompt tokens served from cache. */
+	readonly cacheReadTokens?: number;
+	/** Prompt tokens written to the cache. */
+	readonly cacheCreationInputTokens?: number;
+	/** Raw internal Copilot AI-unit accounting, in nano-AIU, if available. */
+	readonly copilotUsageNanoAiu?: number;
+	/** Set when this turn originates from a subagent nested under a parent tool call. */
+	readonly parentToolCallId?: string | null;
+}
+
+export interface AssistantUsageEntry extends TranscriptEntryBase {
+	readonly type: 'assistant.usage';
+	readonly data: UsageData;
+}
+
 export type TranscriptEntry =
 	| SessionStartEntry
 	| UserMessageEntry
@@ -121,6 +150,7 @@ export type TranscriptEntry =
 	| AssistantMessageEntry
 	| ToolExecutionStartEntry
 	| ToolExecutionCompleteEntry
+	| AssistantUsageEntry
 	| AssistantTurnEndEntry;
 
 // #endregion
@@ -215,6 +245,14 @@ export interface ISessionTranscriptService {
 	logToolExecutionComplete(sessionId: string, toolCallId: string, success: boolean, resultContent?: string): void;
 
 	/**
+	 * Record token / accounting usage reported for an assistant action or turn.
+	 * Buffered as an append-only `assistant.usage` entry at the moment it is
+	 * observed; prior entries are never rewritten to attach usage retrospectively.
+	 * Entries are buffered; call {@link flush} to write to disk.
+	 */
+	logAssistantUsage(sessionId: string, usage: UsageData): void;
+
+	/**
 	 * Record the end of an assistant turn.
 	 * Entries are buffered; call {@link flush} to write to disk.
 	 */
@@ -259,17 +297,20 @@ export interface ISessionTranscriptService {
 export class NullSessionTranscriptService implements ISessionTranscriptService {
 	declare readonly _serviceBrand: undefined;
 
-	async startSession(): Promise<void> { }
-	logUserMessage(): void { }
-	logAssistantTurnStart(): void { }
-	logAssistantMessage(): void { }
-	logToolExecutionStart(): void { }
-	logToolExecutionComplete(): void { }
-	logAssistantTurnEnd(): void { }
-	async flush(): Promise<void> { }
-	async endSession(): Promise<void> { }
-	getTranscriptPath(): URI | undefined { return undefined; }
-	getLineCount(): number | undefined { return undefined; }
-	async cleanupOldTranscripts(): Promise<void> { }
-	isTranscriptUri(): boolean { return false; }
+	// Signatures mirror {@link ISessionTranscriptService} (rather than paramless no-ops) so
+	// recording/spy subclasses in tests can `override` individual methods without an arity mismatch.
+	async startSession(sessionId: string, context?: { cwd?: string }, history?: readonly IHistoricalTurn[]): Promise<void> { }
+	logUserMessage(sessionId: string, content: string, attachments?: readonly unknown[]): void { }
+	logAssistantTurnStart(sessionId: string, turnId: string): void { }
+	logAssistantMessage(sessionId: string, content: string, toolRequests: readonly ToolRequest[], reasoningText?: string): void { }
+	logToolExecutionStart(sessionId: string, toolCallId: string, toolName: string, args: unknown): void { }
+	logToolExecutionComplete(sessionId: string, toolCallId: string, success: boolean, resultContent?: string): void { }
+	logAssistantUsage(sessionId: string, usage: UsageData): void { }
+	logAssistantTurnEnd(sessionId: string, turnId: string): void { }
+	async flush(sessionId: string): Promise<void> { }
+	async endSession(sessionId: string): Promise<void> { }
+	getTranscriptPath(sessionId: string): URI | undefined { return undefined; }
+	getLineCount(sessionId: string): number | undefined { return undefined; }
+	async cleanupOldTranscripts(maxRetained?: number): Promise<void> { }
+	isTranscriptUri(uri: URI): boolean { return false; }
 }

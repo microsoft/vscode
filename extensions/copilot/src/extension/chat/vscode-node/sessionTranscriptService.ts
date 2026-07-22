@@ -9,6 +9,7 @@ import {
 	ISessionTranscriptService,
 	ToolRequest,
 	TranscriptEntry,
+	UsageData,
 } from '../../../platform/chat/common/sessionTranscriptService';
 import { IEnvService } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
@@ -188,6 +189,13 @@ export class SessionTranscriptService implements ISessionTranscriptService {
 				success,
 				...(resultContent !== undefined ? { result: { content: resultContent } } : {}),
 			},
+		});
+	}
+
+	logAssistantUsage(sessionId: string, usage: UsageData): void {
+		this._bufferEntry(sessionId, {
+			type: 'assistant.usage',
+			data: usage,
 		});
 	}
 

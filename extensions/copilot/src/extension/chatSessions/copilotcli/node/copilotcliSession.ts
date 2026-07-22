@@ -12,6 +12,7 @@ import type { ChatParticipantToolToken } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { IChatQuotaService, QuotaSnapshot, QuotaSnapshots } from '../../../../platform/chat/common/chatQuotaService';
 import { getQuotaMessageForPlan } from '../../../../platform/chat/common/commonTypes';
+import { ISessionTranscriptService } from '../../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IGitService } from '../../../../platform/git/common/gitService';
 import { PermissiveAuthRequiredError } from '../../../../platform/github/common/githubService';
@@ -926,6 +927,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ISessionTranscriptService private readonly _sessionTranscriptService: ISessionTranscriptService,
 	) {
 		super();
 		this.sessionId = _sdkSession.sessionId;
@@ -1157,6 +1159,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		this._lastResponseModelId = undefined;
 		this._chatQuotaService.resetTurnCredits(request.id);
 		this.logService.info(`[CopilotCLISession] Invoking session ${this.sessionId}`);
+
+		// Start (idempotent) the session transcript and record the user prompt so the per-turn
+		// `assistant.usage` entries logged from the SDK event stream below have coherent,
+		// append-only context. Subsequent turns reuse the already-active session and append.
+		await this._sessionTranscriptService.startSession(this.sessionId, { cwd: getWorkingDirectory(this.workspace)?.fsPath });
+		this._sessionTranscriptService.logUserMessage(this.sessionId, prompt);
+
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
 		const requestStream = this._stream;
@@ -1253,6 +1262,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		};
 
 		const chunkMessageIds = new Set<string>();
+		// Assistant message ids already written to the session transcript, so a message that is both
+		// streamed as deltas and re-emitted as a complete `assistant.message` is only recorded once.
+		const transcriptLoggedMessageIds = new Set<string>();
 		const assistantMessageChunks: string[] = [];
 		// Tracks the `messageId` of the last assistant text we forwarded to
 		// the stream (via `assistant.message_delta` or `assistant.message`).
@@ -1488,6 +1500,15 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					copilotUsageNanoAiu,
 					parentToolCallId: event.data.parentToolCallId,
 				});
+				// Append the raw usage to the session transcript as an `assistant.usage` entry.
+				this._sessionTranscriptService.logAssistantUsage(this.sessionId, {
+					model: event.data.model,
+					inputTokens: event.data.inputTokens,
+					outputTokens: event.data.outputTokens,
+					cacheReadTokens: event.data.cacheReadTokens,
+					copilotUsageNanoAiu,
+					parentToolCallId: event.data.parentToolCallId,
+				});
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('session.usage_info', (event) => {
 				lastUsageInfo = {
@@ -1516,6 +1537,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				}
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('assistant.message', (event) => {
+				// Record top-level assistant text in the session transcript, independent of the stream
+				// dedup below (a streamed message still arrives here as a complete `assistant.message`).
+				// Sub-agent messages are skipped — they are captured in the subagent tool's result.
+				if (typeof event.data.content === 'string' && event.data.content.length && !event.data.parentToolCallId && !transcriptLoggedMessageIds.has(event.data.messageId)) {
+					transcriptLoggedMessageIds.add(event.data.messageId);
+					this._sessionTranscriptService.logAssistantMessage(this.sessionId, event.data.content, []);
+				}
 				if (typeof event.data.content === 'string' && event.data.content.length && !chunkMessageIds.has(event.data.messageId)) {
 					// Skip sub-agent markdown — it will be captured in the subagent tool's result
 					if (event.data.parentToolCallId) {
@@ -1759,6 +1787,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			this._logConversation(prompt, assistantMessageChunks.join(''), modelId || '', attachments, logStartTime, 'Failed', errorMessage);
 		} finally {
 			cancelCancellationAbort?.();
+
+			// Flush the buffered session transcript entries (user prompt, assistant messages and the
+			// per-turn `assistant.usage` accounting) to disk. Best-effort: the append-only writer
+			// serializes concurrent flushes, so a later turn's flush cannot interleave writes.
+			this._sessionTranscriptService.flush(this.sessionId).catch(error => {
+				this.logService.error(`[CopilotCLISession] Failed to flush session transcript for ${this.sessionId}`, error);
+			});
 
 			// Synthesize a `chat` span per model turn so the chat debug logs view shows the model
 			// turns, token metrics, and the agent response for the in-process Copilot CLI experience,

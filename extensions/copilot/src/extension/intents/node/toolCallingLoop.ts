@@ -1724,6 +1724,20 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				thinkingItem ? (Array.isArray(thinkingItem.text) ? thinkingItem.text.join('') : thinkingItem.text) : undefined,
 			);
 
+			// Log the token / accounting usage for this model turn to the transcript.
+			if (fetchResult.usage) {
+				const usage = fetchResult.usage;
+				this._sessionTranscriptService.logAssistantUsage(this.options.conversation.sessionId, {
+					model: endpoint.model,
+					inputTokens: usage.prompt_tokens,
+					outputTokens: usage.completion_tokens,
+					totalTokens: usage.total_tokens,
+					cacheReadTokens: usage.prompt_tokens_details?.cached_tokens,
+					cacheCreationInputTokens: usage.prompt_tokens_details?.cache_creation_input_tokens,
+					copilotUsageNanoAiu: usage.copilot_usage?.total_nano_aiu,
+				});
+			}
+
 			return {
 				response: fetchResult,
 				round: ToolCallRound.create({

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatParticipantToolToken, ChatResponseStream } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { QuotaSnapshots } from '../../../../../platform/chat/common/chatQuotaService';
+import { ISessionTranscriptService, NullSessionTranscriptService, UsageData } from '../../../../../platform/chat/common/sessionTranscriptService';
 import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { GenAiAttr, IOTelService, NoopOTelService, resolveOTelConfig, SpanKind } from '../../../../../platform/otel/common/index';
@@ -267,7 +268,7 @@ describe('CopilotCLISession', () => {
 		return createSessionWith(new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), opts?.sandboxEnabled ?? false);
 	}
 
-	async function createSessionWith(otelService: IOTelService, sandboxEnabled = false): Promise<CopilotCLISession> {
+	async function createSessionWith(otelService: IOTelService, sandboxEnabled = false, sessionTranscriptService: ISessionTranscriptService = new NullSessionTranscriptService()): Promise<CopilotCLISession> {
 		class FakeUserQuestionHandler implements IUserQuestionHandler {
 			_serviceBrand: undefined;
 			async askUserQuestion(question: IQuestion, toolInvocationToken: ChatParticipantToolToken, token: CancellationToken, toolCallId?: string): Promise<IQuestionAnswer | undefined> {
@@ -296,7 +297,8 @@ describe('CopilotCLISession', () => {
 			new MockGitService(),
 			{ _serviceBrand: undefined } as any,
 			{ _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { }, processQuotaSnapshots(snapshots: QuotaSnapshots) { processedQuotaSnapshots.push(snapshots); } } as any,
-			telemetryService
+			telemetryService,
+			sessionTranscriptService
 		));
 	}
 
@@ -311,6 +313,69 @@ describe('CopilotCLISession', () => {
 		expect(session.status).toBe(ChatSessionStatus.Completed);
 		expect(stream.output.join('\n')).toContain('Echo: Hello');
 		// Listeners are disposed after completion, so we only assert original streamed content.
+	});
+
+	it('writes the user prompt, assistant message and usage into the session transcript', async () => {
+		const events: string[] = [];
+		let flushed = 0;
+		let startedSessionId: string | undefined;
+		const loggedUsage: { sessionId: string; usage: UsageData }[] = [];
+		const recordingTranscriptService = new class extends NullSessionTranscriptService {
+			override async startSession(sessionId: string): Promise<void> {
+				startedSessionId = sessionId;
+				events.push('start');
+			}
+			override logUserMessage(_sessionId: string, content: string): void {
+				events.push(`user:${content}`);
+			}
+			override logAssistantMessage(_sessionId: string, content: string): void {
+				events.push(`assistant:${content}`);
+			}
+			override logAssistantUsage(sessionId: string, usage: UsageData): void {
+				events.push('usage');
+				loggedUsage.push({ sessionId, usage });
+			}
+			override async flush(): Promise<void> {
+				flushed++;
+			}
+		}();
+
+		sdkSession.send = async ({ prompt }) => {
+			sdkSession.emit('user.message', { content: prompt });
+			sdkSession.emit('assistant.turn_start', {});
+			sdkSession.emit('assistant.usage', {
+				model: 'claude-x',
+				inputTokens: 100,
+				outputTokens: 20,
+				cacheReadTokens: 5,
+				parentToolCallId: null,
+				copilotUsage: { totalNanoAiu: 7_000_000 },
+			});
+			sdkSession.emit('assistant.message', { messageId: 'm1', content: 'Done!' });
+			sdkSession.emit('assistant.turn_end', {});
+		};
+
+		const otel = new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' }));
+		const session = await createSessionWith(otel, false, recordingTranscriptService);
+		session.attachStream(new MockChatResponseStream());
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run ls' }, [], undefined, authInfo, CancellationToken.None);
+
+		// The transcript is started before the prompt is recorded, and the per-turn usage is logged
+		// from the SDK event stream in causal order, then flushed once at request completion.
+		expect(startedSessionId).toBe(session.sessionId);
+		expect(events).toEqual(['start', 'user:Run ls', 'usage', 'assistant:Done!']);
+		expect(flushed).toBe(1);
+
+		expect(loggedUsage).toHaveLength(1);
+		expect(loggedUsage[0].sessionId).toBe(session.sessionId);
+		expect(loggedUsage[0].usage).toEqual({
+			model: 'claude-x',
+			inputTokens: 100,
+			outputTokens: 20,
+			cacheReadTokens: 5,
+			copilotUsageNanoAiu: 7_000_000,
+			parentToolCallId: null,
+		});
 	});
 
 	it('synthesizes chat and execute_tool spans for the in-process CLI turn', async () => {
