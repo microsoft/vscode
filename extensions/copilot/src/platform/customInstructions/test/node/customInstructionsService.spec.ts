@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, expect, suite, test } from 'vitest';
+import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
@@ -247,7 +248,7 @@ suite('CustomInstructionsService - Skills', () => {
 			}
 		});
 
-		test('should preserve UNC authority for absolute path skill locations', async () => {
+		test.skipIf(!isWindows)('should preserve UNC authority for absolute path skill locations', async () => {
 			await configService.setNonExtensionConfig('chat.agentSkillsLocations', {
 				'\\\\server\\share\\skills': true
 			});
