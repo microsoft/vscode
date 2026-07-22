@@ -418,6 +418,7 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 	async getOrgCustomInstructions(orgLogin: string, authOptions: AuthOptions): Promise<string | undefined> {
 		const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
 		if (!authToken) {
+			this._logService.trace('No authentication token available for getOrgCustomInstructions');
 			throw new PermissiveAuthRequiredError();
 		}
 		const response = await this._capiClientService.makeRequest<Response>({
@@ -587,4 +588,3 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 		}
 	}
 }
-

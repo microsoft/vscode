@@ -41,7 +41,9 @@ export class GitHubOrgCustomAgentProvider extends Disposable implements vscode.C
 				return [];
 			}
 
-			return await this.githubOrgChatResourcesService.listCachedFiles(PromptsType.agent, orgId);
+			const resources = await this.githubOrgChatResourcesService.listCachedFiles(PromptsType.agent, orgId);
+			this.logService.trace(`[GitHubOrgCustomAgentProvider] Providing ${resources.length} cached agent resource(s) for org ${orgId}`);
+			return resources;
 		} catch (error) {
 			this.logService.error(`[GitHubOrgCustomAgentProvider] Error reading from cache: ${error}`);
 			return [];
@@ -50,6 +52,7 @@ export class GitHubOrgCustomAgentProvider extends Disposable implements vscode.C
 
 	private async pollAgents(orgId: string): Promise<void> {
 		try {
+			this.logService.trace(`[GitHubOrgCustomAgentProvider] Refreshing custom agents for org ${orgId}`);
 			// Convert VS Code API options to internal options
 			// It's okay to include enterprise agents here which may take from other orgs, as we only retrieve per org
 			const internalOptions = { includeSources: ['org', 'enterprise'] } satisfies CustomAgentListOptions;
@@ -97,7 +100,7 @@ export class GitHubOrgCustomAgentProvider extends Disposable implements vscode.C
 			}
 
 			if (!hasChanges) {
-				this.logService.trace('[GitHubOrgCustomAgentProvider] No changes detected in cache');
+				this.logService.trace(`[GitHubOrgCustomAgentProvider] No agent changes detected in cache for org ${orgId}`);
 				return;
 			}
 
@@ -105,9 +108,10 @@ export class GitHubOrgCustomAgentProvider extends Disposable implements vscode.C
 			await this.githubOrgChatResourcesService.clearCache(PromptsType.agent, orgId, newFiles);
 
 			// Fire event to notify consumers that agents have changed
+			this.logService.trace(`[GitHubOrgCustomAgentProvider] Updated ${newFiles.size} cached agent resource(s) for org ${orgId}`);
 			this._onDidChangeCustomAgents.fire();
 		} catch (error) {
-			this.logService.error(`[GitHubOrgCustomAgentProvider] Error polling for agents: ${error}`);
+			this.logService.error(`[GitHubOrgCustomAgentProvider] Error refreshing custom agents for org ${orgId}; preserving existing cache: ${error}`);
 		}
 	}
 

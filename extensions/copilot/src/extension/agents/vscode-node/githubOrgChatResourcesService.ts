@@ -226,6 +226,7 @@ export class GitHubOrgChatResourcesService extends Disposable implements IGitHub
 				return;
 			}
 			if (isPolling) {
+				this.logService.trace('[GitHubOrgChatResourcesService] Resource refresh already in progress, scheduling another refresh');
 				rerunRequested = true;
 				return;
 			}
@@ -240,6 +241,8 @@ export class GitHubOrgChatResourcesService extends Disposable implements IGitHub
 						} catch (error) {
 							this.logService.error(`[GitHubOrgChatResourcesService] Error in polling callback: ${error}`);
 						}
+					} else if (!orgName) {
+						this.logService.trace('[GitHubOrgChatResourcesService] No preferred organization available for resource refresh');
 					}
 				} while (rerunRequested && !isDisposed);
 			} finally {

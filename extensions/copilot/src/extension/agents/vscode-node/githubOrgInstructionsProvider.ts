@@ -37,16 +37,18 @@ export class GitHubOrgInstructionsProvider extends Disposable implements vscode.
 		try {
 			const orgId = await this.githubOrgChatResourcesService.getPreferredOrganizationName();
 			if (!orgId) {
-				this.logService.trace('[GitHubOrgInstructionsProvider] No organization available for providing agents');
+				this.logService.trace('[GitHubOrgInstructionsProvider] No organization available for providing instructions');
 				return [];
 			}
 
 			if (token.isCancellationRequested) {
-				this.logService.trace('[GitHubOrgInstructionsProvider] provideCustomAgents was cancelled');
+				this.logService.trace('[GitHubOrgInstructionsProvider] provideInstructions was cancelled');
 				return [];
 			}
 
-			return await this.githubOrgChatResourcesService.listCachedFiles(PromptsType.instructions, orgId);
+			const resources = await this.githubOrgChatResourcesService.listCachedFiles(PromptsType.instructions, orgId);
+			this.logService.trace(`[GitHubOrgInstructionsProvider] Providing ${resources.length} cached instruction resource(s) for org ${orgId}`);
+			return resources;
 		} catch (error) {
 			this.logService.error(`[GitHubOrgInstructionsProvider] Error reading from cache: ${error}`);
 			return [];
@@ -55,16 +57,18 @@ export class GitHubOrgInstructionsProvider extends Disposable implements vscode.
 
 	private async pollInstructions(orgId: string): Promise<void> {
 		try {
+			this.logService.trace(`[GitHubOrgInstructionsProvider] Refreshing custom instructions for org ${orgId}`);
 			const instructions = await this.octoKitService.getOrgCustomInstructions(orgId, {});
 			if (instructions === undefined || instructions.length === 0) {
 				const existingInstructions = await this.githubOrgChatResourcesService.listCachedFiles(PromptsType.instructions, orgId);
 				await this.githubOrgChatResourcesService.clearCache(PromptsType.instructions, orgId);
-				this.logService.trace(`[GitHubOrgInstructionsProvider] No custom instructions found for org ${orgId}`);
+				this.logService.trace(`[GitHubOrgInstructionsProvider] No custom instructions found for org ${orgId}; removed ${existingInstructions.length} cached resource(s)`);
 				if (existingInstructions.length > 0) {
 					this._onDidChangeInstructions.fire();
 				}
 				return;
 			}
+			this.logService.trace(`[GitHubOrgInstructionsProvider] Fetched custom instructions for org ${orgId} (prompt length: ${instructions.length})`);
 
 			// Write the instructions to cache
 			const fileName = `${INSTRUCTIONS_BASE_FILE_NAME}${INSTRUCTION_FILE_EXTENSION}`;
@@ -83,7 +87,7 @@ ${instructions}`;
 			// Otherwise, fire event to notify consumers that instructions have changed
 			this._onDidChangeInstructions.fire();
 		} catch (error) {
-			this.logService.error(`[GitHubOrgInstructionsProvider] Error polling for instructions: ${error}`);
+			this.logService.error(`[GitHubOrgInstructionsProvider] Error refreshing custom instructions for org ${orgId}; preserving existing cache: ${error}`);
 		}
 	}
 }
