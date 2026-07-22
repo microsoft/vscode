@@ -502,6 +502,45 @@ suite('Multicursor selection', () => {
 		});
 	});
 
+	test('issue #107090: AddSelectionToNextFindMatchAction works with regex find mode', () => {
+		const text = [
+			'abc pizza',
+			'qwe house',
+			'abc bar'
+		];
+		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
+			// Simulate the find widget owning the search: focus is in the find
+			// widget, regex mode is on and the search string is non-empty
+			(editor as { hasTextFocus: () => boolean }).hasTextFocus = () => false;
+			findController.getState().change({ isRevealed: true, searchString: 'abc|qwe', isRegex: true }, false);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+			]);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+			]);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+				new Selection(3, 1, 3, 4),
+			]);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+				new Selection(3, 1, 3, 4),
+			]);
+		});
+	});
+
 	suite('Find state disassociation', () => {
 
 		const text = [
