@@ -1075,8 +1075,6 @@
 		"--monaco-editor-warning-decoration",
 		"--animation-angle",
 		"--animation-opacity",
-		"--chat-input-anim-angle",
-		"--chat-input-anim-duration",
 		"--chat-input-working-border-color1",
 		"--session-input-banner-anim-angle",
 		"--session-input-banner-anim-duration",

@@ -989,12 +989,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 100%;
 	position: relative;
 	transition: box-shadow 350ms ease;
-	/* Duration of the working/progress border comet animation. Set
-		dynamically by `ChatInputPart#layout` to keep the comet's linear
-		travel speed roughly constant regardless of input width — wider
-		inputs would otherwise feel sluggish at a fixed duration. */
-	--chat-input-anim-duration: 4s;
-	/* Allow host surfaces (like inactive sessions) to tone down the animation
+	/* Allow host surfaces (like inactive sessions) to tone down the working
 		accent without overriding the global chat theme token. */
 	--chat-input-working-border-color1: var(--vscode-chat-inputWorkingBorderColor1);
 }
@@ -1007,37 +1002,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 }
 
-/* Animated "border beam" shown around the chat input while the agent is
+/* "Border beam" shown around the chat input while the agent is
 	working or thinking. Toggled by the `chat.progressBorder.enabled`
 	setting and the chat widget's request-in-progress state.
 
 	Inspired by https://github.com/Jakubantalik/border-beam — a small bright
-	comet travels around the perimeter, leaving a short fading trail. The
-	ring is rendered as a `::before` pseudo-element so it can fade in/out
+	accent marks the perimeter. The ring is rendered as a `::before` pseudo-element so it can fade in/out
 	via `opacity` when the `.working` class is toggled, without disturbing
 	the input's own background. The pseudo uses a 1px padding + inverted
 	mask trick so the conic gradient is clipped to a hairline that follows
 	the input's corner radius. */
-@property --chat-input-anim-angle {
-	syntax: '<angle>';
-	inherits: false;
-	initial-value: 135deg;
-}
-
-@keyframes chat-input-working-border-spin {
-	from {
-		--chat-input-anim-angle: 135deg;
-	}
-
-	to {
-		--chat-input-anim-angle: 495deg;
-	}
-}
-
 /* The beam (`::before`) and its glow (`::after`) are two stacked rings
 	occupying the same outer edge: the glow is wider and blurred, the beam is
-	hairline and sharp. Both share `--chat-input-anim-angle` so the glow
-	travels with the comet head with no gap. */
+	hairline and sharp. */
 
 .monaco-workbench .interactive-session .chat-input-container::before {
 	content: '';
@@ -1047,11 +1024,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		currently using (large by default, small in compact mode). */
 	border-radius: inherit;
 	padding: 1px;
-	/* The beam: a tight bright arc (~40deg) with a short fade, on an otherwise
-		transparent ring. As `--chat-input-anim-angle` rotates, the bright spot
-		travels around the perimeter like a comet. Stops are mostly transparent
-		so the rest of the border stays invisible. */
-	background: conic-gradient(from var(--chat-input-anim-angle),
+	/* The beam: a tight bright arc (~40deg) with a short fade on an otherwise
+		transparent ring. */
+	background: conic-gradient(from 135deg,
 			transparent 0deg,
 			color-mix(in srgb, var(--chat-input-working-border-color1) 90%, transparent) 20deg,
 			var(--chat-input-working-border-color1) 30deg,
@@ -1080,7 +1055,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	inset: -1px;
 	border-radius: inherit;
 	padding: 2px;
-	background: conic-gradient(from var(--chat-input-anim-angle),
+	background: conic-gradient(from 135deg,
 			transparent 0deg,
 			color-mix(in srgb, var(--chat-input-working-border-color1) 60%, transparent) 25deg,
 			color-mix(in srgb, var(--chat-input-working-border-color1) 35%, transparent) 50deg,
@@ -1102,10 +1077,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working {
-	/* Keep a faint, persistent ring around the input while the comet
-		animates around it. This preserves a visible boundary for the
-		input throughout the animation (including the dim portion of the
-		perimeter behind the comet) and improves contrast for users who
+	/* Keep a faint, persistent ring around the input. This preserves a visible
+		boundary and improves contrast for users who
 		rely on a visible focus/container outline for accessibility. */
 	border-color: var(--vscode-input-border, transparent);
 	overflow: visible;
@@ -1126,29 +1099,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .monaco-workbench .interactive-session .chat-input-container.working::before {
 	opacity: 1;
-	animation: chat-input-working-border-spin var(--chat-input-anim-duration) linear infinite;
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working::after {
 	opacity: 1;
-	animation: chat-input-working-border-spin var(--chat-input-anim-duration) linear infinite;
-}
-
-/* Marker class toggled briefly by `ChatInputPart#_updateWorkingProgressAnimationDuration`
-	to force a restart of the comet animations so a new
-	`--chat-input-anim-duration` takes effect mid-flight (browsers cache
-	animation-duration at start time when sourced from a custom property). */
-.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-restart::before,
-.monaco-workbench .interactive-session .chat-input-container.working.chat-input-anim-restart::after {
-	animation: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.monaco-workbench .interactive-session .chat-input-container.working,
-	.monaco-workbench .interactive-session .chat-input-container.working::before,
-	.monaco-workbench .interactive-session .chat-input-container.working::after {
-		animation: none;
-	}
 }
 
 /* Context usage widget container - positioned in the secondary toolbar below input */
