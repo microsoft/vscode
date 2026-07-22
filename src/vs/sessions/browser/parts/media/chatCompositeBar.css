@@ -298,37 +298,6 @@
 	outline-offset: -1px;
 }
 
-/* Chat tab bar action menu (e.g. the Conversations dropdown) grouped with the
-	New Chat button right after the tab strip. */
-.chat-composite-bar-tabs-row > .chat-composite-bar-action-menu {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	margin-left: 4px;
-}
-
-.chat-composite-bar-action-menu .action-item .action-label {
-	box-sizing: border-box;
-	width: 26px;
-	height: 26px;
-	padding: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	border-radius: var(--vscode-cornerRadius-small);
-	color: var(--chat-tab-inactive-foreground, currentColor);
-}
-
-.chat-composite-bar-action-menu .action-item .action-label:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--chat-tab-active-foreground);
-}
-
-.chat-composite-bar-action-menu .action-item .action-label:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
 .chat-composite-bar-toolbar {
 	display: flex;
 	align-items: center;
