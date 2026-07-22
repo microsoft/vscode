@@ -7,6 +7,12 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
+ * Setting that gates the "omni" chat experience — advisory badge routing on omni
+ * surfaces such as Quick Chat. See `chat.shared.contribution.ts` for the schema.
+ */
+export const OmniChatEnabledSettingId = 'chat.omni.enabled';
+
+/**
  * A session that a user request can be routed to. Populated by the caller from
  * the session list (e.g. `IChatSessionsService` / `ISessionsService`).
  */

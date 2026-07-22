@@ -15,6 +15,7 @@ import { Selection } from '../../../../../editor/common/core/selection.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -31,6 +32,8 @@ import { IChatModelReference, IChatProgress, IChatService } from '../../common/c
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidgetService, IQuickChatOpenOptions, IQuickChatService } from '../chat.js';
 import { ChatWidget } from '../widget/chatWidget.js';
+import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
+import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;
@@ -155,6 +158,8 @@ class QuickChat extends Disposable {
 	private widget!: ChatWidget;
 	private sash!: Sash;
 	private modelRef: IChatModelReference | undefined;
+	/** Omni routing (advisory badge); created lazily in render, gated by `chat.omni.enabled` at submit. */
+	private routingController: ChatSessionRoutingController | undefined;
 	private readonly maintainScrollTimer: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
 	private _deferUpdatingDynamicLayout: boolean = false;
 
@@ -170,6 +175,7 @@ class QuickChat extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -199,6 +205,9 @@ class QuickChat extends Disposable {
 
 	hide(): void {
 		this.widget.setVisible(false);
+		// Drop any pending advisory badge so a routed request can't auto-send
+		// after the quick chat is dismissed.
+		this.routingController?.cancelPending();
 		// Maintain scroll position for a short time so that if the user re-shows the chat
 		// the same scroll position will be used.
 		this.maintainScrollTimer.value = disposableTimeout(() => {
@@ -245,6 +254,14 @@ class QuickChat extends Disposable {
 					enableImplicitContext: true,
 					defaultMode: ChatMode.Ask,
 					clear: () => this.clear(),
+					// Omni routing: when `chat.omni.enabled`, route the submission via
+					// the advisory badge instead of running it on the local session.
+					submitHandler: (query, mode, attachedContext) => {
+						if (!this.configurationService.getValue<boolean>(OmniChatEnabledSettingId)) {
+							return Promise.resolve(false);
+						}
+						return this.routingController?.handleSubmit(query, mode, attachedContext) ?? Promise.resolve(false);
+					},
 				},
 				{
 					listForeground: quickInputForeground,
@@ -255,6 +272,16 @@ class QuickChat extends Disposable {
 				}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
+
+		// Route submissions through the shared controller, inserting its advisory
+		// badge at the top of the quick chat, above the input.
+		const routingHost: IChatSessionRoutingHost = {
+			widget: this.widget,
+			getOwnSessionResource: () => this.modelRef?.object.sessionResource,
+			placeBadge: (badge) => parent.insertBefore(badge, parent.firstChild),
+		};
+		this.routingController = this._register(this.instantiationService.createInstance(ChatSessionRoutingController, routingHost, 'chatQuick'));
+
 		this.widget.setDynamicChatTreeItemLayout(2, this.maxHeight);
 		this.updateModel();
 		this.sash = this._register(new Sash(parent, { getHorizontalSashTop: () => parent.offsetHeight }, { orientation: Orientation.HORIZONTAL }));

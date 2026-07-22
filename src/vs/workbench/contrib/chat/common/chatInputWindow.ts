@@ -17,7 +17,6 @@ export const CHAT_INPUT_WINDOW_DEFAULT_HEIGHT = 110;
  */
 export const enum ChatInputWindowStorageKeys {
 	WindowOpen = 'chatInputWindow.windowOpen',
-	LastTarget = 'chatInputWindow.lastTarget',
 }
 
 export const IChatInputWindowService = createDecorator<IChatInputWindowService>('chatInputWindowService');

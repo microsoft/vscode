@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-input-window-pending {
+.chat-routing-badge {
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -18,7 +18,7 @@
 	border-bottom: 1px solid var(--vscode-editorWidget-border, transparent);
 }
 
-.chat-input-window-pending .chat-input-window-pending-label {
+.chat-routing-badge .chat-routing-badge-label {
 	flex: 1 1 auto;
 	min-width: 0;
 	white-space: nowrap;
@@ -26,12 +26,12 @@
 	text-overflow: ellipsis;
 }
 
-.chat-input-window-pending .chat-input-window-pending-countdown {
+.chat-routing-badge .chat-routing-badge-countdown {
 	color: var(--vscode-descriptionForeground);
 	font-variant-numeric: tabular-nums;
 }
 
-.chat-input-window-pending .chat-input-window-pending-action {
+.chat-routing-badge .chat-routing-badge-action {
 	flex-shrink: 0;
 	cursor: pointer;
 	color: var(--vscode-textLink-foreground);
@@ -39,12 +39,12 @@
 	-webkit-app-region: no-drag;
 }
 
-.chat-input-window-pending .chat-input-window-pending-action:hover {
+.chat-routing-badge .chat-routing-badge-action:hover {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
 }
 
-.chat-input-window-pending .chat-input-window-pending-action:focus-visible {
+.chat-routing-badge .chat-routing-badge-action:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 	border-radius: var(--vscode-cornerRadius-small, 2px);

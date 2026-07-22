@@ -4,19 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, MutableDisposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { CancellationTokenSource, CancellationToken } from '../../../../../base/common/cancellation.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAuxiliaryWindowService, IAuxiliaryWindow } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IRectangle } from '../../../../../platform/window/common/window.js';
@@ -24,52 +19,20 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { inputBackground, inputBorder } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { localize } from '../../../../../nls.js';
-import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatMode } from '../../common/chatModes.js';
 import { IChatModelReference, IChatService } from '../../common/chatService/chatService.js';
-import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatWidget } from '../widget/chatWidget.js';
-import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
-import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ISessionRouter, IRoutableSession, ISessionRouteResult } from '../../common/sessionRouter.js';
+import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
 import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_WIDTH, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT } from '../../common/chatInputWindow.js';
 
-import './media/chatInputWindow.css';
-
 /**
- * Minimum confidence for a candidate to be treated as a real match. Below this
- * for every candidate, the request targets a brand-new session instead.
- */
-const ROUTE_CONFIDENCE_THRESHOLD = 0.5;
-
-/**
- * When two or more matches are within this confidence margin of the top match,
- * the result is treated as ambiguous and the user is asked to choose.
- */
-const ROUTE_AMBIGUITY_MARGIN = 0.2;
-
-/** Maximum number of options shown in the disambiguation picker. */
-const ROUTE_MAX_CHOICES = 6;
-
-/**
- * How long the pending-send badge counts down before auto-dispatching to the
- * routed target. Long enough to read the target and intervene, short enough to
- * keep a hands-free/voice flow moving.
- */
-const ROUTE_AUTOSEND_DELAY_MS = 3000;
-
-/** Resolved destination for a submitted request: an existing session or a new one. */
-type PendingTarget =
-	| { readonly kind: 'session'; readonly sessionId: string; readonly label: string; readonly confidence: number }
-	| { readonly kind: 'new'; readonly label: string };
-
-/**
- * Hosts a frameless, always-on-top auxiliary window containing (eventually) the
- * full chat input box — dictation, voice mode, and the glow animation. Step 1
- * opens an empty themed container so the window shell can be verified visually.
+ * Hosts a frameless, always-on-top auxiliary window containing the full chat
+ * input box — dictation, voice mode, and the glow animation. Submissions are
+ * intercepted and routed to the best-matching existing session (or a new one)
+ * via the shared {@link ChatSessionRoutingController}.
  */
 export class ChatInputWindowService extends Disposable implements IChatInputWindowService {
 
@@ -82,18 +45,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _window: IAuxiliaryWindow | undefined;
 	private readonly _windowDisposables = this._register(new DisposableStore());
 	private readonly _ownershipChannel: BroadcastChannel;
-	private _widget: ChatWidget | undefined;
 	private _modelRef: IChatModelReference | undefined;
-	/** Parent element hosting the input widget; badge is inserted just before it. */
+	/** Parent element hosting the input widget; the routing badge is inserted just before it. */
 	private _widgetParent: HTMLElement | undefined;
-	/** Active pending-send badge + auto-send timers; replaced/cleared per submission. */
-	private readonly _pendingSend = this._register(new MutableDisposable<IDisposable>());
-	/** Sessions loaded or spawned by routing, deduped by resource; disposed when the window closes. */
-	private readonly _routedSessionRefs = new ResourceMap<IChatModelReference>();
+	/** Shared routing + advisory-badge behaviour; recreated per widget, torn down on close. */
+	private _routingController: ChatSessionRoutingController | undefined;
 	/** In-flight `openWindow()` operation, so concurrent toggles stay idempotent. */
 	private _openOperation: Promise<void> | undefined;
-	/** Cancellation for the in-flight submission; canceled when the window closes. */
-	private readonly _submitCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	get isOpen(): boolean {
 		return !!this._window;
@@ -107,10 +65,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
-		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
-		@ISessionRouter private readonly sessionRouter: ISessionRouter,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -239,8 +193,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this.storageService.store(ChatInputWindowStorageKeys.WindowOpen, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		// Cancel any in-flight submission so routing can't dispatch after close.
-		this._submitCts.value?.cancel();
-		this._submitCts.clear();
+		this._routingController?.cancelPending();
 
 		this._disposeWidget();
 		this._window = undefined;
@@ -296,7 +249,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				// Routing seam: intercept submission before local execution and
 				// route it to the best-matching existing session (or a new one),
 				// forwarding any explicit attachments on the input.
-				submitHandler: (query, mode, attachedContext) => this._handleSubmit(query, mode, attachedContext),
+				submitHandler: (query, mode, attachedContext) => this._routingController?.handleSubmit(query, mode, attachedContext) ?? Promise.resolve(false),
 			},
 			{
 				inputEditorBackground: inputBackground,
@@ -312,7 +265,21 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const modelRef = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { disableBackgroundKeepAlive: true, debugOwner: 'ChatInputWindow' });
 		this._modelRef = modelRef;
 		widget.setModel(modelRef.object);
-		this._widget = widget;
+
+		// Route submissions through the shared controller, inserting its advisory
+		// badge just above the input, and excluding this window's scratch session
+		// from the routing candidates so it can never route to itself.
+		const host: IChatSessionRoutingHost = {
+			widget,
+			getOwnSessionResource: () => this._modelRef?.object.sessionResource,
+			placeBadge: (badge) => {
+				const container = this._window?.container;
+				if (container && this._widgetParent) {
+					container.insertBefore(badge, this._widgetParent);
+				}
+			},
+		};
+		this._routingController = this._windowDisposables.add(this.instantiationService.createInstance(ChatSessionRoutingController, host, 'chatInputWindow'));
 
 		const layout = () => widget.layout(parent.offsetHeight, parent.offsetWidth);
 		layout();
@@ -320,391 +287,11 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._windowDisposables.add(widget.onDidChangeHeight(() => layout()));
 	}
 
-	/**
-	 * Routing seam. Scores the utterance against existing sessions and resolves a
-	 * single **pending target** (best match above threshold, else a new session),
-	 * then shows an advisory badge that counts down and auto-sends to that target.
-	 * Routing is never silent: the user can redirect or cancel during the
-	 * countdown. Always returns `true` (handled) so the input-only widget never
-	 * runs the request on its own scratch session.
-	 */
-	private async _handleSubmit(query: string, _mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[]): Promise<boolean> {
-		const utterance = query.trim();
-		if (!utterance) {
-			return false;
-		}
-
-		// A new submission supersedes any pending badge from a previous one.
-		this._pendingSend.clear();
-
-		// Window-scoped cancellation: replacing the value disposes any previous
-		// source, and closing the window cancels the in-flight submission so we
-		// never dispatch or mutate state after teardown.
-		const cts = new CancellationTokenSource();
-		this._submitCts.value = cts;
-		const token = cts.token;
-
-		const candidates = await this._collectCandidateSessions(token);
-		if (token.isCancellationRequested) {
-			return true;
-		}
-
-		const results = candidates.length ? await this._route(candidates, utterance, token) : [];
-		if (token.isCancellationRequested) {
-			return true;
-		}
-
-		const target = this._resolveTarget(results, candidates);
-		this._beginPendingSend(target, results, candidates, query, utterance, attachedContext, cts);
-		return true;
-	}
-
-	/** Run the router, degrading to an empty ranking on failure/cancellation. */
-	private async _route(candidates: IRoutableSession[], utterance: string, token: CancellationToken): Promise<ISessionRouteResult[]> {
-		try {
-			return await this.sessionRouter.route({ utterance, sessions: candidates }, token);
-		} catch (err) {
-			if (!token.isCancellationRequested) {
-				this.logService.warn('[chatInputWindow] session routing failed:', err);
-			}
-			return [];
-		}
-	}
-
-	/**
-	 * Pick the single pending target the badge pre-selects: the top match if it
-	 * clears the confidence threshold (biased toward the last-used session on a
-	 * tie within the ambiguity margin), otherwise a brand-new session.
-	 */
-	private _resolveTarget(results: ISessionRouteResult[], candidates: IRoutableSession[]): PendingTarget {
-		const labelById = new Map(candidates.map(c => [c.sessionId, c.label]));
-		const top = results[0];
-		if (!top || top.confidence < ROUTE_CONFIDENCE_THRESHOLD) {
-			return { kind: 'new', label: localize('chatInputWindow.newSession', "New session") };
-		}
-
-		// Prefer the last-used session when it is within the ambiguity margin of
-		// the top match, so repeated turns keep landing on the same session.
-		const lastTargetId = this.storageService.get(ChatInputWindowStorageKeys.LastTarget, StorageScope.WORKSPACE);
-		const preferred = lastTargetId
-			? results.find(r => r.sessionId === lastTargetId
-				&& r.confidence >= ROUTE_CONFIDENCE_THRESHOLD
-				&& (top.confidence - r.confidence) <= ROUTE_AMBIGUITY_MARGIN)
-			: undefined;
-		const chosen = preferred ?? top;
-		return {
-			kind: 'session',
-			sessionId: chosen.sessionId,
-			label: labelById.get(chosen.sessionId) ?? chosen.sessionId,
-			confidence: chosen.confidence,
-		};
-	}
-
-	/**
-	 * Snapshot the current agent sessions as routing candidates, excluding this
-	 * window's own scratch session so it can never route to itself. Awaits the
-	 * session model so a pending first-load/refresh isn't missed.
-	 */
-	private async _collectCandidateSessions(token: CancellationToken): Promise<IRoutableSession[]> {
-		try {
-			await this.agentSessionsService.model.resolve(undefined);
-		} catch (err) {
-			this.logService.warn('[chatInputWindow] resolving agent sessions failed:', err);
-		}
-		if (token.isCancellationRequested) {
-			return [];
-		}
-		const ownResource = this._modelRef?.object.sessionResource.toString();
-		return this.agentSessionsService.model.sessions
-			.filter(session => session.resource.toString() !== ownResource)
-			.map(session => this._toRoutableSession(session));
-	}
-
-	private _toRoutableSession(session: IAgentSession): IRoutableSession {
-		return {
-			sessionId: session.resource.toString(),
-			label: session.label,
-			status: statusToString(session.status),
-			lastActivity: session.timing?.lastRequestEnded ?? session.timing?.lastRequestStarted ?? session.timing?.created,
-		};
-	}
-
-	/**
-	 * Ask the user to pick a target, listing the scored sessions (best first,
-	 * capped) plus a new-session option. `preselectedId` is floated to the top so
-	 * it is the default highlighted choice. Returns the chosen session id,
-	 * `'new'` for a new session, or `undefined` if the picker was dismissed.
-	 */
-	private async _promptSessionChoice(results: ISessionRouteResult[], labelById: Map<string, string>, preselectedId?: string): Promise<string | 'new' | undefined> {
-		type RouteChoiceItem = IQuickPickItem & { sessionId?: string; isNew?: boolean };
-		const ordered = results.slice(0, ROUTE_MAX_CHOICES);
-		if (preselectedId && preselectedId !== 'new') {
-			const idx = ordered.findIndex(r => r.sessionId === preselectedId);
-			if (idx > 0) {
-				ordered.unshift(ordered.splice(idx, 1)[0]);
-			}
-		}
-		const items: RouteChoiceItem[] = ordered.map(match => ({
-			label: labelById.get(match.sessionId) ?? match.sessionId,
-			description: localize('chatInputWindow.matchPercent', "{0}% match", Math.round(match.confidence * 100)),
-			detail: match.reason,
-			sessionId: match.sessionId,
-		}));
-		const newItem: RouteChoiceItem = {
-			label: `$(add) ${localize('chatInputWindow.newSession', "New session")}`,
-			isNew: true,
-		};
-		if (preselectedId === 'new') {
-			items.unshift(newItem);
-		} else {
-			items.push(newItem);
-		}
-
-		const picked = await this.quickInputService.pick(items, {
-			placeHolder: localize('chatInputWindow.choosePlaceholder', "Choose where to send this request"),
-		});
-		if (!picked) {
-			return undefined;
-		}
-		return picked.isNew ? 'new' : picked.sessionId;
-	}
-
-	/**
-	 * Show the advisory pending-send badge and start the auto-send countdown.
-	 * The badge names the routed target and counts down; when it elapses the
-	 * request is dispatched. The user can redirect ("Change"), abort ("Cancel"),
-	 * or simply keep typing (which cancels the auto-send) before it fires.
-	 */
-	private _beginPendingSend(
-		target: PendingTarget,
-		results: ISessionRouteResult[],
-		candidates: IRoutableSession[],
-		submittedInput: string,
-		utterance: string,
-		attachedContext: IChatRequestVariableEntry[] | undefined,
-		cts: CancellationTokenSource,
-	): void {
-		const parent = this._widgetParent;
-		const container = this._window?.container;
-		if (!parent || !container) {
-			// No surface to host the badge — fall back to an immediate dispatch.
-			void this._dispatchTo(target, submittedInput, utterance, attachedContext, cts.token);
-			return;
-		}
-
-		const store = new DisposableStore();
-		const targetWindow = dom.getWindow(container);
-		let current = target;
-
-		const badge = dom.$('.chat-input-window-pending');
-		const label = dom.append(badge, dom.$('span.chat-input-window-pending-label'));
-		const countdownEl = dom.append(badge, dom.$('span.chat-input-window-pending-countdown'));
-		const changeEl = dom.append(badge, dom.$('a.chat-input-window-pending-action', { role: 'button', tabindex: '0' }));
-		changeEl.textContent = localize('chatInputWindow.change', "Change");
-		const cancelEl = dom.append(badge, dom.$('a.chat-input-window-pending-action', { role: 'button', tabindex: '0' }));
-		cancelEl.textContent = localize('chatInputWindow.cancel', "Cancel");
-		container.insertBefore(badge, parent);
-		store.add(toDisposable(() => badge.remove()));
-
-		const renderLabel = () => {
-			label.textContent = current.kind === 'session'
-				? localize('chatInputWindow.sendingToSession', "Sending to {0} · {1}% match", current.label, Math.round(current.confidence * 100))
-				: localize('chatInputWindow.sendingToNew', "Sending to {0}", current.label);
-		};
-		renderLabel();
-
-		let remainingSeconds = Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000);
-		const renderCountdown = () => {
-			countdownEl.textContent = localize('chatInputWindow.sendingIn', "sending in {0}s", remainingSeconds);
-		};
-
-		const send = () => {
-			// Detach the badge (and its listeners) before dispatch so a clear of
-			// the input during send can't re-enter cancel().
-			this._pendingSend.clear();
-			void this._dispatchTo(current, submittedInput, utterance, attachedContext, cts.token);
-		};
-
-		// Countdown lives in a MutableDisposable so it can be paused while the
-		// "Change" picker is open and restarted afterwards.
-		const countdownTimer = store.add(new MutableDisposable());
-		const startCountdown = () => {
-			remainingSeconds = Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000);
-			renderCountdown();
-			const handle = targetWindow.setInterval(() => {
-				remainingSeconds--;
-				if (remainingSeconds <= 0) {
-					send();
-					return;
-				}
-				renderCountdown();
-			}, 1000);
-			countdownTimer.value = toDisposable(() => targetWindow.clearInterval(handle));
-		};
-
-		const cancel = () => {
-			cts.cancel();
-			this._pendingSend.clear();
-		};
-		store.add(dom.addDisposableListener(cancelEl, dom.EventType.CLICK, cancel));
-		store.add(dom.addStandardDisposableListener(cancelEl, dom.EventType.KEY_DOWN, e => {
-			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
-				e.preventDefault();
-				cancel();
-			}
-		}));
-
-		const change = async () => {
-			countdownTimer.clear();
-			const labelById = new Map(candidates.map(c => [c.sessionId, c.label]));
-			const preselected = current.kind === 'session' ? current.sessionId : 'new';
-			const choice = await this._promptSessionChoice(results, labelById, preselected);
-			if (cts.token.isCancellationRequested || this._pendingSend.value !== store) {
-				return;
-			}
-			if (choice === undefined) {
-				startCountdown();
-				return;
-			}
-			if (choice === 'new') {
-				current = { kind: 'new', label: localize('chatInputWindow.newSession', "New session") };
-			} else {
-				const match = results.find(r => r.sessionId === choice);
-				current = { kind: 'session', sessionId: choice, label: labelById.get(choice) ?? choice, confidence: match?.confidence ?? 0 };
-			}
-			renderLabel();
-			startCountdown();
-		};
-		store.add(dom.addDisposableListener(changeEl, dom.EventType.CLICK, () => void change()));
-		store.add(dom.addStandardDisposableListener(changeEl, dom.EventType.KEY_DOWN, e => {
-			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
-				e.preventDefault();
-				void change();
-			}
-		}));
-
-		// Typing in the input cancels the auto-send so an edit never silently sends.
-		const editor = this._widget?.inputEditor;
-		if (editor) {
-			store.add(editor.onDidChangeModelContent(() => cancel()));
-		}
-
-		this._pendingSend.value = store;
-		startCountdown();
-	}
-
-	/** Dispatch a resolved pending target, remembering it for next time. */
-	private async _dispatchTo(target: PendingTarget, submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken): Promise<boolean> {
-		if (target.kind === 'new') {
-			return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token);
-		}
-		return this._dispatchToSession(target.sessionId, submittedInput, utterance, attachedContext, token);
-	}
-
-	private async _dispatchToSession(sessionId: string, submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken): Promise<boolean> {
-		let target: URI;
-		try {
-			target = URI.parse(sessionId);
-		} catch (err) {
-			this.logService.warn('[chatInputWindow] invalid session id for routing:', sessionId, err);
-			return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token);
-		}
-
-		try {
-			const ref = await this.chatService.acquireOrLoadSession(target, ChatAgentLocation.Chat, token, 'chatInputWindow-route');
-			if (token.isCancellationRequested) {
-				ref?.dispose();
-				return true;
-			}
-			if (!ref) {
-				this.logService.warn('[chatInputWindow] could not load routed session, starting a new one:', sessionId);
-				return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token);
-			}
-			this._retainSessionRef(target, ref);
-			const result = await this.chatService.sendRequest(target, utterance, attachedContext?.length ? { attachedContext } : undefined);
-			if (token.isCancellationRequested) {
-				return true;
-			}
-			if (!result || result.kind === 'rejected') {
-				this.logService.warn('[chatInputWindow] routed session rejected the request, starting a new one:', sessionId);
-				return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token);
-			}
-			// Remember this session so the next request biases toward it.
-			this.storageService.store(ChatInputWindowStorageKeys.LastTarget, sessionId, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			this._clearInputIfUnchanged(submittedInput);
-			return true;
-		} catch (err) {
-			if (token.isCancellationRequested) {
-				return true;
-			}
-			this.logService.warn('[chatInputWindow] error dispatching to routed session, starting a new one:', err);
-			return this._dispatchToNewSession(submittedInput, utterance, attachedContext, token);
-		}
-	}
-
-	private async _dispatchToNewSession(submittedInput: string, utterance: string, attachedContext: IChatRequestVariableEntry[] | undefined, token: CancellationToken): Promise<boolean> {
-		try {
-			const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'chatInputWindow-new' });
-			if (token.isCancellationRequested) {
-				ref.dispose();
-				return true;
-			}
-			this._retainSessionRef(ref.object.sessionResource, ref);
-			const result = await this.chatService.sendRequest(ref.object.sessionResource, utterance, attachedContext?.length ? { attachedContext } : undefined);
-			if (token.isCancellationRequested) {
-				return true;
-			}
-			if (!result || result.kind === 'rejected') {
-				this.logService.warn('[chatInputWindow] new session rejected the request, running locally');
-				return false;
-			}
-			this._clearInputIfUnchanged(submittedInput);
-			return true;
-		} catch (err) {
-			if (token.isCancellationRequested) {
-				return true;
-			}
-			this.logService.warn('[chatInputWindow] error starting a new session, running locally:', err);
-			return false;
-		}
-	}
-
-	/**
-	 * Retain at most one reference per session resource so a long-lived window
-	 * doesn't accumulate model references (and their sessions) as more requests
-	 * are routed to the same target.
-	 */
-	private _retainSessionRef(resource: URI, ref: IChatModelReference): void {
-		if (this._routedSessionRefs.has(resource)) {
-			ref.dispose();
-			return;
-		}
-		this._routedSessionRefs.set(resource, ref);
-	}
-
-	/**
-	 * Clear the input (and its explicit attachments) only if the editor still
-	 * holds exactly what was submitted, so a newer draft typed while the request
-	 * was in flight is preserved.
-	 */
-	private _clearInputIfUnchanged(submittedInput: string): void {
-		const editor = this._widget?.inputEditor;
-		if (editor && editor.getValue() === submittedInput) {
-			editor.setValue('');
-			this._widget?.attachmentModel.clear();
-		}
-	}
-
 	private _disposeWidget(): void {
-		this._pendingSend.clear();
-		this._widget = undefined;
+		this._routingController = undefined;
 		this._widgetParent = undefined;
 		this._modelRef?.dispose();
 		this._modelRef = undefined;
-		for (const ref of this._routedSessionRefs.values()) {
-			ref.dispose();
-		}
-		this._routedSessionRefs.clear();
 	}
 
 	private _defaultBounds(): IRectangle {
@@ -722,11 +309,3 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 registerSingleton(IChatInputWindowService, ChatInputWindowService, InstantiationType.Delayed);
 
-function statusToString(status: AgentSessionStatus): string {
-	switch (status) {
-		case AgentSessionStatus.Failed: return 'failed';
-		case AgentSessionStatus.Completed: return 'idle';
-		case AgentSessionStatus.InProgress: return 'working';
-		default: return 'unknown';
-	}
-}
