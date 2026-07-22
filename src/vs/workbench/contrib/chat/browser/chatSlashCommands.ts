@@ -264,7 +264,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
 			}));
@@ -275,7 +275,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 			}));
@@ -286,7 +286,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
 			}));
@@ -297,7 +297,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 			}));
@@ -308,7 +308,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Autopilot);
 			}));
@@ -319,7 +319,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
 				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 			}));

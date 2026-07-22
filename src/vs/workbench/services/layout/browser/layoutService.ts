@@ -62,6 +62,14 @@ export const enum LayoutSettings {
  */
 export const FLOATING_PANEL_MARGIN = 4;
 
+/**
+ * The trailing card margin (in pixels) when the Modern UI Update experiment is
+ * enabled. Together with the next card's leading {@link FLOATING_PANEL_MARGIN},
+ * it forms the 6px inter-card gap. Keep in sync with the
+ * `--vscode-spacing-size20` (2px) token used in `floatingPanels.css`.
+ */
+export const FLOATING_PANEL_INNER_MARGIN = 2;
+
 export const enum ActivityBarPosition {
 	DEFAULT = 'default',
 	TOP = 'top',
@@ -302,6 +310,7 @@ export function isMultiWindowPart(part: Parts): part is MULTI_WINDOW_PARTS {
 export interface IPartVisibilityChangeEvent {
 	readonly partId: string;
 	readonly visible: boolean;
+	readonly source?: 'resize';
 }
 
 export interface IWorkbenchLayoutService extends ILayoutService {
@@ -407,6 +416,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Set part hidden or not in the target window.
 	 */
 	setPartHidden(hidden: boolean, part: Parts): void;
+
+	/**
+	 * Toggles the layout surface that represents the secondary sidebar.
+	 */
+	toggleSecondarySideBar(): void;
 
 	/**
 	 * Maximizes the panel height if the panel is not already maximized.

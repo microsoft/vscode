@@ -246,6 +246,15 @@ zone.js/dist/**
 @github/copilot-win32-arm64/**
 @github/copilot-win32-x64/**
 
+# @vscode/os-proxy-resolver platform binaries - selected target is re-added during packaging
+@vscode/os-proxy-resolver-darwin-arm64/**
+@vscode/os-proxy-resolver-darwin-x64/**
+@vscode/os-proxy-resolver-linux-arm-gnueabihf/**
+@vscode/os-proxy-resolver-linux-arm64-gnu/**
+@vscode/os-proxy-resolver-linux-x64-gnu/**
+@vscode/os-proxy-resolver-win32-arm64-msvc/**
+@vscode/os-proxy-resolver-win32-x64-msvc/**
+
 # @github/copilot-sdk - strip the nested @github/copilot CLI runtime
 # The SDK only needs its own dist/ files; the CLI is resolved via cliPath at runtime
 @github/copilot-sdk/node_modules/@github/copilot/**

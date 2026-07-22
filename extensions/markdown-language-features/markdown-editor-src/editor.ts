@@ -109,6 +109,14 @@ class Editor extends Disposable {
 		const view = this._register(new EditorView(model, {
 			classNames: ['md-theme-vscode-default'],
 			syntaxHighlighter: this.#syntaxHighlighter,
+			onOpenLink: (url) => {
+				const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(url)?.[1].toLowerCase();
+				if (scheme && scheme !== 'file') {
+					return false;
+				}
+				this.#vscode.postMessage({ type: 'openLink', href: url });
+				return undefined;
+			},
 			onToggleCheckbox: (item, newChecked) => {
 				if (model.readonlyMode.get()) {
 					return;

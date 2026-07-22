@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { disposableTimeout } from '../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, ResourceQueue } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -12,36 +13,40 @@ import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { observableValue } from '../../../base/common/observable.js';
-import { extname as resourcesExtname, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
+import { dirname as resourcesDirname, extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { hasKey } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
-import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileChange, IFileService, toFileOperationResult, toFileSystemProviderErrorCode, type FileChangesEvent } from '../../files/common/files.js';
+import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileOperationResult, type FileChangesEvent } from '../../files/common/files.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkEndpoint, IAgentHostNetworkFetchResult, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionWorkspaceless, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionWorkspaceless, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from './shared/fileEditTracker.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import { type IChatContextSnapshot, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
+import { WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
@@ -53,6 +58,7 @@ import { AgentHostRenameCompletionProvider } from './agentHostRenameCommand.js';
 import { AgentHostSkillCompletionProvider } from './agentHostSkillCompletionProvider.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
+import { INetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 import { AgentHostChangesetOperationService } from './agentHostChangesetOperationService.js';
@@ -81,6 +87,22 @@ import { AgentHostReviewService } from './agentHostReviewService.js';
  * provider-side session, worktree, and on-disk state.
  */
 const SESSION_GC_GRACE_MS = 30_000;
+
+const HOST_OWNED_SESSION_CONFIG_KEYS = [
+	SessionConfigKey.Isolation,
+	SessionConfigKey.Branch,
+	SessionConfigKey.WorktreeBranchPrefix,
+	SessionConfigKey.WorktreeIncludeFiles,
+] as const;
+
+function omitHostOwnedSessionConfig<T>(config: Record<string, T>): Record<string, T> {
+	const result = { ...config };
+	for (const key of HOST_OWNED_SESSION_CONFIG_KEYS) {
+		delete result[key];
+	}
+	return result;
+}
+
 /**
  * Grace period before an idle resource watch is torn down after its last
  * subscriber unsubscribes (mirrors {@link SESSION_GC_GRACE_MS}). Within
@@ -90,6 +112,9 @@ const SESSION_GC_GRACE_MS = 30_000;
  * envelope replay buffer for the same reason.
  */
 const RESOURCE_WATCH_GRACE_MS = 30_000;
+
+/** Bound on how long {@link AgentService.subscribe} waits for a pending subagent chat to register before giving up. */
+const SUBAGENT_CHAT_PENDING_TIMEOUT_MS = 15_000;
 
 /**
  * Grace period before an idle session (one with turns, no remaining
@@ -150,6 +175,8 @@ interface IPersistedPeerChat {
  */
 export class AgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _resourceWriteQueue = this._register(new ResourceQueue());
 
 	/** Protocol: fires when state is mutated by an action. */
 	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
@@ -225,12 +252,23 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _localTurns: AgentHostLocalTurns;
 	/** Server-side host for the agent host's server tools. */
 	private readonly _serverToolHost: AgentServerToolHost;
-	private readonly _configurationService: IAgentConfigurationService;
+	private readonly _configurationService: AgentConfigurationService;
+	/**
+	 * Host-owned worktree isolation controller. Set post-construction via
+	 * {@link setWorktreeIsolation} because it depends on the branch-name
+	 * generator, which is wired after this service is built. All worktree
+	 * behavior — schema contribution, first-send resolution, project /
+	 * announcement, archive, and cleanup — is driven from the host so individual
+	 * agents stay unaware of the folder-vs-worktree distinction.
+	 */
+	private _worktree: WorktreeIsolation | undefined;
 	/** Single source of truth for GitHub (Enterprise) endpoints and protected resources. */
 	private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService;
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
 	private readonly _completions: IAgentHostCompletions;
 	private _skillCompletionProviderRegistered = false;
+	/** Backs {@link getNetworkDiagnosticsInfo} / {@link diagnosticsFetch}; wired via {@link setNetworkDiagnosticsService}. */
+	private _networkDiagnostics: INetworkDiagnosticsService | undefined;
 
 	/**
 	 * Authoritative server-side per-resource subscription refcount, keyed by
@@ -244,6 +282,12 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _resourceSubscribers = new ResourceMap<Set<string>>();
 	private readonly _restoreSessionInFlight = new Map<string, Promise<void>>();
 	private readonly _restoreSubagentInFlight = new Map<string, Promise<void>>();
+
+	/** Subagent chats armed for a bounded wait (once execution is confirmed); resolved by {@link _onChatSpawned}, awaited by {@link subscribe}. */
+	private readonly _pendingSubagentChats = new Map<string /* subagentChatUri */, DeferredPromise<void>>();
+	private readonly _pendingSubagentChatTimeouts = this._register(new DisposableMap<string /* subagentChatUri */, IDisposable>());
+	/** Subagent chats announced via `_meta.subagentChatUri` but still awaiting confirmation, keyed by `${channel}:${toolCallId}`. */
+	private readonly _pendingSubagentToolCalls = new Map<string, string /* subagentChatUri */>();
 
 	/**
 	 * Pending {@link _runSessionGc} timers, keyed by session URI. A timer is
@@ -309,6 +353,7 @@ export class AgentService extends Disposable implements IAgentService {
 		private readonly _telemetryService: ITelemetryService = NullTelemetryService,
 		_fileMonitorService?: IAgentHostFileMonitorService,
 		copilotApiService?: ICopilotApiService,
+		fetchFn?: typeof globalThis.fetch,
 	) {
 		super();
 		this._logService.info('AgentService initialized');
@@ -323,12 +368,13 @@ export class AgentService extends Disposable implements IAgentService {
 			},
 		}));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._onDidAction.fire(e)));
+		this._register(this._stateManager.onDidEmitEnvelope(e => this._trackPendingSubagentChatFromEnvelope(e)));
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
 
 		// Build a local instantiation scope so downstream components can
 		// consume {@link IAgentConfigurationService} (and later {@link ILogService})
 		// via DI rather than being plumbed plain-class references.
-		const configurationService: IAgentConfigurationService = this._register(new AgentConfigurationService(this._stateManager, this._logService, this._rootConfigResource));
+		const configurationService = this._register(new AgentConfigurationService(this._stateManager, this._logService, this._rootConfigResource));
 		this._configurationService = configurationService;
 		const fileMonitorService = _fileMonitorService ?? this._register(new AgentHostFileMonitorService(this._fileService, this._logService));
 		updateAgentHostTelemetryLevelFromConfig(this._telemetryService, this._stateManager.rootState.config?.values);
@@ -337,6 +383,7 @@ export class AgentService extends Disposable implements IAgentService {
 			[IAgentService, this],
 			[IProductService, this._productService],
 			[IAgentConfigurationService, configurationService],
+			[IAgentHostStateManager, this._stateManager],
 			[IAgentHostFileMonitorService, fileMonitorService],
 			[IAgentHostGitService, this._gitService],
 			[ITelemetryService, this._telemetryService],
@@ -359,12 +406,12 @@ export class AgentService extends Disposable implements IAgentService {
 				reason: AuthRequiredReason.Required,
 			});
 		}));
-		const agentHostOctoKitService = instantiationService.createInstance(AgentHostOctoKitService, undefined);
+		const agentHostOctoKitService = instantiationService.createInstance(AgentHostOctoKitService, fetchFn);
 		services.set(IAgentHostOctoKitService, agentHostOctoKitService);
-		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, undefined);
+		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, fetchFn);
 		services.set(ICopilotApiService, effectiveCopilotApiService);
 
-		this._gitStateService = this._register(instantiationService.createInstance(AgentHostGitStateService, this._stateManager));
+		this._gitStateService = this._register(instantiationService.createInstance(AgentHostGitStateService));
 		services.set(IAgentHostGitStateService, this._gitStateService);
 
 		// The checkpoint service is constructed in the outer agent-host
@@ -379,27 +426,27 @@ export class AgentService extends Disposable implements IAgentService {
 		services.set(IAgentHostChangesetSubscriptionService, this._changesetSubscriptions);
 
 		// The operation contribution service manages the lifecycle of changeset operations.
-		this._changesetOperationService = this._register(instantiationService.createInstance(AgentHostChangesetOperationService, this._stateManager));
+		this._changesetOperationService = this._register(instantiationService.createInstance(AgentHostChangesetOperationService));
 		services.set(IAgentHostChangesetOperationService, this._changesetOperationService);
 
 		// The changes review service is responsible for managing review/unreview state for changeset changes.
-		this._reviewService = this._register(instantiationService.createInstance(AgentHostReviewService, this._stateManager));
+		this._reviewService = this._register(instantiationService.createInstance(AgentHostReviewService));
 		services.set(IAgentHostReviewService, this._reviewService);
 
 		// The changeset service is responsible for computing, publishing, and persisting changesets.
-		this._changesets = this._register(instantiationService.createInstance(AgentHostChangesetService, this._stateManager));
+		this._changesets = this._register(instantiationService.createInstance(AgentHostChangesetService));
 		services.set(IAgentHostChangesetService, this._changesets);
 
 		// The coordinator owns all AgentService-side orchestration of the changeset feature: lifecycle
 		// hooks, listSessions overlay, subscription URI routing, and the deferred-refresh state machine.
-		this._changesetCoordinator = this._register(instantiationService.createInstance(AgentHostChangesetCoordinator, this._stateManager));
+		this._changesetCoordinator = this._register(instantiationService.createInstance(AgentHostChangesetCoordinator));
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(e => this._changesetCoordinator.onSessionTurnActiveChanged(e.session, e.active)));
 
 		// Register the changeset operation contributions.
-		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution, this._stateManager)));
-		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution, this._stateManager)));
-		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostSyncOperationContribution, this._stateManager)));
-		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution, this._stateManager)));
+		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution)));
+		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution)));
+		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostSyncOperationContribution)));
+		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution)));
 
 		this._completions = this._register(instantiationService.createInstance(AgentHostCompletions));
 		// Built-in generic provider: completes files in the session's workspace folder.
@@ -421,7 +468,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// Created before AgentSideEffects and registered in the local scope so
 		// AgentSideEffects can consume it via DI (for inline `!command`
 		// execution).
-		this._terminalManager = this._register(instantiationService.createInstance(AgentHostTerminalManager, this._stateManager));
+		this._terminalManager = this._register(instantiationService.createInstance(AgentHostTerminalManager));
 		services.set(IAgentHostTerminalManager, this._terminalManager);
 
 		this._localTurns = new AgentHostLocalTurns(this._sessionDataService, this._logService);
@@ -438,9 +485,10 @@ export class AgentService extends Disposable implements IAgentService {
 					scopes: this._gitHubEndpointService.getCopilotResource().scopes_supported,
 				});
 			},
+			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
 			onTurnComplete: async session => {
 				// Refresh the git state for the session.
-				const workingDirStr = this._stateManager.getSessionState(session)?.workingDirectory;
+				const workingDirStr = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 				void this._gitStateService.refreshSessionGitState(session, workingDirStr ? URI.parse(workingDirStr) : undefined);
 
 				// Check for a GitHub pull request associated with the session's branch.
@@ -456,6 +504,93 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	// ---- provider registration ----------------------------------------------
+
+	/**
+	 * Injects the host-owned {@link WorktreeIsolation} controller and forwards it
+	 * to the collaborators that consult it. Called once at startup (from
+	 * agentHostMain / agentHostServerMain) after the branch-name generator has
+	 * been wired.
+	 */
+	setWorktreeIsolation(worktree: WorktreeIsolation): void {
+		this._worktree = worktree;
+		this._configurationService.setWorktreeIsolation(worktree);
+		this._sideEffects.setWorktreeIsolation(worktree);
+	}
+
+	private _toProviderConfig<T extends { readonly config?: Record<string, unknown> }>(request: T): T {
+		if (!this._worktree || !request.config) {
+			return request;
+		}
+		return { ...request, config: omitHostOwnedSessionConfig(request.config) };
+	}
+
+	/**
+	 * Host-owned first-send hook (invoked by {@link AgentSideEffects} before the
+	 * agent locks its subprocess cwd). Resolves the working directory the session
+	 * will actually run in and hands it to the agent at send time:
+	 *  - `worktree` isolation: the isolated worktree, created here on the first
+	 *    send (see {@link _resolveWorktreeBeforeSend});
+	 *  - `folder` isolation: the picked folder;
+	 *  - workspace-less: `undefined` (the agent runs in its own scratch dir).
+	 */
+	private async _resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string }): Promise<URI | undefined> {
+		const sessionId = AgentSession.id(params.session);
+		const pickedFolder = this._configurationService.getEffectiveWorkingDirectory(params.session);
+		const pickedFolderUri = pickedFolder ? URI.parse(pickedFolder) : undefined;
+
+		// Only worktree-isolation sessions defer directory resolution to the first
+		// send (so the prompt can name the branch); folder / workspace-less
+		// sessions run directly in the picked folder.
+		if (!this._worktree?.isWorkingDirectoryPending(sessionId)) {
+			return pickedFolderUri
+				? this._configurationService.resolveWorkingDirectoryForResume(params.session, pickedFolderUri)
+				: undefined;
+		}
+
+		// Fall back to the picked folder when worktree creation failed so the
+		// session still materializes in the user's folder rather than nowhere.
+		return await this._resolveWorktreeBeforeSend({ ...params, sessionId, pickedFolderUri }) ?? pickedFolderUri;
+	}
+
+	/**
+	 * Creates the session's isolated worktree on the first send (deferred so the
+	 * user's prompt can name the branch), surfaces the "Created isolated worktree"
+	 * announcement as the first markdown response part of the turn, and returns
+	 * the created worktree URI. Idempotent; safe to call once the worktree exists.
+	 * Returns `undefined` when worktree creation failed. Only invoked for sessions
+	 * whose worktree is still pending (see {@link _resolveWorkingDirectoryBeforeSend}).
+	 */
+	private async _resolveWorktreeBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string; sessionId: string; pickedFolderUri: URI | undefined }): Promise<URI | undefined> {
+		const { sessionId, pickedFolderUri } = params;
+		const worktree = this._worktree;
+		if (!worktree) {
+			return undefined;
+		}
+		try {
+			await worktree.resolveOnFirstSend({
+				sessionUri: URI.parse(params.session),
+				sessionId,
+				workingDirectory: pickedFolderUri,
+				config: this._configurationService.getSessionConfigValues(params.session),
+				prompt: params.prompt,
+				githubToken: this.getAuthToken({
+					resource: this._gitHubEndpointService.getCopilotResource().resource,
+					scopes: this._gitHubEndpointService.getCopilotResource().scopes_supported,
+				}),
+			});
+		} catch (err) {
+			this._logService.warn(`[AgentService] worktree resolution failed for ${params.session}: ${toErrorMessage(err)}`);
+		}
+		const announcement = worktree.takePendingAnnouncement(sessionId);
+		if (announcement !== undefined) {
+			this._stateManager.dispatchServerAction(params.chat, {
+				type: ActionType.ChatResponsePart,
+				turnId: params.turnId,
+				part: { kind: ResponsePartKind.Markdown, id: generateUuid(), content: announcement },
+			});
+		}
+		return worktree.getResolvedWorktree(sessionId);
+	}
 
 	registerProvider(provider: IAgent): void {
 		if (this._providers.has(provider.id)) {
@@ -576,7 +711,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _startSessionPrompt(session: URI, chat: URI, prompt: string): Promise<void> {
 		const message: Message = { text: prompt, origin: { kind: MessageKind.User } };
-		const action = { type: ActionType.ChatTurnStarted, turnId: generateUuid(), message } as const;
+		const action = { type: ActionType.ChatTurnStarted, turnId: generateUuid(), startedAt: new Date().toISOString(), message } as const;
 		this._stateManager.dispatchServerAction(chat.toString(), action);
 		this._sideEffects.handleAction(chat.toString(), action);
 	}
@@ -625,8 +760,8 @@ export class AgentService extends Disposable implements IAgentService {
 					const sessionStr = s.session.toString();
 					const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
 					const metadataKeys: Record<string, true> = changesetKeys
-						? { customTitle: true, isRead: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
-						: { customTitle: true, isRead: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, ...GIT_DB_METADATA_KEYS };
+						? { customTitle: true, isRead: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+						: { customTitle: true, isRead: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
 					const m = await ref.object.getMetadataObject(metadataKeys);
 					// This session is an internal peer-chat backing (e.g. a
 					// Claude peer chat's SDK session, enumerated by the agent's
@@ -669,6 +804,16 @@ export class AgentService extends Disposable implements IAgentService {
 						updated = { ...updated, _meta: withSessionWorkspaceless(updated._meta, m[AH_META_WORKSPACELESS_DB_KEY] === 'true') };
 					}
 
+					// Worktree-isolated sessions run out of `<repo>.worktrees/<name>` but
+					// must group under the repository in the sessions UI. Merge the repo
+					// project persisted alongside the worktree metadata so a list refresh
+					// doesn't revert the workspace name to the worktree directory. No-op
+					// for folder sessions (key absent).
+					const worktreeProject = worktreeProjectFromRepositoryRoot(m[WORKTREE_META_REPOSITORY_ROOT]);
+					if (worktreeProject) {
+						updated = { ...updated, project: worktreeProject };
+					}
+
 					return this._changesetCoordinator.decorateListEntry(updated, m as Record<string, string | undefined>);
 				} finally {
 					ref.dispose();
@@ -702,6 +847,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const _meta = liveSummary._meta !== undefined || s._meta !== undefined
 					? { ...s._meta, ...liveSummary._meta }
 					: undefined;
+				const liveWorkingDir = liveSummary.workingDirectories?.[0];
 				return {
 					...s,
 					summary: liveSummary.title || s.summary,
@@ -711,8 +857,8 @@ export class AgentService extends Disposable implements IAgentService {
 					project: liveSummary.project
 						? { uri: URI.parse(liveSummary.project.uri), displayName: liveSummary.project.displayName }
 						: s.project,
-					workingDirectory: typeof liveSummary.workingDirectory === 'string'
-						? URI.parse(liveSummary.workingDirectory)
+					workingDirectory: typeof liveWorkingDir === 'string'
+						? URI.parse(liveWorkingDir)
 						: s.workingDirectory,
 					changes: liveSummary.changes ?? s.changes,
 					changesets: this._stateManager.getSessionState(s.session.toString())?.changesets ?? s.changesets,
@@ -745,6 +891,7 @@ export class AgentService extends Disposable implements IAgentService {
 				continue;
 			}
 
+			const summaryWorkingDir = summary.workingDirectories?.[0];
 			additions.push({
 				session: URI.parse(summary.resource),
 				startTime: Date.parse(summary.createdAt),
@@ -752,7 +899,7 @@ export class AgentService extends Disposable implements IAgentService {
 				summary: summary.title,
 				status: summary.status,
 				activity: summary.activity,
-				workingDirectory: typeof summary.workingDirectory === 'string' ? URI.parse(summary.workingDirectory) : undefined,
+				workingDirectory: typeof summaryWorkingDir === 'string' ? URI.parse(summaryWorkingDir) : undefined,
 				...(summary.project ? { project: { uri: URI.parse(summary.project.uri), displayName: summary.project.displayName } } : {}),
 				changes: summary.changes,
 				// This overlay path never opens the session database (unlike the
@@ -814,14 +961,18 @@ export class AgentService extends Disposable implements IAgentService {
 			config = { ...config, importConversation: { ...config.importConversation, turns: importedTurns } };
 		}
 
-		// Ensure the command auto-approver is ready before any session events
-		// can arrive. This makes shell command auto-approval fully synchronous.
-		// Safe to run in parallel with createSession since no events flow until
-		// sendMessage() is called.
+		// Resolve host-owned isolation before provider creation. Providers such as
+		// Codex may schedule eager prewarming from createSession; marking a
+		// client-chosen worktree session pending first prevents that prewarm from
+		// materializing in the picked folder before the host creates the worktree.
+		const initializeSideEffects = this._sideEffects.initialize();
+		const sessionConfig = await this._resolveCreatedSessionConfig(provider, config);
+		const deferWorktreeCreation = sessionConfig?.values?.[SessionConfigKey.Isolation] === 'worktree' && !config?.fork && !config?.importConversation;
+
 		this._logService.trace(`[AgentService] createSession: initializing auto-approver and creating session...`);
 		const [, created] = await Promise.all([
-			this._sideEffects.initialize(),
-			this._createSession(provider, config),
+			initializeSideEffects,
+			this._createProviderSession(provider, config, deferWorktreeCreation),
 		]);
 		const session = created.session;
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
@@ -862,15 +1013,12 @@ export class AgentService extends Disposable implements IAgentService {
 		// `setClientCustomizations`). Subsequent updates flow through the
 		// existing `SessionCustomizationsChanged` / `SessionCustomizationUpdated`
 		// actions published by `PluginController`.
-		const [sessionConfig, initialCustomizations] = await Promise.all([
-			this._resolveCreatedSessionConfig(provider, config),
-			provider.getSessionCustomizations
-				? provider.getSessionCustomizations(session).catch(err => {
-					this._logService.error('[AgentService] createSession: failed to resolve initial customizations', err);
-					return undefined;
-				})
-				: Promise.resolve(undefined),
-		]);
+		const initialCustomizations = await (provider.getSessionCustomizations
+			? provider.getSessionCustomizations(session).catch(err => {
+				this._logService.error('[AgentService] createSession: failed to resolve initial customizations', err);
+				return undefined;
+			})
+			: Promise.resolve(undefined));
 
 		// When forking, populate the new session's protocol state with
 		// the source session's turns so the client sees the forked history.
@@ -930,6 +1078,16 @@ export class AgentService extends Disposable implements IAgentService {
 			state.activeClients = config.activeClient ? [config.activeClient] : [];
 			if (initialCustomizations && initialCustomizations.length > 0) {
 				state.customizations = [...initialCustomizations];
+			}
+
+			// Refine the placeholder title into one generated from the imported
+			// conversation, mirroring forks. Imports seed pre-existing turns, so
+			// the normal first-message title generation never fires; without this
+			// the session would keep showing the raw first-message clip while
+			// sibling sessions show clean generated titles — making imports look
+			// like a different kind of session.
+			if (importedTurns.length > 0) {
+				this._sideEffects.generateForkedTitle(summary.resource, undefined, importedTurns, importedTitle);
 			}
 		} else {
 			// Provisional sessions defer the `sessionAdded` notification and
@@ -1096,8 +1254,25 @@ export class AgentService extends Disposable implements IAgentService {
 		return !!provider.chats;
 	}
 
-	private _createSession(provider: IAgent, config: IAgentCreateSessionConfig | undefined): Promise<IAgentCreateSessionResult> {
-		return provider.createSession(config);
+	private async _createProviderSession(provider: IAgent, config: IAgentCreateSessionConfig | undefined, deferWorktreeCreation: boolean): Promise<IAgentCreateSessionResult> {
+		const requestedSessionId = deferWorktreeCreation && config?.session ? AgentSession.id(config.session) : undefined;
+		if (requestedSessionId) {
+			this._worktree?.notePending(requestedSessionId);
+		}
+
+		let created: IAgentCreateSessionResult | undefined;
+		try {
+			created = await provider.createSession(config ? this._toProviderConfig(config) : undefined);
+			if (deferWorktreeCreation && created.provisional) {
+				this._worktree?.notePending(AgentSession.id(created.session));
+			}
+			return created;
+		} finally {
+			const returnedPendingSessionId = created?.provisional ? AgentSession.id(created.session) : undefined;
+			if (requestedSessionId && requestedSessionId !== returnedPendingSessionId) {
+				this._worktree?.clearPending(requestedSessionId);
+			}
+		}
 	}
 
 	private async _disposeSession(provider: IAgent, session: URI): Promise<void> {
@@ -1108,8 +1283,16 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Reconstruct the turns for a chat. `chat` is the concrete chat channel URI,
 	 * except for legacy restore paths that still address subagent sessions.
 	 */
-	private _getChatMessages(provider: IAgent, chat: URI): Promise<readonly Turn[]> {
-		return provider.chats.getMessages(chat);
+	private async _getChatMessages(provider: IAgent, chat: URI): Promise<readonly Turn[]> {
+		const turns = await provider.chats.getMessages(chat);
+		// Host-owned worktree restore announcement: re-inject the "Created isolated
+		// worktree" message at the top of the default chat's first turn from
+		// persisted metadata. No-op for folder sessions and non-default chats (peer
+		// / subagent). Agents stay unaware of worktrees.
+		if (this._worktree && isDefaultChatUri(chat)) {
+			return this._worktree.applyRestoreAnnouncement(URI.parse(parseRequiredSessionUriFromChatUri(chat.toString())), turns);
+		}
+		return turns;
 	}
 
 	/**
@@ -1199,23 +1382,27 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Derives a title for an imported session from its first user turn (imports
-	 * seed pre-existing turns, so the normal first-message title generation
-	 * never fires). Falls back to a generic label for an empty import.
+	 * Derives a placeholder title for an imported session from its first user
+	 * turn (imports seed pre-existing turns, so the normal first-message title
+	 * generation never fires). Deliberately unprefixed: an imported session is a
+	 * continuation of the source chat, not a distinct kind of session, so it
+	 * should read like any other. The placeholder is later refined into a
+	 * generated title (see the `importConversation` branch in `createSession`),
+	 * but a neutral non-empty fallback is kept so the session still reads like a
+	 * normal chat when generation is unavailable or fails.
 	 */
 	private _buildImportedTitle(turns: readonly Turn[]): string {
-		const importedPrefix = localize('agentHost.importedTitlePrefix', "Imported: ");
 		const firstText = turns.find(t => t.message?.text?.trim())?.message.text.trim();
 		if (!firstText) {
-			return localize('agentHost.importedSessionFallback', "Imported Session");
+			return localize('agentHost.importedSessionFallback', "New Session");
 		}
 		const MAX = 60;
-		const clipped = firstText.length > MAX ? `${firstText.slice(0, MAX)}...` : firstText;
-		return `${importedPrefix}${clipped}`;
+		return firstText.length > MAX ? `${firstText.slice(0, MAX)}...` : firstText;
 	}
 
 	private _buildInitialSummary(provider: IAgent, session: URI, config: IAgentCreateSessionConfig | undefined, created: { project?: { uri: URI; displayName: string }; workingDirectory?: URI }, title: string): SessionSummary {
 		const now = new Date().toISOString();
+		const primaryWorkingDir = (created.workingDirectory ?? config?.workingDirectory)?.toString();
 		return {
 			resource: session.toString(),
 			provider: provider.id,
@@ -1224,7 +1411,7 @@ export class AgentService extends Disposable implements IAgentService {
 			createdAt: now,
 			modifiedAt: now,
 			...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
-			workingDirectory: (created.workingDirectory ?? config?.workingDirectory)?.toString(),
+			workingDirectories: primaryWorkingDir ? [primaryWorkingDir] : undefined,
 			// Workspace-less is inferred at create from an absent input
 			// `workingDirectory` (the host assigns a scratch cwd, so it can't be
 			// re-inferred later) and tagged on the generic `_meta` bag.
@@ -1259,10 +1446,14 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] onDidMaterializeSession missing summary for session: ${sessionKey}`);
 			return;
 		}
+		// The agent no longer knows about worktrees; the host's worktree project
+		// (created in the first-send hook) wins for worktree-isolated sessions, and
+		// falls back to whatever the agent reported for folder sessions.
+		const project = this._worktree?.createdWorktreeProject(AgentSession.id(e.session)) ?? e.project;
 		const summary: SessionSummary = {
 			...currentSummary,
-			...(e.project ? { project: { uri: e.project.uri.toString(), displayName: e.project.displayName } } : {}),
-			workingDirectory: e.workingDirectory?.toString() ?? currentSummary.workingDirectory,
+			...(project ? { project: { uri: project.uri.toString(), displayName: project.displayName } } : {}),
+			workingDirectories: e.workingDirectory ? [e.workingDirectory.toString()] : currentSummary.workingDirectories,
 			modifiedAt: new Date().toISOString(),
 		};
 		const configValues = state.config?.values;
@@ -1369,12 +1560,19 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!config?.config && !config?.workingDirectory) {
 			return undefined;
 		}
+		const params: IAgentResolveSessionConfigParams = {
+			provider: provider.id,
+			workingDirectory: config.workingDirectory,
+			config: config.config,
+		};
 		try {
-			const resolved = await provider.resolveSessionConfig({
-				provider: provider.id,
-				workingDirectory: config.workingDirectory,
-				config: config.config,
-			});
+			// Wrap with the host's isolation schema so the created config carries the
+			// `isolation` / `branch` values (and their git-derived defaults). The
+			// agent's own `resolveSessionConfig` omits them (isolation is host-owned),
+			// so without this a fresh worktree session's isolation is `undefined` at
+			// create time — the pending mark below is skipped and the send falls back
+			// to folder even though the user picked worktree.
+			const resolved = await this._withIsolationSchema(await provider.resolveSessionConfig(this._toProviderConfig(params)), params);
 			return { schema: resolved.schema, values: resolved.values };
 		} catch (err) {
 			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, err);
@@ -1388,16 +1586,61 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
-		return provider.resolveSessionConfig(params);
+		return this._withIsolationSchema(await provider.resolveSessionConfig(this._toProviderConfig(params)), params);
+	}
+
+	/**
+	 * Host-owned contribution of the shared `isolation` (folder / worktree),
+	 * `branch`, `worktreeBranchPrefix`, and `worktreeIncludeFiles` session-config
+	 * properties on top of whatever an agent returned from `resolveSessionConfig`. Provider-returned
+	 * properties and values with these keys are replaced by the host contribution.
+	 */
+	private async _withIsolationSchema(result: ResolveSessionConfigResult, params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+		if (!this._worktree) {
+			return result;
+		}
+		const iso = await this._worktree.resolveIsolationConfig({ workingDirectory: params.workingDirectory, config: params.config });
+		const properties: Record<string, SessionConfigPropertySchema> = {
+			[SessionConfigKey.Isolation]: iso.isolationProperty.protocol,
+			...omitHostOwnedSessionConfig(result.schema.properties),
+		};
+		if (iso.branchProperty) {
+			properties[SessionConfigKey.Branch] = iso.branchProperty.protocol;
+		}
+		if (iso.worktreeBranchPrefixProperty) {
+			properties[SessionConfigKey.WorktreeBranchPrefix] = iso.worktreeBranchPrefixProperty.protocol;
+		}
+		if (iso.worktreeIncludeFilesProperty) {
+			properties[SessionConfigKey.WorktreeIncludeFiles] = iso.worktreeIncludeFilesProperty.protocol;
+		}
+		const values = omitHostOwnedSessionConfig(result.values);
+		values[SessionConfigKey.Isolation] = iso.isolationValue;
+		if (iso.branchProperty && iso.branchValue !== undefined) {
+			values[SessionConfigKey.Branch] = iso.branchValue;
+		}
+		if (iso.worktreeBranchPrefixProperty && typeof params.config?.[SessionConfigKey.WorktreeBranchPrefix] === 'string') {
+			values[SessionConfigKey.WorktreeBranchPrefix] = params.config[SessionConfigKey.WorktreeBranchPrefix];
+		}
+		if (iso.worktreeIncludeFilesProperty
+			&& Array.isArray(params.config?.[SessionConfigKey.WorktreeIncludeFiles])
+			&& params.config[SessionConfigKey.WorktreeIncludeFiles].every(pattern => typeof pattern === 'string')) {
+			values[SessionConfigKey.WorktreeIncludeFiles] = params.config[SessionConfigKey.WorktreeIncludeFiles];
+		}
+		return { schema: { ...result.schema, properties }, values };
 	}
 
 	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
+		// The host owns branch completions for every agent (they share the same
+		// git-backed branch list); all other properties stay provider-specific.
+		if (params.property === SessionConfigKey.Branch && this._worktree) {
+			return this._worktree.branchCompletions(params.workingDirectory, params.query);
+		}
 		const providerId = params.provider ?? this._defaultProvider;
 		const provider = providerId ? this._providers.get(providerId) : undefined;
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
-		return provider.sessionConfigCompletions(params);
+		return provider.sessionConfigCompletions(this._toProviderConfig(params));
 	}
 
 	async completions(params: CompletionsParams): Promise<CompletionsResult> {
@@ -1416,6 +1659,9 @@ export class AgentService extends Disposable implements IAgentService {
 			this._sessionToProvider.delete(session.toString());
 			this._clearDownloadProgressInterest(session.toString());
 		}
+		// Remove any worktree this process created for the session (host-owned;
+		// agents stay unaware).
+		await this._worktree?.removeCreatedWorktree(AgentSession.id(session));
 		this._changesetCoordinator.onSessionDisposed(session.toString());
 		this._sideEffects.cancelSessionTitleGeneration(session.toString());
 		// Remove all subagent sessions for this parent
@@ -1483,22 +1729,27 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			}
 			if (!snapshot) {
-				// Changeset URIs are routed through the coordinator (which
-				// owns its URI shape, the unknown-id early throw, and turn
-				// / static seeding). Other URIs fall through to the
-				// subagent / session-default path below.
-				const handled = await this._changesetCoordinator.tryHandleSubscribe(resource, s => this.restoreSession(s));
-				if (handled) {
-					snapshot = this._stateManager.getSnapshot(resourceStr);
+				if (isSubagentChatUri(resource)) {
+					// May be mid-registration; wait rather than fail immediately.
+					snapshot = await this._awaitPendingSubagentChat(resourceStr);
 				} else {
-					// Try subagent restore before regular session restore
-					const parsedSubagent = parseSubagentSessionUri(resource);
-					if (parsedSubagent) {
-						await this._restoreSubagentSession(resourceStr, parsedSubagent.parentSession);
+					// Changeset URIs are routed through the coordinator (which
+					// owns its URI shape, the unknown-id early throw, and turn
+					// / static seeding). Other URIs fall through to the
+					// subagent / session-default path below.
+					const handled = await this._changesetCoordinator.tryHandleSubscribe(resource, s => this.restoreSession(s));
+					if (handled) {
+						snapshot = this._stateManager.getSnapshot(resourceStr);
 					} else {
-						await this.restoreSession(resource);
+						// Try subagent restore before regular session restore
+						const parsedSubagent = parseSubagentSessionUri(resource);
+						if (parsedSubagent) {
+							await this._restoreSubagentSession(resourceStr, parsedSubagent.parentSession);
+						} else {
+							await this.restoreSession(resource);
+						}
+						snapshot = this._stateManager.getSnapshot(resourceStr);
 					}
-					snapshot = this._stateManager.getSnapshot(resourceStr);
 				}
 			}
 			if (!snapshot) {
@@ -1513,8 +1764,8 @@ export class AgentService extends Disposable implements IAgentService {
 			// the normal state-update stream.
 			const sessionState = this._stateManager.getSessionState(resourceStr);
 			if (!isAhpChatChannel(resourceStr) && sessionState && readSessionGitState(sessionState._meta) === undefined) {
-				const workingDirectory = sessionState.workingDirectory
-					? URI.parse(sessionState.workingDirectory)
+				const workingDirectory = sessionState.workingDirectories?.[0]
+					? URI.parse(sessionState.workingDirectories[0])
 					: undefined;
 				void this._gitStateService.refreshSessionGitState(resourceStr, workingDirectory);
 			}
@@ -1524,6 +1775,16 @@ export class AgentService extends Disposable implements IAgentService {
 			this.unsubscribe(resource, clientId);
 			throw err;
 		}
+	}
+
+	/** Waits for an armed subagent chat to register (or its wait to time out); returns `undefined` if not armed or never registered. */
+	private async _awaitPendingSubagentChat(subagentChatUri: string): Promise<IStateSnapshot | undefined> {
+		const pending = this._pendingSubagentChats.get(subagentChatUri);
+		if (!pending) {
+			return undefined;
+		}
+		await pending.p;
+		return this._stateManager.getSnapshot(subagentChatUri);
 	}
 
 	addSubscriber(resource: URI, clientId: string): void {
@@ -2150,7 +2411,7 @@ export class AgentService extends Disposable implements IAgentService {
 			modifiedAt: new Date(meta.modifiedTime).toISOString(),
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			changes: meta.changes ?? changes,
-			workingDirectory: meta.workingDirectory?.toString(),
+			workingDirectories: meta.workingDirectory ? [meta.workingDirectory.toString()] : undefined,
 			_meta: (sessionMetadata || meta._meta) ? { ...(meta._meta ?? {}), ...(sessionMetadata ?? {}) } : undefined,
 		};
 
@@ -2386,6 +2647,75 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	/** Marks a subagent chat as pending once its confirmed tool call reaches (or is about to reach) `Running`. */
+	private _trackPendingSubagentChatFromEnvelope(envelope: ActionEnvelope): void {
+		const { channel, action } = envelope;
+		if (action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallDelta || action.type === ActionType.ChatToolCallReady) {
+			const key = `${channel}:${action.toolCallId}`;
+			// Providers stamp `toolKind`/`subagentChatUri` on whichever action
+			// first reveals it (Copilot at Start, Claude at Ready) — later
+			// actions for the same tool call don't repeat it, so fall back to
+			// what we already recorded for this tool call.
+			const subagentChatUri = readToolCallMeta(action).subagentChatUri ?? this._pendingSubagentToolCalls.get(key);
+			if (subagentChatUri === undefined) {
+				return;
+			}
+			if (action.type === ActionType.ChatToolCallReady && action.confirmed) {
+				// Goes straight to Running — arm the bounded wait now.
+				this._pendingSubagentToolCalls.delete(key);
+				this._armPendingSubagentChat(subagentChatUri);
+				return;
+			}
+			// Still streaming or awaiting confirmation. Remember the URI so a
+			// later ChatToolCallConfirmed can arm the wait once (if ever)
+			// confirmed, without timing out while the user is still deciding.
+			this._pendingSubagentToolCalls.set(key, subagentChatUri);
+			return;
+		}
+		if (action.type === ActionType.ChatToolCallConfirmed) {
+			const key = `${channel}:${action.toolCallId}`;
+			const subagentChatUri = this._pendingSubagentToolCalls.get(key);
+			if (subagentChatUri === undefined) {
+				return;
+			}
+			this._pendingSubagentToolCalls.delete(key);
+			if (action.approved) {
+				this._armPendingSubagentChat(subagentChatUri);
+			}
+			// Denied: the subagent will never spawn; nothing to resolve since
+			// the wait was never armed while awaiting confirmation.
+			return;
+		}
+		if (action.type === ActionType.ChatToolCallComplete) {
+			// Defensive cleanup: a tool call can complete without ever being
+			// confirmed (e.g. cancelled by other means) while still tracked.
+			this._pendingSubagentToolCalls.delete(`${channel}:${action.toolCallId}`);
+		}
+	}
+
+	private _armPendingSubagentChat(subagentChatUri: string): void {
+		if (this._pendingSubagentChats.has(subagentChatUri) || this._stateManager.getSnapshot(subagentChatUri)) {
+			return;
+		}
+		const deferred = new DeferredPromise<void>();
+		this._pendingSubagentChats.set(subagentChatUri, deferred);
+		this._pendingSubagentChatTimeouts.set(subagentChatUri, disposableTimeout(() => {
+			this._pendingSubagentChats.delete(subagentChatUri);
+			this._pendingSubagentChatTimeouts.deleteAndDispose(subagentChatUri);
+			deferred.complete();
+		}, SUBAGENT_CHAT_PENDING_TIMEOUT_MS));
+	}
+
+	private _resolvePendingSubagentChat(resource: string): void {
+		const deferred = this._pendingSubagentChats.get(resource);
+		if (!deferred) {
+			return;
+		}
+		this._pendingSubagentChats.delete(resource);
+		this._pendingSubagentChatTimeouts.deleteAndDispose(resource);
+		deferred.complete();
+	}
+
 	/**
 	 * Routes an agent-spawned chat (e.g. a sub-agent delegated by a tool
 	 * call) straight into the chat catalog via {@link IAgentHostStateManager.addChat},
@@ -2406,6 +2736,7 @@ export class AgentService extends Disposable implements IAgentService {
 				interactivity: ChatInteractivity.ReadOnly,
 			} : {}),
 		});
+		this._resolvePendingSubagentChat(e.chat.toString());
 	}
 
 	/**
@@ -2564,13 +2895,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionStr = session.toString();
 		if (agent.getSessionMetadata) {
 			try {
-				return await agent.getSessionMetadata(session);
+				return await this._withWorktreeProject(session, await agent.getSessionMetadata(session));
 			} catch (err) {
 				if (err instanceof ProtocolError) {
 					throw err;
 				}
 				try {
-					return await this._getSessionMetadataFromCatalog(agent, session);
+					return await this._withWorktreeProject(session, await this._getSessionMetadataFromCatalog(agent, session));
 				} catch (fallbackErr) {
 					if (fallbackErr instanceof ProtocolError) {
 						const message = err instanceof Error ? err.message : String(err);
@@ -2584,7 +2915,21 @@ export class AgentService extends Disposable implements IAgentService {
 		// Older providers only expose catalog enumeration. Keep the fallback so
 		// restore remains compatible, but providers with a direct lookup avoid
 		// blocking session open on a full catalog refresh.
-		return this._getSessionMetadataFromCatalog(agent, session);
+		return this._withWorktreeProject(session, await this._getSessionMetadataFromCatalog(agent, session));
+	}
+
+	/**
+	 * Merges the repository project for a worktree-isolated session onto its
+	 * restored metadata so the session groups under the repository (not the
+	 * `<repo>.worktrees/<name>` directory) in the sessions UI. No-op for folder
+	 * sessions and for `undefined` metadata. Host-owned so agents stay unaware.
+	 */
+	private async _withWorktreeProject(session: URI, meta: IAgentSessionMetadata | undefined): Promise<IAgentSessionMetadata | undefined> {
+		if (!meta || !this._worktree) {
+			return meta;
+		}
+		const project = await this._worktree.resolveWorktreeProject(session);
+		return project ? { ...meta, project } : meta;
 	}
 
 	private async _getSessionMetadataFromCatalog(agent: IAgent, session: URI): Promise<IAgentSessionMetadata | undefined> {
@@ -2641,6 +2986,21 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult> {
 		const fileUri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		try {
+			const parent = await this._fileService.stat(resourcesDirname(fileUri));
+			if (!parent.isDirectory) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, `Parent directory not found: ${fileUri.toString()}`);
+			}
+		} catch (e) {
+			if (e instanceof ProtocolError) {
+				throw e;
+			}
+			const result = toFileOperationResult(e as Error);
+			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${fileUri.toString()}`);
+			}
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Parent directory not found: ${fileUri.toString()}`);
+		}
 		let content: VSBuffer;
 		if (params.encoding === ContentEncoding.Base64) {
 			content = decodeBase64(params.data);
@@ -2650,29 +3010,74 @@ export class AgentService extends Disposable implements IAgentService {
 		const mode = params.mode ?? ResourceWriteMode.Truncate;
 		const position = params.position ?? 0;
 		try {
-			if (params.ifMatch !== undefined || mode !== ResourceWriteMode.Truncate || position !== 0) {
-				await this._resourceWriteWithMode(fileUri, content, mode, position, params);
-			} else if (params.createOnly) {
-				await this._fileService.createFile(fileUri, content, { overwrite: false });
-			} else {
-				await this._fileService.writeFile(fileUri, content);
-			}
+			await this._resourceWriteQueue.queueFor(fileUri, async () => {
+				if (params.ifMatch !== undefined || mode !== ResourceWriteMode.Truncate || position !== 0) {
+					await this._resourceWriteWithMode(fileUri, content, mode, position, params);
+				} else if (params.createOnly) {
+					await this._createFileExclusive(fileUri, content);
+				} else {
+					await this._fileService.writeFile(fileUri, content);
+				}
+			}, extUriBiasedIgnorePathCase);
 			return {};
 		} catch (e) {
 			if (e instanceof ProtocolError) {
 				throw e;
 			}
-			if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
-				throw new ProtocolError(AhpErrorCodes.Conflict, `ifMatch precondition failed for: ${fileUri.toString()}`);
-			}
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code === FileSystemProviderErrorCode.FileExists) {
+			const result = toFileOperationResult(e as Error);
+			if (params.createOnly && (result === FileOperationResult.FILE_MODIFIED_SINCE || result === FileOperationResult.FILE_MOVE_CONFLICT)) {
 				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
 			}
-			if (code === FileSystemProviderErrorCode.NoPermissions) {
+			if (result === FileOperationResult.FILE_MODIFIED_SINCE) {
+				const message = params.ifMatch !== undefined
+					? `ifMatch precondition failed for: ${fileUri.toString()}`
+					: `File changed while writing: ${fileUri.toString()}`;
+				throw new ProtocolError(AhpErrorCodes.Conflict, message);
+			}
+			if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
+				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
+			}
+			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${fileUri.toString()}`);
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to write file: ${fileUri.toString()}`);
+		}
+	}
+
+	private async _createFileExclusive(fileUri: URI, content: VSBuffer): Promise<void> {
+		if (fileUri.scheme !== Schemas.file) {
+			await this._fileService.createFile(fileUri, content, { overwrite: false });
+			return;
+		}
+
+		let handle: FileHandle;
+		try {
+			handle = await open(fileUri.fsPath, 'wx');
+		} catch (error) {
+			if (isErrorWithCode(error, 'EEXIST')) {
+				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
+			}
+			throw error;
+		}
+
+		let failure: unknown;
+		try {
+			await handle.writeFile(content.buffer);
+		} catch (error) {
+			failure = error;
+		}
+		try {
+			await handle.close();
+		} catch (error) {
+			failure = failure ? new AggregateError([failure, error]) : error;
+		}
+		if (failure) {
+			try {
+				await unlink(fileUri.fsPath);
+			} catch (cleanupError) {
+				throw new AggregateError([failure, cleanupError], `Failed to create and clean up file: ${fileUri.toString()}`);
+			}
+			throw failure;
 		}
 	}
 
@@ -2694,15 +3099,20 @@ export class AgentService extends Disposable implements IAgentService {
 	): Promise<void> {
 		let existing: VSBuffer | undefined;
 		let currentEtag: string | undefined;
+		let currentMtime: number | undefined;
 		try {
 			const file = await this._fileService.readFile(fileUri);
 			existing = file.value;
 			currentEtag = file.etag;
+			currentMtime = file.mtime;
 		} catch (e) {
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code !== FileSystemProviderErrorCode.FileNotFound) {
+			if (toFileOperationResult(e as Error) !== FileOperationResult.FILE_NOT_FOUND) {
 				throw e;
 			}
+		}
+
+		if (params.createOnly && existing !== undefined) {
+			throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
 		}
 
 		if (params.ifMatch !== undefined) {
@@ -2734,7 +3144,11 @@ export class AgentService extends Disposable implements IAgentService {
 				break;
 			}
 		}
-		await this._fileService.writeFile(fileUri, next, { etag: currentEtag });
+		if (params.createOnly) {
+			await this._createFileExclusive(fileUri, next);
+		} else {
+			await this._fileService.writeFile(fileUri, next, { etag: currentEtag, mtime: currentMtime });
+		}
 	}
 
 	async resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult> {
@@ -2744,11 +3158,11 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._fileService.copy(source, destination, !params.failIfExists);
 			return {};
 		} catch (e) {
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code === FileSystemProviderErrorCode.FileExists) {
+			const result = toFileOperationResult(e as Error);
+			if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
 				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Destination already exists: ${destination.toString()}`);
 			}
-			if (code === FileSystemProviderErrorCode.NoPermissions) {
+			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${source.toString()}`);
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Source not found: ${source.toString()}`);
@@ -2761,8 +3175,7 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._fileService.del(fileUri, { recursive: params.recursive });
 			return {};
 		} catch (e) {
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code === FileSystemProviderErrorCode.NoPermissions) {
+			if (toFileOperationResult(e as Error) === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${fileUri.toString()}`);
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${fileUri.toString()}`);
@@ -2776,11 +3189,11 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._fileService.move(source, destination, !params.failIfExists);
 			return {};
 		} catch (e) {
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code === FileSystemProviderErrorCode.FileExists) {
+			const result = toFileOperationResult(e as Error);
+			if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
 				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Destination already exists: ${destination.toString()}`);
 			}
-			if (code === FileSystemProviderErrorCode.NoPermissions) {
+			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${source.toString()}`);
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Source not found: ${source.toString()}`);
@@ -2813,8 +3226,7 @@ export class AgentService extends Disposable implements IAgentService {
 			};
 			return result;
 		} catch (e) {
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code === FileSystemProviderErrorCode.NoPermissions) {
+			if (toFileOperationResult(e as Error) === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${uri.toString()}`);
@@ -2837,8 +3249,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (e instanceof ProtocolError) {
 				throw e;
 			}
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code === FileSystemProviderErrorCode.NoPermissions) {
+			if (toFileOperationResult(e as Error) === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to create directory: ${uri.toString()}`);
@@ -2857,8 +3268,7 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			await this._fileService.stat(root);
 		} catch (e) {
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code === FileSystemProviderErrorCode.NoPermissions) {
+			if (toFileOperationResult(e as Error) === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${root.toString()}`);
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${root.toString()}`);
@@ -2986,8 +3396,65 @@ export class AgentService extends Disposable implements IAgentService {
 			promises.push(provider.shutdown());
 		}
 		await Promise.all(promises);
+		// Drain any worktrees this process created so none leak on shutdown.
+		await this._worktree?.removeAllCreatedWorktrees();
 		this._sessionToProvider.clear();
 		this._downloadProgressInterest.clear();
+	}
+
+	/**
+	 * Wire the network diagnostics service backing {@link getNetworkDiagnosticsInfo}
+	 * and {@link diagnosticsFetch}. A setter rather than a constructor argument
+	 * because the service depends on the agent-host proxy resolver, which the
+	 * remote server constructs lazily — after this service.
+	 */
+	setNetworkDiagnosticsService(service: INetworkDiagnosticsService): void {
+		this._networkDiagnostics = service;
+	}
+
+	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
+		if (!this._networkDiagnostics) {
+			throw new Error('Network diagnostics unavailable: service not wired');
+		}
+		const providers = [...this._providers.values()];
+		const contributions = await Promise.all(providers.map(async provider => {
+			try {
+				return await provider.getNetworkDiagnosticsEndpoints?.() ?? [];
+			} catch (error) {
+				this._logService.warn(`[AgentService] Failed to resolve network diagnostics endpoints for ${provider.id}: ${error instanceof Error ? error.message : String(error)}`);
+				return [];
+			}
+		}));
+		const accounts = await Promise.all(providers.map(async provider => {
+			try {
+				return await provider.getNetworkDiagnosticsAccount?.();
+			} catch (error) {
+				this._logService.warn(`[AgentService] Failed to resolve network diagnostics account for ${provider.id}: ${error instanceof Error ? error.message : String(error)}`);
+				return undefined;
+			}
+		}));
+		const endpoints: IAgentHostNetworkEndpoint[] = [];
+		const seen = new Set<string>();
+		for (const endpoint of contributions.flat()) {
+			let key: string;
+			try {
+				key = new URL(endpoint.url).toString();
+			} catch {
+				key = endpoint.url;
+			}
+			if (!seen.has(key)) {
+				seen.add(key);
+				endpoints.push(endpoint);
+			}
+		}
+		return this._networkDiagnostics.getInfo(endpoints, accounts.find(account => !!account));
+	}
+
+	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
+		if (!this._networkDiagnostics) {
+			throw new Error('Network diagnostics unavailable: service not wired');
+		}
+		return this._networkDiagnostics.fetch(url);
 	}
 
 	// ---- helpers ------------------------------------------------------------
@@ -3018,7 +3485,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._gitService) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `git service unavailable for: ${fields.repoRelativePath}`);
 		}
-		const workingDirectory = this._stateManager.getSessionState(fields.sessionUri)?.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(fields.sessionUri)?.workingDirectories?.[0];
 		if (!workingDirectory) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Session has no working directory for git-blob URI: ${fields.sessionUri}`);
 		}
@@ -3214,6 +3681,14 @@ export class AgentService extends Disposable implements IAgentService {
 		this._providers.clear();
 		super.dispose();
 	}
+}
+
+function isErrorWithCode(error: unknown, code: string): boolean {
+	return error instanceof Error && hasErrorCode(error, code);
+}
+
+function hasErrorCode(error: Error | { code: unknown }, code: string): boolean {
+	return hasKey(error, { code: true }) && error.code === code;
 }
 
 /**

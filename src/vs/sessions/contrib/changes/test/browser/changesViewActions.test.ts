@@ -13,10 +13,11 @@ import { EditorContextKeys } from '../../../../../editor/common/editorContextKey
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ChangesContextKeys } from '../../common/changes.js';
-import { SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from '../../browser/changesView.js';
 import '../../browser/changesViewActions.js';
+import { ChangesetHasOperationsContext } from '../../browser/changesViewService.js';
 
 suite('Changes View Actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -199,7 +200,7 @@ suite('Changes View Actions', () => {
 			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
 			hasTopRightEditorGroupGate: when.includes(IsTopRightEditorGroupContext.key),
-			hasChangesGate: when.includes(SessionHasChangesContext.key),
+			hasChangesGate: when.includes(ChangesetHasOperationsContext.key),
 		}, {
 			group: 'navigation',
 			order: 5,

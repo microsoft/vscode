@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostByokModelsEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, IMcpNotification, AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostByokModelsEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, IMcpNotification, AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings, AgentHostSystemProxyEnabledSettingId } from '../common/agentService.js';
 import { IAgentHostEnablementService } from '../common/agentHostEnablementService.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
@@ -36,7 +36,7 @@ import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from 
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostCodexEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, getAgentHostTerminalAutoApproveRulesConfig, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, AUTO_REPLY_SETTING_ID, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostCodexEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, AUTO_REPLY_SETTING_ID, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 
 /**
  * Renderer-side implementation of {@link IAgentHostService} that connects
@@ -152,11 +152,17 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			if (e.affectsConfiguration(PREFER_LONG_CONTEXT_SETTING_ID)) {
 				this._updatePreferLongContextEnabled();
 			}
+			if (e.affectsConfiguration(AgentHostSystemProxyEnabledSettingId)) {
+				this._updateSystemProxyEnabled();
+			}
 			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_SETTING_ID) || e.affectsConfiguration(TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID)) {
 				this._updateTerminalAutoApproveRules();
 			}
 			if (e.affectsConfiguration(AgentHostCodexAgentEnabledSettingId)) {
 				this._updateCodexEnabled();
+			}
+			if (e.affectsConfiguration(DISABLE_REPO_INFO_TELEMETRY_SETTING_ID)) {
+				this._updateDisableRepoInfoTelemetry();
 			}
 		}));
 
@@ -200,8 +206,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this._updateGlobalAutoApproveEnabled();
 		this._updateAutoReplyEnabled();
 		this._updatePreferLongContextEnabled();
+		this._updateSystemProxyEnabled();
 		this._updateTerminalAutoApproveRules();
 		this._updateCodexEnabled();
+		this._updateDisableRepoInfoTelemetry();
 
 		store.add(this._proxy.onDidAction(e => {
 			const revived = revive(e) as ActionEnvelope;
@@ -238,6 +246,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this.dispatchAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(getTelemetryLevel(this._configurationService)) },
+		}, this.clientId, 0);
+	}
+
+	private _updateDisableRepoInfoTelemetry(): void {
+		const disabled = this._configurationService.getValue<boolean>(DISABLE_REPO_INFO_TELEMETRY_SETTING_ID) === true;
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostDisableRepoInfoTelemetryConfigKey]: disabled },
 		}, this.clientId, 0);
 	}
 
@@ -281,6 +297,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		}, this.clientId, 0);
 	}
 
+	private _updateSystemProxyEnabled(): void {
+		const enabled = this._configurationService.getValue<boolean>(AgentHostSystemProxyEnabledSettingId) !== false;
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostSystemProxyEnabledConfigKey]: enabled },
+		}, this.clientId, 0);
+	}
+
 	private _updateCodexEnabled(): void {
 		// Disabling only takes effect on the next agent host restart.
 		const enabled = this._configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId) === true;
@@ -301,6 +325,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		return this._proxy.authenticate(params);
+	}
+	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
+		return this._proxy.getNetworkDiagnosticsInfo();
+	}
+	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
+		return this._proxy.diagnosticsFetch(url);
 	}
 	listSessions(): Promise<IAgentSessionMetadata[]> {
 		return this._proxy.listSessions();

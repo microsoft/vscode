@@ -1,0 +1,79 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Count the lines in lines.txt and reply with the number only.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: Bash
+          input:
+            command: wc -l < ${workdir}/ahp-coverage-lines-${temp}/lines.txt
+            description: Count lines in lines.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Count the lines in lines.txt and reply with the number only.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Bash
+              input:
+                command: wc -l < ${workdir}/ahp-coverage-lines-${temp}/lines.txt
+                description: Count lines in lines.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '4'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: Read
+          input:
+            file_path: ${workdir}/ahp-coverage-lines-${temp}/lines.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Count the lines in lines.txt and reply with the number only.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Bash
+              input:
+                command: wc -l < ${workdir}/ahp-coverage-lines-${temp}/lines.txt
+                description: Count lines in lines.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '4'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/ahp-coverage-lines-${temp}/lines.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: "1\tone\n2\ttwo\n3\tthree\n4\tfour\n5"
+    response:
+      content: '4'
+      stopReason: end_turn

@@ -116,17 +116,24 @@ export interface IChatTurnPillsModel {
 	openPreviewFile(file: IPreviewFile): void;
 }
 
-/** Per-pill visibility for the agent turn status pills ({@link ChatConfiguration.TurnStatusPills}). */
-export interface IChatTurnStatusPillsConfig {
-	readonly changes: boolean;
-	readonly preview: boolean;
+/** The former per-pill setting shape, retained for existing user settings. */
+export interface IChatTurnStatusPillsLegacyConfig {
+	readonly changes?: boolean;
+	readonly preview?: boolean;
+	readonly browser?: boolean;
 }
 
-const TURN_STATUS_PILLS_DEFAULT: IChatTurnStatusPillsConfig = { changes: false, preview: false };
+export type ChatTurnStatusPillsSetting = boolean | IChatTurnStatusPillsLegacyConfig;
 
-/** Observe the per-pill turn status pills visibility setting. */
-export function observeTurnStatusPillsConfig(configurationService: IConfigurationService): IObservable<IChatTurnStatusPillsConfig> {
-	return observableConfigValue(ChatConfiguration.TurnStatusPills, TURN_STATUS_PILLS_DEFAULT, configurationService);
+/** Normalize the boolean setting and its legacy per-pill object form. */
+export function isChatTurnStatusPillsEnabled(value: ChatTurnStatusPillsSetting | undefined): boolean {
+	return typeof value === 'boolean' ? value : !!(value?.changes || value?.preview || value?.browser);
+}
+
+/** Observe whether agent turn status pills are enabled. */
+export function observeTurnStatusPillsEnabled(configurationService: IConfigurationService): IObservable<boolean> {
+	const value = observableConfigValue<ChatTurnStatusPillsSetting>(ChatConfiguration.TurnStatusPills, false, configurationService);
+	return derived(reader => isChatTurnStatusPillsEnabled(value.read(reader)));
 }
 
 /**
@@ -286,7 +293,6 @@ class PreviewPillActionViewItem extends BaseActionViewItem {
  * - **Preview** — shown when the turn created or edited a markdown file.
  *   Rendered as a resource label for the primary file. Activating it opens that
  *   file as a markdown preview; when several exist, a dropdown lists them all.
- *
  * The data and the open actions are supplied by the {@link IChatTurnPillsModel}
  * so the same widget serves surfaces with different data sources.
  */
@@ -358,7 +364,6 @@ export class ChatTurnPillsWidget extends Disposable {
 		if (showPreview) {
 			actions.push(this._previewAction);
 		}
-
 		const signature = actions.map(a => a.id).join(',');
 		if (signature !== this._visibleSignature) {
 			this._visibleSignature = signature;

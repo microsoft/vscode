@@ -9,7 +9,7 @@ import { hash } from '../../../../base/common/hash.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agentService.js';
 import type { ToolDefinition } from '../../common/state/protocol/state.js';
-import { IAgentHostRestrictedTelemetry, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
+import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 
 interface IRestrictedCall {
@@ -42,12 +42,19 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
 		this.enhancedEvents.push({ eventName, properties });
 	}
+	sendEnhancedGHTelemetryEventForContext(_context: IAgentHostRestrictedTelemetryContext, eventName: string, properties?: TelemetryProps): void {
+		this.enhancedEvents.push({ eventName, properties });
+	}
 	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
+		this.internalEvents.push({ eventName, properties });
+	}
+	sendInternalMSFTTelemetryEventForContext(_context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps): void {
 		this.internalEvents.push({ eventName, properties });
 	}
 	setCopilotTrackingId(): void { }
 	setRestrictedTelemetryEndpoint(): void { }
 	setRestrictedTelemetryEnabled(): void { }
+	setInternalTelemetryContext(): void { }
 }
 
 suite('AgentHostTelemetryReporter', () => {
@@ -186,6 +193,73 @@ suite('AgentHostTelemetryReporter', () => {
 		};
 		assert.deepStrictEqual(service.enhancedEvents, [expected]);
 		assert.deepStrictEqual(service.internalEvents, [expected]);
+	});
+
+	test('repoInfo gates collection and multiplexes sink-specific properties', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.reportRepoInfo({
+			restrictedTelemetryEnabled: true,
+			trackingId: 'tracking-id',
+			telemetryEndpoint: 'https://telemetry.example/telemetry',
+			isInternal: true,
+			userName: 'octocat',
+			isVscodeTeamMember: true,
+		}, {
+			telemetryMessageId: 'turn-1',
+			location: 'begin',
+			remoteUrl: 'https://github.com/microsoft/vscode',
+			repoId: 'microsoft/vscode',
+			repoType: 'github',
+			headCommitHash: 'abc',
+			headBranchName: 'feature',
+			fileRelativePaths: JSON.stringify(['src/a.ts']),
+			diffsJSON: 'x'.repeat(8193),
+			result: 'success',
+			isActiveRepository: 'true',
+			workspaceFileCount: 10,
+			changedFileCount: 1,
+			diffSizeBytes: 8193,
+		});
+
+		assert.deepStrictEqual({
+			enhanced: service.enhancedEvents[0],
+			internal: service.internalEvents[0],
+		}, {
+			enhanced: {
+				eventName: 'request.repoInfo',
+				properties: {
+					remoteUrl: 'https://github.com/microsoft/vscode',
+					repoId: 'microsoft/vscode',
+					repoType: 'github',
+					headCommitHash: 'abc',
+					headBranchName: 'feature',
+					fileRelativePaths: JSON.stringify(['src/a.ts']),
+					diffsJSON: 'x'.repeat(8192),
+					diffsJSON_02: 'x',
+					result: 'success',
+					isActiveRepository: 'true',
+					location: 'begin',
+					telemetryMessageId: 'turn-1',
+				},
+			},
+			internal: {
+				eventName: 'request.repoInfo',
+				properties: {
+					remoteUrl: 'https://github.com/microsoft/vscode',
+					repoId: 'microsoft/vscode',
+					repoType: 'github',
+					headCommitHash: 'abc',
+					diffsJSON: 'x'.repeat(8192),
+					diffsJSON_02: 'x',
+					result: 'success',
+					isActiveRepository: 'true',
+					location: 'begin',
+					telemetryMessageId: 'turn-1',
+				},
+			},
+		});
 	});
 
 	test('skillContentRead drops the version when no plugin name is known, matching the extension', () => {

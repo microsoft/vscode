@@ -7,6 +7,7 @@ import { Raw } from '@vscode/prompt-tsx';
 import { afterAll, beforeAll, beforeEach, expect, suite, test } from 'vitest';
 import { IChatMLFetcher } from '../../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation } from '../../../../../platform/chat/common/commonTypes';
+import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../../../platform/chat/common/sessionTranscriptService';
 import { StaticChatMLFetcher } from '../../../../../platform/chat/test/common/staticChatMLFetcher';
 import { CodeGenerationTextInstruction, ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { MockEndpoint } from '../../../../../platform/endpoint/test/node/mockEndpoint';
@@ -15,6 +16,7 @@ import { IResponseDelta } from '../../../../../platform/networking/common/fetch'
 import { IMakeChatRequestOptions } from '../../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
+import { ITokenizerProvider } from '../../../../../platform/tokenizer/node/tokenizer';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { createTextDocumentData } from '../../../../../util/common/test/shims/textDocument';
 import { URI } from '../../../../../util/vs/base/common/uri';
@@ -32,8 +34,6 @@ import { IToolsService } from '../../../../tools/common/toolsService';
 import { PromptRenderer } from '../../base/promptRenderer';
 import { AgentPrompt, AgentPromptProps } from '../agentPrompt';
 import { PromptRegistry } from '../promptRegistry';
-import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../../../platform/chat/common/sessionTranscriptService';
-import { ITokenizerProvider } from '../../../../../platform/tokenizer/node/tokenizer';
 import { appendTranscriptHintToSummary, ConversationHistorySummarizationPrompt, extractSummary, stripToolSearchMessages, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../summarizedConversationHistory';
 
 suite('Agent Summarization', () => {

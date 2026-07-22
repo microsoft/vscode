@@ -5,7 +5,7 @@
 
 import 'mocha';
 import assert from 'assert';
-import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff } from 'vscode';
+import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputNotebook, TabInputNotebookDiff } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -145,6 +145,33 @@ suite('git smoke test', function () {
 
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
+	});
+
+	test('opens notebook diff and file from active notebook editor', async function () {
+		const committed = JSON.stringify({ cells: [{ cell_type: 'code', source: ['x = 1'], metadata: {}, outputs: [], execution_count: null }], metadata: {}, nbformat: 4, nbformat_minor: 5 });
+		fs.writeFileSync(file('notebook.ipynb'), committed);
+		await repository.add([file('notebook.ipynb')]);
+		await repository.commit('add notebook');
+
+		fs.writeFileSync(file('notebook.ipynb'), committed.replace('x = 1', 'x = 2'));
+		await repository.status();
+
+		try {
+			const notebook = await workspace.openNotebookDocument(uri('notebook.ipynb'));
+			await window.showNotebookDocument(notebook);
+
+			// git.openChange without an argument resolves the resource from the active notebook editor
+			await commands.executeCommand('git.openChange');
+			assert(window.tabGroups.activeTabGroup.activeTab?.input instanceof TabInputNotebookDiff);
+
+			// git.openFile toggles back to the notebook from the active notebook diff editor
+			await commands.executeCommand('git.openFile');
+			assert(window.tabGroups.activeTabGroup.activeTab?.input instanceof TabInputNotebook);
+		} finally {
+			// Restore the committed content so the following tests start from a clean tree
+			fs.writeFileSync(file('notebook.ipynb'), committed);
+			await repository.status();
+		}
 	});
 
 	test('rename/delete conflict', async function () {

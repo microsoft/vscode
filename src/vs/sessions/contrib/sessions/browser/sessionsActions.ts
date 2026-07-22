@@ -66,7 +66,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
 				weight: KeybindingWeight.SessionsContrib,
 				when: IsSessionsWindowContext,
 			},
@@ -103,11 +103,9 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const toPickItem = (session: ISession): ISessionPickItem => {
 			const title = session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
 
-			// Status icon, mirroring the sessions list and session header. Use the
-			// list model service's read state (not session.isRead) so the icon
-			// matches what the sessions list shows.
+			// Status icon, mirroring the sessions list and session header.
 			const status = session.status.get();
-			const isRead = sessionsListModelService.isSessionRead(session);
+			const isRead = session.isRead.get();
 			const isArchived = session.isArchived.get();
 			const workspace = session.workspace.get();
 			const pullRequestIcon = workspace?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest?.icon;
@@ -225,7 +223,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: getQuickNavigateHandler(SESSIONS_PICKER_NAVIGATE_NEXT_ID, true),
 	when: SessionsPickerVisibleContext,
 	primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
 });
 
 const SESSIONS_PICKER_NAVIGATE_PREVIOUS_ID = 'sessions.showSessionsPicker.navigatePrevious';
@@ -235,7 +233,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: getQuickNavigateHandler(SESSIONS_PICKER_NAVIGATE_PREVIOUS_ID, false),
 	when: SessionsPickerVisibleContext,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
-	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR },
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyR },
 });
 
 // -- Go Back --
@@ -1185,39 +1183,25 @@ export class SessionNewChatActionViewItemContribution extends Disposable impleme
 	}
 }
 
-// The "Conversations" toolbar entry is a submenu (rendered as a dropdown): it
-// lists every chat in the session with a checkbox. Checked chats are shown as
-// tabs; unchecked chats are closed (hidden from the tab strip). Toggling an entry
-// closes or reopens the corresponding chat. The main chat is always shown and
-// cannot be closed, so its entry is checked and disabled.
+// The "Chats" toolbar entry is a submenu: it lists every chat in the session
+// with a checkbox. Checked chats are shown as tabs; unchecked chats are closed
+// (hidden from the tab strip). Toggling an entry closes or reopens the
+// corresponding chat. The main chat is always shown and cannot be closed, so its
+// entry is checked and disabled.
 //
-// It surfaces in one of two places depending on whether the chat tab strip is
-// shown: when the strip is hidden it lives in the session header toolbar; once the
-// session has more than one open chat (the tab strip is shown) it moves to the
-// chat tab bar action menu at the end of the strip instead (see
-// Menus.SessionChatTabBar below). It also surfaces when the active chat has
-// subagents (a separate group at the bottom lists them), even if that is the only
+// It is always rendered in the session header meta row, after the pills
+// (workspace folder / changes / pull request) as the meta toolbar's default
+// submenu icon, independent of whether the chat tab strip is shown. It surfaces
+// once the session has more than one committed chat, or when the active chat has
+// subagents (a separate group at the bottom lists them) even if that is the only
 // committed chat.
-MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
+MenuRegistry.appendMenuItem(Menus.SessionHeaderMeta, {
 	submenu: Menus.SessionConversations,
-	title: localize2('chatCompositeBar.conversations', "Conversations"),
+	title: localize2('chatCompositeBar.conversations', "Chats"),
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
-	order: 10,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), ContextKeyExpr.or(SessionHasMultipleCommittedChatsContext, SessionActiveChatHasSubagentsContext), SessionShouldShowChatTabsContext.negate()),
-});
-
-// Mirror of the header Conversations submenu, rendered at the end of the chat tab
-// bar action menu while the tab strip is shown (more than one open chat). The two
-// `when` clauses are mutually exclusive on SessionShouldShowChatTabsContext so
-// the Conversations menu only ever appears in one place at a time.
-MenuRegistry.appendMenuItem(Menus.SessionChatTabBar, {
-	submenu: Menus.SessionConversations,
-	title: localize2('chatCompositeBar.conversations', "Conversations"),
-	icon: Codicon.commentDiscussion,
-	group: 'navigation',
-	order: 10,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), ContextKeyExpr.or(SessionHasMultipleCommittedChatsContext, SessionActiveChatHasSubagentsContext), SessionShouldShowChatTabsContext),
+	order: 100,
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate(), ContextKeyExpr.or(ContextKeyExpr.and(SessionSupportsMultipleChatsContext, SessionHasMultipleCommittedChatsContext), SessionActiveChatHasSubagentsContext)),
 });
 
 /**

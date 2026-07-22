@@ -350,7 +350,14 @@ export class StatelessNextEditResult {
 	}
 }
 
-export interface IStatelessNextEditTelemetry {
+export interface IStatelessNextEditModelTelemetry {
+	/** Name of the model that handled the request. */
+	readonly modelName: string | undefined;
+	/** JSON-encoded model configuration from the model service. */
+	readonly modelConfig: string | undefined;
+}
+
+export interface IStatelessNextEditTelemetry extends IStatelessNextEditModelTelemetry {
 
 	readonly hadStatelessNextEditProviderCall: boolean;
 
@@ -359,7 +366,6 @@ export interface IStatelessNextEditTelemetry {
 	readonly isCursorAtEndOfLine: boolean | undefined;
 	readonly isInlineSuggestion: boolean | undefined;
 	readonly nLinesOfCurrentFileInPrompt: number | undefined;
-	readonly modelName: string | undefined;
 
 	/* options info */
 	readonly logProbThreshold: number | undefined;
@@ -440,8 +446,6 @@ export interface IStatelessNextEditTelemetry {
 	/* similar files context for telemetry (GhostText-style neighbor code snippets) */
 	readonly similarFilesContext: Promise<string | undefined> | undefined;
 
-	/* JSON-encoded model configuration from the model service */
-	readonly modelConfig: string | undefined;
 }
 
 export type FetchResultWithStats = {

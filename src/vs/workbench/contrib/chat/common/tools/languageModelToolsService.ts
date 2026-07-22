@@ -346,12 +346,22 @@ export interface IToolResultDataPart {
 	title?: string;
 }
 
+export type IToolApprovalReason =
+	| { readonly status: 'loading' }
+	| {
+		readonly status: 'complete';
+		readonly explanation: string | IMarkdownString;
+		readonly safety: number;
+	};
+
 export interface IToolConfirmationMessages {
 	/** Title for the confirmation. If set, the user will be asked to confirm execution of the tool */
 	title?: string | IMarkdownString;
 	/** MUST be set if `title` is also set */
 	message?: string | IMarkdownString;
 	disclaimer?: string | IMarkdownString;
+	/** Model-provided assessment of whether automatic approval is safe. */
+	approvalReason?: IToolApprovalReason;
 	allowAutoConfirm?: boolean;
 	terminalCustomActions?: ToolConfirmationAction[];
 	/** If true, confirmation will be requested after the tool executes and before results are sent to the model */

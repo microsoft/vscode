@@ -51,12 +51,26 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 		};
 	}
 
-	// Double-clicking the chat↔side-pane sash resets the side pane to this width
-	// (the grid's sash-reset reads `preferredWidth`). Use 60% of the window so it
-	// matches the side pane's reveal split. Scoped to single-pane: the classic
-	// layout keeps the standard distribute-on-reset.
+	// Double-click resets the sash to this width. Use the detail panel's default
+	// while editor content is hidden, not the 60% editor split.
 	get preferredWidth(): number | undefined {
+		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return DockedAuxiliaryBarController.DEFAULT_WIDTH;
+		}
 		return Math.max(EDITOR_PART_MINIMUM_WIDTH, Math.floor(this.layoutService.mainContainerDimension.width * SIDE_PANE_WIDTH_RATIO));
+	}
+
+	// Matches the sessions list's minimum while only the detail panel is shown.
+	override get minimumWidth(): number {
+		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return DockedAuxiliaryBarController.NO_EDITOR_MIN_WIDTH;
+		}
+		return super.minimumWidth;
+	}
+
+	// Snap-collapse via sash-drag, like the sessions list, only when detail-only.
+	override get snap(): boolean {
+		return !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 	}
 
 	constructor(
@@ -103,7 +117,7 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 				isEditorAreaVisible: () => layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 				isEditorVisible: () => layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
 				isAuxiliaryBarVisible: () => layoutService.isVisible(Parts.AUXILIARYBAR_PART),
-				hideAuxiliaryBar: () => layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART),
+				hideAuxiliaryBar: () => layoutService.setAuxiliaryBarHiddenForResize(true),
 				setEditorContentRightInset: (px: number) => this.setContentRightInset(px),
 				getHeaderHeight: () => (this.activeGroup as EditorGroupView).headerHeight,
 			},

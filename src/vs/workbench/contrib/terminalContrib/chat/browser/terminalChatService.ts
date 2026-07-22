@@ -35,7 +35,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private readonly _chatSessionListenersByTerminalInstance = this._register(new DisposableMap<ITerminalInstance, IDisposable>());
 	private readonly _terminalInstancesByExecutionId = new Map<string, ITerminalInstance>();
 	private readonly _terminalInstanceListenersByExecutionId = this._register(new DisposableMap<string, IDisposable>());
-	private readonly _ahpCommandSources = new Map<string, IAhpTerminalCommandSource>();
+	private readonly _ahpCommandSources = new Map<string, { source: IAhpTerminalCommandSource; promisedTerminal: Promise<ITerminalInstance> }>();
 
 	private readonly _onDidContinueInBackground = this._register(new Emitter<string>());
 	readonly onDidContinueInBackground: Event<string> = this._onDidContinueInBackground.event;
@@ -150,6 +150,18 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		if (!terminalToolSessionId) {
 			return undefined;
 		}
+		const pendingAhp = this._ahpCommandSources.get(terminalToolSessionId);
+		if (pendingAhp) {
+			// If there's an AHP terminal being created, this is async to the tool
+			// result, so wait for it to settle before continuing.
+			try {
+				return await pendingAhp.promisedTerminal;
+			} catch (error) {
+				this._logService.error(`Failed to resolve AHP terminal for tool session '${terminalToolSessionId}'`, error);
+				return undefined;
+			}
+		}
+
 		if (this._pendingRestoredMappings.has(terminalToolSessionId)) {
 			const instance = this._terminalService.instances.find(i => i.shellLaunchConfig.attachPersistentProcess?.id === this._pendingRestoredMappings.get(terminalToolSessionId));
 			if (instance) {
@@ -391,16 +403,16 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._onDidContinueInBackground.fire(terminalToolSessionId);
 	}
 
-	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource): IDisposable {
-		this._ahpCommandSources.set(terminalToolSessionId, source);
+	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource, promisedTerminal: Promise<ITerminalInstance>): IDisposable {
+		this._ahpCommandSources.set(terminalToolSessionId, { source, promisedTerminal });
 		return toDisposable(() => {
-			if (this._ahpCommandSources.get(terminalToolSessionId) === source) {
+			if (this._ahpCommandSources.get(terminalToolSessionId)?.source === source) {
 				this._ahpCommandSources.delete(terminalToolSessionId);
 			}
 		});
 	}
 
 	getAhpCommandSource(terminalToolSessionId: string): IAhpTerminalCommandSource | undefined {
-		return this._ahpCommandSources.get(terminalToolSessionId);
+		return this._ahpCommandSources.get(terminalToolSessionId)?.source;
 	}
 }

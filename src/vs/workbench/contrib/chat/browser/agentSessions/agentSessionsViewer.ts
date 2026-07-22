@@ -54,7 +54,7 @@ import { compareIgnoreCase } from '../../../../../base/common/strings.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
-import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
+import { createPixelSpinner, IPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection | IAgentSessionShowMore | IAgentSessionShowLess;
@@ -103,6 +103,7 @@ class AgentSessionStatusIcon extends Disposable {
 
 	private _currentCacheKey: string | undefined;
 	private _lastSession: IAgentSession | undefined;
+	private readonly spinner = this._register(new MutableDisposable<IPixelSpinner>());
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -126,6 +127,7 @@ class AgentSessionStatusIcon extends Disposable {
 	reset(): void {
 		this._currentCacheKey = undefined;
 		this._lastSession = undefined;
+		this.spinner.clear();
 		clearNode(this.container);
 	}
 
@@ -143,10 +145,12 @@ class AgentSessionStatusIcon extends Disposable {
 			}
 
 			this._currentCacheKey = cacheKey;
+			this.spinner.clear();
 			clearNode(this.container);
 			const spinner = createPixelSpinner(undefined, { variant: isNeedsInput ? 'ring' : 'grid' });
-			spinner.style.color = color;
-			this.container.appendChild(spinner);
+			this.spinner.value = spinner;
+			spinner.element.style.color = color;
+			this.container.appendChild(spinner.element);
 			return;
 		}
 
@@ -159,6 +163,7 @@ class AgentSessionStatusIcon extends Disposable {
 		}
 
 		this._currentCacheKey = cacheKey;
+		this.spinner.clear();
 		clearNode(this.container);
 		const iconElement = h(`span${cacheKey}`).root;
 		iconElement.style.color = color;

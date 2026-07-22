@@ -19,6 +19,8 @@ export interface ISessionType {
 	readonly label: string;
 	/** Icon for this session type. */
 	readonly icon: ThemeIcon;
+	/** Whether new sessions of this type support Worktree isolation and base-branch selection. */
+	readonly supportsWorktreeConfiguration?: boolean;
 	/**
 	 * The workbench chat session type (contribution id) this session type maps
 	 * to, when it differs from {@link id}. Agent-host providers use a bare agent
@@ -46,6 +48,11 @@ export const enum SessionStatus {
 	Completed = 3,
 	/** Session encountered an error. */
 	Error = 4,
+}
+
+/** Whether a session still has active work, including work blocked on user input. */
+export function isActiveSessionStatus(status: SessionStatus): boolean {
+	return status === SessionStatus.InProgress || status === SessionStatus.NeedsInput;
 }
 
 /**
@@ -488,6 +495,8 @@ export interface ISession {
 	readonly createdAt: Date;
 	/** Workspace this session operates on. */
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+	/** Whether the session has a usable Git repository. Providers may refine this beyond workspace metadata. */
+	readonly hasGitRepository?: IObservable<boolean>;
 	/** Whether this is a workspace-less "quick chat". Only quick-chat-capable providers set this; absent means `false`. */
 	readonly isQuickChat?: IObservable<boolean>;
 

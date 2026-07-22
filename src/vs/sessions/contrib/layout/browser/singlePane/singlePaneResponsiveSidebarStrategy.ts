@@ -13,6 +13,8 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
+import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -29,14 +31,29 @@ export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleD
 // maximize/restore and hide chevron.
 const singlePaneLayoutToggleDetailsOrder = 30;
 
+/** Below this main-container width the sessions list is auto-hidden to free room for the side pane; wider windows have room to keep it open. */
+const SMALL_WINDOW_MAX_WIDTH = 1800;
+
+/** Whether `editor` is real file/diff content that needs editor-area room (vs. a managed tab like the Changes multi-diff or empty Files placeholder). */
+function isRealEditorContent(editor: EditorInput): boolean {
+	if (editor instanceof FileEditorInput || editor instanceof BrowserEditorInput) {
+		return true;
+	}
+	if (editor instanceof DiffEditorInput) {
+		return editor.original instanceof FileEditorInput || editor.modified instanceof FileEditorInput;
+	}
+	return false;
+}
+
 /**
  * [D7 single-pane] Auto-hide the sessions list when the user needs more room for
  * the side pane: opening the details pane via the Toggle Details action, or
- * opening a real file/diff into the editor area (Scenario 8). The list is
- * restored when details is explicitly closed or the side pane is fully hidden.
- * Unlike the base responsive rule this is not window-size driven and never
- * reacts to automatic details opens (submit, session restore). Also owns the
- * Toggle Details action itself.
+ * opening a real file/diff into the editor area (Scenario 8). The auto-hide only
+ * applies on a **small window** (`<= {@link SMALL_WINDOW_MAX_WIDTH}`) — a wider
+ * window has room to keep the sessions list open. The list is restored when
+ * details is explicitly closed, the side pane is fully hidden, or the window
+ * grows past the threshold. It never reacts to automatic details opens (submit,
+ * session restore). Also owns the Toggle Details action itself.
  */
 export class SinglePaneResponsiveSidebarStrategy extends SinglePaneLayoutStrategy {
 
@@ -59,21 +76,25 @@ export class SinglePaneResponsiveSidebarStrategy extends SinglePaneLayoutStrateg
 		// toggle command.
 		this._register(this._registerToggleDetailsAction());
 
-		// [Scenario 8] Opening a real file/browser editor from the Files or Changes
-		// view needs editor-area room, so auto-hide the sessions list — but only in
-		// an existing (created) session and only when the editor area is currently
-		// closed (this open will reveal it). Managed tabs (the Changes multi-diff
-		// and the empty Files placeholder) are not FileEditorInput/BrowserEditorInput
-		// so they never trigger this; a session-switch restore is excluded too.
+		// [Scenario 8] Opening a real file/browser editor or a single-file diff
+		// from the Files or Changes view needs editor-area room, so auto-hide the
+		// sessions list — but only on a small window, in an existing (created)
+		// session, and only when the editor area is currently closed (this open
+		// will reveal it). Managed tabs (the Changes multi-diff and the empty
+		// Files placeholder) are not real content so they never trigger this; a
+		// session-switch restore is excluded too.
 		this._register(this._editorService.onWillOpenEditor(e => {
 			if (this._ctx.isRestoringSessionLayout || this._ctx.multipleSessionsVisibleObs.get() || this._layoutService.isEditorMaximized()) {
+				return;
+			}
+			if (!this._isSmallWindow()) {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
 			if (!activeSession?.isCreated.get() || this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				return;
 			}
-			if (!(e.editor instanceof FileEditorInput || e.editor instanceof BrowserEditorInput)) {
+			if (!isRealEditorContent(e.editor)) {
 				return;
 			}
 			if (this._setSidebarAutoHidden(true)) {
@@ -89,18 +110,22 @@ export class SinglePaneResponsiveSidebarStrategy extends SinglePaneLayoutStrateg
 			this._sidebarAutoHidden = false;
 		}));
 
-		// Restore an auto-collapsed sessions list once the side pane is fully
-		// hidden — there is no side pane to make room for anymore. This covers
-		// closing the whole side pane and switching to a session with no side pane
-		// (a quick chat), so the list is never left collapsed while the side pane
-		// is hidden. `observableFromEvent` dedupes on the computed value, so hiding
-		// the sidebar itself (a different part) never re-triggers this, and the
-		// pre-reveal auto-hide from opening an editor is not undone.
+		// Restore an auto-collapsed sessions list once the space constraint that
+		// justified it is gone — either the side pane is fully hidden (nothing to
+		// make room for) or the window grew past the threshold. `observableFromEvent`
+		// dedupes on the computed value, so hiding the sidebar itself (a different
+		// part) never re-triggers this, and the pre-reveal auto-hide from opening an
+		// editor is not undone.
 		const sidePaneVisibleObs = observableFromEvent(this,
 			this._layoutService.onDidChangePartVisibility,
 			() => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || this._layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+		const smallWindowObs = observableFromEvent(this,
+			this._layoutService.onDidLayoutMainContainer,
+			() => this._isSmallWindow());
 		this._register(autorun(reader => {
-			if (sidePaneVisibleObs.read(reader) || !this._sidebarAutoHidden) {
+			const sidePaneVisible = sidePaneVisibleObs.read(reader);
+			const smallWindow = smallWindowObs.read(reader);
+			if (!this._sidebarAutoHidden || (sidePaneVisible && smallWindow)) {
 				return;
 			}
 			this._setSidebarAutoHidden(false);
@@ -110,8 +135,8 @@ export class SinglePaneResponsiveSidebarStrategy extends SinglePaneLayoutStrateg
 
 	/**
 	 * Toggle the detail panel (auxiliary bar) and, in the same gesture, auto-hide
-	 * the sessions list to free room when opening it (restoring the list when
-	 * closing). Returns whether the detail panel is now visible.
+	 * the sessions list to free room when opening it on a small window (restoring
+	 * the list when closing). Returns whether the detail panel is now visible.
 	 */
 	toggleDetails(): boolean {
 		const nowVisible = !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
@@ -119,7 +144,7 @@ export class SinglePaneResponsiveSidebarStrategy extends SinglePaneLayoutStrateg
 
 		if (!this._ctx.multipleSessionsVisibleObs.get()) {
 			if (nowVisible) {
-				if (this._setSidebarAutoHidden(true)) {
+				if (this._isSmallWindow() && this._setSidebarAutoHidden(true)) {
 					this._sidebarAutoHidden = true;
 				}
 			} else if (this._sidebarAutoHidden) {
@@ -128,6 +153,11 @@ export class SinglePaneResponsiveSidebarStrategy extends SinglePaneLayoutStrateg
 			}
 		}
 		return nowVisible;
+	}
+
+	/** Whether the window is narrow enough that the side pane needs the sessions list's room. */
+	private _isSmallWindow(): boolean {
+		return this._layoutService.mainContainerDimension.width <= SMALL_WINDOW_MAX_WIDTH;
 	}
 
 	private _setSidebarAutoHidden(hidden: boolean): boolean {

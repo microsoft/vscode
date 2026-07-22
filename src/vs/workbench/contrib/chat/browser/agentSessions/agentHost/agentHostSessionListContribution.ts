@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { claudePreferAgentHostSettingId, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -57,8 +57,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		}
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			const relevantSetting = claudePreferAgentHostSettingId(this._isSessionsWindow);
-			if (!e.affectsConfiguration(relevantSetting)) {
+			if (!affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
 				return;
 			}
 			const current = this._agentHostService.rootState.value;

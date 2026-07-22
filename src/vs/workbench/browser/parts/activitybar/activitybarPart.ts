@@ -43,15 +43,15 @@ import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 export class ActivitybarPart extends Part {
 
 	static readonly ACTION_HEIGHT = 48;
-	static readonly COMPACT_ACTION_HEIGHT = 32;
+	static readonly COMPACT_ACTION_HEIGHT = 28;
 
 	static readonly ACTIVITYBAR_WIDTH = 48;
 	static readonly COMPACT_ACTIVITYBAR_WIDTH = 36;
 
 	/** Narrower dimensions used when the floating panels (Modern UI) experiment is enabled. */
-	static readonly FLOATING_ACTION_HEIGHT = 44;
-	static readonly FLOATING_ACTIVITYBAR_WIDTH = 44;
-	static readonly FLOATING_COMPACT_ACTIVITYBAR_WIDTH = 32;
+	static readonly FLOATING_ACTION_HEIGHT = 36;
+	static readonly FLOATING_ACTIVITYBAR_WIDTH = 36;
+	static readonly FLOATING_COMPACT_ACTIVITYBAR_WIDTH = 28;
 
 	static readonly ICON_SIZE = 24;
 	static readonly COMPACT_ICON_SIZE = 16;

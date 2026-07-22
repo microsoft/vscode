@@ -25,7 +25,7 @@ import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
-import { DeferredPromise, retry, RunOnceScheduler, timeout } from '../../../util/vs/base/common/async';
+import { DeferredPromise, IntervalTimer, retry, RunOnceScheduler, timeout } from '../../../util/vs/base/common/async';
 import { Event } from '../../../util/vs/base/common/event';
 import { Disposable, DisposableStore, toDisposable } from '../../../util/vs/base/common/lifecycle';
 import { ResourceMap } from '../../../util/vs/base/common/map';
@@ -41,7 +41,7 @@ import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotClo
 import { StreamBaseline, TaskTurnStreamer } from './taskTurnStreamer';
 import { JobsApiBackend } from './jobsApiBackend';
 import { CloudBackendInstrumentation, CloudBackendVersion } from './cloudBackendTelemetry';
-import { TaskApiBackend, TaskApiHttpClient } from './taskApiBackend';
+import { parseRepoFromTaskUrl, TaskApiBackend, TaskApiHttpClient } from './taskApiBackend';
 import { resolvePullArtifact } from './pullArtifactResolver';
 import { IPullRequestFileChangesService } from './pullRequestFileChangesService';
 import MarkdownIt = require('markdown-it');
@@ -331,6 +331,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	// Task ids with an in-flight "Create pull request" toolbar request, used to guard against
 	// re-entrant invocations (e.g. rapid double-clicks) that would otherwise submit duplicate PRs.
 	private readonly _createPullRequestInFlightTaskIds = new Set<string>();
+	// Task ids with a live {@link TaskTurnStreamer} (activeResponseCallback or follow-up).
+	// When a stream is already active for a task, a mid-turn steering follow-up only needs to
+	// POST /steer — the running stream renders the injected result, so we skip starting a
+	// second streamer.
+	private readonly _activeTaskStreams = new Set<string>();
 	// Task id whose content currently drives the chat-input pull-request toolbar gates
 	// ({@link CAN_CREATE_PULL_REQUEST_CONTEXT_KEY} / {@link CAN_OPEN_PULL_REQUEST_CONTEXT_KEY}). Used so
 	// the gates can be re-applied as the viewed task changes state (settles, gains a PR) without a
@@ -439,7 +444,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				let intervalMs: number;
 				let hasHistoricalSessions: boolean;
 				try {
-					const sessionList = await this._backend.fetchSessionList(repoIds, false, false);
+					const sessionList = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace, false);
 					hasHistoricalSessions = sessionList.length > 0;
 					intervalMs = this.getRefreshIntervalTime(hasHistoricalSessions);
 				} catch (e) {
@@ -452,7 +457,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				telemetryObj.hasHistoricalSessions = hasHistoricalSessions;
 				const schedulerCallback = async () => {
 					try {
-						const sessionList = await this._backend.fetchSessionList(repoIds, false, true);
+						const sessionList = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace, true);
 						if (this.cachedSessionsSize !== sessionList.length) {
 							this.refresh();
 						}
@@ -1298,7 +1303,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			//   `pullArtifact` (so we know it's a Task API entry); PR-less Jobs entries are skipped.
 			const sessionItems = await Promise.all(sessionList.map(async entry => {
 				const pr = entry.pullRequest
-					?? (entry.pullArtifact ? await resolvePullArtifact(this._octoKitService, this.logService, entry.pullArtifact, undefined, this.telemetry) : undefined);
+					?? (entry.pullArtifact ? await resolvePullArtifact(this._octoKitService, this.logService, entry.pullArtifact, entry.repo, undefined, this.telemetry) : undefined);
 				const sessionItem = entry.latestSession;
 				const createdAt = validateISOTimestamp(sessionItem.created_at);
 
@@ -1327,6 +1332,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 						label: entry.latestSession.name || taskId,
 						status,
 						...(changes?.length ? { changes } : {}),
+						...(entry.repo ? { metadata: { owner: entry.repo.owner, name: entry.repo.name } } : {}),
 						...(createdAt ? {
 							timing: {
 								created: createdAt,
@@ -1576,7 +1582,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		// Best-effort PR decoration for the header card.
 		let pullRequest: PullRequestSearchItem | undefined;
 		if (taskContent.pullArtifact) {
-			pullRequest = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, [...(taskContent.task.sessions || [])], this.telemetry);
+			pullRequest = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, parseRepoFromTaskUrl(taskContent.task.html_url), [...(taskContent.task.sessions || [])], this.telemetry);
 		}
 
 		const storedReferences: Promise<vscode.ChatPromptReference[]> = Promise.resolve([...(this.sessionReferencesMap.get(resource) ?? [])]);
@@ -1623,10 +1629,12 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			if (backend.kind !== 'task') {
 				return;
 			}
+			this._activeTaskStreams.add(taskId);
 			try {
 				const streamer = new TaskTurnStreamer(backend, new ChatSessionContentBuilder(CopilotCloudSessionsProvider.TYPE, this._gitService, this.logService), this.logService);
 				await streamer.stream(stream, taskId, baseline, token);
 			} finally {
+				this._activeTaskStreams.delete(taskId);
 				this.refresh();
 				// The turn settled: re-apply the toolbar gates so "Create pull request" appears for a
 				// now-settled PR-less task (or flips to "Open pull request") without a session switch.
@@ -2376,7 +2384,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 		let url = taskContent.task.html_url;
 		if (taskContent.pullArtifact) {
-			const pr = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, [...(taskContent.task.sessions || [])], this.telemetry);
+			const pr = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, parseRepoFromTaskUrl(taskContent.task.html_url), [...(taskContent.task.sessions || [])], this.telemetry);
 			url = pr?.url ?? url;
 		}
 		if (!url) {
@@ -2658,10 +2666,20 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 	}
 
-	private async handleTaskFollowUp(taskId: string, prompt: string, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<{}> {
+	private async handleTaskFollowUp(taskId: string, prompt: string, stream: vscode.ChatResponseStream, token: vscode.CancellationToken, context: vscode.ChatContext): Promise<{}> {
 		const backend = this._backend;
 		if (backend.kind !== 'task') {
 			stream.warning(vscode.l10n.t('Task follow-up is not available on the current backend.'));
+			return {};
+		}
+
+		// Active stream present: only POST the steer; that stream renders the injection (no second streamer).
+		if (this._activeTaskStreams.has(taskId)) {
+			stream.progress(vscode.l10n.t('Steering'));
+			const steerResult = await backend.sendFollowUpToTask(taskId, prompt);
+			if (!steerResult) {
+				stream.markdown(vscode.l10n.t('Failed to send follow-up to the task.'));
+			}
 			return {};
 		}
 
@@ -2681,6 +2699,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 		const priorTurnCount = before.task.sessions?.length ?? 0;
 		const seedEventIds = new Set(priorEvents.map(e => e.id));
+		// A steer into a genuinely active turn injects into the current turn (no new `task.sessions[]`
+		// row), so render `mode:'current'`; `mode:'next'` would time out. Require both the task and its
+		// latest turn to be active so a terminal task with a stale `in_progress` latest turn isn't misread.
+		const latestBefore = before.task.sessions?.[before.task.sessions.length - 1];
+		const isMidTurnSteer = isActiveTaskState(before.task.state) && !!latestBefore && isActiveTaskState(latestBefore.state);
 
 		stream.progress(vscode.l10n.t('Delegating'));
 		const result = await backend.sendFollowUpToTask(taskId, prompt);
@@ -2689,7 +2712,26 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			return {};
 		}
 
-		await this._createTaskStreamCallback(taskId, { mode: 'next', seedEventIds, priorTurnCount })(stream, token);
+		// Stay yield-aware (mirrors the CLI provider): steering must cancel only this local streamer,
+		// so the chat service can flush the next steer while the remote turn keeps running server-side.
+		const yieldCts = new vscode.CancellationTokenSource();
+		const disposables = new DisposableStore();
+		disposables.add(toDisposable(() => yieldCts.dispose()));
+		disposables.add(token.onCancellationRequested(() => yieldCts.cancel()));
+		const interval = disposables.add(new IntervalTimer());
+		interval.cancelAndSet(() => {
+			if (context.yieldRequested) {
+				yieldCts.cancel();
+			}
+		}, 100);
+		try {
+			const baseline: StreamBaseline = isMidTurnSteer
+				? { mode: 'current', seedEventIds }
+				: { mode: 'next', seedEventIds, priorTurnCount };
+			await this._createTaskStreamCallback(taskId, baseline)(stream, yieldCts.token);
+		} finally {
+			disposables.dispose();
+		}
 		return {};
 	}
 
@@ -2709,7 +2751,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		const resource = context.chatSessionContext.chatSessionItem.resource;
 		const taskParsed = SessionIdForTask.parse(resource);
 		if (taskParsed) {
-			return this.handleTaskFollowUp(taskParsed.taskId, prompt, stream, token);
+			return this.handleTaskFollowUp(taskParsed.taskId, prompt, stream, token, context);
 		}
 
 		// PR-keyed URI on v2: reverse-resolve to the underlying task and steer it.
@@ -2719,7 +2761,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			if (!isNaN(prNum)) {
 				const taskId = await this.resolveTaskIdForPrNumber(prNum);
 				if (taskId) {
-					return this.handleTaskFollowUp(taskId, prompt, stream, token);
+					return this.handleTaskFollowUp(taskId, prompt, stream, token, context);
 				}
 			}
 		}

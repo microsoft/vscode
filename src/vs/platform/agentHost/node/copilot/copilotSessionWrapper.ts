@@ -93,6 +93,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSessionModelChange ??= this._sdkEvent('session.model_change');
 	}
 
+	private _onAutoModeResolved: Event<SessionEventPayload<'session.auto_mode_resolved'>> | undefined;
+	get onAutoModeResolved(): Event<SessionEventPayload<'session.auto_mode_resolved'>> {
+		return this._onAutoModeResolved ??= this._sdkEvent('session.auto_mode_resolved');
+	}
+
 	private _onSessionHandoff: Event<SessionEventPayload<'session.handoff'>> | undefined;
 	get onSessionHandoff(): Event<SessionEventPayload<'session.handoff'>> {
 		return this._onSessionHandoff ??= this._sdkEvent('session.handoff');

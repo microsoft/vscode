@@ -15,11 +15,28 @@ import { CreateSuggestionIdForChatOrInlineChatCaller, EditTelemetryReportEditArc
 import { createDocWithJustReason, EditSource } from '../helpers/documentWithAnnotatedEdits.js';
 import { DocumentEditSourceTracker, TrackedEdit } from './editTracker.js';
 import { sumByCategory } from '../helpers/utils.js';
-import { ScmAdapter, ScmRepoAdapter } from './scmAdapter.js';
+import { IScmRepoAdapter, ScmAdapter } from './scmAdapter.js';
 import { IRandomService } from '../randomService.js';
 
 type EditTelemetryMode = 'longterm' | '10minFocusWindow' | '20minFocusWindow';
 type EditTelemetryTrigger = '10hours' | 'hashChange' | 'branchChange' | 'closed' | 'time';
+
+export type EditTelemetryCategory = 'nes' | 'inlineCompletionsCopilot' | 'inlineCompletionsNES' | 'inlineCompletionsOther' | 'otherAI' | 'user' | 'ide' | 'external' | 'unknown';
+
+export function getEditTelemetryCategory(source: EditSource): EditTelemetryCategory {
+	if (source.category === 'ai' && source.kind === 'nes') { return 'nes'; }
+
+	if (source.category === 'ai' && source.kind === 'completion' && source.extensionId === 'github.copilot') { return 'inlineCompletionsCopilot'; }
+	if (source.category === 'ai' && source.kind === 'completion' && source.extensionId === 'github.copilot-chat' && source.providerId === 'nes') { return 'inlineCompletionsNES'; }
+	if (source.category === 'ai' && source.kind === 'completion' && source.extensionId === 'github.copilot-chat' && source.providerId === 'completions') { return 'inlineCompletionsCopilot'; }
+	if (source.category === 'ai' && source.kind === 'completion') { return 'inlineCompletionsOther'; }
+
+	if (source.category === 'ai') { return 'otherAI'; }
+	if (source.category === 'user') { return 'user'; }
+	if (source.category === 'ide') { return 'ide'; }
+	if (source.category === 'external') { return 'external'; }
+	return 'unknown';
+}
 
 export class EditSourceTrackingImpl extends Disposable {
 	public readonly docsState;
@@ -47,7 +64,7 @@ class TrackedDocumentInfo extends Disposable {
 	public readonly windowedTracker: IObservable<DocumentEditSourceTracker<undefined> | undefined>;
 	public readonly windowedFocusTracker: IObservable<DocumentEditSourceTracker<undefined> | undefined>;
 
-	private readonly _repo: IObservable<ScmRepoAdapter | undefined>;
+	private readonly _repo: IObservable<IScmRepoAdapter | undefined>;
 
 	constructor(
 		private readonly _doc: AnnotatedDocument,
@@ -182,21 +199,17 @@ class TrackedDocumentInfo extends Disposable {
 		const statsUuid = this._randomService.generateUuid();
 
 		const sums = sumByCategory(ranges, r => r.range.length, r => r.sourceKey);
-		const entries = Object.entries(sums).filter(([key, value]) => value !== undefined);
-		entries.sort(reverseOrder(compareBy(([key, value]) => value!, numberComparator)));
-		entries.length = mode === 'longterm' ? 30 : 10;
-
 		for (const key of keys) {
 			if (!sums[key]) {
 				sums[key] = 0;
 			}
 		}
+		const entries = Object.entries(sums)
+			.filter((entry): entry is [string, number] => entry[1] !== undefined)
+			.sort(reverseOrder(compareBy(([, value]) => value, numberComparator)))
+			.slice(0, mode === 'longterm' ? 30 : 10);
 
-		for (const [key, value] of Object.entries(sums)) {
-			if (value === undefined) {
-				continue;
-			}
-
+		for (const [key, value] of entries) {
 			const repr = t.getRepresentative(key)!;
 			const deltaModifiedCount = t.getTotalInsertedCharactersCount(key);
 
@@ -321,24 +334,7 @@ class TrackedDocumentInfo extends Disposable {
 	}
 
 	getTelemetryData(ranges: readonly TrackedEdit[]) {
-		const getEditCategory = (source: EditSource) => {
-			if (source.category === 'ai' && source.kind === 'nes') { return 'nes'; }
-
-			if (source.category === 'ai' && source.kind === 'completion' && source.extensionId === 'github.copilot') { return 'inlineCompletionsCopilot'; }
-			if (source.category === 'ai' && source.kind === 'completion' && source.extensionId === 'github.copilot-chat' && source.providerId === 'completions') { return 'inlineCompletionsCopilot'; }
-			if (source.category === 'ai' && source.kind === 'completion' && source.extensionId === 'github.copilot-chat' && source.providerId === 'nes') { return 'inlineCompletionsNES'; }
-			if (source.category === 'ai' && source.kind === 'completion') { return 'inlineCompletionsOther'; }
-
-			if (source.category === 'ai') { return 'otherAI'; }
-			if (source.category === 'user') { return 'user'; }
-			if (source.category === 'ide') { return 'ide'; }
-			if (source.category === 'external') { return 'external'; }
-			if (source.category === 'unknown') { return 'unknown'; }
-
-			return 'unknown';
-		};
-
-		const sums = sumByCategory(ranges, r => r.range.length, r => getEditCategory(r.source));
+		const sums = sumByCategory(ranges, r => r.range.length, r => getEditTelemetryCategory(r.source));
 		const totalModifiedCharactersInFinalState = sumBy(ranges, r => r.range.length);
 
 		return {

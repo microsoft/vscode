@@ -8,6 +8,7 @@ import { derived, IObservable, IReader, observableSignal } from '../../../../../
 import { localize } from '../../../../../nls.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
+import { narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IPermissionLevelMeta, IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
@@ -15,15 +16,18 @@ import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../com
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { isAssistedPermissionsEnabled, isPermissionLevelVisible } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 
 const REQUIRED_AUTO_APPROVE_VALUE = 'default';
 const REQUIRED_MODE_VALUE = 'interactive';
 const REQUIRED_PERMISSION_MODE_VALUE = 'default';
+const REQUIRED_CODEX_APPROVALS_VALUE = 'default';
 
 /**
  * Returns `true` when an `autoApprove` session-config property uses the
  * shape the unified permission picker expects: a string enum that is a
- * subset of `default | autoApprove | autopilot` and contains at least
+ * subset of `default | assisted | autoApprove | autopilot` and contains at least
  * `default`.
  *
  * Callers use this to decide whether to render the unified
@@ -65,21 +69,42 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly isApplicable: IObservable<boolean>;
 
-	/**
-	 * Agent-host sessions expose Autopilot on the orthogonal `mode` axis, so
-	 * the permissions picker offers `Default` / `Bypass` here.
-	 */
-	readonly availableLevels: readonly ChatPermissionLevel[] = [
-		ChatPermissionLevel.Default,
-		ChatPermissionLevel.AutoApprove,
-	];
+	get availableLevels(): readonly ChatPermissionLevel[] {
+		const session = this._session.get();
+		if (!session) {
+			return [ChatPermissionLevel.Default];
+		}
+		const provider = this._getProvider(session.providerId);
+		const schema = provider?.getSessionConfig(session.sessionId)?.schema.properties[SessionConfigKey.AutoApprove];
+		const values = schema?.type === 'string' && Array.isArray(schema.enum) ? schema.enum : [];
+		const assistedPermissionsEnabled = isAssistedPermissionsEnabled(this._configurationService);
+		return [
+			ChatPermissionLevel.Default,
+			ChatPermissionLevel.Assisted,
+			ChatPermissionLevel.AutoApprove,
+		].filter(level => values.includes(level) && isPermissionLevelVisible(level, assistedPermissionsEnabled));
+	}
 
 	/** Agent-host sessions seed their default approval level from this setting. */
 	readonly defaultSettingKey = ChatConfiguration.DefaultConfiguration;
 
+	getPermissionLevelMeta(level: ChatPermissionLevel, meta: IPermissionLevelMeta): IPermissionLevelMeta {
+		switch (level) {
+			case ChatPermissionLevel.Default:
+				return { ...meta, detail: localize('agentHostPermissionPicker.askWhenNeeded.detail', "Asks when approval settings don't apply") };
+			case ChatPermissionLevel.Assisted:
+				return { ...meta, detail: localize('agentHostPermissionPicker.approveWhenSafe.detail', "Evaluates risk before running tools") };
+			case ChatPermissionLevel.AutoApprove:
+				return { ...meta, detail: localize('agentHostPermissionPicker.allowAll.detail', "Runs tool calls without asking") };
+			case ChatPermissionLevel.Autopilot:
+				return meta;
+		}
+	}
+
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -97,6 +122,9 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	}
 
 	setPermissionLevel(level: ChatPermissionLevel): void {
+		if (!isPermissionLevelVisible(level, isAssistedPermissionsEnabled(this._configurationService))) {
+			return;
+		}
 		const session = this._session.get();
 		if (!session) {
 			return;
@@ -110,6 +138,9 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (provider.isSessionConfigResolving(session.sessionId).get()) {
 			return;
 		}
+		if (!this.availableLevels.includes(level)) {
+			return;
+		}
 		provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, level)
 			.catch(() => { /* best-effort */ });
 	}
@@ -120,6 +151,8 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 				return localize('agentHostPermissionPicker.defaultApprovalsHover', "Copilot asks before running tools unless your configured settings allow the tool.");
 			case ChatPermissionLevel.AutoApprove:
 				return localize('agentHostPermissionPicker.autoApproveHover', "Copilot runs all tools without asking for approval.");
+			case ChatPermissionLevel.Assisted:
+				return localize('agentHostPermissionPicker.assistedHover', "An LLM judge evaluates each tool call. Tools it doesn't approve require your approval.");
 			case ChatPermissionLevel.Autopilot:
 				return localize('agentHostPermissionPicker.autopilotApprovalsHover', "Copilot runs tools without asking for approval and continues until the task is done.");
 		}
@@ -196,6 +229,10 @@ export function isWellKnownModeSchema(schema: SessionConfigPropertySchema): bool
 	return true;
 }
 
+export function isWellKnownModeValue(schema: SessionConfigPropertySchema, value: string): boolean {
+	return isWellKnownModeSchema(schema) && schema.enum!.some(candidate => String(candidate) === value);
+}
+
 /**
  * Returns `true` when a `permissionMode` session-config property uses the
  * Claude SDK's well-known permission-mode value set and includes `default`.
@@ -208,4 +245,23 @@ export function isWellKnownClaudePermissionModeSchema(schema: SessionConfigPrope
 		return false;
 	}
 	return schema.enum.every(value => narrowClaudePermissionMode(value) !== undefined);
+}
+
+/**
+ * Returns `true` when a `codex.permissionsPreset` session-config property uses
+ * the Codex permissions-preset value set and includes `default`.
+ *
+ * Codex collapses its three security axes (sandbox × approval policy ×
+ * approvals reviewer) into a single user-facing preset; this guard lets the
+ * dedicated {@link AgentHostCodexApprovalsPicker} claim the property while the
+ * generic per-property picker stands down.
+ */
+export function isWellKnownCodexApprovalsSchema(schema: SessionConfigPropertySchema): boolean {
+	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
+		return false;
+	}
+	if (!schema.enum.includes(REQUIRED_CODEX_APPROVALS_VALUE)) {
+		return false;
+	}
+	return schema.enum.every(value => narrowCodexPermissionsPreset(value) !== undefined);
 }

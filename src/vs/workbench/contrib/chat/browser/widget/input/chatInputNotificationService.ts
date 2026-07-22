@@ -17,11 +17,35 @@ export const enum ChatInputNotificationSeverity {
 	Error = 2,
 }
 
-export interface IChatInputNotificationAction {
+export const enum ChatInputNotificationActionKind {
+	Command = 'command',
+	OpenModelPicker = 'openModelPicker',
+	SwitchToModel = 'switchToModel',
+}
+
+interface IChatInputNotificationActionBase {
 	readonly label: string;
+}
+
+export interface IChatInputNotificationCommandAction extends IChatInputNotificationActionBase {
+	readonly kind: ChatInputNotificationActionKind.Command;
 	readonly commandId: string;
 	readonly commandArgs?: unknown[];
 }
+
+export interface IChatInputNotificationOpenModelPickerAction extends IChatInputNotificationActionBase {
+	readonly kind: ChatInputNotificationActionKind.OpenModelPicker;
+}
+
+export interface IChatInputNotificationSwitchToModelAction extends IChatInputNotificationActionBase {
+	readonly kind: ChatInputNotificationActionKind.SwitchToModel;
+	readonly modelIdentifier: string;
+}
+
+export type IChatInputNotificationAction =
+	| IChatInputNotificationCommandAction
+	| IChatInputNotificationOpenModelPickerAction
+	| IChatInputNotificationSwitchToModelAction;
 
 export interface IChatInputNotificationMuteAction {
 	/** Command executed when the user clicks the mute (bell-slash) button. */
@@ -53,6 +77,11 @@ export interface IChatInputNotification {
 	 * that is distinct from a one-off dismissal. Omit to hide the button.
 	 */
 	readonly mute?: IChatInputNotificationMuteAction;
+}
+
+/** Returns whether a notification applies to the concrete model-target session type. */
+export function isChatInputNotificationApplicableToSessionType(notification: IChatInputNotification, sessionType: string | undefined): boolean {
+	return !notification.sessionTypes?.length || (!!sessionType && notification.sessionTypes.includes(sessionType));
 }
 
 export const IChatInputNotificationService = createDecorator<IChatInputNotificationService>('chatInputNotificationService');

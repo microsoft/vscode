@@ -22,11 +22,12 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, SubagentChatSignal, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionResult, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, SubagentChatSignal, type IAgent, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -37,7 +38,9 @@ import { createNoopGitService, createSessionDataService, TestSessionDatabase } f
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+import { WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { AhpErrorCodes, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
+import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 
 /**
  * Loads a JSONL fixture of raw Copilot SDK events, runs them through
@@ -145,6 +148,44 @@ suite('AgentService (node dispatcher)', () => {
 			assert.throws(() => service.registerProvider(duplicate), /already registered/);
 		});
 
+		test('aggregates and deduplicates network diagnostics endpoints', async () => {
+			const providerA: IAgent = copilotAgent;
+			providerA.getNetworkDiagnosticsEndpoints = async () => [
+				{ name: 'First', url: 'https://example.com' },
+				{ name: 'Other', url: 'https://other.example.com' },
+			];
+			providerA.getNetworkDiagnosticsAccount = async () => 'octocat';
+			const providerB = new MockAgent('other');
+			disposables.add(toDisposable(() => providerB.dispose()));
+			const providerBContract: IAgent = providerB;
+			providerBContract.getNetworkDiagnosticsEndpoints = async () => [
+				{ name: 'Duplicate', url: 'https://example.com/' },
+			];
+			const failingProvider = new MockAgent('failing');
+			disposables.add(toDisposable(() => failingProvider.dispose()));
+			const failingProviderContract: IAgent = failingProvider;
+			failingProviderContract.getNetworkDiagnosticsEndpoints = async () => { throw new Error('unavailable'); };
+			const diagnostics: INetworkDiagnosticsService = {
+				_serviceBrand: undefined,
+				getInfo: async (endpoints, account) => ({ version: 'test', os: 'test', arch: 'test', account, proxySettings: {}, proxyEnv: {}, endpoints }),
+				fetch: async url => ({ url }),
+			};
+			service.setNetworkDiagnosticsService(diagnostics);
+			service.registerProvider(providerA);
+			service.registerProvider(providerB);
+			service.registerProvider(failingProvider);
+
+			const info = await service.getNetworkDiagnosticsInfo();
+
+			assert.deepStrictEqual({ account: info.account, endpoints: info.endpoints }, {
+				account: 'octocat',
+				endpoints: [
+					{ name: 'First', url: 'https://example.com' },
+					{ name: 'Other', url: 'https://other.example.com' },
+				],
+			});
+		});
+
 		test('maps progress events to protocol actions via onDidAction', async () => {
 			service.registerProvider(copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
@@ -152,7 +193,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Start a turn so there's an active turn to map events to
 			service.dispatchAction(
 				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 
@@ -164,6 +205,303 @@ suite('AgentService (node dispatcher)', () => {
 				action: { type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'msg-1', content: 'hello' } },
 			});
 			assert.ok(envelopes.some(e => e.action.type === ActionType.ChatResponsePart));
+		});
+	});
+
+	test('resolveSessionConfig echoes host-owned worktree values across isolation modes', async () => {
+		const workingDirectory = URI.file('/workspace/repo');
+		const gitService = createNoopGitService();
+		gitService.getRepositoryRoot = async () => workingDirectory;
+		gitService.revParse = async () => 'head';
+		gitService.getCurrentBranch = async () => 'feature';
+		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+		localService.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
+			{ generateBranchName: async () => 'agents/test' },
+			gitService,
+			new TestCopilotApiService(),
+			nullSessionDataService,
+			new NullLogService(),
+		)));
+		const agent = new MockAgent('copilot');
+		disposables.add(toDisposable(() => agent.dispose()));
+		localService.registerProvider(agent);
+		const includeFiles = ['.env', '.env.local', 'config/**'];
+
+		const worktree = await localService.resolveSessionConfig({
+			provider: 'copilot',
+			workingDirectory,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles },
+		});
+		const folder = await localService.resolveSessionConfig({
+			provider: 'copilot',
+			workingDirectory,
+			config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles },
+		});
+
+		assert.deepStrictEqual({
+			worktreeBranch: worktree.values[SessionConfigKey.Branch],
+			worktreeReadOnly: worktree.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
+			worktreeValue: worktree.values[SessionConfigKey.WorktreeIncludeFiles],
+			folderReadOnly: folder.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
+			folderValue: folder.values[SessionConfigKey.WorktreeIncludeFiles],
+		}, {
+			worktreeBranch: 'feature',
+			worktreeReadOnly: true,
+			worktreeValue: includeFiles,
+			folderReadOnly: true,
+			folderValue: includeFiles,
+		});
+	});
+
+	test('session config keeps host-owned values outside provider calls', async () => {
+		const workingDirectory = URI.file('/workspace/repo');
+		const gitService = createNoopGitService();
+		gitService.getRepositoryRoot = async () => workingDirectory;
+		gitService.revParse = async () => 'head';
+		gitService.getCurrentBranch = async () => 'feature';
+		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+		localService.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
+			{ generateBranchName: async () => 'agents/test' },
+			gitService,
+			new TestCopilotApiService(),
+			nullSessionDataService,
+			new NullLogService(),
+		)));
+		const agent = new MockAgent('codex');
+		const providerResolveConfigs: Array<Record<string, unknown> | undefined> = [];
+		const providerCompletionConfigs: Array<Record<string, unknown> | undefined> = [];
+		agent.resolveSessionConfig = async params => {
+			providerResolveConfigs.push(params.config);
+			return {
+				schema: {
+					type: 'object',
+					properties: {
+						[SessionConfigKey.Isolation]: { type: 'string', title: 'Provider Isolation' },
+						[SessionConfigKey.Branch]: { type: 'string', title: 'Provider Branch' },
+						providerSetting: { type: 'string', title: 'Provider Setting' },
+					},
+				},
+				values: {
+					...params.config,
+					[SessionConfigKey.Isolation]: 'folder',
+					[SessionConfigKey.Branch]: 'provider-branch',
+				},
+			};
+		};
+		agent.sessionConfigCompletions = async params => {
+			providerCompletionConfigs.push(params.config);
+			return { items: [] };
+		};
+		disposables.add(toDisposable(() => agent.dispose()));
+		localService.registerProvider(agent);
+
+		const initial = await localService.resolveSessionConfig({
+			provider: 'codex',
+			workingDirectory,
+			config: { [SessionConfigKey.Isolation]: 'worktree', providerSetting: 'initial' },
+		});
+		const selected = await localService.resolveSessionConfig({
+			provider: 'codex',
+			workingDirectory,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'feature/config',
+				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
+				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+				providerSetting: 'selected',
+			},
+		});
+		const folder = await localService.resolveSessionConfig({
+			provider: 'codex',
+			workingDirectory,
+			config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.Branch]: 'feature/config', providerSetting: 'folder' },
+		});
+		await localService.sessionConfigCompletions({
+			provider: 'codex',
+			workingDirectory,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'feature/config',
+				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
+				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+				providerSetting: 'completion',
+			},
+			property: 'providerSetting',
+		});
+
+		assert.deepStrictEqual({
+			providerResolveConfigs,
+			providerCompletionConfigs,
+			initial: {
+				isolation: initial.values[SessionConfigKey.Isolation],
+				branchDefault: initial.schema.properties[SessionConfigKey.Branch]?.default,
+				branch: initial.values[SessionConfigKey.Branch],
+				providerSetting: initial.values.providerSetting,
+			},
+			selected: {
+				isolation: selected.values[SessionConfigKey.Isolation],
+				branch: selected.values[SessionConfigKey.Branch],
+				branchPrefix: selected.values[SessionConfigKey.WorktreeBranchPrefix],
+				includeFiles: selected.values[SessionConfigKey.WorktreeIncludeFiles],
+				providerSetting: selected.values.providerSetting,
+			},
+			folder: {
+				isolation: folder.values[SessionConfigKey.Isolation],
+				branch: folder.values[SessionConfigKey.Branch],
+				providerSetting: folder.values.providerSetting,
+			},
+		}, {
+			providerResolveConfigs: [
+				{ providerSetting: 'initial' },
+				{ providerSetting: 'selected' },
+				{ providerSetting: 'folder' },
+			],
+			providerCompletionConfigs: [{ providerSetting: 'completion' }],
+			initial: { isolation: 'worktree', branchDefault: 'main', branch: 'main', providerSetting: 'initial' },
+			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], providerSetting: 'selected' },
+			folder: { isolation: 'folder', branch: 'feature', providerSetting: 'folder' },
+		});
+	});
+
+	test('marks worktree isolation pending before a provisional provider can prewarm', async () => {
+		const session = AgentSession.uri('codex', 'pending-before-create');
+		const workingDirectory = URI.file('/workspace/repo');
+		const gitService = createNoopGitService();
+		gitService.getRepositoryRoot = async () => workingDirectory;
+		gitService.revParse = async () => 'head';
+		gitService.getCurrentBranch = async () => 'feature';
+		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+		const isolation = disposables.add(new WorktreeIsolation(
+			{ generateBranchName: async () => 'agents/test' },
+			gitService,
+			new TestCopilotApiService(),
+			nullSessionDataService,
+			new NullLogService(),
+		));
+		localService.setWorktreeIsolation(isolation);
+		const pendingDuringCreate: boolean[] = [];
+		const providerCreateConfigs: Array<Record<string, unknown> | undefined> = [];
+		let failCreate = false;
+		class PrewarmingAgent extends MockAgent {
+			override async createSession(config?: import('../../common/agentService.js').IAgentCreateSessionConfig): Promise<import('../../common/agentService.js').IAgentCreateSessionResult> {
+				pendingDuringCreate.push(localService.configurationService.isWorkingDirectoryPending(config!.session!.toString()));
+				providerCreateConfigs.push(config?.config);
+				if (failCreate) {
+					throw new Error('create failed');
+				}
+				return { ...await super.createSession(config), provisional: true };
+			}
+		}
+		const agent = new PrewarmingAgent('codex');
+		disposables.add(toDisposable(() => agent.dispose()));
+		localService.registerProvider(agent);
+
+		await localService.createSession({
+			provider: 'codex',
+			session,
+			workingDirectory,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+		});
+		const failedSession = AgentSession.uri('codex', 'failed-before-create');
+		failCreate = true;
+		await assert.rejects(localService.createSession({
+			provider: 'codex',
+			session: failedSession,
+			workingDirectory,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+		}), /create failed/);
+
+		assert.deepStrictEqual({
+			pendingDuringCreate,
+			providerCreateConfigs,
+			pendingAfterCreate: localService.configurationService.isWorkingDirectoryPending(session.toString()),
+			pendingAfterFailure: localService.configurationService.isWorkingDirectoryPending(failedSession.toString()),
+		}, {
+			pendingDuringCreate: [true, true],
+			providerCreateConfigs: [{}, {}],
+			pendingAfterCreate: true,
+			pendingAfterFailure: false,
+		});
+	});
+
+	test('reconciles pending worktree isolation when creating session config changes', async () => {
+		const gitService = createNoopGitService();
+		const sessionDataService = createSessionDataService(new TestSessionDatabase());
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+		const isolation = disposables.add(new WorktreeIsolation(
+			{ generateBranchName: async () => 'agents/test' },
+			gitService,
+			new TestCopilotApiService(),
+			sessionDataService,
+			new NullLogService(),
+		));
+		localService.setWorktreeIsolation(isolation);
+
+		class ProvisionalAgent extends MockAgent {
+			override async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+				return { ...await super.createSession(config), provisional: true };
+			}
+		}
+
+		const provisionalAgent = new ProvisionalAgent('codex');
+		const readyAgent = new MockAgent('copilot');
+		disposables.add(toDisposable(() => provisionalAgent.dispose()));
+		disposables.add(toDisposable(() => readyAgent.dispose()));
+		localService.registerProvider(provisionalAgent);
+		localService.registerProvider(readyAgent);
+
+		const creatingSession = await localService.createSession({
+			provider: 'codex',
+			workingDirectory: URI.file('/workspace/repo'),
+			config: { [SessionConfigKey.Isolation]: 'folder' },
+		});
+		const readySession = await localService.createSession({
+			provider: 'copilot',
+			workingDirectory: URI.file('/workspace/repo'),
+			config: { [SessionConfigKey.Isolation]: 'folder' },
+		});
+		const creatingInitially = localService.configurationService.isWorkingDirectoryPending(creatingSession.toString());
+		const readyInitially = localService.configurationService.isWorkingDirectoryPending(readySession.toString());
+		const creatingLifecycle = localService.stateManager.getSessionState(creatingSession.toString())?.lifecycle;
+		const readyLifecycle = localService.stateManager.getSessionState(readySession.toString())?.lifecycle;
+
+		localService.dispatchAction(creatingSession.toString(), {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.Isolation]: 'worktree' },
+		}, 'test-client', 1);
+		const creatingAfterWorktree = localService.configurationService.isWorkingDirectoryPending(creatingSession.toString());
+
+		localService.dispatchAction(creatingSession.toString(), {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.Isolation]: 'folder' },
+		}, 'test-client', 2);
+		const creatingAfterFolder = localService.configurationService.isWorkingDirectoryPending(creatingSession.toString());
+
+		localService.dispatchAction(readySession.toString(), {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.Isolation]: 'worktree' },
+		}, 'test-client', 3);
+		const readyAfterWorktree = localService.configurationService.isWorkingDirectoryPending(readySession.toString());
+
+		assert.deepStrictEqual({
+			creatingInitially,
+			readyInitially,
+			creatingLifecycle,
+			readyLifecycle,
+			creatingAfterWorktree,
+			creatingAfterFolder,
+			readyAfterWorktree,
+		}, {
+			creatingInitially: false,
+			readyInitially: false,
+			creatingLifecycle: SessionLifecycle.Creating,
+			readyLifecycle: SessionLifecycle.Ready,
+			creatingAfterWorktree: true,
+			creatingAfterFolder: false,
+			readyAfterWorktree: false,
 		});
 	});
 
@@ -304,7 +642,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			svc.dispatchAction(
 				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Please help me fix the TypeScript compile errors', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Please help me fix the TypeScript compile errors', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 
@@ -331,7 +669,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			svc.dispatchAction(
 				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Explain workspace search indexing', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Explain workspace search indexing', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 
@@ -355,7 +693,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			svc.dispatchAction(
 				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Create tests for terminal persistence', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Create tests for terminal persistence', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be in flight');
@@ -385,7 +723,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			svc.dispatchAction(
 				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Investigate flaky terminal tests', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Investigate flaky terminal tests', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be in flight');
@@ -412,13 +750,13 @@ suite('AgentService (node dispatcher)', () => {
 
 			svc.dispatchAction(
 				buildDefaultChatUri(sourceSession.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'source-turn', message: { text: 'Seed fork title', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'source-turn', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Seed fork title', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 			await waitForCondition(() => svc.stateManager.getSessionState(sourceSession.toString())?.title === 'Source generated title', 'source generated title should be applied');
 			svc.dispatchAction(
 				buildDefaultChatUri(sourceSession.toString()),
-				{ type: ActionType.ChatTurnComplete, turnId: 'source-turn' },
+				{ type: ActionType.ChatTurnComplete, turnId: 'source-turn', duration: 1000 },
 				'test-client', 2,
 			);
 			await waitForCondition(() => (svc.stateManager.getSessionState(sourceSession.toString())?.turns.length ?? 0) === 1, 'source turn should be complete before forking');
@@ -492,6 +830,7 @@ suite('AgentService (node dispatcher)', () => {
 				{
 					type: ActionType.ChatTurnStarted,
 					turnId: 'turn-1',
+					startedAt: '2025-01-01T00:00:00.000Z',
 					message: { text: 'hello', origin: { kind: MessageKind.User }, attachments: attachments as never },
 				},
 				'test-client', 1,
@@ -927,7 +1266,7 @@ suite('AgentService (node dispatcher)', () => {
 			// renderer-side caches don't evict the in-flight session.
 			service.dispatchAction(
 				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
 			const activeListed = await service.listSessions();
@@ -943,7 +1282,7 @@ suite('AgentService (node dispatcher)', () => {
 			// session, reintroducing #321269's sibling eviction bug).
 			service.dispatchAction(
 				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
+				{ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
 				'test-client', 2,
 			);
 			const stateAfterTurn = service.stateManager.getSessionState(session.toString());
@@ -984,7 +1323,7 @@ suite('AgentService (node dispatcher)', () => {
 				createdAt: new Date(1000).toISOString(),
 				modifiedAt: new Date(2000).toISOString(),
 				project: { uri: URI.file('/project').toString(), displayName: 'project' },
-				workingDirectory: URI.file('/worktree').toString(),
+				workingDirectories: [URI.file('/worktree').toString()],
 			}, []);
 			agent.releaseList.complete();
 
@@ -1364,6 +1703,10 @@ suite('AgentService (node dispatcher)', () => {
 				overlayPathIntoTree: async () => undefined,
 				diffTreePaths: async () => undefined,
 				computeFileDiffsBetweenRefs: async () => undefined,
+				getFetchRemoteUrls: async () => undefined,
+				getUntrackedPaths: async () => [],
+				getBranchDiffSafetyInfo: async () => undefined,
+				getDiffPatchBetweenRefs: async () => undefined,
 			};
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const agent = new MockAgent('copilot');
@@ -1464,6 +1807,10 @@ suite('AgentService (node dispatcher)', () => {
 				overlayPathIntoTree: async () => undefined,
 				diffTreePaths: async () => undefined,
 				computeFileDiffsBetweenRefs: async () => undefined,
+				getFetchRemoteUrls: async () => undefined,
+				getUntrackedPaths: async () => [],
+				getBranchDiffSafetyInfo: async () => undefined,
+				getDiffPatchBetweenRefs: async () => undefined,
 			};
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const agent = new MockAgent('copilot');
@@ -3039,7 +3386,7 @@ suite('AgentService (node dispatcher)', () => {
 		function startParentTurn(session: URI, turnId: string): void {
 			service.dispatchAction(
 				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId, message: { text: 'go', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId, startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'go', origin: { kind: MessageKind.User } } },
 				'client-test', 1,
 			);
 		}
@@ -3217,6 +3564,120 @@ suite('AgentService (node dispatcher)', () => {
 				hasChatState: true,
 				stillInCatalog: true,
 				hasActiveTurn: false,
+			});
+		});
+
+		test('a subagent tool call awaiting user confirmation does not time out before the user responds', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const session = await service.createSession({ provider: 'copilot' });
+				const parentChat = buildDefaultChatUri(session.toString());
+				startParentTurn(session, 'turn-1');
+
+				copilotAgent.fireProgress({
+					kind: 'action', resource: URI.parse(parentChat),
+					action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } },
+				});
+				// No `confirmed` — the tool sits in PendingConfirmation, e.g. waiting on the user.
+				copilotAgent.fireProgress({
+					kind: 'action', resource: URI.parse(parentChat),
+					action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-sub', invocationMessage: 'Delegating...', toolInput: undefined },
+				});
+
+				// The user takes far longer than the pending-registration bound to respond.
+				await new Promise(resolve => setTimeout(resolve, 60_000));
+
+				// Only now does the user approve — this must still arm a fresh wait, not one already timed out.
+				service.dispatchAction(parentChat, { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'tc-sub', approved: true, confirmed: ToolCallConfirmationReason.UserAction }, 'client-1', 1);
+
+				const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+				const subscribePromise = service.subscribe(URI.parse(subagentUri), 'client-race');
+				let settled = false;
+				void subscribePromise.then(() => { settled = true; });
+				await timeout(0);
+				assert.strictEqual(settled, false, 'subscribe should still be pending right after approval');
+
+				copilotAgent.fireProgress({ kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' });
+
+				const snapshot = await subscribePromise;
+				assert.strictEqual(snapshot.resource, subagentUri);
+			});
+		});
+
+		test('denying a subagent tool call before confirmation does not leave a dangling wait', async () => {
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const parentChat = buildDefaultChatUri(session.toString());
+			startParentTurn(session, 'turn-1');
+
+			copilotAgent.fireProgress({
+				kind: 'action', resource: URI.parse(parentChat),
+				action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } },
+			});
+			copilotAgent.fireProgress({
+				kind: 'action', resource: URI.parse(parentChat),
+				action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-sub', invocationMessage: 'Delegating...', toolInput: undefined },
+			});
+
+			service.dispatchAction(parentChat, { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'tc-sub', approved: false, reason: ToolCallCancellationReason.Denied }, 'client-1', 1);
+
+			const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+			await assert.rejects(service.subscribe(URI.parse(subagentUri), 'client-race'), /Cannot subscribe to unknown resource/);
+		});
+
+		test('subscribe to a subagent chat announced via _meta.subagentChatUri waits for the resource instead of failing immediately', async () => {
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const parentChat = buildDefaultChatUri(session.toString());
+			startParentTurn(session, 'turn-1');
+
+			copilotAgent.fireProgress({
+				kind: 'action', resource: URI.parse(parentChat),
+				action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } },
+			});
+			copilotAgent.fireProgress({
+				kind: 'action', resource: URI.parse(parentChat),
+				action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-sub', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded },
+			});
+
+			const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+			assert.strictEqual(service.stateManager.getSnapshot(subagentUri), undefined, 'precondition: resource not registered yet');
+
+			// Subscribe before the resource exists — this must not reject.
+			const subscribePromise = service.subscribe(URI.parse(subagentUri), 'client-race');
+			let settled = false;
+			void subscribePromise.then(() => { settled = true; });
+			await timeout(0);
+			assert.strictEqual(settled, false, 'subscribe should still be pending while the resource is unregistered');
+
+			copilotAgent.fireProgress({ kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' });
+
+			const snapshot = await subscribePromise;
+			assert.strictEqual(snapshot.resource, subagentUri);
+		});
+
+		test('subscribe to an announced subagent chat that never spawns eventually rejects instead of hanging', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const session = await service.createSession({ provider: 'copilot' });
+				const parentChat = buildDefaultChatUri(session.toString());
+				startParentTurn(session, 'turn-1');
+
+				copilotAgent.fireProgress({
+					kind: 'action', resource: URI.parse(parentChat),
+					action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } },
+				});
+				copilotAgent.fireProgress({
+					kind: 'action', resource: URI.parse(parentChat),
+					action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-sub', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded },
+				});
+
+				const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+
+				// The tool call is denied/cancelled before the SDK ever
+				// confirms subagent_started — the resource never registers.
+				const subscribePromise = service.subscribe(URI.parse(subagentUri), 'client-race');
+				await assert.rejects(subscribePromise, /Cannot subscribe to unknown resource/);
 			});
 		});
 	});
@@ -3614,7 +4075,7 @@ suite('AgentService (node dispatcher)', () => {
 			// mid-response.
 			service.dispatchAction(
 				buildDefaultChatUri(sessionResource.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 				'client-1', 1,
 			);
 
@@ -4000,12 +4461,12 @@ suite('AgentService (node dispatcher)', () => {
 				service.addSubscriber(sessionResource, 'client-1');
 				service.dispatchAction(
 					buildDefaultChatUri(sessionResource.toString()),
-					{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'hello', origin: { kind: MessageKind.User } } },
+					{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } },
 					'client-1', 1,
 				);
 				service.dispatchAction(
 					buildDefaultChatUri(sessionResource.toString()),
-					{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
+					{ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
 					'client-1', 2,
 				);
 
@@ -4338,7 +4799,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			// The state manager should have the worktree path, not the source path
 			const state = service.stateManager.getSessionState(session.toString());
-			assert.strictEqual(state?.workingDirectory, worktreeDir.toString());
+			assert.strictEqual(state?.workingDirectories?.[0], worktreeDir.toString());
 		});
 
 		test('createSession falls back to config working directory when agent does not resolve', async () => {
@@ -4350,7 +4811,7 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ provider: 'copilot', workingDirectory: sourceDir });
 
 			const state = service.stateManager.getSessionState(session.toString());
-			assert.strictEqual(state?.workingDirectory, sourceDir.toString());
+			assert.strictEqual(state?.workingDirectories?.[0], sourceDir.toString());
 		});
 
 		test('restoreSession uses agent working directory in state', async () => {
@@ -4369,7 +4830,7 @@ suite('AgentService (node dispatcher)', () => {
 			await service.restoreSession(session);
 
 			const state = service.stateManager.getSessionState(session.toString());
-			assert.strictEqual(state?.workingDirectory, worktreeDir.toString());
+			assert.strictEqual(state?.workingDirectories?.[0], worktreeDir.toString());
 		});
 	});
 

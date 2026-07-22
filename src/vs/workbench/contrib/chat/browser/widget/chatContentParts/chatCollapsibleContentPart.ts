@@ -41,6 +41,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	protected readonly _showCheckmarks: IObservable<boolean>;
 	private _contentElement?: HTMLElement;
 	private _contentInitialized = false;
+	private _animationContainer: HTMLElement | undefined;
 	private ariaLabel: string;
 
 	public get icon(): ThemeIcon | undefined {
@@ -97,6 +98,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			this._domNode.classList.add('chat-collapsible-content-animatable');
 			this._domNode.classList.toggle('chat-collapsible-content-animated', this.shouldAnimateContent());
 			const animationContainer = $('.chat-collapsible-content-animation');
+			this._animationContainer = animationContainer;
 			animatedContent = $('.chat-collapsible-content-animation-inner');
 			animationContainer.appendChild(animatedContent);
 			this._domNode.appendChild(animationContainer);
@@ -115,8 +117,8 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 		this._register(collapseButton.onDidClick(() => {
 			const value = this._isExpanded.get();
-			this._isExpanded.set(!value, undefined);
 			this._domNode?.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
+			this._isExpanded.set(!value, undefined);
 		}));
 
 		// Initialize the expanded state based on the subclass's isExpanded() method
@@ -174,6 +176,10 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 	protected setContentAnimationEnabled(enabled: boolean): void {
 		this.domNode.classList.toggle('chat-collapsible-content-animated', enabled);
+	}
+
+	protected get contentAnimationContainer(): HTMLElement | undefined {
+		return this._animationContainer;
 	}
 
 	protected contentDidInitialize(): void { }

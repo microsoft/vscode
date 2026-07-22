@@ -24,10 +24,11 @@ import { IChangesViewService } from '../common/changesViewService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
-import { SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
+import { ChangesetHasOperationsContext } from './changesViewService.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -160,7 +161,7 @@ class ChangesHeaderActionsAction extends Action2 {
 				order: 5,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorTitle,
-					SessionHasChangesContext
+					ChangesetHasOperationsContext
 				)
 			},
 		});

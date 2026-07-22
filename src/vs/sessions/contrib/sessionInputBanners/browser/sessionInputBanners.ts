@@ -19,6 +19,7 @@ import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubCheckStatus } from '../../github/common/types.js';
 import { FIX_CI_CHECKS_COMMAND_ID, getFailedChecks, REVEAL_CI_CHECKS_COMMAND_ID } from '../../changes/browser/checksActions.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
+import type { ISessionChatPillsDebugData } from '../../chat/browser/sessionChatInputToolbarDebug.js';
 import { ISessionInputBanner, SessionInputBannerWidget } from './sessionInputBannerWidget.js';
 
 /** Persisted set of session ids whose CI banner the user dismissed. */
@@ -40,6 +41,7 @@ interface ICIBannerState {
 	readonly completed: number;
 	/** Number of checks still running or queued. */
 	readonly pending: number;
+	readonly debug?: true;
 }
 
 interface ICommentsBannerState {
@@ -49,6 +51,7 @@ interface ICommentsBannerState {
 	/** Whether all counted comments are PR reviews, all are agent reviews, or mixed. */
 	readonly kind: 'pr' | 'agent' | 'mixed';
 	readonly firstCommentId: string;
+	readonly debug?: true;
 }
 
 /**
@@ -71,6 +74,7 @@ export class SessionInputBanners extends Disposable {
 	private readonly _commentsContent = this._register(new MutableDisposable<DisposableStore>());
 
 	private readonly _active = observableValue<boolean>(this, false);
+	private readonly _debugData = observableValue<ISessionChatPillsDebugData | undefined>(this, undefined);
 
 	private readonly _ciDismissed = observableValue<ReadonlySet<string>>(this, new Set());
 	private readonly _commentsDismissed = observableValue<ReadonlySet<string>>(this, new Set());
@@ -94,6 +98,12 @@ export class SessionInputBanners extends Disposable {
 	});
 
 	private readonly _ciState: IObservable<ICIBannerState | undefined> = derived(this, reader => {
+		const debugData = this._debugData.read(reader);
+		if (debugData) {
+			return debugData.ciFailed > 0
+				? { sessionId: 'debug', failed: debugData.ciFailed, completed: debugData.ciFailed, pending: debugData.ciPending, debug: true }
+				: undefined;
+		}
 		const session = this._session.read(reader);
 		if (!session || this._ciDismissed.read(reader).has(session.sessionId)) {
 			return undefined;
@@ -118,6 +128,17 @@ export class SessionInputBanners extends Disposable {
 	});
 
 	private readonly _commentsState: IObservable<ICommentsBannerState | undefined> = derived(this, reader => {
+		const debugData = this._debugData.read(reader);
+		if (debugData) {
+			const count = debugData.prFeedback + debugData.agentFeedback;
+			if (count === 0) {
+				return undefined;
+			}
+			const kind = debugData.prFeedback > 0 && debugData.agentFeedback > 0
+				? 'mixed'
+				: debugData.prFeedback > 0 ? 'pr' : 'agent';
+			return { sessionId: 'debug', sessionResource: URI.from({ scheme: 'session-chat-pills-debug', path: '/feedback' }), count, kind, firstCommentId: 'debug', debug: true };
+		}
 		const session = this._session.read(reader);
 		if (!session || this._commentsDismissed.read(reader).has(session.sessionId)) {
 			return undefined;
@@ -170,6 +191,10 @@ export class SessionInputBanners extends Disposable {
 		this._active.set(active, undefined);
 	}
 
+	setDebugData(data: ISessionChatPillsDebugData | undefined): void {
+		this._debugData.set(data, undefined);
+	}
+
 	private _renderCIBanner(state: ICIBannerState | undefined): void {
 		const store = this._ciContent.value = new DisposableStore();
 		dom.clearNode(this._ciSlot);
@@ -194,14 +219,14 @@ export class SessionInputBanners extends Disposable {
 				{
 					label: localize('ci.fixChecks', "Fix Checks"),
 					primary: true,
-					run: () => this._executeCommand(FIX_CI_CHECKS_COMMAND_ID),
+					run: () => state.debug ? undefined : this._executeCommand(FIX_CI_CHECKS_COMMAND_ID),
 				},
 				{
 					label: localize('ci.revealChecks', "Reveal Checks"),
-					run: () => { void this._executeCommand(REVEAL_CI_CHECKS_COMMAND_ID); },
+					run: () => { if (!state.debug) { void this._executeCommand(REVEAL_CI_CHECKS_COMMAND_ID); } },
 				},
 			],
-			dismiss: () => this._dismiss(STORAGE_KEY_CI_DISMISSED, this._ciDismissed, state.sessionId),
+			dismiss: () => { if (!state.debug) { this._dismiss(STORAGE_KEY_CI_DISMISSED, this._ciDismissed, state.sessionId); } },
 		});
 	}
 
@@ -224,14 +249,14 @@ export class SessionInputBanners extends Disposable {
 				{
 					label: localize('comments.address', "Address Comments"),
 					primary: true,
-					run: () => this._addressComments(state.sessionResource).catch(err => this.logService.error('[SessionInputBanners] Failed to address comments', err)),
+					run: () => state.debug ? undefined : this._addressComments(state.sessionResource).catch(err => this.logService.error('[SessionInputBanners] Failed to address comments', err)),
 				},
 				{
 					label: localize('comments.reveal', "Reveal Comments"),
-					run: () => this._revealComment(state.sessionResource, state.firstCommentId),
+					run: () => { if (!state.debug) { this._revealComment(state.sessionResource, state.firstCommentId); } },
 				},
 			],
-			dismiss: () => this._dismiss(STORAGE_KEY_COMMENTS_DISMISSED, this._commentsDismissed, state.sessionId),
+			dismiss: () => { if (!state.debug) { this._dismiss(STORAGE_KEY_COMMENTS_DISMISSED, this._commentsDismissed, state.sessionId); } },
 		});
 	}
 

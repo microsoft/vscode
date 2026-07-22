@@ -11,7 +11,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
-import { IsPhoneLayoutContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionHasChangesContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -28,8 +28,9 @@ const CODE_REVIEW_QUERY = '/code-review';
 
 const singlePaneDetailPanel = SinglePaneLayoutEnabledContext;
 
-// Code review is shown in the single-pane Changes editor header (to the right),
-// so it is only contributed to the classic changes button bar when single-pane is off.
+// Code review is shown next to the diff-stats action in the single-pane Changes
+// editor header, so it is only contributed to the classic changes button bar
+// when single-pane is off.
 const codeReviewChangesToolbarWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	SessionWorkspaceIsVirtualContext.toNegated(),
@@ -38,18 +39,10 @@ const codeReviewChangesToolbarWhen = ContextKeyExpr.and(
 	singlePaneDetailPanel.negate(),
 );
 
-// Code review in the single-pane Changes editor header: always on the right
-// (SessionsEditorHeaderSecondary) in its own separated group, whether the editor
-// area is visible or collapsed.
-const codeReviewEditorHeaderWhen = ContextKeyExpr.and(
-	IsSessionsWindowContext,
-	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
-	singlePaneDetailPanel,
-	IsAuxiliaryWindowContext.toNegated(),
-	IsTopRightEditorGroupContext,
-	SessionWorkspaceIsVirtualContext.toNegated(),
-);
-
+// Code review in the single-pane Changes editor header: on the left
+// (SessionsEditorHeaderPrimary), in its own group right after the diff-stats
+// action (separated by a divider), whether the editor area is visible or
+// collapsed.
 class RunSessionCodeReviewAction extends Action2 {
 
 	static readonly ID = 'sessions.codeReview.run';
@@ -70,10 +63,20 @@ class RunSessionCodeReviewAction extends Action2 {
 					when: codeReviewChangesToolbarWhen,
 				},
 				{
-					id: Menus.SessionsEditorHeaderSecondary,
-					group: 'navigation',
-					order: 10,
-					when: codeReviewEditorHeaderWhen,
+					// A separate group (rather than 'navigation', which holds the Branch
+					// Changes picker + diff-stats) so a separator renders before it.
+					id: Menus.SessionsEditorHeaderPrimary,
+					group: '1_codeReview',
+					order: 1,
+					when: ContextKeyExpr.and(
+						IsSessionsWindowContext,
+						ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+						singlePaneDetailPanel,
+						IsAuxiliaryWindowContext.toNegated(),
+						IsTopRightEditorGroupContext,
+						SessionWorkspaceIsVirtualContext.toNegated(),
+						SessionHasChangesContext,
+					),
 				},
 			],
 		});

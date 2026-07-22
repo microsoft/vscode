@@ -285,7 +285,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		)).read(reader);
 
 		const separatorWidth = this._input.map(i => i?.editorType === InlineCompletionEditorType.DiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH).read(reader);
-		const overlayRect = overlayLayoutObs.map(l => l.overlay.withMargin(0, BORDER_WIDTH, 0, l.startsAtContentLeft ? 0 : BORDER_WIDTH).intersectHorizontal(new OffsetRange(overlayHider.left, Number.MAX_SAFE_INTEGER)));
+		const overlayRect = overlayLayoutObs.map(l => l.overlay.withMargin(0, BORDER_WIDTH, BORDER_WIDTH, l.startsAtContentLeft ? 0 : BORDER_WIDTH).intersectHorizontal(new OffsetRange(overlayHider.left, Number.MAX_SAFE_INTEGER)));
 		const underlayRect = overlayRect.map(rect => rect.withMargin(separatorWidth, separatorWidth));
 
 		const editorBackground = getEditorBackgroundColor(this._input.read(undefined)?.editorType ?? InlineCompletionEditorType.TextEditor);
