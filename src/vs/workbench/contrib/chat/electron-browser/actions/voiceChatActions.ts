@@ -570,6 +570,7 @@ export class StartVoiceChatAction extends Action2 {
 			),
 			menu: primaryVoiceActionMenu(ContextKeyExpr.and(
 				HasSpeechProvider,
+				ChatContextKeys.speechToTextConfigured.negate(),	// built-in on-device dictation wins: hide the extension mic when it's available so only one mic shows
 				ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
 				AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
 			))
