@@ -6,7 +6,7 @@
 import { Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
@@ -129,18 +129,6 @@ type AgentHostInvocationFailedClassification = {
 	owner: 'roblourens';
 	comment: 'Captures errors that prevent an agent host request from reaching a terminal host turn.';
 };
-
-function hasErrorCode(error: object): error is { readonly code: unknown } {
-	return Object.hasOwn(error, 'code');
-}
-
-function getErrorCode(error: unknown): string | undefined {
-	if (!error || typeof error !== 'object' || !hasErrorCode(error)) {
-		return undefined;
-	}
-	const code = error.code;
-	return typeof code === 'string' || typeof code === 'number' ? String(code) : undefined;
-}
 
 
 // =============================================================================

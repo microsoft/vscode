@@ -95,7 +95,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	const sessionKey = sessionUri.toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
 
-	function setupSession(): void {
+	function setupSession(ready = true): void {
 		stateManager.createSession({
 			resource: sessionKey,
 			provider: 'mock',
@@ -104,7 +104,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 		});
-		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
+		if (ready) {
+			stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
+		}
 	}
 
 	function setAutoApprove(level: string): void {
@@ -333,7 +335,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	});
 
 	test('fails the turn when model selection rejects instead of sending with a stale model', async () => {
-		setupSession();
+		setupSession(false);
 		agent.changeModel = async () => { throw new Error('unknown model'); };
 
 		startTurn('turn-1', 'hello', 'missing-model');
@@ -344,10 +346,12 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.deepStrictEqual({
 			completed: { result: completed.result, errorType: completed.errorType, failureStage: completed.failureStage },
 			failed: { errorType: failed.errorType, failureStage: failed.failureStage, msg: failed.msg },
+			creationErrorType: stateManager.getSessionState(sessionKey)?.creationError?.errorType,
 			sendMessageCalls: agent.sendMessageCalls.length,
 		}, {
 			completed: { result: 'error', errorType: 'modelSelectionFailed', failureStage: 'modelSelection' },
 			failed: { errorType: 'modelSelectionFailed', failureStage: 'modelSelection', msg: 'Error: unknown model' },
+			creationErrorType: 'modelSelectionFailed',
 			sendMessageCalls: 0,
 		});
 	});

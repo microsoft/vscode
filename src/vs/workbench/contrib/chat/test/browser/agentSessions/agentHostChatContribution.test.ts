@@ -7101,6 +7101,7 @@ suite('AgentHostChatContribution', () => {
 			});
 			agentHostService.createSession = async () => {
 				const error = new ProtocolError(-32603, 'create failed');
+				error.name = 'ProtocolError';
 				error.stack = 'Error: create failed\n    at createSession (agentHostSessionHandler.ts:1:1)';
 				throw error;
 			};
@@ -7137,7 +7138,7 @@ suite('AgentHostChatContribution', () => {
 					failureStage: 'createSession',
 					isFirstRequest: false,
 					hasUserSelectedModel: true,
-					errorName: 'Error',
+					errorName: 'ProtocolError',
 					errorCode: '-32603',
 					msg: 'create failed',
 					callstack: 'Error: create failed\n    at createSession (agentHostSessionHandler.ts:1:1)',

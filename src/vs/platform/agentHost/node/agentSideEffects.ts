@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getErrorCode } from '../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { NKeyMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
@@ -1584,7 +1585,7 @@ export class AgentSideEffects extends Disposable {
 			});
 			this._turnTracker.turnCompleted(turnChannel, turnId, 'error', failure);
 			this._toolCallTracker.clearSession(turnChannel);
-			this._failSessionCreationIfStillCreating(sessionChannel, err);
+			this._failSessionCreationIfStillCreating(sessionChannel, error);
 		}
 	}
 
@@ -1609,14 +1610,14 @@ export class AgentSideEffects extends Disposable {
 	 * waiting on a client-side timeout. The provisional session survives on the
 	 * agent, so resending re-attempts materialization.
 	 */
-	private _failSessionCreationIfStillCreating(sessionChannel: ProtocolURI, err: unknown): void {
+	private _failSessionCreationIfStillCreating(sessionChannel: ProtocolURI, error: ErrorInfo): void {
 		const state = this._stateManager.getSessionState(sessionChannel);
 		if (state?.lifecycle !== SessionLifecycle.Creating) {
 			return;
 		}
 		this._stateManager.dispatchServerAction(sessionChannel, {
 			type: ActionType.SessionCreationFailed,
-			error: buildTurnFailure('sendMessage', err).error,
+			error,
 		});
 		const summary = this._stateManager.getSessionSummary(sessionChannel);
 		if (summary) {
@@ -1659,16 +1660,4 @@ function buildTurnFailureError(stage: AgentHostTurnFailureStage, err: unknown): 
 		return { errorType, message: stripProxyErrorMarker(message), _meta: toChatErrorMeta(forwarded) };
 	}
 	return { errorType, message };
-}
-
-function hasErrorCode(error: object): error is { readonly code: unknown } {
-	return Object.hasOwn(error, 'code');
-}
-
-function getErrorCode(err: unknown): string | undefined {
-	if (!err || typeof err !== 'object' || !hasErrorCode(err)) {
-		return undefined;
-	}
-	const code = err.code;
-	return typeof code === 'string' || typeof code === 'number' ? String(code) : undefined;
 }
