@@ -403,8 +403,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			range: new Range(lineNumber, 1, lineNumber, 1),
 			options: {
 				description: 'agent-feedback-hover-glyph',
-				lineNumberClassName: `${agentFeedbackHoverGlyphClassName} line-hover`,
-				lineNumberHoverMessage: new MarkdownString(localize('agentFeedback.add', "Add Feedback")),
+				linesDecorationsClassName: `${agentFeedbackHoverGlyphClassName} line-hover`,
+				glyphMarginHoverMessage: new MarkdownString(localize('agentFeedback.add', "Add Feedback")),
 			},
 		}]);
 	}

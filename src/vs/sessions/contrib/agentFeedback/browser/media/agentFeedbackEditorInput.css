@@ -85,20 +85,21 @@
 	height: 16px;
 }
 
-.monaco-editor .line-numbers.agent-feedback-glyph {
+.monaco-editor .margin-view-overlays .agent-feedback-glyph {
 	cursor: pointer;
 	z-index: 10;
 }
 
-.monaco-editor .line-numbers.agent-feedback-glyph.line-hover::before {
+.monaco-editor .margin-view-overlays .agent-feedback-glyph.line-hover::before {
 	content: var(--vscode-icon-plus-content);
 	font-family: var(--vscode-icon-plus-font-family);
 	font-size: var(--vscode-codiconFontSize);
 	position: absolute;
+	height: 100%;
 	width: 18px;
-	height: 18px;
-	top: calc(50% - 9px);
-	left: calc(50% - 9px);
+	left: -6px;
+	margin-left: -5px;
+	padding-left: 1px;
 	z-index: 10;
 	color: var(--vscode-editorGutter-commentGlyphForeground, var(--vscode-foreground));
 	background-color: var(--vscode-editorGutter-commentRangeForeground);
@@ -107,8 +108,4 @@
 	align-items: center;
 	justify-content: center;
 	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.monaco-editor .line-numbers.agent-feedback-glyph.line-hover {
-	color: transparent !important;
 }
