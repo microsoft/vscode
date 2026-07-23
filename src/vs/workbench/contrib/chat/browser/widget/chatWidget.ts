@@ -88,6 +88,7 @@ import { IChatDebugService } from '../../common/chatDebugService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
+import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
 
 const $ = dom.$;
 
@@ -441,6 +442,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IChatGoalSummaryService private readonly chatGoalSummaryService: IChatGoalSummaryService,
+		@IChatSubmitRequestHandlerService private readonly chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
 	) {
 		super();
 
@@ -871,6 +873,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			for (const part of input.parts) {
 				if (part instanceof ChatRequestToolPart || part instanceof ChatRequestToolSetPart || part instanceof ChatRequestDynamicVariablePart) {
 					const entry = part.toVariableEntry();
+					if (part instanceof ChatRequestDynamicVariablePart && part.isAttachmentReference) {
+						continue;
+					}
 					newPromptAttachments.set(entry.id, entry);
 					oldPromptAttachments.delete(entry.id);
 				}
@@ -1442,15 +1447,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 			// Switch to the specified model if provided
-			if (handoff.model) {
-				this.input.switchModelByQualifiedName([handoff.model]);
-			}
+			const modelReady = handoff.model ? this.input.requestModelByQualifiedName([handoff.model]) : undefined;
 			// Insert the handoff prompt into the input
 			this.input.setValue(promptToUse, false);
 			this.input.focus();
 
 			// Auto-submit if send flag is true
 			if (handoff.send) {
+				if (modelReady && !await modelReady) {
+					return;
+				}
 				this.acceptInput().catch(e => this.logService.error(`[Handoff] Failed to submit handoff to '${handoff.agent}'`, e));
 			}
 		}
@@ -1827,7 +1833,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.inputPart.element.classList.add('editing');
 			}
 			if (currentElement.modelId) {
-				this.input.switchModelByIdentifier(currentElement.modelId);
+				void this.input.requestModelByIdentifier(currentElement.modelId);
 			}
 
 			this.inputPart.toggleChatInputOverlay(!isInput);
@@ -1927,7 +1933,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.inputPart.setPermissionLevel(this.input.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
 			const editModelId = this.input.currentLanguageModel;
 			if (editModelId) {
-				this.inputPart.switchModelByIdentifier(editModelId);
+				void this.inputPart.requestModelByIdentifier(editModelId);
 			}
 
 			this.inputPart?.toggleChatInputOverlay(false);
@@ -2495,7 +2501,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		if (this._readOnly) {
+		if (this._readOnly || this.input.hasPendingProgrammaticModelSelection) {
 			return undefined;
 		}
 
@@ -2681,16 +2687,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}
 
+		const isUserQuery = !query;
+		const inputValue = isUserQuery ? this.getInput() : query.query;
+		if (isUserQuery) {
+			const preSubmitResult = await this.chatSubmitRequestHandlerService.tryHandle({
+				sessionResource: this.viewModel.sessionResource,
+				input: inputValue,
+			});
+			if (preSubmitResult) {
+				this.setInput('');
+				return;
+			}
+		}
+
 		this._onDidAcceptInput.fire();
 		this.listWidget.setScrollLock(this.isLockedToCodingAgent || !!checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll));
 
-		const editorValue = this.getInput();
 		const requestInputs: IChatRequestInputOptions = {
-			input: !query ? editorValue : query.query,
+			input: inputValue,
 			attachedContext: options?.enableImplicitContext === false ? this.input.getAttachedContext() : this.input.getAttachedAndImplicitContext(),
 		};
 
-		const isUserQuery = !query;
 		const isEditing = this.viewModel?.editing;
 		const editedModelRequestOptions = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input'
 			? this.getSelectedModelRequestOptions()
@@ -3238,7 +3255,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (model !== undefined) {
-			this.input.switchModelByQualifiedName(model);
+			return this.input.requestModelByQualifiedName(model);
 		}
 
 		return true;

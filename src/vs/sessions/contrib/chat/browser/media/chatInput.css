@@ -249,10 +249,11 @@
 	align-items: center;
 	justify-content: center;
 	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size40);
 	position: relative;
 	width: 22px;
 	height: 22px;
-	border-radius: 50%;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .sessions-chat-send-button .monaco-button {
@@ -263,7 +264,7 @@
 	height: 22px;
 	min-width: 22px;
 	padding: 0;
-	border-radius: 50%;
+	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-icon-foreground);
 	background: transparent;
 	border: none;
@@ -295,9 +296,8 @@
 
 .monaco-workbench .sessions-chat-send-button .monaco-button.codicon[class*='codicon-']::before,
 .monaco-workbench .sessions-chat-send-button .monaco-button .codicon[class*='codicon-']::before {
-	/* Optical alignment: nudge arrow glyph 1px left to visually center it. */
 	display: inline-block;
-	transform: translateX(-0.5px);
+	transform: translateY(0.5px);
 }
 
 /* Ensure no underline / link decoration ever shows under the codicon glyph

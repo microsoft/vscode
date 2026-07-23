@@ -13,8 +13,16 @@ import { INotificationService, Severity } from '../../../../../platform/notifica
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../nls.js';
 import { AgentsVoiceStorageKeys } from '../../../../contrib/agentsVoice/common/agentsVoice.js';
+import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 
 export const IMicCaptureService = createDecorator<IMicCaptureService>('micCaptureService');
+
+/**
+ * Number of samples buffered in the capture worklet before a chunk is posted to
+ * the main thread. Matches the buffer size previously used with
+ * `ScriptProcessorNode` so the per-chunk drain/diagnostic bookkeeping is unchanged.
+ */
+const MIC_CAPTURE_CHUNK_SIZE = 2048;
 
 /**
  * Per-PTT-press diagnostic emitted after `pttUp` once the diagnostic
@@ -159,7 +167,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 	private _window: (Window & typeof globalThis) | undefined;
 	private _micStream: MediaStream | null = null;
 	private _micCtx: AudioContext | undefined;
-	private _scriptNode: ScriptProcessorNode | undefined;
+	private _workletNode: AudioWorkletNode | undefined;
 	private _analyserNode: AnalyserNode | undefined;
 	private _isCapturing = false;
 	private _pttHeld = false;
@@ -415,10 +423,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		source.connect(analyser);
 		this._analyserNode = analyser;
 
-		const processor = ctx.createScriptProcessor(2048, 1, 1);
-		this._scriptNode = processor;
-
-		processor.onaudioprocess = (e: AudioProcessingEvent) => {
+		const node = await createPcmCaptureNode(window, ctx, MIC_CAPTURE_CHUNK_SIZE, samples => {
 			const nowTs = Date.now();
 			const ptUpTs = this._diagPttUpTs;
 			// A callback is a "drain" callback while we're still in the
@@ -451,13 +456,11 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 			if (!this._pttStreaming) {
 				if (isPostReleaseCallback) {
 					this._diagPostReleaseCallbacks++;
-					this._diagPostReleaseSamples += e.inputBuffer.length;
+					this._diagPostReleaseSamples += samples.length;
 				}
 				return;
 			}
 
-			const channelData = e.inputBuffer.getChannelData(0);
-			const samples = new Float32Array(channelData);
 			const b64 = encodeRawPcm16Base64(samples, this._window!);
 			this._diagChunksSent++;
 			this._diagSamplesSent += samples.length;
@@ -475,10 +478,17 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 			if (isDrainCallback && this._pttDrainSamplesSent >= this._pttDrainTargetSamples) {
 				this._finishDrain();
 			}
-		};
+		});
 
-		source.connect(processor);
-		processor.connect(ctx.destination);
+		// stopCapture() may have run while the worklet module was loading.
+		if (this._micCtx !== ctx) {
+			try { node.disconnect(); } catch { /* ignore */ }
+			return;
+		}
+
+		this._workletNode = node;
+		source.connect(node);
+		node.connect(ctx.destination);
 		this._isCapturing = true;
 	}
 
@@ -514,9 +524,10 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		}
 		this._pttDrainTargetSamples = 0;
 		this._pttDrainSamplesSent = 0;
-		if (this._scriptNode) {
-			this._scriptNode.disconnect();
-			this._scriptNode = undefined;
+		if (this._workletNode) {
+			this._workletNode.port.onmessage = null;
+			try { this._workletNode.disconnect(); } catch { /* ignore */ }
+			this._workletNode = undefined;
 		}
 		this._analyserNode = undefined;
 		this._micCtx?.close();

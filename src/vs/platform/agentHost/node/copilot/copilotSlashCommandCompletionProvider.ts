@@ -7,12 +7,14 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { AgentSession } from '../../common/agentService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../../common/state/protocol/commands.js';
 import { Customization, CustomizationType, DirectoryCustomization, MessageAttachmentKind, PluginCustomization, SkillCustomization } from '../../common/state/protocol/state.js';
-import { toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
-import { getCopilotConfigSlashCommandItems, isCopilotConfigSlashCommand } from '../../common/copilotConfigSlashCommands.js';
+import { getCompletionAction, toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
+import { getCopilotConfigSlashCommandItems, ICopilotConfigSlashCommandState, isCopilotConfigSlashCommand } from '../../common/copilotConfigSlashCommands.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from '../agentHostCompletions.js';
 import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken } from '../agentHostSlashCompletion.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import type { CopilotSession } from '@github/copilot-sdk';
+
+export { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 
 const HIDDEN_RUNTIME_COMMANDS = new Set<string>(['agent', 'app', 'changelog', 'context', 'copy', 'exit', 'extensions', 'feedback', 'help', 'ide', 'instructions', 'login', 'logout', 'mcp', 'model', 'new', 'plugin', 'rename', 'restart', 'resume', 'sandbox', 'session', 'settings', 'skills', 'statusline', 'streamer-mode', 'subagents', 'tasks', 'terminal-setup', 'theme', 'undo', 'update', 'user', 'voice', 'worktree', 'autopilot', 'yolo', 'cd', 'cwd', 'after', 'before', 'add-dir', 'allow-all', 'list-dirs', 'reset-allowed-tools']);
 
@@ -31,41 +33,16 @@ export interface ICopilotSlashCommandSessionInfo {
 	/** Runtime slash commands discovered from the SDK session. */
 	getRuntimeSlashCommands?(sessionId: string, options?: ICopilotRuntimeSlashCommandQueryOptions): Promise<readonly ICopilotRuntimeSlashCommandInfo[]>;
 	getSessionCustomizations: (session: string) => Promise<readonly Customization[]>;
+	/**
+	 * The session's current config state (`mode` / `autoApprove` axes), used to
+	 * filter config-action slash command completions so only the state-changing
+	 * forms are offered. When omitted, all forms are offered.
+	 */
+	getSessionConfigState?(sessionId: string): ICopilotConfigSlashCommandState | undefined;
 }
 
 export interface ICopilotRuntimeSlashCommandQueryOptions {
 	readonly maxWaitMs?: number;
-}
-
-/**
- * Result of {@link parseLeadingSlashCommand}.
- */
-export interface IParsedLeadingSlashCommand {
-	readonly command: string;
-	/** Trimmed text following the command (empty if none). */
-	readonly rest: string;
-	/** Raw text after the command delimiter (preserves multiline text). */
-	readonly rawRest: string;
-}
-
-/**
- * Parses a Copilot CLI slash command at the very start of `prompt`.
- *
- * Accepts any `/command` token where `command` is a single non-whitespace
- * segment (no leading/trailing spaces, no embedded slash), followed either
- * by end-of-input or by at least one whitespace character.
- */
-export function parseLeadingSlashCommand(prompt: string): IParsedLeadingSlashCommand | undefined {
-	const match = /^\/([^\s/]+)(?:$|\s+([\s\S]*))/.exec(prompt);
-	if (!match) {
-		return undefined;
-	}
-	const rawRest = match[2] ?? '';
-	return {
-		command: match[1],
-		rest: rawRest.trim(),
-		rawRest,
-	};
 }
 
 /**
@@ -75,9 +52,8 @@ export function parseLeadingSlashCommand(prompt: string): IParsedLeadingSlashCom
  *
  * The returned items carry a {@link MessageAttachmentKind.Simple}
  * attachment, which the workbench bridge maps into command/skill completion
- * attachments. Command dispatch happens text-side in
- * `CopilotAgentSession.send` via {@link parseLeadingSlashCommand}, so the
- * feature works whether the user picks the item or types it manually.
+ * attachments. Runtime command dispatch is text-side in `CopilotAgentSession.send`;
+ * client-side config commands also share the same leading slash parser.
  */
 export class CopilotSlashCommandCompletionProvider implements IAgentHostCompletionItemProvider {
 	readonly kinds: ReadonlySet<CompletionItemKind> = new Set([CompletionItemKind.UserMessage]);
@@ -220,10 +196,10 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		// offered for leading `/command` tokens (not the whitespace-delimited
 		// skill form).
 		if (!returnJustSkills) {
-			for (const item of getCopilotConfigSlashCommandItems(typed)) {
+			const configState = this._sessionInfo.getSessionConfigState?.(sessionId);
+			for (const item of getCopilotConfigSlashCommandItems(typed, configState)) {
 				completionItems.push({
 					insertText: item.insertText,
-					label: item.label,
 					rangeStart,
 					rangeEnd,
 					attachment: {
@@ -240,7 +216,10 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			}
 		}
 
-		return completionItems.sort((a, b) => (a.label ?? a.insertText).localeCompare(b.label ?? b.insertText));
+		const getSortText = (item: CompletionItem): string => {
+			return getCompletionAction(item.attachment._meta) ? item.attachment.label : item.insertText;
+		};
+		return completionItems.sort((a, b) => getSortText(a).localeCompare(getSortText(b)));
 	}
 }
 

@@ -31,6 +31,7 @@ import { copyCodiconsTask } from './lib/compilation.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
+import { readDictationRuntimeResults } from './dictation-runtime/common.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
@@ -235,23 +236,19 @@ function computeChecksum(filename: string): string {
 	return hash;
 }
 
-// onnxruntime-node (direct dependency and transitive via @huggingface/transformers,
-// on-device chat dictation) ships prebuilt binaries for every platform/arch inside its
-// tarball. Keep only the target build's binary so we don't bloat each package
-// with ~170MB of unused native code.
-const onnxRuntimeShippedTargets: readonly [string, string][] = [
-	['darwin', 'arm64'],
-	['linux', 'x64'],
-	['linux', 'arm64'],
-	['win32', 'x64'],
-	['win32', 'arm64'],
-];
-function getOnnxRuntimeExcludeFilter(platform: string, arch: string): string[] {
+// foundry-local-sdk (on-device chat dictation) ships a prebuilt N-API addon
+// (`foundry_local_napi.node`) inside its tarball, and its native core libraries
+// are fetched per-RID into `foundry-local-core/<platform>-<arch>/` at install
+// time. The addon requires a newer glibc than VS Code's minimum supported Linux
+// distros, so we deliberately do NOT ship any of this native payload: it is
+// downloaded on demand at runtime, only on supported platforms, into a per-user
+// cache (see `src/vs/platform/localTranscription/node/foundryLocalRuntime.ts`).
+// Exclude every prebuilt addon and core library from the package here.
+function getFoundryLocalExcludeFilter(): string[] {
 	return [
 		'**',
-		...onnxRuntimeShippedTargets
-			.filter(([p, a]) => !(p === platform && a === arch))
-			.map(([p, a]) => `!**/onnxruntime-node/bin/napi-v6/${p}/${a}/**`),
+		'!**/foundry-local-sdk/prebuilds/**',
+		'!**/foundry-local-sdk/foundry-local-core/**',
 	];
 }
 
@@ -333,6 +330,13 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				if (Object.keys(agentSdks).length > 0) {
 					json.agentSdks = agentSdks;
 				}
+				// Stamp dictationRuntime from the per-platform results file
+				// produced by `build/dictation-runtime/produce.ts`. Local dev /
+				// unsupported target: file absent → undefined → not stamped.
+				const dictationRuntime = readDictationRuntimeResults();
+				if (dictationRuntime) {
+					json.dictationRuntime = dictationRuntime;
+				}
 				return json;
 			}))
 			.pipe(es.through(function (file) {
@@ -370,7 +374,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getMxcExcludeFilter(arch)))
-			.pipe(filter(getOnnxRuntimeExcludeFilter(platform, arch)))
+			.pipe(filter(getFoundryLocalExcludeFilter()))
 			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
@@ -401,14 +405,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'**/node-pty/package.json',
 				'**/*.wasm',
 				'**/@vscode/vsce-sign/bin/*',
-				// onnxruntime-node (direct dependency and transitive via
-				// @huggingface/transformers, used
-				// for on-device chat dictation) ships a prebuilt N-API addon that
-				// dlopen's sibling shared libraries (libonnxruntime.*.dylib / .so /
-				// onnxruntime.dll + DirectML). The OS loader resolves those by
-				// on-disk path relative to the addon, so the whole bin/ tree must
-				// live outside the archive, not just the `.node` file.
-				'**/onnxruntime-node/bin/**',
 			], [
 				'**/*.mk',
 			], [

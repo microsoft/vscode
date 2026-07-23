@@ -5,7 +5,7 @@
 
 import '../media/sessionsList.css';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { synchronizeCSSAnimations } from '../../../../../base/browser/animationSync.js';
+import { pauseCSSAnimationsWhenHidden, synchronizeCSSAnimations } from '../../../../../base/browser/animationSync.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
 import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
@@ -295,6 +295,7 @@ class SessionItemActionRunner extends ActionRunner {
 // in sessionsList.css). Used to phase-align the shimmer across rows.
 const SESSION_TITLE_SHIMMER_ANIMATION_NAME = 'session-title-shimmer';
 const SESSION_TITLE_SHIMMER_ANIMATION_NAMES = new Set([SESSION_TITLE_SHIMMER_ANIMATION_NAME]);
+const SESSION_TITLE_SHIMMER_PAUSED_CLASS = 'session-title-shimmer-paused';
 
 interface ISessionItemTemplate {
 	readonly container: HTMLElement;
@@ -409,6 +410,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			if (e.target === titleContainer && e.animationName === SESSION_TITLE_SHIMMER_ANIMATION_NAME) {
 				synchronizeCSSAnimations(titleContainer, { animationNames: SESSION_TITLE_SHIMMER_ANIMATION_NAMES });
 			}
+		}));
+		disposables.add(pauseCSSAnimationsWhenHidden(titleContainer, {
+			pausedClass: SESSION_TITLE_SHIMMER_PAUSED_CLASS,
+			animationNames: SESSION_TITLE_SHIMMER_ANIMATION_NAMES,
 		}));
 		const titleToolbarContainer = DOM.append(titleRow, $('.session-title-toolbar'));
 		// Shown when a voice response arrived while this session was unfocused and

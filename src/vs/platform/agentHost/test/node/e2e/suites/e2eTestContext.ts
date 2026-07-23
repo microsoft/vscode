@@ -16,6 +16,7 @@ export interface IAgentHostE2ETestContext {
 	readonly isWindows: boolean;
 	readonly runRecordOnlyTests: boolean;
 	readonly registerNoModelTrafficTest: (title: string) => void;
+	readonly observedModelRequestBodies: readonly string[];
 }
 
 /**

@@ -60,6 +60,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { addMicButtonContextMenuListener, getDictationContextMenuActions } from '../../../../workbench/contrib/chat/browser/speechToText/micButtonMenuActions.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
 import { SessionReferenceCompletionHandler } from './sessionReferenceCompletions.js';
@@ -73,6 +74,7 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
+import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
 import { ISessionModelSelectionModel, SessionModelSelectionModel } from './sessionModelSelectionModel.js';
@@ -83,8 +85,11 @@ import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
+import { notifyDictationSubmitted } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
+import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { DictationDownloadRing } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
+import { DictationDownloadRing, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
+import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -113,6 +118,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 	handler: () => activeDictationComposer?.toggleDictation(),
+});
+
+// Preserve the command id so push-to-talk hold mode can track this chord.
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'agentsVoice.startVoiceInChat',
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	when: ContextKeyExpr.and(
+		SessionsChatInputHasDictationFocus,
+		ContextKeyExpr.equals('config.agents.voice.enabled', true),
+	),
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
 });
 
 interface IDraftState {
@@ -296,7 +312,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private readonly _contextAttachments: NewChatContextAttachments;
 
 	// Slash commands
-	private _slashCommandHandler: SlashCommandHandler | undefined;
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _newChatModelPickerService = new NewChatModelPickerService();
@@ -347,6 +362,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatSpeechToTextService private readonly chatSpeechToTextService: IChatSpeechToTextService,
+		@IChatSubmitRequestHandlerService private readonly chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 	) {
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
@@ -663,7 +682,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 
 		// Slash commands
-		this._slashCommandHandler = this._register(this._scopedInstantiationService.createInstance(SlashCommandHandler, this._editor));
+		this._register(this._scopedInstantiationService.createInstance(SlashCommandHandler, this._editor));
 
 		// Variable completions (#file, #folder)
 		this._register(this.instantiationService.createInstance(
@@ -734,8 +753,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
 
-		// Dictation (speech-to-text) mic button. Shares the STT service, mic
-		// device, and gating (on-device support + `chat.speechToText.enabled`)
+		// Dictation mic button. Shares the STT service, mic
+		// device, and gating (backend support + `dictation.enabled`)
 		// with the main chat input; inserts the transcript into this composer's
 		// editor. Placed before the voice controls so dictation leads the
 		// mic-related group.
@@ -795,34 +814,56 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const downloadRing = this._register(new MutableDisposable<DictationDownloadRing>());
 		const renderState = () => {
 			const preparing = sttService.isPreparingModel;
-			const recording = sttService.state !== ChatSpeechToTextState.Idle;
+			// Only the active Recording state should read as "recording" (filled
+			// mic). Once the user stops, the service enters Transcribing while it
+			// waits for the final transcript (up to a few seconds on the cloud
+			// backend); during that the mic must already read as idle, matching
+			// the chat toolbar which flips as soon as recording stops.
+			const recording = sttService.state === ChatSpeechToTextState.Recording;
+			const active = sttService.state !== ChatSpeechToTextState.Idle;
 			dom.clearNode(button);
 			downloadRing.clear();
 			if (preparing) {
-				// First-use only: render a download icon wrapped by a determinate
-				// progress ring instead of a plain spinner, matching the chat
-				// toolbar, so the model download reads as progress rather than a hang.
-				dom.append(button, renderIcon(Codicon.cloudDownload));
-				downloadRing.value = new DictationDownloadRing(button, sttService);
+				// First-use only. The on-device backend downloads a model, so
+				// render a download icon wrapped by a progress ring; the cloud
+				// backend just connects, so render a plain spinner instead.
+				if (sttService.currentBackend === 'mai') {
+					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
+				} else {
+					dom.append(button, renderIcon(Codicon.cloudDownload));
+					downloadRing.value = new DictationDownloadRing(button, sttService);
+				}
 			} else {
-				dom.append(button, renderIcon(recording ? Codicon.stopCircle : Codicon.mic));
+				dom.append(button, renderIcon(recording ? Codicon.micFilled : Codicon.mic));
 			}
 			button.classList.toggle('recording', recording && !preparing);
 			button.classList.toggle('preparing', preparing);
 			button.ariaLabel = preparing
-				? localize('sessionsStt.preparing', "Preparing Speech to Text Model…")
-				: (recording ? stopLabel : micLabel);
+				? getDictationPreparingLabel(sttService)
+				: (active ? stopLabel : micLabel);
 		};
 		renderState();
 		this._register(sttService.onDidChangeState(renderState));
 		this._register(sttService.onDidChangePreparingModel(renderState));
 
 		const updateVisibility = () => {
-			button.classList.toggle('hidden', !sttService.isConfigured);
+			// Mirror the `MenuId.ChatExecute` dictation gate: hide while
+			// unconfigured, and while Voice Mode is connected so the dictation and
+			// voice mic affordances never compete on this composer.
+			const voiceActive = this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get();
+			button.classList.toggle('hidden', !sttService.isConfigured || voiceActive);
 		};
 		updateVisibility();
+		this._register(autorun(reader => {
+			this.voiceSessionController.isConnected.read(reader);
+			this.voiceSessionController.isConnecting.read(reader);
+			updateVisibility();
+		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.speechToText.enabled')) {
+			// Both the enable kill-switch and the model selection can change
+			// availability (e.g. an unsupported on-device platform becomes
+			// configured when switching to the cloud backend).
+			if (e.affectsConfiguration('dictation.enabled') || e.affectsConfiguration('dictation.model')) {
 				updateVisibility();
 			}
 		}));
@@ -844,11 +885,19 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				void toggle();
 			}
 		}));
+
+		// Right-click shows dictation-specific entries ("Configure Keybinding",
+		// "Select Microphone", "Disable Dictation") mirroring the chat-input mic
+		// button, since this custom button isn't a `MenuEntryActionViewItem`.
+		this._register(addMicButtonContextMenuListener(
+			button,
+			() => getDictationContextMenuActions(this.commandService, this.configurationService, this.keybindingService, TOGGLE_DICTATION_COMMAND_ID),
+			this.contextMenuService,
+		));
 	}
 
 	/**
-	 * Toggle on-device dictation into this composer's editor, honoring the
-	 * tap-vs-hold `chat.speechToText.mode` setting. Shared by the mic button and
+	 * Toggle dictation into this composer's editor. Shared by the mic button and
 	 * the Cmd/Ctrl+I chord ({@link TOGGLE_DICTATION_COMMAND_ID}); the shared
 	 * Dictate action can't target this composer since it isn't an `IChatWidget`.
 	 */
@@ -859,7 +908,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		await runDictationShortcut({
 			speechService: this.chatSpeechToTextService,
 			keybindingService: this.keybindingService,
-			configurationService: this.configurationService,
 			logService: this.logService,
 		}, TOGGLE_DICTATION_COMMAND_ID, this._editor);
 	}
@@ -941,8 +989,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return;
 		}
 
-		// Check for slash commands first
-		if (query && this._slashCommandHandler?.tryExecuteSlashCommand(query)) {
+		// Measure any pending dictation accuracy against the text being sent,
+		// before the editor is cleared below.
+		notifyDictationSubmitted(this._editor);
+
+		const session = this.options.session.get();
+		if (session && await this.chatSubmitRequestHandlerService.tryHandle({
+			sessionResource: session.resource,
+			providerId: session.providerId,
+			sessionId: session.sessionId,
+			input: query,
+		})) {
 			this._editor.getModel()?.setValue('');
 			return;
 		}
@@ -1057,8 +1114,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 		const model = this._editor?.getModel();
 		if (model) {
-			const existing = model.getValue();
-			const combined = existing && !/\s$/.test(existing) ? `${existing} ${text}` : `${existing}${text}`;
+			const combined = combineVoiceInput(model.getValue(), text);
 			model.setValue(combined);
 			this._send();
 		}

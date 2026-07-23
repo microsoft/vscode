@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, autorun, transaction, observableSignalFromEvent } from '../../../../../base/common/observable.js';
-import { disposableWindowInterval } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, disposableWindowInterval } from '../../../../../base/browser/dom.js';
 import { alert as ariaAlert } from '../../../../../base/browser/ui/aria/aria.js';
 import { localize } from '../../../../../nls.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
@@ -961,6 +961,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		this._voiceEventDisposables.clear();
+
+		// Multi-window hands-free: abort any open passive turn when this window
+		// loses OS focus so the background window stops recording, and re-arm
+		// listening when it gains focus so only the focused window listens (#8507).
+		this._voiceEventDisposables.add(addDisposableListener(this._window!, 'blur', () => this._onWindowBlur()));
+		this._voiceEventDisposables.add(addDisposableListener(this._window!, 'focus', () => this._onWindowFocus()));
 
 		// Streaming PTT: send start/chunks/end as they arrive
 		this._voiceEventDisposables.add(this.micCaptureService.onPttStart((passive) => {
@@ -2522,9 +2528,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _isHandsFreeEnabled(): boolean {
-		// Default-off: hands-free auto-listen is opt-in, so only an explicit
-		// `true` enables it. An unresolved/undefined value resolves to the
-		// `handsFree` default (`false`) and stays disabled.
+		// Hands-free auto-listen is on by default; an unresolved/undefined value
+		// resolves to the `handsFree` default (`true`). Only an explicit `false`
+		// disables it.
 		return this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
 	}
 
@@ -2571,11 +2577,53 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return text;
 	}
 
+	/**
+	 * Whether this controller's window currently has OS focus. In multi-window
+	 * setups (e.g. an editor window + the agents window) each window has its own
+	 * controller/WebSocket, so without this gate every open window would re-arm
+	 * hands-free auto-listen and reply simultaneously. Only the focused window
+	 * should keep listening (#8507).
+	 */
+	private _isWindowFocused(): boolean {
+		try {
+			return this._window?.document.hasFocus() ?? false;
+		} catch {
+			return false;
+		}
+	}
+
+	/** Called when this controller's window loses OS focus. Aborts any open
+	 *  passive turn so the background window stops recording while the newly
+	 *  focused window can take over hands-free listening (#8507). */
+	private _onWindowBlur(): void {
+		if (this._pttHeld && this._pttCurrentTurnPassive) {
+			this.logService.trace('[voice] window blur: aborting passive turn (multi-window hands-free #8507)');
+			this._finishPtt('discard', 'internal');
+		}
+	}
+
+	/** Called when this controller's window gains OS focus. Re-arms hands-free
+	 *  auto-listen so the focused window is always the one that listens (#8507). */
+	private _onWindowFocus(): void {
+		if (this._isHandsFreeEnabled()) {
+			this.logService.trace('[voice] window focus: re-arming hands-free auto-listen (multi-window #8507)');
+			this._enterAutoListen();
+		}
+	}
+
 	/** Re-enter listening via synthetic short tap. */
 	private _enterAutoListen(source: 'auto' | 'connect' = 'auto'): void {
 		this._clearAutoListenTimer();
 		if (this._autoListenSuppressed || !this._isConnected.get() || this._pttHeld) {
 			this.logService.trace(`[voice] _enterAutoListen skipped: suppressed=${this._autoListenSuppressed} connected=${this._isConnected.get()} pttHeld=${this._pttHeld}`);
+			return;
+		}
+		// In multi-window hands-free, only the focused window keeps auto-listening
+		// so two windows don't both listen and reply at once (#8507). The 'connect'
+		// source is a user gesture in the connecting (focused) window, so it isn't
+		// gated here.
+		if (source === 'auto' && !this._isWindowFocused()) {
+			this.logService.trace('[voice] _enterAutoListen skipped: window not focused (multi-window hands-free)');
 			return;
 		}
 		// Don't enter listening if audio is still playing or queued.
@@ -2621,6 +2669,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private _startBargeInListen(): void {
 		if (!this._isHandsFreeEnabled() || !this._isConnected.get() || this._pttHeld || this._autoListenSuppressed || !this._window) {
+			return;
+		}
+		// Only barge-in listen in the focused window so background windows don't
+		// also open a mic during playback (#8507).
+		if (!this._isWindowFocused()) {
 			return;
 		}
 		this._clearAutoListenTimer();

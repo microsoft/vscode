@@ -13,7 +13,7 @@ import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
@@ -68,6 +68,7 @@ import { ILanguageModelToolsService } from '../common/tools/languageModelToolsSe
 import { ChatToolRiskAssessmentService, IChatToolRiskAssessmentService } from './tools/chatToolRiskAssessmentService.js';
 import { ChatGoalSummaryService, IChatGoalSummaryService } from './chatGoalSummaryService.js';
 import { ChatResponseFileChangesService, IChatResponseFileChangesService } from './chatResponseFileChangesService.js';
+import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from './chatSubmitRequestHandlerService.js';
 import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { isTildePath, PromptsConfig } from '../common/promptSyntax/config/config.js';
@@ -102,7 +103,6 @@ import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js'
 import { registerChatExecuteActions } from './actions/chatExecuteActions.js';
 import { registerChatSpeechToTextActions } from './actions/chatSpeechToTextActions.js';
 import { ChatSpeechToTextService, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
-import { RedundantDictationExtensionNotifier } from './speechToText/redundantDictationExtensionNotifier.js';
 import { registerChatFileTreeActions } from './actions/chatFileTreeActions.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
 import { registerChatExportActions } from './actions/chatImportExport.js';
@@ -254,41 +254,28 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.fontFamily', "Controls the font family in chat messages."),
 			default: 'default'
 		},
-		'chat.speechToText.enabled': {
+		'dictation.enabled': {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.speechToText.enabled', "Enables dictation into the chat input using on-device speech-to-text. When enabled on a supported platform, a microphone button appears in the chat input; the transcription model is downloaded on first use and runs locally."),
+			markdownDescription: nls.localize('dictation.enabled', "Enables dictation across the product (chat input, editor, and terminal). When enabled on a supported platform, a microphone button appears in the chat input and the dictation shortcut becomes available; the on-device transcription model is downloaded on first use and runs locally."),
 			default: product.quality !== 'stable',
 			tags: ['experimental']
 		},
-		'chat.speechToText.model': {
+		'dictation.model': {
 			type: 'string',
 			enum: [
-				'onnx-community/whisper-tiny',
-				'onnx-community/whisper-base',
-				'onnx-community/whisper-small',
-				'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
+				'nemotron-speech-streaming-en-0.6b',
+				'mai',
 			],
-			enumItemLabels: ['Tiny', 'Base', 'Small', 'Nemotron (Multilingual)'],
+			enumItemLabels: [
+				nls.localize('dictation.model.nemotronStreaming.label', "Nemotron Streaming (English) — On-Device"),
+				nls.localize('dictation.model.mai.label', "MAI — Cloud"),
+			],
 			markdownEnumDescriptions: [
-				nls.localize('chat.speechToText.model.tiny', "Smallest and fastest; lowest accuracy (~75MB download)."),
-				nls.localize('chat.speechToText.model.base', "Balanced speed and accuracy (~145MB download)."),
-				nls.localize('chat.speechToText.model.small', "Most accurate; slower and larger (~465MB download)."),
-				nls.localize('chat.speechToText.model.nemotron', "NVIDIA Nemotron RNN-T: multilingual (35+ languages, auto-detected), high accuracy, matches the GitHub Copilot app (~800MB download)."),
+				nls.localize('dictation.model.nemotronStreaming', "NVIDIA Nemotron streaming RNN-T (English), run on-device through Microsoft Foundry Local. Works offline; no audio leaves the device. Downloaded on first use and cached on disk."),
+				nls.localize('dictation.model.mai', "Cloud transcription through the same Microsoft AI voice service used by Voice Mode. Requires a network connection and GitHub sign-in; audio is streamed to the service."),
 			],
-			markdownDescription: nls.localize('chat.speechToText.model', "The on-device model used for chat dictation. The model is downloaded on first use and cached on disk. Larger models are more accurate but slower and take longer to download."),
-			default: 'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
-			tags: ['experimental']
-		},
-		'chat.speechToText.mode': {
-			type: 'string',
-			enum: ['auto', 'toggle', 'pushToTalk'],
-			enumDescriptions: [
-				nls.localize('chat.speechToText.mode.auto', "Tap the dictation shortcut to start and stop, or press and hold it to dictate only while held (push-to-talk)."),
-				nls.localize('chat.speechToText.mode.toggle', "Tap the dictation shortcut to start dictating and tap again to stop."),
-				nls.localize('chat.speechToText.mode.pushToTalk', "Press and hold the dictation shortcut to dictate; dictation stops as soon as the shortcut is released."),
-			],
-			markdownDescription: nls.localize('chat.speechToText.mode.description', "Controls how the chat dictation shortcut ({0}) behaves.", '`Cmd/Ctrl+I`'),
-			default: 'auto',
+			markdownDescription: nls.localize('dictation.model', "The model used for dictation. On-device models download on first use and run locally through Microsoft Foundry Local; the cloud option streams audio to the Microsoft AI voice service."),
+			default: 'nemotron-speech-streaming-en-0.6b',
 			tags: ['experimental']
 		},
 		'chat.editor.fontSize': {
@@ -594,6 +581,9 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			default: '',
 			markdownDescription: nls.localize('chat.defaultModel.description', "The default model for new chat conversations. Use \"auto\" to let Copilot pick a model, a model family name (such as \"opus\" or \"gemini\") to use the latest available model in that family, or a full model id. You can still switch the model within a conversation; each new conversation starts at this model."),
+			experiment: {
+				mode: 'auto'
+			},
 			policy: {
 				name: 'ChatDefaultModel',
 				category: PolicyCategory.InteractiveSession,
@@ -857,15 +847,10 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.verbose', "Show request and completion timestamps. Hover over a completion timestamp to show the elapsed response time."),
 		},
-		[ChatConfiguration.ChatPersistentProgressEnabled]: {
-			type: 'boolean',
-			default: product.quality !== 'stable',
-			description: nls.localize('chat.persistentProgress.enabled', "Always show progress in chat."),
-		},
 		[ChatConfiguration.ProgressBorder]: {
 			type: 'boolean',
 			default: true,
-			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. When enabled and reduced motion is not enabled, this overrides {0} to be off. Has no effect when reduced motion is enabled.", '`#chat.persistentProgress.enabled#`'),
+			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. Has no effect when reduced motion is enabled."),
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'string',
@@ -1440,6 +1425,12 @@ configurationRegistry.registerConfiguration({
 		[AgentHostOpus48PromptEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.opus48Prompt.enabled', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+		},
+		[AgentHostToolSearchEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.copilot.toolSearch.enabled', "When enabled, Copilot SDK sessions defer MCP and non-core VS Code tools behind a tool-search tool so the model discovers them on demand instead of loading every tool definition up front."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 		},
@@ -2284,6 +2275,50 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 			return pairs;
 		}
 	},
+	{
+		// The on-device dictation runtime moved to Foundry Local; the old
+		// transformers.js/onnxruntime model IDs no longer resolve and would fail
+		// with an unknown-model error. Map any explicitly-stored legacy value to
+		// the new default so existing users keep working. Also migrate the setting
+		// from its old `chat.speechToText.model` id to `dictation.model`.
+		key: 'chat.speechToText.model',
+		migrateFn: (value: unknown, accessor) => {
+			const legacyModelIds = [
+				'onnx-community/whisper-tiny',
+				'onnx-community/whisper-base',
+				'onnx-community/whisper-small',
+				'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
+			];
+			const migrated = (typeof value === 'string' && legacyModelIds.includes(value))
+				? 'nemotron-speech-streaming-en-0.6b'
+				: value;
+			const pairs: ConfigurationKeyValuePairs = [['chat.speechToText.model', { value: undefined }]];
+			// Never clobber an explicitly configured new key (e.g. after settings
+			// sync brought both keys across versions).
+			if (accessor('dictation.model') === undefined) {
+				pairs.push(['dictation.model', { value: migrated }]);
+			}
+			return pairs;
+		}
+	},
+	{
+		// Dictation settings were regrouped under the top-level `dictation.*`
+		// namespace (they govern dictation across chat, editor, and terminal).
+		key: 'chat.speechToText.enabled',
+		migrateFn: (value: unknown, accessor) => {
+			const pairs: ConfigurationKeyValuePairs = [['chat.speechToText.enabled', { value: undefined }]];
+			if (accessor('dictation.enabled') === undefined) {
+				pairs.push(['dictation.enabled', { value }]);
+			}
+			return pairs;
+		}
+	},
+	{
+		// `chat.speechToText.mode` was removed (the shortcut is always tap-toggle /
+		// hold-to-talk); clear it so it does not linger as an unknown setting.
+		key: 'chat.speechToText.mode',
+		migrateFn: () => ([['chat.speechToText.mode', { value: undefined }]])
+	},
 ]);
 
 class ChatResolverContribution extends Disposable {
@@ -2732,7 +2767,6 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 
 registerWorkbenchContribution2(CopilotTelemetryContribution.ID, CopilotTelemetryContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSpeechToTextInitContribution.ID, ChatSpeechToTextInitContribution, WorkbenchPhase.BlockRestore);
-registerWorkbenchContribution2(RedundantDictationExtensionNotifier.ID, RedundantDictationExtensionNotifier, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatDebugResolverContribution.ID, ChatDebugResolverContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(PromptsDebugContribution.ID, PromptsDebugContribution, WorkbenchPhase.BlockRestore);
@@ -2743,7 +2777,7 @@ registerWorkbenchContribution2(ChatSessionOptionSlashCommandsContribution.ID, Ch
 registerWorkbenchContribution2(ChatOutlineCreator.ID, ChatOutlineCreator, WorkbenchPhase.AfterRestored);
 
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
-registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatPromptFilesExtensionPointHandler.ID, ChatPromptFilesExtensionPointHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(CodeBlockActionRendering.ID, CodeBlockActionRendering, WorkbenchPhase.BlockRestore);
@@ -2843,6 +2877,7 @@ registerSingleton(ILanguageModelToolsConfirmationService, LanguageModelToolsConf
 registerSingleton(IChatToolRiskAssessmentService, ChatToolRiskAssessmentService, InstantiationType.Delayed);
 registerSingleton(IChatGoalSummaryService, ChatGoalSummaryService, InstantiationType.Delayed);
 registerSingleton(IChatResponseFileChangesService, ChatResponseFileChangesService, InstantiationType.Delayed);
+registerSingleton(IChatSubmitRequestHandlerService, ChatSubmitRequestHandlerService, InstantiationType.Delayed);
 registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);
 registerSingleton(IChatCodeBlockContextProviderService, ChatCodeBlockContextProviderService, InstantiationType.Delayed);
 registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delayed);

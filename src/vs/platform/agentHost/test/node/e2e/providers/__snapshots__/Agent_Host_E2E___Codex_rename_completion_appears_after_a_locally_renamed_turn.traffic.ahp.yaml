@@ -10,9 +10,6 @@ rounds:
             origin:
               kind: user
     serverToClient:
-      - channel: ${session_0}
-        action:
-          type: session/chatUpdated
       - channel: ${chat_0}
         action:
           type: chat/turnStarted
@@ -31,9 +28,6 @@ rounds:
           part:
             kind: markdown
             content: 'Renamed: Coverage Session'
-      - channel: ${session_0}
-        action:
-          type: session/chatUpdated
       - channel: ${chat_0}
         action:
           type: chat/turnComplete

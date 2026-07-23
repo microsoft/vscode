@@ -22,7 +22,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { localize } from '../../../../nls.js';
-import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile, parsePlugin, parseRuleFile, parseSkillFile } from '../../../agentPlugins/common/pluginParsers.js';
+import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile, parsePlugin, parseRuleFile, parseSkillFile, PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
@@ -31,7 +31,7 @@ import { INativeEnvironmentService } from '../../../../platform/environment/comm
 import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
-import { createPricingMetaFromBilling, hasLongContextSurcharge, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
@@ -43,6 +43,8 @@ import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../co
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { ICopilotConfigSlashCommandState } from '../../common/copilotConfigSlashCommands.js';
+import { getCopilotHomePath } from '../../common/copilotHome.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -417,6 +419,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
 				getRuntimeSlashCommands: (sessionId, options) => this._getRuntimeSlashCommands(sessionId, options),
 				getSessionCustomizations: (sessionId) => this.getSessionCustomizations(AgentSession.uri(this.id, sessionId)),
+				getSessionConfigState: (sessionId) => this._getSessionConfigState(sessionId),
 			},
 			RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS,
 		)));
@@ -1057,11 +1060,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * flow to the client. The chosen value comes back in the model's `config` bag and is mapped to the SDK's
 	 * two-valued `contextTier` at the SDK boundary by {@link getCopilotContextTier}, using the model's long-context
 	 * window from {@link _longContextWindowFor}.
-	 *
-	 * `billing.tokenPrices` is present on the runtime CAPI `/models` payload but not yet declared on the published SDK
-	 * `ModelBilling` type — narrow through {@link ICAPIModelBilling} until the SDK catches up.
 	 */
-	private _createContextSizeConfigSchemaProperty(billing: ModelInfo['billing'] | undefined): ConfigPropertySchema | undefined {
+	private _createContextSizeConfigSchemaProperty(billing: ICAPIModelBilling | undefined): ConfigPropertySchema | undefined {
 		const tokenPrices = billing?.tokenPrices;
 		const defaultMax = tokenPrices?.contextMax;
 		const longContextMax = tokenPrices?.longContext?.contextMax;
@@ -1070,7 +1070,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		// When both tiers cost the same and the user prefers long context, show only the long-context option as a non-switchable indicator. See microsoft/vscode#322950, microsoft/vscode#323116.
-		if (this._isPreferLongContextEnabled() && !hasLongContextSurcharge(billing as ICAPIModelBilling | undefined)) {
+		if (this._isPreferLongContextEnabled() && !hasLongContextSurcharge(billing)) {
 			return {
 				type: 'number',
 				title: localize('copilot.modelContextSize.title', "Context Size"),
@@ -1124,22 +1124,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Builds the open `_meta` pricing bag for a model from its billing info so the chat model picker can render its
-	 * cost hover. Delegates to the shared {@link createPricingMetaFromBilling} helper.
+	 * Builds the open `_meta` model picker bag from the SDK's billing and picker metadata.
 	 */
-	private _createModelPricingMeta(modelInfo: ModelInfo | undefined): Record<string, unknown> | undefined {
-		const billing = modelInfo?.billing as ICAPIModelBilling | undefined;
-		const priceCategory = typeof modelInfo?.modelPickerPriceCategory === 'string' ? modelInfo.modelPickerPriceCategory : undefined;
-		return createPricingMetaFromBilling(billing, priceCategory);
+	private _createModelPickerMeta(modelInfo: ModelInfo, billing: ICAPIModelBilling | undefined): Record<string, unknown> | undefined {
+		return createPricingMetaFromBilling(billing, modelInfo.modelPickerPriceCategory, modelInfo.modelPickerCategory);
 	}
 
-	private _createModelConfigSchema(m: ModelInfo): ConfigSchema | undefined {
+	private _createModelConfigSchema(m: ModelInfo, billing: ICAPIModelBilling | undefined): ConfigSchema | undefined {
 		const properties: ConfigSchema['properties'] = {};
 		const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, m.defaultReasoningEffort);
 		if (thinkingLevel) {
 			properties[ThinkingLevelConfigKey] = thinkingLevel;
 		}
-		const contextSize = this._createContextSizeConfigSchemaProperty(m.billing);
+		const contextSize = this._createContextSizeConfigSchemaProperty(billing);
 		if (contextSize) {
 			properties[ContextSizeConfigKey] = contextSize;
 		}
@@ -1288,13 +1285,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._freeLongContextModels.clear();
 		const preferLongContext = this._isPreferLongContextEnabled();
 		const result = models.map((m): IAgentModelInfo => {
-			const configSchema = this._createModelConfigSchema(m);
+			const billing = normalizeCAPIBilling(m.billing);
+			const configSchema = this._createModelConfigSchema(m, billing);
 			// A model has free long context (larger window, no surcharge), but only treat it as free when the user prefers long context.
-			const tokenPrices = m.billing?.tokenPrices;
+			const tokenPrices = billing?.tokenPrices;
 			const hasLargerLongContext = !!tokenPrices?.contextMax
 				&& !!tokenPrices.longContext?.contextMax
 				&& tokenPrices.longContext.contextMax > tokenPrices.contextMax;
-			if (preferLongContext && hasLargerLongContext && !hasLongContextSurcharge(m.billing as ICAPIModelBilling | undefined)) {
+			if (preferLongContext && hasLargerLongContext && !hasLongContextSurcharge(billing)) {
 				this._freeLongContextModels.add(m.id);
 			}
 			return {
@@ -1309,7 +1307,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				supportsVision: !!m.capabilities?.supports?.vision,
 				configSchema,
 				policyState: m.policy?.state as PolicyState | undefined,
-				_meta: this._createModelPricingMeta(m),
+				_meta: this._createModelPickerMeta(m, billing),
 			};
 		});
 		this._logService.info(`[Copilot] Found ${result.length} models: ${result.map(m => m.name).join(', ')}`);
@@ -1649,17 +1647,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Root directory the Copilot CLI uses for per-session state. The CLI stores
-	 * each session's files under `<root>/session-state/<sessionId>/` and resolves
-	 * `<root>` to `$COPILOT_HOME` or `~/.copilot`. The CLI subprocess inherits
-	 * `COPILOT_HOME` from this process's environment (see {@link _ensureClient},
-	 * which never overrides it), so reading it here matches what the CLI sees.
-	 */
-	private _copilotConfigRoot(): string {
-		return process.env['COPILOT_HOME'] || join(os.homedir(), '.copilot');
-	}
-
-	/**
 	 * Materializes an imported conversation into a real, editable Copilot
 	 * session. Translates the supplied turns into a Copilot event log, seeds it
 	 * at the CLI's native per-session store, then resumes the session so the
@@ -1680,7 +1667,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Detect the project concurrently with the (independent) event-log write
 			// so the git probe and file I/O overlap on the session-creation path.
 			const projectPromise = projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
-			const eventsPath = join(this._copilotConfigRoot(), 'session-state', sessionId, 'events.jsonl');
+			const eventsPath = join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', sessionId, 'events.jsonl');
 			const jsonl = buildSessionEventLogFromTurns(importConfig.turns, {
 				sessionId,
 				workingDirectory: workingDirectory.fsPath,
@@ -1942,8 +1929,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.info(`[Copilot:${context.sessionId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
 			if (entry && activeClient && await activeClient.requiresRestart(entry.appliedSnapshot)) {
 				this._logService.info(`[Copilot:${context.sessionId}] Session config changed (requiresRestart=true), refreshing session. clients=[${[...activeClient.toolSet.clientIds()].join(', ') || '(none)'}]`);
-				// Dispose only the default chat so it resumes with the updated
-				// config; peer chats on the same entry are left intact.
+				// Finish disconnecting before resuming the same SDK session id.
+				await entry.destroySession();
 				this._sessions.get(context.sessionId)?.clearDefaultChat();
 				entry = undefined;
 			}
@@ -2002,6 +1989,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 			default:
 				return undefined;
 		}
+	}
+
+	/**
+	 * Reads the session's current `mode` and `autoApprove` axis values so the
+	 * slash-command completion provider can hide config-action toggles that would
+	 * be a no-op (e.g. `/autopilot on` while already in autopilot).
+	 */
+	private _getSessionConfigState(sessionId: string): ICopilotConfigSlashCommandState {
+		const sessionKey = AgentSession.uri(this.id, sessionId).toString();
+		return {
+			mode: this._configurationService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.Mode),
+			autoApprove: this._configurationService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove),
+		};
 	}
 
 	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
@@ -2787,6 +2787,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				activeClientToolSet: launchPlan.activeClientToolSet,
 				resolveMcpChildId: name => findMcpChildId(activeClient.pluginController.getCustomizations(), name),
 				serverToolHost: this._serverToolHost,
+				isLaunchTokenCurrent: () => this._githubToken === launchPlan.githubToken,
 			},
 		);
 
@@ -3467,6 +3468,7 @@ export function mapToParsedPlugin(customizations: readonly DirectoryCustomizatio
 	}
 
 	return {
+		format: PluginFormat.Copilot,
 		hooks: [],
 		mcpServers: [],
 		skills: skills,
@@ -3645,7 +3647,7 @@ class PluginController extends Disposable {
 
 	public async tryParsePlugin(pluginDir: URI): Promise<IParsedPlugin | undefined> {
 		try {
-			return await parsePlugin(pluginDir, this._fileService, undefined, this.getUserHome());
+			return await parsePlugin(pluginDir, this._fileService, undefined, this.getUserHome(), pluginDir);
 		} catch (error) {
 			this._logService.warn(`[Copilot:PluginController] Error parsing plugin '${pluginDir.toString()}': ${error instanceof Error ? error.message : String(error)}`);
 			return undefined;

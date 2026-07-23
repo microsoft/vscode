@@ -52,6 +52,20 @@ export interface IComputeSessionFileDiffsOptions {
 	readonly baseBranch?: string;
 }
 
+/** Cheap repository facts used to decide whether a branch diff is safe to compute. */
+export interface IBranchDiffSafetyInfo {
+	readonly hasVirtualFileSystem: boolean;
+	readonly baselineCommitTimestamp: number | undefined;
+	readonly commitCount: number | undefined;
+	readonly workspaceFileCount: number;
+}
+
+/** A bounded unified-diff result. */
+export interface IDiffPatchResult {
+	readonly patch: string | undefined;
+	readonly tooLarge: boolean;
+}
+
 /** Options for {@link IAgentHostGitService.push}. */
 export interface IPushOptions {
 	/** The branch or refspec to push. Defaults to the current branch. */
@@ -161,6 +175,10 @@ export interface IAgentHostGitService {
 	 * so the UI always reflects current branch/remote/change state.
 	 */
 	getSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined>;
+	/** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
+	getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined>;
+	/** Returns repo-relative untracked file paths. */
+	getUntrackedPaths(workingDirectory: URI): Promise<readonly string[] | undefined>;
 
 	/**
 	 * Computes per-file diffs for the session by shelling out to `git
@@ -269,6 +287,10 @@ export interface IAgentHostGitService {
 	 * terminal-tool edits the FileEditTracker pipeline misses.
 	 */
 	computeFileDiffsBetweenRefs(workingDirectory: URI, options: { readonly sessionUri: string; readonly fromRef: string; readonly toRef: string }): Promise<readonly ISessionFileDiff[] | undefined>;
+	/** Reads bounded facts needed before computing an expensive branch diff. */
+	getBranchDiffSafetyInfo(workingDirectory: URI, baselineCommit: string): Promise<IBranchDiffSafetyInfo | undefined>;
+	/** Computes a unified patch for paths between immutable tree-ish values. */
+	getDiffPatchBetweenRefs(workingDirectory: URI, options: { readonly fromRef: string; readonly toRef: string; readonly paths: readonly string[]; readonly maxBuffer: number }): Promise<IDiffPatchResult | undefined>;
 }
 
 function getCommonBranchPriority(branch: string): number {

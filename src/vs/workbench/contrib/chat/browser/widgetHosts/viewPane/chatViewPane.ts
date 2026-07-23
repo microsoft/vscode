@@ -76,6 +76,7 @@ import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { computeVoiceGlowStyle, isGlowingVoiceState, readVoiceGlowIntensity } from '../../voiceClient/voiceGlow.js';
+import { combineVoiceInput } from '../../voiceClient/voiceInputUtils.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -147,7 +148,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatWidgetService _chatWidgetService: IChatWidgetService,
 		@IAgentTitleBarStatusService _agentTitleBarStatusService: IAgentTitleBarStatusService,
 		@IVoicePlaybackService _voicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchEnvironmentService _workbenchEnvironmentService: IWorkbenchEnvironmentService,
@@ -397,14 +398,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// Voice command bridge — lets the VoiceSessionController reach into the chat widget
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (accessor, text: string) => {
 				const chatWidgetService = accessor.get(IChatWidgetService);
-				const widget = chatWidgetService.lastFocusedWidget ?? this._widget;
+				// Ignore lastFocusedWidget when its input no longer has focus because blur does not clear it.
+				const focusedWidget = chatWidgetService.lastFocusedWidget;
+				const widget = focusedWidget?.hasInputFocus() ? focusedWidget : this._widget;
 				if (text && widget?.viewModel) {
 					if (widget.viewModel.editing) {
 						// When editing an old message, populate the active input
 						// editor so the user can review before submitting.
 						widget.input.setValue(text, false);
 					} else {
-						widget.acceptInput(text, { preserveFocus: true });
+						// Preserve any text the user already typed in the input.
+						widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
 					}
 				}
 			}));
@@ -443,24 +447,25 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const glowDataArrayRef: { value: Uint8Array | undefined } = { value: undefined };
 		const win = getWindow(inputContainerEl);
 		let lastGlowTarget: HTMLElement | undefined;
-		// Lock the glow target to whichever widget was focused when voice connected.
-		// This prevents confirmations/programmatic focus shifts from moving the glow.
-		let lockedGlowWidget: HTMLElement | undefined;
-		const getActiveInputContainer = (): HTMLElement => {
-			if (lockedGlowWidget) {
-				return lockedGlowWidget;
-			}
-			const focused = this.chatWidgetService.lastFocusedWidget;
-			return focused?.input?.inputContainerElement ?? inputContainerEl;
-		};
+		// The session this pane's voice UI belongs to, kept in sync by the
+		// transcript ownership autorun below. The glow only renders on the input
+		// of the session voice is actually bound to, so it never lingers on a
+		// background/last-focused session in another split or window (#8514).
+		let voiceUiOwner: URI | undefined;
 		const startGlowAnimation = () => {
 			if (animFrameId !== undefined) { return; }
 			const animate = () => {
 				animFrameId = win.requestAnimationFrame(animate);
 				const connected = this.voiceSessionController.isConnected.get();
 				const voiceState = this.voiceSessionController.voiceState.get();
-				const glowActive = connected && isGlowingVoiceState(voiceState);
-				const target = getActiveInputContainer();
+				// Only glow the input of the session voice is bound to. Mirrors the
+				// transcript overlay's ownership test (see below) so the glow and
+				// the "Listening..."/transcript overlay always render on the same
+				// pane and never on a different split/window (#8514).
+				const currentSession = this._currentSessionResource.get();
+				const isOwner = !voiceUiOwner || !currentSession || isEqual(voiceUiOwner, currentSession);
+				const glowActive = connected && isGlowingVoiceState(voiceState) && isOwner;
+				const target = inputContainerEl;
 
 				// If the target changed, clear styling on the old one
 				if (lastGlowTarget && lastGlowTarget !== target) {
@@ -505,16 +510,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			lastGlowTarget = undefined;
 		};
 
-		// Lock glow target on connect, unlock on disconnect
-		this._register(autorun(reader => {
-			const connected = this.voiceSessionController.isConnected.read(reader);
-			if (connected && !lockedGlowWidget) {
-				lockedGlowWidget = this.chatWidgetService.lastFocusedWidget?.input?.inputContainerElement ?? inputContainerEl;
-			} else if (!connected) {
-				lockedGlowWidget = undefined;
-			}
-		}));
-
 		this._register(autorun(reader => {
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
@@ -551,6 +546,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (!connected) {
 				listeningSession = undefined;
 				ownerSession = undefined;
+				voiceUiOwner = undefined;
 				transcriptOverlayNode.style.display = 'none';
 				transcriptOverlayNode.classList.remove('has-transcript');
 				return;
@@ -588,6 +584,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			// Don't show a transcript that belongs to a different session here.
 			const effectiveOwner = targetSession ?? ownerSession;
+			voiceUiOwner = effectiveOwner;
 			if (effectiveOwner && currentSession && !isEqual(effectiveOwner, currentSession)) {
 				transcriptOverlayNode.style.display = 'none';
 				transcriptOverlayNode.classList.remove('has-transcript');

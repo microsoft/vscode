@@ -5,7 +5,9 @@
 
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { VSBuffer, encodeBase64 } from '../../../../../base/common/buffer.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { computeLevenshteinDistance } from '../../../../../base/common/diff/diff.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -19,39 +21,73 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { ILocalTranscriptionModelStatus, ILocalTranscriptionService, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { IVoiceClientService, IVoiceSessionContext, IVoiceTranscription, IVoiceTurnConfig } from '../../common/voiceClient/voiceClientService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
 
 /** Sample rate (Hz) of the PCM16 audio streamed to the transcription backend. */
 const SAMPLE_RATE = 16000;
 
+/** Number of samples buffered in the worklet before a chunk is posted to the main thread. */
+const PCM_CAPTURE_CHUNK_SIZE = 4096;
+
 /** Setting that enables the dictation feature; a kill-switch for rollout. */
-const ENABLED_SETTING = 'chat.speechToText.enabled';
-/** On-device model (Whisper or Nemotron) to use for dictation. */
-const MODEL_SETTING = 'chat.speechToText.model';
-/** Setting that controls the tap-vs-hold behavior of the dictation shortcut. */
-const MODE_SETTING = 'chat.speechToText.mode';
+const ENABLED_SETTING = 'dictation.enabled';
+/**
+ * Selects the dictation model. On-device model ids (e.g.
+ * `nemotron-speech-streaming-en-0.6b`) run through {@link ILocalTranscriptionService};
+ * the sentinel {@link MAI_MODEL_ID} routes to the cloud voice service instead.
+ */
+const MODEL_SETTING = 'dictation.model';
+
+/** `dictation.model` sentinel selecting the cloud voice backend used by Voice Mode. */
+const MAI_MODEL_ID = 'mai';
+
+/**
+ * Which backend transcribes dictation audio:
+ * - `nemo`: an on-device model via {@link ILocalTranscriptionService} (Foundry Local).
+ * - `mai`: the cloud voice service used by Voice Mode, via {@link IVoiceClientService}.
+ */
+type DictationBackend = 'nemo' | 'mai';
+
+/** How long to wait for the voice websocket to connect before failing an MAI session. */
+const MAI_CONNECT_TIMEOUT_MS = 8000;
+/** How long to wait after `ptt_end` for the backend's final transcript before returning what we have. */
+const MAI_FINAL_TIMEOUT_MS = 4000;
+/** How long to wait for the backend to acknowledge the opened session before streaming audio anyway. */
+const MAI_SESSION_INIT_TIMEOUT_MS = 4000;
 
 type SpeechToTextSessionEvent = {
 	outcome: 'completed' | 'cancelled' | 'error';
-	mode: string;
+	backend: string;
+	surface: string;
 	durationMs: number;
 	segments: number;
+	partialUpdates: number;
 	transcriptLength: number;
+	timeToFirstTranscriptMs: number;
+	finalizeMs: number;
 	errorCode: string;
 };
 type SpeechToTextSessionClassification = {
 	owner: 'meganrogge';
-	comment: 'Tracks usage and reliability of chat-input dictation (speech-to-text).';
+	comment: 'Tracks usage and reliability of built-in dictation (speech-to-text), sliced by backend so backends can be compared.';
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the dictation session ended.' };
-	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configured dictation shortcut mode (auto, toggle, or pushToTalk).' };
+	backend: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which transcription backend was used (nemo on-device or mai cloud).' };
+	surface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which surface dictated: chat, editor, or terminal.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Recording duration in milliseconds.' };
 	segments: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of transcript segments returned.' };
+	partialUpdates: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of interim transcript updates received; a proxy for transcript churn/stability.' };
 	transcriptLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Character length of the final transcript.' };
+	timeToFirstTranscriptMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the first streamed audio chunk to the first transcript update; the backend transcription latency (excludes mic acquisition and model download). -1 when no transcript arrived.' };
+	finalizeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the user stopping recording until the final transcript resolved; the post-stop wait. -1 when not applicable.' };
 	errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Short error identifier when the session failed, else empty.' };
 };
 
@@ -70,6 +106,45 @@ type SpeechToTextModelPrepareClassification = {
 	errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Short error identifier when preparation failed, else empty.' };
 };
 
+type SpeechToTextAccuracyEvent = {
+	backend: string;
+	surface: string;
+	submitted: boolean;
+	dictatedLength: number;
+	editDistance: number;
+	editRate: number;
+	edited: boolean;
+};
+type SpeechToTextAccuracyClassification = {
+	owner: 'meganrogge';
+	comment: 'Measures how much dictated text the user edited before sending it, as a proxy for transcription accuracy, sliced by backend so backends can be compared. No transcript text is logged, only aggregate character metrics.';
+	backend: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which transcription backend produced the dictated text (nemo on-device or mai cloud).' };
+	surface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which surface dictated: chat, editor, or terminal.' };
+	submitted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the measurement was taken at an actual input submission (true) versus the input being cleared or torn down without a confirmed send (false).' };
+	dictatedLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Character length of the text originally inserted by dictation.' };
+	editDistance: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Levenshtein distance between the dictated text and what the user actually submitted; the number of character corrections.' };
+	editRate: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'editDistance normalized by dictatedLength and capped at 1; the fraction of the dictated text that was corrected. Lower is more accurate.' };
+	edited: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the dictated text was changed at all before submission.' };
+};
+
+/**
+ * A completed dictation whose text has now left the input (submitted or
+ * cleared), measured to compare what was dictated against what was sent. Only
+ * aggregate character metrics are logged; the transcript text never is.
+ */
+export interface IDictationAccuracyMeasurement {
+	/** The text originally inserted by dictation. */
+	readonly dictatedText: string;
+	/** The text occupying the dictated region at the moment it left the input. */
+	readonly submittedText: string;
+	/** Backend that produced the dictated text, captured when dictation finished. */
+	readonly backend: string;
+	/** Surface the dictation ran in, for slicing. */
+	readonly surface: ChatDictationSurface;
+	/** Whether this was measured at an actual submit versus a clear/teardown. */
+	readonly submitted: boolean;
+}
+
 export const enum ChatSpeechToTextState {
 	/** Not recording. */
 	Idle = 'idle',
@@ -77,6 +152,25 @@ export const enum ChatSpeechToTextState {
 	Recording = 'recording',
 	/** Recording stopped, awaiting the final transcript. */
 	Transcribing = 'transcribing',
+}
+
+/**
+ * The surface a dictation session was started from. Reported in telemetry so
+ * built-in dictation usage can be attributed to the chat input, an editor, or
+ * the terminal.
+ */
+export type ChatDictationSurface = 'chat' | 'editor' | 'terminal';
+
+/** A live dictation transcript update. */
+export interface IChatDictationTranscript {
+	/** Full cumulative transcript to display. */
+	readonly text: string;
+	/**
+	 * The leading portion of `text` that is finalized (committed): it should be
+	 * rendered without the shimmer. The remainder is the in-progress interim
+	 * tail that keeps shimmering until it is finalized.
+	 */
+	readonly finalizedText: string;
 }
 
 export interface IChatSpeechToTextService {
@@ -88,9 +182,10 @@ export interface IChatSpeechToTextService {
 	/**
 	 * Fires with the cumulative transcript while recording, so callers can
 	 * render dictation live as the user speaks. The value grows monotonically
-	 * (finalized utterances plus any in-progress delta).
+	 * (finalized utterances plus any in-progress delta), and carries the
+	 * finalized (non-shimmering) portion of that transcript.
 	 */
-	readonly onDidUpdateTranscript: Event<string>;
+	readonly onDidUpdateTranscript: Event<IChatDictationTranscript>;
 
 	/**
 	 * Whether on-device speech-to-text is available on this platform. Callers
@@ -124,9 +219,10 @@ export interface IChatSpeechToTextService {
 	/**
 	 * Begin capturing microphone audio in the given window and streaming it to
 	 * the on-device transcription model. Rejects if the microphone cannot be
-	 * accessed.
+	 * accessed. `surface` identifies the dictation surface for telemetry
+	 * (defaults to the chat input).
 	 */
-	start(window: Window & typeof globalThis): Promise<void>;
+	start(window: Window & typeof globalThis, surface?: ChatDictationSurface): Promise<void>;
 
 	/**
 	 * Stop capturing, flush the final utterance, and resolve with the complete
@@ -136,6 +232,16 @@ export interface IChatSpeechToTextService {
 
 	/** Abort an in-progress recording without keeping the transcript. */
 	cancel(): void;
+
+	/** The backend selected for the current/most-recent session (`nemo` or `mai`). */
+	readonly currentBackend: string;
+
+	/**
+	 * Report how much a finished dictation was edited before it was submitted, as
+	 * an accuracy proxy. Computes the edit distance internally and logs only
+	 * aggregate metrics; no transcript text is emitted.
+	 */
+	logDictationAccuracy(measurement: IDictationAccuracyMeasurement): void;
 }
 
 export class ChatSpeechToTextService extends Disposable implements IChatSpeechToTextService {
@@ -145,7 +251,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private readonly _onDidChangeState = this._register(new Emitter<ChatSpeechToTextState>());
 	readonly onDidChangeState = this._onDidChangeState.event;
 
-	private readonly _onDidUpdateTranscript = this._register(new Emitter<string>());
+	private readonly _onDidUpdateTranscript = this._register(new Emitter<IChatDictationTranscript>());
 	readonly onDidUpdateTranscript = this._onDidUpdateTranscript.event;
 
 	private readonly _onDidChangePreparingModel = this._register(new Emitter<boolean>());
@@ -187,13 +293,33 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _mediaStream: MediaStream | undefined;
 	private _audioContext: AudioContext | undefined;
 	private _sourceNode: MediaStreamAudioSourceNode | undefined;
-	private _processorNode: ScriptProcessorNode | undefined;
+	private _workletNode: AudioWorkletNode | undefined;
 
 	private readonly _localSessionDisposables = this._register(new DisposableStore());
+
+	/** Backend selected for the in-progress session; set at `start`. */
+	private _activeBackend: DictationBackend = 'nemo';
+
+	// --- MAI (cloud voice) session state. ---
+	/** Disposables for the active MAI session (transcription listener, etc.). */
+	private readonly _maiSessionDisposables = this._register(new DisposableStore());
+	/** Capture turn id for the active MAI push-to-talk turn. */
+	private _maiTurnId = '';
+	/** Highest transcription revision seen for the active MAI turn; drops stale/out-of-order events. */
+	private _maiRevision = -1;
+	/** Whether this dictation established the shared voice connection (and may thus tear it down). */
+	private _maiOwnsConnection = false;
+	/** Resolves when the backend emits the final transcript after `ptt_end`. */
+	private _maiFinalTranscript: DeferredPromise<void> | undefined;
 
 	get isConfigured(): boolean {
 		if (this._configurationService.getValue<boolean>(ENABLED_SETTING) === false) {
 			return false;
+		}
+		if (this._getBackend() === 'mai') {
+			// The cloud backend needs a configured voice websocket endpoint;
+			// GitHub sign-in and connectivity are validated when a session starts.
+			return !!this._voiceWsUrl();
 		}
 		// On-device transcription needs no configuration — the model downloads
 		// on first use. It is only unavailable where the platform lacks native
@@ -209,7 +335,15 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	// Per-session telemetry accumulators.
 	private _sessionStartMs = 0;
 	private _sessionSegments = 0;
+	private _sessionPartialUpdates = 0;
 	private _sessionErrorCode = '';
+	private _sessionSurface: ChatDictationSurface = 'chat';
+	/** Timestamp of the first streamed audio chunk, to measure transcription latency. */
+	private _firstAudioMs = 0;
+	/** Timestamp of the first transcript update, to measure transcription latency. */
+	private _firstTranscriptMs = 0;
+	/** Milliseconds from stopping recording to the final transcript resolving; -1 until measured. */
+	private _finalizeMs = -1;
 
 	// Model-preparation telemetry accumulator. `_prepareStartMs` is non-zero
 	// while a preparation is being tracked, so the terminal Ready/Error status
@@ -226,6 +360,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILocalTranscriptionService private readonly _localTranscription: ILocalTranscriptionService,
+		@IVoiceClientService private readonly _voiceClientService: IVoiceClientService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IProductService private readonly _productService: IProductService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
@@ -235,10 +372,44 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._preparingContextKey = ChatContextKeys.speechToTextPreparing.bindTo(contextKeyService);
 		this._updateConfiguredContextKey();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ENABLED_SETTING)) {
+			if (e.affectsConfiguration(ENABLED_SETTING) || e.affectsConfiguration(MODEL_SETTING)) {
 				this._updateConfiguredContextKey();
 			}
 		}));
+	}
+
+	/** Read the configured dictation backend, derived from the selected model. */
+	private _getBackend(): DictationBackend {
+		return this._configurationService.getValue<string>(MODEL_SETTING) === MAI_MODEL_ID ? 'mai' : 'nemo';
+	}
+
+	get currentBackend(): string {
+		return this._activeBackend;
+	}
+
+	logDictationAccuracy(measurement: IDictationAccuracyMeasurement): void {
+		const { dictatedText, submittedText, backend, surface, submitted } = measurement;
+		if (!dictatedText) {
+			return;
+		}
+		const editDistance = computeLevenshteinDistance(dictatedText, submittedText);
+		const editRate = Math.min(1, editDistance / dictatedText.length);
+		this._telemetryService.publicLog2<SpeechToTextAccuracyEvent, SpeechToTextAccuracyClassification>('chatSpeechToText.accuracy', {
+			backend,
+			surface,
+			submitted,
+			dictatedLength: dictatedText.length,
+			editDistance,
+			editRate,
+			edited: editDistance > 0,
+		});
+	}
+
+	/** Voice websocket endpoint used by the MAI backend (shared with Voice Mode). */
+	private _voiceWsUrl(): string {
+		const configured = this._configurationService.getValue<string>('agents.voice.backendUrl');
+		const url = typeof configured === 'string' ? configured.trim() : '';
+		return url || this._productService.voiceWsUrl || '';
 	}
 
 	private _updateConfiguredContextKey(): void {
@@ -270,24 +441,22 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			return;
 		}
 		const durationMs = Date.now() - this._sessionStartMs;
+		const timeToFirstTranscriptMs = this._firstAudioMs && this._firstTranscriptMs
+			? Math.max(0, this._firstTranscriptMs - this._firstAudioMs)
+			: -1;
 		this._telemetryService.publicLog2<SpeechToTextSessionEvent, SpeechToTextSessionClassification>('chatSpeechToText.session', {
 			outcome,
-			mode: this._getDictationMode(),
+			backend: this._activeBackend,
+			surface: this._sessionSurface,
 			durationMs,
 			segments: this._sessionSegments,
+			partialUpdates: this._sessionPartialUpdates,
 			transcriptLength: this._transcript.length,
+			timeToFirstTranscriptMs,
+			finalizeMs: this._finalizeMs,
 			errorCode: this._sessionErrorCode,
 		});
 		this._sessionStartMs = 0;
-	}
-
-	/**
-	 * Read the configured dictation shortcut mode for telemetry, normalizing any
-	 * unexpected value to the `auto` default so the event stays low-cardinality.
-	 */
-	private _getDictationMode(): string {
-		const value = this._configurationService.getValue<string>(MODE_SETTING);
-		return value === 'toggle' || value === 'pushToTalk' ? value : 'auto';
 	}
 
 	/**
@@ -323,7 +492,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		return [this._finalizedText, this._deltaText].filter(Boolean).join(' ').replace(/\s{2,}/g, ' ').trim();
 	}
 
-	async start(window: Window & typeof globalThis): Promise<void> {
+	async start(window: Window & typeof globalThis, surface: ChatDictationSurface = 'chat'): Promise<void> {
 		if (this._state !== ChatSpeechToTextState.Idle) {
 			return;
 		}
@@ -332,17 +501,37 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			return;
 		}
 
-		if (!this._localTranscription.isSupported) {
+		const backend = this._getBackend();
+		this._activeBackend = backend;
+
+		if (backend === 'nemo' && !this._localTranscription.isSupported) {
 			this._notificationService.notify({
 				severity: Severity.Warning,
 				message: localize('chatStt.notSupported', "On-device speech-to-text is not available on this platform."),
 			});
 			return;
 		}
+		if (backend === 'mai' && !this._voiceWsUrl()) {
+			this._notificationService.notify({
+				severity: Severity.Warning,
+				message: localize('chatStt.maiNotConfigured', "Cloud speech-to-text is not available: no voice service is configured."),
+			});
+			return;
+		}
 
 		this._sessionStartMs = Date.now();
 		this._sessionSegments = 0;
+		this._sessionPartialUpdates = 0;
 		this._sessionErrorCode = '';
+		this._sessionSurface = surface;
+		this._firstAudioMs = 0;
+		this._firstTranscriptMs = 0;
+		this._finalizeMs = -1;
+		// Defensively clear any transcript left over from a previous session so a
+		// new dictation never starts by re-emitting the prior transcript (teardown
+		// already clears these, but a start without a clean teardown must not leak).
+		this._finalizedText = '';
+		this._deltaText = '';
 
 		let stream: MediaStream;
 		try {
@@ -358,7 +547,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._mediaStream = stream;
 
 		try {
-			await this._startLocalSession();
+			await this._startBackendSession(window);
 		} catch (err) {
 			this._teardown();
 			this._sessionErrorCode = this._sessionErrorCode || 'connect';
@@ -369,12 +558,12 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 
 		try {
-			this._startCapture(window, stream);
+			await this._startCapture(window, stream);
 		} catch (err) {
 			// Capture setup (AudioContext/nodes) can fail after the mic and the
-			// utility-process session are already live; make sure both are torn
+			// transcription session are already live; make sure both are torn
 			// down instead of leaking an active recording in the Idle state.
-			this._localTranscription.cancel();
+			this._cancelBackend();
 			this._teardown();
 			this._sessionErrorCode = this._sessionErrorCode || 'capture';
 			this._logSessionTelemetry('error');
@@ -392,6 +581,197 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 	}
 
+	/** Start the transcription session for the active backend. */
+	private async _startBackendSession(window: Window & typeof globalThis): Promise<void> {
+		if (this._activeBackend === 'mai') {
+			return this._startMaiSession(window);
+		}
+		return this._startLocalSession();
+	}
+
+	/**
+	 * Record a transcript update on the shared cumulative surface and accumulate
+	 * the latency/stability telemetry, regardless of backend. `text` is the full
+	 * cumulative transcript; `finalizedText` is its committed (non-shimmering)
+	 * prefix; `isFinal` marks the terminal update after the session stops.
+	 */
+	private _emitTranscript(text: string, finalizedText: string, isFinal: boolean): void {
+		this._finalizedText = text;
+		this._deltaText = '';
+		if (!isFinal) {
+			this._sessionSegments++;
+			this._sessionPartialUpdates++;
+		}
+		if (this._firstTranscriptMs === 0 && this._transcript.length > 0) {
+			this._firstTranscriptMs = Date.now();
+		}
+		this._onDidUpdateTranscript.fire({ text: this._transcript, finalizedText });
+	}
+
+	/**
+	 * Begin a cloud transcription session over the shared Voice Mode websocket:
+	 * connect, then open a single push-to-talk turn whose streamed audio the
+	 * backend transcribes. Interim/final `transcription` events are piped onto
+	 * the shared cumulative-transcript surface.
+	 *
+	 * The websocket is a single connection shared with Voice Mode. We refuse to
+	 * start when it is already connected (another owner holds it) and only tear
+	 * down a connection we ourselves established, so dictation and Voice Mode
+	 * cannot disconnect each other.
+	 */
+	private async _startMaiSession(window: Window & typeof globalThis): Promise<void> {
+		if (this._voiceClientService.isConnected) {
+			throw new Error(localize('chatStt.maiBusy', "Cloud dictation is unavailable while Voice Mode is connected."));
+		}
+		const authToken = await this._getGitHubToken();
+		if (!authToken) {
+			throw new Error(localize('chatStt.maiSignIn', "Sign in to GitHub to use cloud dictation."));
+		}
+
+		this._maiTurnId = generateUuid();
+		this._maiRevision = -1;
+		this._maiSessionDisposables.add(this._voiceClientService.onTranscription(e => this._handleMaiTranscription(e)));
+		// A terminal close (e.g. code 4008 when another window takes over the
+		// single voice session) stops reconnection; without this the mic would
+		// stay open in Recording while audio is silently dropped.
+		this._maiSessionDisposables.add(this._voiceClientService.onFatalDisconnect(() =>
+			this._failMaiSession(localize('chatStt.maiDisconnected', "Cloud dictation was disconnected."))));
+		this._maiSessionDisposables.add(this._voiceClientService.onError(msg =>
+			this._logService.warn(`[chat-stt] voice service error during dictation: ${msg}`)));
+
+		// We are initiating the connection; mark ownership before connecting so a
+		// failed/partial connect is still torn down by our teardown path.
+		this._maiOwnsConnection = true;
+		// Connecting to the cloud voice service and opening the session takes a
+		// moment on the first dictation; surface the same spinner affordance the
+		// on-device path uses while its model prepares. Cleared once the session
+		// is established (below) or by teardown on failure.
+		this._setPreparingModel(true);
+		await this._voiceClientService.connect(window, authToken);
+		await this._awaitVoiceConnected();
+
+		// The backend drops PTT audio until a session is opened, so establish a
+		// minimal (session-less) dictation session and wait for the backend to
+		// acknowledge it before streaming audio. The websocket preserves order,
+		// but the ack guarantees the session exists server-side first.
+		//
+		// Dictation is one continuous turn: the user taps to start, speaks
+		// several phrases with pauses in between, and taps to stop. Disable the
+		// backend's automatic turn endpointing (VAD silence / stop phrases) so a
+		// pause between phrases does not end the turn — otherwise everything
+		// after the first pause lands in a new (dropped) turn and is lost.
+		const context: IVoiceSessionContext = { sessions: [], display_locale: '' };
+		const turnConfig: IVoiceTurnConfig = { auto_end_mode: 'off', silence_ms: 0, stop_phrases: [], vad_gate_asr: false };
+		this._voiceClientService.sendStartSession(context, this._telemetryService.machineId, undefined, turnConfig);
+		await this._awaitSessionInit();
+
+		// Session is live; drop the connecting spinner so the mic reads as
+		// recording when start() transitions to the Recording state.
+		this._setPreparingModel(false);
+		this._voiceClientService.sendPttStart(this._maiTurnId);
+	}
+
+	/**
+	 * Wait for the backend to acknowledge the opened session (`onSessionInit`),
+	 * resolving on a timeout so a missing ack cannot wedge dictation: the
+	 * websocket preserves order, so `ptt_start` still follows `start_session`.
+	 */
+	private async _awaitSessionInit(): Promise<void> {
+		await new Promise<void>(resolve => {
+			const store = new DisposableStore();
+			this._maiSessionDisposables.add(store);
+			const timer = setTimeout(() => {
+				store.dispose();
+				resolve();
+			}, MAI_SESSION_INIT_TIMEOUT_MS);
+			store.add(toDisposable(() => clearTimeout(timer)));
+			store.add(this._voiceClientService.onSessionInit(() => {
+				store.dispose();
+				resolve();
+			}));
+		});
+	}
+
+	/**
+	 * Handle a transcription event from the shared voice socket. Events for a
+	 * different (non-empty) turn are dropped so a stale/foreign frame — e.g. a
+	 * replay from a previous session on the shared backend — cannot resurrect
+	 * the prior transcript; a frame without a turnId is accepted since the
+	 * conversational socket does not always tag transcription frames. Within our
+	 * turn, a stale (non-increasing) revision is dropped so a late event cannot
+	 * overwrite newer text or resolve the final waiter early. `text` is the full
+	 * cumulative transcript for the turn.
+	 */
+	private _handleMaiTranscription(e: IVoiceTranscription): void {
+		if (e.turnId !== undefined && this._maiTurnId && e.turnId !== this._maiTurnId) {
+			this._logService.trace(`[chat-stt] mai transcription dropped (turn ${e.turnId} != ${this._maiTurnId})`);
+			return;
+		}
+		if (e.revision !== undefined) {
+			if (e.revision <= this._maiRevision) {
+				this._logService.trace(`[chat-stt] mai transcription dropped (revision ${e.revision} <= ${this._maiRevision})`);
+				return;
+			}
+			this._maiRevision = e.revision;
+		}
+		this._logService.trace(`[chat-stt] mai transcription status=${e.status ?? 'none'} revision=${e.revision ?? 'none'} len=${e.text.length}`);
+		this._emitTranscript(e.text, e.committed ?? '', e.status === 'final');
+		if (e.status === 'final') {
+			this._maiFinalTranscript?.complete();
+		}
+	}
+
+	/**
+	 * Abort an in-progress MAI dictation after a terminal disconnect: log the
+	 * failure, release the final waiter so `stopAndTranscribe` does not hang,
+	 * tear down the mic/session, and surface an actionable message.
+	 */
+	private _failMaiSession(message: string): void {
+		if (this._activeBackend !== 'mai' || this._state === ChatSpeechToTextState.Idle) {
+			return;
+		}
+		this._sessionErrorCode = this._sessionErrorCode || 'disconnect';
+		this._logSessionTelemetry('error');
+		this._maiFinalTranscript?.complete();
+		this._cancelBackend();
+		this._teardown();
+		this._setState(ChatSpeechToTextState.Idle);
+		this._notificationService.error(message);
+	}
+
+	/** Resolve the GitHub access token used to authenticate the voice websocket. */
+	private async _getGitHubToken(): Promise<string | undefined> {
+		try {
+			const sessions = await this._authenticationService.getSessions('github');
+			return sessions[0]?.accessToken;
+		} catch (err) {
+			this._logService.warn('[chat-stt] could not resolve a GitHub session for cloud dictation', err);
+			return undefined;
+		}
+	}
+
+	/** Wait for the voice websocket to report connected, or reject on timeout. */
+	private async _awaitVoiceConnected(): Promise<void> {
+		if (this._voiceClientService.isConnected) {
+			return;
+		}
+		await new Promise<void>((resolve, reject) => {
+			const store = new DisposableStore();
+			this._maiSessionDisposables.add(store);
+			const timer = setTimeout(() => {
+				store.dispose();
+				reject(new Error('Timed out connecting to the voice service.'));
+			}, MAI_CONNECT_TIMEOUT_MS);
+			store.add(toDisposable(() => clearTimeout(timer)));
+			store.add(this._voiceClientService.onDidChangeConnectionState(connected => {
+				if (connected) {
+					store.dispose();
+					resolve();
+				}
+			}));
+		});
+	}
+
 	/**
 	 * Begin an on-device transcription session in the utility process and pipe
 	 * its interim/final results onto the shared cumulative-transcript surface.
@@ -400,12 +780,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		const local = this._localTranscription;
 		this._localSessionDisposables.add(local.onDidTranscribe(result => {
 			// The local service returns the full cumulative transcript each time.
-			this._finalizedText = result.text;
-			this._deltaText = '';
-			if (!result.isFinal) {
-				this._sessionSegments++;
-			}
-			this._onDidUpdateTranscript.fire(this._transcript);
+			this._emitTranscript(result.text, result.finalizedText ?? '', result.isFinal);
 		}));
 		const cacheDir = joinPath(this._environmentService.cacheHome, 'chatDictationModels').fsPath;
 		const model = this._getModelId();
@@ -572,7 +947,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 		this._sessionErrorCode = this._sessionErrorCode || errorCode;
 		this._logSessionTelemetry('error');
-		this._localTranscription.cancel();
+		this._cancelBackend();
 		this._teardown();
 		this._setState(ChatSpeechToTextState.Idle);
 		this._notificationService.error(message);
@@ -600,26 +975,46 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._stopCapture();
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
 
+		const stopMs = Date.now();
 		let text = this._transcript;
 		try {
-			const finalText = await this._localTranscription.stop();
+			const finalText = await this._finishBackend();
 			if (finalText) {
 				text = finalText;
 			}
 		} catch (err) {
 			this._sessionErrorCode = this._sessionErrorCode || 'transcribe';
-			this._logService.error('[chat-stt] on-device final transcription failed', err);
+			this._logService.error('[chat-stt] final transcription failed', err);
 		}
+		this._finalizeMs = Date.now() - stopMs;
 		this._logSessionTelemetry(this._sessionErrorCode ? 'error' : 'completed');
 		this._teardown();
 		this._setState(ChatSpeechToTextState.Idle);
 		return text || undefined;
 	}
 
+	/**
+	 * Finish the active backend's turn and resolve with its final transcript:
+	 * the on-device service's `stop()`, or — for MAI — a `ptt_end` followed by a
+	 * short wait for the backend's final `transcription`.
+	 */
+	private async _finishBackend(): Promise<string | undefined> {
+		if (this._activeBackend === 'mai') {
+			this._maiFinalTranscript = new DeferredPromise<void>();
+			this._voiceClientService.sendPttEnd();
+			await Promise.race([
+				this._maiFinalTranscript.p,
+				new Promise<void>(resolve => setTimeout(resolve, MAI_FINAL_TIMEOUT_MS)),
+			]);
+			return this._transcript;
+		}
+		return this._localTranscription.stop();
+	}
+
 	cancel(): void {
 		const wasRecording = this._state === ChatSpeechToTextState.Recording;
 		this._logSessionTelemetry('cancelled');
-		this._localTranscription.cancel();
+		this._cancelBackend();
 		this._teardown();
 		this._setState(ChatSpeechToTextState.Idle);
 		if (wasRecording) {
@@ -627,33 +1022,68 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 	}
 
-	private _startCapture(window: Window & typeof globalThis, stream: MediaStream): void {
+	/** Abort the active backend's session, discarding any transcript in flight. */
+	private _cancelBackend(): void {
+		if (this._activeBackend === 'mai') {
+			// Only tear down a connection we established (never Voice Mode's).
+			if (this._maiOwnsConnection) {
+				this._voiceClientService.disconnect();
+				this._maiOwnsConnection = false;
+			}
+			return;
+		}
+		this._localTranscription.cancel();
+	}
+
+	private async _startCapture(window: Window & typeof globalThis, stream: MediaStream): Promise<void> {
 		const ctx = new window.AudioContext({ sampleRate: SAMPLE_RATE });
 		this._audioContext = ctx;
 		// The context is created several awaits after the user gesture (mic
 		// acquisition + model startup), so it can start suspended; resume it or
-		// `onaudioprocess` never fires and no audio is streamed.
+		// the worklet never runs and no audio is streamed.
 		ctx.resume().catch(() => { /* ignore */ });
 		const source = ctx.createMediaStreamSource(stream);
 		this._sourceNode = source;
 
-		const processor = ctx.createScriptProcessor(4096, 1, 1);
-		this._processorNode = processor;
+		// Load the capture worklet (see `createPcmCaptureNode`). ScriptProcessorNode
+		// is deprecated and its `onaudioprocess` callback is throttled/stops on the
+		// main thread; the worklet runs on the audio thread and streams PCM reliably.
+		const node = await createPcmCaptureNode(window, ctx, PCM_CAPTURE_CHUNK_SIZE, samples => {
+			this._pushAudio(samples, window);
+		});
 
-		processor.onaudioprocess = e => {
-			const samples = e.inputBuffer.getChannelData(0);
-			this._localTranscription.pushAudio(encodeRawPcm16Buffer(samples)).catch(err => this._onAudioPushError(err));
-		};
+		// The session may have been torn down while the module was loading.
+		if (this._audioContext !== ctx) {
+			try { node.disconnect(); } catch { /* ignore */ }
+			return;
+		}
 
-		source.connect(processor);
-		processor.connect(ctx.destination);
+		this._workletNode = node;
+		source.connect(node);
+		node.connect(ctx.destination);
+	}
+
+	/**
+	 * Stream one captured PCM16 chunk to the active backend, recording the
+	 * first-chunk timestamp used for transcription-latency telemetry.
+	 */
+	private _pushAudio(samples: Float32Array, window: Window & typeof globalThis): void {
+		if (this._firstAudioMs === 0) {
+			this._firstAudioMs = Date.now();
+		}
+		const buffer = encodeRawPcm16Buffer(samples);
+		if (this._activeBackend === 'mai') {
+			this._voiceClientService.sendPttAudioChunk(encodeBase64(buffer));
+			return;
+		}
+		this._localTranscription.pushAudio(buffer).catch(err => this._onAudioPushError(err));
 	}
 
 	private _stopCapture(): void {
-		if (this._processorNode) {
-			this._processorNode.onaudioprocess = null;
-			try { this._processorNode.disconnect(); } catch { /* ignore */ }
-			this._processorNode = undefined;
+		if (this._workletNode) {
+			this._workletNode.port.onmessage = null;
+			try { this._workletNode.disconnect(); } catch { /* ignore */ }
+			this._workletNode = undefined;
 		}
 		try { this._sourceNode?.disconnect(); } catch { /* ignore */ }
 		this._sourceNode = undefined;
@@ -671,6 +1101,18 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		// model reached a terminal state does not emit a model-prepare event.
 		this._prepareStartMs = 0;
 		this._localSessionDisposables.clear();
+		// Release the cloud voice session and its listeners (idempotent if the
+		// backend was already cancelled/disconnected).
+		this._maiSessionDisposables.clear();
+		this._maiFinalTranscript = undefined;
+		this._maiTurnId = '';
+		this._maiRevision = -1;
+		// Release the shared voice connection only if this dictation owns it, so
+		// tearing down never disconnects a session Voice Mode established.
+		if (this._activeBackend === 'mai' && this._maiOwnsConnection) {
+			this._voiceClientService.disconnect();
+			this._maiOwnsConnection = false;
+		}
 		// Do not retain transcript text beyond the session that produced it.
 		this._finalizedText = '';
 		this._deltaText = '';

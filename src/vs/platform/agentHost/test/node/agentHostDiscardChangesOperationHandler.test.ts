@@ -56,6 +56,10 @@ class TestGitService implements IAgentHostGitService {
 	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
 	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
+	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
+	async getUntrackedPaths(): Promise<[]> { return []; }
+	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
+	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
 function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly registerSession?: boolean }): { handler: AgentHostDiscardChangesOperationHandler; gitService: TestGitService; session: URI } {
@@ -70,7 +74,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 			status: SessionStatus.Idle,
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
-			workingDirectory: opts?.withWorkingDirectory === false ? undefined : URI.file('/repo').toString(),
+			workingDirectories: opts?.withWorkingDirectory === false ? undefined : [URI.file('/repo').toString()],
 		});
 	}
 	const handler = new AgentHostDiscardChangesOperationHandler(

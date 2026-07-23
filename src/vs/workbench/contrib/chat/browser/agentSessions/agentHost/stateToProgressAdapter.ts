@@ -11,7 +11,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -424,16 +424,12 @@ export function isSubagentTool(tc: ToolCallState): boolean {
  * Finds a terminal content block in a tool call's content array.
  * Returns the terminal URI if found.
  */
-export function getTerminalContentUri(content: ToolResultContent[] | undefined): string | undefined {
-	if (!content) {
-		return undefined;
-	}
-	for (const block of content) {
-		if (block.type === ToolResultContentType.Terminal) {
-			return block.resource;
-		}
-	}
-	return undefined;
+function getTerminalContentUri(content: ToolResultContent[] | undefined): string | undefined {
+	return getTerminalContent(content)?.resource;
+}
+
+export function getTerminalContent(content: ToolResultContent[] | undefined): Extract<ToolResultContent, { type: ToolResultContentType.Terminal }> | undefined {
+	return content?.find(isToolResultTerminalContent);
 }
 
 /**
@@ -1130,7 +1126,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 				if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
 					parts.push(completedToolCallToSerialized(tc as ICompletedToolCall, undefined, sessionResource, connectionAuthority));
 				} else if (tc.status === ToolCallStatus.Streaming && !isOtherClientToolCall) {
-					parts.push(toolCallStateToStreamingInvocation(tc, undefined));
+					parts.push(toolCallStateToStreamingInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority));
 				} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.AuthRequired || tc.status === ToolCallStatus.Streaming || tc.status === ToolCallStatus.PendingConfirmation) {
 					parts.push(toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority, toolInvocationOptions));
 				}
@@ -1169,26 +1165,23 @@ function getTerminalOutput(tc: ToolCallState) {
 		return undefined;
 	}
 
-	const terminalComplete = tc.content?.find(isToolResultTerminalCompleteContent);
+	const terminalContent = getTerminalContent(tc.content);
+	const terminalResult = getTerminalCommandResult(tc);
 
 	// Prefer the structured terminal snapshot. Text content is a compatibility
 	// fallback for older/restored results and can include legacy bookkeeping.
-	let text = terminalComplete?.preview;
-	if (text === undefined) {
+	let text = terminalResult?.preview;
+	if (text === undefined && terminalContent?.isPty !== false) {
 		const fallbackText = tc.content?.find(isToolResultTextContent)?.text;
 		text = fallbackText === undefined ? undefined : stripLegacyTerminalExitMarkers(fallbackText);
 	}
-	if (text === undefined || (!text && terminalComplete?.truncated !== true)) {
+	if (text === undefined || (!text && terminalResult?.truncated !== true)) {
 		return undefined;
 	}
 
-	// The detached xterm used to render this output treats input as a raw TTY stream,
-	// so a lone `\n` only advances the row without resetting the column (producing a
-	// staircase). SDK terminal tools return plain text with `\n` line endings, so
-	// normalize to `\r\n` here. The replace is idempotent on already-CRLF input.
 	return {
 		text: text.replace(/\r?\n/g, '\r\n'),
-		...(terminalComplete?.truncated !== undefined ? { truncated: terminalComplete.truncated } : {}),
+		...(terminalResult?.truncated !== undefined ? { truncated: terminalResult.truncated } : {}),
 	};
 }
 
@@ -1201,17 +1194,47 @@ function isToolResultTextContent(content: ToolResultContent): content is Extract
 }
 
 function getTerminalCommandState(tc: ToolCallState, fallbackSuccess?: boolean): IChatTerminalToolInvocationData['terminalCommandState'] | undefined {
-	const terminalComplete = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running
-		? tc.content?.find(isToolResultTerminalCompleteContent)
+	const terminalResult = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running
+		? getTerminalCommandResult(tc)
 		: undefined;
-	if (terminalComplete?.exitCode !== undefined) {
-		return { exitCode: terminalComplete.exitCode };
+	if (terminalResult?.exitCode !== undefined) {
+		return { exitCode: terminalResult.exitCode };
+	}
+	if ((tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running) && getTerminalContent(tc.content)?.isPty === false) {
+		// A failed SDK shell call does not always include shell_exit content.
+		// Preserve that failure for decoration/completion state without
+		// fabricating a successful process exit when none was reported.
+		return fallbackSuccess === false ? { exitCode: 1 } : undefined;
 	}
 	return fallbackSuccess === undefined ? undefined : { exitCode: fallbackSuccess ? 0 : 1 };
 }
 
-function isToolResultTerminalCompleteContent(content: ToolResultContent): content is Extract<ToolResultContent, { type: ToolResultContentType.TerminalComplete }> {
-	return content.type === ToolResultContentType.TerminalComplete;
+function isToolResultTerminalContent(content: ToolResultContent): content is Extract<ToolResultContent, { type: ToolResultContentType.Terminal }> {
+	return content.type === ToolResultContentType.Terminal;
+}
+
+/**
+ * Shape of the `terminalComplete` tool result block that AHP 0.7.0 removed
+ * (its data moved onto the terminal block as `result`). Old persisted turns
+ * may still carry it, so completion data falls back to it.
+ */
+interface ILegacyTerminalCompleteContent {
+	type: 'terminalComplete';
+	exitCode?: number;
+	preview?: string;
+	truncated?: boolean;
+}
+
+/**
+ * Completion data for a terminal-style tool call: the terminal block's
+ * `result`, falling back to a legacy `terminalComplete` block.
+ */
+function getTerminalCommandResult(tc: { content?: ToolResultContent[] }): TerminalCommandResult | undefined {
+	const result = tc.content?.find(isToolResultTerminalContent)?.result;
+	if (result) {
+		return result;
+	}
+	return tc.content?.find(c => (c as { type: string }).type === 'terminalComplete') as ILegacyTerminalCompleteContent | undefined;
 }
 
 function getTerminalLanguage(tc: ToolCallState) {
@@ -1275,9 +1298,10 @@ function buildTerminalToolSpecificData(
 	sessionResource: URI,
 	existing?: IChatTerminalToolInvocationData,
 ): IChatTerminalToolInvocationData {
-	const terminalContentUri = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed)
-		? getTerminalContentUri(tc.content)
+	const terminalContent = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed)
+		? getTerminalContent(tc.content)
 		: undefined;
+	const terminalContentUri = terminalContent?.resource;
 	const nextCommand = getTerminalInput(tc);
 	const commandLine = nextCommand
 		? { ...existing?.commandLine, original: nextCommand }
@@ -1296,6 +1320,7 @@ function buildTerminalToolSpecificData(
 			? makeAhpTerminalToolSessionId(terminalContentUri, sessionResource)
 			: existing?.terminalToolSessionId,
 		terminalCommandUri: terminalContentUri ? URI.parse(terminalContentUri) : existing?.terminalCommandUri,
+		isPty: terminalContent?.isPty ?? existing?.isPty,
 		terminalCommandOutput: nextOutput ?? existing?.terminalCommandOutput,
 	};
 }
@@ -1474,6 +1499,14 @@ function createSessionTitleFromArgs(toolInput: string | undefined): string | und
 	}
 }
 
+function completedToolCallConfirmedReason(tc: ICompletedToolCall): NonNullable<IChatToolInvocationSerialized['isConfirmed']> {
+	if (tc.status === ToolCallStatus.Completed) {
+		return { type: ToolConfirmKind.ConfirmationNotNeeded };
+	}
+
+	return { type: tc.reason === ToolCallCancellationReason.Skipped ? ToolConfirmKind.Skipped : ToolConfirmKind.Denied };
+}
+
 /**
  * Converts a completed tool call from the protocol state into a serialized
  * tool invocation suitable for history replay.
@@ -1499,9 +1532,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			invocationMessage: invocationMsg,
 			originMessage: undefined,
 			pastTenseMessage: pastTenseMsg,
-			isConfirmed: isSuccess
-				? { type: ToolConfirmKind.ConfirmationNotNeeded }
-				: { type: ToolConfirmKind.Denied },
+			isConfirmed: completedToolCallConfirmedReason(tc),
 			isComplete: true,
 			presentation: undefined,
 			subAgentInvocationId: subAgentInvocationId,
@@ -1555,9 +1586,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		invocationMessage: invocationMsg,
 		originMessage: undefined,
 		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
-		isConfirmed: isSuccess
-			? { type: ToolConfirmKind.ConfirmationNotNeeded }
-			: { type: ToolConfirmKind.Denied },
+		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
 		presentation: undefined,
 		subAgentInvocationId: subAgentInvocationId,
@@ -2155,8 +2184,8 @@ export function toolCallAuthenticationServer(tc: ToolCallState & { status: ToolC
  * the tool reaches confirmation/running, so a single card represents the whole
  * lifecycle instead of a settled placeholder plus a replacement.
  */
-export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined): ChatToolInvocation {
-	return ChatToolInvocation.createStreaming({
+export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource?: URI, connectionAuthority?: string, mcpServerAuthority?: string): ChatToolInvocation {
+	const invocation = ChatToolInvocation.createStreaming({
 		toolCallId: tc.toolCallId,
 		toolId: tc.toolName,
 		toolData: {
@@ -2167,6 +2196,10 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 		},
 		subagentInvocationId: subAgentInvocationId,
 	});
+	if (sessionResource && isSubagentTool(tc)) {
+		invocation.toolSpecificData = toolCallStateToInvocation(tc, subAgentInvocationId, sessionResource, connectionAuthority ?? '', mcpServerAuthority).toolSpecificData;
+	}
+	return invocation;
 }
 
 /**
