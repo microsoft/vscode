@@ -60,6 +60,13 @@
 	display: block;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .creator-credit {
+	font-size: 12px;
+	letter-spacing: 0.02em;
+	margin-top: 2px;
+	opacity: 0.72;
+}
+
 .monaco-workbench.hc-black .part.editor > .content .gettingStartedContainer .subtitle,
 .monaco-workbench.hc-light .part.editor > .content .gettingStartedContainer .subtitle {
 	font-weight: 200;

@@ -17,6 +17,7 @@ export function createNativeAboutDialogDetails(productService: IProductService, 
 	} else if (productService.darwinUniversalAssetId) {
 		version = `${version} (Universal)`;
 	}
+	const creatorDetails = productService.creatorName ? localize('aboutCreatedBy', "Created by {0}", productService.creatorName) : undefined;
 
 	const getDetails = (useAgo: boolean): string => {
 		return localize({ key: 'aboutDetail', comment: ['Electron, Chromium, Node.js and V8 are product names that need no translation'] },
@@ -33,8 +34,8 @@ export function createNativeAboutDialogDetails(productService: IProductService, 
 		);
 	};
 
-	const details = getDetails(true);
-	const detailsToCopy = getDetails(false);
+	const details = [creatorDetails, getDetails(true)].filter(detail => detail !== undefined).join('\n');
+	const detailsToCopy = [creatorDetails, getDetails(false)].filter(detail => detail !== undefined).join('\n');
 
 	return {
 		title: productService.nameLong,

@@ -1,0 +1,24 @@
+{
+	"version": 1,
+	"source": "DESIGN.md",
+	"creativeNorthStar": "The Evidence Workbench",
+	"tokens": {
+		"accent": "#C8792A",
+		"trust": "#2F7D72",
+		"risk": "#B5473C",
+		"lightSurface": "#F7F5F2",
+		"darkSurface": "#171B20",
+		"motion": {
+			"fast": 150,
+			"standard": 200,
+			"slow": 250
+		}
+	},
+	"components": [
+		"trust-summary",
+		"evidence-row",
+		"repository-map",
+		"readiness-pill",
+		"trust-rail"
+	]
+}
