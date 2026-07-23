@@ -676,18 +676,21 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	 * workspace-relative paths.
 	 */
 	private async _resolvePluginPath(path: string, userHome: URI): Promise<URI[]> {
+		const targetPath = await this._pathService.path;
+
 		if (/^~($|\/|\\)/.test(path)) {
 			const uri = await this._pathService.fileURI(untildify(path, userHome.path));
 			return [this._toTargetResource(uri, userHome)];
 		}
 
-		if ((await this._pathService.path).isAbsolute(path)) {
+		if (targetPath.isAbsolute(path)) {
 			const uri = await this._pathService.fileURI(path);
 			return [this._toTargetResource(uri, userHome)];
 		}
 
+		const relativePath = targetPath.sep === '\\' ? path.replace(/\\/g, '/') : path;
 		return this._workspaceContextService.getWorkspace().folders.map(
-			folder => joinPath(folder.uri, path)
+			folder => joinPath(folder.uri, relativePath)
 		);
 	}
 
