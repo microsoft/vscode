@@ -182,7 +182,6 @@ export class CreateFileTool implements ICopilotTool<ICreateFileParams> {
 			options.forceConfirmationReason,
 			undefined,
 			options.workingDirectory,
-			async () => ({ before: '', after: content }),
 		);
 
 		return {
