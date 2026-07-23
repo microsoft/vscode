@@ -24,12 +24,12 @@ import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, type CodexUsageSource } from '../../common/agentHostCustomizationConfig.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentAccountManagement, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentGlobalConfigurationManagement, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider, type AuthenticateParams } from '../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider, type AuthenticateParams } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
-import type { AgentAccountState, ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
-import type { AgentGlobalConfigurationEdit, AgentGlobalConfigurationState, AgentGlobalConfigurationValue, ResolveSessionConfigResult, SessionConfigCompletionsResult, StartAgentAccountLoginResult } from '../../common/state/protocol/commands.js';
+import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
+import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AuthRequiredReason, type AuthRequiredParams } from '../../common/state/protocol/common/notifications.js';
 import { buildDefaultChatUri, parseChatUri, type ClientPluginCustomization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -61,7 +61,7 @@ import { buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAns
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
 import { buildCodexLaunchConfig, buildCodexResumeParams } from './codexLaunchConfig.js';
-import { codexAccountStateForUsageSource, codexAccountStateFromResponse, codexProtectedResourcesForUsageSource, resolveCodexUsageSourceAfterAccountRead } from './codexAccountState.js';
+import { codexAccountStateForUsageSource, codexAccountStateFromResponse, codexProtectedResourcesForUsageSource, resolveCodexUsageSourceAfterAccountRead, type ICodexAccountState } from './codexAccountState.js';
 import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
 import type { ReasoningSummary } from './protocol/generated/ReasoningSummary.js';
@@ -86,8 +86,6 @@ import type { ToolRequestUserInputQuestion } from './protocol/generated/v2/ToolR
 import type { ToolRequestUserInputResponse } from './protocol/generated/v2/ToolRequestUserInputResponse.js';
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
 import type { GetAccountResponse } from './protocol/generated/v2/GetAccountResponse.js';
-import type { AccountLoginCompletedNotification } from './protocol/generated/v2/AccountLoginCompletedNotification.js';
-import type { LoginAccountResponse } from './protocol/generated/v2/LoginAccountResponse.js';
 import type { ModelListResponse } from './protocol/generated/v2/ModelListResponse.js';
 import type { Thread } from './protocol/generated/v2/Thread.js';
 import type { ThreadListResponse } from './protocol/generated/v2/ThreadListResponse.js';
@@ -706,19 +704,9 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models: IObservable<readonly IAgentModelInfo[]> = this._models;
-	private readonly _accountState = observableValue<AgentAccountState>(this, { usageSource: 'copilot', status: 'signedOut' });
-	private _openAIAccountState: AgentAccountState = { usageSource: 'openai', status: 'signedOut' };
-	readonly account: IAgentAccountManagement = {
-		state: this._accountState,
-		read: () => this._readAccount(),
-		startLogin: method => this._startAccountLogin(method),
-		cancelLogin: loginId => this._cancelAccountLogin(loginId),
-		logout: () => this._logoutAccount(),
-	};
-	readonly globalConfiguration: IAgentGlobalConfigurationManagement = {
-		read: keyPaths => this._readGlobalConfiguration(keyPaths),
-		write: (edits, expectedVersion) => this._writeGlobalConfiguration(edits, expectedVersion),
-	};
+	private _openAIAccountState: ICodexAccountState = { usageSource: 'openai', status: 'signedOut' };
+	private _providerConfigurationValues: Record<string, unknown> = {};
+	private _providerConfigurationWrite = Promise.resolve();
 
 	/** Keyed by caller-facing sessionId (the URI host). */
 	private readonly _sessions = new Map<string, ICodexSession>();
@@ -793,9 +781,30 @@ export class CodexAgent extends Disposable implements IAgent {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		const configFile = URI.file(join(this._environmentService.userHome.fsPath, '.codex', 'config.toml')).toString();
+		this._configurationService.registerProviderConfiguration?.({
+			provider: CODEX_AGENT_PROVIDER_ID,
+			title: localize('codex.configuration.title', "Codex Settings"),
+			description: localize('codex.configuration.description', "Configure Codex defaults stored in config.toml. Project and managed configuration can override these user values."),
+			properties: {
+				'codex.personality': { type: 'string', title: localize('codex.configuration.personality', "Personality"), description: localize('codex.configuration.personality.description', "Controls the default communication style for Codex. Default leaves personality unset in config.toml."), default: 'default', enum: ['default', 'friendly', 'pragmatic'], enumLabels: [localize('codex.configuration.personality.default', "Default"), localize('codex.configuration.personality.friendly', "Friendly"), localize('codex.configuration.personality.pragmatic', "Pragmatic")] },
+				'codex.autoReviewPolicy': { type: 'string', title: localize('codex.configuration.autoReviewPolicy', "Auto-review policy"), description: localize('codex.configuration.autoReviewPolicy.description', "Updates auto_review.policy in config.toml. Leave empty to remove the auto_review section."), default: '' },
+			},
+			settings: [
+				{ key: 'codex.personality', group: localize('codex.configuration.personalization', "Personalization") },
+				{ key: 'codex.autoReviewPolicy', group: localize('codex.configuration.review', "Review policy"), kind: 'multiline', saveLabel: localize('codex.configuration.review.save', "Save Policy") },
+			],
+			configurationFile: {
+				resource: configFile,
+				title: localize('codex.configuration.file.title', "Advanced configuration"),
+				description: localize('codex.configuration.file.description', "Open the Codex configuration file to customize additional agent behavior."),
+				openLabel: localize('codex.configuration.file.open', "Open config.toml"),
+				documentationUrl: 'https://learn.chatgpt.com/docs/config-file/config-basic',
+				documentationLabel: localize('codex.configuration.file.docs', "Codex configuration documentation"),
+			},
+		});
 		this._metadataStore = this._instantiationService.createInstance(CodexSessionMetadataStore);
 		this._usageSource = this._resolveUsageSource();
-		this._publishAccountState();
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			const next = this._resolveUsageSource();
 			if (next !== this._usageSource) {
@@ -803,14 +812,16 @@ export class CodexAgent extends Disposable implements IAgent {
 			} else {
 				this._pendingUsageSource = undefined;
 			}
+			this._queueProviderConfigurationWrite();
 		}));
+		void this._refreshProviderConfiguration();
 		if (this._usageSource === 'openai') {
 			this._usageSourceValidation = this._validateOpenAIUsageSource();
 		}
 	}
 
 	private async _validateOpenAIUsageSource(): Promise<void> {
-		let account: AgentAccountState;
+		let account: ICodexAccountState;
 		try {
 			const connection = await this._ensureConnection(true);
 			account = await this._refreshAccount(connection.client, false);
@@ -833,22 +844,14 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		if (account.status === 'signedIn') {
-			this._publishAccountState();
 			this._queueModelRefresh();
 			return;
 		}
 		this._applyUsageSourceChange('copilot');
 	}
 
-	private _publishAccountState(): void {
-		this._accountState.set(codexAccountStateForUsageSource(this._usageSource, this._openAIAccountState), undefined);
-	}
-
-	private _setOpenAIAccountState(state: AgentAccountState, publish = true): void {
+	private _setOpenAIAccountState(state: ICodexAccountState, _publish = true): void {
 		this._openAIAccountState = state;
-		if (publish) {
-			this._publishAccountState();
-		}
 	}
 
 	private _resolveUsageSource(): CodexUsageSource {
@@ -869,7 +872,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._applyUsageSourceChange(source);
 	}
 
-	private _applyUsageSourceChange(source: CodexUsageSource, publishAccount = true, refreshModels = true): void {
+	private _applyUsageSourceChange(source: CodexUsageSource, _publishAccount = true, refreshModels = true): void {
 		this._pendingUsageSource = undefined;
 		this._usageSource = source;
 		this._disposeConnection();
@@ -884,9 +887,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		this._subagentsByThreadId.clear();
 		this._models.set([], undefined);
-		if (publishAccount) {
-			this._publishAccountState();
-		}
 		if (!refreshModels) {
 			return;
 		}
@@ -1450,7 +1450,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 		// Wire global notification → SessionAction dispatch.
 		this._registerIgnoredNotifications(client);
-		this._register(client.onNotification('account/login/completed', params => this._handleAccountLoginCompleted(client, params)));
+		this._register(client.onNotification('account/login/completed', () => { /* sign-in is managed outside VS Code */ }));
 		this._register(client.onNotification('account/updated', () => {
 			if (this._usageSource === 'openai' && this._connection.kind === 'ready' && this._connection.client === client) {
 				void this._refreshAccount(client);
@@ -1946,15 +1946,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _readAccount(): Promise<AgentAccountState> {
-		if (this._usageSource !== 'openai') {
-			return this._accountState.get();
-		}
-		const connection = await this._ensureConnection();
-		return this._refreshAccount(connection.client);
-	}
-
-	private async _refreshAccount(client: ICodexAppServerClient, publish = true): Promise<AgentAccountState> {
+	private async _refreshAccount(client: ICodexAppServerClient, publish = true): Promise<ICodexAccountState> {
 		try {
 			const response = await client.request<'account/read', GetAccountResponse>('account/read', { refreshToken: false });
 			const state = codexAccountStateFromResponse(response);
@@ -1964,116 +1956,64 @@ export class CodexAgent extends Disposable implements IAgent {
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			this._logService.warn(`[Codex] account/read failed: ${message}`);
-			const state: AgentAccountState = { usageSource: 'openai', status: 'error', error: message };
+			const state: ICodexAccountState = { usageSource: 'openai', status: 'error', error: message };
 			this._setOpenAIAccountState(state, publish);
 			return state;
 		}
 	}
 
-	private async _startAccountLogin(method: 'browser' | 'deviceCode'): Promise<StartAgentAccountLoginResult> {
-		if (this._usageSource !== 'openai') {
-			this._applyUsageSourceChange('openai', false, false);
-		}
-		if (this._accountState.get().status === 'signingIn') {
-			throw new Error('A Codex sign-in is already in progress.');
-		}
-		const connection = await this._ensureConnection();
-		this._setOpenAIAccountState({ usageSource: 'openai', status: 'signingIn' });
-		try {
-			const response: LoginAccountResponse = await connection.client.request<'account/login/start', LoginAccountResponse>('account/login/start', {
-				type: method === 'browser' ? 'chatgpt' : 'chatgptDeviceCode',
-			});
-			if (response.type === 'chatgpt') {
-				this._setOpenAIAccountState({ usageSource: 'openai', status: 'signingIn', loginId: response.loginId });
-				return { type: 'browser', loginId: response.loginId, authUrl: response.authUrl };
-			}
-			if (response.type === 'chatgptDeviceCode') {
-				this._setOpenAIAccountState({ usageSource: 'openai', status: 'signingIn', loginId: response.loginId });
-				return { type: 'deviceCode', loginId: response.loginId, verificationUrl: response.verificationUrl, userCode: response.userCode };
-			}
-			throw new Error(`Unexpected Codex login response: ${response.type}`);
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			this._setOpenAIAccountState({ usageSource: 'openai', status: 'error', error: message });
-			throw err;
-		}
-	}
-
-	private async _cancelAccountLogin(loginId: string): Promise<void> {
-		const connection = await this._ensureConnection();
-		await connection.client.request<'account/login/cancel'>('account/login/cancel', { loginId });
-		await this._refreshAccount(connection.client);
-	}
-
-	private async _logoutAccount(): Promise<void> {
-		if (this._usageSource !== 'openai') {
-			throw new Error('Codex is not using an OpenAI account.');
-		}
-		const connection = await this._ensureConnection();
-		await connection.client.request<'account/logout'>('account/logout', undefined as never);
-		await this._refreshAccount(connection.client);
-		this._models.set([], undefined);
-	}
-
-	private async _readGlobalConfiguration(keyPaths: readonly string[]): Promise<AgentGlobalConfigurationState> {
+	private async _readProviderConfiguration(): Promise<Record<string, unknown>> {
 		const connection = await this._ensureConnection();
 		const response = await connection.client.request<'config/read', ConfigReadResponse>('config/read', { includeLayers: true });
-		return this._toGlobalConfigurationState(response, keyPaths);
-	}
-
-	private async _writeGlobalConfiguration(edits: readonly AgentGlobalConfigurationEdit[], expectedVersion?: string): Promise<AgentGlobalConfigurationState> {
-		const connection = await this._ensureConnection();
-		await connection.client.request<'config/batchWrite', ConfigWriteResponse>('config/batchWrite', {
-			edits: edits.map(edit => ({ keyPath: edit.keyPath, value: edit.value, mergeStrategy: 'replace' })),
-			expectedVersion,
-			reloadUserConfig: true,
-		});
-		return this._readGlobalConfiguration(edits.map(edit => edit.keyPath));
-	}
-
-	private _toGlobalConfigurationState(response: ConfigReadResponse, keyPaths: readonly string[]): AgentGlobalConfigurationState {
-		const userLayer = response.layers?.find(layer => layer.name.type === 'user' && layer.name.profile === null)
-			?? response.layers?.find(layer => layer.name.type === 'user');
-		if (!userLayer || userLayer.name.type !== 'user') {
-			throw new Error('Codex did not report a user config.toml location.');
-		}
-		const config = JSON.parse(JSON.stringify(response.config)) as Record<string, AgentGlobalConfigurationValue | undefined>;
-		const values: Record<string, AgentGlobalConfigurationValue | undefined> = {};
-		for (const keyPath of keyPaths) {
-			values[keyPath] = this._readGlobalConfigurationValue(config, keyPath);
-		}
+		const userLayer = response.layers?.find(layer => layer.name.type === 'user' && layer.name.profile === null) ?? response.layers?.find(layer => layer.name.type === 'user');
+		const config = userLayer?.config && typeof userLayer.config === 'object' && !Array.isArray(userLayer.config) ? userLayer.config as Record<string, unknown> : {};
 		return {
-			values,
-			file: URI.file(userLayer.name.file).toString(),
-			version: userLayer.version,
+			'codex.personality': this._readConfigurationValue(config, 'personality') ?? 'default',
+			'codex.autoReviewPolicy': this._readConfigurationValue(config, 'auto_review.policy') ?? '',
 		};
 	}
 
-	private _readGlobalConfigurationValue(config: Record<string, AgentGlobalConfigurationValue | undefined>, keyPath: string): AgentGlobalConfigurationValue | undefined {
-		let value: AgentGlobalConfigurationValue | undefined = config;
+	private async _writeProviderConfiguration(key: string, value: unknown): Promise<void> {
+		const connection = await this._ensureConnection();
+		await connection.client.request<'config/batchWrite', ConfigWriteResponse>('config/batchWrite', {
+			edits: key === 'codex.autoReviewPolicy' && value === ''
+				? [{ keyPath: 'auto_review', value: null, mergeStrategy: 'replace' }]
+				: key === 'codex.personality' && value === 'default'
+					? [{ keyPath: 'personality', value: null, mergeStrategy: 'replace' }]
+					: [{ keyPath: key === 'codex.personality' ? 'personality' : 'auto_review.policy', value: value as string, mergeStrategy: 'replace' }],
+			expectedVersion: null,
+			reloadUserConfig: true,
+		});
+	}
+
+	private async _refreshProviderConfiguration(): Promise<void> {
+		try {
+			this._providerConfigurationValues = await this._readProviderConfiguration();
+			this._configurationService.updateRootConfig(this._providerConfigurationValues);
+		} catch (error) {
+			this._logService.warn(`[Codex] Failed to read config.toml: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	private _queueProviderConfigurationWrite(): void {
+		const values = this._configurationService.getRootConfigValues?.() ?? {};
+		for (const key of ['codex.personality', 'codex.autoReviewPolicy']) {
+			if (values[key] === this._providerConfigurationValues[key]) { continue; }
+			const value = values[key];
+			this._providerConfigurationValues[key] = value;
+			this._providerConfigurationWrite = this._providerConfigurationWrite.then(() => this._writeProviderConfiguration(key, value)).catch(error => this._logService.error(`[Codex] Failed to update config.toml: ${error instanceof Error ? error.message : String(error)}`));
+		}
+	}
+
+	private _readConfigurationValue(config: Record<string, unknown>, keyPath: string): unknown {
+		let value: unknown = config;
 		for (const segment of keyPath.split('.')) {
 			if (!value || Array.isArray(value) || typeof value !== 'object') {
 				return undefined;
 			}
-			value = value[segment];
+			value = (value as Record<string, unknown>)[segment];
 		}
 		return value;
-	}
-
-	private _handleAccountLoginCompleted(client: ICodexAppServerClient, params: AccountLoginCompletedNotification): void {
-		if (this._usageSource !== 'openai') {
-			return;
-		}
-		const current = this._accountState.get();
-		if (params.loginId && current.loginId && params.loginId !== current.loginId) {
-			return;
-		}
-		if (!params.success) {
-			this._setOpenAIAccountState({ usageSource: 'openai', status: 'error', error: params.error ?? 'Codex sign-in failed.' });
-			return;
-		}
-		void this._refreshAccount(client);
-		this._queueModelRefresh();
 	}
 
 	private _dispatchByThread(threadId: string, mapFn: (s: ICodexSession) => ReturnType<typeof mapTurnStarted>): void {
@@ -2651,51 +2591,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			description: this._usageSource === 'openai'
 				? localize('codexAgent.description.openai', "Codex agent using your OpenAI account")
 				: localize('codexAgent.description.copilot', "Codex agent using GitHub Copilot"),
-			capabilities: {
-				globalConfiguration: {
-					title: localize('codexAgent.globalConfiguration.title', "Codex settings"),
-					description: localize('codexAgent.globalConfiguration.description', "Configure defaults used by Codex. New sessions use the updated personality and auto-review policy; existing sessions retain their session-scoped values. Some advanced config.toml changes may require restarting the Codex App Server."),
-					groups: [{
-						id: 'personalization',
-						title: localize('codexAgent.globalConfiguration.personalization.title', "Personalization"),
-						description: localize('codexAgent.globalConfiguration.personalization.description', "Choose Codex's default communication style."),
-						settings: [{
-							keyPath: 'personality',
-							title: localize('codexAgent.globalConfiguration.personality.title', "Personality"),
-							description: localize('codexAgent.globalConfiguration.personality.description', "Controls the tone Codex uses in newly started sessions."),
-							type: 'string',
-							default: 'none',
-							options: [
-								{ value: 'none', label: localize('codexAgent.globalConfiguration.personality.default', "Default") },
-								{ value: 'friendly', label: localize('codexAgent.globalConfiguration.personality.friendly', "Friendly") },
-								{ value: 'pragmatic', label: localize('codexAgent.globalConfiguration.personality.pragmatic', "Pragmatic") },
-							],
-						}],
-					}, {
-						id: 'autoReview',
-						title: localize('codexAgent.globalConfiguration.autoReview.title', "Auto-review policy"),
-						description: localize('codexAgent.globalConfiguration.autoReview.description', "Optional guidance used when Auto-Review is selected in the permissions picker."),
-						settings: [{
-							keyPath: 'auto_review.policy',
-							title: localize('codexAgent.globalConfiguration.reviewPolicy.title', "Review policy"),
-							description: localize('codexAgent.globalConfiguration.reviewPolicy.description', "Saved as auto_review.policy in config.toml. Describe actions the reviewer should deny or require you to review. This does not expand sandbox access."),
-							type: 'string',
-							default: '',
-							multiline: true,
-							placeholder: localize('codexAgent.globalConfiguration.reviewPolicy.placeholder', "Example: Never approve commands that publish packages or change cloud infrastructure."),
-							saveLabel: localize('codexAgent.globalConfiguration.reviewPolicy.save', "Save Policy"),
-							clearKeyPath: 'auto_review',
-						}],
-					}],
-					configurationFile: {
-						title: localize('codexAgent.globalConfiguration.file.title', "Configuration"),
-						description: localize('codexAgent.globalConfiguration.file.description', "Open the Codex configuration file to customize additional agent behavior."),
-						openLabel: localize('codexAgent.globalConfiguration.file.open', "Open config.toml"),
-						documentationUrl: 'https://learn.chatgpt.com/docs/config-file/config-basic',
-						documentationLabel: localize('codexAgent.globalConfiguration.file.documentation', "Codex configuration documentation"),
-					},
-				},
-			},
 		};
 	}
 
@@ -2753,7 +2648,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	};
 
 	async createSession(config: IAgentCreateSessionConfig = {}): Promise<IAgentCreateSessionResult> {
-		this._logService.info(`[Codex DEBUG] createSession usageSource=${this._usageSource} accountStatus=${this._accountState.get().status} session=${config.session?.toString() ?? '(none)'} model=${config.model?.id ?? '(none)'} cwd=${config.workingDirectory?.toString() ?? '(none)'}`);
+		this._logService.info(`[Codex DEBUG] createSession usageSource=${this._usageSource} accountStatus=${codexAccountStateForUsageSource(this._usageSource, this._openAIAccountState).status} session=${config.session?.toString() ?? '(none)'} model=${config.model?.id ?? '(none)'} cwd=${config.workingDirectory?.toString() ?? '(none)'}`);
 		let validation = this._usageSourceValidation;
 		await validation;
 		while (validation !== this._usageSourceValidation) {

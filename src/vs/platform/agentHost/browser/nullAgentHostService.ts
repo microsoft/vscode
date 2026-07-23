@@ -9,14 +9,13 @@ import { constObservable, IObservable } from '../../../base/common/observable.js
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, StartAgentAccountLoginResult } from '../common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction, ClientAnnotationsAction } from '../common/state/sessionActions.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
-import type { AgentAccountState } from '../common/state/protocol/channels-root/state.js';
 
 const notSupported = () => { throw new Error('Local agent host is not supported in the browser.'); };
 
@@ -49,12 +48,6 @@ export class NullAgentHostService implements IAgentHostService {
 
 	async restartAgentHost(): Promise<void> { notSupported(); }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return notSupported(); }
-	async readAgentAccount(_provider: string): Promise<AgentAccountState> { return notSupported(); }
-	async startAgentAccountLogin(_provider: string, _method: 'browser' | 'deviceCode'): Promise<StartAgentAccountLoginResult> { return notSupported(); }
-	async cancelAgentAccountLogin(_provider: string, _loginId: string): Promise<void> { notSupported(); }
-	async logoutAgentAccount(_provider: string): Promise<void> { notSupported(); }
-	async readAgentGlobalConfiguration(_provider: string, _keyPaths: readonly string[]): Promise<import('../common/state/protocol/commands.js').AgentGlobalConfigurationState> { return notSupported(); }
-	async writeAgentGlobalConfiguration(_provider: string, _edits: readonly import('../common/state/protocol/commands.js').AgentGlobalConfigurationEdit[], _expectedVersion?: string): Promise<import('../common/state/protocol/commands.js').AgentGlobalConfigurationState> { return notSupported(); }
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return notSupported(); }
 	async diagnosticsFetch(_url: string): Promise<IAgentHostNetworkFetchResult> { return notSupported(); }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }

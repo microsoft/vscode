@@ -23,13 +23,12 @@ import type { InitializeResult } from '../common/state/protocol/common/commands.
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
 import { AgentSubscriptionManager, isActionEnvelopeRelevantToSubscriptionUris, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, StartAgentAccountLoginResult } from '../common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type ChatAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { StateComponents, ROOT_STATE_URI, parseChatUri, type RootState } from '../common/state/sessionState.js';
-import type { AgentAccountState } from '../common/state/protocol/channels-root/state.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI } from '../../../base/common/uri.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AgentHostClientResourceChannel } from '../common/agentHostClientResourceChannel.js';
@@ -342,24 +341,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		return this._proxy.sessionConfigCompletions(params);
-	}
-	readAgentAccount(provider: string): Promise<AgentAccountState> {
-		return this._proxy.readAgentAccount(provider);
-	}
-	startAgentAccountLogin(provider: string, method: 'browser' | 'deviceCode'): Promise<StartAgentAccountLoginResult> {
-		return this._proxy.startAgentAccountLogin(provider, method);
-	}
-	cancelAgentAccountLogin(provider: string, loginId: string): Promise<void> {
-		return this._proxy.cancelAgentAccountLogin(provider, loginId);
-	}
-	logoutAgentAccount(provider: string): Promise<void> {
-		return this._proxy.logoutAgentAccount(provider);
-	}
-	readAgentGlobalConfiguration(provider: string, keyPaths: readonly string[]) {
-		return this._proxy.readAgentGlobalConfiguration(provider, keyPaths);
-	}
-	writeAgentGlobalConfiguration(provider: string, edits: readonly import('../common/state/protocol/commands.js').AgentGlobalConfigurationEdit[], expectedVersion?: string) {
-		return this._proxy.writeAgentGlobalConfiguration(provider, edits, expectedVersion);
 	}
 	completions(params: CompletionsParams): Promise<CompletionsResult> {
 		return this._proxy.completions(params);

@@ -15,14 +15,13 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
-import type { AgentGlobalConfigurationEdit, AgentGlobalConfigurationState, CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, StartAgentAccountLoginResult } from './state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
-import type { AgentAccountState } from './state/protocol/channels-root/state.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -777,18 +776,6 @@ export interface IAgentDescriptor {
 	readonly capabilities?: IAgentCapabilities;
 }
 
-export interface IAgentAccountManagement {
-	readonly state: IObservable<AgentAccountState>;
-	read(): Promise<AgentAccountState>;
-	startLogin(method: 'browser' | 'deviceCode'): Promise<StartAgentAccountLoginResult>;
-	cancelLogin(loginId: string): Promise<void>;
-	logout(): Promise<void>;
-}
-
-export interface IAgentGlobalConfigurationManagement {
-	read(keyPaths: readonly string[]): Promise<AgentGlobalConfigurationState>;
-	write(edits: readonly AgentGlobalConfigurationEdit[], expectedVersion?: string): Promise<AgentGlobalConfigurationState>;
-}
 
 // ---- Auth types (RFC 9728 / RFC 6750 inspired) -----------------------------
 
@@ -1408,10 +1395,6 @@ export interface IActiveClient {
 export interface IAgent {
 	/** Unique identifier for this provider (e.g. `'copilot'`). */
 	readonly id: AgentProvider;
-	/** Optional host-global account management surface for this provider. */
-	readonly account?: IAgentAccountManagement;
-	/** Optional host-global configuration surface for this provider. */
-	readonly globalConfiguration?: IAgentGlobalConfigurationManagement;
 
 	/** Fires when the provider streams progress for a session. */
 	readonly onDidSessionProgress: Event<AgentSignal>;
@@ -1759,12 +1742,6 @@ export interface IAgentService {
 	 * bearer token delivery.
 	 */
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
-	readAgentAccount(provider: AgentProvider): Promise<AgentAccountState>;
-	startAgentAccountLogin(provider: AgentProvider, method: 'browser' | 'deviceCode'): Promise<StartAgentAccountLoginResult>;
-	cancelAgentAccountLogin(provider: AgentProvider, loginId: string): Promise<void>;
-	logoutAgentAccount(provider: AgentProvider): Promise<void>;
-	readAgentGlobalConfiguration(provider: AgentProvider, keyPaths: readonly string[]): Promise<AgentGlobalConfigurationState>;
-	writeAgentGlobalConfiguration(provider: AgentProvider, edits: readonly AgentGlobalConfigurationEdit[], expectedVersion?: string): Promise<AgentGlobalConfigurationState>;
 
 	/** Return a bearer token previously supplied via {@link authenticate}. */
 	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined;
@@ -2070,12 +2047,6 @@ export interface IAgentConnection {
 
 	// ---- Session lifecycle --------------------------------------------------
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
-	readAgentAccount?(provider: AgentProvider): Promise<AgentAccountState>;
-	startAgentAccountLogin?(provider: AgentProvider, method: 'browser' | 'deviceCode'): Promise<StartAgentAccountLoginResult>;
-	cancelAgentAccountLogin?(provider: AgentProvider, loginId: string): Promise<void>;
-	logoutAgentAccount?(provider: AgentProvider): Promise<void>;
-	readAgentGlobalConfiguration?(provider: AgentProvider, keyPaths: readonly string[]): Promise<AgentGlobalConfigurationState>;
-	writeAgentGlobalConfiguration?(provider: AgentProvider, edits: readonly AgentGlobalConfigurationEdit[], expectedVersion?: string): Promise<AgentGlobalConfigurationState>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;

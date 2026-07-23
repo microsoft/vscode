@@ -1778,9 +1778,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	protected readonly _onDidChangeCustomizations = this._register(new Emitter<void>());
 	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
-	protected readonly _onDidChangeAgentAccounts = this._register(new Emitter<void>());
-	readonly onDidChangeAgentAccounts = this._onDidChangeAgentAccounts.event;
-
 	/** Last-known root config state (schema + values), seeded from `RootState.config`. */
 	protected _rootConfig: RootConfigState | undefined;
 
@@ -2092,7 +2089,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._lastAgents = rootState.agents;
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
-			this._onDidChangeAgentAccounts.fire();
 		}
 		const next = rootState.agents
 			.filter(agent => this._shouldAdvertiseAgent(agent.provider))
@@ -2766,6 +2762,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._rootConfig;
 	}
 
+	getRootState(): RootState | undefined {
+		const value = this.connection?.rootState.value;
+		return value instanceof Error ? undefined : value;
+	}
+
+	mapAgentHostResource(uri: URI): URI {
+		return this.mapWorkingDirectoryUri(uri);
+	}
+
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		const connection = this.connection;
 		if (!connection) {
@@ -2827,58 +2832,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			replace: true,
 		};
 		connection.dispatch(ROOT_STATE_URI, action);
-	}
-
-	getAgentInfo(provider: string): AgentInfo | undefined {
-		return this._lastAgents?.find(agent => agent.provider === provider);
-	}
-
-	readAgentAccount(provider: string) {
-		const connection = this.connection;
-		if (!connection?.readAgentAccount) {
-			throw new Error('Agent host is not connected.');
-		}
-		return connection.readAgentAccount(provider);
-	}
-
-	startAgentAccountLogin(provider: string, method: 'browser' | 'deviceCode') {
-		const connection = this.connection;
-		if (!connection?.startAgentAccountLogin) {
-			throw new Error('Agent host is not connected.');
-		}
-		return connection.startAgentAccountLogin(provider, method);
-	}
-
-	cancelAgentAccountLogin(provider: string, loginId: string): Promise<void> {
-		const connection = this.connection;
-		if (!connection?.cancelAgentAccountLogin) {
-			throw new Error('Agent host is not connected.');
-		}
-		return connection.cancelAgentAccountLogin(provider, loginId);
-	}
-
-	logoutAgentAccount(provider: string): Promise<void> {
-		const connection = this.connection;
-		if (!connection?.logoutAgentAccount) {
-			throw new Error('Agent host is not connected.');
-		}
-		return connection.logoutAgentAccount(provider);
-	}
-
-	readAgentGlobalConfiguration(provider: string, keyPaths: readonly string[]) {
-		const connection = this.connection;
-		if (!connection?.readAgentGlobalConfiguration) {
-			throw new Error('Agent host is not connected.');
-		}
-		return connection.readAgentGlobalConfiguration(provider, keyPaths);
-	}
-
-	writeAgentGlobalConfiguration(provider: string, edits: readonly import('../../../../../platform/agentHost/common/state/protocol/commands.js').AgentGlobalConfigurationEdit[], expectedVersion?: string) {
-		const connection = this.connection;
-		if (!connection?.writeAgentGlobalConfiguration) {
-			throw new Error('Agent host is not connected.');
-		}
-		return connection.writeAgentGlobalConfiguration(provider, edits, expectedVersion);
 	}
 
 	// -- Model selection ------------------------------------------------------

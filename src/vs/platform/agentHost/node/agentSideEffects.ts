@@ -223,7 +223,6 @@ export class AgentSideEffects extends Disposable {
 			const d = a.getDescriptor();
 			const protectedResources = a.getProtectedResources();
 			const models = reader ? a.models.read(reader) : a.models.get();
-			const account = a.account ? (reader ? a.account.state.read(reader) : a.account.state.get()) : undefined;
 			const customizations = a.getCustomizations?.();
 			return {
 				provider: d.provider, displayName: d.displayName, description: d.description, models: models.map(m => ({
@@ -241,7 +240,6 @@ export class AgentSideEffects extends Disposable {
 				customizations: customizations?.length ? [...customizations] : undefined,
 				protectedResources: protectedResources.length > 0 ? protectedResources : undefined,
 				capabilities: d.capabilities ? { ...d.capabilities } : undefined,
-				account,
 			};
 		});
 		if (equals(this._lastAgentInfos, infos)) {

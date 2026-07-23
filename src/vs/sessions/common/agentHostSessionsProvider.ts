@@ -9,8 +9,8 @@ import { equals } from '../../base/common/objects.js';
 import { URI } from '../../base/common/uri.js';
 import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
-import { AgentGlobalConfigurationEdit, AgentGlobalConfigurationState, ResolveSessionConfigResult, SessionConfigValueItem, StartAgentAccountLoginResult } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentAccountState, AgentCustomization, AgentInfo, Customization, McpServerStatus, RootConfigState, type McpServerState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type McpServerState, type RootState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 
@@ -120,6 +120,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly onDidChangeRootConfig: Event<void>;
 	/** Returns the last-known root (agent host) configuration, or `undefined` if the host has not published any. */
 	getRootConfig(): RootConfigState | undefined;
+	getRootState(): RootState | undefined;
+	mapAgentHostResource(uri: URI): URI;
 	/**
 	 * Sets one root configuration property.
 	 *
@@ -134,16 +136,6 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * Unknown keys (no schema entry) are ignored.
 	 */
 	replaceRootConfig(values: Record<string, unknown>): Promise<void>;
-
-	/** Fires when an advertised provider account changes. */
-	readonly onDidChangeAgentAccounts: Event<void>;
-	getAgentInfo(provider: string): AgentInfo | undefined;
-	readAgentAccount(provider: string): Promise<AgentAccountState>;
-	startAgentAccountLogin(provider: string, method: 'browser' | 'deviceCode'): Promise<StartAgentAccountLoginResult>;
-	cancelAgentAccountLogin(provider: string, loginId: string): Promise<void>;
-	logoutAgentAccount(provider: string): Promise<void>;
-	readAgentGlobalConfiguration(provider: string, keyPaths: readonly string[]): Promise<AgentGlobalConfigurationState>;
-	writeAgentGlobalConfiguration(provider: string, edits: readonly AgentGlobalConfigurationEdit[], expectedVersion?: string): Promise<AgentGlobalConfigurationState>;
 
 	/** Authenticate against the backing agent-host connection. */
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;

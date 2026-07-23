@@ -26,13 +26,12 @@ import { AgentHostResourcePermissionError, IAgentHostResourceService } from '../
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type ChatAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
 import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type RootState } from '../common/state/sessionState.js';
-import type { AgentAccountState } from '../common/state/protocol/channels-root/state.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes } from '../common/state/protocol/errors.js';
-import { ContentEncoding, ResourceRequestParams, type AgentGlobalConfigurationEdit, type AgentGlobalConfigurationState, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, type StartAgentAccountLoginResult } from '../common/state/protocol/commands.js';
+import { ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
@@ -838,32 +837,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			property: params.property,
 			query: params.query,
 		});
-	}
-
-	readAgentAccount(provider: string): Promise<AgentAccountState> {
-		return this._sendRequest('readAgentAccount', { channel: ROOT_STATE_URI, provider });
-	}
-
-	startAgentAccountLogin(provider: string, method: 'browser' | 'deviceCode'): Promise<StartAgentAccountLoginResult> {
-		return this._sendRequest('startAgentAccountLogin', { channel: ROOT_STATE_URI, provider, method });
-	}
-
-	async cancelAgentAccountLogin(provider: string, loginId: string): Promise<void> {
-		await this._sendRequest('cancelAgentAccountLogin', { channel: ROOT_STATE_URI, provider, loginId });
-	}
-
-	async logoutAgentAccount(provider: string): Promise<void> {
-		await this._sendRequest('logoutAgentAccount', { channel: ROOT_STATE_URI, provider });
-	}
-
-	async readAgentGlobalConfiguration(provider: string, keyPaths: readonly string[]): Promise<AgentGlobalConfigurationState> {
-		const result = await this._sendRequest('readAgentGlobalConfiguration', { channel: ROOT_STATE_URI, provider, keyPaths: [...keyPaths] });
-		return { ...result, file: toAgentHostUri(URI.parse(result.file), this._connectionAuthority).toString() };
-	}
-
-	async writeAgentGlobalConfiguration(provider: string, edits: readonly AgentGlobalConfigurationEdit[], expectedVersion?: string): Promise<AgentGlobalConfigurationState> {
-		const result = await this._sendRequest('writeAgentGlobalConfiguration', { channel: ROOT_STATE_URI, provider, edits: [...edits], expectedVersion });
-		return { ...result, file: toAgentHostUri(URI.parse(result.file), this._connectionAuthority).toString() };
 	}
 
 	async completions(params: CompletionsParams): Promise<CompletionsResult> {
