@@ -416,28 +416,32 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 	}
 
 	async getOrgCustomInstructions(orgLogin: string, authOptions: AuthOptions): Promise<string | undefined> {
-		const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
-		if (!authToken) {
-			this._logService.trace('No authentication token available for getOrgCustomInstructions');
-			throw new PermissiveAuthRequiredError();
-		}
-		const response = await this._capiClientService.makeRequest<Response>({
-			method: 'GET',
-			headers: {
-				Authorization: `Bearer ${authToken}`,
+		try {
+			const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
+			if (!authToken) {
+				throw new Error('No authentication token available');
 			}
-		}, {
-			type: RequestType.OrgCustomInstructions,
-			orgLogin
-		});
-		if (!response.ok) {
-			if (response.status === 404) {
-				return undefined;
+			const response = await this._capiClientService.makeRequest<Response>({
+				method: 'GET',
+				headers: {
+					Authorization: `Bearer ${authToken}`,
+				}
+			}, {
+				type: RequestType.OrgCustomInstructions,
+				orgLogin
+			});
+			if (!response.ok) {
+				if (response.status === 404) {
+					return undefined;
+				}
+				throw new Error(`Failed to fetch custom instructions for org ${orgLogin}: ${response.statusText}`);
 			}
-			throw new Error(`Failed to fetch custom instructions for org ${orgLogin}: ${response.status} ${response.statusText}`);
+			const data = await response.json() as { prompt: string };
+			return data.prompt;
+		} catch (e) {
+			this._logService.error(e);
+			return undefined;
 		}
-		const data = await response.json() as { prompt: string | null };
-		return data.prompt ?? undefined;
 	}
 
 	async getUserRepositories(authOptions: AuthOptions, query?: string): Promise<{ owner: string; name: string }[]> {
@@ -588,3 +592,5 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 		}
 	}
 }
+
+

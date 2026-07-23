@@ -11,6 +11,12 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IGitHubOrgChatResourcesService } from './githubOrgChatResourcesService';
 
+/**
+ * Polling interval for refreshing custom agents from GitHub (5 minutes).
+ * We poll a bit less frequently as we need to loop and fetch full agent details including prompt content.
+ */
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+
 export class GitHubOrgCustomAgentProvider extends Disposable implements vscode.ChatCustomAgentProvider {
 	private readonly _onDidChangeCustomAgents = this._register(new vscode.EventEmitter<void>());
 	readonly onDidChangeCustomAgents = this._onDidChangeCustomAgents.event;
@@ -22,10 +28,8 @@ export class GitHubOrgCustomAgentProvider extends Disposable implements vscode.C
 	) {
 		super();
 
-		this._register(this.githubOrgChatResourcesService.onDidChangePreferredOrganization(() => {
-			this._onDidChangeCustomAgents.fire();
-		}));
-		this._register(this.githubOrgChatResourcesService.startRefreshing(this.pollAgents.bind(this)));
+		// Set up polling with provider-specific interval
+		this._register(this.githubOrgChatResourcesService.startPolling(REFRESH_INTERVAL_MS, this.pollAgents.bind(this)));
 	}
 
 	async provideCustomAgents(_context: unknown, token: vscode.CancellationToken): Promise<vscode.ChatResource[]> {
@@ -41,9 +45,7 @@ export class GitHubOrgCustomAgentProvider extends Disposable implements vscode.C
 				return [];
 			}
 
-			const resources = await this.githubOrgChatResourcesService.listCachedFiles(PromptsType.agent, orgId);
-			this.logService.trace(`[GitHubOrgCustomAgentProvider] Providing ${resources.length} cached agent resource(s) for org ${orgId}`);
-			return resources;
+			return await this.githubOrgChatResourcesService.listCachedFiles(PromptsType.agent, orgId);
 		} catch (error) {
 			this.logService.error(`[GitHubOrgCustomAgentProvider] Error reading from cache: ${error}`);
 			return [];
@@ -52,7 +54,6 @@ export class GitHubOrgCustomAgentProvider extends Disposable implements vscode.C
 
 	private async pollAgents(orgId: string): Promise<void> {
 		try {
-			this.logService.trace(`[GitHubOrgCustomAgentProvider] Refreshing custom agents for org ${orgId}`);
 			// Convert VS Code API options to internal options
 			// It's okay to include enterprise agents here which may take from other orgs, as we only retrieve per org
 			const internalOptions = { includeSources: ['org', 'enterprise'] } satisfies CustomAgentListOptions;
@@ -100,7 +101,7 @@ export class GitHubOrgCustomAgentProvider extends Disposable implements vscode.C
 			}
 
 			if (!hasChanges) {
-				this.logService.trace(`[GitHubOrgCustomAgentProvider] No agent changes detected in cache for org ${orgId}`);
+				this.logService.trace('[GitHubOrgCustomAgentProvider] No changes detected in cache');
 				return;
 			}
 
@@ -108,10 +109,9 @@ export class GitHubOrgCustomAgentProvider extends Disposable implements vscode.C
 			await this.githubOrgChatResourcesService.clearCache(PromptsType.agent, orgId, newFiles);
 
 			// Fire event to notify consumers that agents have changed
-			this.logService.trace(`[GitHubOrgCustomAgentProvider] Updated ${newFiles.size} cached agent resource(s) for org ${orgId}`);
 			this._onDidChangeCustomAgents.fire();
 		} catch (error) {
-			this.logService.error(`[GitHubOrgCustomAgentProvider] Error refreshing custom agents for org ${orgId}; preserving existing cache: ${error}`);
+			this.logService.error(`[GitHubOrgCustomAgentProvider] Error polling for agents: ${error}`);
 		}
 	}
 
