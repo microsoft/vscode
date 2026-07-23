@@ -16,6 +16,6 @@ import { EditorInputCapabilities } from '../../workbench/common/editor.js';
  */
 export abstract class DockedEditorInput extends EditorInput {
 	override get capabilities(): EditorInputCapabilities {
-		return super.capabilities | EditorInputCapabilities.ExcludeFromEditorLimit;
+		return EditorInputCapabilities.ExcludeFromEditorLimit;
 	}
 }
