@@ -609,6 +609,12 @@ Providers may fire `onDidReplaceSession` when a temporary (untitled) session is 
 
 Provider add notifications are authoritative upserts. A provisional `listSessions()` entry may already be cached when the backend publishes its materialized project and working directory, so providers update the existing session adapter in place and report it as changed rather than replacing its identity.
 
+### First-Time Window-Open Telemetry
+
+Editor entry points pass an `AgentsWindowOpenSource` through `INativeHostService.openAgentsWindow` and the `vscode:selectAgentsFolder` startup handoff. The source distinguishes command-palette, keyboard, title-bar, chat-title, handoff-tip, discovery-banner, and command-line opens without collecting workspace or session identifiers.
+
+On the first handoff in a window, `SelectAgentsFolderContribution` starts `SessionsWindowOpenTelemetry` only when the application-scoped `TOTAL_SESSIONS_KEY` counter is still zero. The collector freezes whether the settled initial view is a workspace-preselected new-session view (or records `undefined` when a created session is visible), reads whether the initial setup flow showed its sign-in dialog, and emits `agents/firstTimeWindowOpen` once. A close within three minutes includes `windowCloseDurationMs`; otherwise the event emits at the three-minute boundary with that field undefined.
+
 ### Automation Run Lifecycle
 
 `AutomationRunner` exposes separate dispatch and lifecycle promises. It resolves

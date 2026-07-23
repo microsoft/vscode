@@ -285,6 +285,19 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		this._ignoreOccurrence(blocked, this._getBlockOccurrenceId(blocked, undefined, this._ignoredBlockOccurrences.get().get(session.sessionId)));
 	}
 
+	/** Ignore every blocked occurrence currently surfaced by the indicator. */
+	ignoreAllSessions(): void {
+		const blockedSessions = this.blockedSessions.get();
+		if (blockedSessions.length === 0) {
+			return;
+		}
+		const next = new Map(this._ignoredBlockOccurrences.get());
+		for (const blocked of blockedSessions) {
+			next.set(blocked.session.sessionId, this._getBlockOccurrenceId(blocked, undefined, next.get(blocked.session.sessionId)));
+		}
+		this._ignoredBlockOccurrences.set(next, undefined);
+	}
+
 	/**
 	 * Remember that the user allowed this exact approval so the session drops out of
 	 * the blocked set immediately.

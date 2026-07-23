@@ -34,6 +34,7 @@ import { readToolCallMeta } from '../../../../../../platform/agentHost/common/me
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -361,6 +362,19 @@ function getClientToolPreApproval(toolCall: ToolCallState): ConfirmedReason | un
 	}
 
 	return undefined;
+}
+
+/**
+ * Returns the tool call's `_meta` with the transient
+ * {@link IToolCallMeta.toolSearchCandidates} corpus removed. Always returns an
+ * object (never `undefined`) so a completion action can force-replace the prior
+ * `_meta` — the reducer keeps the existing bag when an action omits one, so an
+ * explicit empty replacement is what actually drops the candidates.
+ */
+function metaWithoutToolSearchCandidates(source: { readonly _meta?: Record<string, unknown> }): Record<string, unknown> {
+	const meta = { ...source._meta };
+	delete meta['toolSearchCandidates'];
+	return meta;
 }
 
 /**
@@ -2862,7 +2876,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			adopted.didExecuteTool(undefined);
 		}
 
-		const toolData = this._toolsService.getToolByName(toolName);
+		const clientToolName = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME ? CLIENT_TOOL_SEARCH_REFERENCE_NAME : toolName;
+		const toolData = this._toolsService.getToolByName(clientToolName);
 		if (!toolData) {
 			this._logService.warn(`[AgentHost] Client tool call for unknown tool: ${toolName}`);
 			this._dispatchAction(opts.backendSession, {
@@ -2981,11 +2996,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const protocolToolCall = part$.get().toolCall;
 			const isProtocolToolCallComplete = protocolToolCall.status === ToolCallStatus.Completed || protocolToolCall.status === ToolCallStatus.Cancelled;
 			if (!isProtocolToolCallComplete) {
+				// The tool-search ready action stashes the (potentially large)
+				// deferred-tool corpus in `_meta.toolSearchCandidates` purely to
+				// seed this invocation. The completion reducer keeps the prior
+				// `_meta` when the action omits one, so without an explicit
+				// replacement the corpus would persist on the completed call and
+				// across reconnects. Carry a candidate-stripped `_meta` on the
+				// tool-search completion to drop it once the search has run.
+				const clearedMeta = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME
+					? metaWithoutToolSearchCandidates(protocolToolCall)
+					: undefined;
 				this._dispatchAction(opts.backendSession, {
 					type: ActionType.ChatToolCallComplete,
 					turnId: opts.turnId,
 					toolCallId,
 					result: toolResultToProtocol(result ?? { content: [] }, toolName),
+					...(clearedMeta !== undefined ? { _meta: clearedMeta } : {}),
 				}, opts.chatURI);
 			}
 		};
@@ -3025,6 +3051,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (invoked || cts.token.isCancellationRequested) {
 				return;
 			}
+			const toolSearchCandidates = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME
+				? readToolCallMeta(tc).toolSearchCandidates
+				: undefined;
+			if (toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME && toolSearchCandidates === undefined) {
+				return;
+			}
 			// eslint-disable-next-line local/code-no-in-operator
 			let toolInput = 'toolInput' in tc ? tc.toolInput : undefined;
 			if (toolInput === undefined) {
@@ -3047,6 +3079,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				parameters = parsed as Record<string, unknown>;
 			} catch {
 				this._logService.warn(`[AgentHost] Failed to parse tool input for ${toolName}`);
+				const clearedMeta = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME
+					? metaWithoutToolSearchCandidates(tc)
+					: undefined;
 				this._dispatchAction(opts.backendSession, {
 					type: ActionType.ChatToolCallComplete,
 					turnId: opts.turnId,
@@ -3056,8 +3091,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						pastTenseMessage: `Failed to execute ${toolName}`,
 						error: { message: `Invalid tool input for "${toolName}": expected JSON object parameters` },
 					},
+					...(clearedMeta !== undefined ? { _meta: clearedMeta } : {}),
 				}, opts.chatURI);
 				return;
+			}
+			if (toolSearchCandidates !== undefined) {
+				parameters = { ...parameters, candidateTools: toolSearchCandidates };
 			}
 
 			const inv: IToolInvocation = {

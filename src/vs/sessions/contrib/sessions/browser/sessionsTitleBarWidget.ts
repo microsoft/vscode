@@ -5,7 +5,7 @@
 
 import './media/sessionsTitleBarWidget.css';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getDomNodePagePosition, getWindow, isAncestor, reset } from '../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { localize } from '../../../../nls.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -34,7 +34,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getUntitledSessionTitle } from '../../../services/sessions/common/session.js';
 import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
-import { BlockedSessionsList, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
+import { BlockedSessionsList, IBlockedSessionsHeaderActionContext, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
 import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 import { SessionActionFeedback } from './sessionActionFeedback.js';
 import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -48,6 +48,9 @@ import { openSessionToTheSide } from './views/sessionsView.js';
  */
 const SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID = 'sessions.blockedSessions.showAllSessions';
 
+/** Internal command behind the blocked-sessions dropdown header's bulk-ignore action. */
+const IGNORE_ALL_INPUT_NEEDED_COMMAND_ID = 'sessions.blockedSessions.ignoreAllInputNeeded';
+
 /**
  * Internal command that dismisses the blocked-sessions dropdown. Bound to Escape
  * (scoped to {@link SessionsBlockedSessionsVisibleContext}) so the dropdown can
@@ -56,13 +59,54 @@ const SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID = 'sessions.blockedSessions
  */
 const HIDE_BLOCKED_SESSIONS_COMMAND_ID = 'sessions.blockedSessions.hide';
 
+/** Register the actions shown in the blocked-sessions dropdown header toolbar. */
+export function registerBlockedSessionsHeaderActions(): IDisposable {
+	return combinedDisposable(
+		MenuRegistry.appendMenuItem(Menus.BlockedSessionsHeader, {
+			command: {
+				id: SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID,
+				title: localize('showAllSessions', "Show All Sessions"),
+				icon: Codicon.listSelection,
+			},
+			group: 'navigation',
+			order: 1,
+		}),
+		MenuRegistry.appendMenuItem(Menus.BlockedSessionsHeader, {
+			command: {
+				id: IGNORE_ALL_INPUT_NEEDED_COMMAND_ID,
+				title: localize('ignoreAllInputNeeded', "Ignore All Input Needed"),
+				icon: Codicon.bellSlash,
+			},
+			group: 'navigation',
+			order: 2,
+		}),
+		MenuRegistry.appendMenuItem(Menus.BlockedSessionsHeader, {
+			command: {
+				id: HIDE_BLOCKED_SESSIONS_COMMAND_ID,
+				title: localize('closeBlockedSessions', "Close"),
+				icon: Codicon.close,
+			},
+			group: 'z_close',
+			order: 1,
+		}),
+	);
+}
+
+/** Register the commands invoked by the blocked-sessions header toolbar. */
+export function registerBlockedSessionsHeaderCommands(): IDisposable {
+	return combinedDisposable(
+		CommandsRegistry.registerCommand(SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID, (_accessor, context: IBlockedSessionsHeaderActionContext) => {
+			context.showAllSessions();
+		}),
+		CommandsRegistry.registerCommand(IGNORE_ALL_INPUT_NEEDED_COMMAND_ID, (_accessor, context: IBlockedSessionsHeaderActionContext) => {
+			context.ignoreAllSessions();
+		}),
+	);
+}
+
 /**
- * The currently-open blocked-sessions dropdown, if any. Shared at module scope so
- * command handlers registered outside the widget instance (the Escape keybinding
- * and the "Show All Sessions" action) can close this specific context view via its
- * {@link IOpenContextView.close}, rather than blindly hiding whatever context view
- * happens to be open. Owned by {@link SessionsTitleBarWidget}, which keeps it in
- * sync when the dropdown opens and clears it when it hides.
+ * The currently-open blocked-sessions dropdown, shared with the Escape command so
+ * it closes this specific context view.
  */
 let openBlockedSessionsView: IOpenContextView | undefined;
 
@@ -539,6 +583,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 						this._openBlockedSession(resource, preserveFocus, sideBySide);
 					},
 					onIgnoreSession: session => this._blockedIndicator.ignoreSession(session),
+					onShowAllSessions: () => {
+						this._openContextView?.close();
+						this._showSessionsPicker();
+					},
+					onIgnoreAllSessions: () => this._blockedIndicator.ignoreAllSessions(),
+					onClose: () => this._openContextView?.close(),
 				}));
 				list.setSessions(this._blockedIndicator.blockedSessions.get().map(entry => entry.session));
 				store.add(list.onDidChangeContentHeight(() => this.contextViewService.layout()));
@@ -710,23 +760,8 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 		// The blocked-sessions dropdown header's "Show All Sessions" action dismisses
 		// the dropdown (a transient context view) before opening the full sessions
 		// picker, so the popup doesn't linger behind it.
-		this._register(CommandsRegistry.registerCommand(SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID, accessor => {
-			openBlockedSessionsView?.close();
-			return accessor.get(ICommandService).executeCommand(SHOW_SESSIONS_PICKER_COMMAND_ID);
-		}));
-
-		// Contribute the action to the blocked-sessions dropdown header toolbar.
-		this._register(MenuRegistry.appendMenuItem(Menus.BlockedSessionsHeader, {
-			command: {
-				id: SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID,
-				title: localize('showAllSessions', "Show All Sessions"),
-				icon: Codicon.listSelection,
-			},
-			group: 'navigation',
-			order: 1,
-			when: IsAuxiliaryWindowContext.negate()
-		}));
-
+		this._register(registerBlockedSessionsHeaderCommands());
+		this._register(registerBlockedSessionsHeaderActions());
 		this._register(registerBlockedSessionsItemActions());
 
 		this._register(actionViewItemService.register(Menus.CommandCenter, Menus.TitleBarSessionTitle, (action, options) => {
@@ -748,5 +783,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.SessionsContrib + 100,
 	when: SessionsBlockedSessionsVisibleContext,
 	primary: KeyCode.Escape,
-	handler: () => openBlockedSessionsView?.close(),
+	handler: (_accessor, context?: IBlockedSessionsHeaderActionContext) => {
+		if (context) {
+			context.close();
+		} else {
+			openBlockedSessionsView?.close();
+		}
+	},
 });

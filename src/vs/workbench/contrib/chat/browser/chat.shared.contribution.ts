@@ -13,7 +13,7 @@ import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
@@ -1427,6 +1427,12 @@ configurationRegistry.registerConfiguration({
 		[AgentHostOpus48PromptEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.opus48Prompt.enabled', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+		},
+		[AgentHostToolSearchEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.copilot.toolSearch.enabled', "When enabled, Copilot SDK sessions defer MCP and non-core VS Code tools behind a tool-search tool so the model discovers them on demand instead of loading every tool definition up front."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 		},
