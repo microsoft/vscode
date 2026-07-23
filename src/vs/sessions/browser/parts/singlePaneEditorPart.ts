@@ -85,13 +85,8 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 	) {
 		super(editorPartsView, _instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 
-		// The docked tab bar always shows multiple tabs and keeps the managed
-		// Changes/Files tabs alongside file tabs, so ignore the user's
-		// `workbench.editor.showTabs` (single/none) and `workbench.editor.limit`.
-		this._register(this.enforcePartOptions({
-			showTabs: 'multiple',
-			limit: { enabled: false }
-		}));
+		// The docked tab bar always shows multiple tabs, ignoring `workbench.editor.showTabs` (single/none).
+		this._register(this.enforcePartOptions({ showTabs: 'multiple' }));
 	}
 
 	/**
