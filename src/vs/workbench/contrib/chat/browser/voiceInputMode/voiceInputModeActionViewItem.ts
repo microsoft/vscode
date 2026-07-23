@@ -31,9 +31,9 @@ import { IVoiceSessionController } from '../voiceClient/voiceSessionController.j
 import { IMicCaptureService } from '../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../voiceClient/ttsPlaybackService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
-import { ChatSpeechToTextConfigured } from '../actions/chatSpeechToTextActions.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
-import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceInputModeSegmentedSettingId, VoiceWalkthroughVersion } from './voiceInputMode.js';
+import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkthroughVersion } from './voiceInputMode.js';
+import { SegmentedVoiceInputModePillActive } from './voiceInputModeContextKeys.js';
 
 /** Built-in on-device dictation toggle (start/stop). */
 const DICTATION_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
@@ -61,18 +61,13 @@ export class ChatVoiceInputModeAction extends Action2 {
 			id: ChatVoiceInputModeAction.ID,
 			title: localize2('voiceInputMode', "Voice Input Mode"),
 			icon: Codicon.mic,
-			precondition: ContextKeyExpr.equals(`config.${VoiceInputModeSegmentedSettingId}`, true),
+			precondition: SegmentedVoiceInputModePillActive,
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(`config.${VoiceInputModeSegmentedSettingId}`, true),
+					SegmentedVoiceInputModePillActive,
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
-					// At least one of the two modes must be available for the pill to show.
-					ContextKeyExpr.or(
-						ChatSpeechToTextConfigured,
-						ContextKeyExpr.equals('config.agents.voice.enabled', true),
-					),
 				),
 				group: 'navigation',
 				order: -11,
@@ -105,15 +100,11 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 			// mouse click produces no key-up (leaving the turn pending) and a keyboard
 			// invocation creates an immediate empty turn. Keep it keybinding-only.
 			f1: false,
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals(`config.${VoiceInputModeSegmentedSettingId}`, true),
-				ContextKeyExpr.equals('config.agents.voice.enabled', true),
-			),
+			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(`config.${VoiceInputModeSegmentedSettingId}`, true),
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.inChatInput,
 				),

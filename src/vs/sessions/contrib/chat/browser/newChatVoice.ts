@@ -12,6 +12,7 @@ import { localize } from '../../../../nls.js';
 import { MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { SegmentedVoiceInputModePillInactive } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeContextKeys.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -110,9 +111,9 @@ const WHEN_NOT_DICTATING = ContextKeyExpr.and(
 	ContextKeyExpr.has('chatSpeechToTextPreparing').negate(),
 );
 
-// Hide the standalone voice controls when the experimental segmented voice/dictation
-// pill is enabled — the pill supersedes them on this composer.
-const WHEN_NO_SEGMENTED_PILL = ContextKeyExpr.notEquals('config.chat.voiceInputMode.segmentedToggle', true);
+// Hide the standalone voice controls when the segmented voice/dictation pill applies
+// on this composer — the pill supersedes them.
+const WHEN_NO_SEGMENTED_PILL = SegmentedVoiceInputModePillInactive;
 
 MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
 	command: { id: 'agentsVoice.connecting', title: localize('agentsVoice.connecting', "Connecting..."), icon: Codicon.loading },

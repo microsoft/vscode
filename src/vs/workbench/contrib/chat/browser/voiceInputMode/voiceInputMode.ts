@@ -7,11 +7,9 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, autorun, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
 
@@ -45,12 +43,6 @@ export type VoiceWalkthroughVersion = 'handsFree' | 'keyboardHold' | 'buttonHold
  * that mode is currently active (listening / connected / speaking).
  */
 export const CHAT_VOICE_INPUT_MODE = new RawContextKey<VoiceInputMode>('chatVoiceInputMode', 'voice', { type: 'string', description: localize('chatVoiceInputMode', "The currently selected voice input mode in the chat input (dictation or voice).") });
-
-/**
- * Rollout flag. When enabled, the chat input shows a single segmented Dictation/Voice
- * toggle instead of the two independent mic buttons. Default off until stabilized.
- */
-export const VoiceInputModeSegmentedSettingId = 'chat.voiceInputMode.segmentedToggle';
 
 const STORAGE_KEY = 'chat.voiceInputMode.selected';
 
@@ -321,17 +313,3 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 }
 
 registerSingleton(IVoiceInputModeService, VoiceInputModeService, InstantiationType.Delayed);
-
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	id: 'chatSidebar',
-	order: 100,
-	type: 'object',
-	properties: {
-		[VoiceInputModeSegmentedSettingId]: {
-			type: 'boolean',
-			default: true,
-			tags: ['experimental'],
-			description: localize('chat.voiceInputMode.segmentedToggle', "Show a single segmented Dictation / Voice Mode toggle in the chat input instead of two separate microphone buttons."),
-		}
-	}
-});
