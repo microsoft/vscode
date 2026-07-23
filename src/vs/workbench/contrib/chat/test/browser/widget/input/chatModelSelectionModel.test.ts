@@ -184,6 +184,56 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
+	test('restores a remembered model after split same-vendor catalog publication', () => {
+		const first = model('test/first');
+		const remembered = model('test/remembered');
+		const modelChanges = disposables.add(new Emitter<string>());
+		let models: ILanguageModelChatMetadataAndIdentifier[] = [];
+		const applied: string[] = [];
+		const runtime: IChatInputModelSelectionRuntime = {
+			location: ChatAgentLocation.Chat,
+			getCurrentModeKind: () => ChatModeKind.Ask,
+			getCurrentSessionType: () => undefined,
+			isEmpty: () => true,
+			getModels: () => models,
+			getAllModels: () => models,
+			requiresCustomModels: () => false,
+			getConfiguredModelValue: () => undefined,
+			resolveModelIdentifier: identifier => resolveModelIdentifierFromCatalog(models, identifier, {
+				hasLiveModels: vendor => models.some(model => model.metadata.vendor === vendor),
+				hasResolved: () => true,
+			}),
+			subscribeToModelChanges: listener => modelChanges.event(listener),
+			getBoundConversationKey: () => 'chat:one',
+			getVisibleConversationKey: () => 'chat:one',
+			restoreModelConfiguration: () => { },
+			applyModel: selected => applied.push(selected.identifier),
+		};
+		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
+
+		controller.initialize(remembered.identifier, () => { });
+		models = [first];
+		modelChanges.fire('partial');
+		const resolutionAfterPartial = runtime.resolveModelIdentifier(remembered.identifier).kind;
+		const pendingAfterPartial = controller.hasPendingIntent();
+		models = [first, remembered];
+		modelChanges.fire('complete');
+
+		assert.deepStrictEqual({
+			resolutionAfterPartial,
+			pendingAfterPartial,
+			pendingAfterComplete: controller.hasPendingIntent(),
+			applied,
+			current: controller.currentModel.get()?.identifier,
+		}, {
+			resolutionAfterPartial: 'unavailable',
+			pendingAfterPartial: true,
+			pendingAfterComplete: false,
+			applied: [first.identifier, remembered.identifier],
+			current: remembered.identifier,
+		});
+	});
+
 	test('explicit selection cancels an eventual remembered-model restore', () => {
 		const modelChanges = disposables.add(new Emitter<string>());
 		const fallback = model('test/fallback');
@@ -313,7 +363,7 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
-	test('location default improves the fallback and settles conclusively absent remembered intent', () => {
+	test('location default improves the fallback without canceling remembered intent', () => {
 		const modelChanges = disposables.add(new Emitter<string>());
 		const fallback = model('test/fallback');
 		const remembered = model('test/remembered');
@@ -339,14 +389,14 @@ suite('ChatInputModelSelectionController', () => {
 			applied,
 			current: controller.currentModel.get()?.identifier,
 		}, {
-			pendingAfterDefault: false,
+			pendingAfterDefault: true,
 			pendingAfterLoad: false,
-			applied: [fallback.identifier, locationDefault.identifier],
-			current: locationDefault.identifier,
+			applied: [fallback.identifier, locationDefault.identifier, remembered.identifier],
+			current: remembered.identifier,
 		});
 	});
 
-	test('repairs a removed fallback and settles conclusively absent remembered intent', () => {
+	test('repairs a removed fallback without canceling remembered intent', () => {
 		const modelChanges = disposables.add(new Emitter<string>());
 		const fallback = model('test/fallback');
 		const replacement = model('test/replacement');
@@ -368,10 +418,10 @@ suite('ChatInputModelSelectionController', () => {
 			applied,
 			current: controller.currentModel.get()?.identifier,
 		}, {
-			pendingAfterRepair: false,
+			pendingAfterRepair: true,
 			pendingAfterLoad: false,
-			applied: [fallback.identifier, replacement.identifier],
-			current: replacement.identifier,
+			applied: [fallback.identifier, replacement.identifier, remembered.identifier],
+			current: remembered.identifier,
 		});
 	});
 
@@ -966,7 +1016,7 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
-	test('initialize settles remembered intent after a conclusively empty catalog update', () => {
+	test('initialize keeps remembered intent through empty catalog updates', () => {
 		const sessionType = 'test-session';
 		const remembered = targetedModel('test:remembered', sessionType);
 		const modelChanges = disposables.add(new Emitter<string>());
@@ -998,7 +1048,7 @@ suite('ChatInputModelSelectionController', () => {
 		// An intermediate empty re-resolution must not end the wait or apply a default.
 		modelChanges.fire('still-empty');
 		const pendingAfterEmpty = controller.hasPendingIntent();
-		// The agent-host pool finally publishes its models.
+		// The remembered model finally appears.
 		models = [remembered];
 		modelChanges.fire('loaded');
 
@@ -1012,7 +1062,7 @@ suite('ChatInputModelSelectionController', () => {
 		}, {
 			pendingAfterInit: true,
 			appliedAfterInit: [],
-			pendingAfterEmpty: false,
+			pendingAfterEmpty: true,
 			pendingAfterLoad: false,
 			applied: [remembered.identifier],
 			current: remembered.identifier,
@@ -1139,13 +1189,8 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
-	test('initialize waits for a conclusively-absent remembered model and swaps it in when it appears', () => {
-		// Grace-independent restore. With the simple (conclusive) resolver the remembered model is
-		// `unavailable` at cold start, so `initialize` applies a provisional fallback. The refactor
-		// watches the catalog from the provisional-fallback path too (not only the `pending` path),
-		// so when the remembered model shows up on a later change it is swapped in — instead of being
-		// lost. Reverting the `initialize` restructure (arming the wait only for `pending`) leaves no
-		// wait armed here, so `pendingAfterInit` is false and the remembered model is never applied.
+	test('initialize restores a remembered model after a non-empty initial catalog', () => {
+		// The initial fallback remains provisional even when the catalog reports the remembered model unavailable.
 		const modelChanges = disposables.add(new Emitter<string>());
 		const fallback = model('test/fallback');
 		const remembered = model('test/remembered');
@@ -1186,54 +1231,6 @@ suite('ChatInputModelSelectionController', () => {
 			pendingAfterLoad: false,
 			applied: [fallback.identifier, remembered.identifier],
 			current: remembered.identifier,
-		});
-	});
-
-	test('initialize stops waiting when the pool loads without the remembered model', () => {
-		// Termination guard: the wait must not linger. Once the remembered model is conclusively
-		// absent (the pool loaded with other models but not it), settle on the already-applied
-		// fallback and tear the subscription down — without re-applying the fallback.
-		const modelChanges = disposables.add(new Emitter<string>());
-		const fallback = model('test/fallback');
-		const other = model('test/other');
-		const remembered = model('test/remembered');
-		let models = [fallback];
-		const applied: string[] = [];
-		const runtime: IChatInputModelSelectionRuntime = {
-			location: ChatAgentLocation.Chat,
-			getCurrentModeKind: () => ChatModeKind.Ask,
-			getCurrentSessionType: () => undefined,
-			isEmpty: () => true,
-			getModels: () => models,
-			getAllModels: () => models,
-			requiresCustomModels: () => false,
-			getConfiguredModelValue: () => undefined,
-			resolveModelIdentifier: identifier => resolveModelIdentifier(models, identifier, true),
-			subscribeToModelChanges: listener => modelChanges.event(listener),
-			getBoundConversationKey: () => 'chat:one',
-			getVisibleConversationKey: () => 'chat:one',
-			restoreModelConfiguration: () => { },
-			applyModel: selected => {
-				applied.push(selected.identifier);
-			},
-		};
-		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
-
-		controller.initialize(remembered.identifier, () => { });
-		const pendingAfterInit = controller.hasPendingIntent();
-		models = [fallback, other];
-		modelChanges.fire('loaded-without-remembered');
-
-		assert.deepStrictEqual({
-			pendingAfterInit,
-			pendingAfterLoad: controller.hasPendingIntent(),
-			applied,
-			current: controller.currentModel.get()?.identifier,
-		}, {
-			pendingAfterInit: true,
-			pendingAfterLoad: false,
-			applied: [fallback.identifier],
-			current: fallback.identifier,
 		});
 	});
 

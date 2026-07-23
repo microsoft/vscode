@@ -58,6 +58,7 @@ import {
 	type ProtocolMessage,
 } from '../../common/state/sessionProtocol.js';
 import { AhpSnapshotRecorder, type IAhpSnapshotNormalization, type IAhpSnapshotOptions } from './e2e/harness/ahpSnapshot.js';
+import { isWindows } from '../../../../base/common/platform.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -727,10 +728,17 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			...(options?.homeDir ? {
 				HOME: options.homeDir,
 				USERPROFILE: options.homeDir,
+				APPDATA: join(options.homeDir, 'AppData', 'Roaming'),
+				LOCALAPPDATA: join(options.homeDir, 'AppData', 'Local'),
 				XDG_CONFIG_HOME: join(options.homeDir, '.config'),
 				COPILOT_HOME: join(options.homeDir, '.copilot'),
+				COPILOT_SKILLS_DIRS: undefined,
 				CLAUDE_CONFIG_DIR: undefined,
 				CODEX_HOME: undefined,
+				...(isWindows && options.homeDir.match(/^[A-Za-z]:[\\/]/) ? {
+					HOMEDRIVE: options.homeDir.slice(0, 2),
+					HOMEPATH: options.homeDir.slice(2).replace(/\//g, '\\'),
+				} : {}),
 			} : {}),
 			// Codex defaults to disabled; opt it in for the agent host e2e suite when a
 			// codex SDK root is supplied so the provider actually registers.

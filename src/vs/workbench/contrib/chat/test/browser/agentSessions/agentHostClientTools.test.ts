@@ -9,6 +9,7 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { constObservable, observableValue, autorun } from '../../../../../../base/common/observable.js';
@@ -17,6 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, parseDefaultChatUri, type ChatState, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -187,6 +189,17 @@ suite('AgentHostClientTools', () => {
 
 			const proto = toolResultToProtocol(result, 'myTool');
 			assert.strictEqual(proto.pastTenseMessage, 'Ran myTool');
+		});
+
+		test('preserves markdown tool result messages', () => {
+			const result: IToolResult = {
+				content: [],
+				toolResultMessage: new MarkdownString('Opened [Browser](vscode-browser:/page-1?vscodeLinkType=browser)'),
+			};
+
+			assert.deepStrictEqual(toolResultToProtocol(result, 'open_browser_page').pastTenseMessage, {
+				markdown: 'Opened [Browser](vscode-browser:/page-1?vscodeLinkType=browser)',
+			});
 		});
 
 		test('converts text and data content parts', () => {
@@ -612,6 +625,15 @@ suite('AgentHostClientTools', () => {
 			source: ToolDataSource.Internal,
 		};
 
+		const testToolSearchTool: IToolData = {
+			id: 'vscode.toolSearch',
+			toolReferenceName: CLIENT_TOOL_SEARCH_REFERENCE_NAME,
+			displayName: 'Search Tools',
+			modelDescription: 'Searches for tools',
+			source: ToolDataSource.Internal,
+			inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+		};
+
 		async function provideSessionWithReadyRunTaskTool(handler: AgentHostSessionHandler, connection: MockAgentHostConnection): Promise<void> {
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
@@ -742,6 +764,111 @@ suite('AgentHostClientTools', () => {
 			assert.ok(connection.dispatchedActions.some(entry => isChatAction(entry.action)
 				&& entry.action.type === ActionType.ChatToolCallComplete
 				&& entry.action.toolCallId === 'tool-call-1'));
+		});
+
+		test('tool-search completion drops candidates while preserving unknown metadata', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testToolSearchTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatURI = URI.parse(buildDefaultChatUri(backendSession));
+
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'find a calculator', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-search-call-1',
+				toolName: RUNTIME_TOOL_SEARCH_TOOL_NAME,
+				displayName: 'Search Tools',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-search-call-1',
+				invocationMessage: 'Search Tools',
+				toolInput: '{"query":"calculator"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: {
+					toolSearchCandidates: [{ name: 'calculator', description: 'Adds numbers' }],
+					futureMetadata: { preserve: true },
+				},
+			} as ChatAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			await timeout(0);
+
+			const completion = connection.dispatchedActions.find(entry => isChatAction(entry.action)
+				&& entry.action.type === ActionType.ChatToolCallComplete
+				&& entry.action.toolCallId === 'tool-search-call-1');
+			assert.ok(completion && isChatAction(completion.action) && completion.action.type === ActionType.ChatToolCallComplete);
+			assert.deepStrictEqual({
+				parameters: toolsService.invokedToolCalls[0]?.parameters,
+				meta: completion.action._meta,
+			}, {
+				parameters: {
+					query: 'calculator',
+					candidateTools: [{ name: 'calculator', description: 'Adds numbers' }],
+				},
+				meta: { futureMetadata: { preserve: true } },
+			});
+		});
+
+		test('invalid tool-search input drops candidates while preserving unknown metadata', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testToolSearchTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatURI = URI.parse(buildDefaultChatUri(backendSession));
+
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'find a calculator', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-search-call-invalid',
+				toolName: RUNTIME_TOOL_SEARCH_TOOL_NAME,
+				displayName: 'Search Tools',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-search-call-invalid',
+				invocationMessage: 'Search Tools',
+				toolInput: '{invalid',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: {
+					toolSearchCandidates: [{ name: 'calculator', description: 'Adds numbers' }],
+					futureMetadata: { preserve: true },
+				},
+			} as ChatAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			await timeout(0);
+
+			const completion = connection.dispatchedActions.find(entry => isChatAction(entry.action)
+				&& entry.action.type === ActionType.ChatToolCallComplete
+				&& entry.action.toolCallId === 'tool-search-call-invalid');
+			assert.ok(completion && isChatAction(completion.action) && completion.action.type === ActionType.ChatToolCallComplete);
+			assert.deepStrictEqual({
+				invokedToolCalls: toolsService.invokedToolCalls.length,
+				success: completion.action.result.success,
+				meta: completion.action._meta,
+			}, {
+				invokedToolCalls: 0,
+				success: false,
+				meta: { futureMetadata: { preserve: true } },
+			});
 		});
 
 		test('shows another client tool as cancellable progress without invoking or confirming it', async () => {

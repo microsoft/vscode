@@ -515,7 +515,7 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'auto',
 			},
-			tags: ['experimental', 'advanced'],
+			tags: ['experimental'],
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
 		},

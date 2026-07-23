@@ -5,13 +5,13 @@
 
 import { IObservable } from '../../../../../base/common/observable.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { EditorPartModalContext } from '../../../../../workbench/common/contextkeys.js';
+import { EditorPartModalVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { localize } from '../../../../../nls.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from './newSessionTour.js';
-import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
+import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
 
 /**
  * Spotlight steps that walk a brand-new user through the new-session view the
@@ -62,6 +62,7 @@ const newSessionViewPayload: ISpotlightPayload = {
 			description: localize('sessions.onboarding.newSessionView.workspace.description', "Choose between the folders and repositories you work in. Run multiple sessions at once in a single workspace, or across many."),
 			placement: 'above',
 			when: SessionWorkspacePickerVisibleContext,
+			allowTargetInteraction: true,
 		},
 		{
 			id: 'harnessPicker',
@@ -70,6 +71,7 @@ const newSessionViewPayload: ISpotlightPayload = {
 			description: localize('sessions.onboarding.newSessionView.harness.description', "Each has different strengths; choose what works best for your task and switch anytime."),
 			placement: 'above',
 			when: SessionHarnessPickerVisibleContext,
+			allowTargetInteraction: true,
 		},
 		{
 			id: 'isolation',
@@ -78,6 +80,7 @@ const newSessionViewPayload: ISpotlightPayload = {
 			description: localize('sessions.onboarding.newSessionView.isolation.description', "Use a worktree to work on multiple tasks in the same project without conflicts. Each task stays isolated, so you can experiment freely and safely."),
 			placement: 'below',
 			when: SessionIsolationPickerVisibleContext,
+			allowTargetInteraction: true,
 		},
 	],
 };
@@ -98,7 +101,7 @@ export function createNewSessionViewTour(signal: IObservable<boolean>): IOnboard
 	return {
 		id: NEW_SESSION_VIEW_TOUR_ID,
 		seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
-		when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorPartModalContext.toNegated()),
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, IsNewChatSessionContext, EditorPartModalVisibleContext.toNegated()),
 		trigger: { kind: 'observable', signal },
 		priority: 100,
 		experiment: NEW_SESSION_VIEW_EXPERIMENT,

@@ -742,13 +742,13 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	 * can answer recall questions across reconnects without backend
 	 * persistence. See ``IVoicePriorTimelineEntry``.
 	 */
-	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[]): void {
+	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			const sessionContext = { ...context, display_locale: this._getLanguage() };
 			this._seedTracking(sessionContext);
 			// This client drives narration itself via `requestNarration`, so opt out
 			// of the backend's default context-delta auto-narration to avoid double narration.
-			const payload: Record<string, unknown> = { type: 'start_session', session_context: sessionContext, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false };
+			const payload: Record<string, unknown> = { type: 'start_session', session_context: sessionContext, machine_id: machineId, turn_config: turnConfigOverride ?? this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false };
 			if (priorTimeline && priorTimeline.length > 0) {
 				payload.prior_timeline = priorTimeline;
 			}
