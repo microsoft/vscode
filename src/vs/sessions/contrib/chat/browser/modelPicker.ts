@@ -69,7 +69,7 @@ export class ModelPicker extends Disposable {
 			getModels: () => [...this._selectionModel.state.get().models],
 			getPresentationOptions: () => ({
 				...this._selectionModel.state.get().options,
-				useGenericModelIcon: false,
+				showModelIcon: true,
 			}),
 			isCacheWarm: () => {
 				const session = this._sessionContext.session.get();

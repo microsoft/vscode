@@ -1751,7 +1751,10 @@ suite('ChatService', () => {
 		ChatSendResult.assertSent(response);
 		await response.data.responseCompletePromise;
 
-		assert.deepStrictEqual(providerInvokedEvents.map(event => event.sessionType), ['remote-agent-host']);
+		assert.deepStrictEqual(providerInvokedEvents.map(event => ({
+			sessionType: event.sessionType,
+			hasRequestId: typeof event.requestId === 'string',
+		})), [{ sessionType: 'remote-agent-host', hasRequestId: true }]);
 	});
 
 	test('sendRequest with agentIdSilent passes agent host session capabilities to the request parser', async () => {

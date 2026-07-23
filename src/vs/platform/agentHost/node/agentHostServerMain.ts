@@ -16,7 +16,7 @@ globalThis._VSCODE_FILE_ROOT = fileURLToPath(new URL('../../../..', import.meta.
 import * as fs from 'fs';
 import * as os from 'os';
 import type { Event } from '../../../base/common/event.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { raceTimeout } from '../../../base/common/async.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -83,6 +83,7 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -183,6 +184,7 @@ function parseServerOptions(): IServerOptions {
 async function main(): Promise<void> {
 	const options = parseServerOptions();
 	const disposables = new DisposableStore();
+	const errorTelemetry = disposables.add(new MutableDisposable<ErrorTelemetry>());
 
 	// Services
 	const productService: IProductService = { _serviceBrand: undefined, ...product };
@@ -238,6 +240,7 @@ async function main(): Promise<void> {
 	const proxyResolver = networkServices.proxyResolver;
 	const fetchFn = proxyResolver.fetch.bind(proxyResolver);
 	const telemetryService = await createAgentHostTelemetryService({ environmentService, productService, fileService, loggerService, logService, disposables, disableTelemetry: options.quiet, fetchFn, requestService: networkServices.requestService });
+	errorTelemetry.value = new ErrorTelemetry(telemetryService);
 	diServices.set(ITelemetryService, telemetryService);
 	const instantiationService = new InstantiationService(diServices);
 	const fileMonitorService = disposables.add(instantiationService.createInstance(AgentHostFileMonitorService));
