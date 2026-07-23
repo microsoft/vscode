@@ -21,6 +21,8 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IsDevelopmentContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -120,6 +122,13 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 		const controller = accessor.get(IVoiceSessionController);
 		const keybindingService = accessor.get(IKeybindingService);
 
+		// Enforce mutual exclusion: if built-in dictation is recording, cancel it
+		// before starting voice capture so the two never record simultaneously.
+		const speechToText = accessor.get(IChatSpeechToTextService);
+		if (speechToText.state !== ChatSpeechToTextState.Idle) {
+			speechToText.cancel();
+		}
+
 		// Capture the key-hold FIRST (synchronously) — it must be requested before any await.
 		const holdMode = keybindingService.enableKeybindingHoldMode(ChatVoiceInputModeToggleListenAction.ID);
 
@@ -192,6 +201,7 @@ export function registerVoiceInputModeSimulateActions(): void {
 					id: `workbench.action.chat.voiceInputMode.simulate.walkthrough.${version}`,
 					title: { value: `Voice Input Mode: Prototype Walkthrough \u2014 ${label}`, original: `Voice Input Mode: Prototype Walkthrough \u2014 ${label}` },
 					category: { value: 'Developer', original: 'Developer' },
+					precondition: IsDevelopmentContext,
 					f1: true,
 				});
 			}
@@ -208,6 +218,7 @@ export function registerVoiceInputModeSimulateActions(): void {
 				id: 'workbench.action.chat.voiceInputMode.simulate.step',
 				title: { value: 'Voice Input Mode: Prototype Step (Next State)', original: 'Voice Input Mode: Prototype Step (Next State)' },
 				category: { value: 'Developer', original: 'Developer' },
+				precondition: IsDevelopmentContext,
 				f1: true,
 			});
 		}
@@ -223,6 +234,7 @@ export function registerVoiceInputModeSimulateActions(): void {
 				id: 'workbench.action.chat.voiceInputMode.simulate.clear',
 				title: { value: 'Voice Input Mode: Simulate \u2014 Clear', original: 'Voice Input Mode: Simulate \u2014 Clear' },
 				category: { value: 'Developer', original: 'Developer' },
+				precondition: IsDevelopmentContext,
 				f1: true,
 			});
 		}
@@ -239,6 +251,7 @@ export function registerVoiceInputModeSimulateActions(): void {
 					// Dev-only utility — not localized.
 					title: { value: `Voice Input Mode: Simulate \u2014 ${label}`, original: `Voice Input Mode: Simulate \u2014 ${label}` },
 					category: { value: 'Developer', original: 'Developer' },
+					precondition: IsDevelopmentContext,
 					f1: true,
 				});
 			}
@@ -300,6 +313,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IChatSpeechToTextService private readonly chatSpeechToTextService: IChatSpeechToTextService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super(undefined, action);
 	}
@@ -388,8 +402,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 				? localize('voiceInputMode.stopListening', "Stop Listening")
 				: localize('voiceInputMode.startOrHoldListening', "Tap to start, or hold to talk")));
 		// The listen cell supports two gestures: a tap toggles listening on/off, and a
-		// press-and-hold records while held and sends on release (hold-to-talk).
-		this._register(dom.addDisposableListener(this._listenCell, dom.EventType.MOUSE_DOWN, e => {
+		// press-and-hold records while held and sends on release (hold-to-talk). Use the
+		// generic pointer-aware listener so press-and-hold also starts on iOS.
+		this._register(dom.addDisposableGenericMouseDownListener(this._listenCell, (e: MouseEvent) => {
 			if (e.button !== 0) {
 				return;
 			}
@@ -513,6 +528,11 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}));
 
 		this._register({ dispose: () => this._stopBarAnimation() });
+		// Re-sync if the reduced-motion preference changes while the voice cell is live.
+		this._register(this.accessibilityService.onDidChangeReducedMotion(() => {
+			this._stopBarAnimation();
+			this._syncBarAnimation();
+		}));
 	}
 
 	/** Start or stop the audio-reactive bar loop based on live + hover state. */
@@ -531,6 +551,15 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 	 */
 	private _startBarAnimation(): void {
 		if (this._barAnimationFrame !== undefined) {
+			return;
+		}
+		// Respect reduced-motion: skip both the rAF audio-reactive loop and the CSS
+		// keyframe fallback, rendering the bars at a flat static height instead.
+		if (this.accessibilityService.isMotionReduced()) {
+			for (const bar of this._voiceBarEls) {
+				bar.style.animation = 'none';
+				bar.style.height = '3px';
+			}
 			return;
 		}
 		const win = getWindow(this._voiceCell);
@@ -674,7 +703,8 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			}
 		}, VoiceInputModeActionViewItem.HOLD_THRESHOLD_MS);
 		// End the gesture on release anywhere (in case the pointer leaves the button).
-		this._listenPointerUp.value = dom.addDisposableListener(win, dom.EventType.MOUSE_UP, e => this._endListenPointerHold(e));
+		// Generic pointer-aware listener so an iOS pointer hold also finishes and sends.
+		this._listenPointerUp.value = dom.addDisposableGenericMouseUpListener(win, (e: MouseEvent) => this._endListenPointerHold(e));
 	}
 
 	private _endListenPointerHold(e?: MouseEvent): void {

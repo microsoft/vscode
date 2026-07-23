@@ -835,7 +835,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			const dict = this.voiceInputModeService.dictationAvailable.read(reader);
 			const voice = this.voiceInputModeService.voiceAvailable.read(reader);
 			const handsFree = this.voiceInputModeService.handsFree.read(reader);
-			const connected = this.voiceSessionController.isConnected.read(reader) || this.voiceSessionController.isConnecting.read(reader);
+			// The voice-only branch's "session active" must match the main-window
+			// `AGENTS_VOICE_CONNECTED` context key, which tracks `isConnected` only.
+			// Counting `isConnecting` here would show the pill while the scoped
+			// standalone toolbar still shows its Connecting item (duplicate controls).
+			const connected = this.voiceSessionController.isConnected.read(reader);
 			const pillActive = (dict && voice) || (voice && !dict && !handsFree && connected);
 			pillContainer.classList.toggle('hidden', !pillActive);
 			// Mirror the pill's active state onto the input container so voice glow
@@ -893,7 +897,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			const dict = this.voiceInputModeService.dictationAvailable.get();
 			const voice = this.voiceInputModeService.voiceAvailable.get();
 			const handsFree = this.voiceInputModeService.handsFree.get();
-			const pillActive = (dict && voice) || (voice && !dict && !handsFree && voiceActive);
+			// Match the pill autorun / `AGENTS_VOICE_CONNECTED`: the voice-only branch
+			// keys off `isConnected` only, not the connecting phase.
+			const sessionActive = this.voiceSessionController.isConnected.get();
+			const pillActive = (dict && voice) || (voice && !dict && !handsFree && sessionActive);
 			button.classList.toggle('hidden', !sttService.isConfigured || voiceActive || pillActive);
 		};
 		updateVisibility();

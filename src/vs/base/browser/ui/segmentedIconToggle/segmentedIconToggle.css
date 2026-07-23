@@ -80,11 +80,16 @@
 	width: var(--segmented-icon-toggle-single-width, 54px);
 }
 
-/* Absent cells collapse to zero width (icons slide into place as the housing recenters). */
+/* Absent cells collapse to zero width (icons slide into place as the housing recenters).
+ * `visibility: hidden` (delayed until the width/opacity transition finishes) also removes
+ * the collapsed native button from the Tab order and accessibility tree, so it can't be
+ * focused or keyboard-activated while invisible. */
 .monaco-segmented-icon-toggle-cell.collapsed {
 	width: 0;
 	opacity: 0;
 	pointer-events: none;
+	visibility: hidden;
+	transition: width 0.3s cubic-bezier(0.2, 0.9, 0.2, 1), opacity 0.22s ease, color 0.2s ease, visibility 0s linear 0.3s;
 }
 
 /* Respect reduced-motion preferences: no sliding/fading of cells. Hosts that gate motion
