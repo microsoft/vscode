@@ -620,6 +620,24 @@ suite('LanguageModels - Model Change Events', function () {
 		assert.strictEqual(firedVendorId, 'test-vendor', 'Should fire event when new models are added');
 	});
 
+	test('fires onChange when the first authoritative model resolution is empty', async function () {
+		const events: string[] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(vendorId => events.push(vendorId)));
+		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); },
+		}));
+
+		const models = await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+
+		assert.deepStrictEqual({ models, events }, {
+			models: [],
+			events: ['test-vendor'],
+		});
+	});
+
 	test('does not fire onChange event when models are unchanged', async function () {
 		const models = [{
 			metadata: {
@@ -2024,4 +2042,3 @@ suite('LanguageModels - provider usage telemetry', function () {
 		assert.strictEqual(events.length, 0);
 	});
 });
-

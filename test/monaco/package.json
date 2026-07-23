@@ -5,7 +5,7 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "compile": "node ../../node_modules/typescript/bin/tsc",
+    "compile": "node ../../node_modules/typescript/bin/tsc6",
     "bundle-webpack": "webpack --config ./webpack.config.js --bail",
     "esm-check": "node esm-check/esm-check.js",
     "test": "node runner.js"

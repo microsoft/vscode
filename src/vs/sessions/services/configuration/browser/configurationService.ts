@@ -39,7 +39,7 @@ import '../../../../workbench/services/configuration/browser/configurationServic
 class SessionsDefaultConfiguration extends DefaultConfiguration {
 
 	protected override getDefaultValue(_key: string, propertySchema: IRegisteredConfigurationPropertySchema): unknown {
-		if (propertySchema.agentsWindow) {
+		if (propertySchema.agentsWindow && propertySchema.defaultValueSource !== 'experiments') {
 			return deepClone(propertySchema.agentsWindow.default);
 		}
 		return super.getDefaultValue(_key, propertySchema);

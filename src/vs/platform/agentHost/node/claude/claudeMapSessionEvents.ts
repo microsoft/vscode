@@ -221,6 +221,7 @@ export function mapSDKMessageToAgentSignals(
 	logService: ILogService,
 	registry: SubagentRegistry,
 	clientToolOwner?: (toolName: string) => string | undefined,
+	turnDuration?: number,
 ): AgentSignal[] {
 	if (logService.getLevel() <= LogLevel.Trace) {
 		try {
@@ -239,7 +240,7 @@ export function mapSDKMessageToAgentSignals(
 				registry,
 			);
 		case 'result':
-			return mapResult(message, chat, turnId, state, logService, registry);
+			return mapResult(message, chat, turnId, turnDuration, state, logService, registry);
 		case 'assistant':
 			return tagWithParent(
 				mapAssistantCanonical(message, chat, turnId, state, message.parent_tool_use_id, registry),
@@ -423,6 +424,7 @@ function mapResult(
 	message: Extract<SDKMessage, { type: 'result' }>,
 	session: URI,
 	turnId: string,
+	turnDuration: number | undefined,
 	state: ClaudeMapperState,
 	logService: ILogService,
 	registry: SubagentRegistry,
@@ -469,6 +471,7 @@ function mapResult(
 			action: {
 				type: ActionType.ChatError,
 				turnId,
+				duration: typeof turnDuration === 'number' && Number.isFinite(turnDuration) ? Math.max(0, turnDuration) : 0,
 				error: {
 					errorType: message.subtype,
 					...extractForwardedErrorInfo(errorText),
@@ -720,4 +723,3 @@ function makeContentBlockPartId(
 	}
 	return `${turnId}#${messageId}#${index}`;
 }
-

@@ -38,6 +38,43 @@ import { createResponsesRequestBody, getResponsesApiCompactionThreshold, process
 import { filterHistoryImages } from './imageLimits';
 
 /**
+ * Rewrites tool call IDs into Kimi's native function-indexed format while preserving tool result pairings.
+ */
+function normalizeKimiToolCallIds(messages: CAPIChatMessage[]): CAPIChatMessage[] {
+	let nextIndex = 0;
+	const mappedToolCallIds = new Map<string, string>();
+
+	return messages.map(message => {
+		if (message.role === OpenAI.ChatRole.Assistant && message.tool_calls) {
+			const toolCalls = message.tool_calls.map(toolCall => {
+				const toolName = toolCall.function.name;
+				if (!toolName) {
+					return toolCall;
+				}
+
+				const id = `functions.${toolName}:${nextIndex++}`;
+				if (toolCall.id) {
+					mappedToolCallIds.set(toolCall.id, id);
+				}
+				return { ...toolCall, id };
+			});
+			return { ...message, tool_calls: toolCalls };
+		}
+
+		if (message.role === OpenAI.ChatRole.Tool) {
+			if (message.tool_call_id) {
+				const toolCallId = mappedToolCallIds.get(message.tool_call_id);
+				if (toolCallId) {
+					return { ...message, tool_call_id: toolCallId };
+				}
+			}
+		}
+
+		return message;
+	});
+}
+
+/**
  * The default processor for the stream format from CAPI
  */
 export async function defaultChatResponseProcessor(
@@ -386,8 +423,25 @@ export class ChatEndpoint implements IChatEndpoint {
 			}
 		}
 
-		// Force low reasoning effort for Gemini 3 models when the experiment is enabled
-		if (this.family.toLowerCase().includes('gemini-3')) {
+		// Apply an explicit reasoning effort for models that declare supported
+		// levels. Unlike the Responses and Messages APIs (which map this in their
+		// own body builders), the CAPI chat-completions path does not, so the UI
+		// thinking-effort selection (surfaced via modelCapabilities) and the
+		// ReasoningEffortOverride setting would otherwise be dropped. The override
+		// setting takes precedence over the UI selection; both are validated
+		// against the levels the model advertises.
+		const declaredLevels = this.supportsReasoningEffort?.length ? this.supportsReasoningEffort : undefined;
+		if (declaredLevels) {
+			const candidateEffort = this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
+				?? options.modelCapabilities?.reasoningEffort;
+			if (typeof candidateEffort === 'string' && candidateEffort.length > 0 && declaredLevels.includes(candidateEffort)) {
+				body.reasoning_effort = candidateEffort;
+			}
+		}
+
+		// Force low reasoning effort for Gemini 3 models when the experiment is
+		// enabled, unless the user has already selected an explicit effort above.
+		if (body.reasoning_effort === undefined && this.family.toLowerCase().includes('gemini-3')) {
 			const lowReasoningEnabled = this._configurationService.getExperimentBasedConfig(
 				ConfigKey.EnableGemini3LowReasoningEffort,
 				this._expService
@@ -399,6 +453,9 @@ export class ChatEndpoint implements IChatEndpoint {
 
 		// Force temperature and top_p for Kimi models regardless of what the client would otherwise send (per Moonshot recommendations). Temperature 0 strongly increases chances of looping.
 		if (isKimiFamily(this)) {
+			if (body.messages) {
+				body.messages = normalizeKimiToolCallIds(body.messages);
+			}
 			body.temperature = 1;
 			body.top_p = 0.95;
 		}
@@ -442,7 +499,7 @@ export class ChatEndpoint implements IChatEndpoint {
 			useWebSocket
 			&& options.conversationId
 			&& options.turnId
-			&& this._chatWebSocketService.hasActiveConnection(options.conversationId)
+			&& this._chatWebSocketService.hasActiveConnection({ conversationId: options.conversationId, modelId: this.model, connectionId: options.webSocketConnectionId })
 		);
 		const response = await this._makeChatRequest2({
 			...options,

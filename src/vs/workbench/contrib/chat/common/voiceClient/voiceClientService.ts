@@ -21,7 +21,7 @@ export interface IVoiceSessionContext {
 		id: string;
 		last_message: string | null;
 	};
-	display_locale?: string;
+	display_locale: string;
 }
 
 /**
@@ -31,6 +31,10 @@ export interface IVoiceTranscription {
 	readonly text: string;
 	readonly status?: 'partial' | 'final';
 	readonly committed?: string;
+	/** Client capture turn identifier translated from the wire's `turn_id`. */
+	readonly turnId?: string;
+	/** Monotonically increasing backend revision within a scoped turn. */
+	readonly revision?: number;
 }
 
 export interface IVoiceAudioResponse {
@@ -39,6 +43,45 @@ export interface IVoiceAudioResponse {
 	readonly isFinal: boolean;
 	readonly codingSessionId?: string;
 	readonly transcript?: string;
+	/** Backend turn identifier from the wire's `turn_id`. */
+	readonly turnId?: string;
+	/**
+	 * Stable id correlating all chunks of ONE narration/response stream, echoed
+	 * by the backend from the `narration_id` the client sent on
+	 * `request_narration` (or the backend's own `turn_id`). Lets playback routing
+	 * decide a response's fate once and keep every chunk on that decision, even
+	 * when responses for different sessions interleave. Absent for untagged
+	 * direct replies and for backends that don't yet echo it (legacy fallback).
+	 */
+	readonly responseId?: string;
+}
+
+export interface IVoiceBargeIn {
+	readonly turnId: string;
+	readonly interruptedTurnId: string;
+}
+
+/** Disposition of a client `request_narration`, reported by `narration_ack`. */
+export type IVoiceNarrationDisposition = 'accepted' | 'busy' | 'invalid';
+
+/** The backend's acknowledgement of a `request_narration`. */
+export interface IVoiceNarrationAck {
+	readonly narrationId: string;
+	readonly codingSessionId: string;
+	readonly disposition: IVoiceNarrationDisposition;
+	/** Present on `busy`/`invalid`: why the narration could not play. */
+	readonly reason?: string;
+}
+
+/**
+ * A correlation-only server signal about a previously requested narration:
+ * `narration_unblocked` (the guard cleared, you may retry) or
+ * `narration_interrupted` (an accepted narration was cancelled by barge-in).
+ * Carries no text — the client revalidates against current session state.
+ */
+export interface IVoiceNarrationSignal {
+	readonly narrationId: string;
+	readonly codingSessionId: string;
 }
 
 export interface IVoiceToolCall {
@@ -84,6 +127,17 @@ export type IVoiceTurnAutoEndReason = 'vad_silence' | 'stop_phrase';
 export interface IVoiceTurnAutoEnded {
 	readonly reason: IVoiceTurnAutoEndReason;
 	readonly turnId: string;
+}
+
+/**
+ * Payload for a terminal, non-recoverable websocket close (see
+ * {@link IVoiceClientService.onFatalDisconnect}). `code` is the websocket close
+ * code (e.g. 4008 when another window takes over the session); `reason` is the
+ * server-provided close reason, if any.
+ */
+export interface IVoiceFatalDisconnect {
+	readonly code: number;
+	readonly reason: string;
 }
 
 /**
@@ -156,16 +210,9 @@ export interface IVoiceClientService {
 	disconnect(): void;
 
 	// --- Outbound messages ---
-	sendPttStart(turnId: string): void;
+	sendPttStart(turnId: string, passive?: boolean): void;
 	sendPttAudioChunk(audio: string): void;
 	sendPttEnd(): void;
-	/**
-	 * Barge-in: stream raw mic audio while the assistant speaks (hands-free) so
-	 * the backend can detect the user talking over it. Not a turn; not transcribed.
-	 */
-	sendBargeInStart(): void;
-	sendBargeInAudioChunk(audio: string): void;
-	sendBargeInStop(): void;
 	/**
 	 * Send a per-press post-mortem diagnostic payload for tail-loss
 	 * investigation. Fired ~500ms after `pttUp` by the mic service.
@@ -191,6 +238,8 @@ export interface IVoiceClientService {
 	 */
 	invalidateSessionCache(sessionId: string): void;
 	sendToolResult(callId: string, result: string): void;
+	/** Ask the backend to speak `text` for a session now; returns the narration id echoed on the resulting `audio_response`, or `undefined` if nothing was sent. Pass `narrationId` to reuse a prior id (a `busy` retry) so the backend can dedup a lost ack; omit it to mint a fresh one. */
+	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined;
 	/**
 	 * Notify the backend of a session state transition.
 	 *
@@ -203,7 +252,7 @@ export interface IVoiceClientService {
 	 */
 	sendSessionStateChange(sessionId: string, newState: string, label: string, detail?: string, lastResponseSummary?: string): void;
 	stopSpeaking(): void;
-	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[]): void;
+	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig): void;
 	sendResumeSession(context: IVoiceSessionContext, machineId: string): void;
 
 	// --- Feedback ---
@@ -212,11 +261,25 @@ export interface IVoiceClientService {
 	// --- Inbound events ---
 	readonly onTranscription: Event<IVoiceTranscription>;
 	readonly onAudioResponse: Event<IVoiceAudioResponse>;
+	readonly onBargeIn: Event<IVoiceBargeIn>;
+	/** Fired on `narration_ack`. Absent from older backends, so consumers must tolerate a narration that is never acked. */
+	readonly onNarrationAck: Event<IVoiceNarrationAck>;
+	/** Fired when the guard clears for a narration earlier bounced `busy`; see {@link IVoiceNarrationSignal}. */
+	readonly onNarrationUnblocked: Event<IVoiceNarrationSignal>;
+	/** Fired when an accepted narration is cancelled by barge-in; see {@link IVoiceNarrationSignal}. */
+	readonly onNarrationInterrupted: Event<IVoiceNarrationSignal>;
 	readonly onToolCall: Event<IVoiceToolCall>;
 	readonly onSpeechStarted: Event<IVoiceSpeechStarted>;
 	readonly onSessionInit: Event<IVoiceSessionInit>;
 	readonly onError: Event<string>;
 	readonly onDidChangeConnectionState: Event<boolean>;
+	/**
+	 * Fired on a terminal, non-recoverable close (e.g. code 4008 when another
+	 * window takes over the single voice session). Distinct from a transient
+	 * disconnect: consumers should tear down to a clean, restartable state
+	 * rather than entering a reconnect loop.
+	 */
+	readonly onFatalDisconnect: Event<IVoiceFatalDisconnect>;
 	/**
 	 * Fired when the backend ends a held turn on its own (server VAD silence or
 	 * a matched stop phrase). Consumers stop capturing for that turn and clear

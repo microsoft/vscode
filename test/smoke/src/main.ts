@@ -52,7 +52,8 @@ const opts = minimist(args, {
 		'remote',
 		'web',
 		'headless',
-		'tracing'
+		'tracing',
+		'skip-stable-build'
 	],
 	default: {
 		verbose: false
@@ -63,6 +64,7 @@ const opts = minimist(args, {
 	headless?: boolean;
 	web?: boolean;
 	tracing?: boolean;
+	'skip-stable-build'?: boolean;
 	build?: string;
 	'stable-build'?: string;
 	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
@@ -362,7 +364,7 @@ async function setup(): Promise<void> {
 	logger.log('Test data path:', testDataPath);
 	logger.log('Preparing smoketest setup...');
 
-	if (!opts.web && !opts.remote && opts.build) {
+	if (!opts.web && !opts.remote && opts.build && !opts['skip-stable-build']) {
 		// only enabled when running with --build and not in web or remote
 		await measureAndLog(() => ensureStableCode(), 'ensureStableCode', logger);
 	}

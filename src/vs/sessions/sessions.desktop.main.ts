@@ -96,6 +96,7 @@ import '../platform/webContentExtractor/electron-browser/webContentExtractorServ
 import '../workbench/services/browserView/electron-browser/playwrightWorkbenchService.js';
 import '../workbench/services/process/electron-browser/processService.js';
 import '../workbench/services/power/electron-browser/powerService.js';
+import '../workbench/services/localTranscription/electron-browser/localTranscriptionService.js';
 
 import { ILocalGitService } from '../platform/git/common/localGitService.js';
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';

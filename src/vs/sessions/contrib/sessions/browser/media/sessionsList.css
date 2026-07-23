@@ -128,6 +128,40 @@
 		padding-left: 4px;
 	}
 
+	/* Quick-chat rows are compact single-line entries — no second (details) row.
+	 * Icon and title top-align naturally (same mechanics as regular sessions),
+	 * so the first row still lines up correctly when an approval/CI row grows
+	 * the row taller — a row-level vertical-center would instead center the
+	 * whole (now multi-line) content block, throwing the title off the icon. */
+	&.quick-chat {
+		padding: 6px 6px 6px 12px;
+
+		.session-icon {
+			line-height: 16px;
+
+			> .codicon {
+				font-size: var(--vscode-codiconFontSize-compact, 12px);
+			}
+
+			> .monaco-pixel-spinner {
+				width: 14px;
+				height: 14px;
+			}
+		}
+
+		.session-title-row {
+			line-height: 16px;
+			/* The delegate always reserves a fixed 28px row for quick chats
+			 * regardless of section, so the title's bottom padding must be
+			 * cleared unconditionally — otherwise it overflows the row. */
+			padding-bottom: 0;
+		}
+
+		.session-details-row {
+			display: none;
+		}
+	}
+
 	.session-main,
 	.session-title-row,
 	.session-details-row {
@@ -608,7 +642,11 @@
 			background-clip: text;
 			-webkit-background-clip: text;
 			-webkit-text-fill-color: transparent;
-			animation: session-title-shimmer 3s linear infinite;
+			animation: session-title-shimmer 3s steps(180, jump-none) infinite;
+		}
+
+		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.session-title-shimmer-paused {
+			animation-play-state: paused;
 		}
 
 		.vs-dark .monaco-list-row:not(.selected) .session-item.in-progress .session-title,
@@ -680,6 +718,13 @@
 		 * of the title-row flow so a 44px tap target doesn't inflate
 		 * the title line-height or shift the details row down). */
 		position: relative;
+
+		/* Quick chats keep the icon/title top-aligned (same as desktop) so an
+		 * approval/CI row growing the main column taller doesn't center the
+		 * icon against the whole multi-line block and throw it off the title. */
+		&.quick-chat {
+			align-items: flex-start;
+		}
 	}
 
 	.session-item .session-icon {

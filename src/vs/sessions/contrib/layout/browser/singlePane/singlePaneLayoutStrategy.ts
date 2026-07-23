@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Sequencer } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { IObservable } from '../../../../../base/common/observable.js';
@@ -23,6 +24,8 @@ export interface ISinglePaneLayoutContext {
 	readonly isRestoringSessionLayout: boolean;
 	/** Runs `work` while a session-switch layout restore is held. */
 	withSessionLayoutRestore(work: () => void | Promise<unknown>): void;
+	/** Fires when a session-switch layout restore fully settles, so strategies reconcile off the settled state rather than the transient changes during the restore. */
+	readonly onDidEndSessionLayoutRestore: Event<void>;
 	/** `true` while the whole side pane (editor + aux bar) is being toggled together. */
 	readonly togglingSidePane: boolean;
 	readonly multipleSessionsVisibleObs: IObservable<boolean>;
@@ -44,16 +47,12 @@ export abstract class SinglePaneLayoutStrategy extends Disposable {
 
 /**
  * Shared state for the two docked-tab strategies (managed Changes/Files tabs and
- * editor-area tab collapse): they serialize on one sequencer, share the set of
- * editors the controller itself is closing (so those closes aren't mistaken for
- * user dismissals), and share the captured collapsed editors.
+ * editor-area tab collapse): they serialize on one sequencer and share the
+ * captured collapsed editors.
  */
 export class SinglePaneDockedTabsCoordinator extends Disposable {
 
 	readonly sequencer = new Sequencer();
-
-	/** Editors the controller itself is closing, so their close is not a user dismissal. */
-	readonly internallyClosingEditors = new Set<EditorInput>();
 
 	/** Non-docked editors closed (as reopenable inputs + tab index) while the editor area is hidden. */
 	collapsedEditors: { readonly editor: IUntypedEditorInput; readonly index: number }[] | undefined;

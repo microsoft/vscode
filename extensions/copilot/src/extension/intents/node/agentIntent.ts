@@ -9,10 +9,10 @@ import { BudgetExceededError } from '@vscode/prompt-tsx/dist/base/materialized';
 import type * as vscode from 'vscode';
 import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
-import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
+import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { isAnthropicFamily, isGptFamily, isXAiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { isAnthropicFamily, isXAiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { SEARCH_AGENT_FAMILY } from '../../../platform/endpoint/node/searchAgentChatEndpoint';
@@ -25,9 +25,9 @@ import { APIUsage, modelsWithoutResponsesContextManagement, nanoAiuToCredits } f
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
-import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
-import { CustomInstructionsReferenceLogger, IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
 import { PromptConfig } from '../../../platform/promptFiles/common/promptsService';
+import { CustomInstructionsReferenceLogger, IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
+import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { ITasksService } from '../../../platform/tasks/common/tasksService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -41,6 +41,7 @@ import { Iterable } from '../../../util/vs/base/common/iterator';
 import { DisposableMap, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ChatResponseAutoModeResolutionPart, ChatResponseProgressPart2 } from '../../../vscodeTypes';
 import { ICommandService } from '../../commands/node/commandService';
 import { Intent } from '../../common/constants';
@@ -54,17 +55,18 @@ import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/node/intents';
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
 import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, resolveSummaryAnchorRoundId, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
+import { BackgroundTodoAgentProcessor, getSessionResource } from '../../prompts/node/agent/backgroundTodoAgent/backgroundTodoAgentProcessor';
 import { formatCompactionFailureError, renderCompactionMessages, resolveCompactionEndpoint } from '../../prompts/node/agent/compactionEndpoint';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
-import { extractSummary, decidePrismRouting, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
+import { appendTranscriptHintToSummary, computeSummarizationRoundCounts, decidePrismRouting, extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
 import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { EditCodePrompt2 } from '../../prompts/node/panel/editCodePrompt2';
 import { NotebookInlinePrompt } from '../../prompts/node/panel/notebookInlinePrompt';
 import { ToolResultMetadata } from '../../prompts/node/panel/toolCalling';
 import { IEditToolLearningService } from '../../tools/common/editToolLearningService';
-import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { ContributedToolName, ToolName } from '../../tools/common/toolNames';
+import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { IToolsService } from '../../tools/common/toolsService';
 import { applyPatch5Description } from '../../tools/node/applyPatchTool';
 import { multiReplaceStringPrimaryDescription } from '../../tools/node/multiReplaceStringTool';
@@ -73,8 +75,6 @@ import { getAgentMaxRequests } from '../common/agentConfig';
 import { addCacheBreakpoints } from './cacheBreakpoints';
 import { EditCodeIntent, EditCodeIntentInvocation, EditCodeIntentInvocationOptions, mergeMetadata, toNewChatReferences } from './editCodeIntent';
 import { ToolCallingLoop } from './toolCallingLoop';
-import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
-import { BackgroundTodoAgentProcessor, getSessionResource } from '../../prompts/node/agent/backgroundTodoAgent/backgroundTodoAgentProcessor';
 
 function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, configurationService: IConfigurationService, experimentationService: IExperimentationService): boolean {
 	return endpoint.apiType === 'responses'
@@ -251,11 +251,10 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
 		const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
 		const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
-		const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
 
 		// Only look up endpoints when a subagent that depends on model availability
 		// could actually be enabled, since the lookup is otherwise unnecessary.
-		const allEndpoints = isGptOrAnthropic && (searchSubagentEnabled || executionSubagentEnabled)
+		const allEndpoints = searchSubagentEnabled || executionSubagentEnabled
 			? await endpointProvider.getAllChatEndpoints().catch(err => {
 				logService.warn(`getAgentTools: failed to fetch chat endpoints, disabling availability-gated subagents: ${err}`);
 				return [] as IChatEndpoint[];
@@ -263,14 +262,14 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 			: [];
 
 		const searchAgentAvailable = allEndpoints.some(e => e.family === SEARCH_AGENT_FAMILY);
-		allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled && exploreAgentEnabled && searchAgentAvailable;
-		allowTools[ToolName.ExploreSubagent] = isGptOrAnthropic && searchSubagentEnabled && !exploreAgentEnabled && searchAgentAvailable;
+		allowTools[ToolName.SearchSubagent] = searchSubagentEnabled && exploreAgentEnabled && searchAgentAvailable;
+		allowTools[ToolName.ExploreSubagent] = searchSubagentEnabled && !exploreAgentEnabled && searchAgentAvailable;
 
 		// The execution subagent is powered by gemini-3-flash, so it can only be
 		// offered when that model is actually available to the user. If it isn't
 		// in the user's endpoints, keep the tool disabled regardless of the setting.
 		const hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
-		allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled && hasGemini3Flash;
+		allowTools[ToolName.ExecutionSubagent] = executionSubagentEnabled && hasGemini3Flash;
 	}
 
 	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);
@@ -1254,6 +1253,10 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				const response = await this.endpoint.makeChatRequest2({
 					debugName: 'summarizeConversationHistory',
 					messages,
+					// The summarization prompt is a self-contained snapshot. Do not branch it
+					// from the main agent's Responses API chain: the main agent may otherwise
+					// reuse the same previous_response_id after this background request.
+					ignoreStatefulMarker: this.endpoint.isExtensionContributed ? true : undefined,
 					finishedCb: undefined,
 					location: ChatLocation.Agent,
 					conversationId,
@@ -1293,24 +1296,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				const promptTypes = messages.map(msg => `${msg.role}${'name' in msg && msg.name ? `-${msg.name}` : ''}:${getTextPart(msg.content).length}`).join(',');
 				/* __GDPR__
 					"summarizedConversationHistory" : {
-						"owner": "bhavyau",
-						"comment": "Tracks background summarization outcome",
-						"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The success state." },
-						"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID." },
-						"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The summarization mode." },
-						"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Session id." },
-						"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID." },
-						"lastUsedTool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The last tool used before summarization." },
-						"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID from the summarization call." },
-						"promptTypes": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Role and character count of each prompt message in order, as a proxy for cache hit rate (e.g. system:1234,user:567)." },
-						"numRounds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total tool call rounds." },
-						"turnIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current turn." },
-						"curTurnRoundIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current round within the current turn." },
-						"isDuringToolCalling": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether this was triggered during tool calling." },
-						"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Duration in ms." },
-						"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Prompt tokens." },
-						"promptCacheTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Cached prompt tokens." },
-						"responseTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Output tokens." }
+						"owner": "roblourens",
+						"comment": "Tracks when summarization happens and what the outcome was",
+						"${include}": [ "${SummarizedConversationHistoryData}" ]
 					}
 				*/
 				this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
@@ -1350,15 +1338,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 				/* __GDPR__
 					"summarizedConversationHistory" : {
-						"owner": "bhavyau",
-						"comment": "Tracks background summarization failure",
-						"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The success state." },
-						"detailedOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Detailed failure reason." },
-						"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID." },
-						"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The summarization mode." },
-						"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Session id." },
-						"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID." },
-						"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Duration in ms." }
+						"owner": "roblourens",
+						"comment": "Tracks when summarization happens and what the outcome was",
+						"${include}": [ "${SummarizedConversationHistoryData}" ]
 					}
 				*/
 				this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
@@ -1438,6 +1420,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				const response = await compactionEndpoint.makeChatRequest2({
 					debugName: 'summarizeConversationHistory',
 					messages,
+					// Compaction prompts carry their complete input and must not participate
+					// in the main agent's stateful Responses API chain.
+					ignoreStatefulMarker: compactionEndpoint.isExtensionContributed ? true : undefined,
 					finishedCb: undefined,
 					location: ChatLocation.Agent,
 					conversationId,

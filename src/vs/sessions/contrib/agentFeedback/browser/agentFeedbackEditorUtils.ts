@@ -14,6 +14,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 
 export interface IAgentFeedbackContext {
 	readonly codeSelection?: string;
@@ -290,8 +291,9 @@ function renderHunkGroup(
 export function getActiveResourceCandidates(input: Parameters<typeof EditorResourceAccessor.getOriginalUri>[0]): URI[] {
 	const result: URI[] = [];
 
-	if (input instanceof MultiDiffEditorInput) {
-		const items = input.resources.get();
+	const multiDiffInput = input instanceof SessionChangesEditorInput ? input.multiDiffInput : input;
+	if (multiDiffInput instanceof MultiDiffEditorInput) {
+		const items = multiDiffInput.resources.get();
 		if (items) {
 			for (const item of items) {
 				if (item.originalUri) { result.push(item.originalUri); }

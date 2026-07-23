@@ -14,7 +14,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentSessionProjectInfo } from '../../common/agentService.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
+import { IAgentHostGitService, IDefaultBranch, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -141,7 +141,7 @@ export interface IIsolationConfigContribution {
 	/**
 	 * Read-only carrier for the client's `git.branchPrefix`. Declared for both
 	 * isolations (like `branch`) so the value rides `_config.values` and
-	 * survives isolation toggles; the agent only *consumes* it for worktree
+	 * survives isolation toggles; the host only consumes it for worktree
 	 * isolation (see {@link WorktreeIsolation.resolveWorkingDirectory}).
 	 */
 	readonly worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
@@ -149,6 +149,7 @@ export interface IIsolationConfigContribution {
 	readonly worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
 	readonly isolationValue: 'folder' | 'worktree';
 	readonly branchDefault: string | undefined;
+	readonly branchValue: string | undefined;
 }
 
 /** Parameters for {@link WorktreeIsolation.resolveWorkingDirectory}. */
@@ -244,8 +245,8 @@ export class WorktreeIsolation extends Disposable {
 
 	/**
 	 * Marks a fresh worktree-isolation session as pending — its worktree is
-	 * deferred to the first send. Called by the host from `createSession` when
-	 * the resolved session config selects `worktree` isolation.
+	 * deferred to the first send. Called by the host while a creating session's
+	 * resolved config selects `worktree` isolation.
 	 */
 	notePending(sessionId: string): void {
 		this._pending.add(sessionId);
@@ -317,11 +318,15 @@ export class WorktreeIsolation extends Disposable {
 
 		let branchProperty: ISchemaProperty<string> | undefined;
 		let branchDefault: string | undefined;
+		let branchValue: string | undefined;
 		let worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
 		let worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
 		if (gitInfo) {
 			const branchReadOnly = isolationValue === 'folder';
-			branchDefault = isolationValue === 'worktree' ? gitInfo.defaultBranch : gitInfo.currentBranch;
+			branchDefault = isolationValue === 'worktree' ? gitInfo.defaultBranch.name : gitInfo.currentBranch;
+			branchValue = isolationValue === 'worktree' && typeof request.config?.[SessionConfigKey.Branch] === 'string'
+				? request.config[SessionConfigKey.Branch] as string
+				: branchDefault;
 			branchProperty = schemaProperty<string>({
 				type: 'string',
 				title: localize('agentHost.sessionConfig.branch', "Branch"),
@@ -334,15 +339,14 @@ export class WorktreeIsolation extends Disposable {
 				sessionMutable: false,
 			});
 
-			// Carrier for the client's `git.branchPrefix`: the agent prepends it
+			// Carrier for the client's `git.branchPrefix`: the host prepends it
 			// to the branch it creates for an isolated worktree. Declared for
 			// both isolations (like `branch`), so the value rides
 			// `_config.values` and survives isolation toggles — a user who flips
-			// worktree → folder → worktree keeps the prefix, and it reaches the
-			// agent via the send-time config snapshot. It has no
+			// worktree → folder → worktree keeps the prefix. It has no
 			// `enum`/`enumDynamic`, so the config picker treats it as
 			// non-pickable and never surfaces it as a chip: the client seeds it
-			// (from `git.branchPrefix`), the user never edits it, and the agent
+			// (from `git.branchPrefix`), the user never edits it, and the host
 			// only *consumes* it for worktree isolation (see
 			// {@link resolveWorkingDirectory}).
 			worktreeBranchPrefixProperty = schemaProperty<string>({
@@ -366,7 +370,7 @@ export class WorktreeIsolation extends Disposable {
 			});
 		}
 
-		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeIncludeFilesProperty, isolationValue, branchDefault };
+		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeIncludeFilesProperty, isolationValue, branchDefault, branchValue };
 	}
 
 	/**
@@ -417,8 +421,8 @@ export class WorktreeIsolation extends Disposable {
 		const worktreeBranchPrefix = typeof config[SessionConfigKey.WorktreeBranchPrefix] === 'string'
 			? config[SessionConfigKey.WorktreeBranchPrefix] as string
 			: undefined;
-		const baseBranch = typeof config[SessionConfigKey.Branch] === 'string' ? config[SessionConfigKey.Branch] as string : undefined;
-		const { branchName, worktree } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
+		const selectedBranch = config[SessionConfigKey.Branch] as string;
+		const { branchName, worktree, baseBranch } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
 			const branchName = await this._branchNameGenerator.generateBranchName({
 				sessionId,
 				message: prompt,
@@ -433,9 +437,10 @@ export class WorktreeIsolation extends Disposable {
 				},
 			});
 			const worktree = URI.joinPath(worktreesRoot, getWorktreeName(branchName, worktreeBranchPrefix));
+			const baseBranch = await this._resolveBranchStartPoint(repositoryRoot, selectedBranch);
 			await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
-			await this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch as string);
-			return { branchName, worktree };
+			await this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch);
+			return { branchName, worktree, baseBranch };
 		});
 		const worktreeIncludeFiles = Array.isArray(config[SessionConfigKey.WorktreeIncludeFiles])
 			&& config[SessionConfigKey.WorktreeIncludeFiles].every(pattern => typeof pattern === 'string')
@@ -603,11 +608,15 @@ export class WorktreeIsolation extends Disposable {
 			return;
 		}
 
-		// Skip if there are uncommitted changes — don't silently destroy work.
-		const dirty = await this._gitService.hasUncommittedChanges(worktreePath).catch(() => true);
-		if (dirty) {
-			this._logService.info(`[${this._logLabel}:${sessionId}] Skipping worktree cleanup: '${worktreePath.fsPath}' has uncommitted changes`);
-			return;
+		// Commit any uncommitted changes before archiving the session
+		const hasUncommittedChanges = await this._gitService.hasUncommittedChanges(worktreePath).catch(() => true);
+		if (hasUncommittedChanges) {
+			try {
+				await this._gitService.commitAll(worktreePath, localize('worktreeIsolation.commitMessage', 'Saving uncommitted changes before archiving session'));
+			} catch (error) {
+				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to commit uncommitted changes in '${worktreePath.fsPath}': ${errorMessage(error)}`);
+				return;
+			}
 		}
 
 		try {
@@ -702,7 +711,7 @@ export class WorktreeIsolation extends Disposable {
 		return worktree ? projectFromRepositoryRoot(worktree.repositoryRoot) : undefined;
 	}
 
-	private async _getGitInfo(workingDirectory: URI): Promise<{ currentBranch: string; defaultBranch: string } | undefined> {
+	private async _getGitInfo(workingDirectory: URI): Promise<{ currentBranch: string; defaultBranch: IDefaultBranch } | undefined> {
 		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
 			return undefined;
@@ -715,8 +724,15 @@ export class WorktreeIsolation extends Disposable {
 		}
 
 		const currentBranch = await this._gitService.getCurrentBranch(repositoryRoot) ?? 'HEAD';
-		const defaultBranch = await this._gitService.getDefaultBranch(repositoryRoot) ?? currentBranch;
+		const defaultBranch = await this._gitService.getDefaultBranch(repositoryRoot) ?? { name: currentBranch, startPoint: currentBranch };
 		return { currentBranch, defaultBranch };
+	}
+
+	private async _resolveBranchStartPoint(repositoryRoot: URI, selectedBranch: string): Promise<string> {
+		const defaultBranch = await this._gitService.getDefaultBranch(repositoryRoot);
+		return defaultBranch?.name === selectedBranch
+			? defaultBranch.startPoint
+			: selectedBranch;
 	}
 
 	private async _writeWorktreeMetadata(sessionUri: URI, metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI }): Promise<void> {

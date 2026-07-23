@@ -10,14 +10,16 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
-import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationCommandAction, IChatInputNotificationService, isChatInputNotificationApplicableToSessionType } from './chatInputNotificationService.js';
 import './media/chatInputNotificationWidget.css';
 
 const $ = dom.$;
@@ -34,6 +36,18 @@ type ChatInputNotificationTelemetryClassification = {
 	comment: 'Tracks chat input notification visibility and user dismissals.';
 };
 
+type ChatInputNotificationActionTelemetryEvent = ChatInputNotificationTelemetryEvent & {
+	actionKind: ChatInputNotificationActionKind;
+};
+
+type ChatInputNotificationActionTelemetryClassification = {
+	id: ChatInputNotificationTelemetryClassification['id'];
+	telemetryId?: ChatInputNotificationTelemetryClassification['telemetryId'];
+	actionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of notification action selected by the user.' };
+	owner: 'rfeltis';
+	comment: 'Tracks actions selected from chat input notifications.';
+};
+
 const severityToClass: Record<ChatInputNotificationSeverity, string> = {
 	[ChatInputNotificationSeverity.Info]: 'severity-info',
 	[ChatInputNotificationSeverity.Warning]: 'severity-warning',
@@ -46,6 +60,14 @@ const severityToIcon: Record<ChatInputNotificationSeverity, ThemeIcon> = {
 	[ChatInputNotificationSeverity.Error]: Codicon.error,
 };
 
+/** Input-local capabilities used to filter and execute semantic notification actions. */
+export interface IChatInputNotificationDelegate {
+	readonly modelTargetChatSessionType?: IObservable<string | undefined>;
+	readonly openModelPicker?: () => void;
+	/** Returns false to open this input's model picker as a fallback. */
+	readonly switchToModel?: (modelIdentifier: string) => boolean;
+}
+
 /**
  * Widget that renders a single notification banner above the chat input area.
  * Subscribes to {@link IChatInputNotificationService} and shows the highest-severity
@@ -57,35 +79,26 @@ export class ChatInputNotificationWidget extends Disposable {
 
 	private readonly _contentDisposables = this._register(new DisposableStore());
 	private _lastShownTelemetryData: ChatInputNotificationTelemetryEvent | undefined;
-
-	/**
-	 * Optional provider that returns the current session type of the owning
-	 * chat input part. When set and a notification specifies a `sessionTypes`
-	 * allow-list, the widget will only render the notification if the current
-	 * session type matches.
-	 */
-	private readonly _sessionTypeProvider: (() => string | undefined) | undefined;
+	private _modelTargetChatSessionType: string | undefined;
 
 	constructor(
-		sessionTypeProvider: (() => string | undefined) | undefined,
+		private readonly _delegate: IChatInputNotificationDelegate | undefined,
 		@IChatInputNotificationService private readonly _notificationService: IChatInputNotificationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._sessionTypeProvider = sessionTypeProvider;
 
 		this.domNode = $('.chat-input-notification-widget');
 
 		this._register(this._notificationService.onDidChange(() => this._render()));
-		this._render();
-	}
-
-	/** Re-evaluates which notification (if any) to display. Safe to call externally when the owner's session type changes. */
-	rerender(): void {
-		this._render();
+		this._register(autorun(reader => {
+			this._modelTargetChatSessionType = this._delegate?.modelTargetChatSessionType?.read(reader);
+			this._render();
+		}));
 	}
 
 	private _render(): void {
@@ -108,11 +121,7 @@ export class ChatInputNotificationWidget extends Disposable {
 	}
 
 	private _matchesSession(notification: IChatInputNotification): boolean {
-		if (!notification.sessionTypes || notification.sessionTypes.length === 0) {
-			return true;
-		}
-		const currentType = this._sessionTypeProvider?.();
-		return !!currentType && notification.sessionTypes.includes(currentType);
+		return isChatInputNotificationApplicableToSessionType(notification, this._modelTargetChatSessionType);
 	}
 
 	private _renderNotification(notification: IChatInputNotification): void {
@@ -194,7 +203,8 @@ export class ChatInputNotificationWidget extends Disposable {
 		}
 
 		// Body row: description + actions on the same line
-		const hasBody = notification.description || notification.actions.length > 0;
+		const actions = notification.actions.filter(action => this._supportsAction(action));
+		const hasBody = notification.description || actions.length > 0;
 		if (hasBody) {
 			const bodyRow = dom.append(container, $('.chat-input-notification-body'));
 
@@ -203,12 +213,12 @@ export class ChatInputNotificationWidget extends Disposable {
 				descriptionElement.textContent = notification.description;
 			}
 
-			if (notification.actions.length > 0) {
+			if (actions.length > 0) {
 				const actionsContainer = dom.append(bodyRow, $('.chat-input-notification-actions'));
 
-				for (let i = 0; i < notification.actions.length; i++) {
-					const action = notification.actions[i];
-					const isLast = i === notification.actions.length - 1;
+				for (let i = 0; i < actions.length; i++) {
+					const action = actions[i];
+					const isLast = i === actions.length - 1;
 
 					const button = this._contentDisposables.add(new Button(actionsContainer, {
 						...defaultButtonStyles,
@@ -228,16 +238,78 @@ export class ChatInputNotificationWidget extends Disposable {
 					button.label = action.label;
 					button.element.ariaLabel = `${ariaTitle} ${action.label}`;
 
-					this._contentDisposables.add(button.onDidClick(async () => {
-						this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
-							id: action.commandId,
-							from: 'chatInputNotification',
-						});
-						await this._commandService.executeCommand(action.commandId, ...(action.commandArgs ?? []));
+					this._contentDisposables.add(button.onDidClick(() => {
+						void this._executeAction(notification, action);
 					}));
 				}
 			}
 		}
+	}
+
+	private _supportsAction(action: IChatInputNotificationAction): boolean {
+		switch (action.kind) {
+			case ChatInputNotificationActionKind.Command:
+				return true;
+			case ChatInputNotificationActionKind.OpenModelPicker:
+				return !!this._delegate?.openModelPicker;
+			case ChatInputNotificationActionKind.SwitchToModel:
+				return !!this._delegate?.switchToModel;
+		}
+	}
+
+	private async _executeAction(notification: IChatInputNotification, action: IChatInputNotificationAction): Promise<void> {
+		this._telemetryService.publicLog2<ChatInputNotificationActionTelemetryEvent, ChatInputNotificationActionTelemetryClassification>('chatInputNotificationAction', {
+			...this._getTelemetryData(notification),
+			actionKind: action.kind,
+		});
+		switch (action.kind) {
+			case ChatInputNotificationActionKind.Command:
+				try {
+					await this._executeCommandAction(action);
+				} catch (error) {
+					this._logActionError(error);
+				}
+				break;
+			case ChatInputNotificationActionKind.OpenModelPicker:
+				this._openModelPicker();
+				break;
+			case ChatInputNotificationActionKind.SwitchToModel:
+				this._switchToModel(action.modelIdentifier);
+				break;
+		}
+		this._notificationService.dismissNotification(notification.id);
+	}
+
+	private _switchToModel(modelIdentifier: string): void {
+		let switched = false;
+		try {
+			switched = this._delegate?.switchToModel?.(modelIdentifier) ?? false;
+		} catch (error) {
+			this._logActionError(error);
+		}
+		if (!switched) {
+			this._openModelPicker();
+		}
+	}
+
+	private _openModelPicker(): void {
+		try {
+			this._delegate?.openModelPicker?.();
+		} catch (error) {
+			this._logActionError(error);
+		}
+	}
+
+	private _logActionError(error: unknown): void {
+		this._logService.error('[ChatInputNotificationWidget] Failed to execute notification action', error);
+	}
+
+	private async _executeCommandAction(action: IChatInputNotificationCommandAction): Promise<void> {
+		this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+			id: action.commandId,
+			from: 'chatInputNotification',
+		});
+		await this._commandService.executeCommand(action.commandId, ...(action.commandArgs ?? []));
 	}
 
 	private _logShownTelemetry(notification: IChatInputNotification): void {

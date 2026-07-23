@@ -64,7 +64,7 @@ suite('WorktreeIsolation', () => {
 			getRepositoryRoot: async () => repoRoot,
 			revParse: async (_root, expr) => expr === 'HEAD' ? headCommit : undefined,
 			getCurrentBranch: async () => 'feature',
-			getDefaultBranch: async () => 'main',
+			getDefaultBranch: async () => ({ name: 'main', startPoint: 'main' }),
 			getBranches: async () => ['main', 'feature'],
 			branchExists: async () => branchExists,
 			hasUncommittedChanges: async () => hasUncommittedChanges,
@@ -143,6 +143,7 @@ suite('WorktreeIsolation', () => {
 
 		const noRepo = await isolation.resolveIsolationConfig({ workingDirectory: undefined, config: undefined });
 		const repoWorktree = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
+		const repoWorktreeSelected = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature' } });
 		const repoFolder = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } });
 		headCommit = undefined; // unborn HEAD (no commits)
 		const noCommits = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
@@ -150,11 +151,13 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({
 			noRepo: { enum: noRepo.isolationProperty.protocol.enum, value: noRepo.isolationValue, branch: noRepo.branchProperty, prefix: noRepo.worktreeBranchPrefixProperty, includeFiles: noRepo.worktreeIncludeFilesProperty },
 			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly },
+			repoWorktreeSelected: { branchDefault: repoWorktreeSelected.branchDefault, branchValue: repoWorktreeSelected.branchValue, branchEnum: repoWorktreeSelected.branchProperty?.protocol.enum },
 			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty },
 			noCommits: { enum: noCommits.isolationProperty.protocol.enum, value: noCommits.isolationValue, branch: noCommits.branchProperty, prefix: noCommits.worktreeBranchPrefixProperty, includeFiles: noCommits.worktreeIncludeFilesProperty },
 		}, {
 			noRepo: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined },
 			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true },
+			repoWorktreeSelected: { branchDefault: 'main', branchValue: 'feature', branchEnum: ['main'] },
 			repoFolder: { value: 'folder', branchDefault: 'feature', branchReadOnly: true, hasPrefix: true, hasIncludeFiles: true },
 			noCommits: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined },
 		});
@@ -168,6 +171,34 @@ suite('WorktreeIsolation', () => {
 		}, {
 			withDir: { items: [{ value: 'main', label: 'main' }, { value: 'feature', label: 'feature' }] },
 			noDir: { items: [] },
+		});
+	});
+
+	test('uses the local default branch name in config and its remote ref as the worktree start point', async () => {
+		const gitService = createGitService();
+		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+		const isolation = createIsolation(disposables, { gitService });
+
+		const config = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
+		await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'main',
+			},
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			branchDefault: config.branchDefault,
+			branchEnum: config.branchProperty?.protocol.enum,
+			startPoint: addWorktreeCalls[0]?.startPoint,
+		}, {
+			branchDefault: 'main',
+			branchEnum: ['main'],
+			startPoint: 'origin/main',
 		});
 	});
 
@@ -542,22 +573,6 @@ suite('WorktreeIsolation', () => {
 			removedDuringArchive: true,
 			addExistingCalls: [{ worktree: worktree!.toString(), branchName }],
 			restoredDuringUnarchive: true,
-		});
-	});
-
-	test('archive skips removal when the worktree has uncommitted changes', async () => {
-		const isolation = createIsolation(disposables);
-		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
-		hasUncommittedChanges = true;
-
-		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
-
-		assert.deepStrictEqual({
-			removeCalls: removeCalls.length,
-			stillExists: worktree ? existsSync(worktree.fsPath) : false,
-		}, {
-			removeCalls: 0,
-			stillExists: true,
 		});
 	});
 

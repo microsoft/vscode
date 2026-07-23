@@ -178,7 +178,7 @@
 
 			.progress-container,
 			.chat-confirmation-widget-container {
-				margin: 0 0 2px 6px;
+				margin: 0 0 0 6px;
 				box-sizing: border-box;
 				max-width: calc(100% - 6px);
 			}
@@ -393,10 +393,6 @@
 	/* Hide the header/collapse button while streaming — it reappears when chat-thinking-streaming is removed */
 	&:has(.chat-thinking-streaming) > .chat-used-context-label {
 		display: none;
-	}
-
-	&.chat-thinking-persistent-streaming {
-		margin-bottom: 3px;
 	}
 
 	> .monaco-scrollable-element > .shadow {

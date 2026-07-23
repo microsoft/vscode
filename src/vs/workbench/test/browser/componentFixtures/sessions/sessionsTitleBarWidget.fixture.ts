@@ -66,6 +66,7 @@ function buildBlocked(specs: readonly IBlockedSpec[]): { blocked: IBlockedSessio
 		const chatResource = URI.parse(`session-chat:/blocked/${i}`);
 		if (spec.approvalKind) {
 			approvals.set(chatResource.toString(), {
+				approvalId: chatResource.toString(),
 				kind: spec.approvalKind,
 				label: 'npm run build',
 				languageId: undefined,
@@ -80,7 +81,7 @@ function buildBlocked(specs: readonly IBlockedSpec[]): { blocked: IBlockedSessio
 			override readonly sessionId = `blocked-${i}`;
 			override readonly chats: IObservable<readonly IChat[]> = constObservable([chat]);
 		}();
-		return { session, reason: spec.reason };
+		return { session, reason: spec.reason, occurrenceId: `${spec.reason}:${i}` };
 	});
 	const approvalModel = new class extends mock<AgentSessionApprovalModel>() {
 		override getApproval(resource: URI): IObservable<IAgentSessionApprovalInfo | undefined> {

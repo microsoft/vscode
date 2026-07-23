@@ -6,24 +6,22 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, autorun, IObservable } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
-import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPreferredSessionType } from './sessionTypePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
-import { sessionHasNoSelectableModel } from './modelPicker.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -82,10 +80,9 @@ export class NewChatWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
@@ -123,16 +120,7 @@ export class NewChatWidget extends Disposable {
 			if (session.loading.read(reader)) {
 				return false;
 			}
-			// Re-evaluate the no-available-model gate whenever the active
-			// session's provider reports a model-list change. The provider
-			// aggregates both language-model registry changes and (for cloud
-			// sessions) option-group changes, matching the model picker's own
-			// reactivity so the gate never goes stale.
-			const provider = this.sessionsProvidersService.getProvider(session.providerId);
-			if (provider) {
-				observableSignalFromEvent(this, provider.onDidChangeModels).read(reader);
-			}
-			return !sessionHasNoSelectableModel(session, this.sessionsProvidersService);
+			return true;
 		});
 
 		const loading = derived(reader => {
@@ -167,6 +155,16 @@ export class NewChatWidget extends Disposable {
 			}
 			await this._onWorkspaceSelected(this._workspacePicker.selectedFolderUri);
 			this._newChatInput.focus();
+		}));
+
+		// Re-sync the picker's displayed selection when the session's workspace
+		// changes externally (e.g. sessionsService.openNewSession({ folderUri })).
+		this._register(autorun(reader => {
+			const session = this._session.read(reader);
+			const folderUri = session?.workspace.read(reader)?.folders[0]?.root;
+			if (folderUri && !this.uriIdentityService.extUri.isEqual(folderUri, this._workspacePicker.selectedFolderUri)) {
+				this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false });
+			}
 		}));
 	}
 
@@ -263,7 +261,7 @@ export class NewChatWidget extends Disposable {
 	private _seedWorkspaceDraft(): void {
 		const restoredFolderUri = this._workspacePicker.selectedFolderUri;
 		if (!this._syncWorkspacePickerFromActiveSession() && restoredFolderUri) {
-			this._createNewSession(restoredFolderUri);
+			void this._createNewSession(restoredFolderUri);
 		}
 	}
 
@@ -298,25 +296,32 @@ export class NewChatWidget extends Disposable {
 			&& t.sessionType.id === pick.sessionTypeId);
 	}
 
-	private _createNewSession(folderUri: URI): void {
+	private async _createNewSession(folderUri: URI): Promise<IOpenNewSessionResult> {
 		this._pendingPreferredUpgrade.clear();
 		const userPick = this._newChatInput.sessionTypePicker.getUserPickedSessionType();
-		const created = this._createSessionNow(folderUri, userPick);
+		const result = await this._createSessionNow(folderUri, userPick);
+		if (result.trustDeclined) {
+			// The user explicitly declined trust: don't schedule a retry, which
+			// would silently recreate (and possibly re-prompt) the draft once a
+			// provider registers/changes without any further user action.
+			return result;
+		}
 		// Keep the draft in sync with late-registering providers. Agent hosts
 		// connect lazily, so there is no timeout — the listener lives until the
 		// draft is sent or replaced. We watch when:
-		//  - no provider can serve the folder yet (!created),
+		//  - no provider can serve the folder yet (!result.session),
 		//  - the user's explicit pick isn't servable yet (created with a
 		//    fallback, upgrade once its provider connects), or
 		//  - there is no explicit pick, so the draft tracks the preferred
 		//    (first) type, which can change as the folder's session-type list
 		//    grows.
-		if (!created || !userPick || !this._isPreferredServable(folderUri, userPick)) {
-			this._scheduleRecreateOnProviderChange(folderUri, userPick, created);
+		if (!result.session || !userPick || !this._isPreferredServable(folderUri, userPick)) {
+			this._scheduleRecreateOnProviderChange(folderUri, userPick, result.session);
 		}
+		return result;
 	}
 
-	private _createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined): ISession | undefined {
+	private async _createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined): Promise<IOpenNewSessionResult> {
 		// Prefer the user's explicit pick when its provider can serve the
 		// folder; otherwise fall back to the preferred (first) session type.
 		const effectivePick = userPick && this._isPreferredServable(folderUri, userPick)
@@ -324,7 +329,7 @@ export class NewChatWidget extends Disposable {
 			: this._newChatInput.sessionTypePicker.getPreferredSessionType(folderUri);
 		const fallbackProviderId = this._workspacePicker.selectedResolved?.providerId;
 		try {
-			return this.sessionsService.openNewSession({
+			return await this.sessionsService.openNewSession({
 				folderUri,
 				...(effectivePick
 					? { providerId: effectivePick.providerId, sessionTypeId: effectivePick.sessionTypeId }
@@ -334,7 +339,7 @@ export class NewChatWidget extends Disposable {
 			});
 		} catch (e) {
 			this.logService.error('Failed to create new session:', e);
-			return undefined;
+			return { session: undefined, trustDeclined: false };
 		}
 	}
 
@@ -359,7 +364,7 @@ export class NewChatWidget extends Disposable {
 					}
 				}
 			}
-			this._createNewSession(folderUri);
+			void this._createNewSession(folderUri);
 		}));
 		this._pendingPreferredUpgrade.value = store;
 	}
@@ -519,20 +524,9 @@ export class NewChatWidget extends Disposable {
 			if (wasQuickChat) {
 				this.sessionsService.openQuickChat();
 			} else if (reseedFolderUri) {
-				this._createNewSession(reseedFolderUri);
+				await this._createNewSession(reseedFolderUri);
 			}
 		}
-	}
-
-	private async _requestFolderTrust(folderUri: URI): Promise<boolean> {
-		const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
-			uri: folderUri,
-			message: localize('trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
-		});
-		if (!trusted) {
-			this._workspacePicker.removeFromRecents(folderUri);
-		}
-		return !!trusted;
 	}
 
 	saveState(): void {
@@ -556,8 +550,10 @@ export class NewChatWidget extends Disposable {
 	}
 
 	/**
-	 * Handles a workspace selection from the workspace picker.
-	 * Requests folder trust if needed and creates a new session.
+	 * Handles a workspace selection from the workspace picker and creates a
+	 * new session for it. Workspace trust (when required) is requested by
+	 * {@link ISessionsService.openNewSession} itself — a single gate shared
+	 * by every path that creates a concrete session for a folder.
 	 */
 	private async _onWorkspaceSelected(folderUri: URI | undefined): Promise<void> {
 		// Cancel any in-flight upgrade for a previous selection.
@@ -568,15 +564,14 @@ export class NewChatWidget extends Disposable {
 			return;
 		}
 
-		const resolved = this.sessionsManagementService.resolveWorkspace(folderUri);
-		if (resolved?.workspace.requiresWorkspaceTrust) {
-			if (!await this._requestFolderTrust(folderUri)) {
-				return;
-			}
+		if (this._store.isDisposed) {
+			return;
 		}
 
-		if (!this._store.isDisposed) {
-			this._createNewSession(folderUri);
+		const result = await this._createNewSession(folderUri);
+		if (result.trustDeclined) {
+			// Don't leave the picker showing the declined folder as selected.
+			this._workspacePicker.removeFromRecents(folderUri);
 		}
 	}
 

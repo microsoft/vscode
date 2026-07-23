@@ -93,9 +93,9 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		super(ChatEditorInput.EditorID, group, ChatEditor.VIEW_STATE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 	}
 
-	private async clear() {
+	private async clear(targetSessionType?: string) {
 		if (this.input) {
-			return this.instantiationService.invokeFunction(clearChatEditor, this.input as ChatEditorInput);
+			return this.instantiationService.invokeFunction(clearChatEditor, this.input as ChatEditorInput, targetSessionType);
 		}
 	}
 
@@ -116,7 +116,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 					autoScroll: mode => mode !== ChatModeKind.Ask,
 					renderFollowups: true,
 					supportsFileReferences: true,
-					clear: () => this.clear(),
+					clear: (targetSessionType?: string) => this.clear(targetSessionType),
 					rendererOptions: {
 						renderTextEditsAsSummary: (uri) => {
 							return true;

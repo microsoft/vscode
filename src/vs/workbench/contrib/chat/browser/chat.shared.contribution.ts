@@ -12,11 +12,11 @@ import { PolicyCategory } from '../../../../base/common/policy.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -28,7 +28,7 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAutoStartConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig, mcpAppsEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAllowedServersConfig, mcpAutoStartConfig, mcpDeniedServersConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig, mcpAppsEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
@@ -38,7 +38,6 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -60,7 +59,7 @@ import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatT
 import { ChatTransferService, IChatTransferService } from '../common/model/chatTransferService.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/widget/chatWidgetHistoryService.js';
-import { BYOKUtilityModelDefault, ChatAgentLocation, ChatConfiguration, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
+import { BYOKUtilityModelDefault, ChatAgentLocation, ChatConfiguration, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
@@ -69,6 +68,7 @@ import { ILanguageModelToolsService } from '../common/tools/languageModelToolsSe
 import { ChatToolRiskAssessmentService, IChatToolRiskAssessmentService } from './tools/chatToolRiskAssessmentService.js';
 import { ChatGoalSummaryService, IChatGoalSummaryService } from './chatGoalSummaryService.js';
 import { ChatResponseFileChangesService, IChatResponseFileChangesService } from './chatResponseFileChangesService.js';
+import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from './chatSubmitRequestHandlerService.js';
 import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { isTildePath, PromptsConfig } from '../common/promptSyntax/config/config.js';
@@ -101,6 +101,10 @@ import { registerChatContextActions } from './actions/chatContextActions.js';
 import { ChatCopyActionRendering, registerChatCopyActions } from './actions/chatCopyActions.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { registerChatExecuteActions } from './actions/chatExecuteActions.js';
+import { ChatVoiceInputModeAction, ChatVoiceInputModeToggleListenAction, registerVoiceInputModeSimulateActions } from './voiceInputMode/voiceInputModeActionViewItem.js';
+import './voiceInputMode/voiceInputMode.js';
+import { registerChatSpeechToTextActions } from './actions/chatSpeechToTextActions.js';
+import { ChatSpeechToTextService, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
 import { registerChatFileTreeActions } from './actions/chatFileTreeActions.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
 import { registerChatExportActions } from './actions/chatImportExport.js';
@@ -143,6 +147,7 @@ import { ChatEditingEditorOverlay } from './chatEditing/chatEditingEditorOverlay
 import { ChatEditingService } from './chatEditing/chatEditingServiceImpl.js';
 import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditing/notebook/chatEditingNotebookFileSystemProvider.js';
 import { ChatEditor, IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
+import { ChatOutlineCreator } from './chatOutlineCreator.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './widgetHosts/editor/chatEditorInput.js';
 import { ChatLayoutService } from './widget/chatLayoutService.js';
 import { ChatLanguageModelsDataContribution, LanguageModelsConfigurationService } from './languageModelsConfigurationService.js';
@@ -250,6 +255,30 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			description: nls.localize('chat.fontFamily', "Controls the font family in chat messages."),
 			default: 'default'
+		},
+		'dictation.enabled': {
+			type: 'boolean',
+			markdownDescription: nls.localize('dictation.enabled', "Enables dictation across the product (chat input, editor, and terminal). When enabled on a supported platform, a microphone button appears in the chat input and the dictation shortcut becomes available; the on-device transcription model is downloaded on first use and runs locally."),
+			default: product.quality !== 'stable',
+			tags: ['experimental']
+		},
+		'dictation.model': {
+			type: 'string',
+			enum: [
+				'nemotron-speech-streaming-en-0.6b',
+				'mai',
+			],
+			enumItemLabels: [
+				nls.localize('dictation.model.nemotronStreaming.label', "Nemotron Streaming (English) — On-Device"),
+				nls.localize('dictation.model.mai.label', "MAI — Cloud"),
+			],
+			markdownEnumDescriptions: [
+				nls.localize('dictation.model.nemotronStreaming', "NVIDIA Nemotron streaming RNN-T (English), run on-device through Microsoft Foundry Local. Works offline; no audio leaves the device. Downloaded on first use and cached on disk."),
+				nls.localize('dictation.model.mai', "Cloud transcription through the same Microsoft AI voice service used by Voice Mode. Requires a network connection and GitHub sign-in; audio is streamed to the service."),
+			],
+			markdownDescription: nls.localize('dictation.model', "The model used for dictation. On-device models download on first use and run locally through Microsoft Foundry Local; the cloud option streams audio to the Microsoft AI voice service."),
+			default: 'nemotron-speech-streaming-en-0.6b',
+			tags: ['experimental']
 		},
 		'chat.editor.fontSize': {
 			type: 'number',
@@ -502,6 +531,15 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new local chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Approvals."),
 			default: ChatPermissionLevel.Default,
 		},
+		[ChatConfiguration.AssistedPermissionsEnabled]: {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			description: nls.localize('chat.assistedPermissions.enabled', "Controls whether Assisted permissions is shown in Agent Host approval pickers."),
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			},
+		},
 		[ChatConfiguration.PermissionsSandboxToggleEnabled]: {
 			type: 'boolean',
 			default: false,
@@ -528,22 +566,26 @@ configurationRegistry.registerConfiguration({
 				},
 				approvals: {
 					type: 'string',
-					enum: [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove],
+					enum: [ChatDefaultPermissionLevel.Default, ChatDefaultPermissionLevel.Assisted, ChatDefaultPermissionLevel.AllowAll],
 					enumDescriptions: [
-						nls.localize('chat.defaultConfiguration.approvals.default', "Default Approvals — Copilot uses your configured settings."),
-						nls.localize('chat.defaultConfiguration.approvals.autoApprove', "Bypass Approvals — all tool calls are auto-approved."),
+						nls.localize('chat.defaultConfiguration.approvals.default', "Ask When Needed — asks when approval settings don't apply."),
+						nls.localize('chat.defaultConfiguration.approvals.assisted', "Assisted permissions — evaluates risk before running tools."),
+						nls.localize('chat.defaultConfiguration.approvals.allowAll', "Allow All — runs tool calls without asking."),
 					],
-					default: ChatPermissionLevel.Default,
-					description: nls.localize('chat.defaultConfiguration.approvals.description', "The starting approval behavior for new agent sessions. If enterprise policy disables auto approval, new sessions use Default Approvals."),
+					default: ChatDefaultPermissionLevel.Default,
+					description: nls.localize('chat.defaultConfiguration.approvals.description', "The starting approval behavior for new agent sessions. If enterprise policy disables auto approval, new sessions use Ask When Needed."),
 				},
 			},
-			default: { mode: 'interactive', approvals: ChatPermissionLevel.Default },
+			default: { mode: 'interactive', approvals: ChatDefaultPermissionLevel.Default },
 			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration for new agent sessions (such as Copilot CLI). You can still change the mode and approval behavior per session, and each session remembers what was used."),
 		},
 		[ChatConfiguration.DefaultModel]: {
 			type: 'string',
 			default: '',
 			markdownDescription: nls.localize('chat.defaultModel.description', "The default model for new chat conversations. Use \"auto\" to let Copilot pick a model, a model family name (such as \"opus\" or \"gemini\") to use the latest available model in that family, or a full model id. You can still switch the model within a conversation; each new conversation starts at this model."),
+			experiment: {
+				mode: 'auto'
+			},
 			policy: {
 				name: 'ChatDefaultModel',
 				category: PolicyCategory.InteractiveSession,
@@ -790,20 +832,27 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
+		[CodexPreferAgentHostEditorSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.editor.codex.preferAgentHost', "When enabled, Codex sessions opened from the regular workbench (sidebar chat) run inside the agent host process using the Codex App Server instead of the OpenAI extension. Only one Codex implementation surfaces per window. Requires `#chat.agentHost.enabled#` and `#chat.agentHost.codexAgent.enabled#`."),
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
 		[ChatConfiguration.ChatContextUsageEnabled]: {
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.contextUsage.enabled', "Show the context window usage indicator in the chat input."),
 		},
-		[ChatConfiguration.ChatPersistentProgressEnabled]: {
+		[ChatConfiguration.Verbose]: {
 			type: 'boolean',
-			default: product.quality !== 'stable',
-			description: nls.localize('chat.persistentProgress.enabled', "Always show progress in chat."),
+			default: true,
+			description: nls.localize('chat.verbose', "Show request and completion timestamps. Hover over a completion timestamp to show the elapsed response time."),
 		},
 		[ChatConfiguration.ProgressBorder]: {
 			type: 'boolean',
 			default: true,
-			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. When enabled and reduced motion is not enabled, this overrides {0} to be off. Has no effect when reduced motion is enabled.", '`#chat.persistentProgress.enabled#`'),
+			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. Has no effect when reduced motion is enabled."),
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'string',
@@ -827,27 +876,35 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		[ChatConfiguration.TurnStatusPills]: {
-			type: 'object',
-			markdownDescription: nls.localize('chat.turnStatusPills', "Controls which agent turn status pills are shown above the chat input while a turn is in progress and inside the completed response. Only applies to agent sessions."),
-			properties: {
-				changes: {
+			anyOf: [
+				{
 					type: 'boolean',
-					default: false,
-					description: nls.localize('chat.turnStatusPills.changes', "Show a pill summarizing the files changed and the lines added and removed in the turn."),
 				},
-				preview: {
-					type: 'boolean',
-					default: false,
-					description: nls.localize('chat.turnStatusPills.preview', "Show a pill to preview a Markdown or HTML file created or edited in the turn."),
+				{
+					type: 'object',
+					properties: {
+						changes: {
+							type: 'boolean',
+							default: false,
+							description: nls.localize('chat.turnStatusPills.changes', "Show a pill summarizing the files changed and the lines added and removed in the turn."),
+						},
+						preview: {
+							type: 'boolean',
+							default: false,
+							description: nls.localize('chat.turnStatusPills.preview', "Show a pill to preview a Markdown or HTML file created or edited in the turn."),
+						},
+						browser: {
+							type: 'boolean',
+							default: false,
+							description: nls.localize('chat.turnStatusPills.browser', "Show a pill for browser activity in the turn."),
+						},
+					},
+					additionalProperties: false,
+					deprecationMessage: nls.localize('chat.turnStatusPills.objectDeprecated', "The per-pill object form is deprecated. Use a boolean value instead."),
 				},
-				browser: {
-					type: 'boolean',
-					default: false,
-					description: nls.localize('chat.turnStatusPills.browser', "Show a \"Live Browser\" pill to open the integrated browser at the last URL a browser tool opened in the turn."),
-				},
-			},
-			default: { changes: false, preview: false, browser: false },
-			additionalProperties: false,
+			],
+			markdownDescription: nls.localize('chat.turnStatusPills', "Controls whether agent status pills are shown above the chat input while a turn is in progress and inside the completed response. Only applies to agent sessions."),
+			default: false,
 		},
 		[mcpAccessConfig]: {
 			type: 'string',
@@ -892,6 +949,82 @@ configurationRegistry.registerConfiguration({
 							key: 'chat.mcp.access.any', value: nls.localize('chat.mcp.access.any', "Allow access to any installed MCP server.")
 						}
 					]
+				},
+			}
+		},
+		[mcpAllowedServersConfig]: {
+			type: ['array', 'null'],
+			items: {
+				type: 'object',
+				additionalProperties: false,
+				properties: {
+					serverName: { type: 'string', minLength: 1, description: nls.localize('chat.mcp.allowedServers.serverName', "Match a server by its configured name.") },
+					serverUrl: { type: 'string', minLength: 1, description: nls.localize('chat.mcp.allowedServers.serverUrl', "Match a remote server by its URL. Supports `*` wildcards, for example `https://*.example.com/*`.") },
+					serverCommand: { type: 'array', minItems: 1, items: { type: 'string' }, description: nls.localize('chat.mcp.allowedServers.serverCommand', "Match a local server by its exact command invocation, given as the command followed by its arguments.") },
+				},
+				oneOf: [
+					{ required: ['serverName'] },
+					{ required: ['serverUrl'] },
+					{ required: ['serverCommand'] },
+				],
+			},
+			markdownDescription: nls.localize('chat.mcp.allowedServers', "Enterprise-managed allowlist that controls which Model Context Protocol servers may be installed and run. When set, only servers matching an entry are permitted; any other server is blocked. Servers can be matched by name, remote URL pattern (with `*` wildcards), or local command invocation. Omit entirely to allow all servers (subject to the deny list). Delivered via enterprise policy for governance; this setting is not surfaced to end users."),
+			default: null,
+			scope: ConfigurationScope.APPLICATION,
+			// Governance-only: delivered via the `ChatAllowedMcpServers` enterprise policy and hidden
+			// from the Settings UI so it is not configurable by end users.
+			included: false,
+			policy: {
+				name: 'ChatAllowedMcpServers',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.130',
+				value: managedSettingValue(COPILOT_ALLOWED_MCP_SERVERS_KEY),
+				managedSettings: {
+					[COPILOT_ALLOWED_MCP_SERVERS_KEY]: { type: 'string' },
+				},
+				localization: {
+					description: {
+						key: 'chat.mcp.allowedServers.policy',
+						value: nls.localize('chat.mcp.allowedServers.policy', "Allowlist of Model Context Protocol servers. When set, only servers matching an entry may be installed or run; omit entirely to allow all servers (subject to the deny list).")
+					}
+				},
+			}
+		},
+		[mcpDeniedServersConfig]: {
+			type: ['array', 'null'],
+			items: {
+				type: 'object',
+				additionalProperties: false,
+				properties: {
+					serverName: { type: 'string', minLength: 1, description: nls.localize('chat.mcp.deniedServers.serverName', "Match a server by its configured name.") },
+					serverUrl: { type: 'string', minLength: 1, description: nls.localize('chat.mcp.deniedServers.serverUrl', "Match a remote server by its URL. Supports `*` wildcards, for example `https://*.example.com/*`.") },
+					serverCommand: { type: 'array', minItems: 1, items: { type: 'string' }, description: nls.localize('chat.mcp.deniedServers.serverCommand', "Match a local server by its exact command invocation, given as the command followed by its arguments.") },
+				},
+				oneOf: [
+					{ required: ['serverName'] },
+					{ required: ['serverUrl'] },
+					{ required: ['serverCommand'] },
+				],
+			},
+			markdownDescription: nls.localize('chat.mcp.deniedServers', "Enterprise-managed denylist of Model Context Protocol servers. Servers matching any entry are unconditionally blocked from being installed or run, even if they also match the allow list — deny rules always take precedence. Servers can be matched by name, remote URL pattern (with `*` wildcards), or local command invocation. Delivered via enterprise policy for governance; this setting is not surfaced to end users."),
+			default: null,
+			scope: ConfigurationScope.APPLICATION,
+			// Governance-only: delivered via the `ChatDeniedMcpServers` enterprise policy and hidden
+			// from the Settings UI so it is not configurable by end users.
+			included: false,
+			policy: {
+				name: 'ChatDeniedMcpServers',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.130',
+				value: managedSettingValue(COPILOT_DENIED_MCP_SERVERS_KEY),
+				managedSettings: {
+					[COPILOT_DENIED_MCP_SERVERS_KEY]: { type: 'string' },
+				},
+				localization: {
+					description: {
+						key: 'chat.mcp.deniedServers.policy',
+						value: nls.localize('chat.mcp.deniedServers.policy', "Denylist of Model Context Protocol servers. Servers matching any entry are blocked from being installed or run, even if they also match the allow list; deny rules always take precedence.")
+					}
 				},
 			}
 		},
@@ -1297,6 +1430,12 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental', 'advanced'],
 		},
+		[AgentHostToolSearchEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.copilot.toolSearch.enabled', "When enabled, Copilot SDK sessions defer MCP and non-core VS Code tools behind a tool-search tool so the model discovers them on demand instead of loading every tool definition up front."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+		},
 		[AgentHostReasoningEffortOverrideSettingId]: {
 			type: 'string',
 			markdownDescription: nls.localize('chat.agentHost.reasoningEffortOverride', "Overrides the reasoning effort for Copilot SDK agent sessions regardless of the per-model picker value. Set it to a level the selected model supports (for example `low`, `medium`, `high`, or `xhigh`) — choosing a level the model does not support may be rejected by the model. A value that isn't a recognized effort level is ignored and the session falls back to the picker value. Applied when a session is created and when its model changes. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
@@ -1385,7 +1524,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.byokUtilityModelDefault.mainAgent.description', "Use the selected BYOK main agent model."),
 				nls.localize('chat.byokUtilityModelDefault.copilot.description', "Use the default GitHub Copilot utility models."),
 			],
-			default: BYOKUtilityModelDefault.None,
+			default: BYOKUtilityModelDefault.Copilot,
 		},
 		[ChatConfiguration.UtilityModel]: {
 			type: 'string',
@@ -1998,13 +2137,38 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 		new SyncDescriptor(AgentPluginEditorInput)
 	]
 );
+function isStringKeyedObject(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function migrateChatDefaultConfiguration(value: unknown): Record<string, unknown> | undefined {
+	if (!isStringKeyedObject(value) || value.approvals !== ChatPermissionLevel.AutoApprove) {
+		return undefined;
+	}
+	return { ...value, approvals: ChatDefaultPermissionLevel.AllowAll };
+}
+
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([
 	{
 		key: 'chat.agentSessions.defaultConfiguration',
 		migrateFn: (value, _accessor) => ([
 			['chat.agentSessions.defaultConfiguration', { value: undefined }],
-			[ChatConfiguration.DefaultConfiguration, { value }]
+			[ChatConfiguration.DefaultConfiguration, { value: migrateChatDefaultConfiguration(value) ?? value }]
 		])
+	},
+	{
+		key: ChatConfiguration.DefaultConfiguration,
+		migrateFn: value => ({ value: migrateChatDefaultConfiguration(value) ?? value })
+	},
+	{
+		key: 'chat.experimental.autoApprovals.enabled',
+		migrateFn: (value, accessor) => {
+			const pairs: ConfigurationKeyValuePairs = [['chat.experimental.autoApprovals.enabled', { value: undefined }]];
+			if (accessor(ChatConfiguration.AssistedPermissionsEnabled) === undefined) {
+				pairs.push([ChatConfiguration.AssistedPermissionsEnabled, { value }]);
+			}
+			return pairs;
+		}
 	},
 	{
 		key: 'chat.experimental.detectParticipant.enabled',
@@ -2112,6 +2276,50 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 			}
 			return pairs;
 		}
+	},
+	{
+		// The on-device dictation runtime moved to Foundry Local; the old
+		// transformers.js/onnxruntime model IDs no longer resolve and would fail
+		// with an unknown-model error. Map any explicitly-stored legacy value to
+		// the new default so existing users keep working. Also migrate the setting
+		// from its old `chat.speechToText.model` id to `dictation.model`.
+		key: 'chat.speechToText.model',
+		migrateFn: (value: unknown, accessor) => {
+			const legacyModelIds = [
+				'onnx-community/whisper-tiny',
+				'onnx-community/whisper-base',
+				'onnx-community/whisper-small',
+				'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
+			];
+			const migrated = (typeof value === 'string' && legacyModelIds.includes(value))
+				? 'nemotron-speech-streaming-en-0.6b'
+				: value;
+			const pairs: ConfigurationKeyValuePairs = [['chat.speechToText.model', { value: undefined }]];
+			// Never clobber an explicitly configured new key (e.g. after settings
+			// sync brought both keys across versions).
+			if (accessor('dictation.model') === undefined) {
+				pairs.push(['dictation.model', { value: migrated }]);
+			}
+			return pairs;
+		}
+	},
+	{
+		// Dictation settings were regrouped under the top-level `dictation.*`
+		// namespace (they govern dictation across chat, editor, and terminal).
+		key: 'chat.speechToText.enabled',
+		migrateFn: (value: unknown, accessor) => {
+			const pairs: ConfigurationKeyValuePairs = [['chat.speechToText.enabled', { value: undefined }]];
+			if (accessor('dictation.enabled') === undefined) {
+				pairs.push(['dictation.enabled', { value }]);
+			}
+			return pairs;
+		}
+	},
+	{
+		// `chat.speechToText.mode` was removed (the shortcut is always tap-toggle /
+		// hold-to-talk); clear it so it does not linger as an unknown setting.
+		key: 'chat.speechToText.mode',
+		migrateFn: () => ([['chat.speechToText.mode', { value: undefined }]])
 	},
 ]);
 
@@ -2314,7 +2522,6 @@ class ChatForegroundSessionCountContribution extends Disposable implements IWork
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 		this.foregroundSessionCountContextKey = ChatContextKeys.foregroundSessionCount.bindTo(this.contextKeyService);
@@ -2323,7 +2530,7 @@ class ChatForegroundSessionCountContribution extends Disposable implements IWork
 			this.updateForegroundSessionCount();
 		}));
 
-		this._register(this.editorService.onDidVisibleEditorsChange(() => {
+		this._register(this.chatWidgetService.onDidChangeWidgetVisibility(() => {
 			this.updateForegroundSessionCount();
 		}));
 
@@ -2338,7 +2545,7 @@ class ChatForegroundSessionCountContribution extends Disposable implements IWork
 		let count = this.viewsService.isViewVisible(ChatViewId) ? 1 : 0;
 
 		for (const widget of this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)) {
-			if (widget.domNode.offsetParent === null) {
+			if (!widget.visible) {
 				continue;
 			}
 
@@ -2532,6 +2739,23 @@ class ToolReferenceNamesContribution extends Disposable implements IWorkbenchCon
 	}
 }
 
+/**
+ * Forces the eager {@link ChatSpeechToTextService} to instantiate at startup so
+ * it can publish the `chatSpeechToTextConfigured` context key that gates the
+ * dictation (mic) button. Registered singletons are created lazily on first
+ * access, so without this the key would never be set and the button never shows.
+ */
+class ChatSpeechToTextInitContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.chatSpeechToTextInit';
+
+	constructor(
+		@IChatSpeechToTextService _chatSpeechToTextService: IChatSpeechToTextService,
+	) {
+		// Injecting the service is enough to construct it.
+	}
+}
+
 AccessibleViewRegistry.register(new ChatTerminalOutputAccessibleView());
 AccessibleViewRegistry.register(new ChatResponseAccessibleView());
 AccessibleViewRegistry.register(new PanelChatAccessibilityHelp());
@@ -2544,6 +2768,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatDebugEditorInput.ID, ChatDebugEditorInputSerializer);
 
 registerWorkbenchContribution2(CopilotTelemetryContribution.ID, CopilotTelemetryContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatSpeechToTextInitContribution.ID, ChatSpeechToTextInitContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatDebugResolverContribution.ID, ChatDebugResolverContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(PromptsDebugContribution.ID, PromptsDebugContribution, WorkbenchPhase.BlockRestore);
@@ -2551,9 +2776,10 @@ registerWorkbenchContribution2(AgentHostChatDebugContribution.ID, AgentHostChatD
 registerWorkbenchContribution2(ChatLanguageModelsDataContribution.ID, ChatLanguageModelsDataContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSlashCommandsContribution.ID, ChatSlashCommandsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatSessionOptionSlashCommandsContribution.ID, ChatSessionOptionSlashCommandsContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ChatOutlineCreator.ID, ChatOutlineCreator, WorkbenchPhase.AfterRestored);
 
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
-registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatPromptFilesExtensionPointHandler.ID, ChatPromptFilesExtensionPointHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(CodeBlockActionRendering.ID, CodeBlockActionRendering, WorkbenchPhase.BlockRestore);
@@ -2604,6 +2830,10 @@ registerChatFileTreeActions();
 registerChatPromptNavigationActions();
 registerChatTitleActions();
 registerChatExecuteActions();
+registerAction2(ChatVoiceInputModeAction);
+registerAction2(ChatVoiceInputModeToggleListenAction);
+registerVoiceInputModeSimulateActions();
+registerChatSpeechToTextActions();
 registerChatQueueActions();
 registerQuickChatActions();
 registerChatExportActions();
@@ -2626,6 +2856,7 @@ agentPluginDiscoveryRegistry.register(new SyncDescriptor(ExtensionAgentPluginDis
 agentPluginDiscoveryRegistry.register(new SyncDescriptor(CopilotCliAgentPluginDiscovery), AgentPluginDiscoveryPriority.CopilotCli);
 
 registerSingleton(IChatResponseResourceFileSystemProvider, ChatResponseResourceFileSystemProvider, InstantiationType.Delayed);
+registerSingleton(IChatSpeechToTextService, ChatSpeechToTextService, InstantiationType.Eager);
 registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
@@ -2651,6 +2882,7 @@ registerSingleton(ILanguageModelToolsConfirmationService, LanguageModelToolsConf
 registerSingleton(IChatToolRiskAssessmentService, ChatToolRiskAssessmentService, InstantiationType.Delayed);
 registerSingleton(IChatGoalSummaryService, ChatGoalSummaryService, InstantiationType.Delayed);
 registerSingleton(IChatResponseFileChangesService, ChatResponseFileChangesService, InstantiationType.Delayed);
+registerSingleton(IChatSubmitRequestHandlerService, ChatSubmitRequestHandlerService, InstantiationType.Delayed);
 registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);
 registerSingleton(IChatCodeBlockContextProviderService, ChatCodeBlockContextProviderService, InstantiationType.Delayed);
 registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delayed);

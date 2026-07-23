@@ -523,7 +523,7 @@ export class ComputeAutomaticInstructions {
 				entries.push('<agents>');
 				entries.push('Here is a list of agents that can be used when running a subagent.');
 				entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
-				entries.push(`Use the ${runSubagentTool.variable} tool with an agent name from this list to run that agent, or omit agentName to use the current agent.`);
+				entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
 
 				for (const agent of agents) {
 					if (canUseAgent(agent)) {

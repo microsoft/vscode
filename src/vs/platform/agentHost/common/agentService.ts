@@ -10,7 +10,7 @@ import { truncate } from '../../../base/common/strings.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import type { IConfigurationService } from '../../configuration/common/configuration.js';
+import type { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
@@ -44,6 +44,9 @@ export const enum AgentHostIpcChannels {
 
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
+
+/** Configuration key controlling automatic OS system proxy discovery for agent-host Copilot sessions. */
+export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.enabled';
 
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
 // `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
@@ -194,46 +197,31 @@ export const ClaudePreferAgentHostAgentsSettingId = 'chat.agents.claude.preferAg
 export const ClaudePreferAgentHostEditorSettingId = 'chat.editor.claude.preferAgentHost';
 
 /**
- * The per-window setting that selects which Claude implementation surfaces:
- * the Agents Window reads {@link ClaudePreferAgentHostAgentsSettingId}, every
- * other window reads {@link ClaudePreferAgentHostEditorSettingId}. Callers that
- * observe the gate (to react to live flips) watch the id returned here; callers
- * that evaluate it use {@link shouldSurfaceLocalAgentHostProvider}.
+ * Selects whether the regular workbench surfaces Codex from the agent host
+ * instead of the OpenAI extension.
  */
+export const CodexPreferAgentHostEditorSettingId = 'chat.editor.codex.preferAgentHost';
+
 export function claudePreferAgentHostSettingId(isSessionsWindow: boolean): string {
 	return isSessionsWindow
 		? ClaudePreferAgentHostAgentsSettingId
 		: ClaudePreferAgentHostEditorSettingId;
 }
 
-/**
- * Whether this window should surface the agent host's implementation of
- * `provider`, given the per-window AH/EH preference settings. Today only the
- * `claude` provider has dual implementations (the GitHub Copilot Chat
- * extension's extension-host provider vs. the agent host's in-process
- * provider) and a corresponding preference; every other provider is AH-only
- * and unconditionally surfaced.
- *
- * Mirrors the EH-side gate declared in the extension's `chatSessions`
- * contribution `when` clause:
- *   - Agents Window  → {@link ClaudePreferAgentHostAgentsSettingId}
- *   - Editor Window  → {@link ClaudePreferAgentHostEditorSettingId}
- *
- * When the relevant setting is `false`, the extension-host Claude is the one
- * that surfaces in this window, so every agent-host surface (the chat session
- * contribution and the sessions-window picker) suppresses its own Claude to
- * avoid two identical entries.
- *
- * TODO: Remove this gate (and the `claude` special-case below) once the
- * extension-host Claude implementation is retired. With only the agent host
- * providing Claude there is no dual implementation to disambiguate, so this
- * should unconditionally return `true` and callers can drop the gate entirely.
- */
+export function affectsAgentHostProviderPreference(event: IConfigurationChangeEvent, isSessionsWindow: boolean): boolean {
+	return event.affectsConfiguration(claudePreferAgentHostSettingId(isSessionsWindow))
+		|| event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
+}
+
 export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
-	if (provider !== CLAUDE_AGENT_PROVIDER_ID) {
-		return true;
+	switch (provider) {
+		case CLAUDE_AGENT_PROVIDER_ID:
+			return configurationService.getValue<boolean>(claudePreferAgentHostSettingId(isSessionsWindow)) === true;
+		case CODEX_AGENT_PROVIDER_ID:
+			return configurationService.getValue<boolean>(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId) === true;
+		default:
+			return true;
 	}
-	return configurationService.getValue<boolean>(claudePreferAgentHostSettingId(isSessionsWindow)) === true;
 }
 
 // -- Codex agent settings --------------------------------------------------------
@@ -1221,7 +1209,7 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
-	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory' | 'extension-management' | 'extension-permission-access';
+	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'extension-management' | 'extension-permission-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
 	/**
@@ -1264,6 +1252,15 @@ export interface IAgentSubagentStartedSignal {
 	 * Absent when the harness does not surface a task description.
 	 */
 	readonly taskDescription?: string;
+	/**
+	 * The full delegated instruction the parent handed the subagent (the
+	 * spawning tool's `prompt` input). Populated by each provider at emit
+	 * time from its own native source, so the shared orchestrator never
+	 * parses a provider-specific tool-input shape. Seeds the subagent peer
+	 * chat's opening request. Distinct from {@link taskDescription} (a short
+	 * tab-title label). Absent when the harness does not surface a prompt.
+	 */
+	readonly taskPrompt?: string;
 	/**
 	 * If set, the spawning tool call ({@link toolCallId}) itself lives
 	 * inside another subagent's chat — this is the tool call **one level up**
@@ -1434,13 +1431,13 @@ export interface IAgent {
 
 	// ---- Session lifecycle / configuration ---------------------------------
 
-	/** Create a new session. Returns server-owned session metadata. */
+	/** Create a new session. Host-owned worktree fields are omitted from `config.config`. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
 
-	/** Resolve the dynamic configuration schema for creating a session. */
+	/** Resolve provider-owned session configuration; host-owned worktree fields are omitted. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 
-	/** Return dynamic completions for a session configuration property. */
+	/** Return dynamic completions for a provider-owned session configuration property. */
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
 	/**
@@ -1635,6 +1632,17 @@ export interface IAgent {
 	onArchivedChanged?(session: URI, isArchived: boolean): Promise<void>;
 
 	/**
+	 * Notifies the provider that a **client** (user) changed this session's
+	 * config — e.g. via an approvals/model picker. `values` is the post-reducer
+	 * merged config. Lets the provider propagate a session-mutable change (such
+	 * as Claude's `permissionMode`) to a running SDK mid-turn. Fires only for
+	 * client-originated changes; internal server-side config writes (e.g. a tool
+	 * persisting a mode) do NOT trigger it, so a provider can forward freely
+	 * without re-entering its own SDK callbacks. Optional.
+	 */
+	onSessionConfigChanged?(session: URI, values: Record<string, unknown>): void;
+
+	/**
 	 * Get (or lazily create) the per-session handle for an active client,
 	 * identified by `clientId`. Mutating the returned {@link IActiveClient}'s
 	 * `tools` / `customizations` updates only that client's contribution; the
@@ -1669,14 +1677,6 @@ export interface IAgent {
 	 * @param result The result of the tool call.
 	 */
 	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void;
-
-	/**
-	 * Notifies the agent that a customization has been toggled on or off.
-	 * The agent MAY restart its client before the next message is sent.
-	 *
-	 * @param id The opaque session-unique customization id.
-	 */
-	setCustomizationEnabled(id: string, enabled: boolean): void;
 
 	/** Request a session MCP server start/restart by customization id. */
 	startMcpServer?(session: URI, id: string): Promise<void>;

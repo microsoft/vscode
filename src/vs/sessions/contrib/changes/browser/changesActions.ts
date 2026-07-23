@@ -33,7 +33,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { ChangesMultiDiffSourceResolver, SessionChangesFileResourceContext, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
+import { ChangesMultiDiffSourceResolver, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../common/changes.js';
@@ -448,9 +448,6 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 							title: operation.label,
 							icon: operation.icon,
 							f1: false,
-							toggled: ContextKeyExpr.in(
-								SessionChangesFileResourceContext.key,
-								SessionChangesReviewedFilesContext.key),
 							menu: [{
 								id: MenuId.AgentsChangeInlineToolbar,
 								group: 'navigation',

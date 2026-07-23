@@ -161,6 +161,7 @@ export interface ITestLayoutHarness {
 	onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	onDidReplaceSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	onDidChangePartVisibility: Emitter<IPartVisibilityChangeEvent>;
+	onDidRevealSidePane: Emitter<void>;
 	onDidChangeEditorMaximized: Emitter<void>;
 	onDidActiveEditorChange: Emitter<void>;
 	onWillOpenEditor: Emitter<IEditorWillOpenEvent>;
@@ -207,6 +208,14 @@ export interface ITestLayoutHarness {
 	 * panel) while `_isRestoringSessionLayout` is true.
 	 */
 	onApplyWorkingSet?: () => void;
+	/**
+	 * Optional async hook awaited at the start of `openChangesEditor`, letting a
+	 * test pause a managed-tab reconcile mid-open (e.g. to switch sessions and
+	 * assert the superseded reconcile's intents do not leak).
+	 */
+	onOpenChangesEditor?: () => Promise<void> | void;
+	/** Records every `openChangesEditor` call for assertions (session + whether active). */
+	openChangesEditorCalls: { sessionResource: URI; active: boolean }[];
 	readonly sessionChangesService: ISessionChangesService;
 	readonly contextKeyService: MockContextKeyService;
 	activeEditorInput?: EditorInput;
@@ -249,6 +258,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		onDidChangeSessions: store.add(new Emitter<ISessionsChangeEvent>()),
 		onDidReplaceSession: store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>()),
 		onDidChangePartVisibility: store.add(new Emitter<IPartVisibilityChangeEvent>()),
+		onDidRevealSidePane: store.add(new Emitter<void>()),
 		onDidChangeEditorMaximized: store.add(new Emitter<void>()),
 		onDidActiveEditorChange: store.add(new Emitter<void>()),
 		onWillOpenEditor: store.add(new Emitter<IEditorWillOpenEvent>()),
@@ -284,6 +294,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		editorGroupsHaveContent: true,
 		applyWorkingSetCalls: [],
 		saveWorkingSetCalls: [],
+		openChangesEditorCalls: [],
 		sessionChangesService: new SessionChangesService(new class extends mock<IEditorService>() { }, instaService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override get isSinglePaneLayoutEnabled(): boolean { return options.singlePaneLayoutEnabled ?? false; }
 		}),
@@ -295,6 +306,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override get editors() { return harness.activeGroupEditors as IEditorGroup['editors']; }
 		override get count() { return harness.activeGroupEditors.length; }
 		override get isEmpty() { return harness.activeGroupEditors.length === 0; }
+		override contains(editor: EditorInput) { return harness.activeGroupEditors.includes(editor as EditorInput); }
 		override isPinned() { return true; }
 		override pinEditor() { }
 		override getIndexOfEditor(editor: EditorInput) { return harness.activeGroupEditors.indexOf(editor); }
@@ -323,16 +335,26 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	instaService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 		override getChangesEditorResource(sessionResource: URI): URI { return harness.sessionChangesService.getChangesEditorResource(sessionResource); }
 		override getSessionResource(editorResource: URI): URI | undefined { return harness.sessionChangesService.getSessionResource(editorResource); }
-		override async openChangesEditor(sessionResource: URI, options?: { index?: number }): Promise<IEditorGroup> {
+		override async openChangesEditor(sessionResource: URI, options?: { index?: number; inactive?: boolean }): Promise<IEditorGroup> {
+			harness.openChangesEditorCalls.push({ sessionResource, active: !options?.inactive });
+			if (harness.onOpenChangesEditor) {
+				await harness.onOpenChangesEditor();
+			}
 			const resource = harness.sessionChangesService.getChangesEditorResource(sessionResource);
-			if (!harness.activeGroupEditors.some(e => e.resource && isEqual(e.resource, resource))) {
-				const editor = store.add(new TestStubEditorInput(resource));
+			let editor = harness.activeGroupEditors.find(e => e.resource && isEqual(e.resource, resource));
+			if (!editor) {
+				editor = store.add(new TestStubEditorInput(resource));
 				const index = options?.index;
 				if (typeof index === 'number' && index >= 0 && index <= harness.activeGroupEditors.length) {
 					harness.activeGroupEditors.splice(index, 0, editor);
 				} else {
 					harness.activeGroupEditors.push(editor);
 				}
+			}
+			// Mirror the workbench: a non-inactive open makes the editor active.
+			if (!options?.inactive) {
+				harness.activeEditorInput = editor;
+				harness.onDidActiveEditorChange.fire();
 			}
 			return testActiveGroup;
 		}
@@ -353,10 +375,14 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override setPartHidden(hidden: boolean, part: Parts): void {
 			harness.setPartHiddenCalls.push({ hidden, part });
 			const wasVisible = harness.partVisibility.get(part) ?? true;
+			const sidePaneWasClosed = !(harness.partVisibility.get(Parts.EDITOR_PART) ?? true) && !(harness.partVisibility.get(Parts.AUXILIARYBAR_PART) ?? true);
 			harness.partVisibility.set(part, !hidden);
 			// Mirror production: fire the visibility change synchronously when it actually changes
 			if (wasVisible === hidden) {
 				harness.onDidChangePartVisibility.fire({ partId: part, visible: !hidden });
+				if (!hidden && sidePaneWasClosed && (part === Parts.EDITOR_PART || part === Parts.AUXILIARYBAR_PART)) {
+					harness.onDidRevealSidePane.fire();
+				}
 			}
 		}
 		override hasFocus(_part: Parts): boolean { return false; }
@@ -370,6 +396,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			this.setPartHidden(false, Parts.EDITOR_PART);
 		}
 		override readonly onDidChangePartVisibility = harness.onDidChangePartVisibility.event;
+		readonly onDidRevealSidePane = harness.onDidRevealSidePane.event;
 		isEditorMaximized(): boolean { return harness.editorMaximized; }
 		get isSinglePaneLayoutEnabled(): boolean { return options.singlePaneLayoutEnabled ?? false; }
 		readonly onDidChangeEditorMaximized = harness.onDidChangeEditorMaximized.event;
@@ -417,8 +444,12 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		if (!options.revealAuxiliaryBarOnOpen || harness.partVisibility.get(Parts.AUXILIARYBAR_PART) === true) {
 			return;
 		}
+		const sidePaneWasClosed = !(harness.partVisibility.get(Parts.EDITOR_PART) ?? true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		if (sidePaneWasClosed) {
+			harness.onDidRevealSidePane.fire();
+		}
 	}
 
 	instaService.stub(IPaneCompositePartService, new class extends mock<IPaneCompositePartService>() {
@@ -498,6 +529,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			return new class extends mock<IEditorGroupsService['mainPart']>() {
 				override get groups() { return groups; }
 				override get activeGroup() { return testActiveGroup; }
+				override getGroup(id: number) { return id === testActiveGroup.id ? testActiveGroup : undefined; }
 			};
 		}
 		override get groups() { return [{ isEmpty: !harness.editorGroupsHaveContent }] as unknown as IEditorGroupsService['groups']; }

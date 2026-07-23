@@ -43,6 +43,10 @@ suite('BlockedSessions', () => {
 		return service.blockedSessionsWithReasons.get().map((b): [string, BlockedSessionReason] => [b.session.sessionId, b.reason]);
 	}
 
+	function blockedOccurrences(service: BlockedSessions): string[] {
+		return service.blockedSessionsWithReasons.get().map(blocked => blocked.occurrenceId);
+	}
+
 	test('session needing input is blocked', () => {
 		const session = new TestSession('s1', SessionStatus.NeedsInput);
 		const { service } = createService([session], new TestGitHubService());
@@ -64,6 +68,15 @@ suite('BlockedSessions', () => {
 		const session = new TestSession('ci', SessionStatus.Completed, { pr: { owner: 'owner', repo: 'repo', number: 7 } });
 		const { service } = createService([session], gitHub);
 		assert.deepStrictEqual(blockedIds(service), ['ci']);
+	});
+
+	test('CI failure occurrence identifies the failing commit', () => {
+		const gitHub = new TestGitHubService();
+		gitHub.setPullRequest('owner', 'repo', 7, openPullRequest(7, 'sha7'));
+		gitHub.setCIStatus('owner', 'repo', 7, 'sha7', GitHubCIOverallStatus.Failure);
+		const session = new TestSession('ci', SessionStatus.Completed, { pr: { owner: 'owner', repo: 'repo', number: 7 } });
+		const { service } = createService([session], gitHub);
+		assert.deepStrictEqual(blockedOccurrences(service), [`${BlockedSessionReason.FailingCI}:sha7`]);
 	});
 
 	test('completed session with unresolved PR comments is not blocked', () => {
