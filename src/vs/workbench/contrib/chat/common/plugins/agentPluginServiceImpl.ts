@@ -13,10 +13,6 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import {
-	posix,
-	win32
-} from '../../../../../base/common/path.js';
-import {
 	basename, isEqual, isEqualOrParent, joinPath
 } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
