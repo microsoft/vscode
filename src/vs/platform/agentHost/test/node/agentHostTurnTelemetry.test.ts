@@ -151,6 +151,11 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		return telemetry.events.filter(e => e.eventName === 'agentHost.turnCompleted');
 	}
 
+	function capturedModel(data: Record<string, unknown>): { trusted: boolean; value: unknown } {
+		const model = data.model;
+		return model instanceof TelemetryTrustedValue ? { trusted: true, value: model.value } : { trusted: false, value: model };
+	}
+
 	function failedEvents(): { eventName: string; data: unknown }[] {
 		return telemetry.events.filter(e => e.eventName === 'agentHost.turnFailed');
 	}
@@ -208,7 +213,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(data.agentSessionId, 'session-1');
 		assert.strictEqual(data.turnId, 'turn-1');
 		assert.strictEqual(data.result, 'success');
-		assert.deepStrictEqual(data.model, new TelemetryTrustedValue('gpt-5.5'));
+		assert.deepStrictEqual(capturedModel(data), { trusted: true, value: 'gpt-5.5' });
 		assert.strictEqual(data.modelSelectionKind, 'explicit');
 		assert.strictEqual(data.permissionLevel, 'autopilot');
 		assert.strictEqual(typeof data.totalTime, 'number');
@@ -256,10 +261,12 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		startTurn('turn-1', 'hello', 'auto');
 		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1000 });
 
-		const events = completedEvents();
-		assert.strictEqual(events.length, 1);
-		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'cancelled');
-		assert.strictEqual((events[0].data as Record<string, unknown>).modelSelectionKind, 'auto');
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			model: capturedModel(data),
+			result: data.result,
+			modelSelectionKind: data.modelSelectionKind,
+		}, { model: { trusted: true, value: 'auto' }, result: 'cancelled', modelSelectionKind: 'auto' });
 	});
 
 	test('emits result=error on ChatError', () => {

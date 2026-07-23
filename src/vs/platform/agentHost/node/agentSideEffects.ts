@@ -1500,11 +1500,16 @@ export class AgentSideEffects extends Disposable {
 		const permissionValue = state?.config?.values[SessionConfigKey.AutoApprove];
 		const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
 		const model = modelId === undefined ? undefined : agent.models.get().find(model => model.id === modelId);
-		const modelTelemetryKind = modelId === undefined
-			? undefined
-			: model === undefined
-				? 'unknown'
-				: readAgentModelByokIdentifier(model) === undefined ? 'trusted' : 'byok';
+		let modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+		if (modelId === 'auto') {
+			modelTelemetryKind = 'trusted';
+		} else if (modelId === undefined) {
+			modelTelemetryKind = undefined;
+		} else if (model === undefined) {
+			modelTelemetryKind = 'unknown';
+		} else {
+			modelTelemetryKind = readAgentModelByokIdentifier(model) === undefined ? 'trusted' : 'byok';
+		}
 		return { model: modelId, modelTelemetryKind, permissionLevel };
 	}
 
