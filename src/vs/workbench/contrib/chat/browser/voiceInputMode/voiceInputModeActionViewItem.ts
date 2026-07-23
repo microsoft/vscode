@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import '../../../../../base/browser/ui/segmentedIconToggle/segmentedIconToggle.css';
 import { getActiveWindow, getWindow } from '../../../../../base/browser/dom.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -289,7 +290,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		container.classList.add('chat-voice-input-mode-item');
+		container.classList.add('monaco-segmented-icon-toggle-container', 'chat-voice-input-mode-item');
 
 		// A masked 2-slot viewport ("slot machine reel"). The reel holds three cells:
 		//   [ dictation ][ voice ][ listen ]
@@ -297,11 +298,11 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		// Connected    → the reel slides left one slot to show slots 1..2, so the voice
 		//                cell takes the dictation cell's place (now animated + disconnect)
 		//                and the listen toggle slides in from the right.
-		const pill = dom.append(container, dom.$('.chat-voice-input-mode'));
-		this._reel = dom.append(pill, dom.$('.chat-voice-input-mode-reel'));
+		const pill = dom.append(container, dom.$('.monaco-segmented-icon-toggle.chat-voice-input-mode'));
+		this._reel = dom.append(pill, dom.$('.monaco-segmented-icon-toggle-reel.chat-voice-input-mode-reel'));
 
 		// --- Dictation cell ---
-		this._dictationCell = dom.append(this._reel, dom.$('button.chat-voice-input-mode-cell.dictation'));
+		this._dictationCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.dictation'));
 		this._dictationCell.setAttribute('type', 'button');
 		this._dictationCell.setAttribute('role', 'button');
 		this._dictationCell.setAttribute('aria-label', localize('voiceInputMode.dictation', "Dictation"));
@@ -313,7 +314,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}));
 
 		// --- Voice cell: a single waveform that transforms across states (no glyph). ---
-		this._voiceCell = dom.append(this._reel, dom.$('button.chat-voice-input-mode-cell.voice'));
+		this._voiceCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.voice'));
 		this._voiceCell.setAttribute('type', 'button');
 		this._voiceCell.setAttribute('role', 'button');
 		this._voiceCell.setAttribute('aria-label', localize('voiceInputMode.voice', "Voice Mode"));
@@ -346,7 +347,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}));
 
 		// --- Listen cell: person-voice icon that toggles listening in manual voice mode. ---
-		this._listenCell = dom.append(this._reel, dom.$('button.chat-voice-input-mode-cell.listen'));
+		this._listenCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.listen'));
 		this._listenCell.setAttribute('type', 'button');
 		this._listenCell.setAttribute('role', 'button');
 		this._listenCell.setAttribute('aria-label', localize('voiceInputMode.listenToggle', "Toggle Listening"));

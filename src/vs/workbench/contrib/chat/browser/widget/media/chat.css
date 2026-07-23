@@ -4584,81 +4584,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-foreground);
 }
 
-/* --- Voice / Dictation input mode --- */
-.chat-voice-input-mode-item {
-	display: flex;
-	align-items: center;
-}
+/* --- Voice / Dictation input mode ---
+ * Built on the generic segmented-icon-toggle chrome (see
+ * base/browser/ui/segmentedIconToggle/segmentedIconToggle.css) for the pill housing, reel,
+ * and cell layout/hover/collapse behavior. The rules below add only the voice-specific
+ * styling: the walkthrough hover preview, per-state colors, the waveform bars, and the
+ * person-voice listen glyph. */
 
-/* Constant-size housing. Cells that aren't present collapse their width to 0 and the housing centers whatever remains, so icons slide smoothly into place. No overflow clipping here (each cell clips its own content), so hover backgrounds never get cut into a "half pill" by the rounded edge. */
-.chat-voice-input-mode {
-	display: inline-flex;
-	justify-content: center;
-	align-items: stretch;
-	box-sizing: border-box;
-	width: 56px; /* two cells, constant across all states */
-	height: 24px;
-	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: 8px;
-}
-
-.chat-voice-input-mode-reel {
-	display: flex;
-	align-items: stretch;
-}
-
-.chat-voice-input-mode-cell {
-	position: relative;
-	flex: 0 0 auto;
-	box-sizing: border-box;
-	width: 27px;
-	height: 100%;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	padding: 0;
-	border: none;
-	background: transparent;
-	color: var(--vscode-icon-foreground);
-	cursor: pointer;
-	overflow: hidden;
-	transition: width 0.3s cubic-bezier(0.2, 0.9, 0.2, 1), opacity 0.22s ease, color 0.2s ease;
-}
-
-/* Icon content sits above the hover background. */
-.chat-voice-input-mode-cell > * {
-	position: relative;
-	z-index: 1;
-}
-
-/* Hover background — a rounded-rectangle (squircle) filling the whole cell, edge-to-edge and full height, so it fully covers the housing interior with no surrounding gap. */
-.chat-voice-input-mode-cell::before {
-	content: '';
-	position: absolute;
-	inset: 0;
-	border-radius: 7px;
-	background: transparent;
-	transition: background 0.15s ease;
-	z-index: 0;
-}
-
-.chat-voice-input-mode-cell:hover::before,
+/* Walkthrough-only simulated hover mirrors the real :hover preview from the generic chrome. */
 .chat-voice-input-mode-cell.sim-hover::before {
 	background: var(--vscode-toolbar-hoverBackground, transparent);
 }
 
-/* Single-icon view: the lone button fills the whole pill, so its click target and hover background take up the entire pill. */
-.chat-voice-input-mode-item.single .chat-voice-input-mode-cell:not(.collapsed) {
-	width: 54px;
-}
-
-/* Absent cells collapse to zero width (icons slide into place as the housing recenters). */
-.chat-voice-input-mode-cell.collapsed {
-	width: 0;
-	opacity: 0;
-	pointer-events: none;
-}
-
+/* VS Code gates motion with `.monaco-enable-motion`; disable the cell slide/fade when it's off. */
 .monaco-workbench:not(.monaco-enable-motion) .chat-voice-input-mode-cell {
 	transition: none;
 }
@@ -4674,11 +4612,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-voice-input-mode-cell.voice.speaking {
 	color: var(--vscode-charts-purple, #a371f7);
-}
-
-.chat-voice-input-mode-cell:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
 }
 
 .chat-voice-input-mode-icon {
