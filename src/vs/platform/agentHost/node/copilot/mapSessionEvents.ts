@@ -387,22 +387,16 @@ export async function mapSessionEvents(
 				// User messages carry no deprecated `parentToolCallId`; route
 				// sub-agent user messages by the envelope `agentId` only.
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+				if (e.agentId && !parentToolCallId) {
+					continue;
+				}
 				if (parentToolCallId) {
-					// User messages from a sub-agent route into the subagent's
-					// transcript. They never start a new parent turn; subagents
-					// currently only see assistant messages in practice, but
-					// route conservatively.
 					const builder = ensureSubagentBuilder(parentToolCallId);
-					if (content) {
-						builder.responseParts.push({
-							kind: ResponsePartKind.Markdown,
-							id: generateUuid(),
-							content,
-						});
-					}
-					if (attachments?.length) {
-						builder.message = { ...builder.message, attachments };
-					}
+					builder.message = {
+						...builder.message,
+						text: content,
+						...(attachments?.length ? { attachments } : {}),
+					};
 				} else {
 					// A new top-level user message starts a new parent turn.
 					// Use the SDK envelope id (the same value

@@ -67,11 +67,10 @@ export class ModelPicker extends Disposable {
 				}
 			},
 			getModels: () => [...this._selectionModel.state.get().models],
-			useGroupedModelPicker: () => this._selectionModel.state.get().options.useGroupedModelPicker,
-			showManageModelsAction: () => this._selectionModel.state.get().options.showManageModelsAction,
-			showUnavailableFeatured: () => this._selectionModel.state.get().options.showUnavailableFeatured,
-			showFeatured: () => this._selectionModel.state.get().options.showFeatured,
-			showAutoModel: () => this._selectionModel.state.get().options.showAutoModel,
+			getPresentationOptions: () => ({
+				...this._selectionModel.state.get().options,
+				useGenericModelIcon: false,
+			}),
 			isCacheWarm: () => {
 				const session = this._sessionContext.session.get();
 				// The session's prompt cache is warm once its first request has

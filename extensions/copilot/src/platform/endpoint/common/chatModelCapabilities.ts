@@ -437,11 +437,10 @@ export function isGpt51Family(model: LanguageModelChat | IChatEndpoint | string 
 /**
  * This takes a sync shortcut and should only be called when a model hash would have already been computed while rendering the prompt.
  */
-export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium' | 'high' | undefined {
-	if (model.family === 'gpt-5.1' || model.family === 'gpt-5-mini') {
+export function getVerbosityForModelSync(model: IChatEndpoint, responsesApiVerbosityEnabled?: boolean): 'low' | 'medium' | 'high' | undefined {
+	if (model.family === 'gpt-5.1' || model.family === 'gpt-5-mini' || (isGpt56(model) && responsesApiVerbosityEnabled)) {
 		return 'low';
 	}
-
 	return undefined;
 }
 

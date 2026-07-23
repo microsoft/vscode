@@ -9,6 +9,7 @@ import { ThemeIcon } from '../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { MainEditorAreaVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { Menus } from '../../browser/menus.js';
@@ -45,6 +46,24 @@ suite('Sessions - Layout Actions', () => {
 			.map(item => ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined)
 			.sort((a, b) => (a ?? '').localeCompare(b ?? ''));
 		assert.deepStrictEqual(layoutToggleIcons, [Codicon.rightPanelHide.id, Codicon.rightPanelShow.id]);
+	});
+
+	test('core auxiliary bar command delegates to the layout service', async () => {
+		let calls = 0;
+		const command = CommandsRegistry.getCommand(ToggleAuxiliaryBarAction.ID);
+		assert.ok(command);
+		const layoutService = {
+			toggleSecondarySideBar: () => {
+				calls++;
+			},
+		};
+		const accessor = {
+			get: () => layoutService,
+		} as ServicesAccessor;
+
+		await command.handler(accessor);
+
+		assert.strictEqual(calls, 1);
 	});
 
 	test('single-pane editor layout actions render in the layout cluster ordered hide, then maximize/restore', async () => {

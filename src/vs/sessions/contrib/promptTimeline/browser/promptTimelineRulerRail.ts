@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableGenericMouseDownListener, addDisposableGenericMouseMoveListener, addDisposableGenericMouseUpListener, addDisposableListener, append, clearNode, EventType, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, EventType, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -30,13 +30,11 @@ const FAN_SPREAD = 14;
 const FAN_LINGER = 2000;
 /** A hard wheel flick only reveals the fan if the transcript actually scrolls within this window (ms) — so flicking against the top/bottom limit, which moves nothing, never blooms it. */
 const HARD_WHEEL_REVEAL_WINDOW = 200;
-/** Minimum height (px) of the rail's own scrollbar thumb so it stays grabbable on tall transcripts. */
-const THUMB_MIN_HEIGHT = 24;
 /**
  * Pill placement. `'proportional'` scatters pills at their real scroll position (an overview ruler);
  * `'even'` stacks them as an evenly-spaced dock centred in the lane (stable under virtualization, and
  * tidier when big responses would otherwise cluster the pills). The scrollbar thumb stays proportional
- * either way, and scrubbing hides the pills, so `'even'` does not make dragging feel disconnected.
+ * either way, and the fan is hidden until engaged, so `'even'` still reads calmly at rest.
  */
 const PILL_LAYOUT: 'proportional' | 'even' = 'even';
 /** Even layout: vertical gap (px) between pill centres — also the min so hit targets never overlap. */
@@ -56,15 +54,14 @@ interface IMarkEntry {
  * The overview-ruler rail. The whole session is compressed into the rail height
  * like the editor's overview ruler: each prompt is a mark at its proportional
  * scroll position, coloured only to signal whether it changed code. The rail sits
- * in a gutter beside the transcript's native scrollbar (no second slider); the
- * active mark is the "you-are-here". Detail lives in the hover card.
+ * in a gutter just beside the transcript's native scrollbar (which keeps handling
+ * scroll and position); the active mark is the "you-are-here". Detail lives in the
+ * hover card.
  */
 export class PromptTimelineRulerRail extends Disposable implements IPromptTimelineRail {
 
 	private readonly _domNode: HTMLElement;
 	private readonly _marksContainer: HTMLElement;
-	/** The rail's own scrollbar thumb (the transcript's native slider is hidden while the rail is active). Shown at rest as a plain scrollbar; recedes as the fan blooms. */
-	private readonly _thumb: HTMLElement;
 	private readonly _card: PromptTimelineCard;
 	private readonly _markDisposables = this._register(new DisposableStore());
 	private readonly _marks: IMarkEntry[] = [];
@@ -97,18 +94,11 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 	private _lastFanActivityAt = 0;
 	/** When the user prefers reduced motion the fan is disabled (marks stay their calm rest size). */
 	private _reducedMotion = false;
-	/** True while the user is dragging the lane to scrub the transcript. */
-	private _scrubbing = false;
 	/** True while keyboard focus is inside the rail: the marks stay revealed (`:focus-within`) but the fisheye is suppressed. */
 	private _focused = false;
-	/** Window listeners for the in-progress scrub drag; cleared on mouse-up (and on rail dispose). */
-	private readonly _scrubSession = this._register(new MutableDisposable<DisposableStore>());
 
 	private readonly _onDidSelect = this._register(new Emitter<string>());
 	readonly onDidSelect: Event<string> = this._onDidSelect.event;
-
-	private readonly _onDidScrub = this._register(new Emitter<number>());
-	readonly onDidScrub: Event<number> = this._onDidScrub.event;
 
 	private readonly _onDidReview = this._register(new Emitter<PromptTick>());
 	readonly onDidReview: Event<PromptTick> = this._onDidReview.event;
@@ -125,10 +115,6 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 		this._domNode.setAttribute('role', 'toolbar');
 		this._domNode.setAttribute('aria-orientation', 'vertical');
 		this._marksContainer = append(this._domNode, $('.prompt-timeline-ruler-marks'));
-		// The rail's own scrollbar thumb. It sits under the marks and shows the viewport position as
-		// a plain scrollbar at rest; while the fan is bloomed it fades out so the lane reads as one
-		// surface morphing from scrollbar → fan (the transcript's native slider is hidden via CSS).
-		this._thumb = append(this._domNode, $('.prompt-timeline-ruler-thumb'));
 		this._card = this._register(new PromptTimelineCard(this._domNode));
 		this._register(this._card.onDidReview(tick => this._onDidReview.fire(tick)));
 		this._register(this._card.onDidReviewFile(e => this._onDidReviewFile.fire(e)));
@@ -136,34 +122,25 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 		// Toolbar keyboard model: one Tab stop, Arrow/Home/End move between marks.
 		this._register(addDisposableListener(this._marksContainer, EventType.KEY_DOWN, e => this._onMarksKeyDown(e)));
 
-		// The marks column IS the scrollbar lane. Hovering anywhere along it blooms the fisheye "fan"
-		// and lets it FOLLOW the cursor (a macOS-dock feel); dragging it scrubs the transcript like a
-		// scrollbar. The lane's top edge is cached (refreshed on resize) so each hover/move converts
-		// the pointer Y to lane-local space without a per-event getBoundingClientRect (a forced reflow
-		// that would stutter while the transcript's styles are dirty during scroll).
+		// Hovering anywhere along the marks column blooms the fisheye "fan" and lets it FOLLOW the
+		// cursor (a macOS-dock feel). The lane's top edge is cached (refreshed on resize) so each
+		// hover/move converts the pointer Y to lane-local space without a per-event
+		// getBoundingClientRect (a forced reflow that would stutter while the transcript's styles are
+		// dirty during scroll).
 		this._register(addDisposableListener(this._marksContainer, EventType.MOUSE_ENTER, e => {
 			this._laneTop = this._laneTopNow();
 			this._hovering = true;
 			this._fanHide.clear(); // hovering keeps the fan open — no linger countdown
-			if (!this._scrubbing) {
-				this._engage(e.clientY - this._laneTop);
-			}
+			this._engage(e.clientY - this._laneTop);
 		}));
 		this._register(addDisposableListener(this._marksContainer, EventType.MOUSE_MOVE, e => {
 			this._hovering = true;
-			if (!this._scrubbing) {
-				this._engage(e.clientY - this._laneTop);
-			}
+			this._engage(e.clientY - this._laneTop);
 		}));
 		this._register(addDisposableListener(this._marksContainer, EventType.MOUSE_LEAVE, () => {
 			this._hovering = false;
-			if (!this._scrubbing) {
-				this._scheduleFanHide();
-			}
+			this._scheduleFanHide();
 		}));
-		// Drag the lane (anywhere that is not a mark) to scrub the transcript, like grabbing a
-		// scrollbar. Generic mouse-down so it also works with touch/pointer on iOS.
-		this._register(addDisposableGenericMouseDownListener(this._marksContainer, e => this._beginScrub(e)));
 
 		// The fan is a pointer-only flourish, so it must respect reduced-motion. Read it now and
 		// track changes; keyboard users always get the calm, static marks + card + navigation.
@@ -224,9 +201,6 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 			this._renderMark(entry, tick);
 			const requestId = tick.requestId;
 			this._markDisposables.add(addDisposableListener(button, EventType.CLICK, () => this._onDidSelect.fire(requestId)));
-			// A press on a mark must not start a lane scrub — let the click jump to the prompt. Generic
-			// so it also intercepts the pointer-down used on iOS.
-			this._markDisposables.add(addDisposableGenericMouseDownListener(button, e => e.stopPropagation()));
 			this._markDisposables.add(addDisposableListener(button, EventType.MOUSE_ENTER, () => this._showCard(entry)));
 			this._markDisposables.add(addDisposableListener(button, EventType.FOCUS, () => { this._showCard(entry); this._updateTabStops(this._marks.indexOf(entry)); }));
 			this._markDisposables.add(addDisposableListener(button, EventType.MOUSE_LEAVE, () => this._card.scheduleHide()));
@@ -398,11 +372,11 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 
 	/**
 	 * Handles a real transcript scroll: blooms the fan if it followed a deliberate hard flick, and
-	 * keeps it alive (re-arms the linger) while you keep scrolling. Pointer hover/scrub own the fan
-	 * on their own, so this defers to them.
+	 * keeps it alive (re-arms the linger) while you keep scrolling. Pointer hover owns the fan on its
+	 * own, so this defers to it.
 	 */
 	private _onScrolled(): void {
-		if (this._hovering || this._scrubbing || this._focused) {
+		if (this._hovering || this._focused) {
 			return;
 		}
 		if (this._domNode.classList.contains('engaged')) {
@@ -438,8 +412,6 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 		const layout = this._layout;
 		const overflowing = this._hostWidth < MIN_HOST_WIDTH;
 		this._domNode.classList.toggle('overflowing', overflowing);
-		// Position the rail's own scrollbar thumb (independent of the marks, which may be absent).
-		this._layoutThumb();
 		if (overflowing || height <= 0 || !layout || layout.total <= 0) {
 			return;
 		}
@@ -489,7 +461,7 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 		// While the fan is open because of scrolling (not steered by the pointer, and not while keyboard
 		// focus is showing the calm dock), glide its focus with the viewport so the fisheye travels
 		// smoothly through the pills as you scroll.
-		if (this._domNode.classList.contains('engaged') && !this._hovering && !this._scrubbing && !this._focused) {
+		if (this._domNode.classList.contains('engaged') && !this._hovering && !this._focused) {
 			const scrollCenter = this._scrollFanCenter();
 			if (scrollCenter !== undefined) {
 				this._fanCenter = scrollCenter;
@@ -525,85 +497,6 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 		for (let i = 0; i < n; i++) {
 			visible[i].center = start + i * step;
 		}
-	}
-
-	/**
-	 * The rail's scrollbar geometry, mapping the transcript's real scroll space onto the rail track,
-	 * exactly like the editor's {@link ScrollbarState}: the thumb size is the viewport's share of the
-	 * content (floored to a grabbable minimum), and the thumb travels `track - thumbSize` as the scroll
-	 * position travels `scrollHeight - viewportHeight`. Returns `undefined` when there is nothing to
-	 * scroll or the rail is too narrow to act as the scrollbar.
-	 */
-	private _thumbMetrics(): { size: number; ratio: number; maxScroll: number } | undefined {
-		const track = this._railHeight;
-		const layout = this._layout;
-		if (!layout || track <= 0 || this._hostWidth < MIN_HOST_WIDTH) {
-			return undefined;
-		}
-		const viewport = layout.viewportHeight;
-		const scrollSize = layout.scrollHeight;
-		if (viewport <= 0 || scrollSize <= viewport + 1) {
-			return undefined; // content fits — no scrollbar needed
-		}
-		const size = Math.max(THUMB_MIN_HEIGHT, Math.floor(viewport / scrollSize * track));
-		const maxScroll = scrollSize - viewport;
-		const ratio = (track - size) / maxScroll;
-		return { size, ratio, maxScroll };
-	}
-
-	/** Positions the rail's own scrollbar thumb from the transcript's real scroll offset, or hides it when there is nothing to scroll. */
-	private _layoutThumb(): void {
-		const metrics = this._thumbMetrics();
-		if (!metrics) {
-			this._thumb.classList.add('hidden');
-			return;
-		}
-		const top = Math.max(0, Math.min(this._railHeight - metrics.size, this._layout!.scrollTop * metrics.ratio));
-		this._thumb.classList.remove('hidden');
-		this._thumb.style.top = `${top}px`;
-		this._thumb.style.height = `${metrics.size}px`;
-	}
-
-	/** Begins a lane scrub (grab the scrollbar): scrolls to the pressed position and tracks the drag. */
-	private _beginScrub(e: MouseEvent): void {
-		if (!this._thumbMetrics()) {
-			return; // nothing to scroll
-		}
-		e.preventDefault();
-		this._scrubbing = true;
-		this._laneTop = this._laneTopNow();
-		// Collapse the fan while scrubbing so the lane reads as a clean scrollbar being dragged.
-		this._collapseFan();
-		this._domNode.classList.add('scrubbing');
-		this._scrubTo(e.clientY);
-		const session = new DisposableStore();
-		session.add(addDisposableGenericMouseMoveListener(getWindow(this._domNode), (ev: MouseEvent) => this._scrubTo(ev.clientY)));
-		session.add(addDisposableGenericMouseUpListener(getWindow(this._domNode), () => {
-			this._scrubbing = false;
-			this._domNode.classList.remove('scrubbing');
-			this._scrubSession.clear();
-			// Linger briefly after a scrub so the timeline stays up while the user reads where they landed.
-			if (!this._hovering) {
-				const center = this._activeCenter();
-				if (center !== undefined) {
-					this._engage(center);
-				}
-				this._scheduleFanHide();
-			}
-		}));
-		this._scrubSession.value = session;
-	}
-
-	/** Maps a client Y on the lane to a transcript scroll offset and requests it (viewport centred on the cursor). */
-	private _scrubTo(clientY: number): void {
-		const metrics = this._thumbMetrics();
-		if (!metrics) {
-			return;
-		}
-		// Centre the thumb on the cursor, then invert the thumb->scroll ratio, like ScrollbarState.
-		const desiredThumbTop = (clientY - this._laneTop) - metrics.size / 2;
-		const scrollTop = metrics.ratio > 0 ? desiredThumbTop / metrics.ratio : 0;
-		this._onDidScrub.fire(Math.max(0, Math.min(metrics.maxScroll, scrollTop)));
 	}
 
 	/**

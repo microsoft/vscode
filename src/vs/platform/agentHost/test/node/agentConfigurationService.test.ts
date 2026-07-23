@@ -54,7 +54,7 @@ suite('AgentConfigurationService', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///project', displayName: 'Project' },
-			workingDirectory,
+			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 		};
 	}
 

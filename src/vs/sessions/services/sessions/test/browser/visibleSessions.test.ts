@@ -83,6 +83,23 @@ suite('VisibleSessions', () => {
 		};
 	}
 
+	test('forwards Git availability through visible and resource-override wrappers', () => {
+		const hasGitRepository = observableValue('hasGitRepository', false);
+		const session = { ...stubSession('A'), hasGitRepository };
+		const model = createModel();
+		model.setActive(session);
+		const visible = model.activeSession.get();
+		const resourceOverride = model.updateResourceOfSession(session, URI.parse('test:///override'));
+
+		assert.deepStrictEqual({
+			visible: visible?.hasGitRepository === hasGitRepository,
+			resourceOverride: resourceOverride.hasGitRepository === hasGitRepository,
+		}, {
+			visible: true,
+			resourceOverride: true,
+		});
+	});
+
 	suite('setActive', () => {
 
 		test('opening B after non-sticky A replaces A in place', () => {
@@ -1177,9 +1194,9 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
 	});
 
-	test('shown for a single chat whose title diverged from the session title', () => {
+	test('hidden for a single chat even when its title diverged from the session title', () => {
 		const visible = createSession('Session Title', [makeChat('main', 'Chat Title')]);
-		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
+		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
 	});
 
 	test('shown for more than one chat even if a chat title matches the session title', () => {
@@ -1187,13 +1204,22 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
 	});
 
-	test('shown for a single non-tool chat matching the session title when it has a subagent', () => {
+	test('hidden for a single non-tool chat matching the session title even when it has a subagent', () => {
 		const visible = createSession('Title', [
 			makeChat('main', 'Title'),
 			makeChat('tool', 'tool', ChatOriginKind.Tool),
 		]);
-		// The strip is shown as soon as the session has any subagent, so the
-		// Conversations menu (which lists subagents) surfaces in the tab bar.
+		// Subagents on their own do not show the strip; the Conversations menu
+		// (which lists subagents) surfaces in the session header instead.
+		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
+	});
+
+	test('shown once a subagent tab is explicitly opened (multiple visible tabs)', () => {
+		const chats = [makeChat('main', 'Title'), makeChat('tool', 'tool', ChatOriginKind.Tool)];
+		const visible = createSession('Title', chats);
+		visible.openChat(chats[1]);
+		// Opening a subagent surfaces it as a second visible tab, so the strip is
+		// shown to display both tabs.
 		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
 	});
 
@@ -1205,7 +1231,7 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
 	});
 
-	test('stays shown after a non-main chat is closed back down to a single open chat', () => {
+	test('hidden after a non-main chat is closed back down to a single visible tab', () => {
 		const main = makeChat('main', 'Title');
 		const second = makeChat('second', 'second');
 		const visible = createSession('Title', [main, second]);
@@ -1219,7 +1245,7 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 			shouldShowChatTabs: visible.shouldShowChatTabs.get(),
 			visibleChatTabs: visible.visibleChatTabs.get().map(c => c.title.get()),
 		}, {
-			shouldShowChatTabs: true,
+			shouldShowChatTabs: false,
 			visibleChatTabs: ['Title'],
 		});
 	});

@@ -39,23 +39,20 @@ export interface IModelConfigurationAccess {
 	readonly onDidChange?: Event<string /* modelId */>;
 }
 
+export interface IModelPickerPresentationOptions {
+	readonly useGroupedModelPicker: boolean;
+	readonly showManageModelsAction: boolean;
+	readonly showUnavailableFeatured: boolean;
+	readonly showFeatured: boolean;
+	readonly showAutoModel: boolean;
+	readonly useGenericModelIcon: boolean;
+}
+
 export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
-	useGroupedModelPicker(): boolean;
-	showManageModelsAction(): boolean;
-	showUnavailableFeatured(): boolean;
-	showFeatured(): boolean;
-	useGenericModelIcon?(): boolean;
-	/**
-	 * Whether the synthetic "Auto" model is available for the current session,
-	 * so it can fall back to Auto. Defaults to `true` when omitted. When this
-	 * returns `false` and {@link getModels} is empty, the picker shows a
-	 * "No models available" entry (and an upgrade prompt for Copilot Free /
-	 * Student users) instead of an Auto entry.
-	 */
-	showAutoModel?(): boolean;
+	getPresentationOptions(): IModelPickerPresentationOptions;
 	/**
 	 * The id of the current chat session, used to correlate model-picker
 	 * changes with the session in telemetry. Matches the `chatSessionId`

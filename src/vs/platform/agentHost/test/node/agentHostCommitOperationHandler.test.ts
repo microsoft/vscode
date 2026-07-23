@@ -70,6 +70,10 @@ class TestGitService implements IAgentHostGitService {
 	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
 	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
+	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
+	async getUntrackedPaths(): Promise<[]> { return []; }
+	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
+	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
 class TestCopilotApiService implements ICopilotApiService {
@@ -148,7 +152,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		status: SessionStatus.Idle,
 		createdAt: new Date(1).toISOString(),
 		modifiedAt: new Date(1).toISOString(),
-		workingDirectory: URI.file('/repo').toString(),
+		workingDirectories: [URI.file('/repo').toString()],
 	});
 	stateManager.setSessionMeta(session.toString(), withSessionGitState(undefined, {
 		branchName: 'feature/test',

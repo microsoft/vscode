@@ -1931,6 +1931,8 @@ export class CodexAgent extends Disposable implements IAgent {
 				agentName: model ?? 'codex',
 				agentDisplayName: model ?? 'Subagent',
 				taskDescription,
+				// Codex surfaces the full delegated instruction as `item.prompt`.
+				taskPrompt: typeof item.prompt === 'string' && item.prompt.length > 0 ? item.prompt : undefined,
 			});
 			this._logService.trace(`[Codex:${session.sessionId}] subagent spawned thread=${childThreadId} toolCall=${entry.toolCallId} model=${model ?? '(default)'}`);
 		}
@@ -2358,7 +2360,14 @@ export class CodexAgent extends Disposable implements IAgent {
 			provider: this.id,
 			displayName: localize('codexAgent.displayName', "Codex"),
 			description: localize('codexAgent.description', "Codex agent backed by the OpenAI Codex app-server"),
-			capabilities: { multipleChats: { fork: true } },
+			// TODO @sandy081 (I3-removal follow-up): Codex multi-chat is
+			// implemented (chats.createChat/fork/createSessionChat), but the
+			// end-to-end peer-chat replay fixtures have not been recorded yet, so
+			// the capability stays unadvertised to keep it aligned with the
+			// upstream single-chat E2E configuration. Re-add
+			// `capabilities: { multipleChats: { fork: true } }` here (and flip
+			// codexTestConfiguration's supportsMultipleChats/supportsChatFork)
+			// once the Codex peer fixtures are recorded.
 		};
 	}
 

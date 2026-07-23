@@ -8,7 +8,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '.
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { PROMPT_TIMELINE_RAIL_SETTING, PROMPT_TIMELINE_STICKY_HEADER_SETTING } from '../common/promptTimeline.js';
-import { registerPromptTimelineActions } from './promptTimelineActions.js';
 import { PromptTimelineWidgetContrib } from './promptTimelineWidgetContrib.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -32,4 +31,3 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 ChatWidget.CONTRIBS.push(PromptTimelineWidgetContrib);
-registerPromptTimelineActions();

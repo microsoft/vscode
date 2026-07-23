@@ -340,24 +340,22 @@ suite('Automation branch picker', () => {
 
 	test('explains that Worktree is unavailable while branches load', async () => {
 		const refs = new DeferredPromise<Awaited<ReturnType<IGitRepository['getRefs']>>>();
-		const { container, actionWidgetService } = createItem({
+		const { container } = createItem({
 			state: createFormState({ isolationMode: 'workspace' }),
 			getRefs: async () => refs.p,
 		});
 		await timeout(0);
-		const isolationTrigger = container.querySelector<HTMLElement>('.automation-form-isolation-chip');
-		assert.ok(isolationTrigger);
+		const checkbox = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .monaco-checkbox');
+		assert.ok(checkbox);
 
-		isolationTrigger.click();
 		assert.deepStrictEqual({
-			labels: actionWidgetService.labels,
-			details: actionWidgetService.details,
+			checked: checkbox.getAttribute('aria-checked'),
+			disabled: checkbox.getAttribute('aria-disabled'),
 		}, {
-			labels: ['Worktree', 'Folder'],
-			details: ['Local branches are loading.', undefined],
+			checked: 'false',
+			disabled: 'true',
 		});
 
-		actionWidgetService.hide(true);
 		await refs.complete([{ type: GitRefType.Head, name: 'main' }]);
 	});
 
@@ -407,14 +405,16 @@ suite('Automation branch picker', () => {
 		});
 		await timeout(0);
 
+		const checkbox = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .monaco-checkbox');
+		assert.ok(checkbox);
 		assert.deepStrictEqual({
 			mode: model.isolationMode,
 			branch: model.persistedBranch,
-			label: container.querySelector('.automation-form-isolation-label')?.textContent,
+			checked: checkbox.getAttribute('aria-checked'),
 		}, {
 			mode: 'workspace',
 			branch: undefined,
-			label: 'Folder',
+			checked: 'false',
 		});
 	});
 

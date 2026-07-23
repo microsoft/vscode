@@ -245,8 +245,8 @@ export class WorktreeIsolation extends Disposable {
 
 	/**
 	 * Marks a fresh worktree-isolation session as pending — its worktree is
-	 * deferred to the first send. Called by the host from `createSession` when
-	 * the resolved session config selects `worktree` isolation.
+	 * deferred to the first send. Called by the host while a creating session's
+	 * resolved config selects `worktree` isolation.
 	 */
 	notePending(sessionId: string): void {
 		this._pending.add(sessionId);

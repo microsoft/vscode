@@ -80,20 +80,6 @@ export class AutomationRunner implements IAutomationRunner {
 				return;
 			}
 
-			const run = await this.automationService.recordRunStart(automation.id, trigger, leaderWindowId);
-			runId = run.id;
-			await this.automationService.updateRun(runId, { status: 'running' });
-
-			if (token.isCancellationRequested) {
-				await this._markCancelled(runId, trigger, automation, startTimeMs);
-				return;
-			}
-
-			const options: ISendRequestOptions = {
-				query: automation.prompt,
-				background: true,
-				title: automation.name?.substring(0, 100),
-			};
 			const target = automation.target;
 			const isolationMode = target.kind === 'workspace'
 				? target.isolation.kind === 'folder' ? 'workspace' : target.isolation.kind === 'worktree' ? 'worktree' : undefined
@@ -111,6 +97,32 @@ export class AutomationRunner implements IAutomationRunner {
 					branch,
 				}
 				: undefined;
+
+			const targetAvailable = target.kind === 'quickChat'
+				? this.sessionsManagementService.isQuickChatTargetAvailable(createOptions)
+				: this.sessionsManagementService.isNewSessionTargetAvailable(target.folderUri, createOptions);
+			if (!targetAvailable) {
+				this.logService.trace(`[AutomationRunner] deferring ${automation.id}: target is not yet advertised.`);
+				if (trigger === 'manual') {
+					this.notificationService.info(localize('automationTargetUnavailable', "Automation '{0}' cannot start until its agent becomes available.", automation.name));
+				}
+				return;
+			}
+
+			const run = await this.automationService.recordRunStart(automation.id, trigger, leaderWindowId);
+			runId = run.id;
+			await this.automationService.updateRun(runId, { status: 'running' });
+
+			if (token.isCancellationRequested) {
+				await this._markCancelled(runId, trigger, automation, startTimeMs);
+				return;
+			}
+
+			const options: ISendRequestOptions = {
+				query: automation.prompt,
+				background: true,
+				title: automation.name?.substring(0, 100),
+			};
 
 			this.logService.trace(`[AutomationRunner] running ${automation.id}: target=${target.kind}, provider=${createOptions?.providerId ?? '(default)'}, sessionType=${createOptions?.sessionTypeId ?? '(default)'}, model=${createOptions?.modelId ?? '(default)'}, mode=${createOptions?.modeId ?? '(default)'}, permissionLevel=${createOptions?.permissionLevel ?? '(default)'}`);
 

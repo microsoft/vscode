@@ -49,6 +49,7 @@ suite('Sessions - Workbench', () => {
 	const savePartSizes = Reflect.get(Workbench.prototype, '_savePartSizes') as (this: ISavePartSizesTestHarness) => void;
 	const isEditorPaneVisible = Workbench.prototype.isEditorPaneVisible as (this: ITestWorkbench) => boolean;
 	const isSinglePaneEditorPaneVisible = SinglePaneWorkbench.prototype.isEditorPaneVisible as (this: ITestWorkbench) => boolean;
+	const toggleEditorPane = SinglePaneWorkbench.prototype.toggleEditorPane as (this: ITestWorkbench) => void;
 
 	// --- Harness ------------------------------------------------------------
 
@@ -238,6 +239,20 @@ suite('Sessions - Workbench', () => {
 		host.workbenchGrid.isViewVisible = () => false;
 
 		assert.strictEqual(isSinglePaneEditorPaneVisible.call(host), false);
+	});
+
+	test('single-pane editor pane toggle controls the editor pane', () => {
+		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: true } });
+
+		toggleEditorPane.call(host);
+
+		assert.deepStrictEqual({
+			editorVisible: host.partVisibility.editor,
+			auxiliaryBarVisible: host.partVisibility.auxiliaryBar,
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: true,
+		});
 	});
 
 	test('updates the single-pane editor pane class after the grid node visibility changes', () => {

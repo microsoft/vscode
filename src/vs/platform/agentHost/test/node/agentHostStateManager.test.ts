@@ -227,12 +227,12 @@ suite('AgentHostStateManager', () => {
 		// has no per-chat working-directory override, so getSessionState must
 		// project the RESOLVED session working directory, never the stale
 		// create-time value that was seeded onto the default chat.
-		manager.createSession({ ...makeSessionSummary(), workingDirectory: 'file:///provisional' }, { emitNotification: false });
-		manager.markSessionPersisted(sessionUri, { ...makeSessionSummary(), workingDirectory: 'file:///resolved-worktree' });
+		manager.createSession({ ...makeSessionSummary(), workingDirectories: ['file:///provisional'] }, { emitNotification: false });
+		manager.markSessionPersisted(sessionUri, { ...makeSessionSummary(), workingDirectories: ['file:///resolved-worktree'] });
 
 		assert.deepStrictEqual({
-			session: manager.getSessionState(sessionUri)?.workingDirectory,
-			defaultChat: manager.getSessionState(sessionChatUri)?.workingDirectory,
+			session: manager.getSessionState(sessionUri)?.workingDirectories?.[0],
+			defaultChat: manager.getSessionState(sessionChatUri)?.workingDirectories?.[0],
 		}, {
 			session: 'file:///resolved-worktree',
 			defaultChat: 'file:///resolved-worktree',
@@ -1681,7 +1681,7 @@ suite('Subagent URI helpers', () => {
 				lifecycle: SessionLifecycle.Ready,
 				activeClients: [],
 				chats: [],
-				workingDirectory,
+				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			};
 		}
 
@@ -1691,7 +1691,7 @@ suite('Subagent URI helpers', () => {
 				title: 'Peer',
 				status: SessionStatus.Idle,
 				modifiedAt: new Date().toISOString(),
-				workingDirectory,
+				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 				turns: [],
 			};
 		}
@@ -1701,7 +1701,7 @@ suite('Subagent URI helpers', () => {
 				makeSessionState('file:///session-wd'),
 				makeChatState('file:///peer-worktree'),
 			);
-			assert.strictEqual(merged.workingDirectory, 'file:///peer-worktree');
+			assert.strictEqual(merged.workingDirectories?.[0], 'file:///peer-worktree');
 		});
 
 		test('falls back to the session working directory when the chat does not override it', () => {
@@ -1709,12 +1709,12 @@ suite('Subagent URI helpers', () => {
 				makeSessionState('file:///session-wd'),
 				makeChatState(undefined),
 			);
-			assert.strictEqual(merged.workingDirectory, 'file:///session-wd');
+			assert.strictEqual(merged.workingDirectories?.[0], 'file:///session-wd');
 		});
 
 		test('falls back to the session working directory when no chat state is hydrated', () => {
 			const merged = mergeSessionWithDefaultChat(makeSessionState('file:///session-wd'), undefined);
-			assert.strictEqual(merged.workingDirectory, 'file:///session-wd');
+			assert.strictEqual(merged.workingDirectories?.[0], 'file:///session-wd');
 			assert.deepStrictEqual(merged.turns, []);
 		});
 	});

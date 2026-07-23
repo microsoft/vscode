@@ -213,7 +213,7 @@ export class MobileChatInputCombinedPickerActionItem extends BaseActionViewItem 
 
 		const currentModel = this._modelDelegate.currentModel.get();
 		if (currentModel) {
-			dom.append(trigger, renderIcon(getModelProviderIcon(currentModel, this._modelDelegate.useGenericModelIcon?.())));
+			dom.append(trigger, renderIcon(getModelProviderIcon(currentModel, this._modelDelegate.getPresentationOptions().useGenericModelIcon)));
 		}
 		const labelText = currentModel?.metadata.name
 			?? localize('chatPhoneInput.autoLabel', "Auto");

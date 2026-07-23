@@ -442,18 +442,21 @@ async function getOrCreateProviderForMcpResource(
 			throw new Error('Dynamic authentication provider storage is required for a configured OAuth client.');
 		}
 		const dynamicProviderId = getDynamicAuthenticationProviderId(authorizationServer, protectedResource);
-		if (authenticationService.isDynamicAuthenticationProvider(dynamicProviderId)) {
-			const registered = await dynamicAuthenticationProviderStorageService.getClientRegistration(dynamicProviderId);
-			if (registered?.clientId === oauthClient.clientId && registered.clientSecret === oauthClient.clientSecret) {
+		const isProviderActive = authenticationService.isDynamicAuthenticationProvider(dynamicProviderId);
+		const registeredClient = await dynamicAuthenticationProviderStorageService.getClientRegistration(dynamicProviderId);
+		const clientMatches = registeredClient?.clientId === oauthClient.clientId && registeredClient.clientSecret === oauthClient.clientSecret;
+		if (clientMatches) {
+			if (isProviderActive) {
 				return dynamicProviderId;
 			}
+		} else {
 			if (!allowCreation) {
 				return undefined;
 			}
-			authenticationService.unregisterAuthenticationProvider(dynamicProviderId);
-			await dynamicAuthenticationProviderStorageService.removeDynamicProvider(dynamicProviderId);
-		} else if (!allowCreation) {
-			return undefined;
+			if (isProviderActive) {
+				authenticationService.unregisterAuthenticationProvider(dynamicProviderId);
+				await dynamicAuthenticationProviderStorageService.removeDynamicProvider(dynamicProviderId);
+			}
 		}
 	} else {
 		const existing = await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceUri);

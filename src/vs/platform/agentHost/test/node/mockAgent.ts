@@ -92,7 +92,7 @@ export class MockAgent implements IAgent {
 	constructor(readonly id: AgentProvider = 'mock') { }
 
 	getDescriptor(): IAgentDescriptor {
-		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent` };
+		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent`, capabilities: { multipleChats: { fork: true } } };
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
@@ -415,7 +415,7 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	getDescriptor(): IAgentDescriptor {
-		return { provider: 'mock', displayName: 'Mock Agent', description: 'Scripted test agent' };
+		return { provider: 'mock', displayName: 'Mock Agent', description: 'Scripted test agent', capabilities: { multipleChats: { fork: true } } };
 	}
 
 	getProtectedResources(): IAuthorizationProtectedResourceMetadata[] {
