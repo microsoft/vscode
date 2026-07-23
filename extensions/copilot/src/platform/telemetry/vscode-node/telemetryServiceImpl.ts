@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CustomFetcher } from '@vscode/extension-telemetry';
+import * as vscode from 'vscode';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
@@ -118,6 +119,17 @@ export class TelemetryService extends BaseTelemetryService {
 					statusCode: event.statusCode,
 				});
 			});
+		}
+	}
+
+	// __GDPR__COMMON__ "capi.assignmentcontext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	override setSharedProperty(name: string, value: string): void {
+		super.setSharedProperty(name, value);
+
+		// Forward CAPI assignment context to the core telemetry pipeline
+		// so it appears on all telemetry events from the current window.
+		if (name === 'capi.assignmentcontext') {
+			vscode.commands.executeCommand('_telemetry.setExperimentProperty', name, value);
 		}
 	}
 }

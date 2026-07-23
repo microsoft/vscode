@@ -5,6 +5,7 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../platform/telemetry/common/gdprTypings.js';
@@ -58,5 +59,9 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 		this.$publicLog(eventName, data);
 	}
 }
+
+CommandsRegistry.registerCommand('_telemetry.setExperimentProperty', function (accessor, name: string, value: string) {
+	accessor.get(ITelemetryService).setExperimentProperty(name, value);
+});
 
 
