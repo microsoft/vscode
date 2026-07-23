@@ -4592,6 +4592,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: relative;
 }
 
+/* Cloud dictation connect: the cloud backend has no model download, so its
+	preparing affordance swaps the glyph for a loading spinner (see
+	DictationDownloadActionViewItem._applyMaiSpinner). Spin only the glyph
+	(::before), not the whole button, and independently of the surrounding
+	toolbar so it reads as a clean spinner rather than a rotating mic/button. */
+.monaco-action-bar .action-item.dictation-download-item .action-label.dictation-connecting-spinner {
+	animation: none;
+}
+
+.monaco-action-bar .action-item.dictation-download-item .action-label.dictation-connecting-spinner::before {
+	display: inline-block;
+	transform-origin: center center;
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
 .monaco-action-bar .action-item.dictation-download-item > .dictation-download-ring {
 	position: absolute;
 	top: 50%;

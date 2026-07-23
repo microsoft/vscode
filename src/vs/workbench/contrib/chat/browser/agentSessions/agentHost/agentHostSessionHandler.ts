@@ -41,7 +41,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentChatUri, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type StringOrMarkdown, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -93,7 +93,7 @@ import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallConfirmationMessages, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallConfirmationMessages, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
@@ -212,6 +212,11 @@ interface IObserveTurnOptions {
 interface ISubagentContext {
 	/** Tool call IDs already subscribed — prevents duplicate observers. */
 	readonly observedToolIds: Set<string>;
+}
+
+interface IOutputTerminalAttachment {
+	sessionId?: string;
+	readonly disposable: MutableDisposable<IDisposable>;
 }
 
 function getMcpAuthenticationRequiredServers(sessionResource: URI, state: ISessionWithDefaultChat | undefined): IChatMcpAuthenticationRequiredServer[] {
@@ -880,13 +885,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return this._config.connection.getCompletionTriggerCharacters();
 	}
 
-	private _createCompletionItem(raw: AhpCompletionItem, text: string, attachment: IChatInputCompletionItem['attachment']): IChatInputCompletionItem {
+	private _createCompletionItem(raw: AhpCompletionItem, text: string, attachment: IChatInputCompletionItem['attachment'], label?: string): IChatInputCompletionItem {
 		const item: Mutable<IChatInputCompletionItem> = {
 			insertText: raw.insertText,
 			attachment
 		};
-		if (raw.label !== undefined) {
-			item.label = raw.label;
+		if (label !== undefined) {
+			item.label = label;
 		}
 		if (raw.rangeStart !== undefined) {
 			item.start = offsetToPosition(text, raw.rangeStart);
@@ -908,7 +913,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						command: completionMeta.command,
 						description: completionMeta.description ?? '',
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
-					});
+					}, attachment.label !== raw.insertText ? attachment.label : undefined);
 				}
 				if (completionMeta?.kind === 'skill') {
 					return this._createCompletionItem(raw, text, {
@@ -2664,6 +2669,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, () => confirmationOptions, opts.chatURI);
 		}
 		this._tryObserveSubagentToolCall(initial, invocation, store, opts, subagentContext);
+		const outputTerminalAttachment: IOutputTerminalAttachment = {
+			disposable: store.add(new MutableDisposable())
+		};
 
 		// Reuse the invocation whenever a tool enters confirmation to avoid duplicate cards.
 		let previousStatus: ToolCallStatus | undefined = initial.status;
@@ -2706,7 +2714,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 				this._ensureLeftStreaming(invocation, tc, opts);
 				invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, this._config.connectionAuthority);
-				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession);
+				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession, outputTerminalAttachment);
 				updateRunningToolSpecificData(invocation, tc, opts.backendSession, this._config.connectionAuthority);
 			}
 
@@ -2717,7 +2725,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// Running was skipped (e.g. throttling) and terminal content
 				// only appears at Completed time.
 				this._ensureLeftStreaming(invocation, tc, opts);
-				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession);
+				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession, outputTerminalAttachment);
 				const fileEdits = finalizeToolInvocation(invocation, tc, opts.backendSession, this._config.connectionAuthority);
 				if (fileEdits.length > 0) {
 					opts.onFileEdits?.(tc, fileEdits);
@@ -3331,21 +3339,28 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		invocation: ChatToolInvocation,
 		tc: ToolCallState,
 		backendSession: URI,
+		outputTerminalAttachment: IOutputTerminalAttachment,
 	): void {
 		// content is only present on Running/Completed/PendingResultConfirmation.
 		// toolInput is present on all post-streaming states.
 		if (tc.status !== ToolCallStatus.Running && tc.status !== ToolCallStatus.Completed && tc.status !== ToolCallStatus.PendingResultConfirmation) {
 			return;
 		}
-		const terminalUri = getTerminalContentUri(tc.content);
-		if (!terminalUri || !tc.toolInput) {
+		const terminalContent = getTerminalContent(tc.content);
+		const terminalUri = terminalContent?.resource;
+		if (!terminalContent || !terminalUri || !tc.toolInput) {
 			return;
 		}
 		invocation.presentation = undefined;
 		const toolInput = tc.toolInput;
 		const sessionId = makeAhpTerminalToolSessionId(terminalUri, backendSession);
 		const terminalCommandUri = URI.parse(terminalUri);
-		const terminalInstance = this._ensureTerminalInstance(terminalUri, sessionId);
+		const isPty = terminalContent.isPty !== false;
+		const terminalInstance = isPty ? this._ensureTerminalInstance(terminalUri, sessionId) : undefined;
+		if (!isPty && outputTerminalAttachment.sessionId !== sessionId) {
+			outputTerminalAttachment.disposable.value = this._agentHostTerminalService.attachOutputTerminal(this._config.connection, terminalCommandUri, sessionId);
+			outputTerminalAttachment.sessionId = sessionId;
+		}
 		const existing = invocation.toolSpecificData?.kind === 'terminal'
 			? invocation.toolSpecificData as IChatTerminalToolInvocationData
 			: undefined;
@@ -3362,6 +3377,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				language: 'shellscript',
 				terminalToolSessionId: sessionId,
 				terminalCommandUri,
+				isPty,
 				terminalCommandId: identityChanged ? undefined : existing?.terminalCommandId,
 				terminalCommandOutput: identityChanged ? undefined : existing?.terminalCommandOutput,
 				terminalCommandState: identityChanged ? undefined : existing?.terminalCommandState,
@@ -3372,8 +3388,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const current = invocation.toolSpecificData?.kind === 'terminal'
 			? invocation.toolSpecificData
 			: undefined;
-		if (current?.terminalCommandId) {
-			void terminalInstance.catch(error => this._logService.error(`[AgentHost] Failed to revive terminal '${terminalUri}'`, error));
+		if (!terminalInstance || current?.terminalCommandId) {
+			if (terminalInstance) {
+				void terminalInstance.catch(error => this._logService.error(`[AgentHost] Failed to revive terminal '${terminalUri}'`, error));
+			}
 			return;
 		}
 		void terminalInstance.then(() => {
@@ -4278,6 +4296,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (entry.value === undefined) {
 				continue;
 			}
+			if (entry.uri?.scheme === Schemas.vscodeBrowser) {
+				continue;
+			}
 			if (skipUntitled && entry.uri?.scheme === Schemas.untitled) {
 				continue;
 			}
@@ -4991,15 +5012,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
  */
 export function toolResultToProtocol(result: IToolResult, toolName: string): {
 	success: boolean;
-	pastTenseMessage: string;
+	pastTenseMessage: StringOrMarkdown;
 	content?: ({ type: ToolResultContentType.Text; text: string } | { type: ToolResultContentType.EmbeddedResource; data: string; contentType: string })[];
 	error?: { message: string };
 } {
 	const isError = !!result.toolResultError;
-	const pastTense = typeof result.toolResultMessage === 'string'
+	const defaultPastTense = isError ? `${toolName} failed` : `Ran ${toolName}`;
+	const pastTense: StringOrMarkdown = typeof result.toolResultMessage === 'string'
 		? result.toolResultMessage
-		: result.toolResultMessage?.value
-		?? (isError ? `${toolName} failed` : `Ran ${toolName}`);
+		: result.toolResultMessage
+			? { markdown: result.toolResultMessage.value }
+			: defaultPastTense;
 
 	const content: ({ type: ToolResultContentType.Text; text: string } | { type: ToolResultContentType.EmbeddedResource; data: string; contentType: string })[] = [];
 	for (const part of result.content) {

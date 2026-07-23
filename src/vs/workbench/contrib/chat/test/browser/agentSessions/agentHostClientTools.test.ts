@@ -9,6 +9,7 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { constObservable, observableValue, autorun } from '../../../../../../base/common/observable.js';
@@ -187,6 +188,17 @@ suite('AgentHostClientTools', () => {
 
 			const proto = toolResultToProtocol(result, 'myTool');
 			assert.strictEqual(proto.pastTenseMessage, 'Ran myTool');
+		});
+
+		test('preserves markdown tool result messages', () => {
+			const result: IToolResult = {
+				content: [],
+				toolResultMessage: new MarkdownString('Opened [Browser](vscode-browser:/page-1?vscodeLinkType=browser)'),
+			};
+
+			assert.deepStrictEqual(toolResultToProtocol(result, 'open_browser_page').pastTenseMessage, {
+				markdown: 'Opened [Browser](vscode-browser:/page-1?vscodeLinkType=browser)',
+			});
 		});
 
 		test('converts text and data content parts', () => {
