@@ -63,8 +63,37 @@ export interface CreateSessionParams extends BaseParams {
 	channel: URI;
 	/** Agent provider ID */
 	provider?: string;
-	/** Working directory for the session */
-	workingDirectory?: URI;
+	/**
+	 * The working directories the session's agent is granted tool access to.
+	 * A session may span multiple directories; they are equal peers except when
+	 * the agent advertises
+	 * {@link MultipleWorkingDirectoriesCapability.requiresPrimary}, in which case
+	 * one of them should be designated the primary via
+	 * {@link primaryWorkingDirectory}.
+	 *
+	 * A client MUST NOT supply more than one entry unless the agent advertises
+	 * {@link AgentCapabilities.multipleWorkingDirectories}; a server without that
+	 * capability treats only the first entry as the session's working directory
+	 * and ignores the rest. Dispatch `session/workingDirectorySet` /
+	 * `session/workingDirectoryRemoved` to change the set after the session has
+	 * started.
+	 *
+	 * Ignored for forked sessions — a fork inherits its working directories
+	 * from the source session identified by `fork`.
+	 */
+	workingDirectories?: URI[];
+	/**
+	 * The primary working directory for the session's **default chat** — the
+	 * distinguished root that chat is centered on (see
+	 * {@link ChatState.primaryWorkingDirectory}). A session has no primary of its
+	 * own; this seeds the default chat's primary. When set, it MUST be one of
+	 * {@link workingDirectories}. A client SHOULD supply this when the agent
+	 * advertises {@link MultipleWorkingDirectoriesCapability.requiresPrimary}; a
+	 * host MAY reject creation that omits it, or fall back to the first entry of
+	 * `workingDirectories`. Ignored for forked sessions (a fork inherits the
+	 * source session's chats and their primaries).
+	 */
+	primaryWorkingDirectory?: URI;
 	/**
 	 * Fork from an existing session. The new session is populated with content
 	 * from the source session up to and including the specified turn's response.

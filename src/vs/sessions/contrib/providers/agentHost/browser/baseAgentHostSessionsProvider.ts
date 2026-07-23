@@ -1983,6 +1983,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// live, instead of relying on the idle timer that only client actions
 		// refresh.
 		this._register(autorun(reader => this._syncVisibleSessionStatePins(reader)));
+		this._register(autorun(reader => {
+			this._sessionsService.activeSession.read(reader);
+			this._syncActiveClient();
+		}));
 
 		// Session-cache persistence. These listeners are inert until a subclass
 		// opts in via `_enableSessionCachePersistence` (which sets the storage
@@ -2169,6 +2173,34 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getSessionTypes(_repositoryUri: URI): ISessionType[] {
 		return [...this.sessionTypes];
+	}
+
+	private _syncActiveClient(): void {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (!activeSession || activeSession.providerId !== this.id) {
+			return;
+		}
+
+		const rawId = this._rawIdFromChatId(activeSession.sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!rawId || !cached || !connection) {
+			return;
+		}
+
+		const activeClient = this._activeClientService.getActiveClient(
+			this.resourceSchemeForProvider(cached.agentProvider),
+			connection.clientId,
+		);
+		const existing = this._lastSessionStates.get(cached.sessionId)?.activeClients.find(client => client.clientId === activeClient.clientId);
+		if (equals(existing, activeClient)) {
+			return;
+		}
+
+		connection.dispatch(AgentSession.uri(cached.agentProvider, rawId).toString(), {
+			type: ActionType.SessionActiveClientSet,
+			activeClient,
+		});
 	}
 
 	getSessions(): ISession[] {
@@ -2934,7 +2966,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getWorkingDirectory(sessionId: string): string | undefined {
 		const sessionState = this._lastSessionStates.get(sessionId);
-		return sessionState?.workingDirectory;
+		return sessionState?.workingDirectories?.[0];
 	}
 
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[] {
@@ -4068,6 +4100,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (added.length > 0 || removed.length > 0 || changed.length > 0) {
 				this._onDidChangeSessions.fire({ added, removed, changed });
 			}
+			this._syncActiveClient();
 			for (const cached of removed) {
 				(cached as AgentHostSessionAdapter).dispose();
 			}
@@ -4224,8 +4257,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _handleSessionAdded(summary: SessionSummary): void {
 		const sessionUri = URI.parse(summary.resource);
 		const rawId = AgentSession.id(sessionUri);
-		const workingDir = typeof summary.workingDirectory === 'string'
-			? this.mapWorkingDirectoryUri(URI.parse(summary.workingDirectory))
+		const workingDir = typeof summary.workingDirectories?.[0] === 'string'
+			? this.mapWorkingDirectoryUri(URI.parse(summary.workingDirectories?.[0]))
 			: undefined;
 		const meta: IAgentSessionMetadata = {
 			session: sessionUri,
@@ -4255,12 +4288,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (this.updateAdapter(existing, meta)) {
 				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [existing] });
 			}
+			this._syncActiveClient();
 			return;
 		}
 
 		const cached = this.createAdapter(meta);
 		this._sessionCache.set(rawId, cached);
 		this._onDidChangeSessions.fire({ added: [cached], removed: [], changed: [] });
+		this._syncActiveClient();
 	}
 
 	private _handleSessionRemoved(session: URI | string): void {

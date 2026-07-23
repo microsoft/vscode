@@ -488,7 +488,7 @@ export class AgentService extends Disposable implements IAgentService {
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
 			onTurnComplete: async session => {
 				// Refresh the git state for the session.
-				const workingDirStr = this._stateManager.getSessionState(session)?.workingDirectory;
+				const workingDirStr = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 				void this._gitStateService.refreshSessionGitState(session, workingDirStr ? URI.parse(workingDirStr) : undefined);
 
 				// Check for a GitHub pull request associated with the session's branch.
@@ -847,6 +847,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const _meta = liveSummary._meta !== undefined || s._meta !== undefined
 					? { ...s._meta, ...liveSummary._meta }
 					: undefined;
+				const liveWorkingDir = liveSummary.workingDirectories?.[0];
 				return {
 					...s,
 					summary: liveSummary.title || s.summary,
@@ -856,8 +857,8 @@ export class AgentService extends Disposable implements IAgentService {
 					project: liveSummary.project
 						? { uri: URI.parse(liveSummary.project.uri), displayName: liveSummary.project.displayName }
 						: s.project,
-					workingDirectory: typeof liveSummary.workingDirectory === 'string'
-						? URI.parse(liveSummary.workingDirectory)
+					workingDirectory: typeof liveWorkingDir === 'string'
+						? URI.parse(liveWorkingDir)
 						: s.workingDirectory,
 					changes: liveSummary.changes ?? s.changes,
 					changesets: this._stateManager.getSessionState(s.session.toString())?.changesets ?? s.changesets,
@@ -890,6 +891,7 @@ export class AgentService extends Disposable implements IAgentService {
 				continue;
 			}
 
+			const summaryWorkingDir = summary.workingDirectories?.[0];
 			additions.push({
 				session: URI.parse(summary.resource),
 				startTime: Date.parse(summary.createdAt),
@@ -897,7 +899,7 @@ export class AgentService extends Disposable implements IAgentService {
 				summary: summary.title,
 				status: summary.status,
 				activity: summary.activity,
-				workingDirectory: typeof summary.workingDirectory === 'string' ? URI.parse(summary.workingDirectory) : undefined,
+				workingDirectory: typeof summaryWorkingDir === 'string' ? URI.parse(summaryWorkingDir) : undefined,
 				...(summary.project ? { project: { uri: URI.parse(summary.project.uri), displayName: summary.project.displayName } } : {}),
 				changes: summary.changes,
 				// This overlay path never opens the session database (unlike the
@@ -1400,6 +1402,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _buildInitialSummary(provider: IAgent, session: URI, config: IAgentCreateSessionConfig | undefined, created: { project?: { uri: URI; displayName: string }; workingDirectory?: URI }, title: string): SessionSummary {
 		const now = new Date().toISOString();
+		const primaryWorkingDir = (created.workingDirectory ?? config?.workingDirectory)?.toString();
 		return {
 			resource: session.toString(),
 			provider: provider.id,
@@ -1408,7 +1411,7 @@ export class AgentService extends Disposable implements IAgentService {
 			createdAt: now,
 			modifiedAt: now,
 			...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
-			workingDirectory: (created.workingDirectory ?? config?.workingDirectory)?.toString(),
+			workingDirectories: primaryWorkingDir ? [primaryWorkingDir] : undefined,
 			// Workspace-less is inferred at create from an absent input
 			// `workingDirectory` (the host assigns a scratch cwd, so it can't be
 			// re-inferred later) and tagged on the generic `_meta` bag.
@@ -1450,7 +1453,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const summary: SessionSummary = {
 			...currentSummary,
 			...(project ? { project: { uri: project.uri.toString(), displayName: project.displayName } } : {}),
-			workingDirectory: e.workingDirectory?.toString() ?? currentSummary.workingDirectory,
+			workingDirectories: e.workingDirectory ? [e.workingDirectory.toString()] : currentSummary.workingDirectories,
 			modifiedAt: new Date().toISOString(),
 		};
 		const configValues = state.config?.values;
@@ -1761,8 +1764,8 @@ export class AgentService extends Disposable implements IAgentService {
 			// the normal state-update stream.
 			const sessionState = this._stateManager.getSessionState(resourceStr);
 			if (!isAhpChatChannel(resourceStr) && sessionState && readSessionGitState(sessionState._meta) === undefined) {
-				const workingDirectory = sessionState.workingDirectory
-					? URI.parse(sessionState.workingDirectory)
+				const workingDirectory = sessionState.workingDirectories?.[0]
+					? URI.parse(sessionState.workingDirectories[0])
 					: undefined;
 				void this._gitStateService.refreshSessionGitState(resourceStr, workingDirectory);
 			}
@@ -2408,7 +2411,7 @@ export class AgentService extends Disposable implements IAgentService {
 			modifiedAt: new Date(meta.modifiedTime).toISOString(),
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			changes: meta.changes ?? changes,
-			workingDirectory: meta.workingDirectory?.toString(),
+			workingDirectories: meta.workingDirectory ? [meta.workingDirectory.toString()] : undefined,
 			_meta: (sessionMetadata || meta._meta) ? { ...(meta._meta ?? {}), ...(sessionMetadata ?? {}) } : undefined,
 		};
 
@@ -3482,7 +3485,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._gitService) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `git service unavailable for: ${fields.repoRelativePath}`);
 		}
-		const workingDirectory = this._stateManager.getSessionState(fields.sessionUri)?.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(fields.sessionUri)?.workingDirectories?.[0];
 		if (!workingDirectory) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Session has no working directory for git-blob URI: ${fields.sessionUri}`);
 		}

@@ -9,7 +9,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { IObservable, autorun, derived, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -20,6 +20,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { VoiceModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceModeActionViewItem.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 
@@ -102,6 +103,12 @@ const WHEN_LISTENING = ContextKeyExpr.equals('agentsVoiceListening', true);
 const WHEN_CONNECTED = ContextKeyExpr.equals('agentsVoiceConnected', true);
 const WHEN_INITIATED_HERE = ContextKeyExpr.equals('agentsVoiceInitiatedHere', true);
 const WHEN_VOICE_SURFACE = ContextKeyExpr.equals('newChatVoiceSurface', true);
+// Hide Voice Mode while dictation is active (recording or the model is loading)
+// so the two mic affordances never compete, mirroring `MenuId.ChatExecute`.
+const WHEN_NOT_DICTATING = ContextKeyExpr.and(
+	ContextKeyExpr.has('chatSpeechToTextRecording').negate(),
+	ContextKeyExpr.has('chatSpeechToTextPreparing').negate(),
+);
 
 MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
 	command: { id: 'agentsVoice.connecting', title: localize('agentsVoice.connecting', "Connecting..."), icon: Codicon.loading },
@@ -112,7 +119,7 @@ MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
 
 MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
 	command: { id: 'agentsVoice.startVoiceInChat', title: localize('agentsVoice.startVoiceInChat', "Voice Mode"), icon: Codicon.voiceMode },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_SURFACE, WHEN_LISTENING.negate(), WHEN_CONNECTING.negate()),
+	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_SURFACE, WHEN_LISTENING.negate(), WHEN_CONNECTING.negate(), WHEN_NOT_DICTATING),
 	group: 'navigation',
 	order: -10,
 });
@@ -180,6 +187,15 @@ export class NewChatVoiceController extends Disposable {
 
 		this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, options.toolbarContainer, SessionsNewChatVoiceMenu, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			actionViewItemProvider: (action, itemOptions) => {
+				// While listening the menu swaps the start action for the
+				// push-to-talk stop action; cover both so the context menu
+				// (Select Microphone / Disable Voice Mode) stays available.
+				if ((action.id === 'agentsVoice.startVoiceInChat' || action.id === 'agentsVoice.pttStopInChat') && action instanceof MenuItemAction) {
+					return scopedInstantiationService.createInstance(VoiceModeActionViewItem, action, itemOptions);
+				}
+				return undefined;
+			},
 		}));
 
 		// Target the active composer before a session exists, or when it opts in
