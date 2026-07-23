@@ -105,16 +105,11 @@ export class JSONEditingService implements IJSONEditingService {
 	}
 
 	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
-		let targetResource = resource;
-		if (!await this.fileService.exists(targetResource)) {
-			const jsoncAlternative = this.getJsoncAlternative(targetResource);
-			if (jsoncAlternative && await this.fileService.exists(jsoncAlternative)) {
-				targetResource = jsoncAlternative;
-			} else {
-				await this.textFileService.write(targetResource, '{}', { encoding: 'utf8' });
-			}
+		const exists = await this.fileService.exists(resource);
+		if (!exists) {
+			await this.textFileService.write(resource, '{}', { encoding: 'utf8' });
 		}
-		return this.textModelResolverService.createModelReference(targetResource);
+		return this.textModelResolverService.createModelReference(resource);
 	}
 
 	private hasParseErrors(model: ITextModel): boolean {
@@ -139,14 +134,6 @@ export class JSONEditingService implements IJSONEditingService {
 	private reject<T>(code: JSONEditingErrorCode): Promise<T> {
 		const message = this.toErrorMessage(code);
 		return Promise.reject(new JSONEditingError(message, code));
-	}
-
-	private getJsoncAlternative(resource: URI): URI | undefined {
-		const path = resource.path;
-		if (path.endsWith('.json')) {
-			return resource.with({ path: `${path.slice(0, -'.json'.length)}.jsonc` });
-		}
-		return undefined;
 	}
 
 	private toErrorMessage(error: JSONEditingErrorCode): string {

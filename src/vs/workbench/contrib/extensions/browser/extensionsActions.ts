@@ -9,6 +9,7 @@ import { IAction, Action, Separator, SubmenuAction, IActionChangeEvent } from '.
 import { Delayer, Promises, Throttler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import * as json from '../../../../base/common/json.js';
+import { basename } from '../../../../base/common/resources.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg, AutoUpdateConfigurationKey } from '../common/extensions.js';
@@ -2454,8 +2455,9 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 	}
 
 	protected async openExtensionsFile(extensionsFileResource: URI): Promise<any> {
+		let targetResource = extensionsFileResource;
 		try {
-			const targetResource = await this.resolveExtensionsFileResource(extensionsFileResource);
+			targetResource = await this.resolveExtensionsFileResource(extensionsFileResource);
 			const { created, content } = await this.getOrCreateExtensionsFile(targetResource);
 			const selection = await this.getSelectionPosition(content, targetResource, ['recommendations']);
 			return this.editorService.openEditor({
@@ -2466,7 +2468,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 				}
 			});
 		} catch (error) {
-			return Promise.reject(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error)));
+			return Promise.reject(new Error(localize('OpenExtensionsFile.failed', "Unable to open or create '{0}' file inside the '.vscode' folder ({1}).", basename(targetResource), error)));
 		}
 	}
 

@@ -14,7 +14,7 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { EditorInputWithOptions } from '../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
-import { RegisteredEditorPriority, IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
+import { EditorInputFactoryFunction, RegisteredEditorPriority, IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { ITextEditorService } from '../../../services/textfile/common/textEditorService.js';
 import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH_CANDIDATES, IPreferencesService, USE_SPLIT_JSON_SETTING } from '../../../services/preferences/common/preferences.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
@@ -58,8 +58,7 @@ export class PreferencesContribution extends Disposable implements IWorkbenchCon
 
 		// install editor opening listener unless user has disabled this
 		if (!!this.configurationService.getValue(USE_SPLIT_JSON_SETTING) || !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING)) {
-			const createEditorInput = (editorInput: any): EditorInputWithOptions => {
-				const { resource, options } = editorInput;
+			const createEditorInput: EditorInputFactoryFunction = ({ resource, options }): EditorInputWithOptions => {
 				// Global User Settings File
 				if (isEqual(resource, this.userDataProfileService.currentProfile.settingsResource)) {
 					return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.USER_LOCAL, resource), options };

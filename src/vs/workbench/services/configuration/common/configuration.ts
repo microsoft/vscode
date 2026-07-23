@@ -10,6 +10,7 @@ import { refineServiceDecorator } from '../../../../platform/instantiation/commo
 import { Event } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -101,3 +102,24 @@ export interface IWorkbenchConfigurationService extends IConfigurationService {
 export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';
 
 export const APPLY_ALL_PROFILES_SETTING = 'workbench.settings.applyToAllProfiles';
+
+/**
+ * Given a `.json` configuration resource, returns its `.jsonc` sibling if the `.json`
+ * resource does not exist but the `.jsonc` sibling does. Otherwise returns the resource
+ * unchanged. Used to make `.jsonc` fallback explicit at callers that open, create or
+ * write one of the supported workspace configuration files (settings/tasks/launch/mcp/extensions),
+ * since `.json` always takes precedence over `.jsonc` when both exist.
+ */
+export async function resolveConfigurationResource(resource: URI, fileService: IFileService): Promise<URI> {
+	if (await fileService.exists(resource)) {
+		return resource;
+	}
+	const path = resource.path;
+	if (path.endsWith('.json')) {
+		const jsoncResource = resource.with({ path: `${path.slice(0, -'.json'.length)}.jsonc` });
+		if (await fileService.exists(jsoncResource)) {
+			return jsoncResource;
+		}
+	}
+	return resource;
+}
