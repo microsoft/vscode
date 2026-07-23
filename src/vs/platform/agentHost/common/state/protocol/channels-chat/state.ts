@@ -1344,7 +1344,6 @@ export const enum ToolResultContentType {
 	Resource = 'resource',
 	FileEdit = 'fileEdit',
 	Terminal = 'terminal',
-	TerminalComplete = 'terminalComplete',
 	Subagent = 'subagent',
 }
 
@@ -1402,6 +1401,11 @@ export interface ToolResultFileEditContent extends FileEdit {
  * Clients can subscribe to the terminal's URI to stream its output in real
  * time, providing live feedback while a tool is executing.
  *
+ * When the command exits, {@link result} is filled in on the completed
+ * result, retaining the outcome for clients that did not subscribe. This
+ * records the command's exit, not the terminal's — the terminal may keep
+ * running afterwards.
+ *
  * @category Tool Result Content
  */
 export interface ToolResultTerminalContent {
@@ -1410,34 +1414,31 @@ export interface ToolResultTerminalContent {
 	resource: URI;
 	/** Display title for the terminal content */
 	title: string;
+	/**
+	 * Whether this terminal-style resource is backed by a pseudoterminal.
+	 * When `false`, output is plain text and clients do not need to parse
+	 * VT sequences.
+	 */
+	isPty?: boolean;
+	/** Outcome of the command, present once it has exited. */
+	result?: TerminalCommandResult;
 }
 
 /**
- * Record of a command executed by a terminal-style tool (e.g. a shell tool),
- * appended to the tool result when the command exits.
- *
- * This records the command's exit, not the terminal's — the terminal may
- * keep running afterwards.
- *
- * When live output was exposed through a terminal channel (a
- * {@link ToolResultTerminalContent} block in the same tool result),
- * {@link resource} identifies that channel; otherwise this block stands alone
- * as the retained command result.
+ * Outcome of a command run in a terminal-style tool, filled in on
+ * {@link ToolResultTerminalContent.result} once the command exits.
  *
  * @category Tool Result Content
  */
-export interface ToolResultTerminalCompleteContent {
-	type: ToolResultContentType.TerminalComplete;
-	/**
-	 * URI of the `ahp-terminal:` channel that carried live output for this
-	 * command, if one was exposed.
-	 */
-	resource?: URI;
+export interface TerminalCommandResult {
 	/** Exit code from the completed command, if reported by the runtime */
 	exitCode?: number;
-	/** Working directory where the command was executed */
-	cwd?: URI;
-	/** Preview of the command's output, if available */
+	/**
+	 * Preview of the command's output, for clients that are not subscribed
+	 * to the terminal or that arrive after it is disposed. When `isPty` is
+	 * `true` the preview may contain VT sequences; when `false` it is plain
+	 * text.
+	 */
 	preview?: string;
 	/** Whether `preview` is known to be incomplete or truncated */
 	truncated?: boolean;
@@ -1471,8 +1472,8 @@ export interface ToolResultSubagentContent {
  * Mirrors the content blocks in MCP `CallToolResult.content`, plus
  * `ToolResultResourceContent` for lazy-loading large results,
  * `ToolResultFileEditContent` for file edit diffs,
- * `ToolResultTerminalContent` for live terminal output,
- * `ToolResultTerminalCompleteContent` for terminal-style completion metadata, and
+ * `ToolResultTerminalContent` for live terminal output and
+ * command completion metadata, and
  * `ToolResultSubagentContent` for tool-spawned worker chats (AHP extensions).
  *
  * @category Tool Result Content
@@ -1483,5 +1484,4 @@ export type ToolResultContent =
 	| ToolResultResourceContent
 	| ToolResultFileEditContent
 	| ToolResultTerminalContent
-	| ToolResultTerminalCompleteContent
 	| ToolResultSubagentContent;

@@ -212,6 +212,10 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	getTerminalInfos(): [] { return []; }
 	getTerminalState(): undefined { return undefined; }
 	async getDefaultShell(): Promise<string> { return '/bin/bash'; }
+	createOutputTerminal(): void { }
+	appendOutputTerminalData(): void { }
+	resetOutputTerminal(): void { }
+	finalizeOutputTerminal(): void { }
 }
 
 class TestCopilotApiService implements ICopilotApiService {
@@ -4086,6 +4090,65 @@ suite('CopilotAgent', () => {
 				assert.strictEqual(activeClient.toolSet.ownerOf('shared'), 'client-B');
 				assert.strictEqual(activeClient.toolSet.ownerOf('a_tool'), undefined);
 			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	});
+
+	suite('config-driven session refresh', () => {
+		test('waits for the previous SDK session to disconnect before resuming', async () => {
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			const sessionId = 'config-refresh-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const disconnectStarted = new DeferredPromise<void>();
+			const allowDisconnect = new DeferredPromise<void>();
+			const order: string[] = [];
+			const previousSession = {
+				appliedSnapshot: { tools: [], plugins: [], mcpServers: {} },
+				destroySession: async () => {
+					order.push('disconnect-started');
+					disconnectStarted.complete();
+					await allowDisconnect.p;
+					order.push('disconnect-finished');
+				},
+				dispose: () => order.push('previous-disposed'),
+			} as unknown as CopilotAgentSession;
+			const resumedSession = {
+				send: async () => { order.push('send'); },
+				dispose: () => { },
+			} as unknown as CopilotAgentSession;
+			const internals = agent as unknown as {
+				_resumeSession: (id: string) => Promise<CopilotAgentSession>;
+			};
+
+			setDefaultSessionStub(agent, sessionId, previousSession);
+			agent.getOrCreateActiveClient(session, { clientId: 'client' }).tools = [
+				{ name: 'new_tool', description: 'A newly registered tool', inputSchema: { type: 'object', properties: {} } },
+			];
+			internals._resumeSession = async id => {
+				assert.strictEqual(id, sessionId);
+				order.push('resume');
+				setDefaultSessionStub(agent, sessionId, resumedSession);
+				return resumedSession;
+			};
+
+			try {
+				const send = agent.chats.sendMessage(defaultChatUri(session), 'hello', undefined);
+				await disconnectStarted.p;
+				assert.deepStrictEqual(order, ['disconnect-started']);
+
+				allowDisconnect.complete();
+				await send;
+				assert.deepStrictEqual(order, [
+					'disconnect-started',
+					'disconnect-finished',
+					'previous-disposed',
+					'resume',
+					'send',
+				]);
+			} finally {
+				allowDisconnect.complete();
 				await disposeAgent(agent);
 			}
 		});
