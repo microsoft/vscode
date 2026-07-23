@@ -101,6 +101,7 @@ describe('resolveSkillConfigLocations', () => {
 		const result = resolve({
 			configLocations: {
 				'/opt/skills': true,
+				'~': true,
 				'~/skills': true,
 			},
 			userHome: URI.file('/home/user'),
@@ -109,7 +110,30 @@ describe('resolveSkillConfigLocations', () => {
 
 		expect(result.map(uri => uri.toString())).toEqual([
 			'vscode-remote://wsl%2Bubuntu/opt/skills',
+			'vscode-remote://wsl%2Bubuntu/home/user',
 			'vscode-remote://wsl%2Bubuntu/home/user/skills',
+		]);
+	});
+
+	it.skipIf(!isWindows)('uses Windows target paths and preserves UNC shares for remote workspaces', () => {
+		const userHome = URI.file('C:\\Users\\user');
+		const workspaceFolder = URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+windows', path: '/C:/workspace' });
+		const filePath = URI.file('C:\\skills');
+		const tildePath = URI.file(`${userHome.path}\\skills`);
+		const uncPath = URI.file('\\\\server\\share\\skills');
+
+		expect(resolve({
+			configLocations: {
+				'C:\\skills': true,
+				'~\\skills': true,
+				'\\\\server\\share\\skills': true,
+			},
+			userHome,
+			workspaceFolders: [workspaceFolder],
+		})).toEqual([
+			workspaceFolder.with({ path: filePath.path }),
+			workspaceFolder.with({ path: tildePath.path }),
+			workspaceFolder.with({ path: `//${uncPath.authority}${uncPath.path}` }),
 		]);
 	});
 
@@ -121,6 +145,13 @@ describe('resolveSkillConfigLocations', () => {
 		expect(result).toHaveLength(2);
 		expect(result[0].path).toBe('/workspace1/relative/skills');
 		expect(result[1].path).toBe('/workspace2/relative/skills');
+	});
+
+	it('treats invalid tilde-prefixed locations as workspace relative', () => {
+		expect(resolve({
+			configLocations: { '~shared/skills': true },
+			workspaceFolders: [URI.file('/workspace')],
+		})).toEqual([URI.file('/workspace/~shared/skills')]);
 	});
 
 	it('ignores config entries with value !== true', () => {

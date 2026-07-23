@@ -13,10 +13,6 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import {
-	posix,
-	win32
-} from '../../../../../base/common/path.js';
-import {
 	basename, isEqualOrParent, joinPath
 } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -609,7 +605,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 
 	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
 		const sources: IPluginSource[] = [];
-		const userHome = await this._getUserHome();
+		const userHome = await this._pathService.userHome();
 
 		// User-configured filesystem paths in `chat.pluginLocations` — removable
 		// by re-writing the user setting. Filesystem-only; an entry that happens
@@ -665,10 +661,6 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		});
 	}
 
-	private async _getUserHome(): Promise<URI> {
-		return this._pathService.userHome();
-	}
-
 	/**
 	 * Resolves a user-configured plugin path to one or more resource URIs.
 	 * Supports absolute paths, tilde paths (expanded to user home), and
@@ -677,17 +669,26 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	private async _resolvePluginPath(path: string, userHome: URI): Promise<URI[]> {
 		if (/^~($|\/|\\)/.test(path)) {
 			const uri = await this._pathService.fileURI(untildify(path, userHome.path));
-			return [userHome.scheme === Schemas.file ? uri : userHome.with({ path: uri.path })];
+			return [this._toTargetResource(uri, userHome)];
 		}
 
-		if (win32.isAbsolute(path) || posix.isAbsolute(path)) {
+		if ((await this._pathService.path).isAbsolute(path)) {
 			const uri = await this._pathService.fileURI(path);
-			return [userHome.scheme === Schemas.file ? uri : userHome.with({ path: uri.path })];
+			return [this._toTargetResource(uri, userHome)];
 		}
 
 		return this._workspaceContextService.getWorkspace().folders.map(
 			folder => joinPath(folder.uri, path)
 		);
+	}
+
+	private _toTargetResource(uri: URI, userHome: URI): URI {
+		if (userHome.scheme === Schemas.file) {
+			return uri;
+		}
+
+		const path = uri.authority ? `//${uri.authority}${uri.path}` : uri.path;
+		return userHome.with({ path: path.startsWith('/') ? path : `/${path}` });
 	}
 
 	/**
