@@ -150,24 +150,24 @@ export function backfillRestoredPickerState(
 }
 
 /**
- * Recover the selected model on a restored input state when it was dropped during a cold
- * handoff/restore.
+ * Recover the selected model on a transferred input state when it was dropped during a cold
+ * handoff.
  *
  * At cold restore an agent-host transferred draft can arrive without its `selectedModel` (the live
  * model list is not loaded yet, so the model resolved to `undefined`). Fall back to the model
  * derived from the session's request history so the picker restores the last-used model instead of
  * Auto. The history-derived model carries full metadata (including `targetChatSessionType`), so the
  * input part can wait for the model pool and apply it once it loads. An explicit model already
- * present on `stateToApply` is never overridden.
+ * present on `transferredState` is never overridden.
  */
-export function backfillRestoredModel(
-	stateToApply: ISerializableChatModelInputState | undefined,
+export function backfillTransferredModel(
+	transferredState: ISerializableChatModelInputState | undefined,
 	historyModel: ISerializableChatModelInputState['selectedModel'],
 ): ISerializableChatModelInputState | undefined {
-	if (!stateToApply || stateToApply.selectedModel || !historyModel) {
-		return stateToApply;
+	if (!transferredState || transferredState.selectedModel || !historyModel) {
+		return transferredState;
 	}
-	return { ...stateToApply, selectedModel: historyModel };
+	return { ...transferredState, selectedModel: historyModel };
 }
 
 export class ChatService extends Disposable implements IChatService {
@@ -762,8 +762,12 @@ export class ChatService extends Disposable implements IChatService {
 		// At cold restore the agent-host transferred draft can drop the user's per-session picker
 		// selections (model/mode); restore them from the session's own saved `storedInputState`
 		// (mode, via {@link backfillRestoredPickerState}) and from the history-derived model
-		// (via {@link backfillRestoredModel}).
-		const stateToApply = backfillRestoredModel(providedSession.transferredState?.inputState ?? restoredDraft, historyDerivedModel);
+		// (via {@link backfillTransferredModel}). The persisted draft already contains
+		// `historyDerivedModel`, so only a transferred draft needs this backfill.
+		const transferredInputState = providedSession.transferredState?.inputState;
+		const stateToApply = transferredInputState
+			? backfillTransferredModel(transferredInputState, historyDerivedModel)
+			: restoredDraft;
 		const inputState = backfillRestoredPickerState(stateToApply, storedInputState, ChatMode.Agent.id);
 		const modelRef = this._sessionModels.acquireOrCreate({
 			initialData,

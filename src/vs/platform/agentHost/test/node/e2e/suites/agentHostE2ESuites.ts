@@ -8,6 +8,7 @@ import type { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { defineCoreTests } from './coreSuite.js';
 import { defineFileOperationsTests } from './fileOperationsSuite.js';
 import { defineHostFeaturesTests } from './hostFeaturesSuite.js';
+import { defineMultiChatTests } from './multiChatSuite.js';
 import { defineStateOperationsTests } from './stateOperationsSuite.js';
 import { defineSubagentTests } from './subagentSuite.js';
 import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
@@ -38,6 +39,7 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 			isWindows,
 			runRecordOnlyTests: RUN_RECORD_ONLY_TESTS,
 			registerNoModelTrafficTest: title => noModelTrafficTestTitles.add(title),
+			get observedModelRequestBodies() { return lease?.observedModelRequestBodies ?? []; },
 		};
 
 		suiteSetup(async function () {
@@ -71,11 +73,16 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 			if (!lease) {
 				throw new Error('Agent Host E2E server lease was not initialized.');
 			}
-			await lease.release(createdSessions);
+			// A failed test can leave a mid-turn session that wedges (or already
+			// killed) the shared host; restart it so the failure does not cascade
+			// into the next, unrelated test.
+			const failed = this.currentTest?.state === 'failed';
+			await lease.release(createdSessions, failed);
 		});
 
 		defineCoreTests(context);
 		defineHostFeaturesTests(context);
+		defineMultiChatTests(context);
 		defineStateOperationsTests(context);
 		defineFileOperationsTests(context);
 		defineTurnLifecycleTests(context);

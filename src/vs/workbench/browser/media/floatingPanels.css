@@ -13,7 +13,8 @@
  * the inner layout stays in sync with this CSS. The margin and the 1px border
  * must match `FLOATING_PANEL_MARGIN` and the border inset used there. The outermost
  * card on a window edge gets a doubled outer gutter (`.floating-part-outer-*`).
- * Colors mirror the agents window (`agentsPanel.*` tokens).
+ * Colors come from the generic `surface.*` tokens (shared with the agent
+ * sessions window).
  *
  * Uses `--vscode-spacing-size40` (4px); keep this in sync with
  * `FLOATING_PANEL_MARGIN` in code.
@@ -22,19 +23,19 @@
 .monaco-workbench.floating-panels .part.sidebar,
 .monaco-workbench.floating-panels .part.auxiliarybar {
 	margin: 0 var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size40);
-	border: 1px solid var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)) !important;
+	border: 1px solid var(--vscode-surface-border, var(--vscode-widget-border, transparent)) !important;
 	border-radius: var(--vscode-cornerRadius-large);
-	background-color: var(--vscode-agentsPanel-background) !important;
-	color: var(--vscode-agentsPanel-foreground);
+	background-color: var(--vscode-surface-background) !important;
+	color: var(--vscode-surface-foreground);
 }
 
 /* Keep the panel surface aligned with the panel theme background in light theme. */
 .monaco-workbench.floating-panels .part.panel {
 	margin: var(--vscode-spacing-size40) var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size40);
-	border: 1px solid var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)) !important;
+	border: 1px solid var(--vscode-surface-border, var(--vscode-widget-border, transparent)) !important;
 	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-panel-background) !important;
-	color: var(--vscode-agentsPanel-foreground);
+	color: var(--vscode-surface-foreground);
 }
 
 .monaco-workbench.floating-panels .part.editor > .content {
@@ -165,6 +166,10 @@
 .monaco-workbench.floating-panels .part.activitybar.right {
 	margin-left: 0;
 	margin-right: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench.floating-panels .activitybar.compact > .content > .composite-bar {
+	margin-top: var(--vscode-spacing-size20);
 }
 
 /* At the default (non-compact) size, separate the activity bar items with a 4px gap

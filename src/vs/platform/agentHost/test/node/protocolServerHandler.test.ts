@@ -117,7 +117,7 @@ class MockAgentService implements IAgentService {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
-			workingDirectory: config?.workingDirectory?.toString(),
+			workingDirectories: config?.workingDirectory ? [config.workingDirectory.toString()] : undefined,
 		});
 		return session;
 	}
@@ -486,6 +486,46 @@ suite('ProtocolServerHandler', () => {
 		const envelope = turnStarted!.params as unknown as { origin: { clientId: string; clientSeq: number } };
 		assert.strictEqual(envelope.origin.clientId, 'client-1');
 		assert.strictEqual(envelope.origin.clientSeq, 1);
+	});
+
+	test('unsupported working-directory actions are rejected, not dispatched', () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+
+		const cases: readonly { readonly type: ActionType; readonly channel: string }[] = [
+			{ type: ActionType.SessionWorkingDirectorySet, channel: sessionUri },
+			{ type: ActionType.SessionWorkingDirectoryRemoved, channel: sessionUri },
+			{ type: ActionType.ChatWorkingDirectorySet, channel: defaultChatUri },
+			{ type: ActionType.ChatWorkingDirectoryRemoved, channel: defaultChatUri },
+		];
+
+		for (const [index, { type, channel }] of cases.entries()) {
+			const clientId = `wd-client-${index}`;
+			const clientSeq = 100 + index;
+			const transport = connectClient(clientId, [sessionUri, defaultChatUri]);
+			transport.sent.length = 0;
+			agentService.handledActions.length = 0;
+
+			transport.simulateMessage(notification('dispatchAction', {
+				channel,
+				clientSeq,
+				action: { type, directory: 'file:///tmp/extra-root' },
+			}));
+
+			// No dispatch: the gate intercepts before reaching the agent service,
+			// so the reducer never runs and synchronized state is untouched.
+			assert.deepStrictEqual(agentService.handledActions, [], `${type} must not be dispatched`);
+
+			// Exactly one rejection envelope, preserving the original origin so the
+			// client can reconcile its optimistic action.
+			const actionMsgs = findNotifications(transport.sent, 'action');
+			assert.strictEqual(actionMsgs.length, 1, `${type} should emit exactly one envelope`);
+			const envelope = actionMsgs[0].params as unknown as { action: { type: string }; origin: { clientId: string; clientSeq: number }; rejectionReason?: string };
+			assert.strictEqual(envelope.action.type, type);
+			assert.ok(envelope.rejectionReason, `${type} envelope should carry a rejectionReason`);
+			assert.strictEqual(envelope.origin.clientId, clientId);
+			assert.strictEqual(envelope.origin.clientSeq, clientSeq);
+		}
 	});
 
 	test('actions are scoped to subscribed sessions', () => {

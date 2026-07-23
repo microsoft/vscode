@@ -114,8 +114,14 @@ export interface ILocalTranscriptionService {
 	 * authenticate to the proxy. TLS-intercepting proxies otherwise rely on the CA
 	 * being in the OS trust store (matching `@vscode/proxy-agent` and the desktop
 	 * app).
+	 *
+	 * `runtimeUrlTemplate`/`runtimeVersion` come from `product.dictationRuntime`
+	 * (stamped by `build/dictation-runtime/produce.ts`). When set, the native
+	 * runtime (Foundry Local addon + core libraries) is downloaded from VS Code's
+	 * CDN for this host's target. When omitted (local dev builds), the runtime
+	 * falls back to the SDK's own `node_modules` payload and nothing is downloaded.
 	 */
-	start(options: { readonly cacheDir: string; readonly model?: string; readonly language?: string; readonly proxyUrl?: string; readonly noProxy?: string; readonly proxyStrictSSL?: boolean; readonly proxyAuthorization?: string }): Promise<void>;
+	start(options: { readonly cacheDir: string; readonly model?: string; readonly language?: string; readonly proxyUrl?: string; readonly noProxy?: string; readonly proxyStrictSSL?: boolean; readonly proxyAuthorization?: string; readonly runtimeUrlTemplate?: string; readonly runtimeVersion?: string }): Promise<void>;
 
 	/** Append captured audio (raw little-endian PCM16 mono 16 kHz). */
 	pushAudio(chunk: VSBuffer): Promise<void>;

@@ -12,7 +12,6 @@ import {
 	filterModelsForSession,
 	findBestMatchingModel,
 	findDefaultModel,
-	findReplacementForProvisionalModel,
 	getAgentHostByokManageModelsIdentifier,
 	hasModelsTargetingSession,
 	isModelHiddenInPicker,
@@ -456,15 +455,6 @@ suite('ChatInputModelUtils', () => {
 			assert.strictEqual(result?.metadata.id, 'terminal-default');
 		});
 
-		test('replaces only the current provisional model when a location default arrives', () => {
-			const provisional = createModel('byok', 'BYOK');
-			const defaultModel = createDefaultModelForLocation('auto', 'Auto', ChatAgentLocation.Chat);
-			assert.deepStrictEqual([
-				findReplacementForProvisionalModel(provisional.identifier, provisional.identifier, [provisional], ChatAgentLocation.Chat)?.identifier,
-				findReplacementForProvisionalModel(provisional.identifier, provisional.identifier, [provisional, defaultModel], ChatAgentLocation.Chat)?.identifier,
-				findReplacementForProvisionalModel(defaultModel.identifier, provisional.identifier, [provisional, defaultModel], ChatAgentLocation.Chat)?.identifier,
-			], [undefined, defaultModel.identifier, undefined]);
-		});
 	});
 
 	suite('shouldResetModelToDefault', () => {

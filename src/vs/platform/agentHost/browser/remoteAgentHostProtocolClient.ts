@@ -818,7 +818,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		const promise = this._sendRequest('createSession', {
 			channel: session.toString(),
 			provider,
-			workingDirectory: config?.workingDirectory ? fromAgentHostUri(config.workingDirectory).toString() : undefined,
+			workingDirectories: config?.workingDirectory ? [fromAgentHostUri(config.workingDirectory).toString()] : undefined,
 			config: config?.config,
 			activeClient: config?.activeClient,
 		}).then(() => session);
@@ -962,7 +962,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			summary: s.title,
 			status: s.status,
 			activity: s.activity,
-			workingDirectory: typeof s.workingDirectory === 'string' ? toAgentHostUri(URI.parse(s.workingDirectory), this._connectionAuthority) : undefined,
+			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? toAgentHostUri(URI.parse(s.workingDirectories?.[0]), this._connectionAuthority) : undefined,
 			isRead: !!(s.status & SessionStatus.IsRead),
 			isArchived: !!(s.status & SessionStatus.IsArchived),
 			changes: s.changes,
