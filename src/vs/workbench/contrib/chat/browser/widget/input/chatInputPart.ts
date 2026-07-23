@@ -3225,7 +3225,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ChatVoiceInputModeAction.ID) {
-					return this.instantiationService.createInstance(VoiceInputModeActionViewItem, action);
+					return this.instantiationService.createInstance(VoiceInputModeActionViewItem, action, undefined);
 				}
 				if (action.id === ChatSpeechToTextPreparingAction.ID && action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(DictationDownloadActionViewItem, action, options);

@@ -72,7 +72,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
-import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
@@ -84,6 +84,9 @@ import { IChatStatusItemService } from '../../../../workbench/contrib/chat/brows
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
+import { IVoiceInputModeService, VoiceInputModeSegmentedSettingId } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -365,6 +368,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
+		@IVoiceInputModeService private readonly voiceInputModeService: IVoiceInputModeService,
 	) {
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
@@ -766,6 +770,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Voice controls (mic/stop/settings/disconnect). The hand-built toolbar
 		// can't use the shared `MenuId.ChatExecute`, so a dedicated menu is used.
 		// Keep the session picker usable when optional voice initialization fails.
+		// The controller also handles voice target routing + input glow, which the
+		// segmented pill relies on, so it is created regardless of the pill; its
+		// toolbar items hide (via `when`) when the pill is active.
 		const voiceContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-toolbar'));
 		try {
 			this._register(this.instantiationService.createInstance(NewChatVoiceController, {
@@ -775,6 +782,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			}));
 		} catch (error) {
 			this.logService.error('Failed to create new-session voice controls:', error);
+		}
+
+		// Segmented voice/dictation pill (experimental). When enabled it replaces the
+		// standalone dictation button and voice controls above with a single control.
+		try {
+			this._createVoiceInputModePill(toolbar, container);
+		} catch (error) {
+			this.logService.error('Failed to create new-session voice input mode pill:', error);
 		}
 
 		this._loadingSpinner = dom.append(toolbar, dom.$('.sessions-chat-loading-spinner'));
@@ -794,6 +809,36 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		sendButton.icon = Codicon.newLine;
 		// Hold Alt while clicking Send to start the session in the background.
 		this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
+	}
+
+	private _createVoiceInputModePill(toolbar: HTMLElement, inputContainer: HTMLElement): void {
+		const pillContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-input-mode'));
+
+		const action = toAction({
+			id: ChatVoiceInputModeAction.ID,
+			label: localize('voiceInputMode', "Voice Input Mode"),
+			run: () => { /* interaction handled by the view item */ },
+		});
+		const pill = this._register(this._scopedInstantiationService.createInstance(VoiceInputModeActionViewItem, action, {
+			// Dictation must target this composer's editor, not the last focused
+			// chat widget (this composer isn't an `IChatWidget`).
+			toggleDictation: () => { void this.toggleDictation(); },
+		}));
+		pill.render(pillContainer);
+
+		// Visible only when the experimental segmented toggle is on and at least one
+		// mode is available. Otherwise the standalone dictation + voice controls show.
+		const segmentedToggle = observableFromEvent(this,
+			this.configurationService.onDidChangeConfiguration,
+			() => this.configurationService.getValue<boolean>(VoiceInputModeSegmentedSettingId) === true);
+		this._register(autorun(reader => {
+			const enabled = segmentedToggle.read(reader);
+			const available = this.voiceInputModeService.voiceAvailable.read(reader) || this.voiceInputModeService.dictationAvailable.read(reader);
+			pillContainer.classList.toggle('hidden', !(enabled && available));
+			// Mirror the pill's active state onto the input container so voice glow
+			// styling (driven by the voice controller) stays consistent.
+			inputContainer.classList.toggle('voice-input-mode-pill', enabled && available);
+		}));
 	}
 
 	private _createSpeechToTextButton(container: HTMLElement): void {
@@ -838,9 +883,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const updateVisibility = () => {
 			// Mirror the `MenuId.ChatExecute` dictation gate: hide while
 			// unconfigured, and while Voice Mode is connected so the dictation and
-			// voice mic affordances never compete on this composer.
+			// voice mic affordances never compete on this composer. Also hide when
+			// the segmented voice/dictation pill is enabled, which supersedes this
+			// standalone button.
 			const voiceActive = this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get();
-			button.classList.toggle('hidden', !sttService.isConfigured || voiceActive);
+			const segmentedPill = this.configurationService.getValue<boolean>(VoiceInputModeSegmentedSettingId) === true;
+			button.classList.toggle('hidden', !sttService.isConfigured || voiceActive || segmentedPill);
 		};
 		updateVisibility();
 		this._register(autorun(reader => {
@@ -849,7 +897,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			updateVisibility();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.speechToText.enabled')) {
+			if (e.affectsConfiguration('chat.speechToText.enabled') || e.affectsConfiguration(VoiceInputModeSegmentedSettingId)) {
 				updateVisibility();
 			}
 		}));

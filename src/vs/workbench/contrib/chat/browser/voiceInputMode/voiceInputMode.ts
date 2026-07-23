@@ -156,9 +156,12 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 			configurationService.onDidChangeConfiguration,
 			() => chatSpeechToTextService.isConfigured);
 
+		// Hands-free mirrors the voice controller's auto-listen source of truth
+		// (`agents.voice.handsFree`, default true). In manual (non-hands-free)
+		// mode the pill shows a dedicated listen cell to start/stop each turn.
 		this.handsFree = observableFromEvent(this,
 			configurationService.onDidChangeConfiguration,
-			() => (configurationService.getValue<number>('agents.voice.autoSendDelay') ?? 500) >= 0);
+			() => configurationService.getValue<boolean>('agents.voice.handsFree') !== false);
 
 		this._contextKey = CHAT_VOICE_INPUT_MODE.bindTo(contextKeyService);
 		this._register(autorun(reader => {
@@ -326,7 +329,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[VoiceInputModeSegmentedSettingId]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			description: localize('chat.voiceInputMode.segmentedToggle', "Show a single segmented Dictation / Voice Mode toggle in the chat input instead of two separate microphone buttons."),
 		}

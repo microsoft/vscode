@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import '../../../../../base/browser/ui/segmentedIconToggle/segmentedIconToggle.css';
+import './media/voiceInputMode.css';
 import { getActiveWindow, getWindow } from '../../../../../base/browser/dom.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -248,6 +249,16 @@ export function registerVoiceInputModeSimulateActions(): void {
 }
 
 /**
+ * Optional host hooks for reusing {@link VoiceInputModeActionViewItem} outside the
+ * main chat input (e.g. the agents-window new-session composer), where dictation and
+ * voice must target that surface rather than the last focused chat widget.
+ */
+export interface IVoiceInputModePillOptions {
+	/** Toggle dictation for the host surface (defaults to the shared toggle command). */
+	readonly toggleDictation?: () => void;
+}
+
+/**
  * A single segmented control in the chat input that hosts both voice input modes:
  * a Dictation segment (speech-to-text into the input) and a Voice Mode segment (live
  * conversational agent). Only one mode can be active at a time — activating one stops
@@ -277,6 +288,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 
 	constructor(
 		action: IAction,
+		private readonly _options: IVoiceInputModePillOptions | undefined,
 		@IVoiceInputModeService private readonly voiceInputModeService: IVoiceInputModeService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 		@ICommandService private readonly commandService: ICommandService,
@@ -380,6 +392,12 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this.chatSpeechToTextService.onDidChangeState,
 			() => this.chatSpeechToTextService.state !== ChatSpeechToTextState.Idle);
 
+		// Model preparation: on first use the on-device model downloads/loads. Swap the
+		// mic for a download affordance while preparing, mirroring the standalone button.
+		const dictationPreparing = observableFromEvent(this,
+			this.chatSpeechToTextService.onDidChangePreparingModel,
+			() => this.chatSpeechToTextService.isPreparingModel);
+
 		this._register(autorun(reader => {
 			const dictationAvailable = this.voiceInputModeService.dictationAvailable.read(reader);
 			const voiceAvailable = this.voiceInputModeService.voiceAvailable.read(reader);
@@ -410,6 +428,8 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			const voiceLive = listening || speaking;
 			const voiceOn = connected || connecting;
 			this._voiceLive = voiceLive;
+			// First-use model download/load (real state only; simulations never prepare).
+			const dictationBusy = sim === undefined && dictationPreparing.read(reader);
 
 			// The dedicated listen (start/stop speaking) toggle shows in manual
 			// (non-hands-free) connected voice mode. In hands-free mode the auto-listen
@@ -422,7 +442,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			//   - voice:     shown unless dictation is actively recording
 			//   - listen:    shown only in manual-connected voice mode
 			const dictationPresent = dictationAvailable && !voiceOn;
-			const voicePresent = voiceAvailable && !isDictating;
+			const voicePresent = voiceAvailable && !isDictating && !dictationBusy;
 			const listenPresent = showListen;
 
 			// Exactly one icon → single-icon view (the lone button fills the whole pill).
@@ -430,11 +450,16 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			container.classList.toggle('connected', voiceOn);
 			container.classList.toggle('single', presentCount === 1);
 
-			// Dictation cell — fills the mic when dictating.
+			// Dictation cell — download affordance while the model prepares, else fills
+			// the mic while dictating.
 			this._dictationCell!.classList.toggle('collapsed', !dictationPresent);
-			this._dictationCell!.classList.toggle('active', isDictating);
+			this._dictationCell!.classList.toggle('active', isDictating || dictationBusy);
+			this._dictationCell!.classList.toggle('preparing', dictationBusy);
 			this._dictationCell!.setAttribute('aria-pressed', String(isDictating));
-			this._dictationIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(isDictating ? Codicon.micFilled : Codicon.mic)}`;
+			this._dictationCell!.setAttribute('aria-label', dictationBusy
+				? localize('voiceInputMode.dictationPreparing', "Preparing Speech to Text Model…")
+				: localize('voiceInputMode.dictation', "Dictation"));
+			this._dictationIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(dictationBusy ? Codicon.cloudDownload : (isDictating ? Codicon.micFilled : Codicon.mic))}`;
 
 			// Voice cell — Device EQ bars that transform:
 			//   disconnected → thin grey bars (click to connect)
@@ -536,6 +561,20 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}
 	}
 
+	/**
+	 * Toggle built-in on-device dictation. By default this runs the shared
+	 * {@link DICTATION_TOGGLE_COMMAND_ID} command (which targets the last focused
+	 * chat widget); a host that isn't an `IChatWidget` (e.g. the agents-window
+	 * composer) can inject its own toggle via {@link IVoiceInputModePillOptions}.
+	 */
+	private _toggleDictation(): void {
+		if (this._options?.toggleDictation) {
+			this._options.toggleDictation();
+		} else {
+			this.commandService.executeCommand(DICTATION_TOGGLE_COMMAND_ID);
+		}
+	}
+
 	private _onClickDictation(): void {
 		this.voiceInputModeService.setSelectedMode('dictation');
 
@@ -544,9 +583,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this.voiceSessionController.disconnect();
 		}
 
-		// Toggle built-in on-device dictation (the command starts or stops based on
-		// the current recording state).
-		this.commandService.executeCommand(DICTATION_TOGGLE_COMMAND_ID);
+		this._toggleDictation();
 	}
 
 	/**
@@ -559,7 +596,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 
 		// Mutual exclusion: stop dictation before entering Voice Mode.
 		if (this.chatSpeechToTextService.state !== ChatSpeechToTextState.Idle) {
-			this.commandService.executeCommand(DICTATION_TOGGLE_COMMAND_ID);
+			this._toggleDictation();
 		}
 
 		const controller = this.voiceSessionController;
