@@ -521,7 +521,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._listenCell!.setAttribute('aria-label', listening
 				? localize('voiceInputMode.stopListening', "Stop Listening")
 				: localize('voiceInputMode.startListening', "Start Listening"));
-			this._listenIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(listening ? Codicon.micFilled : Codicon.mic)}`;
+			this._listenIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(listening ? Codicon.personVoiceFilled : Codicon.personVoice)}`;
 
 			// Audio-reactive bars only while live (and not hovering the disconnect preview).
 			this._syncBarAnimation();
