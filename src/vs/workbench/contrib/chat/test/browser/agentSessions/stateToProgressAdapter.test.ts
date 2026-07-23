@@ -304,6 +304,48 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual(details.output, [{ type: 'embed', value: 'request timed out', isText: true, mimeType: 'text/plain' }]);
 		});
 
+		test('failed MCP App tool call in history remains confirmed', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						toolName: 'GitHub-create_pull_request',
+						toolInput: '{"owner":"microsoft","repo":"vscode"}',
+						success: false,
+						error: { message: 'The pull request form is awaiting submission.' },
+						contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'github-customization' },
+						_meta: {
+							ui: {
+								resourceUri: 'ui://github-mcp-server/pr-write',
+								channel: 'mcp://copilot/session/GitHub',
+							},
+						},
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.deepStrictEqual({
+				isConfirmed: serialized.isConfirmed,
+				toolSpecificData: serialized.toolSpecificData,
+			}, {
+				isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+				toolSpecificData: {
+					kind: 'input',
+					rawInput: { owner: 'microsoft', repo: 'vscode' },
+					mcpAppData: {
+						kind: 'agentHost',
+						resourceUri: 'ui://github-mcp-server/pr-write',
+						serverId: 'github-customization',
+						channel: 'mcp://copilot/session/GitHub',
+					},
+				},
+			});
+		});
+
 		test('generic completed tool call maps embedded resources and resource refs', () => {
 			const turn = createTurn({
 				responseParts: [{

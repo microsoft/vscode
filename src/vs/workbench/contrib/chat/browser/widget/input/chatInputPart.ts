@@ -111,6 +111,7 @@ import { ChatEditingSessionSubmitAction, ChatSessionPrimaryPickerAction, ChatSub
 import { ChatSpeechToTextPreparingAction, ToggleChatSpeechToTextAction } from '../../actions/chatSpeechToTextActions.js';
 import { DictationActionViewItem } from '../../speechToText/dictationActionViewItem.js';
 import { DictationDownloadActionViewItem } from '../../speechToText/dictationDownloadActionViewItem.js';
+import { notifyDictationSubmitted } from '../../speechToText/dictationSession.js';
 import { VoiceModeActionViewItem } from '../../voiceClient/voiceModeActionViewItem.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
@@ -2164,6 +2165,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Clear attached context, fire event to clear input state, and clear the input editor
+		// Measure any pending dictation accuracy against the text actually being
+		// sent, before the editor is cleared below.
+		notifyDictationSubmitted(this._inputEditor);
 		logChangesToStateModel(this._inputModel, `[ACCEPT] acceptInput -> attachmentModel.clear() in ${this._currentSessionKey}`, undefined, this._inputModel?.state.get(), this.logService);
 		this.attachmentModel.clear();
 		this._onDidLoadInputState.fire();

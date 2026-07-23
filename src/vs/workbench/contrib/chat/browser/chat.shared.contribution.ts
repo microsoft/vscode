@@ -254,35 +254,28 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.fontFamily', "Controls the font family in chat messages."),
 			default: 'default'
 		},
-		'chat.speechToText.enabled': {
+		'dictation.enabled': {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.speechToText.enabled', "Enables dictation into the chat input using on-device speech-to-text. When enabled on a supported platform, a microphone button appears in the chat input; the transcription model is downloaded on first use and runs locally."),
+			markdownDescription: nls.localize('dictation.enabled', "Enables dictation across the product (chat input, editor, and terminal). When enabled on a supported platform, a microphone button appears in the chat input and the dictation shortcut becomes available; the on-device transcription model is downloaded on first use and runs locally."),
 			default: product.quality !== 'stable',
 			tags: ['experimental']
 		},
-		'chat.speechToText.model': {
+		'dictation.model': {
 			type: 'string',
 			enum: [
 				'nemotron-speech-streaming-en-0.6b',
+				'mai',
 			],
-			enumItemLabels: ['Nemotron Streaming (English)'],
+			enumItemLabels: [
+				nls.localize('dictation.model.nemotronStreaming.label', "Nemotron Streaming (English) — On-Device"),
+				nls.localize('dictation.model.mai.label', "MAI — Cloud"),
+			],
 			markdownEnumDescriptions: [
-				nls.localize('chat.speechToText.model.nemotronStreaming', "NVIDIA Nemotron streaming RNN-T (English), run through Microsoft Foundry Local. Low-latency, high accuracy, matches the GitHub Copilot app."),
+				nls.localize('dictation.model.nemotronStreaming', "NVIDIA Nemotron streaming RNN-T (English), run on-device through Microsoft Foundry Local. Works offline; no audio leaves the device. Downloaded on first use and cached on disk."),
+				nls.localize('dictation.model.mai', "Cloud transcription through the same Microsoft AI voice service used by Voice Mode. Requires a network connection and GitHub sign-in; audio is streamed to the service."),
 			],
-			markdownDescription: nls.localize('chat.speechToText.model', "The on-device model used for chat dictation. The model is downloaded on first use and cached on disk. Transcription runs locally through Microsoft Foundry Local."),
+			markdownDescription: nls.localize('dictation.model', "The model used for dictation. On-device models download on first use and run locally through Microsoft Foundry Local; the cloud option streams audio to the Microsoft AI voice service."),
 			default: 'nemotron-speech-streaming-en-0.6b',
-			tags: ['experimental']
-		},
-		'chat.speechToText.mode': {
-			type: 'string',
-			enum: ['auto', 'toggle', 'pushToTalk'],
-			enumDescriptions: [
-				nls.localize('chat.speechToText.mode.auto', "Tap the dictation shortcut to start and stop, or press and hold it to dictate only while held (push-to-talk)."),
-				nls.localize('chat.speechToText.mode.toggle', "Tap the dictation shortcut to start dictating and tap again to stop."),
-				nls.localize('chat.speechToText.mode.pushToTalk', "Press and hold the dictation shortcut to dictate; dictation stops as soon as the shortcut is released."),
-			],
-			markdownDescription: nls.localize('chat.speechToText.mode.description', "Controls how the chat dictation shortcut ({0}) behaves.", '`Cmd/Ctrl+I`'),
-			default: 'auto',
 			tags: ['experimental']
 		},
 		'chat.editor.fontSize': {
@@ -2280,20 +2273,45 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 		// The on-device dictation runtime moved to Foundry Local; the old
 		// transformers.js/onnxruntime model IDs no longer resolve and would fail
 		// with an unknown-model error. Map any explicitly-stored legacy value to
-		// the new default so existing users keep working.
+		// the new default so existing users keep working. Also migrate the setting
+		// from its old `chat.speechToText.model` id to `dictation.model`.
 		key: 'chat.speechToText.model',
-		migrateFn: (value: unknown) => {
+		migrateFn: (value: unknown, accessor) => {
 			const legacyModelIds = [
 				'onnx-community/whisper-tiny',
 				'onnx-community/whisper-base',
 				'onnx-community/whisper-small',
 				'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
 			];
-			if (typeof value === 'string' && legacyModelIds.includes(value)) {
-				return { value: 'nemotron-speech-streaming-en-0.6b' };
+			const migrated = (typeof value === 'string' && legacyModelIds.includes(value))
+				? 'nemotron-speech-streaming-en-0.6b'
+				: value;
+			const pairs: ConfigurationKeyValuePairs = [['chat.speechToText.model', { value: undefined }]];
+			// Never clobber an explicitly configured new key (e.g. after settings
+			// sync brought both keys across versions).
+			if (accessor('dictation.model') === undefined) {
+				pairs.push(['dictation.model', { value: migrated }]);
 			}
-			return [];
+			return pairs;
 		}
+	},
+	{
+		// Dictation settings were regrouped under the top-level `dictation.*`
+		// namespace (they govern dictation across chat, editor, and terminal).
+		key: 'chat.speechToText.enabled',
+		migrateFn: (value: unknown, accessor) => {
+			const pairs: ConfigurationKeyValuePairs = [['chat.speechToText.enabled', { value: undefined }]];
+			if (accessor('dictation.enabled') === undefined) {
+				pairs.push(['dictation.enabled', { value }]);
+			}
+			return pairs;
+		}
+	},
+	{
+		// `chat.speechToText.mode` was removed (the shortcut is always tap-toggle /
+		// hold-to-talk); clear it so it does not linger as an unknown setting.
+		key: 'chat.speechToText.mode',
+		migrateFn: () => ([['chat.speechToText.mode', { value: undefined }]])
 	},
 ]);
 

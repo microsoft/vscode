@@ -11,7 +11,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -1499,6 +1499,14 @@ function createSessionTitleFromArgs(toolInput: string | undefined): string | und
 	}
 }
 
+function completedToolCallConfirmedReason(tc: ICompletedToolCall): NonNullable<IChatToolInvocationSerialized['isConfirmed']> {
+	if (tc.status === ToolCallStatus.Completed) {
+		return { type: ToolConfirmKind.ConfirmationNotNeeded };
+	}
+
+	return { type: tc.reason === ToolCallCancellationReason.Skipped ? ToolConfirmKind.Skipped : ToolConfirmKind.Denied };
+}
+
 /**
  * Converts a completed tool call from the protocol state into a serialized
  * tool invocation suitable for history replay.
@@ -1524,9 +1532,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			invocationMessage: invocationMsg,
 			originMessage: undefined,
 			pastTenseMessage: pastTenseMsg,
-			isConfirmed: isSuccess
-				? { type: ToolConfirmKind.ConfirmationNotNeeded }
-				: { type: ToolConfirmKind.Denied },
+			isConfirmed: completedToolCallConfirmedReason(tc),
 			isComplete: true,
 			presentation: undefined,
 			subAgentInvocationId: subAgentInvocationId,
@@ -1580,9 +1586,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		invocationMessage: invocationMsg,
 		originMessage: undefined,
 		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
-		isConfirmed: isSuccess
-			? { type: ToolConfirmKind.ConfirmationNotNeeded }
-			: { type: ToolConfirmKind.Denied },
+		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
 		presentation: undefined,
 		subAgentInvocationId: subAgentInvocationId,

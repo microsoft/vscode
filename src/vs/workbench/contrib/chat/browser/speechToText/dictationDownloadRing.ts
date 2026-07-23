@@ -75,12 +75,18 @@ export class DictationDownloadRing extends Disposable {
 }
 
 /**
- * Static hover explaining that the on-device dictation model is downloading.
- * The ring itself conveys the live progress, so the hover stays fixed to avoid
- * churning the tooltip on every progress tick.
+ * Static hover explaining what the mic is doing while it prepares. The on-device
+ * backend downloads a model; the cloud backend connects. The ring conveys live
+ * progress/activity, so the hover stays fixed to avoid churning on every tick.
  */
-export function getDictationDownloadHoverContent(): IManagedHoverContent {
+export function getDictationDownloadHoverContent(service: IChatSpeechToTextService): IManagedHoverContent {
 	const markdown = new MarkdownString('', { supportThemeIcons: true });
+	if (service.currentBackend === 'mai') {
+		markdown.appendMarkdown(localize('chatStt.hover.connectingTitle', "**Connecting to dictation service**"));
+		markdown.appendMarkdown('\n\n');
+		markdown.appendMarkdown(localize('chatStt.hover.connecting', "Establishing a connection. This happens each time you start cloud dictation."));
+		return { markdown, markdownNotSupportedFallback: markdown.value };
+	}
 	markdown.appendMarkdown(localize('chatStt.hover.title', "**Downloading speech-to-text model**"));
 	markdown.appendMarkdown('\n\n');
 	markdown.appendMarkdown(localize('chatStt.hover.preparing', "Preparing the on-device model. This happens only the first time you dictate."));
@@ -94,6 +100,11 @@ export function getDictationDownloadHoverContent(): IManagedHoverContent {
  * message (indeterminate download or loading into memory).
  */
 export function getDictationPreparingLabel(service: IChatSpeechToTextService): string {
+	// The cloud backend connects rather than downloading a model, so describe it
+	// as connecting; there is no percentage to report.
+	if (service.currentBackend === 'mai') {
+		return localize('chatStt.preparing.connecting', "Connecting to dictation service…");
+	}
 	const progress = service.modelDownloadProgress;
 	if (typeof progress === 'number') {
 		const percent = Math.max(0, Math.min(100, Math.round(progress * 100)));

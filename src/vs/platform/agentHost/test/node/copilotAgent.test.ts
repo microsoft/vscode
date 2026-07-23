@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, ModelInfo, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
@@ -290,6 +290,7 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 	whenIdle(): Promise<void> { return Promise.resolve(); }
 }
 type CopilotModelsList = CopilotClient['rpc']['models']['list'];
+type CopilotModelInfo = Awaited<ReturnType<CopilotModelsList>>['models'][number];
 
 interface ITestCopilotModelInfo {
 	readonly id: string;
@@ -298,31 +299,22 @@ interface ITestCopilotModelInfo {
 		readonly supports?: { readonly vision?: boolean };
 		readonly limits?: { readonly max_context_window_tokens?: number; readonly max_output_tokens?: number; readonly max_prompt_tokens?: number };
 	};
-	readonly policy?: { readonly state?: NonNullable<ModelInfo['policy']>['state'] };
-	readonly billing?: ModelInfo['billing'] & {
-		readonly priceCategory?: string;
-		readonly tokenPrices?: {
-			readonly contextMax?: number;
-			readonly inputPrice?: number;
-			readonly cachePrice?: number;
-			readonly cacheWritePrice?: number;
-			readonly outputPrice?: number;
-			readonly longContext?: { readonly contextMax?: number; readonly inputPrice?: number; readonly cachePrice?: number; readonly cacheWritePrice?: number; readonly outputPrice?: number };
-		};
-	};
-	readonly modelPickerPriceCategory?: string;
-	readonly supportedReasoningEfforts?: ModelInfo['supportedReasoningEfforts'];
-	readonly defaultReasoningEffort?: ModelInfo['defaultReasoningEffort'];
+	readonly policy?: { readonly state?: NonNullable<CopilotModelInfo['policy']>['state'] };
+	readonly billing?: CopilotModelInfo['billing'];
+	readonly modelPickerCategory?: CopilotModelInfo['modelPickerCategory'];
+	readonly modelPickerPriceCategory?: CopilotModelInfo['modelPickerPriceCategory'];
+	readonly supportedReasoningEfforts?: CopilotModelInfo['supportedReasoningEfforts'];
+	readonly defaultReasoningEffort?: CopilotModelInfo['defaultReasoningEffort'];
 }
 
-interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'listModels' | 'createSession' | 'resumeSession' | 'getSessionMetadata' | 'deleteSession'> {
+interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'createSession' | 'resumeSession' | 'getSessionMetadata' | 'deleteSession'> {
 	readonly rpc: {
 		readonly sessions: { readonly fork: CopilotClient['rpc']['sessions']['fork'] };
 		readonly models: { readonly list: CopilotModelsList };
 	};
 }
 
-function toSdkModelInfo(model: ITestCopilotModelInfo): ModelInfo {
+function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 	return {
 		id: model.id,
 		name: model.name,
@@ -333,15 +325,13 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): ModelInfo {
 			},
 			limits: {
 				max_context_window_tokens: model.capabilities?.limits?.max_context_window_tokens ?? 0,
-				// `max_output_tokens` is present on the RPC `models.list` shape the
-				// agent reads but absent from the SDK's `ModelInfo` limits type, so
-				// widen here to let fixtures exercise the real value.
 				max_output_tokens: model.capabilities?.limits?.max_output_tokens,
 				max_prompt_tokens: model.capabilities?.limits?.max_prompt_tokens,
-			} as ModelInfo['capabilities']['limits'],
+			},
 		},
 		...(model.policy ? { policy: { state: model.policy.state ?? 'enabled', terms: '' } } : {}),
 		...(model.billing ? { billing: model.billing } : {}),
+		...(model.modelPickerCategory ? { modelPickerCategory: model.modelPickerCategory } : {}),
 		...(model.modelPickerPriceCategory ? { modelPickerPriceCategory: model.modelPickerPriceCategory } : {}),
 		...(model.supportedReasoningEfforts ? { supportedReasoningEfforts: model.supportedReasoningEfforts } : {}),
 		...(model.defaultReasoningEffort ? { defaultReasoningEffort: model.defaultReasoningEffort } : {}),
@@ -386,7 +376,6 @@ class TestCopilotClient implements ITestCopilotClient {
 		this.listSessionCallCount++;
 		return this._sessions;
 	}
-	async listModels(): ReturnType<ITestCopilotClient['listModels']> { return this._models.map(toSdkModelInfo); }
 	async getSessionMetadata(sessionId: string): ReturnType<ITestCopilotClient['getSessionMetadata']> {
 		this.getSessionMetadataCalls.push(sessionId);
 		return this._sessions.find(s => s.sessionId === sessionId);
@@ -1597,7 +1586,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('models include token-price and price-category metadata when billing provides it', async () => {
+	test('models include picker and promo metadata when the SDK provides it', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [{
 				id: 'claude-sonnet',
@@ -1605,14 +1594,22 @@ suite('CopilotAgent', () => {
 				capabilities: { limits: { max_context_window_tokens: 200_000 } },
 				billing: {
 					multiplier: 1,
+					promo: {
+						id: 'summer-sale',
+						discountPercent: 25,
+						endsAt: '2026-08-01T00:00:00Z',
+						message: 'Save on Claude Sonnet',
+					},
 					tokenPrices: {
-						contextMax: 200_000,
-						inputPrice: 3,
-						cachePrice: 1,
-						outputPrice: 15,
-						longContext: { contextMax: 1_000_000, inputPrice: 6, cachePrice: 1, outputPrice: 22.5 },
+						batchSize: 100_000,
+						maxPromptTokens: 200_000,
+						inputPrice: 0.3,
+						cacheReadPrice: 0.1,
+						outputPrice: 1.5,
+						longContext: { maxPromptTokens: 1_000_000, inputPrice: 0.6, cacheReadPrice: 0.1, outputPrice: 2.25 },
 					},
 				},
+				modelPickerCategory: 'powerful',
 				modelPickerPriceCategory: 'medium',
 			}]),
 		});
@@ -1629,6 +1626,13 @@ suite('CopilotAgent', () => {
 				longContextCacheCost: 1,
 				longContextOutputCost: 22.5,
 				priceCategory: 'medium',
+				category: 'powerful',
+				promo: {
+					id: 'summer-sale',
+					discountPercent: 25,
+					endsAt: '2026-08-01T00:00:00Z',
+					message: 'Save on Claude Sonnet',
+				},
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -1667,8 +1671,8 @@ suite('CopilotAgent', () => {
 				billing: {
 					multiplier: 1,
 					tokenPrices: {
-						contextMax: 200_000,
-						longContext: { contextMax: 1_000_000, inputPrice: 2 },
+						maxPromptTokens: 200_000,
+						longContext: { maxPromptTokens: 1_000_000, inputPrice: 2 },
 					},
 				},
 			}]),

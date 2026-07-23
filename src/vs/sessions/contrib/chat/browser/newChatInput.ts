@@ -85,9 +85,10 @@ import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
+import { notifyDictationSubmitted } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { DictationDownloadRing } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
+import { DictationDownloadRing, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 
 
@@ -752,8 +753,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
 
-		// Dictation (speech-to-text) mic button. Shares the STT service, mic
-		// device, and gating (on-device support + `chat.speechToText.enabled`)
+		// Dictation mic button. Shares the STT service, mic
+		// device, and gating (backend support + `dictation.enabled`)
 		// with the main chat input; inserts the transcript into this composer's
 		// editor. Placed before the voice controls so dictation leads the
 		// mic-related group.
@@ -813,23 +814,33 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const downloadRing = this._register(new MutableDisposable<DictationDownloadRing>());
 		const renderState = () => {
 			const preparing = sttService.isPreparingModel;
-			const recording = sttService.state !== ChatSpeechToTextState.Idle;
+			// Only the active Recording state should read as "recording" (filled
+			// mic). Once the user stops, the service enters Transcribing while it
+			// waits for the final transcript (up to a few seconds on the cloud
+			// backend); during that the mic must already read as idle, matching
+			// the chat toolbar which flips as soon as recording stops.
+			const recording = sttService.state === ChatSpeechToTextState.Recording;
+			const active = sttService.state !== ChatSpeechToTextState.Idle;
 			dom.clearNode(button);
 			downloadRing.clear();
 			if (preparing) {
-				// First-use only: render a download icon wrapped by a determinate
-				// progress ring instead of a plain spinner, matching the chat
-				// toolbar, so the model download reads as progress rather than a hang.
-				dom.append(button, renderIcon(Codicon.cloudDownload));
-				downloadRing.value = new DictationDownloadRing(button, sttService);
+				// First-use only. The on-device backend downloads a model, so
+				// render a download icon wrapped by a progress ring; the cloud
+				// backend just connects, so render a plain spinner instead.
+				if (sttService.currentBackend === 'mai') {
+					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
+				} else {
+					dom.append(button, renderIcon(Codicon.cloudDownload));
+					downloadRing.value = new DictationDownloadRing(button, sttService);
+				}
 			} else {
-				dom.append(button, renderIcon(recording ? Codicon.stopCircle : Codicon.mic));
+				dom.append(button, renderIcon(recording ? Codicon.micFilled : Codicon.mic));
 			}
 			button.classList.toggle('recording', recording && !preparing);
 			button.classList.toggle('preparing', preparing);
 			button.ariaLabel = preparing
-				? localize('sessionsStt.preparing', "Preparing Speech to Text Model…")
-				: (recording ? stopLabel : micLabel);
+				? getDictationPreparingLabel(sttService)
+				: (active ? stopLabel : micLabel);
 		};
 		renderState();
 		this._register(sttService.onDidChangeState(renderState));
@@ -849,7 +860,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			updateVisibility();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.speechToText.enabled')) {
+			// Both the enable kill-switch and the model selection can change
+			// availability (e.g. an unsupported on-device platform becomes
+			// configured when switching to the cloud backend).
+			if (e.affectsConfiguration('dictation.enabled') || e.affectsConfiguration('dictation.model')) {
 				updateVisibility();
 			}
 		}));
@@ -883,8 +897,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	/**
-	 * Toggle on-device dictation into this composer's editor, honoring the
-	 * tap-vs-hold `chat.speechToText.mode` setting. Shared by the mic button and
+	 * Toggle dictation into this composer's editor. Shared by the mic button and
 	 * the Cmd/Ctrl+I chord ({@link TOGGLE_DICTATION_COMMAND_ID}); the shared
 	 * Dictate action can't target this composer since it isn't an `IChatWidget`.
 	 */
@@ -895,7 +908,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		await runDictationShortcut({
 			speechService: this.chatSpeechToTextService,
 			keybindingService: this.keybindingService,
-			configurationService: this.configurationService,
 			logService: this.logService,
 		}, TOGGLE_DICTATION_COMMAND_ID, this._editor);
 	}
@@ -976,6 +988,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (!this._canSendRequest.get()) {
 			return;
 		}
+
+		// Measure any pending dictation accuracy against the text being sent,
+		// before the editor is cleared below.
+		notifyDictationSubmitted(this._editor);
 
 		const session = this.options.session.get();
 		if (session && await this.chatSubmitRequestHandlerService.tryHandle({

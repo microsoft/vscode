@@ -13,7 +13,7 @@
  *     (quick input, hovers, suggest, context menus, toasts, dialogs, find,
  *     rename, color picker, ...).
  *   - Inner radius (6px): non-control containers that sit within the UI
- *     (notification center surfaces, sticky scroll, ...).
+ *     (notification center surfaces, ...).
  *   - Controls (4px): all interactable UI controls (text inputs, selects,
  *     list/tree rows, ...).
  *
@@ -164,15 +164,16 @@
 	width: calc(100% - 1px) !important;
 }
 
+/* Editor sticky scroll container */
+.style-override .monaco-editor .sticky-widget {
+	border-radius: 0 !important;
+	overflow: hidden;
+	width: 100% !important;
+}
+
 /* =============================================================================
  * Inner (6px) — non-control containers that live within the UI.
  * ========================================================================== */
-
-/* Editor sticky scroll container */
-.style-override .monaco-editor .sticky-widget {
-	border-radius: var(--vscode-cornerRadius-medium) !important;
-	overflow: hidden;
-}
 
 /*
  * Workbench parts (side bar, panel, auxiliary bar). The editor part is framed
