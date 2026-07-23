@@ -50,15 +50,34 @@ export interface ChatState {
 	 */
 	interactivity?: ChatInteractivity;
 	/**
-	 * Optional per-chat working directory.
+	 * The subset of the session's
+	 * {@link SessionState.workingDirectories | `workingDirectories`} that this
+	 * chat's agent has tool access to. Every entry MUST be present in the owning
+	 * session's `workingDirectories`; servers MUST reject a
+	 * `chat/workingDirectorySet` action that violates this constraint.
 	 *
-	 * If absent, the chat inherits
-	 * {@link SessionState.workingDirectory | the session's working directory}.
-	 * Hosts MAY override this for individual chats — for example, to give a
-	 * subordinate chat its own git worktree so multiple chats in a session can
-	 * make independent edits that the orchestrator later merges back.
+	 * When absent, the chat inherits the full session set. When present but empty
+	 * (not recommended), the chat has no working-directory tool access at all.
+	 *
+	 * Dispatch `chat/workingDirectorySet` / `chat/workingDirectoryRemoved` to
+	 * update the subset on a running chat.
 	 */
-	workingDirectory?: URI;
+	workingDirectories?: URI[];
+	/**
+	 * The chat's primary working directory — the distinguished root this chat is
+	 * centered on (e.g. the agent's process root for this chat, the default
+	 * location for relative paths). MUST be one of this chat's effective working
+	 * directories ({@link workingDirectories}, or the session's set when that is
+	 * absent). Present when the agent advertises
+	 * {@link MultipleWorkingDirectoriesCapability.requiresPrimary}.
+	 *
+	 * **Read-only and fixed at creation.** It is set from
+	 * {@link CreateChatParams.primaryWorkingDirectory} (or, for the session's
+	 * default chat, {@link CreateSessionParams.primaryWorkingDirectory}) and does
+	 * not change over the chat's lifetime — there is no action to mutate it, and
+	 * it does not participate in `session/chatUpdated`.
+	 */
+	primaryWorkingDirectory?: URI;
 
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */
@@ -127,13 +146,15 @@ export interface ChatSummary {
 	 */
 	interactivity?: ChatInteractivity;
 	/**
-	 * Optional per-chat working directory.
-	 *
-	 * If absent, the chat inherits
-	 * {@link SessionSummary.workingDirectory | the session's working directory}.
-	 * See {@link ChatState.workingDirectory} for usage notes.
+	 * The subset of the session's working directories this chat uses.
+	 * See {@link ChatState.workingDirectories} for the full semantics.
 	 */
-	workingDirectory?: URI;
+	workingDirectories?: URI[];
+	/**
+	 * The chat's primary working directory.
+	 * See {@link ChatState.primaryWorkingDirectory} for the full semantics.
+	 */
+	primaryWorkingDirectory?: URI;
 }
 
 /**
@@ -1323,7 +1344,6 @@ export const enum ToolResultContentType {
 	Resource = 'resource',
 	FileEdit = 'fileEdit',
 	Terminal = 'terminal',
-	TerminalComplete = 'terminalComplete',
 	Subagent = 'subagent',
 }
 
@@ -1381,6 +1401,11 @@ export interface ToolResultFileEditContent extends FileEdit {
  * Clients can subscribe to the terminal's URI to stream its output in real
  * time, providing live feedback while a tool is executing.
  *
+ * When the command exits, {@link result} is filled in on the completed
+ * result, retaining the outcome for clients that did not subscribe. This
+ * records the command's exit, not the terminal's — the terminal may keep
+ * running afterwards.
+ *
  * @category Tool Result Content
  */
 export interface ToolResultTerminalContent {
@@ -1389,34 +1414,31 @@ export interface ToolResultTerminalContent {
 	resource: URI;
 	/** Display title for the terminal content */
 	title: string;
+	/**
+	 * Whether this terminal-style resource is backed by a pseudoterminal.
+	 * When `false`, output is plain text and clients do not need to parse
+	 * VT sequences.
+	 */
+	isPty?: boolean;
+	/** Outcome of the command, present once it has exited. */
+	result?: TerminalCommandResult;
 }
 
 /**
- * Record of a command executed by a terminal-style tool (e.g. a shell tool),
- * appended to the tool result when the command exits.
- *
- * This records the command's exit, not the terminal's — the terminal may
- * keep running afterwards.
- *
- * When live output was exposed through a terminal channel (a
- * {@link ToolResultTerminalContent} block in the same tool result),
- * {@link resource} identifies that channel; otherwise this block stands alone
- * as the retained command result.
+ * Outcome of a command run in a terminal-style tool, filled in on
+ * {@link ToolResultTerminalContent.result} once the command exits.
  *
  * @category Tool Result Content
  */
-export interface ToolResultTerminalCompleteContent {
-	type: ToolResultContentType.TerminalComplete;
-	/**
-	 * URI of the `ahp-terminal:` channel that carried live output for this
-	 * command, if one was exposed.
-	 */
-	resource?: URI;
+export interface TerminalCommandResult {
 	/** Exit code from the completed command, if reported by the runtime */
 	exitCode?: number;
-	/** Working directory where the command was executed */
-	cwd?: URI;
-	/** Preview of the command's output, if available */
+	/**
+	 * Preview of the command's output, for clients that are not subscribed
+	 * to the terminal or that arrive after it is disposed. When `isPty` is
+	 * `true` the preview may contain VT sequences; when `false` it is plain
+	 * text.
+	 */
 	preview?: string;
 	/** Whether `preview` is known to be incomplete or truncated */
 	truncated?: boolean;
@@ -1450,8 +1472,8 @@ export interface ToolResultSubagentContent {
  * Mirrors the content blocks in MCP `CallToolResult.content`, plus
  * `ToolResultResourceContent` for lazy-loading large results,
  * `ToolResultFileEditContent` for file edit diffs,
- * `ToolResultTerminalContent` for live terminal output,
- * `ToolResultTerminalCompleteContent` for terminal-style completion metadata, and
+ * `ToolResultTerminalContent` for live terminal output and
+ * command completion metadata, and
  * `ToolResultSubagentContent` for tool-spawned worker chats (AHP extensions).
  *
  * @category Tool Result Content
@@ -1462,5 +1484,4 @@ export type ToolResultContent =
 	| ToolResultResourceContent
 	| ToolResultFileEditContent
 	| ToolResultTerminalContent
-	| ToolResultTerminalCompleteContent
 	| ToolResultSubagentContent;

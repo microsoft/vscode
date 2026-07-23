@@ -211,13 +211,13 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	getEffectiveWorkingDirectory(session: ProtocolURI): string | undefined {
-		const own = this._stateManager.getSessionState(session)?.workingDirectory;
+		const own = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 		if (own !== undefined) {
 			return own;
 		}
 		const parentInfo = parseSubagentSessionUri(session);
 		if (parentInfo) {
-			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectory;
+			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories?.[0];
 		}
 		return undefined;
 	}

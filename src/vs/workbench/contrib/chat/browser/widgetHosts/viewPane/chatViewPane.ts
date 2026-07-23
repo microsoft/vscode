@@ -76,6 +76,7 @@ import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { computeVoiceGlowStyle, isGlowingVoiceState, readVoiceGlowIntensity } from '../../voiceClient/voiceGlow.js';
+import { combineVoiceInput } from '../../voiceClient/voiceInputUtils.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -397,14 +398,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// Voice command bridge — lets the VoiceSessionController reach into the chat widget
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (accessor, text: string) => {
 				const chatWidgetService = accessor.get(IChatWidgetService);
-				const widget = chatWidgetService.lastFocusedWidget ?? this._widget;
+				// Ignore lastFocusedWidget when its input no longer has focus because blur does not clear it.
+				const focusedWidget = chatWidgetService.lastFocusedWidget;
+				const widget = focusedWidget?.hasInputFocus() ? focusedWidget : this._widget;
 				if (text && widget?.viewModel) {
 					if (widget.viewModel.editing) {
 						// When editing an old message, populate the active input
 						// editor so the user can review before submitting.
 						widget.input.setValue(text, false);
 					} else {
-						widget.acceptInput(text, { preserveFocus: true });
+						// Preserve any text the user already typed in the input.
+						widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
 					}
 				}
 			}));

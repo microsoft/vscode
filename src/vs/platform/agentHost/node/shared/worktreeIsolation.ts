@@ -245,8 +245,8 @@ export class WorktreeIsolation extends Disposable {
 
 	/**
 	 * Marks a fresh worktree-isolation session as pending — its worktree is
-	 * deferred to the first send. Called by the host from `createSession` when
-	 * the resolved session config selects `worktree` isolation.
+	 * deferred to the first send. Called by the host while a creating session's
+	 * resolved config selects `worktree` isolation.
 	 */
 	notePending(sessionId: string): void {
 		this._pending.add(sessionId);
@@ -608,11 +608,15 @@ export class WorktreeIsolation extends Disposable {
 			return;
 		}
 
-		// Skip if there are uncommitted changes — don't silently destroy work.
-		const dirty = await this._gitService.hasUncommittedChanges(worktreePath).catch(() => true);
-		if (dirty) {
-			this._logService.info(`[${this._logLabel}:${sessionId}] Skipping worktree cleanup: '${worktreePath.fsPath}' has uncommitted changes`);
-			return;
+		// Commit any uncommitted changes before archiving the session
+		const hasUncommittedChanges = await this._gitService.hasUncommittedChanges(worktreePath).catch(() => true);
+		if (hasUncommittedChanges) {
+			try {
+				await this._gitService.commitAll(worktreePath, localize('worktreeIsolation.commitMessage', 'Saving uncommitted changes before archiving session'));
+			} catch (error) {
+				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to commit uncommitted changes in '${worktreePath.fsPath}': ${errorMessage(error)}`);
+				return;
+			}
 		}
 
 		try {

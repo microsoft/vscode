@@ -14,7 +14,8 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
+import { ChatDictationSurface, ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
+import { getDictationPreparingLabel } from './dictationDownloadRing.js';
 
 /**
  * Inline decoration class for the still-processing tail of not-yet-finalized
@@ -296,7 +297,7 @@ export function activeDictationEditor(): ICodeEditor | undefined {
 }
 
 /** Start dictating into `editor`, rendering the transcript live. */
-export async function startDictation(service: IChatSpeechToTextService, editor: ICodeEditor, window: Window & typeof globalThis, logService: ILogService): Promise<void> {
+export async function startDictation(service: IChatSpeechToTextService, editor: ICodeEditor, window: Window & typeof globalThis, logService: ILogService, surface: ChatDictationSurface = 'chat'): Promise<void> {
 	if (_active || service.state !== ChatSpeechToTextState.Idle) {
 		return;
 	}
@@ -309,37 +310,47 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	const HIDE_CURSOR_CLASS = 'dictation-hide-cursor';
 	editor.getDomNode()?.classList.add(HIDE_CURSOR_CLASS);
 	disposables.add(toDisposable(() => editor.getDomNode()?.classList.remove(HIDE_CURSOR_CLASS)));
-	// Show a "Listening…" placeholder only once the session is actually
-	// connected and recording, i.e. the service is in the Recording state and
-	// the on-device model has finished preparing (downloading/loading). It must
-	// not appear during microphone acquisition or while the model is still being
-	// prepared, since transcription cannot happen yet. The placeholder remains
-	// visible until transcript text is inserted, and is restored to its previous
-	// value when the session ends.
+	// Show a "Listening…" placeholder once the session is actually connected
+	// and recording, i.e. the service is in the Recording state and the
+	// on-device model has finished preparing. While the model is still being
+	// prepared on first use (downloading/loading, which can take a while), show
+	// a "Preparing…/Downloading… X%" placeholder instead so the user knows why
+	// dictation has not started yet rather than staring at an idle editor. The
+	// placeholder must not appear during microphone acquisition. It remains
+	// visible until transcript text is inserted, and is restored to its
+	// previous value when the session ends.
 	const previousPlaceholder = editor.getOption(EditorOption.placeholder);
 	const listeningPlaceholder = localize('chatStt.listening', "Listening…");
+	// The placeholder we last applied (listening or a preparing label), so we
+	// only ever restore the previous placeholder when it was ours to restore.
+	let appliedPlaceholder: string | undefined;
 	const applyPlaceholder = () => {
 		if (!editor.getModel()) {
 			return;
 		}
-		const shouldListen = service.state === ChatSpeechToTextState.Recording && !service.isPreparingModel;
-		const current = editor.getOption(EditorOption.placeholder);
-		if (shouldListen) {
-			if (current !== listeningPlaceholder) {
-				editor.updateOptions({ placeholder: listeningPlaceholder });
+		const recording = service.state === ChatSpeechToTextState.Recording;
+		const desired = recording
+			? (service.isPreparingModel ? getDictationPreparingLabel(service) : listeningPlaceholder)
+			: undefined;
+		if (desired !== undefined) {
+			if (appliedPlaceholder !== desired) {
+				editor.updateOptions({ placeholder: desired });
+				appliedPlaceholder = desired;
 			}
-		} else if (current === listeningPlaceholder) {
+		} else if (appliedPlaceholder !== undefined) {
 			editor.updateOptions({ placeholder: previousPlaceholder });
+			appliedPlaceholder = undefined;
 		}
 	};
 	disposables.add(toDisposable(() => {
 		// Ensure the interim shimmer never lingers, regardless of how the session
 		// ends (final transcript, cancel, editor disposal, or a service-side error).
 		inserter.clearShimmer();
-		if (!editor.getModel() || editor.getOption(EditorOption.placeholder) !== listeningPlaceholder) {
+		if (!editor.getModel() || appliedPlaceholder === undefined) {
 			return;
 		}
 		editor.updateOptions({ placeholder: previousPlaceholder });
+		appliedPlaceholder = undefined;
 	}));
 	const idleSettle = disposables.add(new MutableDisposable());
 	disposables.add(service.onDidUpdateTranscript(update => {
@@ -350,6 +361,8 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 		idleSettle.value = disposableTimeout(() => inserter.settleShimmer(), IDLE_SETTLE_MS);
 	}));
 	disposables.add(service.onDidChangePreparingModel(() => applyPlaceholder()));
+	// Refresh the "Downloading… X%" placeholder as the download progresses.
+	disposables.add(service.onDidChangeModelDownloadProgress(() => applyPlaceholder()));
 	disposables.add(service.onDidChangeState(state => {
 		logService.trace(`${LOG_PREFIX} onDidChangeState ${state}`);
 		if (state === ChatSpeechToTextState.Idle && _active?.service === service) {
@@ -368,7 +381,7 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	disposables.add(editor.onDidDispose(() => cancelDictation()));
 	_active = { service, editor, inserter, disposables, logService };
 	try {
-		await service.start(window);
+		await service.start(window, surface);
 	} catch {
 		// Acquisition/connection failure is surfaced by the service.
 		if (_active?.service === service) {

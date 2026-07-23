@@ -14,7 +14,8 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { buildNonPtyShellTerminalUri } from './copilotNonPtyShellTerminals.js';
 import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
@@ -45,20 +46,49 @@ function isSyntheticUserMessage(event: SessionEvent): boolean {
 	return !!source && source.toLowerCase() !== 'user';
 }
 
-export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly ToolExecutionCompleteContent[] | undefined): void {
+/**
+ * Converts SDK `tool.execution_complete` content blocks into AHP tool result
+ * content. A `shell_exit` block becomes {@link TerminalCommandResult} data on
+ * the tool call's terminal content block; when no terminal block exists yet
+ * (e.g. history replay, where no live channel survives) and `terminal` is
+ * provided, a non-pty terminal block is synthesized so the outcome still
+ * renders from `result.preview`. Returns the `shell_exit` outcome, if any, so
+ * the live path can settle the non-pty output channel from it.
+ */
+export interface ISdkShellExit {
+	readonly shellId: string;
+	readonly result: TerminalCommandResult;
+}
+
+export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly ToolExecutionCompleteContent[] | undefined, terminal?: { session: URI | string; toolCallId: string; title: string }): ISdkShellExit | undefined {
+	let shellExit: ISdkShellExit | undefined;
 	for (const sdkContent of sdkContents ?? []) {
 		switch (sdkContent.type) {
-			case 'shell_exit':
-				content.push({
-					type: ToolResultContentType.TerminalComplete,
+			case 'shell_exit': {
+				const result: TerminalCommandResult = {
 					exitCode: sdkContent.exitCode,
-					...(sdkContent.cwd !== undefined ? { cwd: URI.file(sdkContent.cwd).toString() } : {}),
 					...(sdkContent.outputPreview !== undefined ? { preview: sdkContent.outputPreview } : {}),
 					...(sdkContent.outputTruncated !== undefined ? { truncated: sdkContent.outputTruncated } : {}),
-				});
+				};
+				shellExit = { shellId: sdkContent.shellId, result };
+				const terminalIndex = content.findIndex(c => c.type === ToolResultContentType.Terminal);
+				if (terminalIndex !== -1) {
+					const terminalBlock = content[terminalIndex] as ToolResultTerminalContent;
+					content[terminalIndex] = { ...terminalBlock, result };
+				} else if (terminal) {
+					content.push({
+						type: ToolResultContentType.Terminal,
+						resource: buildNonPtyShellTerminalUri(terminal.session, terminal.toolCallId),
+						title: terminal.title,
+						isPty: false,
+						result,
+					});
+				}
 				break;
+			}
 		}
 	}
+	return shellExit;
 }
 
 // =============================================================================
@@ -719,7 +749,7 @@ function makeCompletedToolCallPart(
 	if (toolOutput !== undefined) {
 		content.push({ type: ToolResultContentType.Text, text: toolOutput });
 	}
-	appendSdkToolResultContent(content, d.result?.contents);
+	appendSdkToolResultContent(content, d.result?.contents, { session: sessionUriStr, toolCallId: d.toolCallId, title: info.displayName });
 
 	// Restore file edit content references from the database.
 	const edits = storedEdits?.get(d.toolCallId);
