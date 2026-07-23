@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, expect, suite, test } from 'vitest';
-import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
@@ -213,49 +212,6 @@ suite('CustomInstructionsService - Skills', () => {
 			expect(skillInfo).toBeDefined();
 			expect(skillInfo?.skillName).toBe('myskill');
 			expect(skillInfo?.skillFolderUri.toString()).toBe(URI.file('/custom/skills/myskill').toString());
-		});
-
-		test('should use remote workspace authority for absolute skill locations with file user home', async () => {
-			const services = createPlatformServices();
-			services.define(IWorkspaceService, new SyncDescriptor(
-				TestWorkspaceService,
-				[[URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace' })], []]
-			));
-
-			const remoteConfigService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
-			services.define(IConfigurationService, remoteConfigService);
-			await remoteConfigService.setNonExtensionConfig('chat.useAgentSkills', true);
-			await remoteConfigService.setNonExtensionConfig('chat.agentSkillsLocations', {
-				'/custom/skills': true
-			});
-
-			const remoteAccessor = services.createTestingAccessor();
-			try {
-				const remoteCustomInstructionsService = remoteAccessor.get(ICustomInstructionsService);
-				const skillInfo = remoteCustomInstructionsService.getSkillInfo(URI.from({
-					scheme: 'vscode-remote',
-					authority: 'wsl+ubuntu',
-					path: '/custom/skills/myskill/SKILL.md'
-				}));
-
-				expect(skillInfo?.skillFolderUri).toEqual(URI.from({
-					scheme: 'vscode-remote',
-					authority: 'wsl+ubuntu',
-					path: '/custom/skills/myskill'
-				}));
-			} finally {
-				remoteAccessor.dispose();
-			}
-		});
-
-		test.skipIf(!isWindows)('should preserve UNC authority for absolute path skill locations', async () => {
-			await configService.setNonExtensionConfig('chat.agentSkillsLocations', {
-				'\\\\server\\share\\skills': true
-			});
-
-			const skillInfo = customInstructionsService.getSkillInfo(URI.file('\\\\server\\share\\skills\\myskill\\SKILL.md'));
-
-			expect(skillInfo?.skillFolderUri).toEqual(URI.file('\\\\server\\share\\skills\\myskill'));
 		});
 
 		test('should return skill info for nested file in absolute path skill location', async () => {

@@ -11,8 +11,9 @@ import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { ResourceSet } from '../../../util/vs/base/common/map';
 import { Schemas } from '../../../util/vs/base/common/network';
 import { IObservable, observableFromEvent } from '../../../util/vs/base/common/observableInternal';
-import { dirname } from '../../../util/vs/base/common/path';
+import { dirname, isAbsolute } from '../../../util/vs/base/common/path';
 import { extUriBiasedIgnorePathCase } from '../../../util/vs/base/common/resources';
+import { isObject } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
 import { FileType, Uri } from '../../../vscodeTypes';
 import { IRunCommandExecutionService } from '../../commands/common/runCommandExecutionService';
@@ -24,7 +25,6 @@ import { ILogService } from '../../log/common/logService';
 import { IPromptPathRepresentationService } from '../../prompts/common/promptPathRepresentationService';
 import { IWorkspaceService } from '../../workspace/common/workspaceService';
 import { COPILOT_INSTRUCTIONS_PATH, COPILOT_PERSONAL_INSTRUCTIONS_PATH, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_LOCATION_KEY, PERSONAL_SKILL_FOLDERS, PromptsType, SKILLS_LOCATION_KEY, USE_AGENT_SKILLS_SETTING, WORKSPACE_SKILL_FOLDERS } from './promptTypes';
-import { resolveSkillConfigLocations } from './skillConfigLocations';
 
 declare const TextDecoder: {
 	decode(input: Uint8Array): string;
@@ -234,11 +234,31 @@ export class CustomInstructionsService extends Disposable implements ICustomInst
 						...workspaceSkillFolderUris.map(uri => ({ uri, storage: SkillStorage.Workspace as const })),
 					];
 
-					const configSkillLocationUris = resolveSkillConfigLocations(
-						this.configurationService,
-						this.envService,
-						this.workspaceService,
-					);
+					// Get additional skill locations from config
+					const configSkillLocationUris: URI[] = [];
+					const locations = this.configurationService.getNonExtensionConfig<Record<string, boolean>>(SKILLS_LOCATION_KEY);
+					const userHome = this.envService.userHome;
+					const workspaceFolders = this.workspaceService.getWorkspaceFolders();
+					if (isObject(locations)) {
+						for (const key in locations) {
+							const location = key.trim();
+							const value = locations[key];
+							if (value !== true) {
+								continue;
+							}
+							// Expand ~/ to user home directory
+							if (location.startsWith('~/')) {
+								configSkillLocationUris.push(Uri.joinPath(userHome, location.substring(2)));
+							} else if (isAbsolute(location)) {
+								configSkillLocationUris.push(URI.file(location));
+							} else {
+								// Relative path - join to each workspace folder
+								for (const workspaceFolder of workspaceFolders) {
+									configSkillLocationUris.push(Uri.joinPath(workspaceFolder, location));
+								}
+							}
+						}
+					}
 
 					return ((uri: URI) => {
 						// Check workspace and personal skill folders
