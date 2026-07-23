@@ -112,8 +112,8 @@ type AgentHostInvocationFailedEvent = {
 	hasUserSelectedModel: boolean;
 	errorName: string;
 	errorCode: string | undefined;
-	errorMessage: string;
-	errorStack: string | undefined;
+	msg: string;
+	callstack: string | undefined;
 };
 
 type AgentHostInvocationFailedClassification = {
@@ -124,8 +124,8 @@ type AgentHostInvocationFailedClassification = {
 	hasUserSelectedModel: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the workbench request carried a selected language model identifier.' };
 	errorName: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The name of the exception.' };
 	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The exception or protocol error code, when available.' };
-	errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
-	errorStack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error stack. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
+	msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
+	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error stack. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
 	owner: 'roblourens';
 	comment: 'Captures errors that prevent an agent host request from reaching a terminal host turn.';
 };
@@ -1416,8 +1416,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			hasUserSelectedModel: request.userSelectedModelId !== undefined,
 			errorName: error instanceof Error ? error.name : typeof error,
 			errorCode: getErrorCode(error),
-			errorMessage: packed.msg,
-			errorStack: packed.callstack,
+			msg: packed.msg,
+			callstack: packed.callstack,
 		});
 	}
 

@@ -320,14 +320,14 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				failureStage: data.failureStage,
 				errorType: data.errorType,
 				errorName: data.errorName,
-				errorMessage: data.errorMessage,
-				hasStack: typeof data.errorStack === 'string',
+				msg: data.msg,
+				hasStack: typeof data.callstack === 'string',
 			};
 		}), [{
 			failureStage: 'sendMessage',
 			errorType: 'sendFailed',
 			errorName: 'Error',
-			errorMessage: 'Error: boom',
+			msg: 'Error: boom',
 			hasStack: true,
 		}]);
 	});
@@ -343,11 +343,11 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const failed = failedEvents()[0].data as Record<string, unknown>;
 		assert.deepStrictEqual({
 			completed: { result: completed.result, errorType: completed.errorType, failureStage: completed.failureStage },
-			failed: { errorType: failed.errorType, failureStage: failed.failureStage, errorMessage: failed.errorMessage },
+			failed: { errorType: failed.errorType, failureStage: failed.failureStage, msg: failed.msg },
 			sendMessageCalls: agent.sendMessageCalls.length,
 		}, {
 			completed: { result: 'error', errorType: 'modelSelectionFailed', failureStage: 'modelSelection' },
-			failed: { errorType: 'modelSelectionFailed', failureStage: 'modelSelection', errorMessage: 'Error: unknown model' },
+			failed: { errorType: 'modelSelectionFailed', failureStage: 'modelSelection', msg: 'Error: unknown model' },
 			sendMessageCalls: 0,
 		});
 	});

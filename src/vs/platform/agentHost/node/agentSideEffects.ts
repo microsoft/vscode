@@ -1559,13 +1559,16 @@ export class AgentSideEffects extends Disposable {
 			// folder for folder sessions; undefined for workspace-less sessions.
 			const resolvedWorkingDirectory = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text });
 
+			const selectionUpdates: Promise<void>[] = [];
 			if (message.model) {
 				failureStage = 'modelSelection';
-				await agent.chats.changeModel(chatUri, message.model);
+				selectionUpdates.push(agent.chats.changeModel(chatUri, message.model));
 			}
+			selectionUpdates.push(agent.chats.changeAgent(chatUri, message.agent).catch(err => {
+				this._logService.error('[AgentSideEffects] changeAgent failed', err);
+			}));
 
-			failureStage = 'agentSelection';
-			await agent.chats.changeAgent(chatUri, message.agent);
+			await Promise.all(selectionUpdates);
 
 			failureStage = 'sendMessage';
 			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectory, message.attachments, turnId, senderClientId);
@@ -1651,9 +1654,7 @@ function buildTurnFailureError(stage: AgentHostTurnFailureStage, err: unknown): 
 	const message = String(err);
 	const forwarded = tryParseForwardedChatError(err instanceof Error ? err.message : message);
 	const errorType = stage === 'modelSelection' ? 'modelSelectionFailed'
-		: stage === 'agentSelection' ? 'agentSelectionFailed'
-			: stage === 'workingDirectory' ? 'workingDirectoryFailed'
-				: 'sendFailed';
+		: stage === 'workingDirectory' ? 'workingDirectoryFailed' : 'sendFailed';
 	if (forwarded) {
 		return { errorType, message: stripProxyErrorMarker(message), _meta: toChatErrorMeta(forwarded) };
 	}

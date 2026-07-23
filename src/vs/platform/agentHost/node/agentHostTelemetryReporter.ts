@@ -42,7 +42,7 @@ export type IAgentHostUserMessageSentClassification = {
 
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
 type AgentHostModelSelectionKind = 'default' | 'auto' | 'explicit';
-export type AgentHostTurnFailureStage = 'validation' | 'workingDirectory' | 'modelSelection' | 'agentSelection' | 'sendMessage' | 'provider';
+export type AgentHostTurnFailureStage = 'validation' | 'workingDirectory' | 'modelSelection' | 'sendMessage' | 'provider';
 
 export interface IAgentHostTurnCompletedEvent {
 	provider: string;
@@ -82,8 +82,8 @@ export interface IAgentHostTurnFailedEvent {
 	errorType: string;
 	errorName: string | undefined;
 	errorCode: string | undefined;
-	errorMessage: string;
-	errorStack: string | undefined;
+	msg: string;
+	callstack: string | undefined;
 }
 
 export type IAgentHostTurnFailedClassification = {
@@ -94,8 +94,8 @@ export type IAgentHostTurnFailedClassification = {
 	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type.' };
 	errorName: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The name of the exception, when available.' };
 	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The exception or protocol error code, when available.' };
-	errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
-	errorStack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error stack. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
+	msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
+	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error stack. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
 	owner: 'roblourens';
 	comment: 'Captures diagnostic details for failed agent host turns.';
 };
@@ -494,8 +494,8 @@ export class AgentHostTelemetryReporter {
 				errorType: report.failure.error.errorType,
 				errorName: report.failure.errorName,
 				errorCode: report.failure.errorCode,
-				errorMessage: report.failure.error.message,
-				errorStack: report.failure.errorStack ?? report.failure.error.stack,
+				msg: report.failure.error.message,
+				callstack: report.failure.errorStack ?? report.failure.error.stack,
 			});
 		}
 	}

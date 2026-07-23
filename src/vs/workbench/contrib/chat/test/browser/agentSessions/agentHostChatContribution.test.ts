@@ -7139,8 +7139,8 @@ suite('AgentHostChatContribution', () => {
 					hasUserSelectedModel: true,
 					errorName: 'Error',
 					errorCode: '-32603',
-					errorMessage: 'create failed',
-					errorStack: 'Error: create failed\n    at createSession (agentHostSessionHandler.ts:1:1)',
+					msg: 'create failed',
+					callstack: 'Error: create failed\n    at createSession (agentHostSessionHandler.ts:1:1)',
 				},
 			}]);
 		});
