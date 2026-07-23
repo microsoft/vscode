@@ -41,8 +41,8 @@ import { IChatSendRequestOptions, IChatService, type IChatModelReference } from 
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
-import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { getRegisteredLanguageModels, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
+import { ILanguageModelsService, type ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { getRegisteredLanguageModels, resolveModelIdentifier, resolveModelIdentifierForTarget, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
@@ -2878,9 +2878,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const allModels = getRegisteredLanguageModels(this._languageModelsService);
 		const models = allModels.filter(model => model.metadata.targetChatSessionType === resourceScheme);
+		const requestedModelId = this._resolveRequestedModelIdentifier(sessionId, resourceScheme, models, desiredModelId);
 		return {
 			models,
-			desiredModelResolution: resolveModelIdentifierFromLanguageModels(models, desiredModelId, this._languageModelsService, allModels),
+			desiredModelResolution: resolveModelIdentifierFromLanguageModels(models, requestedModelId, this._languageModelsService, allModels),
 			modelTarget: resourceScheme,
 		};
 	}
@@ -2913,6 +2914,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		return cached?.resource.scheme;
+	}
+
+	private _resolveRequestedModelIdentifier(
+		sessionId: string,
+		resourceScheme: string,
+		models: readonly ILanguageModelChatMetadataAndIdentifier[],
+		desiredModelId: string | undefined,
+	): string | undefined {
+		if (!desiredModelId) {
+			return desiredModelId;
+		}
+
+		const newSession = this._getNewSession(sessionId);
+		const rawId = newSession ? undefined : this._rawIdFromChatId(sessionId);
+		const agentProvider = newSession?.agentProvider ?? (rawId ? this._sessionCache.get(rawId)?.agentProvider : undefined);
+		return resolveModelIdentifierForTarget(models, desiredModelId, agentProvider, resourceScheme) ?? desiredModelId;
 	}
 
 	setModel(sessionId: string, modelId: string): void {

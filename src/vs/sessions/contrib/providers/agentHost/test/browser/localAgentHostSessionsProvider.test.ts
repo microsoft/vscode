@@ -1297,6 +1297,81 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('resolves a legacy logical-session model identifier to the canonical target model', () => {
+		const canonicalIdentifier = 'agent-host-copilotcli:gpt-5.6-sol';
+		const canonicalModel = { ...createTestLanguageModel('gpt-5.6-sol'), targetChatSessionType: 'agent-host-copilotcli' };
+		const legacyModel = { ...createTestLanguageModel('gpt-5.6-sol'), vendor: 'copilotcli', targetChatSessionType: 'copilotcli' };
+		const provider = createProvider(disposables, agentHost, undefined, {
+			languageModelIds: [canonicalIdentifier, 'copilotcli/gpt-5.6-sol'],
+			lookupLanguageModel: id => id === canonicalIdentifier ? canonicalModel : id === 'copilotcli/gpt-5.6-sol' ? legacyModel : undefined,
+		});
+		const session = provider.createNewSession(URI.parse('file:///workspace'), provider.sessionTypes[0].id);
+
+		assert.deepStrictEqual({
+			legacy: provider.getModelsSnapshot(session.sessionId, 'copilotcli/gpt-5.6-sol').desiredModelResolution,
+			exact: provider.getModelsSnapshot(session.sessionId, canonicalIdentifier).desiredModelResolution,
+		}, {
+			legacy: {
+				kind: 'available',
+				model: { identifier: canonicalIdentifier, metadata: canonicalModel },
+			},
+			exact: {
+				kind: 'available',
+				model: { identifier: canonicalIdentifier, metadata: canonicalModel },
+			},
+		});
+	});
+
+	test('resolves a legacy logical-session model identifier for a restored session', () => {
+		const canonicalIdentifier = 'agent-host-copilotcli:gpt-5.6-sol';
+		const canonicalModel = { ...createTestLanguageModel('gpt-5.6-sol'), targetChatSessionType: 'agent-host-copilotcli' };
+		const legacyModel = { ...createTestLanguageModel('gpt-5.6-sol'), vendor: 'copilotcli', targetChatSessionType: 'copilotcli' };
+		const provider = createProvider(disposables, agentHost, undefined, {
+			languageModelIds: [canonicalIdentifier, 'copilotcli/gpt-5.6-sol'],
+			lookupLanguageModel: id => id === canonicalIdentifier ? canonicalModel : id === 'copilotcli/gpt-5.6-sol' ? legacyModel : undefined,
+		});
+		fireSessionAdded(agentHost, 'restored-legacy-model');
+		const session = provider.getSessions().find(session => session.title.get() === 'Session restored-legacy-model');
+		assert.ok(session);
+
+		assert.deepStrictEqual(provider.getModelsSnapshot(session.sessionId, 'copilotcli/gpt-5.6-sol').desiredModelResolution, {
+			kind: 'available',
+			model: { identifier: canonicalIdentifier, metadata: canonicalModel },
+		});
+	});
+
+	test('does not resolve a legacy model identifier from an unrelated vendor', () => {
+		const canonicalIdentifier = 'agent-host-copilotcli:gpt-5.6-sol';
+		const canonicalModel = { ...createTestLanguageModel('gpt-5.6-sol'), targetChatSessionType: 'agent-host-copilotcli' };
+		const unrelatedModel = { ...createTestLanguageModel('gpt-5.6-sol'), vendor: 'copilot', targetChatSessionType: 'copilotcli' };
+		const provider = createProvider(disposables, agentHost, undefined, {
+			languageModelIds: [canonicalIdentifier, 'copilot/gpt-5.6-sol'],
+			lookupLanguageModel: id => id === canonicalIdentifier ? canonicalModel : id === 'copilot/gpt-5.6-sol' ? unrelatedModel : undefined,
+		});
+		fireSessionAdded(agentHost, 'unrelated-model');
+		const session = provider.getSessions().find(session => session.title.get() === 'Session unrelated-model');
+		assert.ok(session);
+
+		assert.deepStrictEqual(provider.getModelsSnapshot(session.sessionId, 'copilot/gpt-5.6-sol').desiredModelResolution, {
+			kind: 'unavailable',
+			identifier: 'copilot/gpt-5.6-sol',
+		});
+	});
+
+	test('keeps a legacy model pending while the target model catalog loads', () => {
+		const legacyModel = { ...createTestLanguageModel('gpt-5.6-sol'), vendor: 'copilotcli', targetChatSessionType: 'copilotcli' };
+		const provider = createProvider(disposables, agentHost, undefined, {
+			languageModelIds: ['copilotcli/gpt-5.6-sol'],
+			lookupLanguageModel: id => id === 'copilotcli/gpt-5.6-sol' ? legacyModel : undefined,
+		});
+		const session = provider.createNewSession(URI.parse('file:///workspace'), provider.sessionTypes[0].id);
+
+		assert.deepStrictEqual(provider.getModelsSnapshot(session.sessionId, 'copilotcli/gpt-5.6-sol').desiredModelResolution, {
+			kind: 'pending',
+			identifier: 'agent-host-copilotcli:gpt-5.6-sol',
+		});
+	});
+
 	test('setModel updates existing session model and lets draft debounce persist it', () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'set-model', { title: 'Set Model Session' });

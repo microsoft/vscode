@@ -43,7 +43,8 @@ import { AutomationInterval } from '../../../../workbench/contrib/chat/common/au
 import { IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelsService, type ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { getRegisteredLanguageModels, resolveModelIdentifierForTarget } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ChatAgentLocation, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatWidget, ISessionTypePickerDelegate } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -68,6 +69,21 @@ export function isAutomationDialogPopupTarget(relatedTarget: HTMLElement): boole
 	return isMobilePickerSheetTarget(relatedTarget) || !!relatedTarget.closest(
 		'.context-view, .quick-input-widget, .monaco-menu-container, .monaco-hover, .monaco-hover-content'
 	);
+}
+
+/** Resolves the canonical model identifier corresponding to one saved for a logical session type. */
+export function resolveAutomationModelIdentifierForTarget(
+	models: readonly ILanguageModelChatMetadataAndIdentifier[],
+	requestedIdentifier: string,
+	sessionTypeId: string | undefined,
+	modelTarget: string | undefined,
+): string | undefined {
+	if (!modelTarget) {
+		return undefined;
+	}
+
+	const targetModels = models.filter(model => model.metadata.targetChatSessionType === modelTarget);
+	return resolveModelIdentifierForTarget(targetModels, requestedIdentifier, sessionTypeId, modelTarget);
 }
 
 interface IAutomationDialogKeyboardNavigation extends IDisposable {
@@ -641,6 +657,7 @@ export function renderForm(
 	validation: IValidationState,
 	revalidate: () => void,
 	instantiationService: IInstantiationService,
+	languageModelsService: ILanguageModelsService,
 	contextKeyService: IContextKeyService,
 	contextViewService: IContextViewService,
 	configurationService: IConfigurationService,
@@ -744,19 +761,16 @@ export function renderForm(
 	});
 	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
 	// The dialog has no session, so the input part reads the active session type from the picker via this delegate.
-	const onDidChangeSessionType = disposables.add(new Emitter<AgentSessionTarget>());
+	const onDidChangeModelTarget = disposables.add(new Emitter<AgentSessionTarget>());
 	const onDidChangeSessionTarget = disposables.add(new Emitter<void>());
 	const sessionTypeDelegate: ISessionTypePickerDelegate = {
-		getActiveSessionProvider: () => sessionTypePicker.selectedPick?.sessionTypeId as AgentSessionTarget | undefined,
-		onDidChangeActiveSessionProvider: onDidChangeSessionType.event,
+		getActiveSessionProvider: () => sessionTypePicker.modelTargetChatSessionType.get() as AgentSessionTarget | undefined,
+		onDidChangeActiveSessionProvider: onDidChangeModelTarget.event,
 	};
 	const syncStateFromPicker = () => {
 		const pick = sessionTypePicker.selectedPick;
 		state.providerId = pick?.providerId;
 		state.sessionTypeId = pick?.sessionTypeId;
-		if (pick?.sessionTypeId) {
-			onDidChangeSessionType.fire(pick.sessionTypeId as AgentSessionTarget);
-		}
 		onDidChangeSessionTarget.fire();
 	};
 	// Seed state from the picker's initial default (edit: saved type; create: folder default).
@@ -767,6 +781,13 @@ export function renderForm(
 	disposables.add(sessionTypePicker.onDidChangeSelectedPick(() => {
 		syncStateFromPicker();
 		revalidate();
+	}));
+	disposables.add(autorun(reader => {
+		const modelTarget = sessionTypePicker.modelTargetChatSessionType.read(reader);
+		if (modelTarget) {
+			onDidChangeModelTarget.fire(modelTarget as AgentSessionTarget);
+		}
+		onDidChangeSessionTarget.fire();
 	}));
 
 	const workspacePicker = disposables.add(instantiationService.createInstance(MobileAutomationsWorkspacePicker));
@@ -922,22 +943,31 @@ export function renderForm(
 	if (initialPermissionLevel && isChatPermissionLevel(initialPermissionLevel)) {
 		chatInput.setPermissionLevel(initialPermissionLevel);
 	}
-	// On edit, apply the saved model with late-arrival retry if needed.
 	chatInput.resetLanguageModelToDefault();
 
-	if (initialModelId && !chatInput.switchModelByIdentifier(initialModelId, /* storeSelection */ false)) {
-		const languageModelsService = instantiationService.invokeFunction(accessor => accessor.get(ILanguageModelsService));
-		const baseline = chatInput.selectedLanguageModel.get()?.identifier;
-		const retry = disposables.add(new MutableDisposable<IDisposable>());
-		retry.value = languageModelsService.onDidChangeLanguageModels(() => {
-			if (chatInput.selectedLanguageModel.get()?.identifier !== baseline) {
+	if (initialModelId) {
+		const retry = disposables.add(new DisposableStore());
+		const requestInitialModel = () => {
+			if (chatInput.userExplicitlySelectedLanguageModel) {
 				retry.clear();
 				return;
 			}
-			if (chatInput.switchModelByIdentifier(initialModelId, /* storeSelection */ false)) {
+
+			const models = getRegisteredLanguageModels(languageModelsService);
+			const modelIdentifier = resolveAutomationModelIdentifierForTarget(
+				models,
+				initialModelId,
+				sessionTypePicker.selectedPick?.sessionTypeId,
+				sessionTypePicker.modelTargetChatSessionType.get(),
+			);
+			if (modelIdentifier) {
+				void chatInput.requestModelByIdentifier(modelIdentifier);
 				retry.clear();
 			}
-		});
+		};
+		retry.add(languageModelsService.onDidChangeLanguageModels(requestInitialModel));
+		retry.add(onDidChangeModelTarget.event(requestInitialModel));
+		requestInitialModel();
 	}
 
 	disposables.add(chatInput.inputEditor.onDidChangeModelContent(() => {

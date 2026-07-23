@@ -20,12 +20,32 @@ import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { nullExtensionDescription } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
+import type { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AutomationIsolationGroupActionViewItem, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { AutomationIsolationGroupActionViewItem, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, resolveAutomationModelIdentifierForTarget, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
 const FOLDER = URI.file('/workspace');
+
+function languageModel(identifier: string, id: string, targetChatSessionType: string): ILanguageModelChatMetadataAndIdentifier {
+	return {
+		identifier,
+		metadata: {
+			extension: nullExtensionDescription.identifier,
+			id,
+			name: id,
+			vendor: identifier.substring(0, identifier.search(/[/:]/)),
+			version: '1',
+			family: id,
+			maxInputTokens: 100,
+			maxOutputTokens: 100,
+			isDefaultForLocation: {},
+			targetChatSessionType,
+		},
+	};
+}
 
 function dispatchKey(target: HTMLElement, type: 'keydown' | 'keyup', key: string, shiftKey = false): KeyboardEvent {
 	const event = new KeyboardEvent(type, { key, bubbles: true, cancelable: true, shiftKey });
@@ -105,6 +125,31 @@ function createFormState(overrides?: Partial<IFormState>): IFormState {
 		...overrides,
 	};
 }
+
+suite('Automation model selection', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('maps saved logical-session model identifiers only to the matching concrete target', () => {
+		const canonicalModel = languageModel('agent-host-copilotcli:gpt-5.6-sol', 'gpt-5.6-sol', 'agent-host-copilotcli');
+		const legacyModel = languageModel('copilotcli/gpt-5.6-sol', 'gpt-5.6-sol', 'copilotcli');
+		const unrelatedModel = languageModel('copilot/gpt-5.6-sol', 'gpt-5.6-sol', 'copilotcli');
+		const models = [canonicalModel, legacyModel, unrelatedModel];
+
+		assert.deepStrictEqual({
+			legacy: resolveAutomationModelIdentifierForTarget(models, legacyModel.identifier, 'copilotcli', 'agent-host-copilotcli'),
+			legacyBeforeCatalog: resolveAutomationModelIdentifierForTarget([legacyModel], legacyModel.identifier, 'copilotcli', 'agent-host-copilotcli'),
+			canonicalBeforeCatalog: resolveAutomationModelIdentifierForTarget([], canonicalModel.identifier, 'copilotcli', 'agent-host-copilotcli'),
+			logicalTarget: resolveAutomationModelIdentifierForTarget(models, legacyModel.identifier, 'copilotcli', 'copilotcli'),
+			unrelated: resolveAutomationModelIdentifierForTarget(models, unrelatedModel.identifier, 'copilotcli', 'agent-host-copilotcli'),
+		}, {
+			legacy: canonicalModel.identifier,
+			legacyBeforeCatalog: canonicalModel.identifier,
+			canonicalBeforeCatalog: canonicalModel.identifier,
+			logicalTarget: legacyModel.identifier,
+			unrelated: undefined,
+		});
+	});
+});
 
 suite('Automation branch picker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

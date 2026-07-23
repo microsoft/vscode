@@ -1069,13 +1069,13 @@ suite('SessionsManagementService', () => {
 		]);
 	});
 
-	test('createAndSendNewChatRequest waits for an explicit model to become available', async () => {
+	test('createAndSendNewChatRequest waits for an explicit model and applies its resolved identifier', async () => {
 		const session = stubSession({ sessionId: 's1', providerId: 'test' });
 		const onDidChangeModels = disposables.add(new Emitter<void>());
 		let resolution: ISessionModelsSnapshot['desiredModelResolution'] = { kind: 'pending', identifier: 'gpt-4o' };
 		const calls: string[] = [];
 		const model: ILanguageModelChatMetadataAndIdentifier = {
-			identifier: 'gpt-4o',
+			identifier: 'canonical:gpt-4o',
 			metadata: {
 				extension: nullExtensionDescription.identifier,
 				name: 'GPT-4o',
@@ -1092,7 +1092,7 @@ suite('SessionsManagementService', () => {
 			override readonly onDidChangeModels = onDidChangeModels.event;
 			override resolveWorkspace(folderUri: URI): ISessionWorkspace { return { folderUri } as unknown as ISessionWorkspace; }
 			override getModelsSnapshot(): ISessionModelsSnapshot { return { models: [], desiredModelResolution: resolution, modelTarget: undefined }; }
-			override setModel(): void { calls.push('setModel'); }
+			override setModel(_sessionId: string, modelId: string): void { calls.push(`setModel:${modelId}`); }
 			override async sendRequest(): Promise<ISession> {
 				calls.push('send');
 				return session;
@@ -1108,7 +1108,7 @@ suite('SessionsManagementService', () => {
 		onDidChangeModels.fire();
 		await request;
 
-		assert.deepStrictEqual(calls, ['setModel', 'send']);
+		assert.deepStrictEqual(calls, ['setModel:canonical:gpt-4o', 'send']);
 	});
 
 	test('createAndSendNewChatRequest rejects a pending model that becomes unavailable and disposes the draft', async () => {
