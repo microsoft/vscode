@@ -679,6 +679,55 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('forced pttDown cancels pending toggle mode and keeps the turn recording instead of finishing it', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		await controller.connect(mainWindow);
+		Reflect.get(controller, '_isConnected').set(true, undefined);
+
+		// Advance off the fake-clock epoch (0) so pttDown records a truthy
+		// `_telemetryPttDownMs`; at time 0 the tap/hold split reads the press as
+		// "no press recorded" (Infinity hold) and never enters toggle mode.
+		clock.setSystemTime(5_000);
+
+		// Press + quick release: a sub-threshold tap enters toggle mode, which keeps
+		// the mic recording until the next tap.
+		controller.pttDown();
+		controller.pttUp();
+		assert.deepStrictEqual({
+			toggle: Reflect.get(controller, '_pttToggleMode'),
+			held: Reflect.get(controller, '_pttHeld'),
+		}, { toggle: true, held: true }, 'short tap enters toggle mode while still recording');
+
+		// A forced press (the hold-to-talk gesture) cancels the pending toggle mode
+		// and keeps recording the same turn, rather than finishing it as a normal
+		// second tap would.
+		controller.pttDown('explicit', true);
+		assert.deepStrictEqual({
+			toggle: Reflect.get(controller, '_pttToggleMode'),
+			held: Reflect.get(controller, '_pttHeld'),
+		}, { toggle: false, held: true }, 'forced pttDown bypasses toggle mode and stays recording');
+	});
+
+	test('forced pttUp finishes a sub-threshold turn instead of entering toggle mode', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		await controller.connect(mainWindow);
+		Reflect.get(controller, '_isConnected').set(true, undefined);
+
+		controller.pttDown();
+		assert.strictEqual(Reflect.get(controller, '_pttHeld'), true, 'pttDown starts recording');
+
+		// A forced release (hold-to-talk release) finishes and sends immediately even
+		// for a short hold, instead of dropping into toggle mode and leaving `_pttHeld`
+		// active with the mic still open.
+		controller.pttUp('explicit', true);
+		assert.deepStrictEqual({
+			toggle: Reflect.get(controller, '_pttToggleMode'),
+			held: Reflect.get(controller, '_pttHeld'),
+		}, { toggle: false, held: false }, 'forced pttUp finishes the turn rather than entering toggle mode');
+	});
+
 	test('restores idle state when solicited narration never starts returning audio', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);

@@ -24,6 +24,7 @@ import * as nls from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { SegmentedVoiceInputModePillInactive } from '../../chat/browser/voiceInputMode/voiceInputModeContextKeys.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -129,6 +130,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
+					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					AGENTS_VOICE_CONNECTING.isEqualTo(true),
@@ -153,6 +155,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
+					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
@@ -170,6 +173,7 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
 				when: ContextKeyExpr.and(
+					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.inChatInput,
 				),
@@ -234,6 +238,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
+					SegmentedVoiceInputModePillInactive,
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
@@ -278,6 +283,9 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					// The segmented voice pill's voice cell is itself the on/off toggle,
+					// so a separate disconnect button would be redundant there.
+					SegmentedVoiceInputModePillInactive,
 				),
 				group: 'navigation',
 				order: -9

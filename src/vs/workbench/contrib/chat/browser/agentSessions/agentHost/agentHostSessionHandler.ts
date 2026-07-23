@@ -42,7 +42,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentChatUri, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type StringOrMarkdown, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, ChatOriginKind, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type StringOrMarkdown, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -256,6 +256,25 @@ interface IStartServerRequestOptions {
 function parseTimestamp(value: string): number | undefined {
 	const timestamp = Date.parse(value);
 	return Number.isFinite(timestamp) ? timestamp : undefined;
+}
+
+function getSubagentTiming(state: ISessionWithDefaultChat): { startedAt: number | undefined; duration: number | undefined } {
+	const turns = state.activeTurn ? [...state.turns, state.activeTurn] : state.turns;
+	const starts = turns
+		.map(turn => turn.startedAt ? Date.parse(turn.startedAt) : undefined)
+		.filter((timestamp): timestamp is number => timestamp !== undefined && Number.isFinite(timestamp));
+	const startedAt = starts.length > 0 ? Math.min(...starts) : undefined;
+	if (startedAt === undefined || state.activeTurn) {
+		return { startedAt, duration: undefined };
+	}
+	const ends = state.turns.flatMap(turn => {
+		const turnStartedAt = turn.startedAt ? Date.parse(turn.startedAt) : undefined;
+		return turnStartedAt !== undefined && Number.isFinite(turnStartedAt) && typeof turn.duration === 'number' && Number.isFinite(turn.duration)
+			? [turnStartedAt + Math.max(0, turn.duration)]
+			: [];
+	});
+	const endedAt = ends.length > 0 ? Math.max(...ends) : undefined;
+	return { startedAt, duration: endedAt !== undefined ? Math.max(0, endedAt - startedAt) : undefined };
 }
 
 function userOriginMessage(text: string, attachments: readonly MessageAttachment[] | undefined): Message {
@@ -1033,7 +1052,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						// Enrich history with inner tool calls from subagent
 						// child sessions. Subscribes to each child session so
 						// its tool calls appear grouped under the parent widget.
-						await this._enrichHistoryWithSubagentCalls(history, resolvedSession, sessionResource);
+						await this._enrichHistoryWithSubagentCalls(history, resolvedSession, sessionResource, sessionState);
 
 						// Store historical turns so the editing session can seed a
 						// request-level checkpoint for each turn (with file edits
@@ -3461,9 +3480,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		history: IChatSessionHistoryItem[],
 		parentSession: URI,
 		sessionResource: URI,
+		sessionState: ISessionWithDefaultChat,
 	): Promise<void> {
 		const parentSessionStr = parentSession.toString();
-		const subagentInsertions: { item: Extract<IChatSessionHistoryItem, { type: 'response' }>; index: number; toolCallId: string }[] = [];
+		const subagentChats = new Map(sessionState.chats.flatMap(chat =>
+			chat.origin?.kind === ChatOriginKind.Tool ? [[chat.origin.toolCallId, chat] as const] : []
+		));
+		const subagentInsertions: { item: Extract<IChatSessionHistoryItem, { type: 'response' }>; index: number; toolCallId: string; childChatUri: string }[] = [];
 
 		for (const item of history) {
 			if (item.type !== 'response') {
@@ -3472,8 +3495,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			for (let i = 0; i < item.parts.length; i++) {
 				const part = item.parts[i];
-				if (part.kind === 'toolInvocationSerialized' && part.toolSpecificData?.kind === 'subagent') {
-					subagentInsertions.push({ item, index: i, toolCallId: part.toolCallId });
+				if (part.kind !== 'toolInvocationSerialized') {
+					continue;
+				}
+				const subagentChat = subagentChats.get(part.toolCallId);
+				if (subagentChat) {
+					const existing = part.toolSpecificData?.kind === 'subagent' ? part.toolSpecificData : undefined;
+					part.toolSpecificData = {
+						...existing,
+						kind: 'subagent',
+						description: subagentChat.title || existing?.description || (typeof part.invocationMessage === 'string' ? part.invocationMessage : part.invocationMessage.value),
+						chatResource: subagentChat.resource.toString(),
+					};
+				}
+				if (part.toolSpecificData?.kind === 'subagent') {
+					const childChatUri = part.toolSpecificData.chatResource
+						?? subagentChat?.resource.toString()
+						?? buildSubagentChatUri(parentSessionStr, part.toolCallId);
+					part.toolSpecificData.chatResource = childChatUri;
+					subagentInsertions.push({ item, index: i, toolCallId: part.toolCallId, childChatUri });
 				}
 			}
 		}
@@ -3492,8 +3532,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return existing;
 		};
 
-		const enrichedInsertions = await Promise.all(subagentInsertions.map(async ({ item, index, toolCallId }) => {
-			const childChatUri = buildSubagentChatUri(parentSessionStr, toolCallId);
+		const enrichedInsertions = await Promise.all(subagentInsertions.map(async ({ item, index, toolCallId, childChatUri }) => {
 			try {
 				const childState = await getChildState(childChatUri);
 				if (childState) {
@@ -3563,6 +3602,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (modelName && !part.toolSpecificData.modelName) {
 			part.toolSpecificData.modelName = modelName;
 		}
+		const timing = getSubagentTiming(childState);
+		part.toolSpecificData.startedAt = timing.startedAt;
+		part.toolSpecificData.duration = timing.duration;
 	}
 
 	private _getSubagentInnerParts(childSessionUri: string, toolCallId: string, childState: ISessionWithDefaultChat): IChatProgress[] {
@@ -3645,9 +3687,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return;
 				}
 				const isActive = !!state.activeTurn;
-				if (parentInvocation.toolSpecificData?.kind === 'subagent' && parentInvocation.toolSpecificData.isActive !== isActive) {
-					parentInvocation.toolSpecificData.isActive = isActive;
-					parentInvocation.notifyToolSpecificDataChanged();
+				if (parentInvocation.toolSpecificData?.kind === 'subagent') {
+					const timing = getSubagentTiming(state);
+					const fallbackDuration = !isActive && timing.duration === undefined && parentInvocation.toolSpecificData.isActive && parentInvocation.toolSpecificData.startedAt !== undefined
+						? Date.now() - parentInvocation.toolSpecificData.startedAt
+						: timing.duration;
+					if (parentInvocation.toolSpecificData.isActive !== isActive
+						|| parentInvocation.toolSpecificData.startedAt !== timing.startedAt
+						|| parentInvocation.toolSpecificData.duration !== fallbackDuration) {
+						parentInvocation.toolSpecificData.isActive = isActive;
+						parentInvocation.toolSpecificData.startedAt = timing.startedAt;
+						parentInvocation.toolSpecificData.duration = fallbackDuration;
+						parentInvocation.notifyToolSpecificDataChanged();
+					}
 				}
 			}));
 

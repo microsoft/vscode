@@ -1,0 +1,104 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* --- Voice / Dictation input mode ---
+ * Built on the generic segmented-icon-toggle chrome (see
+ * base/browser/ui/segmentedIconToggle/segmentedIconToggle.css) for the pill housing, reel,
+ * and cell layout/hover/collapse behavior. The rules below add only the voice-specific
+ * styling: the walkthrough hover preview, per-state colors, and the waveform bars. */
+
+/* Walkthrough-only simulated hover mirrors the real :hover preview from the generic chrome. */
+.chat-voice-input-mode-cell.sim-hover::before {
+	background: var(--vscode-toolbar-hoverBackground, transparent);
+}
+
+/* VS Code gates motion with `.monaco-enable-motion`; disable the cell slide/fade when it's off. */
+.monaco-workbench:not(.monaco-enable-motion) .chat-voice-input-mode-cell {
+	transition: none;
+}
+
+/* Voice Mode color by state — matches the input-box glow shades: listening (user) = charts.blue, speaking (assistant) = charts.purple, so custom/high-contrast themes can override them. */
+.chat-voice-input-mode-cell.voice {
+	color: var(--vscode-icon-foreground);
+}
+
+.chat-voice-input-mode-cell.voice.listening {
+	color: var(--vscode-charts-blue, #58a6ff);
+}
+
+.chat-voice-input-mode-cell.voice.speaking {
+	color: var(--vscode-charts-purple, #a371f7);
+}
+
+.chat-voice-input-mode-icon {
+	font-size: 16px;
+}
+
+/* The Device EQ waveform lives in the voice cell and transforms per state. Thin bars = default (disconnected); thick bars = filled (connected). */
+.chat-voice-input-mode-bars {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	height: 16px;
+}
+
+.chat-voice-input-mode-bar {
+	width: 1.5px;
+	border-radius: 1px;
+	background: currentColor;
+	transform-origin: center center;
+	transition: height 0.22s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+/* Device EQ silhouette: symmetric center-peak (matches Device EQ.svg). Bars stay thin in every state — connected reads via a darker color, not thicker bars. */
+.chat-voice-input-mode-bar:nth-child(1) { height: 4px; }
+.chat-voice-input-mode-bar:nth-child(2) { height: 8px; }
+.chat-voice-input-mode-bar:nth-child(3) { height: 12px; }
+.chat-voice-input-mode-bar:nth-child(4) { height: 8px; }
+.chat-voice-input-mode-bar:nth-child(5) { height: 4px; }
+
+/* Hover while connected → preview disconnect: collapse to a short, even, "silent" row (no waveform, no motion). The height transition makes leaving the hover grow the bars smoothly back into the active waveform. */
+.chat-voice-input-mode-cell.voice.on:hover .chat-voice-input-mode-bar,
+.chat-voice-input-mode-cell.voice.on.sim-hover .chat-voice-input-mode-bar {
+	animation: none;
+	height: 4px;
+}
+
+/* Connected but idle → a calm undulating wave: each bar gently grows/shrinks in height (centered scaleY) out of phase, so a soft sine ripples across the waveform to say "on, but not listening or speaking". The bars stay centered — they don't bob. */
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.idle-on:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar {
+	animation: chat-voice-input-mode-wave 2.6s ease-in-out infinite;
+}
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.idle-on:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(1) { animation-delay: 0s; }
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.idle-on:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(2) { animation-delay: -0.34s; }
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.idle-on:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(3) { animation-delay: -0.68s; }
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.idle-on:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(4) { animation-delay: -1.02s; }
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.idle-on:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(5) { animation-delay: -1.36s; }
+
+/* Listening / speaking → energetic equalizer. JS overrides heights when an audio analyser is available; this is the fallback (and covers the moment before capture). */
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.listening:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar,
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.speaking:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar {
+	animation: chat-voice-input-mode-eq 0.85s ease-in-out infinite;
+}
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.listening:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(1),
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.speaking:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(1) { animation-delay: 0s; }
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.listening:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(2),
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.speaking:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(2) { animation-delay: 0.12s; }
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.listening:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(3),
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.speaking:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(3) { animation-delay: 0.24s; }
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.listening:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(4),
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.speaking:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(4) { animation-delay: 0.36s; }
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.listening:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(5),
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.speaking:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(5) { animation-delay: 0.48s; }
+
+/* Undulating idle wave: gentle centered height ripple (bars scale from their center, so they grow/shrink in place rather than moving up or down). */
+@keyframes chat-voice-input-mode-wave {
+	0%, 100% { transform: scaleY(0.72); }
+	50% { transform: scaleY(1.08); }
+}
+
+@keyframes chat-voice-input-mode-eq {
+	0%, 100% { height: 3px; }
+	50% { height: 13px; }
+}

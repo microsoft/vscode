@@ -2246,6 +2246,8 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 			agentName: subagentContent.agentName,
 			credits: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.credits : undefined,
 			modelName: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.modelName : undefined,
+			startedAt: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.startedAt : undefined,
+			duration: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.duration : undefined,
 			chatResource: subagentContent.resource,
 		};
 		// toolSpecificData is a plain property — notify state observers
@@ -2260,7 +2262,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		const description = getSubagentTaskDescription(tc) ?? existing.toolSpecificData.description;
 		const agentName = getSubagentAgentName(tc) ?? existing.toolSpecificData.agentName;
 		if (description !== existing.toolSpecificData.description || agentName !== existing.toolSpecificData.agentName) {
-			existing.toolSpecificData = { kind: 'subagent', isActive: existing.toolSpecificData.isActive, description, agentName, credits: existing.toolSpecificData.credits, modelName: existing.toolSpecificData.modelName, chatResource: existing.toolSpecificData.chatResource };
+			existing.toolSpecificData = { ...existing.toolSpecificData, description, agentName };
 			existing.notifyToolSpecificDataChanged();
 		}
 		return;
@@ -2359,6 +2361,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				result: resultText,
 				credits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
 				modelName: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.modelName : undefined,
+				startedAt: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.startedAt : undefined,
+				duration: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.duration : undefined,
 				chatResource: getSubagentChatResource(tc, subagentContent, backendSession),
 			};
 		} else if (invocation.toolSpecificData?.kind === 'subagent') {
@@ -2372,6 +2376,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				result: getToolOutputText(tc),
 				credits: invocation.toolSpecificData.credits,
 				modelName: invocation.toolSpecificData.modelName,
+				startedAt: invocation.toolSpecificData.startedAt,
+				duration: invocation.toolSpecificData.duration,
 				chatResource: invocation.toolSpecificData.chatResource ?? getSubagentChatResource(tc, undefined, backendSession),
 			};
 		}

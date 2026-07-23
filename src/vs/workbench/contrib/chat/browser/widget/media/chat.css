@@ -2210,11 +2210,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: contents;
 }
 
-.interactive-session .interactive-input-part.chat-input-hidden > :not(.chat-input-persistent-content) {
+.interactive-session .interactive-input-part.chat-input-hidden > :not(.chat-input-persistent-content, .chat-tool-confirmation-carousel-container) {
 	display: none;
 }
 
-.interactive-session .interactive-input-part.chat-input-hidden:not(:has(> .chat-input-persistent-content > :not(.hidden))) {
+.interactive-session .interactive-input-part.chat-input-hidden:not(:has(> .chat-input-persistent-content > :not(.hidden), > .chat-tool-confirmation-carousel-container:not(.hidden))) {
 	display: none;
 }
 
@@ -4649,6 +4649,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 @keyframes dictation-download-ring-spin {
-	from { transform: translate(-50%, -50%) rotate(-90deg); }
-	to { transform: translate(-50%, -50%) rotate(270deg); }
+	from {
+		transform: translate(-50%, -50%) rotate(-90deg);
+	}
+	to {
+		transform: translate(-50%, -50%) rotate(270deg);
+	}
 }

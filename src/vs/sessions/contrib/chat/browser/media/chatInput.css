@@ -145,6 +145,16 @@
 	position: relative;
 }
 
+/* Segmented voice/dictation pill (experimental) */
+.sessions-chat-voice-input-mode {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-voice-input-mode.hidden {
+	display: none;
+}
+
 /* Model picker - uses workbench ModelPickerActionItem */
 /* Session config toolbar (model picker via MenuWorkbenchToolBar) */
 .sessions-chat-config-toolbar {
