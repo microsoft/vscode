@@ -312,6 +312,49 @@ suite('SessionCustomizationDiscovery', () => {
 		]);
 	});
 
+	test('discover groups case-variant instructions and nested skills under their roots', async () => {
+		const caseVariantUserHome = URI.from({ scheme: Schemas.inMemory, path: '/HOME' });
+		await seed('/home/.copilot/copilot-instructions.md', 'user copilot instructions');
+		await seed('/workspace/.github/skills/bar/SKILL.md', 'skill body');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, caseVariantUserHome, inMemoryPathToUri));
+		const client = {
+			rpc: {
+				agents: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ agents: [] }),
+				},
+				instructions: {
+					getDiscoveryPaths: async () => ({ paths: [{ path: '/home/.copilot/copilot-instructions.md', kind: 'file' }] }),
+					discover: async () => ({ sources: [{ id: 'userInstruction', label: 'User instruction', sourcePath: '/home/.copilot/copilot-instructions.md', type: 'home' }] }),
+				},
+				skills: {
+					getDiscoveryPaths: async () => ({
+						paths: [
+							{ path: '/workspace/.github/skills' },
+							{ path: '/workspace/.github/skills/bar' },
+						]
+					}),
+					discover: async () => ({ skills: [{ name: 'Skill', description: 'skill description', path: '/workspace/.github/skills/bar/SKILL.md' }] }),
+				},
+			},
+		} as unknown as CopilotClient;
+
+		const customizations = await discovery.discover(client, CancellationToken.None);
+		const directories = customizations
+			.filter(customization => customization.contents === 'rule' || customization.contents === 'skill')
+			.map(customization => ({
+				contents: customization.contents,
+				uri: URI.parse(customization.uri).path,
+				children: (customization.children ?? []).map(child => URI.parse(child.uri).path),
+			}));
+
+		assert.deepStrictEqual(directories, [
+			{ contents: 'rule', uri: '/HOME', children: ['/home/.copilot/copilot-instructions.md'] },
+			{ contents: 'skill', uri: '/workspace/.github/skills', children: ['/workspace/.github/skills/bar/SKILL.md'] },
+		]);
+	});
+
 	test('returns directories sorted by type and URI', async () => {
 		await seed('/workspace/.github/agents/aaa.agent.md', 'workspace agent a');
 		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
