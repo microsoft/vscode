@@ -9,6 +9,7 @@ import * as os from 'os';
 import { pickRemoteSource } from './remoteSource';
 import { l10n, workspace, window, Uri, ProgressLocation, commands } from 'vscode';
 import { RepositoryCache, RepositoryCacheInfo } from './repositoryCache';
+import { filterExistingCachedRepositories } from './cloneCache';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Model } from './model';
 
@@ -210,15 +211,11 @@ export class CloneManager {
 	}
 
 	private async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, postCloneAction?: ApiPostCloneAction, parentPath?: string, ref?: string): Promise<string | undefined> {
-		// Gather existing folders/workspace files (ignore ones that no longer exist)
-		const existingCachedRepositories: RepositoryCacheInfo[] = (await Promise.all<RepositoryCacheInfo | undefined>(cachedRepository.map(async folder => {
-			const stat = await fs.promises.stat(folder.workspacePath).catch(() => undefined);
-			if (stat) {
-				return folder;
-			}
-			return undefined;
-		}
-		))).filter<RepositoryCacheInfo>((folder): folder is RepositoryCacheInfo => folder !== undefined);
+		// Validate repositoryPath (not workspacePath) so a surviving parent folder is not treated as a live clone.
+		const existingCachedRepositories = await filterExistingCachedRepositories(cachedRepository, {
+			pathExists: async (p) => !!(await fs.promises.stat(p).catch(() => undefined)),
+			onMissing: (folder) => this.repositoryCache.delete(url, folder.workspacePath),
+		});
 
 		if (!existingCachedRepositories.length) {
 			// fallback to clone
