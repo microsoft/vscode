@@ -278,6 +278,12 @@ configurationRegistry.registerConfiguration({
 			default: 'nemotron-speech-streaming-en-0.6b',
 			tags: ['experimental']
 		},
+		'dictation.experimental.llmCleanup': {
+			type: 'boolean',
+			markdownDescription: nls.localize('dictation.experimental.llmCleanup', "Experimental: pass the final dictation transcript through a small language model to restore punctuation, capitalization, and paragraph breaks. Requires Copilot to be enabled; the transcript is sent to the language model for cleanup. Falls back to the raw transcript when no model is available."),
+			default: false,
+			tags: ['experimental']
+		},
 		'chat.editor.fontSize': {
 			type: 'number',
 			description: nls.localize('interactiveSession.editor.fontSize', "Controls the font size in pixels in chat codeblocks."),

@@ -15,6 +15,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProgress, IProgressService, IProgressStep, Progress, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../nls.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
@@ -28,6 +29,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatMessageRole, getTextResponseFromStream, ILanguageModelsService } from '../../common/languageModels.js';
 import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
@@ -49,6 +51,21 @@ const MODEL_SETTING = 'dictation.model';
 
 /** `dictation.model` sentinel selecting the cloud voice backend used by Voice Mode. */
 const MAI_MODEL_ID = 'mai';
+
+/**
+ * Experimental: when enabled, the final dictation transcript is passed through a
+ * small utility language model to restore punctuation, capitalization, and
+ * paragraph breaks that the streaming ASR model omits. Requires Copilot/AI to be
+ * enabled; falls back to the raw transcript when no model is available or the
+ * request fails.
+ */
+const LLM_CLEANUP_SETTING = 'dictation.experimental.llmCleanup';
+
+/** Upper bound on transcript length (characters) sent to the cleanup model, to cap latency and cost. */
+const LLM_CLEANUP_MAX_CHARS = 4000;
+
+/** Utility model used for transcript cleanup — a small, fast model in the spirit of gpt-4o-mini. */
+const LLM_CLEANUP_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' };
 
 /**
  * Which backend transcribes dictation audio:
@@ -365,6 +382,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		@IProductService private readonly _productService: IProductService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 	) {
 		super();
 		this._recordingContextKey = ChatContextKeys.speechToTextRecording.bindTo(contextKeyService);
@@ -987,10 +1005,57 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			this._logService.error('[chat-stt] final transcription failed', err);
 		}
 		this._finalizeMs = Date.now() - stopMs;
+		if (text && this._configurationService.getValue<boolean>(LLM_CLEANUP_SETTING) === true) {
+			const cleaned = await this._cleanupWithLanguageModel(text, CancellationToken.None);
+			if (cleaned) {
+				text = cleaned;
+			}
+		}
 		this._logSessionTelemetry(this._sessionErrorCode ? 'error' : 'completed');
 		this._teardown();
 		this._setState(ChatSpeechToTextState.Idle);
 		return text || undefined;
+	}
+
+	/**
+	 * Experimental: run the raw ASR transcript through a small utility language
+	 * model to restore punctuation, capitalization, and paragraph breaks that the
+	 * streaming model omits. Returns the cleaned text, or `undefined` when no
+	 * model is available (e.g. AI features are disabled) or the request fails — in
+	 * which case the caller keeps the raw transcript.
+	 */
+	private async _cleanupWithLanguageModel(text: string, token: CancellationToken): Promise<string | undefined> {
+		try {
+			const models = await this._languageModelsService.selectLanguageModels(LLM_CLEANUP_MODEL_SELECTOR);
+			if (!models.length || token.isCancellationRequested) {
+				return undefined;
+			}
+
+			const input = text.length > LLM_CLEANUP_MAX_CHARS ? text.slice(0, LLM_CLEANUP_MAX_CHARS) : text;
+			const systemPrompt = [
+				'You clean up raw speech-to-text (dictation) output. The input is a verbatim transcript with little or no punctuation or capitalization.',
+				'Add sentence punctuation, capitalization, and paragraph breaks so it reads naturally. Split run-on sentences and group related sentences into paragraphs separated by a blank line.',
+				'Do NOT add, remove, reword, translate, summarize, or answer the content — only fix punctuation, casing, and spacing. Remove filler words (um, uh) and obvious false starts.',
+				'Reply with the cleaned transcript only — no preamble, no quotes, no commentary. This is a benign formatting task: never refuse.',
+			].join(' ');
+
+			const response = await this._languageModelsService.sendChatRequest(
+				models[0],
+				undefined,
+				[
+					{ role: ChatMessageRole.System, content: [{ type: 'text', value: systemPrompt }] },
+					{ role: ChatMessageRole.User, content: [{ type: 'text', value: input }] },
+				],
+				{},
+				token,
+			);
+
+			const cleaned = (await getTextResponseFromStream(response)).trim();
+			return cleaned || undefined;
+		} catch (err) {
+			this._logService.warn('[chat-stt] language model transcript cleanup failed; using raw transcript', err);
+			return undefined;
+		}
 	}
 
 	/**
