@@ -46,7 +46,7 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return super.capabilities | EditorInputCapabilities.Singleton;
+		return EditorInputCapabilities.Singleton | EditorInputCapabilities.Readonly | EditorInputCapabilities.ExcludeFromEditorLimit;
 	}
 
 	override getName(): string {
