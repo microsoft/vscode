@@ -685,6 +685,11 @@ suite('VoiceSessionController', () => {
 		await controller.connect(mainWindow);
 		Reflect.get(controller, '_isConnected').set(true, undefined);
 
+		// Advance off the fake-clock epoch (0) so pttDown records a truthy
+		// `_telemetryPttDownMs`; at time 0 the tap/hold split reads the press as
+		// "no press recorded" (Infinity hold) and never enters toggle mode.
+		clock.setSystemTime(5_000);
+
 		// Press + quick release: a sub-threshold tap enters toggle mode, which keeps
 		// the mic recording until the next tap.
 		controller.pttDown();
