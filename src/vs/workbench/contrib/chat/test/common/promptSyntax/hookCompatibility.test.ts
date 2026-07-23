@@ -5,12 +5,20 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { HookType } from '../../../common/promptSyntax/hookTypes.js';
+import { HookType, HOOKS_BY_TARGET, HOOK_METADATA } from '../../../common/promptSyntax/hookTypes.js';
+import { toHookType } from '../../../common/promptSyntax/hookSchema.js';
+import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { parseCopilotHooks, parseHooksFromFile, HookSourceFormat } from '../../../common/promptSyntax/hookCompatibility.js';
 import { URI } from '../../../../../../base/common/uri.js';
 
 suite('HookCompatibility', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Notification is a recognized VS Code hook type', () => {
+		assert.strictEqual(toHookType('Notification'), HookType.Notification);
+		assert.strictEqual(HOOKS_BY_TARGET[Target.VSCode]['Notification'], HookType.Notification);
+		assert.ok(HOOK_METADATA[HookType.Notification].label.length > 0);
+	});
 
 	suite('parseCopilotHooks', () => {
 		const workspaceRoot = URI.file('/workspace');

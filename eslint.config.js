@@ -955,6 +955,7 @@ export default defineConfig(
 				{
 					'allowed': [
 						'onCancellationRequested',
+						'onDidRequestUserAttention',
 						'event'
 					],
 					'verbs': [

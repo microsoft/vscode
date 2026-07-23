@@ -6,7 +6,8 @@
 
 import { Raw, RenderPromptResult } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, expect, suite, test, vi } from 'vitest';
-import type { ChatLanguageModelToolReference, ChatPromptReference, ChatRequest, ExtendedChatResponsePart, LanguageModelChat } from 'vscode';
+import type { ChatHookType, ChatLanguageModelToolReference, ChatPromptReference, ChatRequest, ChatRequestHooks, ChatRequestNotification, ChatRequestUserAttention, ExtendedChatResponsePart, LanguageModelChat } from 'vscode';
+import { IChatHookService } from '../../../../platform/chat/common/chatHookService';
 import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
 import { toTextPart } from '../../../../platform/chat/common/globalStringUtils';
 import { StaticChatMLFetcher } from '../../../../platform/chat/test/common/staticChatMLFetcher';
@@ -20,6 +21,7 @@ import { NullWorkspaceFileIndex } from '../../../../platform/workspaceChunkSearc
 import { IWorkspaceFileIndex } from '../../../../platform/workspaceChunkSearch/node/workspaceFileIndex';
 import { ChatResponseStreamImpl } from '../../../../util/common/chatResponseStreamImpl';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { Emitter } from '../../../../util/vs/base/common/event';
 import { isObject, isUndefinedOrNull } from '../../../../util/vs/base/common/types';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
@@ -138,6 +140,13 @@ suite('defaultIntentRequestHandler', () => {
 		sessionId = generateUuid();
 		sessionResource = Uri.parse(`test://session/${this.sessionId}`);
 		hasHooksEnabled = false;
+		hooks?: ChatRequestHooks;
+		notification?: ChatRequestNotification;
+		private readonly _onDidRequestUserAttention = new Emitter<ChatRequestUserAttention>();
+		readonly onDidRequestUserAttention = this._onDidRequestUserAttention.event;
+		fireUserAttention(e: ChatRequestUserAttention): void {
+			this._onDidRequestUserAttention.fire(e);
+		}
 	}
 
 	const responseStream = new ChatResponseStreamImpl(p => response.push(p), () => { }, undefined, undefined, undefined, () => Promise.resolve(undefined));
@@ -189,6 +198,136 @@ suite('defaultIntentRequestHandler', () => {
 		// Wait for event loop to finish as we often fire off telemetry without properly awaiting it as it doesn't matter when it is sent
 		await new Promise(setImmediate);
 		expect(getDerandomizedTelemetry()).toMatchSnapshot();
+	});
+
+	test('runs the Notification hook when the editor signals user attention, fire-and-forget', async () => {
+		const executeHookCalls: { hookType: ChatHookType; hooks: ChatRequestHooks | undefined; input: unknown }[] = [];
+		// Tracks whether the (always-rejecting) Notification hook promise was actually
+		// rejected, without leaving it as an unhandled rejection (the production code
+		// fires it with `void`, the same way it would in the real extension).
+		let notificationHookRejected = false;
+		const hookService: IChatHookService = {
+			_serviceBrand: undefined,
+			logConfiguredHooks: () => { },
+			executeHook: (hookType, hooks, input) => {
+				executeHookCalls.push({ hookType, hooks, input });
+				if (hookType === 'Notification') {
+					const rejection = Promise.reject(new Error('Notification hook failed'));
+					rejection.catch(() => { notificationHookRejected = true; });
+					return rejection;
+				}
+				return Promise.resolve([]);
+			},
+			executePreToolUseHook: async () => undefined,
+			executePostToolUseHook: async () => undefined,
+		};
+
+		const services = createExtensionUnitTestingServices();
+		telemetry = new SpyingTelemetryService();
+		chatResponse = [];
+		fetcher = new StaticChatMLFetcher(chatResponse);
+		services.define(ITelemetryService, telemetry);
+		services.define(IChatMLFetcher, fetcher);
+		services.define(IWorkspaceFileIndex, new SyncDescriptor(NullWorkspaceFileIndex));
+		services.define(IChatHookService, hookService);
+
+		accessor = services.createTestingAccessor();
+		endpoint = accessor.get(IInstantiationService).createInstance(MockEndpoint, undefined);
+
+		const request = new TestChatRequest();
+		request.hooks = { sentinel: true } as unknown as ChatRequestHooks;
+
+		const handler = makeHandler({ request });
+		chatResponse[0] = 'some response here :)';
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+		};
+
+		const resultPromise = handler.getResult();
+
+		// Let the handler progress through intent invocation and confirmation handling
+		// (real awaited promises) up to where runWithToolCalling registers the subscription.
+		await new Promise(setImmediate);
+		await new Promise(setImmediate);
+
+		request.fireUserAttention({ notificationType: 'permission_prompt', message: 'Permission needed', title: 'Permission needed' });
+
+		// Fire-and-forget: a rejecting Notification hook must not interrupt the request.
+		const result = await resultPromise;
+		expect(result).not.toHaveProperty('errorDetails');
+		await new Promise(setImmediate);
+		expect(notificationHookRejected).toBe(true);
+
+		const notificationCalls = executeHookCalls.filter(c => c.hookType === 'Notification');
+		expect(notificationCalls).toHaveLength(1);
+		expect(notificationCalls[0].hooks).toBe(request.hooks);
+		expect(notificationCalls[0].input).toEqual({
+			notification_type: 'permission_prompt',
+			message: 'Permission needed',
+			title: 'Permission needed',
+		});
+	});
+
+	test('runs the Notification hook when the request carries a notification descriptor, fire-and-forget', async () => {
+		const executeHookCalls: { hookType: ChatHookType; hooks: ChatRequestHooks | undefined; input: unknown }[] = [];
+		// Tracks whether the (always-rejecting) Notification hook promise was actually
+		// rejected, without leaving it as an unhandled rejection (the production code
+		// fires it with `void`, the same way it would in the real extension).
+		let notificationHookRejected = false;
+		const hookService: IChatHookService = {
+			_serviceBrand: undefined,
+			logConfiguredHooks: () => { },
+			executeHook: (hookType, hooks, input) => {
+				executeHookCalls.push({ hookType, hooks, input });
+				if (hookType === 'Notification') {
+					const rejection = Promise.reject(new Error('Notification hook failed'));
+					rejection.catch(() => { notificationHookRejected = true; });
+					return rejection;
+				}
+				return Promise.resolve([]);
+			},
+			executePreToolUseHook: async () => undefined,
+			executePostToolUseHook: async () => undefined,
+		};
+
+		const services = createExtensionUnitTestingServices();
+		telemetry = new SpyingTelemetryService();
+		chatResponse = [];
+		fetcher = new StaticChatMLFetcher(chatResponse);
+		services.define(ITelemetryService, telemetry);
+		services.define(IChatMLFetcher, fetcher);
+		services.define(IWorkspaceFileIndex, new SyncDescriptor(NullWorkspaceFileIndex));
+		services.define(IChatHookService, hookService);
+
+		accessor = services.createTestingAccessor();
+		endpoint = accessor.get(IInstantiationService).createInstance(MockEndpoint, undefined);
+
+		const request = new TestChatRequest();
+		request.hooks = { sentinel: true } as unknown as ChatRequestHooks;
+		request.notification = { notificationType: 'shell_completed', message: 'Command completed', title: 'Command completed' };
+
+		const handler = makeHandler({ request });
+		chatResponse[0] = 'some response here :)';
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+		};
+
+		// Fire-and-forget: a rejecting Notification hook must not interrupt the request.
+		const result = await handler.getResult();
+		expect(result).not.toHaveProperty('errorDetails');
+		await new Promise(setImmediate);
+		expect(notificationHookRejected).toBe(true);
+
+		const notificationCalls = executeHookCalls.filter(c => c.hookType === 'Notification');
+		expect(notificationCalls).toHaveLength(1);
+		expect(notificationCalls[0].hooks).toBe(request.hooks);
+		expect(notificationCalls[0].input).toEqual({
+			notification_type: 'shell_completed',
+			message: 'Command completed',
+			title: 'Command completed',
+		});
 	});
 
 	test('propagates resolvedModel into result metadata from a successful response', async () => {

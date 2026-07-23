@@ -8,7 +8,7 @@ declare module 'vscode' {
 	/**
 	 * The type of hook to execute.
 	 */
-	export type ChatHookType = 'SessionStart' | 'SessionEnd' | 'UserPromptSubmit' | 'PreToolUse' | 'PostToolUse' | 'PreCompact' | 'SubagentStart' | 'SubagentStop' | 'Stop' | 'ErrorOccurred';
+	export type ChatHookType = 'SessionStart' | 'SessionEnd' | 'UserPromptSubmit' | 'PreToolUse' | 'PostToolUse' | 'PreCompact' | 'SubagentStart' | 'SubagentStop' | 'Stop' | 'Notification' | 'ErrorOccurred';
 
 	/**
 	 * A resolved hook command ready for execution.
@@ -80,6 +80,50 @@ declare module 'vscode' {
 		 * Only present when hooks are enabled.
 		 */
 		readonly hooks?: ChatRequestHooks;
+	}
+
+	/**
+	 * Describes a dialog that requires the user's attention during a chat request,
+	 * such as a tool permission prompt or an elicitation dialog.
+	 */
+	export interface ChatRequestUserAttention {
+		/** The kind of attention required, e.g. 'permission_prompt' or 'elicitation_dialog'. */
+		readonly notificationType: string;
+		/** Human-readable message describing what is being asked. */
+		readonly message: string;
+		/** Optional short title. */
+		readonly title?: string;
+	}
+
+	export interface ChatRequest {
+		/**
+		 * Fires when the editor surfaces a dialog (e.g. a tool permission prompt or an
+		 * elicitation dialog) that requires the user's attention for this request.
+		 * Only present when the `chatParticipantAdditions` proposal is enabled.
+		 */
+		readonly onDidRequestUserAttention?: Event<ChatRequestUserAttention>;
+	}
+
+	/**
+	 * Describes a status notification that initiated a chat request, such as a
+	 * background terminal command completing.
+	 */
+	export interface ChatRequestNotification {
+		/** The kind of notification, e.g. 'shell_completed' or 'shell_detached_completed'. */
+		readonly notificationType: string;
+		/** Human-readable message describing the notification. */
+		readonly message: string;
+		/** Optional short title. */
+		readonly title?: string;
+	}
+
+	export interface ChatRequest {
+		/**
+		 * Present when the editor initiated this request to surface a status notification
+		 * (e.g. a background terminal command completed). Available to extensions that
+		 * enable the `chatParticipantAdditions` proposal.
+		 */
+		readonly notification?: ChatRequestNotification;
 	}
 
 	/**
