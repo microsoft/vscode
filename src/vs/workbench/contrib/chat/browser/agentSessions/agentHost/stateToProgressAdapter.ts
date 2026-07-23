@@ -421,19 +421,25 @@ export function isSubagentTool(tc: ToolCallState): boolean {
 }
 
 /**
- * Finds a terminal content block in a tool call's content array.
- * Returns the terminal URI if found.
+ * The terminal content block of a tool call, if any. Single source of truth for
+ * {@link getTerminalContentUri} / {@link getTerminalContentIsPty}.
  */
+function getTerminalContent(content: ToolResultContent[] | undefined) {
+	return content?.find(isToolResultTerminalContent);
+}
+
+/** Terminal URI of the tool call's terminal content block, if any. */
 export function getTerminalContentUri(content: ToolResultContent[] | undefined): string | undefined {
-	if (!content) {
-		return undefined;
-	}
-	for (const block of content) {
-		if (block.type === ToolResultContentType.Terminal) {
-			return block.resource;
-		}
-	}
-	return undefined;
+	return getTerminalContent(content)?.resource;
+}
+
+/**
+ * `isPty` flag of the tool call's terminal content block. `undefined` when there
+ * is no block or the flag is unset — callers treat `undefined` as "assume a real
+ * terminal" and gate only on the explicit `false` (agent-host non-pty channels).
+ */
+export function getTerminalContentIsPty(content: ToolResultContent[] | undefined): boolean | undefined {
+	return getTerminalContent(content)?.isPty;
 }
 
 /**
@@ -1275,9 +1281,10 @@ function buildTerminalToolSpecificData(
 	sessionResource: URI,
 	existing?: IChatTerminalToolInvocationData,
 ): IChatTerminalToolInvocationData {
-	const terminalContentUri = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed)
-		? getTerminalContentUri(tc.content)
-		: undefined;
+	const hasContent = tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed;
+	const terminalBlock = hasContent ? getTerminalContent(tc.content) : undefined;
+	const terminalContentUri = terminalBlock?.resource;
+	const terminalIsPty = terminalBlock?.isPty;
 	const nextCommand = getTerminalInput(tc);
 	const commandLine = nextCommand
 		? { ...existing?.commandLine, original: nextCommand }
@@ -1296,6 +1303,9 @@ function buildTerminalToolSpecificData(
 			? makeAhpTerminalToolSessionId(terminalContentUri, sessionResource)
 			: existing?.terminalToolSessionId,
 		terminalCommandUri: terminalContentUri ? URI.parse(terminalContentUri) : existing?.terminalCommandUri,
+		// Never clobber a known value with a block that omits `isPty`; keep this
+		// merge rule identical to _reviveTerminalIfNeeded (the other producer).
+		isPty: terminalContentUri ? (terminalIsPty ?? existing?.isPty) : existing?.isPty,
 		terminalCommandOutput: nextOutput ?? existing?.terminalCommandOutput,
 	};
 }

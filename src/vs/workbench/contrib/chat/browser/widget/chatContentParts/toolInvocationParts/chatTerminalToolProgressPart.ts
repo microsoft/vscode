@@ -705,6 +705,17 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	/**
+	 * True for agent-host output-only (non-pty) shell channels, whose terminal
+	 * instance exists only to render streamed output. Gates the Focus/Show
+	 * Terminal action and the stale command-resource fallback — there is nothing
+	 * interactive to focus. Only `isPty === false` is non-pty; `true` and
+	 * `undefined` (local pty tool, or no block yet) both read as focusable.
+	 */
+	private get _isNonPtyTerminal(): boolean {
+		return this._terminalData.isPty === false;
+	}
+
+	/**
 	 * Rebuilds the ActionBar actions based on current toolbar state.
 	 */
 	private _updateToolbarActions(): void {
@@ -725,7 +736,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._actionBarActions.add(action);
 			actions.push(action);
 		}
-		if (this._toolbarHasInstance) {
+		// Focus/Show applies only to a real interactive pty — see _isNonPtyTerminal.
+		if (this._toolbarHasInstance && !this._isNonPtyTerminal) {
 			const focusLabel = this._toolbarIsHiddenTerminal
 				? localize('showTerminal', 'Show and Focus Terminal')
 				: localize('focusTerminal', 'Focus Terminal');
@@ -1075,6 +1087,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	public async focusTerminal(): Promise<void> {
+		// Non-pty output-only shell channels have a terminal instance only to render
+		// streamed output — there is nothing interactive to focus. Guard the whole
+		// method (not just the toolbar button) so every caller is covered, including
+		// the "Focus Most Recent Terminal" command, which resolves progress parts
+		// without an isPty filter.
+		if (this._isNonPtyTerminal) {
+			return;
+		}
 		const instance = await this._ensureTerminalInstance();
 
 		type FocusChatInstanceTelemetryEvent = {

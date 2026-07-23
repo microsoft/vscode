@@ -625,6 +625,13 @@ export interface IChatTerminalToolInvocationData {
 	alternativeRecommendation?: string;
 	language: string;
 	terminalToolSessionId?: string;
+	/**
+	 * Whether the terminal backing this invocation is a real pseudoterminal.
+	 * `false` for agent-host output-only (non-pty) shell channels, where there is
+	 * no interactive terminal to focus. Left unset for the local pty terminal tool
+	 * (always a real pty) and for cards with no terminal instance.
+	 */
+	isPty?: boolean;
 	/** The predefined command ID that will be used for this terminal command */
 	terminalCommandId?: string;
 	/** Whether the terminal command was started as a background execution */

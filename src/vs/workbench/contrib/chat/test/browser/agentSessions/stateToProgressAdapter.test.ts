@@ -2109,6 +2109,41 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandUri.toString(), 'agenthost-terminal:/running-term');
 		});
 
+		test('threads isPty from the terminal content block into invocation data', () => {
+			const nonPty = createToolCallState({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'ls -la',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false },
+				],
+			});
+			const nonPtyData = toolCallStateToInvocation(nonPty).toolSpecificData as { kind: 'terminal'; isPty?: boolean };
+			assert.strictEqual(nonPtyData.isPty, false, 'non-pty block => isPty false (Focus/Show hidden, stale open suppressed)');
+
+			const pty = createToolCallState({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'npm test',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///pty-term', title: 'Terminal', isPty: true },
+				],
+			});
+			const ptyData = toolCallStateToInvocation(pty).toolSpecificData as { kind: 'terminal'; isPty?: boolean };
+			assert.notStrictEqual(ptyData.isPty, false, 'pty block => Focus/Show kept');
+
+			// A terminal block that omits isPty (pty custom-terminal / local tool)
+			// must read as undefined, NOT false — the "undefined = real pty" contract
+			// the Focus/stale gates depend on.
+			const implicit = createToolCallState({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'ls',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///implicit-term', title: 'Terminal' },
+				],
+			});
+			const implicitData = toolCallStateToInvocation(implicit).toolSpecificData as { kind: 'terminal'; isPty?: boolean };
+			assert.strictEqual(implicitData.isPty, undefined, 'block without isPty => undefined (real pty, Focus kept)');
+		});
+
 		test('finalize preserves terminal URI from content block', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'terminal' },
@@ -2372,11 +2407,13 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n');
 		});
 
-		test('preserves AHP terminal fields (terminalToolSessionId, terminalCommandUri) when refreshing output', () => {
+		test('preserves AHP terminal fields (terminalToolSessionId, terminalCommandUri, isPty) when refreshing output', () => {
 			// Simulates the race where `_reviveTerminalIfNeeded` has populated
 			// AHP terminal fields and a subsequent content change triggers
 			// `updateRunningToolSpecificData`. The async-populated fields
-			// must survive the refresh.
+			// must survive the refresh — including `isPty`, which the Focus/stale
+			// gates depend on (a refresh dropping it, or using `||` instead of `??`,
+			// would let Focus/Show reappear mid-stream for a non-pty run).
 			const tc = createToolCallState({
 				toolName: 'bash',
 				toolInput: 'echo hi',
@@ -2391,6 +2428,7 @@ suite('stateToProgressAdapter', () => {
 				terminalToolSessionId: 'session-id-from-revive',
 				terminalCommandUri: reviveUri,
 				terminalCommandId: 'cmd-id-from-revive',
+				isPty: false,
 			};
 
 			const runningTc: ToolCallRunningState = {
@@ -2406,11 +2444,13 @@ suite('stateToProgressAdapter', () => {
 				terminalCommandUri?: URI;
 				terminalCommandId?: string;
 				terminalCommandOutput?: { text: string };
+				isPty?: boolean;
 			};
 			assert.strictEqual(termData.terminalToolSessionId, 'session-id-from-revive');
 			assert.strictEqual(termData.terminalCommandUri, reviveUri);
 			assert.strictEqual(termData.terminalCommandId, 'cmd-id-from-revive');
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n');
+			assert.strictEqual(termData.isPty, false, 'isPty from revive survives the refresh');
 		});
 	});
 
