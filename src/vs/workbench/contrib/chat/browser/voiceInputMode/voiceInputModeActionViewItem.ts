@@ -487,7 +487,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._dictationCell!.setAttribute('aria-label', dictationBusy
 				? localize('voiceInputMode.dictationPreparing', "Preparing Speech to Text Model…")
 				: localize('voiceInputMode.dictation', "Dictation"));
-			this._dictationIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(dictationBusy ? Codicon.cloudDownload : (isDictating ? Codicon.micFilled : Codicon.mic))}`;
+			this._dictationIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(dictationBusy ? Codicon.micDownload : (isDictating ? Codicon.micFilled : Codicon.mic))}`;
 
 			// Voice cell — Device EQ bars that transform:
 			//   disconnected → thin grey bars (click to connect)
