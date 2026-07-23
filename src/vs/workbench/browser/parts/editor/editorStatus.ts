@@ -1218,7 +1218,7 @@ export class ChangeLanguageAction extends Action2 {
 			picks.unshift(autoDetectLanguage);
 		}
 
-		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
+		const pick = await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
 		if (!pick) {
 			return;
 		}
@@ -1267,7 +1267,7 @@ export class ChangeLanguageAction extends Action2 {
 						}
 					}
 				} else {
-					languageSelection = languageService.createById(pick.id);
+					languageSelection = languageService.createById(typeof languageMode === 'string' ? languageMode : pick.id);
 
 					if (resource) {
 						// fire and forget to not slow things down
