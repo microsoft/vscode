@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { isNative } from '../../../../../base/common/platform.js';
 import { IObservable, ISettableObservable, autorun, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -164,9 +165,13 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 			configurationService.onDidChangeConfiguration,
 			() => configurationService.getValue<boolean>('agents.voice.enabled') === true);
 
+		// Dictation in the segmented control drives the `workbench.action.chat.startVoiceChat`
+		// / `stopListening` commands, which are only registered in the desktop (electron-browser)
+		// chat layer. Gate the segment to native so it never appears on web, where clicking it
+		// would execute an unknown command.
 		this.dictationAvailable = observableFromEvent(this,
 			speechService.onDidChangeHasSpeechProvider,
-			() => speechService.hasSpeechProvider);
+			() => isNative && speechService.hasSpeechProvider);
 
 		this.handsFree = observableFromEvent(this,
 			configurationService.onDidChangeConfiguration,

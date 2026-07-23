@@ -4663,17 +4663,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	transition: none;
 }
 
-/* Voice Mode color by state — matches the input-box glow shades exactly: listening (user) = rgb(88,166,255), speaking (assistant) = rgb(163,113,247). */
+/* Voice Mode color by state — matches the input-box glow shades: listening (user) = charts.blue, speaking (assistant) = charts.purple, so custom/high-contrast themes can override them. */
 .chat-voice-input-mode-cell.voice {
 	color: var(--vscode-icon-foreground);
 }
 
 .chat-voice-input-mode-cell.voice.listening {
-	color: rgb(88, 166, 255);
+	color: var(--vscode-charts-blue, #58a6ff);
 }
 
 .chat-voice-input-mode-cell.voice.speaking {
-	color: rgb(163, 113, 247);
+	color: var(--vscode-charts-purple, #a371f7);
 }
 
 .chat-voice-input-mode-cell:focus-visible {
