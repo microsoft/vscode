@@ -137,6 +137,11 @@
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
+/* Match the minimap viewport slider to the adjacent editor scrollbar. */
+.style-override .monaco-editor .minimap-slider .minimap-slider-horizontal {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 /*
  * Diff editor "fake united slider": when the overview ruler is shown, the diff
  * editor draws its own combined viewport slider (`.diffViewport`, spanning both
