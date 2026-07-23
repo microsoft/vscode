@@ -104,6 +104,7 @@ export interface IProductConfiguration {
 
 	readonly nameShort: string;
 	readonly nameLong: string;
+	readonly creatorName?: string;
 
 	readonly win32AppUserModelId?: string;
 	readonly win32MutexName?: string;
