@@ -5,7 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { IRequestService } from '../../request/common/request.js';
+import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 
 /**
  * IPC channel name used for in-process agent-host → renderer reverse proxy
@@ -27,6 +27,8 @@ export const AGENT_HOST_CLIENT_PROXY_CHANNEL = 'agentHostClientProxy';
  */
 export interface IAgentHostClientProxyConnection {
 	resolveProxy(url: string): Promise<string | undefined>;
+	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 }
 
 /**
@@ -36,6 +38,8 @@ export interface IAgentHostClientProxyConnection {
 export function createAgentHostClientProxyConnection(channel: IChannel): IAgentHostClientProxyConnection {
 	return {
 		resolveProxy: (url) => channel.call('resolveProxy', { url }) as Promise<string | undefined>,
+		lookupAuthorization: authInfo => channel.call('lookupAuthorization', { authInfo }) as Promise<Credentials | undefined>,
+		lookupKerberosAuthorization: url => channel.call('lookupKerberosAuthorization', { url }) as Promise<string | undefined>,
 	};
 }
 
@@ -62,6 +66,16 @@ export class AgentHostClientProxyChannel implements IServerChannel {
 				const { url } = arg as { url: string };
 				const proxy = await this._requestService.resolveProxy(url);
 				return proxy as T;
+			}
+			case 'lookupAuthorization': {
+				const { authInfo } = arg as { authInfo: AuthInfo };
+				const credentials = await this._requestService.lookupAuthorization(authInfo);
+				return credentials as T;
+			}
+			case 'lookupKerberosAuthorization': {
+				const { url } = arg as { url: string };
+				const authorization = await this._requestService.lookupKerberosAuthorization(url);
+				return authorization as T;
 			}
 		}
 		throw new Error(`Unknown command '${command}' on AgentHostClientProxyChannel`);

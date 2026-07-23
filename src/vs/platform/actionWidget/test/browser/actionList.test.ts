@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event as CommonEvent } from '../../../../base/common/event.js';
@@ -200,6 +201,37 @@ suite('ActionListWidget', () => {
 		secondResult.complete([action('ma-fresh-result')]);
 		await timeout(0);
 		assert.ok(widget.domNode.textContent?.includes('ma-fresh-result'));
+	});
+
+	test('batches row width writes before reading layout', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				action('first'),
+				{ ...action('second'), toolbarActions: [toAction({ id: 'toolbar', label: 'Toolbar', run: () => { } })] },
+				action('third'),
+			],
+		});
+		const rows = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'));
+		const allRowsAutoAtRead: boolean[] = [];
+		const measuredWidths = [120, 240, 180];
+		for (let i = 0; i < rows.length; i++) {
+			rows[i].getBoundingClientRect = () => {
+				allRowsAutoAtRead.push(rows.every(row => row.style.width === 'auto'));
+				return new mainWindow.DOMRect(0, 0, measuredWidths[i], 24);
+			};
+		}
+
+		const width = widget.computeMaxWidth(0);
+
+		assert.deepStrictEqual({
+			width,
+			allRowsAutoAtRead,
+			restoredWidths: rows.map(row => row.style.width),
+		}, {
+			width: 268,
+			allRowsAutoAtRead: [true, true, true],
+			restoredWidths: ['', '', ''],
+		});
 	});
 
 	test('keeps titled separator above first filtered match', () => {

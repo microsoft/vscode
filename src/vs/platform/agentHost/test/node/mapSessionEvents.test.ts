@@ -6,8 +6,9 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSession } from '../../common/agentService.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart } from '../../common/state/sessionState.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
@@ -122,6 +123,74 @@ suite('mapSessionEvents — history replay', () => {
 		assert.deepStrictEqual(partKinds(turns[0].responseParts), [
 			{ kind: ResponsePartKind.ToolCall },
 		]);
+	});
+
+	test('restores MCP app data for completed tool calls', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'call an MCP app tool' } },
+			{
+				type: 'assistant.message',
+				data: {
+					messageId: 'm2',
+					content: '',
+					toolRequests: [{
+						toolCallId: 'tc-1',
+						name: 'GitHub-get_me',
+						arguments: {},
+						type: 'function',
+						mcpServerName: 'GitHub',
+						mcpToolName: 'get_me',
+					}],
+				},
+			},
+			{
+				type: 'tool.execution_start',
+				data: {
+					toolCallId: 'tc-1',
+					toolName: 'GitHub-get_me',
+					arguments: {},
+					mcpServerName: 'GitHub',
+					mcpToolName: 'get_me',
+					toolDescription: {
+						_meta: {
+							ui: {
+								resourceUri: 'ui://github-mcp-server/get-me',
+							},
+						},
+					},
+				},
+			},
+			{
+				type: 'tool.execution_complete',
+				data: {
+					toolCallId: 'tc-1',
+					success: true,
+					result: { content: '{"login":"octocat"}' },
+				},
+			},
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		const part = turns[0].responseParts[0] as ToolCallResponsePart;
+		assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
+		assert.deepStrictEqual({
+			contributor: part.toolCall.contributor,
+			meta: readToolCallMeta(part.toolCall),
+		}, {
+			contributor: {
+				kind: ToolCallContributorKind.MCP,
+				customizationId: 'mcp-top-level:copilot:test-session:GitHub',
+			},
+			meta: {
+				mcpServerName: 'GitHub',
+				mcpToolName: 'get_me',
+				ui: {
+					resourceUri: 'ui://github-mcp-server/get-me',
+					channel: 'mcp://copilot/test-session/GitHub',
+				},
+			},
+		});
 	});
 
 	test('derives shell tool intention from the description argument on replay', async () => {
@@ -512,6 +581,7 @@ suite('mapSessionEvents — subagent routing', () => {
 			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'explore', agentName: 'explore' } } },
 			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' } },
+			{ type: 'user.message', agentId: 'agent-1', data: { interactionId: 'subagent-prompt', content: 'Inspect the implementation.' } },
 			// Inner subagent message + tool call, tagged only with the
 			// envelope-level agentId (no data.parentToolCallId).
 			{ type: 'assistant.message', agentId: 'agent-1', data: { messageId: 'm3', content: '', toolRequests: [{ toolCallId: 'tc-inner', name: 'bash' }] } },
@@ -538,10 +608,37 @@ suite('mapSessionEvents — subagent routing', () => {
 		const subagentTurns = subagentTurnsByToolCallId.get('tc-task');
 		assert.ok(subagentTurns, 'Expected subagent turns for tc-task');
 		assert.strictEqual(subagentTurns!.length, 1);
+		assert.strictEqual(subagentTurns![0].message.text, 'Inspect the implementation.');
 		assert.deepStrictEqual(partKinds(subagentTurns![0].responseParts), [
 			{ kind: ResponsePartKind.ToolCall },
 			{ kind: ResponsePartKind.Markdown, content: 'Subagent is done.' },
 		]);
+	});
+
+	test('drops subagent user messages whose agentId cannot be mapped', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'root-message', data: { interactionId: 'm1', content: 'Continue the task' } },
+			{ type: 'user.message', id: 'orphan-subagent-message', agentId: 'unknown-agent', data: { interactionId: 'm2', content: 'Delegated prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'm3', content: 'Done.' } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			turns: turns.map(turn => ({
+				id: turn.id,
+				message: turn.message.text,
+				parts: partKinds(turn.responseParts),
+			})),
+			subagentTurns: [...subagentTurnsByToolCallId],
+		}, {
+			turns: [{
+				id: 'root-message',
+				message: 'Continue the task',
+				parts: [{ kind: ResponsePartKind.Markdown, content: 'Done.' }],
+			}],
+			subagentTurns: [],
+		});
 	});
 
 	test('routes subagent skill events into the subagent transcript', async () => {

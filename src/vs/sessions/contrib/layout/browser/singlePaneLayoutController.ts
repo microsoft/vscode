@@ -63,6 +63,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 			this._context = {
 				get isRestoringSessionLayout() { return that._isRestoringSessionLayout; },
 				withSessionLayoutRestore: work => that._withSessionLayoutRestore(work),
+				onDidEndSessionLayoutRestore: that.onDidEndSessionLayoutRestore,
 				get togglingSidePane() { return that._togglingSidePane; },
 				get multipleSessionsVisibleObs() { return that.multipleSessionsVisibleObs; },
 				get activeSessionResourceObs() { return that.activeSessionResourceObs; },

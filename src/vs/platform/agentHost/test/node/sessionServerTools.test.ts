@@ -121,6 +121,17 @@ suite('SessionServerTools', () => {
 		});
 	});
 
+	test('serializeSessions reports archived status for metadata-only archives', () => {
+		const metadataOnly: IAgentSessionMetadata = { ...sessionMeta('archived', SessionStatus.Idle, workspace), isArchived: true };
+		const bitOnly: IAgentSessionMetadata = { ...sessionMeta('bitArchived', SessionStatus.Idle | SessionStatus.IsArchived, workspace) };
+		const noStatus: IAgentSessionMetadata = { session: URI.parse('copilot:/noStatus'), startTime: 0, modifiedTime: 0, isArchived: true, workingDirectory: workspace };
+		assert.deepStrictEqual(JSON.parse(serializeSessions([metadataOnly, bitOnly, noStatus])).sessions.map((s: { session: string; status?: string }) => ({ session: s.session, status: s.status })), [
+			{ session: 'copilot:/archived', status: 'idle,archived' },
+			{ session: 'copilot:/bitArchived', status: 'idle,archived' },
+			{ session: 'copilot:/noStatus', status: 'archived' },
+		]);
+	});
+
 	test('getCreateSessionArgs resolves workspace by working directory and model by id/name', () => {
 		const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace)];
 		const byId = getCreateSessionArgs({ workspace: workspace.toString(), prompt: 'hi', model: 'gpt-4o' }, sessions, [model]);
@@ -187,6 +198,7 @@ suite('SessionServerTools', () => {
 
 		assert.deepStrictEqual({
 			byStatus: await ids({ status: ['inputNeeded'] }),
+			byArchivedStatus: await ids({ status: ['archived'] }),
 			byWorkspace: await ids({ workspace: workspace.toString() }),
 			withChanges: await ids({ withChanges: true }),
 			unread: await ids({ unread: true }),
@@ -198,6 +210,7 @@ suite('SessionServerTools', () => {
 			all: await ids({}),
 		}, {
 			byStatus: ['copilot:/needsInput'],
+			byArchivedStatus: ['copilot:/archived'],
 			byWorkspace: ['copilot:/idle', 'copilot:/needsInput', 'copilot:/withPr'],
 			withChanges: ['copilot:/idle'],
 			unread: ['copilot:/needsInput'],

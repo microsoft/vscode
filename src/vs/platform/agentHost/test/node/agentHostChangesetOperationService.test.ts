@@ -183,6 +183,7 @@ suite('AgentHostChangesetOperationService', () => {
 		stateManager.dispatchServerAction(buildDefaultChatUri(sessionKey), {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'hi', origin: { kind: MessageKind.User } },
 		});
 

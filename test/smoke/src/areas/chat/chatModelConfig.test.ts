@@ -197,13 +197,13 @@ export function setup(logger: Logger) {
 					...copilotEnv,
 				},
 			};
-		}, app => {
+		}, async app => {
 			// Seed the migration storage key so the from-source built-in
 			// copilot-chat stays enabled on the fresh per-run profile. Without
 			// this, BuiltinChatExtensionEnablementMigration disables it (chat
 			// setup is never "completed" in automation) and the first send fails
 			// through chat-setup's install path before the warm-up retry recovers.
-			preseedChatExtensionEnablement(app.userDataPath);
+			await preseedChatExtensionEnablement(app.userDataPath);
 		});
 
 		before(async function () {
@@ -240,8 +240,10 @@ export function setup(logger: Logger) {
 
 			try {
 				// Open the panel chat (Agent mode is the default; the context-size
-				// override is applied on the agent request path).
-				await app.workbench.quickaccess.runCommand('workbench.action.chat.open');
+				// override is applied on the agent request path). Select the local
+				// harness explicitly since the panel default is Agent Host Copilot
+				// when the agent host is enabled.
+				await app.workbench.quickaccess.runCommand('smoketest.openLocalChat');
 				await chat.waitForChatView();
 
 				// Retry the warm-up send until the model actually replies, which

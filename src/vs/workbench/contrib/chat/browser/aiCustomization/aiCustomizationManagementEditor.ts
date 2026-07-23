@@ -85,7 +85,7 @@ import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditor
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -942,6 +942,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (hasSections.has(AICustomizationManagementSection.McpServers)) {
 			this.mcpContentContainer = DOM.append(contentInner, $('.mcp-content-container'));
 			this.mcpListWidget = this.editorDisposables.add(this.instantiationService.createInstance(McpListWidget));
+			this.mcpListWidget.setCloseCustomizationEditor(async () => {
+				if (this.input) {
+					await this.group.closeEditor(this.input);
+				}
+			});
 			this.mcpContentContainer.appendChild(this.mcpListWidget.element);
 
 			// Embedded MCP server detail view
@@ -1139,10 +1144,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			type: 'question',
 			message: localize('promptMigrationConfirmMessage', "Convert prompt files to skills?"),
 			detail: migrationInfo && migrationInfo.workspacePromptCount > 0 && migrationInfo.userPromptCount > 0
-				? localize('promptMigrationConfirmDetailWorkspaceAndUser', "This converts {0} workspace prompt files and {1} user prompt files into skills for the active harness.", migrationInfo.workspacePromptCount, migrationInfo.userPromptCount)
+				? localize('promptMigrationConfirmDetailWorkspaceAndUser', "This converts {0} workspace prompt files and {1} user prompt files into skills.", migrationInfo.workspacePromptCount, migrationInfo.userPromptCount)
 				: migrationInfo && migrationInfo.workspacePromptCount > 0
-					? localize('promptMigrationConfirmDetailWorkspace', "This converts {0} workspace prompt files into skills for the active harness.", migrationInfo.workspacePromptCount)
-					: localize('promptMigrationConfirmDetailUser', "This converts {0} user prompt files into skills for the active harness.", migrationInfo?.userPromptCount ?? this.promptFilesToMigrate.length),
+					? localize('promptMigrationConfirmDetailWorkspace', "This converts {0} workspace prompt files into skills.", migrationInfo.workspacePromptCount)
+					: localize('promptMigrationConfirmDetailUser', "This converts {0} user prompt files into skills.", migrationInfo?.userPromptCount ?? this.promptFilesToMigrate.length),
 			checkbox: {
 				label: localize('promptMigrationDeletePromptFilesCheckbox', "Delete original prompt files after migration"),
 				checked: true,
@@ -1277,6 +1282,38 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return checkbox;
 		};
 
+		const renderItem = (container: HTMLElement, promptFile: IPromptPath): void => {
+			const row = DOM.append(container, $('div.ai-customization-list-item.prompt-migration-item'));
+			const checkbox = renderSelectionCheckbox(row, promptFile);
+			this.migrationPageDisposables.add(DOM.addDisposableListener(row, 'click', event => {
+				if (event.target instanceof Node && checkbox.domNode.contains(event.target)) {
+					return;
+				}
+				openPromptFileInEmbeddedEditor(promptFile);
+			}));
+
+			const itemLeft = DOM.append(row, $('span.item-left'));
+			const itemText = DOM.append(itemLeft, $('span.item-text'));
+			const nameRow = DOM.append(itemText, $('span.item-name-row'));
+			const nameLabel = DOM.append(nameRow, $('span.item-name.prompt-migration-item-name'));
+			nameLabel.textContent = promptFile.name ?? basename(promptFile.uri);
+
+			const pathLabel = DOM.append(itemText, $('span.item-description.is-filename.prompt-migration-item-path'));
+			pathLabel.textContent = this.labelService.getUriLabel(promptFile.uri, { relative: true });
+
+			const itemRight = DOM.append(row, $('span.item-right'));
+			const deleteButton = DOM.append(itemRight, $('button.icon-button', {
+				type: 'button',
+				'aria-label': localize('deletePromptFile', "Delete {0}", promptFile.name ?? basename(promptFile.uri)),
+			})) as HTMLButtonElement;
+			deleteButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.trash));
+			this.migrationPageDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), deleteButton, localize('deletePromptFileTooltip', "Delete")));
+			this.migrationPageDisposables.add(DOM.addDisposableListener(deleteButton, 'click', event => {
+				event.stopPropagation();
+				void this.deletePromptFile(promptFile);
+			}));
+		};
+
 		const renderGroup = (groupLabel: string, promptFiles: readonly IPromptPath[]): void => {
 			if (promptFiles.length === 0) {
 				return;
@@ -1306,23 +1343,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			count.textContent = String(promptFiles.length);
 
 			for (const promptFile of promptFiles) {
-				const row = DOM.append(group, $('div.ai-customization-list-item.prompt-migration-item'));
-				const checkbox = renderSelectionCheckbox(row, promptFile);
-				this.migrationPageDisposables.add(DOM.addDisposableListener(row, 'click', event => {
-					if (event.target instanceof Node && checkbox.domNode.contains(event.target)) {
-						return;
-					}
-					openPromptFileInEmbeddedEditor(promptFile);
-				}));
-
-				const itemLeft = DOM.append(row, $('span.item-left'));
-				const itemText = DOM.append(itemLeft, $('span.item-text'));
-				const nameRow = DOM.append(itemText, $('span.item-name-row'));
-				const nameLabel = DOM.append(nameRow, $('span.item-name.prompt-migration-item-name'));
-				nameLabel.textContent = promptFile.name ?? basename(promptFile.uri);
-
-				const pathLabel = DOM.append(itemText, $('span.item-description.is-filename.prompt-migration-item-path'));
-				pathLabel.textContent = this.labelService.getUriLabel(promptFile.uri, { relative: true });
+				renderItem(group, promptFile);
 			}
 		};
 
@@ -1330,23 +1351,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		renderGroup(localize('promptMigrationUserGroup', "User"), userPromptFiles);
 
 		for (const promptFile of filteredPromptFiles.filter(file => file.storage !== PromptsStorage.local && file.storage !== PromptsStorage.user)) {
-			const row = DOM.append(this.migrationListContainer, $('div.ai-customization-list-item.prompt-migration-item'));
-			const checkbox = renderSelectionCheckbox(row, promptFile);
-			this.migrationPageDisposables.add(DOM.addDisposableListener(row, 'click', event => {
-				if (event.target instanceof Node && checkbox.domNode.contains(event.target)) {
-					return;
-				}
-				openPromptFileInEmbeddedEditor(promptFile);
-			}));
-
-			const itemLeft = DOM.append(row, $('span.item-left'));
-			const itemText = DOM.append(itemLeft, $('span.item-text'));
-			const nameRow = DOM.append(itemText, $('span.item-name-row'));
-			const nameLabel = DOM.append(nameRow, $('span.item-name.prompt-migration-item-name'));
-			nameLabel.textContent = promptFile.name ?? basename(promptFile.uri);
-
-			const pathLabel = DOM.append(itemText, $('span.item-description.is-filename.prompt-migration-item-path'));
-			pathLabel.textContent = this.labelService.getUriLabel(promptFile.uri, { relative: true });
+			renderItem(this.migrationListContainer, promptFile);
 		}
 
 		this.updatePromptMigrationActionState();
@@ -1405,6 +1410,33 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.migrationMigrateButton.label = selectedCount > 0
 			? localize('promptMigrationPageButtonWithCount', "Migrate ({0})", selectedCount)
 			: localize('promptMigrationPageButton', "Migrate");
+	}
+
+	private async deletePromptFile(promptFile: IPromptPath): Promise<void> {
+		const fileName = promptFile.name ?? basename(promptFile.uri);
+		const confirmation = await this.dialogService.confirm({
+			message: localize('confirmDeletePromptFile', "Are you sure you want to delete '{0}'?", fileName),
+			detail: localize('confirmDeleteDetail', "This action cannot be undone."),
+			primaryButton: localize('delete', "Delete"),
+			type: 'warning',
+		});
+
+		if (!confirmation.confirmed) {
+			return;
+		}
+
+		const useTrash = this.fileService.hasCapability(promptFile.uri, FileSystemProviderCapabilities.Trash);
+		await this.fileService.del(promptFile.uri, { useTrash });
+		if (promptFile.storage === PromptsStorage.local) {
+			const projectRoot = this.workspaceService.getActiveProjectRoot();
+			if (projectRoot) {
+				await this.workspaceService.deleteFiles(projectRoot, [promptFile.uri]);
+			}
+		}
+
+		// Remove the deleted file from the list and re-render immediately
+		const updatedFiles = this.promptFilesToMigrate.filter(f => !isEqual(f.uri, promptFile.uri));
+		this.setPromptFilesToMigrate(updatedFiles);
 	}
 
 	private isPromptMigrationEnabled(): boolean {

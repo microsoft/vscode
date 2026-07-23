@@ -85,20 +85,17 @@ suite('BlockedSessionsIndicatorModel', () => {
 		assert.strictEqual(model.consumePendingBlink(), false);
 	});
 
-	test('does not blink when merely navigating between sessions', () => {
+	test('acknowledges a blocked session when it becomes visible', () => {
 		const { model, blockedModel, sessionsService } = createModel();
 		const s1 = new TestSession('s1');
 		blockedModel.setBlocked([needsInput(s1)]);
-		// The initial block blinks and is consumed.
 		assert.strictEqual(model.consumePendingBlink(), true);
 
-		// Navigating to s1 hides it from the blocked set — no new block, no blink.
 		sessionsService.setVisible([s1]);
 		assert.deepStrictEqual({ blocked: blockedIds(model), blink: model.consumePendingBlink() }, { blocked: [], blink: false });
 
-		// Navigating away re-surfaces s1 in the blocked set but still must not blink.
 		sessionsService.setVisible([]);
-		assert.deepStrictEqual({ blocked: blockedIds(model), blink: model.consumePendingBlink() }, { blocked: ['s1'], blink: false });
+		assert.deepStrictEqual({ blocked: blockedIds(model), blink: model.consumePendingBlink() }, { blocked: [], blink: false });
 	});
 
 	test('blinks again when an additional, not-yet-visible session becomes blocked', () => {
@@ -124,13 +121,13 @@ suite('BlockedSessionsIndicatorModel', () => {
 		assert.strictEqual(model.consumePendingBlink(), false);
 	});
 
-	test('does not blink when a queued block becomes visible then re-surfaces without ever being consumed', () => {
+	test('does not blink when a queued block becomes visible then remains acknowledged', () => {
 		const { model, blockedModel, sessionsService } = createModel();
 		const s1 = new TestSession('s1');
 		blockedModel.setBlocked([needsInput(s1)]);
 		sessionsService.setVisible([s1]);
 		sessionsService.setVisible([]);
-		assert.deepStrictEqual({ blocked: blockedIds(model), blink: model.consumePendingBlink() }, { blocked: ['s1'], blink: false });
+		assert.deepStrictEqual({ blocked: blockedIds(model), blink: model.consumePendingBlink() }, { blocked: [], blink: false });
 	});
 
 	test('does not blink when a queued block unblocks before the blink plays', () => {
@@ -171,7 +168,7 @@ suite('BlockedSessionsIndicatorModel', () => {
 	test('classifies failing-CI reason', () => {
 		const { model, blockedModel } = createModel();
 		const ci = new TestSession('ci');
-		blockedModel.setBlocked([{ session: ci as unknown as ISession, reason: BlockedSessionReason.FailingCI }]);
+		blockedModel.setBlocked([failingCI(ci)]);
 		assert.strictEqual(model.requiresInputKind.get(), RequiresInputKind.FailingCI);
 	});
 
@@ -211,6 +208,29 @@ suite('BlockedSessionsIndicatorModel', () => {
 		assert.deepStrictEqual(blockedIds(model), ['s1']);
 	});
 
+	test('ignores the current input-needed occurrence until the session blocks again', () => {
+		const { model, blockedModel } = createModel();
+		const s1 = new TestSession('s1');
+		blockedModel.setBlocked([needsInput(s1)]);
+		model.ignoreSession(s1 as unknown as ISession);
+		assert.deepStrictEqual(blockedIds(model), []);
+
+		blockedModel.setBlocked([]);
+		blockedModel.setBlocked([needsInput(s1)]);
+		assert.deepStrictEqual(blockedIds(model), ['s1']);
+	});
+
+	test('ignores only the current CI failure occurrence', () => {
+		const { model, blockedModel } = createModel();
+		const s1 = new TestSession('s1');
+		blockedModel.setBlocked([failingCI(s1, 'sha1')]);
+		model.ignoreSession(s1 as unknown as ISession);
+		assert.deepStrictEqual(blockedIds(model), []);
+
+		blockedModel.setBlocked([failingCI(s1, 'sha2')]);
+		assert.deepStrictEqual(blockedIds(model), ['s1']);
+	});
+
 	test('reports nothing and never blinks when disabled (stable quality)', () => {
 		const { model, blockedModel } = createModel({ quality: 'stable' });
 		blockedModel.setBlocked([needsInput(new TestSession('s1'))]);
@@ -219,11 +239,11 @@ suite('BlockedSessionsIndicatorModel', () => {
 });
 
 function needsInput(session: TestSession): IBlockedSession {
-	return { session: session as unknown as ISession, reason: BlockedSessionReason.NeedsInput };
+	return { session: session as unknown as ISession, reason: BlockedSessionReason.NeedsInput, occurrenceId: BlockedSessionReason.NeedsInput };
 }
 
-function failingCI(session: TestSession): IBlockedSession {
-	return { session: session as unknown as ISession, reason: BlockedSessionReason.FailingCI };
+function failingCI(session: TestSession, headSha: string = 'sha'): IBlockedSession {
+	return { session: session as unknown as ISession, reason: BlockedSessionReason.FailingCI, occurrenceId: `${BlockedSessionReason.FailingCI}:${headSha}` };
 }
 
 function approval(kind: AgentSessionApprovalKind, since: Date = new Date()): IAgentSessionApprovalInfo {

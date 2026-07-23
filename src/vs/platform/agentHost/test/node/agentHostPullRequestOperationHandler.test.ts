@@ -12,7 +12,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, type IAgentService } from '../../common/agentService.js';
 import { buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { withSessionGitHubState, withSessionGitState, type ISessionFileDiff, MessageKind, ResponsePartKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
-import type { IAgentHostGitService, IPushOptions } from '../../common/agentHostGitService.js';
+import type { IAgentHostGitService, IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -56,7 +56,7 @@ class TestGitService implements IAgentHostGitService {
 	branchChanges: readonly ISessionFileDiff[] | undefined = [{ after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } } }];
 
 	async getCurrentBranch(): Promise<string | undefined> { return 'feature/test'; }
-	async getDefaultBranch(): Promise<string | undefined> { return 'main'; }
+	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return { name: 'main', startPoint: 'main' }; }
 	async getBranches(): Promise<string[]> { return []; }
 	async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
@@ -97,6 +97,10 @@ class TestGitService implements IAgentHostGitService {
 	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
 	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
+	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
+	async getUntrackedPaths(): Promise<[]> { return []; }
+	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
+	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
 class TestOctoKitService implements IAgentHostOctoKitService {
@@ -164,7 +168,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		status: SessionStatus.Idle,
 		createdAt: new Date(1).toISOString(),
 		modifiedAt: new Date(1).toISOString(),
-		workingDirectory: URI.file('/repo').toString(),
+		workingDirectories: [URI.file('/repo').toString()],
 	});
 	// Git state and GitHub state now share the single `_meta` bag.
 	const sessionMeta = withSessionGitHubState(withSessionGitState(undefined, {

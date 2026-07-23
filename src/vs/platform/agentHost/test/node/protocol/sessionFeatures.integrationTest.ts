@@ -16,13 +16,14 @@ import {
 	defaultChatChannel,
 	dispatchTurnStarted,
 	fetchSessionWithChat,
+	getAgentHostE2ETestTimeout,
 	getActionEnvelope,
 	isActionNotification,
 	IServerHandle,
 	nextSessionUri,
 	startServer,
 	TestProtocolClient,
-} from './testHelpers.js';
+} from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket — Session Features', function () {
 
@@ -30,7 +31,7 @@ suite('Protocol WebSocket — Session Features', function () {
 	let client: TestProtocolClient;
 
 	suiteSetup(async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
 		server = await startServer();
 	});
 
@@ -171,6 +172,7 @@ suite('Protocol WebSocket — Session Features', function () {
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-model',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'mock-model' } },
 			},
 		});

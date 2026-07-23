@@ -80,7 +80,7 @@ function buildBlocked(specs: readonly IBlockedSpec[]): { blocked: IBlockedSessio
 			override readonly sessionId = `blocked-${i}`;
 			override readonly chats: IObservable<readonly IChat[]> = constObservable([chat]);
 		}();
-		return { session, reason: spec.reason };
+		return { session, reason: spec.reason, occurrenceId: `${spec.reason}:${i}` };
 	});
 	const approvalModel = new class extends mock<AgentSessionApprovalModel>() {
 		override getApproval(resource: URI): IObservable<IAgentSessionApprovalInfo | undefined> {

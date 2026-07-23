@@ -32,7 +32,7 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
 ├── pluginListWidget.ts                         # Agent plugins section
 ├── aiCustomizationIcons.ts                     # Icons
 └── media/
-    └── aiCustomizationManagement.css
+    └── aiCustomizationManagement.css             # Management editor styling, including Sessions empty-state layout
 
 src/vs/workbench/contrib/chat/common/
 ├── aiCustomizationWorkspaceService.ts          # IAICustomizationWorkspaceService + IStorageSourceFilter + BUILTIN_STORAGE
@@ -71,11 +71,15 @@ The first sidebar entry is a static `Overview` navigation item. It is styled lik
 
 The Tools section can browse the Marketplace in the core workbench, where extension gallery browsing and installation are available. The Sessions window hides Tools Marketplace browsing and only shows the tool enablement list.
 
+Agent Host MCP **Show Output** actions prepare and register their target channel, close the modal management editor, then reveal the prepared channel. Closing before preparation can tear down the active harness context, while showing before close lets modal teardown reset the Output presentation.
+
 When the active harness is an agent host (`agent-host-*` / `remote-*`), the overview can render a **Migrate** card. The card appears only when the core `IPromptsService` still discovers local/user `*.prompt.md` files, because those files are ignored by agent-host harnesses, and only when the experimental `chat.customizations.promptMigration.enabled` setting is enabled. The left sidebar also renders a bottom **Migrate Prompt Files** shortcut in that state so the flow is discoverable even when the overview is not visible. Choosing either entry opens a dedicated migration page where users can review all migratable prompt files, select the ones to migrate, and open individual files before running migration. The migrate action converts selected prompt files into skills under the harness-appropriate skill roots (for example `.github/skills` / `~/.copilot/skills` for Copilot, `.claude/skills` / `~/.claude/skills` for Claude), preserves manual invocation by setting `disable-model-invocation: true`, and removes the original prompt files. If multiple workspace skill roots are available, migration prompts once to choose the workspace target and reuses that target for all migrated workspace prompts.
 
 Automation run history stores the created session as a serialized URI. Its Open Session action uses the shared resource-first session opener, allowing the Agents window to route the URI through `ISessionsService` before the core workbench falls back to resolving an `IAgentSession`.
 
 Manual automation runs announce that they started once session dispatch commits, while lifecycle tracking continues until completion, failure, cancellation, or timeout.
+
+Automations use a discriminated target that is either workspace-backed or a workspace-less quick chat. The workspace dropdown owns both choices: selecting **No workspace** switches to the existing quick-chat provider/session-type catalog, while selecting a folder restores repository configuration. Workspace-less targets display and announce as `without a workspace` in the list and cannot carry folder, isolation, or branch configuration; workspace-backed targets require a folder, with Worktree isolation requiring its base branch. Ledger schema v3 persists this target union and migrates schema-v1/v2 flat records while preserving valid workspace-backed targets.
 
 ### IAICustomizationWorkspaceService
 
@@ -119,6 +123,12 @@ Remote agent hosts can also register **external harnesses** dynamically. Each re
 The Plugins section renders remote harness `itemProvider` entries with `type: 'plugin'` directly. This is separate from the prompt-file pipeline used for Agents, Skills, Instructions, Prompts, and Hooks.
 
 Local plugin discovery is aggregated by `IAgentPluginService` from priority-ordered discovery providers: configured paths, VS Code marketplace installs, extension-contributed plugins, and Copilot CLI installs. Each provider reports `undefined` until its initial scan completes; the service waits for every provider to complete before exposing plugins. Once ready, plugins are canonicalized into collision groups so the same plugin discovered from multiple install roots (for example a VS Code marketplace install and a Copilot CLI direct install) remains visible but only the highest-priority copy is enabled by default. Enabling one copy disables the other copies in the same collision group.
+
+Agent Plugins use the portable Agent Plugin layout alongside the existing Copilot, Claude, and Open Plugin adapters. A package is recognized when root `plugin.json` declares an `agent-plugins.org` plugin schema. Compatible schema revisions are accepted, malformed optional metadata is ignored, and a recognized manifest takes precedence over `.plugin/plugin.json`. Agent Plugins contribute only immediate-child `skills/*/SKILL.md` skills and root `mcp.json` servers. They ignore legacy custom paths, inline components, `.mcp.json`, root `SKILL.md`, commands, agents, rules, hooks, LSP servers, and output styles.
+
+The shared plugin discovery pipeline selects format-specific component paths while using the same permissive component readers. For Agent Plugins, compatible schema revisions are recognized, known valid manifest fields are retained, fixed `skills/` and `mcp.json` paths are used, and remote servers are normalized for existing MCP transport auto-detection. Discovery preserves unresolved harness-owned values such as `${PLUGIN_DATA}` rather than allocating or interpreting a plugin data directory. Legacy Open Plugin discovery, marketplace/cache/scope behavior, command namespacing, and the synthetic `.plugin/plugin.json` plus `.mcp.json` bundles used for synchronized customizations remain unchanged and do not claim Agent Plugins v1 conformance. Direct root-manifest installation is supported, but Agent Plugins v1 does not define a marketplace protocol.
+
+Runtime projection is provider-specific. Copilot receives strict skills and MCP explicitly rather than through legacy SDK plugin-directory discovery. Codex receives strict skill roots plus MCP, with remote transport selected by its existing auto-detection. Claude excludes strict packages from legacy plugin discovery and can project remote MCP through its existing auto-detection, but its current SDK cannot register external skill directories or provide the per-server working directory required by strict stdio MCP, so those components are reported and skipped.
 
 ### IHarnessDescriptor
 
@@ -222,7 +232,11 @@ AHP Remote Server ────────────────────�
 
 ### MCP server list active-session controls
 
-The MCP Servers tab merges local/workspace MCP configuration with MCP servers reported by the active agent-host session. When a listed server also exists in the active session, row status follows the session-backed server and lifecycle controls (start/stop) target the agent host. Other VS Code-owned actions such as enable/disable, configuration, and install/uninstall stay on the local MCP row; model-access and sampling-log actions are hidden for session-backed rows because those are not inline session controls.
+The MCP Servers tab merges local/workspace MCP configuration with MCP servers reported by the active agent-host session. When a listed server also exists in the active session, row status follows the session-backed server and lifecycle controls (start/stop) target the agent host. Model-access and sampling-log actions are hidden for session-backed rows because those are not inline session controls. Runtime states render as semantic colored icons rather than text badges: running uses a green check, while stopped has no visual icon. Authentication-required rows expose an inline **Sign In** button, and an actionable error icon opens that server's local or agent-host output.
+
+Enablement has three explicit scopes. `Enable` / `Disable` persists at profile scope, `Enable (Workspace)` / `Disable (Workspace)` persists for the active project, and `Enable (Session)` / `Disable (Session)` dispatches only to the active agent-host session. Servers with an exact, unambiguous identifier or name match to an `IMcpService` entry, including extension-provided servers, use the existing local enablement model for profile/workspace state. Ambiguous matches remain agent-host-only so an action cannot target the wrong local server. Agent-host-only profile state is keyed by agent-host resource scheme (which includes local/remote host and provider identity) plus exact server name; workspace state additionally includes the session working directory so repositories inside the shared Agents window storage workspace remain independent. Workspace actions are hidden when the Sessions-aware active project root is absent, including workspace-less quick chats.
+
+A durable agent-host policy is persisted without immediately changing live sessions. Immediately before `ChatTurnStarted`, `AgentHostSessionHandler` asks `IAgentHostCustomizationService` to prepare that session's MCP servers. Preparation dispatches only preferences that are explicit on first use or changed since the session's previous preparation; unchanged policy is not reapplied, so a later session-scoped action may intentionally diverge. `EnabledProfile` on first preparation records the default without overwriting the server's current state, while resetting an explicit durable policy back to `EnabledProfile` enables the server before the next turn. `getMcpServers()` remains a pure query. Session customization enablement remains desired runtime state: providers with live MCP lifecycle support (currently Copilot and Claude) reconcile their observed SDK runtime before each turn and after runtime rebinds. Codex does not yet expose a live per-thread MCP enable/disable API, so its runtime cannot reconcile this state without recreating the thread.
 
 ### Structured Detail Preview
 
@@ -268,7 +282,9 @@ Provider-supplied customization rows that include an explicit storage origin are
 
 ### MCP Active Session Status
 
-The MCP Servers section combines locally known MCP servers with MCP servers reported by the active agent-host session (`IAgentHostCustomizationService.getMcpServers(activeSessionResource)`). Active-session servers are matched to known workspace, user, extension, plugin, or built-in rows by stable identifiers and display names so the row can show the active session's status, matching `MCP: List Servers`. Active-session servers that do not match any known local/runtime server are appended under an **Active Session** group and counted with the rest of the section.
+The MCP Servers section combines locally known MCP servers with MCP servers reported by the active agent-host session (`IAgentHostCustomizationService.getMcpServers(activeSessionResource)`). Active-session servers are matched to known workspace, user, extension, plugin, or built-in rows by stable identifiers and display names so the row can show the active session's status, matching `MCP: List Servers`. Active-session servers that do not match any known local/runtime server are appended to the **Workspace** group and counted with the rest of the section.
+
+The MCP list uses `WorkbenchList` as its sole scroll owner. Layout uses the widget's rendered content-box dimensions rather than the padded panel's outer dimensions, and the virtual delegate height matches each rendered row variant, including the taller two-line description row. These invariants keep the final row fully reachable at the bottom of the list.
 
 ### Sidebar Customizations Section
 

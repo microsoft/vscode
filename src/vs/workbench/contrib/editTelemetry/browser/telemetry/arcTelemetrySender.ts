@@ -11,7 +11,7 @@ import { EditDeltaInfo, EditSuggestionId, ITextModelEditSourceMetadata } from '.
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditSourceData, IDocumentWithAnnotatedEdits, createDocWithJustReason } from '../helpers/documentWithAnnotatedEdits.js';
 import { IAiEditTelemetryService } from './aiEditTelemetry/aiEditTelemetryService.js';
-import type { ScmRepoAdapter } from './scmAdapter.js';
+import type { IScmRepoAdapter } from './scmAdapter.js';
 import { forwardToChannelIf, isCopilotLikeExtension } from '../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { ProviderId } from '../../../../../editor/common/languages.js';
 import { ArcTelemetryReporter } from './arcTelemetryReporter.js';
@@ -20,7 +20,7 @@ import { IRandomService } from '../randomService.js';
 export class EditTelemetryReportInlineEditArcSender extends Disposable {
 	constructor(
 		docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>,
-		scmRepoBridge: IObservable<ScmRepoAdapter | undefined>,
+		scmRepoBridge: IObservable<IScmRepoAdapter | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
@@ -154,7 +154,7 @@ export class CreateSuggestionIdForChatOrInlineChatCaller extends Disposable {
 export class EditTelemetryReportEditArcForChatOrInlineChatSender extends Disposable {
 	constructor(
 		docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>,
-		scmRepoBridge: IObservable<ScmRepoAdapter | undefined>,
+		scmRepoBridge: IObservable<IScmRepoAdapter | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IRandomService private readonly _randomService: IRandomService,
 	) {

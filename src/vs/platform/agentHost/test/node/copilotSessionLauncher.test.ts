@@ -4,16 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import type { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import type { IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
+import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { ActiveClientToolSet } from '../../node/activeClientState.js';
+import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
-import { CopilotSessionLauncher, getCopilotReasoningEffort, resolveByokSessionConfig } from '../../node/copilot/copilotSessionLauncher.js';
+import { CopilotSessionLauncher, getCopilotReasoningEffort, resolveByokSessionConfig, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 
 /**
  * Covers the BYOK provider/model synthesis the launcher feeds into
@@ -27,14 +34,20 @@ import { CopilotSessionLauncher, getCopilotReasoningEffort, resolveByokSessionCo
  */
 suite('resolveByokSessionConfig', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sessionId = 'sess-1';
 	const log = new NullLogService();
 
-	/** Minimal bridge connection: a scripted `listModels` and an unused `chat`. */
-	function connectionOf(listModels: () => Promise<IByokLmModelInfo[]>) {
-		return { chat: async (): Promise<IByokLmChatResult> => ({ content: '' }), listModels };
+	/**
+	 * A bridge connection that pushes `models` as its snapshot synchronously when
+	 * the registry subscribes; `chat` is scripted (unused by most tests).
+	 */
+	function connectionOf(models: IByokLmModelInfo[], chat: IByokLmBridgeConnection['chat'] = async () => ({ content: '' })): IByokLmBridgeConnection {
+		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
+			onDidAddFirstListener: () => emitter.fire(models),
+		}));
+		return { chat, onDidChangeModels: emitter.event };
 	}
 
 	/** A fake proxy handle plus a `startProxy` thunk that records its call count. */
@@ -64,7 +77,7 @@ suite('resolveByokSessionConfig', () => {
 
 	test('returns empty and never starts the proxy when the bridge reports no models', async () => {
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client-1', connectionOf(async () => []));
+		const registration = registry.register('client-1', connectionOf([]));
 		const proxy = countingProxy();
 
 		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
@@ -74,9 +87,11 @@ suite('resolveByokSessionConfig', () => {
 		assert.strictEqual(proxy.starts, 0);
 	});
 
-	test('returns empty and never starts the proxy when enumeration fails', async () => {
+	test('returns empty and never starts the proxy for a window that never pushes a snapshot', async () => {
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client-1', connectionOf(async () => { throw new Error('renderer gone'); }));
+		// A window connected without a BYOK handler never pushes, so it stays
+		// non-serving and contributes no models.
+		const registration = registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ content: '' }), onDidChangeModels: Event.None });
 		const proxy = countingProxy();
 
 		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
@@ -88,7 +103,7 @@ suite('resolveByokSessionConfig', () => {
 
 	test('synthesizes deduped providers and per-model config from the active bridge', async () => {
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client-1', connectionOf(async () => [
+		const registration = registry.register('client-1', connectionOf([
 			{ vendor: 'acme', id: 'claude', name: 'Acme Claude', maxContextWindowTokens: 200000 },
 			{ vendor: 'acme', id: 'gpt', name: undefined, maxContextWindowTokens: undefined },
 			{ vendor: 'globex', id: 'llama', name: 'Globex Llama' },
@@ -115,10 +130,10 @@ suite('resolveByokSessionConfig', () => {
 	test('synthesized provider config routes through a live proxy to the bridge', async () => {
 		const registry = new ByokLmBridgeRegistry();
 		let captured: IByokLmChatRequest | undefined;
-		const registration = registry.register('client-1', {
-			chat: async (request) => { captured = request; return { content: 'hello from byok' }; },
-			listModels: async () => [{ vendor: 'acme', id: 'claude' }],
-		});
+		const registration = registry.register('client-1', connectionOf(
+			[{ vendor: 'acme', id: 'claude' }],
+			async (request) => { captured = request; return { content: 'hello from byok' }; },
+		));
 		const service = new ByokLmProxyService(log, registry);
 		let handle: IByokLmProxyHandle | undefined;
 
@@ -143,83 +158,24 @@ suite('resolveByokSessionConfig', () => {
 		assert.strictEqual(captured?.modelId, 'claude');
 	});
 
-	test('resume reads the warm cache without a live renderer round-trip', async () => {
+	test('reads the latest pushed snapshot from the registry cache', async () => {
 		const registry = new ByokLmBridgeRegistry();
-		let calls = 0;
-		const registration = registry.register('client-1', connectionOf(async () => {
-			calls++;
-			return [{ vendor: 'acme', id: 'claude', name: 'Acme Claude' }];
-		}));
-		const proxy = countingProxy();
-
-		// Warm the cache so a serving window has answered.
-		await registry.listModels();
-		const callsAfterWarmup = calls;
-
-		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log, /*preferCache*/ true);
-		registration.dispose();
-
-		assert.deepStrictEqual({ calls, models: config.models }, {
-			calls: callsAfterWarmup,
-			models: [{ id: 'claude', provider: 'acme', name: 'Acme Claude' }],
+		const emitter = store.add(new Emitter<IByokLmModelInfo[]>());
+		const registration = registry.register('client-1', {
+			chat: async (): Promise<IByokLmChatResult> => ({ content: '' }),
+			onDidChangeModels: emitter.event,
 		});
-	});
-
-	test('resume falls back to a live enumeration when the cache is still cold', async () => {
-		const registry = new ByokLmBridgeRegistry();
-		let resolveList!: (models: IByokLmModelInfo[]) => void;
-		const gate = new Promise<IByokLmModelInfo[]>(resolve => { resolveList = resolve; });
-		const registration = registry.register('client-1', connectionOf(() => gate));
 		const proxy = countingProxy();
 
-		// The connection registered but hasn't answered yet, so the cache is cold.
-		assert.strictEqual(registry.getServingConnection(), undefined);
+		// The window starts serving-but-empty, then pushes a model; the resolved
+		// config reflects the latest cached push with no renderer round-trip.
+		emitter.fire([]);
+		emitter.fire([{ vendor: 'acme', id: 'claude', name: 'Acme Claude' }]);
 
-		const configPromise = resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log, /*preferCache*/ true);
-		resolveList([{ vendor: 'acme', id: 'claude' }]);
-		const config = await configPromise;
+		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
 		registration.dispose();
 
-		assert.deepStrictEqual(config.models, [{ id: 'claude', provider: 'acme' }]);
-	});
-
-	test('resume falls back to a live enumeration when the warm cache is empty', async () => {
-		const registry = new ByokLmBridgeRegistry();
-		let models: IByokLmModelInfo[] = [];
-		const registration = registry.register('client-1', connectionOf(async () => models));
-		const proxy = countingProxy();
-
-		// Warm the cache while the window reports no models yet: serving, but empty.
-		await registry.listModels();
-		assert.notStrictEqual(registry.getServingConnection(), undefined);
-		assert.deepStrictEqual([...registry.getModels()], []);
-
-		// The window now has models; resume must re-enumerate to surface them
-		// rather than trust the stale empty cache.
-		models = [{ vendor: 'acme', id: 'claude' }];
-		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log, /*preferCache*/ true);
-		registration.dispose();
-
-		assert.deepStrictEqual(config.models, [{ id: 'claude', provider: 'acme' }]);
-	});
-
-	test('create enumerates live even when the cache is warm', async () => {
-		const registry = new ByokLmBridgeRegistry();
-		let calls = 0;
-		const registration = registry.register('client-1', connectionOf(async () => {
-			calls++;
-			return [{ vendor: 'acme', id: 'claude' }];
-		}));
-		const proxy = countingProxy();
-
-		// Warm the cache first, then confirm create still re-enumerates.
-		await registry.listModels();
-		const callsAfterWarmup = calls;
-
-		await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log, /*preferCache*/ false);
-		registration.dispose();
-
-		assert.strictEqual(calls > callsAfterWarmup, true);
+		assert.deepStrictEqual(config.models, [{ id: 'claude', provider: 'acme', name: 'Acme Claude' }]);
 	});
 });
 
@@ -236,9 +192,15 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 
 	const sessionId = 'sess-1';
 
-	/** Minimal bridge connection: a scripted `listModels` and an unused `chat`. */
-	function connectionOf(listModels: () => Promise<IByokLmModelInfo[]>) {
-		return { chat: async (): Promise<IByokLmChatResult> => ({ content: '' }), listModels };
+	/**
+	 * A bridge connection that pushes `models` as its snapshot synchronously when
+	 * the registry subscribes; the backing emitter is owned by `store`.
+	 */
+	function connectionOf(store: DisposableStore, models: IByokLmModelInfo[]): IByokLmBridgeConnection {
+		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
+			onDidAddFirstListener: () => emitter.fire(models),
+		}));
+		return { chat: async (): Promise<IByokLmChatResult> => ({ content: '' }), onDidChangeModels: emitter.event };
 	}
 
 	/** A fake proxy service whose handles carry a unique nonce per `start()`. */
@@ -276,7 +238,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		const store = new DisposableStore();
 		const proxy = fakeProxyService();
 		const registry = new ByokLmBridgeRegistry();
-		store.add(registry.register('client-1', connectionOf(async () => [{ vendor: 'acme', id: 'claude' }])));
+		store.add(registry.register('client-1', connectionOf(store, [{ vendor: 'acme', id: 'claude' }])));
 		const launcher = createLauncher(store, proxy.service, registry);
 		const resolve = () => (launcher as unknown as { _resolveByokSessionConfig(id: string): Promise<{ providers?: { bearerToken: string }[] }> })._resolveByokSessionConfig(sessionId);
 
@@ -294,6 +256,87 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		assert.notStrictEqual(third.providers![0].bearerToken, first.providers![0].bearerToken, 'the fresh bind carries a new nonce');
 
 		store.dispose();
+	});
+});
+
+suite('CopilotSessionLauncher client identity', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('passes the Agent Host client name to create and resume', async () => {
+		const createConfigs: Parameters<CopilotClient['createSession']>[0][] = [];
+		const resumeConfigs: Parameters<CopilotClient['resumeSession']>[1][] = [];
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+		} as unknown as CopilotSession;
+		const client = {
+			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
+				createConfigs.push(config);
+				return session;
+			},
+			resumeSession: async (_sessionId: string, config: Parameters<CopilotClient['resumeSession']>[1]) => {
+				resumeConfigs.push(config);
+				return session;
+			},
+		};
+		const configurationService = {
+			getRootValue: () => undefined,
+		} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
+		const launcher = new CopilotSessionLauncher(
+			configurationService,
+			{} as IAgentHostTerminalManager,
+			new NullLogService(),
+			{} as IFileService,
+			{ _serviceBrand: undefined, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
+			new ByokLmBridgeRegistry(),
+		);
+		const runtime: ICopilotSessionRuntime = {
+			handlePermissionRequest: async () => { throw new Error('Unexpected permission request'); },
+			handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
+			handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
+			handleElicitationRequest: async () => { throw new Error('Unexpected elicitation request'); },
+			handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
+			requestUnsandboxedCommandConfirmation: async () => false,
+			handlePreToolUse: async () => { },
+			handlePostToolUse: async () => { },
+			createClientSdkTools: () => [],
+			createServerSdkTools: () => [],
+		};
+		const basePlan = {
+			client,
+			sessionId: 'session-1',
+			workingDirectory: URI.file('/workspace'),
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubToken: undefined,
+		};
+		const createPlan: CopilotSessionLaunchPlan = {
+			...basePlan,
+			kind: 'create',
+			model: undefined,
+		};
+		const resumePlan: CopilotSessionLaunchPlan = {
+			...basePlan,
+			kind: 'resume',
+			fallback: { model: undefined },
+		};
+
+		const created = await launcher.launch(createPlan, runtime);
+		const resumed = await launcher.launch(resumePlan, runtime);
+		created.dispose();
+		resumed.dispose();
+
+		assert.deepStrictEqual({
+			createClientName: createConfigs[0].clientName,
+			resumeClientName: resumeConfigs[0].clientName,
+		}, {
+			createClientName: 'vscode-agent-host',
+			resumeClientName: 'vscode-agent-host',
+		});
 	});
 });
 

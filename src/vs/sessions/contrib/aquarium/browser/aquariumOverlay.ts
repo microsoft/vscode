@@ -299,7 +299,6 @@ export class AquariumService extends Disposable implements IAquariumService {
 		const base = active ? localize('aquarium.hide', "Hide Aquarium") : localize('aquarium.show', "Show Aquarium");
 		const streak = this.streak.count;
 		if (streak > 0) {
-			// The 24h feeding window is playfully announced as a "day" streak.
 			return streak === 1
 				// allow-any-unicode-next-line
 				? localize('aquarium.streakLabel.one', "{0} — 🔥 {1} day feeding streak", base, streak)
@@ -374,7 +373,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		this.updateAllToggleButtonsVisual(true);
 	}
 
-	/** Called whenever a fish eats a pellet — extends the persisted feeding streak. */
+	/** Called whenever a fish eats a pellet. */
 	private handleFishFed(): void {
 		const before = this.streak.count;
 		const result = this.streak.recordFeed();

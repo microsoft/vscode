@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogLevel as ProxyLogLevel, ProxyAgentParams, ProxySupportSetting, createFetchPatch, createProxyResolver, loadSystemCertificates } from '@vscode/proxy-agent';
+import { LogLevel as ProxyLogLevel, ProxyAgentParams, ProxySupportSetting, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, loadSystemCertificates } from '@vscode/proxy-agent';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
-import { systemCertificatesNodeDefault } from '../../request/common/request.js';
+import { AuthInfo, Credentials, systemCertificatesNodeDefault } from '../../request/common/request.js';
 import { IAgentHostClientProxyConnection } from '../common/agentHostClientProxyChannel.js';
 
 export const IAgentHostProxyResolver = createDecorator<IAgentHostProxyResolver>('agentHostProxyResolver');
@@ -83,12 +83,16 @@ export class AgentHostProxyResolver implements IAgentHostProxyResolver {
 			const config = <T>(key: string): T | undefined => this._configurationService.getValue<T>(key);
 			const systemCertificatesV2 = () => config<boolean>('http.experimental.systemCertificatesV2') ?? false;
 			const systemCertificates = () => !!config<boolean>('http.systemCertificates');
-			// TODO @chrmarti: Add lookupProxyAuthorization.
 			const params: ProxyAgentParams = {
 				// The host proxy resolution runs in VS Code: reverse-call a connected
 				// renderer, whose IRequestService.resolveProxy hits the Electron
 				// session (system settings / PAC scripts).
 				resolveProxy: (url) => this._hostResolveProxy(url),
+				lookupProxyAuthorization: createProxyAuthorizationLookup({
+					log: this._logService,
+					lookupAuthorization: authInfo => this._hostLookupAuthorization(authInfo),
+					lookupKerberosAuthorization: url => this._hostLookupKerberosAuthorization(url),
+				}),
 				getProxyURL: () => config<string>('http.proxy'),
 				getProxySupport: () => config<ProxySupportSetting>('http.proxySupport') || 'off',
 				getNoProxyConfig: () => config<string[]>('http.noProxy') || [],
@@ -132,6 +136,28 @@ export class AgentHostProxyResolver implements IAgentHostProxyResolver {
 		for (const connection of this._connections.values()) {
 			try {
 				return await connection.resolveProxy(url);
+			} catch {
+				// This renderer could not serve the lookup; try the next one.
+			}
+		}
+		return undefined;
+	}
+
+	private async _hostLookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
+		for (const connection of this._connections.values()) {
+			try {
+				return await connection.lookupAuthorization(authInfo);
+			} catch {
+				// This renderer could not serve the lookup; try the next one.
+			}
+		}
+		return undefined;
+	}
+
+	private async _hostLookupKerberosAuthorization(url: string): Promise<string | undefined> {
+		for (const connection of this._connections.values()) {
+			try {
+				return await connection.lookupKerberosAuthorization(url);
 			} catch {
 				// This renderer could not serve the lookup; try the next one.
 			}

@@ -39,9 +39,41 @@
 	}
 }
 
+/* Live (in-progress) dictation transcript. Match the chat input and editor
+ * dictation surfaces: render in the input placeholder color with the same
+ * shimmer animation instead of the static italic ghost-text style, so all
+ * three speech surfaces look identical while words stream in. */
+@keyframes terminal-voice-progress-shimmer {
+	0% {
+		background-position: 120% 0;
+	}
+
+	100% {
+		background-position: -120% 0;
+	}
+}
+
 .terminal-voice-progress-text {
+	background: linear-gradient(90deg,
+			var(--vscode-input-placeholderForeground) 0%,
+			var(--vscode-input-placeholderForeground) 30%,
+			var(--vscode-foreground) 50%,
+			var(--vscode-input-placeholderForeground) 70%,
+			var(--vscode-input-placeholderForeground) 100%);
+	background-size: 400% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: terminal-voice-progress-shimmer 2s linear infinite;
+	will-change: background-position;
+	z-index: 1000;
+}
+
+/* First-use "Preparing…/Downloading… X%" hint shown while the on-device model
+ * loads. Static placeholder-colored italic text (no shimmer) so it reads as a
+ * status message rather than dictated speech. */
+.terminal-voice-preparing-text {
 	font-style: italic;
-	color: var(--vscode-editorGhostText-foreground) !important;
-	border: 1px solid var(--vscode-editorGhostText-border);
+	color: var(--vscode-input-placeholderForeground);
 	z-index: 1000;
 }

@@ -4,9 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Event } from '../../../../base/common/event.js';
 
 import './agentsVoiceColors.js'; // Register custom voice theme colors
+
+/**
+ * Context keys reflecting the live Voice Mode connection state. Defined here in
+ * the common layer so other contributions (e.g. chat-input dictation) can gate
+ * their UI on Voice Mode being active without importing the browser contribution.
+ */
+export const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
+export const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
+export const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
 
 /**
  * Default dimensions for the Agents Voice floating window.

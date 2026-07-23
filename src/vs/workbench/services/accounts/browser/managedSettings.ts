@@ -7,6 +7,16 @@ import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { normalizeManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
 
 /**
+ * A single MCP server matcher entry in the `allowedMcpServers` / `deniedMcpServers` managed
+ * settings, identifying a server by exactly one strategy: name, remote URL pattern, or local
+ * command invocation.
+ */
+export type IManagedMcpServerMatcher =
+	| { readonly serverName: string }
+	| { readonly serverUrl: string }
+	| { readonly serverCommand: readonly string[] };
+
+/**
  * Response shape from the Copilot `/copilot_internal/managed_settings` endpoint.
  * The endpoint returns `.github/copilot/settings.json` content from the
  * enterprise's source org. An empty response (`{}`) is success and means
@@ -28,6 +38,8 @@ export interface IManagedSettingsResponse {
 		| { readonly source: 'git'; readonly url: string; readonly ref?: string };
 	}>;
 	readonly strictKnownMarketplaces?: readonly unknown[];
+	readonly allowedMcpServers?: ReadonlyArray<IManagedMcpServerMatcher>;
+	readonly deniedMcpServers?: ReadonlyArray<IManagedMcpServerMatcher>;
 	readonly telemetry?: {
 		readonly enabled?: boolean;
 		readonly endpoint?: string;

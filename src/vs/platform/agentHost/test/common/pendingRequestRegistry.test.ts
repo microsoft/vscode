@@ -102,6 +102,15 @@ suite('PendingRequestRegistry', () => {
 		assert.strictEqual(await promise, 'value');
 	});
 
+	test('hasBufferedResult reports only unconsumed early results', async () => {
+		const registry = new PendingRequestRegistry<string>();
+		assert.strictEqual(registry.hasBufferedResult('k'), false);
+		registry.respondOrBuffer('k', 'early');
+		assert.strictEqual(registry.hasBufferedResult('k'), true);
+		await registry.register('k');
+		assert.strictEqual(registry.hasBufferedResult('k'), false);
+	});
+
 	test('respondOrBuffer: a buffered `undefined` value still resolves a subsequent register', async () => {
 		// Guards against the `get() !== undefined` sentinel bug: when T includes
 		// undefined, a buffered undefined must be distinguished from "no entry"

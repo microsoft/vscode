@@ -22,10 +22,9 @@ export type CloudSessionIdentity =
  * so the provider can resolve to a full {@link PullRequestSearchItem} when needed
  * for display. The Jobs API path doesn't use this — it returns pre-resolved PRs.
  *
- * See `pullArtifactResolver.ts` (`resolvePullArtifact`, `resolvePullArtifactWithRetry`).
+ * See `pullArtifactResolver.ts` (`resolvePullArtifact`).
  */
 export interface PullArtifactRef {
-	readonly repo: { readonly owner: string; readonly name: string };
 	/** GraphQL node id from the artifact, when available. */
 	readonly globalId?: string;
 	/** Internal PR database id; matches `PullRequestSearchItem.fullDatabaseId`. */
@@ -83,6 +82,14 @@ export interface CloudSessionData {
 	readonly latestSession: SessionInfo;
 	readonly pullRequest?: PullRequestSearchItem;
 	readonly pullArtifact?: PullArtifactRef;
+
+	/**
+	 * Owning repository for the entry, when known. A task has a repo regardless of whether it has
+	 * a pull artifact, so this is the single source of repo identity: the provider uses it to
+	 * attach `owner`/`name` metadata to PR-less task cards (otherwise they group under
+	 * "Unknown"/"Other" until a PR resolves) and passes it to `resolvePullArtifact` for PR lookup.
+	 */
+	readonly repo?: { readonly owner: string; readonly name: string };
 	/**
 	 * Branch comparison refs for a settled, PR-less task that pushed a branch. When present,
 	 * the provider fetches the changed files (`base...head`) so the session's changed-files

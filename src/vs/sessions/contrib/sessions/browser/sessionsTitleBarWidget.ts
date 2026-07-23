@@ -34,7 +34,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getUntitledSessionTitle } from '../../../services/sessions/common/session.js';
 import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
-import { BlockedSessionsList } from './blockedSessionsList.js';
+import { BlockedSessionsList, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
 import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 import { SessionActionFeedback } from './sessionActionFeedback.js';
 import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -87,9 +87,8 @@ const BLOCKED_DROPDOWN_MAX_WIDTH_RATIO = 0.9;
  * - Kind icon at the beginning (provider type icon)
  * - Repository folder name and active branch/worktree name when available
  *
- * When at least one session is blocked (needs input, has failing CI checks, or
- * has unresolved pull request comments), the widget instead adopts an orange
- * "N sessions require input" state and, on click, reveals those sessions as a
+ * When at least one session is blocked (needs input or has failing CI checks),
+ * the widget instead adopts an orange "N sessions require input" state and reveals those sessions as a
  * flat list in a dropdown anchored below the command center box. A short blink
  * animation plays whenever a new session becomes blocked. In every other case it
  * behaves as the active-session pill and opens the sessions picker on click.
@@ -539,6 +538,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 						this._openContextView?.close();
 						this._openBlockedSession(resource, preserveFocus, sideBySide);
 					},
+					onIgnoreSession: session => this._blockedIndicator.ignoreSession(session),
 				}));
 				list.setSessions(this._blockedIndicator.blockedSessions.get().map(entry => entry.session));
 				store.add(list.onDidChangeContentHeight(() => this.contextViewService.layout()));
@@ -726,6 +726,8 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 			order: 1,
 			when: IsAuxiliaryWindowContext.negate()
 		}));
+
+		this._register(registerBlockedSessionsItemActions());
 
 		this._register(actionViewItemService.register(Menus.CommandCenter, Menus.TitleBarSessionTitle, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {

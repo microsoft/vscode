@@ -5,6 +5,7 @@
 
 import './media/agentFeedbackEditorInput.css';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ICodeEditor, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
@@ -245,17 +246,10 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	static readonly ID = 'agentFeedback.editorInputContribution';
 
-	/**
-	 * Extra width (px) reserved in the line-decorations margin so the add glyph
-	 * has room to render fully, including its rounded background.
-	 */
-	private static readonly _RESERVED_GUTTER_WIDTH = 18;
-
 	private _widget: AgentFeedbackInputWidget | undefined;
 	private _visible = false;
 	private _mouseDown = false;
 	private _suppressSelectionChangeOnce = false;
-	private _reservedGutterSpace = false;
 	private _session: ISession | undefined;
 	private _pinnedRange: Range | undefined;
 	private _anchorPosition: Position | undefined;
@@ -409,9 +403,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			range: new Range(lineNumber, 1, lineNumber, 1),
 			options: {
 				description: 'agent-feedback-hover-glyph',
-				isWholeLine: true,
-				// Only render the glyph on the first wrapped line.
-				firstLineDecorationClassName: `${agentFeedbackHoverGlyphClassName} line-hover`,
+				lineNumberClassName: `${agentFeedbackHoverGlyphClassName} line-hover`,
+				lineNumberHoverMessage: new MarkdownString(localize('agentFeedback.add', "Add Feedback")),
 			},
 		}]);
 	}
@@ -589,31 +582,11 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		const model = this._editor.getModel();
 		if (!model || !this._contextKeyService.contextMatchesRules(ChatContextKeys.enabled)) {
 			this._hasAgentFeedbackSessionContext.set(false);
-			this._updateReservedGutterSpace(false);
 			return undefined;
 		}
 		const session = this._agentFeedbackService.getSessionForFile(model.uri);
 		this._hasAgentFeedbackSessionContext.set(!!session);
-		this._updateReservedGutterSpace(!!session);
 		return session;
-	}
-
-	/**
-	 * Reserve room in the line-decorations margin for the add glyph while the
-	 * editor shows a feedback-enabled file. Without this the glyph can be
-	 * clipped or fail to render where the gutter is tight (e.g. diff editors).
-	 * Mirrors how the comments feature reserves commenting-range space.
-	 */
-	private _updateReservedGutterSpace(hasSession: boolean): void {
-		if (hasSession === this._reservedGutterSpace) {
-			return;
-		}
-		this._reservedGutterSpace = hasSession;
-		const current = this._editor.getOption(EditorOption.lineDecorationsWidth);
-		const next = hasSession
-			? current + AgentFeedbackEditorInputContribution._RESERVED_GUTTER_WIDTH
-			: Math.max(0, current - AgentFeedbackEditorInputContribution._RESERVED_GUTTER_WIDTH);
-		this._editor.updateOptions({ lineDecorationsWidth: next });
 	}
 
 	/**
@@ -875,7 +848,6 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	}
 
 	override dispose(): void {
-		this._updateReservedGutterSpace(false);
 		if (this._widget) {
 			this._editor.removeOverlayWidget(this._widget);
 			this._widget.dispose();

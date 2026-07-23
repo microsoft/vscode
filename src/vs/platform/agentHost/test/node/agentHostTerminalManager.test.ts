@@ -58,11 +58,26 @@ class TestTerminalDataHandler {
 	handlePtyData(rawData: string): string {
 		let cleanedForClient = '';
 
-		// Process cleaned-data and events in stream order so that output which
-		// arrives before a CommandFinished marker is appended to the command
-		// before the finished event snapshots it — see _handlePtyData.
+		// Data is dispatched in stream order relative to command events: flush
+		// pending data before handling each event so subscribers observe
+		// CommandExecuted -> data -> CommandFinished exactly like the raw
+		// stream — see _handlePtyData.
+		let pendingClientData = '';
+		const flushClientData = (): void => {
+			if (pendingClientData.length === 0) {
+				return;
+			}
+			this.dispatched.push({
+				type: ActionType.TerminalData,
+				data: pendingClientData,
+			});
+			cleanedForClient += pendingClientData;
+			pendingClientData = '';
+		};
+
 		for (const segment of this.tracker.parser.parseSegments(rawData)) {
 			if (segment.kind === 'event') {
+				flushClientData();
 				this._handleOsc633Event(segment.event);
 				continue;
 			}
@@ -70,9 +85,11 @@ class TestTerminalDataHandler {
 			const cleanedData = removeServerHandledTerminalQueries(segment.data, this._terminalQueryFilterState);
 			if (cleanedData.length > 0) {
 				this._appendToContent(cleanedData);
-				cleanedForClient += cleanedData;
+				pendingClientData += cleanedData;
 			}
 		}
+
+		flushClientData();
 
 		return cleanedForClient;
 	}
@@ -512,7 +529,11 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 
 		assert.strictEqual(cleaned, 'beforemidafter');
 		assert.deepStrictEqual(handler.content, [{ type: 'unclassified', value: 'beforemidafter' }]);
-		assert.strictEqual(handler.dispatched[0].type, ActionType.TerminalCommandDetectionAvailable);
+		assert.deepStrictEqual(handler.dispatched, [
+			{ type: ActionType.TerminalData, data: 'before' },
+			{ type: ActionType.TerminalCommandDetectionAvailable },
+			{ type: ActionType.TerminalData, data: 'midafter' },
+		]);
 	});
 
 	test('TerminalCommandDetectionAvailable is dispatched on first OSC 633', () => {
@@ -687,7 +708,9 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.deepStrictEqual(handler.content, [
 			{ type: 'unclassified', value: data },
 		]);
-		assert.deepStrictEqual(handler.dispatched, []);
+		assert.deepStrictEqual(handler.dispatched, [
+			{ type: ActionType.TerminalData, data },
+		]);
 	});
 
 	test('CommandFinished without active command is ignored', () => {
@@ -748,8 +771,26 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 			output: event.output,
 		})));
 
+		// Clients rebuild per-command output from the action stream, so the
+		// data must also be DISPATCHED between the executed and finished
+		// actions, not after the whole chunk.
+		const dispatched: { type: string; data?: string }[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			const action = envelope.action;
+			if (action.type === ActionType.TerminalCommandExecuted || action.type === ActionType.TerminalCommandFinished) {
+				dispatched.push({ type: action.type });
+			} else if (action.type === ActionType.TerminalData) {
+				dispatched.push({ type: action.type, data: action.data });
+			}
+		}));
+
 		pty.fireData(`${osc633('C')}hi\r\n${osc633('D;0')}`);
 
 		assert.deepStrictEqual(completions, [{ exitCode: 0, output: 'hi\r\n' }]);
+		assert.deepStrictEqual(dispatched, [
+			{ type: ActionType.TerminalCommandExecuted },
+			{ type: ActionType.TerminalData, data: 'hi\r\n' },
+			{ type: ActionType.TerminalCommandFinished },
+		]);
 	});
 });

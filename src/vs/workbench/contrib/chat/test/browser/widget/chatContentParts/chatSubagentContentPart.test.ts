@@ -96,6 +96,18 @@ suite('ChatSubagentContentPart', () => {
 					confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
 					progress: observableValue('progress', { message: undefined, progress: undefined })
 				};
+			case IChatToolInvocation.StateKind.WaitingForAuthentication:
+				return {
+					type: IChatToolInvocation.StateKind.WaitingForAuthentication,
+					parameters,
+					confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					server: {
+						id: 'server',
+						name: 'MCP server',
+						resource: 'https://mcp.example.com',
+					},
+					cancel: () => { },
+				};
 			case IChatToolInvocation.StateKind.WaitingForConfirmation:
 				return {
 					type: IChatToolInvocation.StateKind.WaitingForConfirmation,

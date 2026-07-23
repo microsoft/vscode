@@ -21,16 +21,16 @@ export const IByokLmBridgeRegistry = createDecorator<IByokLmBridgeRegistry>('byo
  * handler exposes the same set. Both the main workbench and the dedicated Agents
  * app register it (each runs a full extension host whose LM API holds the same
  * BYOK models), so either can serve. A connection that connects without binding
- * the handler registers a bridge whose `listModels()` rejects and is treated as
- * non-serving. The registry therefore does NOT aggregate per-window model sets;
- * it surfaces the models from any one *serving* window (preferring one that
- * actually has models) and routes inference there, automatically excluding
- * non-serving windows.
+ * the handler never pushes a snapshot and is treated as non-serving. The registry
+ * therefore does NOT aggregate per-window model sets; it surfaces the models from
+ * any one *serving* window (preferring one that actually has models) and routes
+ * inference there, automatically excluding non-serving windows.
  *
- * A connection becomes "serving" once its `listModels()` resolves (even to an
- * empty list). On registration (and whenever a connection reports
- * {@link IByokLmBridgeConnection.onDidChangeModels}) the registry enumerates it
- * and fires {@link onDidChangeModels} when the serving model set changes.
+ * **Push, not pull.** Each connection pushes its current model snapshot over
+ * {@link IByokLmBridgeConnection.onDidChangeModels} (on subscribe and on every
+ * change); the registry subscribes on {@link register}, caches each snapshot, and
+ * fires {@link onDidChangeModels} when the serving model set changes. A connection
+ * becomes "serving" once it pushes its first snapshot (even an empty one).
  */
 export interface IByokLmBridgeRegistry {
 	readonly _serviceBrand: undefined;
@@ -39,28 +39,20 @@ export interface IByokLmBridgeRegistry {
 	register(clientId: string, connection: IByokLmBridgeConnection): IDisposable;
 
 	/**
-	 * Re-enumerate the connected renderers, refresh the cache, and return the
-	 * serving window's BYOK models. Use this when freshness matters (e.g.
-	 * synthesizing a session's provider config at create time).
-	 */
-	listModels(): Promise<IByokLmModelInfo[]>;
-
-	/**
 	 * The serving window's BYOK models, read synchronously from the cache (no
 	 * enumeration). Use this for fast reads driven by {@link onDidChangeModels}.
 	 */
 	getModels(): readonly IByokLmModelInfo[];
 
 	/**
-	 * A connection that can serve BYOK inference (one whose enumeration has
-	 * resolved), or `undefined` when no connected window can. All serving
-	 * windows expose the same models, so any one of them is a valid target.
+	 * A connection that can serve BYOK inference, or `undefined` when none can.
+	 * All serving windows expose the same models, so any one is a valid target.
 	 */
 	getServingConnection(): IByokLmBridgeConnection | undefined;
 
 	/**
 	 * Subscribe to changes in the set of registered connections (a renderer
-	 * connecting or disconnecting) or in the serving window's models, so
+	 * connecting or disconnecting) or in the serving window's pushed models, so
 	 * consumers can re-read {@link getModels}. Disposing the result removes the
 	 * listener.
 	 */
@@ -68,11 +60,10 @@ export interface IByokLmBridgeRegistry {
 }
 
 /**
- * Per-connection registry entry. `models` is `undefined` until the connection's
- * first successful enumeration; a connection with defined `models` is "serving"
- * (it answered, even if with an empty list). Non-serving windows (those that did
- * not register the BYOK handler, whose `listModels()` rejects) keep
- * `models === undefined`.
+ * Per-connection registry entry. `models` is `undefined` until the connection
+ * pushes its first snapshot; a connection with defined `models` is "serving"
+ * (it pushed, even an empty list). Non-serving windows (those that did not
+ * register the BYOK handler and therefore never push) keep `models === undefined`.
  */
 interface IConnectionEntry {
 	readonly connection: IByokLmBridgeConnection;
@@ -110,16 +101,20 @@ export class ByokLmBridgeRegistry implements IByokLmBridgeRegistry {
 		const entry: IConnectionEntry = { connection, models: undefined, store };
 		this._entries.set(clientId, entry);
 
-		// Re-enumerate whenever the renderer reports its BYOK models changed.
-		if (connection.onDidChangeModels) {
-			store.add(connection.onDidChangeModels(() => {
-				void this._refreshConnection(clientId);
-			}));
-		}
+		// Cache each pushed snapshot; notify only when the serving set changes.
+		store.add(connection.onDidChangeModels(models => {
+			// Drop the push if the entry was removed/replaced meanwhile.
+			if (this._entries.get(clientId) !== entry) {
+				return;
+			}
+			if (entry.models === undefined || !modelsEqual(entry.models, models)) {
+				entry.models = models;
+				this._notifyChanged();
+			}
+		}));
 
-		// The connection set changed; enumerate the new connection's models.
+		// The connection set changed (a renderer connected).
 		this._notifyChanged();
-		void this._refreshConnection(clientId);
 
 		return toDisposable(() => {
 			if (this._entries.get(clientId) === entry) {
@@ -128,13 +123,6 @@ export class ByokLmBridgeRegistry implements IByokLmBridgeRegistry {
 				this._notifyChanged();
 			}
 		});
-	}
-
-	async listModels(): Promise<IByokLmModelInfo[]> {
-		// Actively re-enumerate every connection so callers that need freshness
-		// (e.g. session create) don't race a cold cache.
-		await Promise.all([...this._entries.keys()].map(clientId => this._refreshConnection(clientId)));
-		return [...this.getModels()];
 	}
 
 	getModels(): readonly IByokLmModelInfo[] {
@@ -146,14 +134,11 @@ export class ByokLmBridgeRegistry implements IByokLmBridgeRegistry {
 	}
 
 	/**
-	 * A connection that has answered an enumeration (`models` defined), preferring
-	 * one whose model set is non-empty. All serving windows expose the same models,
-	 * so any populated one is an equivalent source/target; the preference matters
-	 * when a window that is still starting up (e.g. the Agents app before its BYOK
-	 * extension has registered models) answers with an empty list first — it must
-	 * not shadow a peer that already has them, transiently or permanently. Falls
-	 * back to a serving-but-empty window when none have models yet; non-serving
-	 * windows (those that didn't register the BYOK handler) are skipped.
+	 * A serving connection (`models` defined), preferring one whose model set is
+	 * non-empty. All serving windows expose the same models, so any populated one
+	 * is equivalent; the preference matters when a still-starting window pushes an
+	 * empty list first — it must not shadow a peer that already has them. Falls
+	 * back to a serving-but-empty window; non-serving windows are skipped.
 	 */
 	private _servingEntry(): IConnectionEntry | undefined {
 		let emptyFallback: IConnectionEntry | undefined;
@@ -167,36 +152,6 @@ export class ByokLmBridgeRegistry implements IByokLmBridgeRegistry {
 			emptyFallback ??= entry;
 		}
 		return emptyFallback;
-	}
-
-	/**
-	 * Enumerate a single connection's models into its cache and notify listeners
-	 * when the result changes. A connection whose `listModels()` rejects (e.g. a
-	 * window that did not register the BYOK handler) is left non-serving.
-	 */
-	private async _refreshConnection(clientId: string): Promise<void> {
-		const entry = this._entries.get(clientId);
-		if (!entry) {
-			return;
-		}
-		let models: readonly IByokLmModelInfo[];
-		try {
-			models = await entry.connection.listModels();
-		} catch {
-			// The connection didn't answer (e.g. no BYOK handler registered);
-			// leave it non-serving.
-			return;
-		}
-		// Drop the result if the entry was removed/replaced while in flight.
-		if (this._entries.get(clientId) !== entry) {
-			return;
-		}
-		// The connection answered, so this entry is serving. Notify only when the
-		// serving model set actually changed.
-		if (entry.models === undefined || !modelsEqual(entry.models, models)) {
-			entry.models = models;
-			this._notifyChanged();
-		}
 	}
 }
 
@@ -222,10 +177,6 @@ export class NullByokLmBridgeRegistry implements IByokLmBridgeRegistry {
 
 	register(): IDisposable {
 		return Disposable.None;
-	}
-
-	async listModels(): Promise<IByokLmModelInfo[]> {
-		return [];
 	}
 
 	getModels(): readonly IByokLmModelInfo[] {

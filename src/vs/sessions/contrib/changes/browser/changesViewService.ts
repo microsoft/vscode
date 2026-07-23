@@ -13,7 +13,7 @@ import { IContextKeyService, RawContextKey } from '../../../../platform/contextk
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
@@ -21,6 +21,7 @@ import { ActiveSessionState, IChangesViewService } from '../common/changesViewSe
 
 export const ChangesetReviewSupportContext = new RawContextKey<boolean>('sessions.changesetReviewSupport', false);
 export const ChangesetReviewedFilesContext = new RawContextKey<string[]>('sessions.changesetReviewedFiles', []);
+export const ChangesetHasOperationsContext = new RawContextKey<boolean>('sessions.changesetHasOperations', false);
 
 export class ChangesViewService extends Disposable implements IChangesViewService {
 
@@ -318,6 +319,20 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 				.filter(change => change.reviewed)
 				.map(change => change.modifiedUri?.toString() ?? change.originalUri?.toString())
 				.filter((uri: string | undefined) => uri !== undefined);
+		}));
+
+		const changesetOperationCountObs = derivedObservableWithCache<number>(this, (reader, lastValue) => {
+			const changeset = this.activeSessionChangesetObs.read(reader);
+			if (!changeset) {
+				return lastValue ?? 0;
+			}
+
+			const operations = changeset.operations.read(reader);
+			return operations.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset)).length;
+		});
+
+		this._register(bindContextKey<boolean>(ChangesetHasOperationsContext, this.contextKeyService, reader => {
+			return changesetOperationCountObs.read(reader) > 0;
 		}));
 	}
 }

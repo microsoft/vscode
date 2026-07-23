@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { realpath as fsRealpath } from 'fs';
 import { homedir } from 'os';
-import { match as globMatch, parse as globParse, type ParsedPattern } from '../../../base/common/glob.js';
+import { promisify } from 'util';
+import { match as globMatch } from '../../../base/common/glob.js';
 import { untildify } from '../../../base/common/labels.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
 import * as path from '../../../base/common/path.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
-import { Promises } from '../../../base/node/pfs.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
@@ -64,15 +66,7 @@ const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
 	'**/*-lock.{yaml,json}': false,
 };
 
-/**
- * Glob patterns matching dotfiles directly under the user's home directory
- * (e.g. `~/.ssh`, `~/.aws`). Writes to these always require confirmation,
- * even when the working directory sits inside the home directory.
- */
-const HOME_DOTFILE_PATTERNS: readonly ParsedPattern[] = [
-	globParse(homedir() + '/.*'),
-	globParse(homedir() + '/.*/**'),
-];
+const HOME_DIR = URI.file(homedir());
 
 /**
  * Absolute directory prefixes whose contents are platform configuration data
@@ -86,6 +80,8 @@ const PLATFORM_RESTRICTED_DIRS: readonly string[] = (
 			? [homedir() + '/Library']
 			: []
 ).filter(isDefined);
+
+const realpath = promisify(fsRealpath);
 
 /**
  * Validates that a path doesn't contain suspicious characters that could be
@@ -147,13 +143,14 @@ function assertPathIsSafe(fsPath: string, _isWindows = isWindows): void {
 }
 
 /**
- * Resolves the real path of `fsPath`, walking up the parent chain when the path
+ * Resolves the real path of `resource`, walking up the parent chain when the path
  * (or its ancestors) does not yet exist on disk. This ensures a symlink at any
  * ancestor is followed even for files that are about to be created.
  */
-async function resolveRealPathForNonexistent(fsPath: string): Promise<string> {
+async function resolveRealPathForNonexistent(resource: URI, realpath: (fsPath: string) => Promise<string>): Promise<URI> {
+	const fsPath = resource.fsPath;
 	try {
-		return await Promises.realpath(fsPath);
+		return URI.file(await realpath(fsPath));
 	} catch (e) {
 		if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
 			throw e;
@@ -166,11 +163,11 @@ async function resolveRealPathForNonexistent(fsPath: string): Promise<string> {
 		const parent = path.dirname(current);
 		if (parent === current) {
 			// Reached the filesystem root without finding an existing ancestor.
-			return fsPath;
+			return resource;
 		}
 		try {
-			const resolved = await Promises.realpath(current);
-			return path.join(resolved, ...tail);
+			const resolved = await realpath(current);
+			return URI.file(path.join(resolved, ...tail));
 		} catch (e) {
 			const code = (e as NodeJS.ErrnoException).code;
 			if (code !== 'ENOENT' && code !== 'ENOTDIR') {
@@ -204,17 +201,19 @@ async function resolveRealPathForNonexistent(fsPath: string): Promise<string> {
  */
 export class SessionPermissionManager extends Disposable {
 
-
 	// ---- Edit auto-approve patterns -----------------------------------------
 
 	private readonly _commandAutoApprover: CommandAutoApprover;
+	private readonly _realpath: (fsPath: string) => Promise<string>;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
+		options: { realpath?: (fsPath: string) => Promise<string> },
 		@IAgentConfigurationService private readonly _configService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this._realpath = options?.realpath ?? realpath;
 		this._commandAutoApprover = this._register(new CommandAutoApprover(this._logService));
 	}
 
@@ -245,6 +244,7 @@ export class SessionPermissionManager extends Disposable {
 	 */
 	async getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI): Promise<ToolCallConfirmationReason | undefined> {
 		const workDir = this._configService.getEffectiveWorkingDirectory(sessionKey);
+		const workingDirectory = workDir ? URI.parse(workDir) : undefined;
 
 		// 0. Sandbox bypass: a shell command that opted out of the
 		// sandbox (`requestSandboxBypass`) escapes the sandbox's
@@ -270,7 +270,7 @@ export class SessionPermissionManager extends Disposable {
 
 		// 4. Read auto-approval
 		if (e.permissionKind === 'read' && e.permissionPath) {
-			if (this._isPathInWorkingDirectory(e.permissionPath, workDir)) {
+			if (await this._isReadAutoApproved(URI.file(e.permissionPath), workingDirectory)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving read of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
@@ -279,7 +279,7 @@ export class SessionPermissionManager extends Disposable {
 
 		// 5. Write auto-approval
 		if (e.permissionKind === 'write' && e.permissionPath) {
-			if (await this._isEditAutoApproved(e.permissionPath, workDir)) {
+			if (await this._isEditAutoApproved(URI.file(e.permissionPath), workingDirectory)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving write to ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
@@ -293,7 +293,7 @@ export class SessionPermissionManager extends Disposable {
 			}
 			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput, {
 				autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
-				isWriteDestApproved: (dest) => this._isShellWriteDestApproved(dest, workDir),
+				isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectory),
 			});
 			if (result === 'approved') {
 				this._logService.trace('[SessionPermissionManager] Auto-approving shell command');
@@ -316,9 +316,13 @@ export class SessionPermissionManager extends Disposable {
 		return this._configService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true;
 	}
 
+	getEffectiveApprovalLevel(sessionKey: ProtocolURI): string {
+		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
+	}
+
 	isSessionAutoApproveEnabled(sessionKey: ProtocolURI): boolean {
-		// `autoApprove` (Bypass Approvals) auto-approves every tool call.
-		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) === 'autoApprove';
+		// `autoApprove` (Allow All) auto-approves every tool call.
+		return this.getEffectiveApprovalLevel(sessionKey) === 'autoApprove';
 	}
 
 	// ---- Action construction (analogous to getPreConfirmActions) -------------
@@ -339,6 +343,7 @@ export class SessionPermissionManager extends Disposable {
 				invocationMessage: state.invocationMessage,
 				toolInput: state.toolInput,
 				confirmationTitle: state.confirmationTitle,
+				riskAssessment: state.riskAssessment,
 				edits: state.edits,
 				editable: state.editable,
 				...(state._meta ? { _meta: state._meta } : {}),
@@ -381,12 +386,26 @@ export class SessionPermissionManager extends Disposable {
 
 	// ---- Internal helpers ---------------------------------------------------
 
-	private _isPathInWorkingDirectory(filePath: string, workDir: string | undefined): boolean {
-		if (!workDir) {
+	private async _isReadAutoApproved(resource: URI, workingDirectory: URI | undefined): Promise<boolean> {
+		if (!workingDirectory) {
 			return false;
 		}
-		const workingDirectory = URI.parse(workDir);
-		return extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(filePath)), workingDirectory);
+
+		const [resourcesToCheck, workingDirectories] = await Promise.all([
+			this._resolveResourcesForApproval(resource),
+			this._resolveResourcesForApproval(workingDirectory),
+		]);
+		return resourcesToCheck !== undefined
+			&& workingDirectories !== undefined
+			&& resourcesToCheck.every(candidate => workingDirectories.some(directory => this._isResourceInDirectory(candidate, directory)));
+	}
+
+	private _isResourceInWorkingDirectory(resource: URI, workingDirectory: URI | undefined): boolean {
+		return workingDirectory !== undefined && this._isResourceInDirectory(resource, workingDirectory);
+	}
+
+	private _isResourceInDirectory(resource: URI, directory: URI): boolean {
+		return extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(resource), normalizePath(directory));
 	}
 
 	/**
@@ -395,12 +414,12 @@ export class SessionPermissionManager extends Disposable {
 	 * rules that govern write tool calls: the destination must resolve to a
 	 * path inside the working directory and must not match a denied glob.
 	 */
-	private _isShellWriteDestApproved(dest: string, workDir: string | undefined): boolean {
-		const resolved = this._resolveShellRedirectPath(dest, workDir);
-		if (!resolved) {
+	private _isShellWriteDestApproved(dest: string, workingDirectory: URI | undefined): boolean {
+		const resource = this._resolveShellRedirectResource(dest, workingDirectory);
+		if (!resource) {
 			return false;
 		}
-		return this._checkWritePath(resolved, workDir);
+		return this._checkWriteResource(resource, workingDirectory);
 	}
 
 	/**
@@ -410,22 +429,22 @@ export class SessionPermissionManager extends Disposable {
 	 * the workspace. Returns `undefined` when resolution would require a
 	 * working directory that isn't configured.
 	 */
-	private _resolveShellRedirectPath(dest: string, workDir: string | undefined): string | undefined {
+	private _resolveShellRedirectResource(dest: string, workingDirectory: URI | undefined): URI | undefined {
 		const trimmed = untildify(dest.trim(), homedir());
 		if (!trimmed) {
 			return undefined;
 		}
 		if (path.isAbsolute(trimmed)) {
-			return trimmed;
+			return URI.file(trimmed);
 		}
-		if (!workDir) {
+		if (!workingDirectory) {
 			return undefined;
 		}
-		return path.resolve(URI.parse(workDir).fsPath, trimmed);
+		return URI.file(path.resolve(workingDirectory.fsPath, trimmed));
 	}
 
 	/**
-	 * Determines whether a write to `filePath` can be auto-approved. Mirrors the
+	 * Determines whether a write to `resource` can be auto-approved. Mirrors the
 	 * checks performed by the workbench edit-confirmation pipeline:
 	 *
 	 * 1. The path is resolved through any symlinks (following ancestors that do
@@ -437,71 +456,71 @@ export class SessionPermissionManager extends Disposable {
 	 *    `~/Library`, `%APPDATA%`, ...).
 	 * 5. The path must match the edit auto-approve glob rules.
 	 */
-	private async _isEditAutoApproved(filePath: string, workDir: string | undefined): Promise<boolean> {
-		const pathsToCheck = await this._resolveWritePaths(filePath);
-		return pathsToCheck !== undefined && pathsToCheck.every(p => this._checkWritePath(p, workDir));
+	private async _isEditAutoApproved(resource: URI, workingDirectory: URI | undefined): Promise<boolean> {
+		const resourcesToCheck = await this._resolveResourcesForApproval(resource);
+		return resourcesToCheck !== undefined && resourcesToCheck.every(candidate => this._checkWriteResource(candidate, workingDirectory));
 	}
 
 	/**
-	 * Returns the set of paths that must each pass the write checks: the literal
-	 * path plus, for absolute paths, the symlink-resolved real path. Returns
-	 * `undefined` when the path cannot be resolved due to missing permissions,
-	 * signalling that confirmation is required.
+	 * Returns the literal path plus, for absolute paths, the symlink-resolved
+	 * real path. Returns `undefined` when the path cannot be resolved due to
+	 * missing permissions, signalling that confirmation is required.
 	 */
-	private async _resolveWritePaths(filePath: string): Promise<string[] | undefined> {
-		const pathsToCheck = [filePath];
-		if (path.isAbsolute(filePath)) {
-			try {
-				const linked = await resolveRealPathForNonexistent(filePath);
-				if (linked !== filePath) {
-					pathsToCheck.push(linked);
-				}
-			} catch (e) {
-				const code = (e as NodeJS.ErrnoException).code;
-				if (code === 'EPERM' || code === 'EACCES') {
-					// No permission to resolve the path — require confirmation.
-					return undefined;
-				}
-				// Otherwise fall back to checking the literal path only.
-			}
+	private async _resolveResourcesForApproval(resource: URI): Promise<URI[] | undefined> {
+		const resourcesToCheck = [resource];
+		if (resource.scheme !== Schemas.file) {
+			return resourcesToCheck;
 		}
-		return pathsToCheck;
+		try {
+			const resolved = await resolveRealPathForNonexistent(resource, this._realpath);
+			if (!extUriBiasedIgnorePathCase.isEqual(resolved, resource)) {
+				resourcesToCheck.push(resolved);
+			}
+		} catch (e) {
+			const code = (e as NodeJS.ErrnoException).code;
+			if (code === 'EPERM' || code === 'EACCES') {
+				// No permission to resolve the path — require confirmation.
+				return undefined;
+			}
+			// Otherwise fall back to checking the literal resource only.
+		}
+		return resourcesToCheck;
 	}
 
-	/** Runs the per-path write checks for a single (already symlink-resolved) path. */
-	private _checkWritePath(filePath: string, workDir: string | undefined): boolean {
+	/** Runs the write checks for a single (already symlink-resolved) resource. */
+	private _checkWriteResource(resource: URI, workingDirectory: URI | undefined): boolean {
 		try {
-			assertPathIsSafe(filePath);
+			assertPathIsSafe(resource.fsPath);
 		} catch {
 			return false;
 		}
-		if (!this._isPathInWorkingDirectory(filePath, workDir)) {
+		if (!this._isResourceInWorkingDirectory(resource, workingDirectory)) {
 			return false;
 		}
-		if (this._isPlatformRestrictedPath(filePath, workDir)) {
+		if (this._isPlatformRestrictedResource(resource, workingDirectory)) {
 			return false;
 		}
-		return this._matchesEditAutoApprovePatterns(filePath);
+		return this._matchesEditAutoApprovePatterns(resource.fsPath);
 	}
 
 	/**
-	 * Returns whether `filePath` targets a platform-restricted location that
+	 * Returns whether `resource` targets a platform-restricted location that
 	 * should always require confirmation. Edits within home-directory dotfiles
 	 * are never auto-approved. Edits within platform config directories are
 	 * allowed only when the working directory itself lives inside them.
 	 */
-	private _isPlatformRestrictedPath(filePath: string, workDir: string | undefined): boolean {
-		if (HOME_DOTFILE_PATTERNS.some(pattern => pattern(filePath))) {
+	private _isPlatformRestrictedResource(resource: URI, workingDirectory: URI | undefined): boolean {
+		const relativeToHome = extUriBiasedIgnorePathCase.relativePath(HOME_DIR, resource);
+		const topLevelName = relativeToHome?.split('/')[0];
+		if (extUriBiasedIgnorePathCase.isEqualOrParent(resource, HOME_DIR) && topLevelName?.startsWith('.')) {
 			return true;
 		}
 
-		const uri = URI.file(filePath);
-		const workspaceFolder = workDir ? URI.parse(workDir) : undefined;
 		for (const restricted of PLATFORM_RESTRICTED_DIRS) {
 			const parentURI = URI.file(restricted);
-			if (extUriBiasedIgnorePathCase.isEqualOrParent(uri, parentURI)) {
+			if (extUriBiasedIgnorePathCase.isEqualOrParent(resource, parentURI)) {
 				// Allow edits when the working directory is opened inside the restricted area.
-				return !(workspaceFolder && extUriBiasedIgnorePathCase.isEqualOrParent(workspaceFolder, parentURI));
+				return !(workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, parentURI));
 			}
 		}
 		return false;
