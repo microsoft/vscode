@@ -160,7 +160,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
 				e.affectsConfiguration('agents.voice.turn.silenceMs') ||
-				e.affectsConfiguration('agents.voice.turn.stopPhrases')
+				e.affectsConfiguration('agents.voice.turn.stopPhrases') ||
+				e.affectsConfiguration('agents.voice.handsFree')
 			) {
 				this._sendSetTurnConfig();
 			}
@@ -224,24 +225,51 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	/**
+	 * Whether a configuration setting has an explicit user/workspace/application
+	 * value, as opposed to falling back to its registered default.
+	 */
+	private _isExplicitlyConfigured(key: string): boolean {
+		const inspected = this._configurationService.inspect(key);
+		return inspected.userValue !== undefined
+			|| inspected.userLocalValue !== undefined
+			|| inspected.userRemoteValue !== undefined
+			|| inspected.workspaceValue !== undefined
+			|| inspected.workspaceFolderValue !== undefined
+			|| inspected.applicationValue !== undefined;
+	}
+
+	/**
 	 * Assemble the ``turn_config`` wire object from the ``agents.voice.turn.*``
 	 * settings, normalizing each into the shape the backend expects. The
 	 * ``auto_end_mode`` is derived from the other two settings: trailing-silence
 	 * ending is enabled unless ``silenceMs`` is ``-1`` (or otherwise non-positive),
 	 * and stop-phrase ending is enabled when at least one phrase is configured.
+	 *
+	 * When hands-free mode (``agents.voice.handsFree``) is disabled, the turn is
+	 * not sent automatically by default: trailing-silence and stop-phrase ending
+	 * are each suppressed unless the corresponding setting has been explicitly
+	 * configured, so a user who opts out of the hands-free loop keeps manual
+	 * control over when a turn is sent.
 	 */
 	private _getTurnConfig(): IVoiceTurnConfig {
 		const cfg = this._configurationService;
+		const handsFree = cfg.getValue<boolean>('agents.voice.handsFree') === true;
 
 		const silenceRaw = cfg.getValue<number>('agents.voice.turn.silenceMs');
-		const silenceEnabled = typeof silenceRaw === 'number' && silenceRaw > 0;
+		let silenceEnabled = typeof silenceRaw === 'number' && silenceRaw > 0;
+		if (!handsFree && !this._isExplicitlyConfigured('agents.voice.turn.silenceMs')) {
+			silenceEnabled = false;
+		}
 		const silence_ms = silenceEnabled ? Math.round(silenceRaw) : 800;
 
 		const phrasesRaw = cfg.getValue<string[]>('agents.voice.turn.stopPhrases');
 		const stop_phrases = Array.isArray(phrasesRaw)
 			? phrasesRaw.map(p => String(p).trim()).filter(p => p.length > 0)
 			: [];
-		const phrasesEnabled = stop_phrases.length > 0;
+		let phrasesEnabled = stop_phrases.length > 0;
+		if (!handsFree && !this._isExplicitlyConfigured('agents.voice.turn.stopPhrases')) {
+			phrasesEnabled = false;
+		}
 
 		const auto_end_mode: IVoiceTurnConfig['auto_end_mode'] =
 			silenceEnabled && phrasesEnabled ? 'both'
@@ -249,7 +277,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					: phrasesEnabled ? 'phrase'
 						: 'off';
 
-		return { auto_end_mode, silence_ms, stop_phrases, vad_gate_asr: true };
+		return { auto_end_mode, silence_ms, stop_phrases: phrasesEnabled ? stop_phrases : [], vad_gate_asr: true };
 	}
 
 	private _sendSetTurnConfig(): void {
