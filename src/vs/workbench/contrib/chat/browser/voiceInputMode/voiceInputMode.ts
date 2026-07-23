@@ -53,19 +53,6 @@ export const CHAT_VOICE_INPUT_MODE = new RawContextKey<VoiceInputMode>('chatVoic
  */
 export const VoiceInputModeSegmentedSettingId = 'chat.voiceInputMode.segmentedToggle';
 
-/**
- * The two voice-mode interaction styles the segmented toggle can present. Both keep the
- * unified Dictation/Voice housing; they differ only in how the user drives listening:
- * - `holdToTalk`:   the voice button is push-to-talk — hold it (or the keybinding) to
- *                   talk, release to send; a quick tap turns Voice Mode off.
- * - `listenButton`: the voice button is a power toggle (connect/disconnect) and a
- *                   separate person-voice button toggles listening on and off.
- */
-export type VoiceInteractionStyle = 'holdToTalk' | 'listenButton';
-
-/** Which of the two voice-mode interaction styles the segmented toggle presents. */
-export const VoiceInputModeInteractionStyleSettingId = 'chat.voiceInputMode.interactionStyle';
-
 const STORAGE_KEY = 'chat.voiceInputMode.selected';
 
 export const IVoiceInputModeService = createDecorator<IVoiceInputModeService>('voiceInputModeService');
@@ -84,9 +71,6 @@ export interface IVoiceInputModeService {
 
 	/** Whether Voice Mode runs hands-free (auto-listen) vs manual push-to-talk. */
 	readonly handsFree: IObservable<boolean>;
-
-	/** Which interaction style the voice segment presents (hold-to-talk vs listen button). */
-	readonly interactionStyle: IObservable<VoiceInteractionStyle>;
 
 	/** Dev/preview override for the voice-cell visual state (undefined = real state). */
 	readonly simulatedVoiceState: IObservable<SimulatedVoiceState | undefined>;
@@ -132,7 +116,6 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 	readonly voiceAvailable: IObservable<boolean>;
 	readonly dictationAvailable: IObservable<boolean>;
 	readonly handsFree: IObservable<boolean>;
-	readonly interactionStyle: IObservable<VoiceInteractionStyle>;
 
 	private readonly _simulatedVoiceState = observableValue<SimulatedVoiceState | undefined>(this, undefined);
 	readonly simulatedVoiceState: IObservable<SimulatedVoiceState | undefined> = this._simulatedVoiceState;
@@ -176,10 +159,6 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 		this.handsFree = observableFromEvent(this,
 			configurationService.onDidChangeConfiguration,
 			() => (configurationService.getValue<number>('agents.voice.autoSendDelay') ?? 500) >= 0);
-
-		this.interactionStyle = observableFromEvent(this,
-			configurationService.onDidChangeConfiguration,
-			() => configurationService.getValue<VoiceInteractionStyle>(VoiceInputModeInteractionStyleSettingId) === 'listenButton' ? 'listenButton' : 'holdToTalk');
 
 		this._contextKey = CHAT_VOICE_INPUT_MODE.bindTo(contextKeyService);
 		this._register(autorun(reader => {
@@ -350,17 +329,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			tags: ['experimental'],
 			description: localize('chat.voiceInputMode.segmentedToggle', "Show a single segmented Dictation / Voice Mode toggle in the chat input instead of two separate microphone buttons."),
-		},
-		[VoiceInputModeInteractionStyleSettingId]: {
-			type: 'string',
-			enum: ['holdToTalk', 'listenButton'],
-			enumDescriptions: [
-				localize('chat.voiceInputMode.interactionStyle.holdToTalk', "The voice button is push-to-talk: hold it (or the keybinding) to talk and release to send; a quick tap turns Voice Mode off."),
-				localize('chat.voiceInputMode.interactionStyle.listenButton', "The voice button connects and disconnects Voice Mode, and a separate button toggles listening on and off."),
-			],
-			default: 'holdToTalk',
-			tags: ['experimental'],
-			description: localize('chat.voiceInputMode.interactionStyle', "How the segmented Voice Mode control drives listening. Only applies when {0} is enabled.", VoiceInputModeSegmentedSettingId),
 		}
 	}
 });

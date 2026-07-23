@@ -266,12 +266,13 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 	private _voiceHovering = false;
 	private _voiceLive = false;
 	private _barData: Uint8Array | undefined;
-	// Button hold-to-talk (pointer) state.
-	private _voiceHoldTimer: number | undefined;
-	private _voiceHoldListening = false;
-	private _voiceHoldGesture = false;
-	private _voiceSuppressClick = false;
-	private readonly _voicePointerUp = this._register(new MutableDisposable());
+
+	// Hold-to-talk gesture state for the listen cell: press-and-hold records, release sends.
+	private _listenHoldTimer: number | undefined;
+	private _listenHoldListening = false;
+	private _listenHoldGesture = false;
+	private _listenSuppressClick = false;
+	private readonly _listenPointerUp = this._register(new MutableDisposable());
 
 	constructor(
 		action: IAction,
@@ -323,34 +324,16 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._voiceCell,
 			() => {
 				const connectedish = this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get() || this.voiceInputModeService.simulatedVoiceState.get() === 'idle' || this.voiceInputModeService.simulatedVoiceState.get() === 'listening' || this.voiceInputModeService.simulatedVoiceState.get() === 'speaking';
-				if (!connectedish) {
-					return localize('voiceInputMode.voice', "Voice Mode");
-				}
-				return this.voiceInputModeService.interactionStyle.get() === 'listenButton'
+				return connectedish
 					? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
-					: localize('voiceInputMode.holdOrTap', "Hold to talk, tap to turn off Voice Mode");
+					: localize('voiceInputMode.voice', "Voice Mode");
 			}));
-		// Voice button interaction depends on the interaction style:
-		//   - holdToTalk:   hold to record (release sends); a quick tap turns Voice Mode off.
-		//   - listenButton: a plain click is a power toggle (connect / disconnect); the
-		//                   separate listen cell drives listening.
-		this._register(dom.addDisposableListener(this._voiceCell, dom.EventType.MOUSE_DOWN, e => {
-			if (e.button !== 0 || this.voiceInputModeService.interactionStyle.get() !== 'holdToTalk') {
-				return;
-			}
-			this._onVoicePointerDown();
-		}));
+		// The voice button is a plain power toggle (connect / disconnect). Listening is
+		// driven by the separate listen cell in manual mode and by the auto-listen loop
+		// in hands-free mode.
 		this._register(dom.addDisposableListener(this._voiceCell, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e, true);
-			if (this._voiceSuppressClick) {
-				this._voiceSuppressClick = false;
-				return; // trailing click after a hold — do not also disconnect
-			}
-			if (this.voiceInputModeService.interactionStyle.get() === 'listenButton') {
-				this._onClickVoicePowerToggle();
-			} else {
-				this._onClickVoice();
-			}
+			this._onClickVoicePowerToggle();
 		}));
 		// Pause the audio-reactive bars while hovering so the CSS "silent" preview shows.
 		this._register(dom.addDisposableListener(this._voiceCell, dom.EventType.MOUSE_ENTER, () => {
@@ -362,15 +345,30 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._syncBarAnimation();
 		}));
 
-		// --- Listen cell (listenButton style only): person-voice icon that toggles listening. ---
+		// --- Listen cell: person-voice icon that toggles listening in manual voice mode. ---
 		this._listenCell = dom.append(this._reel, dom.$('button.chat-voice-input-mode-cell.listen'));
 		this._listenCell.setAttribute('type', 'button');
 		this._listenCell.setAttribute('role', 'button');
 		this._listenCell.setAttribute('aria-label', localize('voiceInputMode.listenToggle', "Toggle Listening"));
 		this._listenIcon = dom.append(this._listenCell, dom.$('span.chat-voice-input-mode-icon'));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._listenCell, localize('voiceInputMode.listenToggle', "Toggle Listening")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._listenCell,
+			() => this.voiceSessionController.voiceState.get() === 'listening'
+				? localize('voiceInputMode.stopListening', "Stop Listening")
+				: localize('voiceInputMode.startOrHoldListening', "Tap to start, or hold to talk")));
+		// The listen cell supports two gestures: a tap toggles listening on/off, and a
+		// press-and-hold records while held and sends on release (hold-to-talk).
+		this._register(dom.addDisposableListener(this._listenCell, dom.EventType.MOUSE_DOWN, e => {
+			if (e.button !== 0) {
+				return;
+			}
+			this._onListenPointerDown();
+		}));
 		this._register(dom.addDisposableListener(this._listenCell, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e, true);
+			if (this._listenSuppressClick) {
+				this._listenSuppressClick = false;
+				return; // trailing click after a hold — the release already handled it
+			}
 			this._onClickListen();
 		}));
 
@@ -383,7 +381,6 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._register(autorun(reader => {
 			const dictationAvailable = this.voiceInputModeService.dictationAvailable.read(reader);
 			const voiceAvailable = this.voiceInputModeService.voiceAvailable.read(reader);
-			const interactionStyle = this.voiceInputModeService.interactionStyle.read(reader);
 			const simHandsFree = this.voiceInputModeService.simulatedHandsFree.read(reader);
 			const handsFree = simHandsFree ?? this.voiceInputModeService.handsFree.read(reader);
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
@@ -412,16 +409,16 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			const voiceOn = connected || connecting;
 			this._voiceLive = voiceLive;
 
-			// The dedicated listen toggle only exists in the listenButton style, and only in
-			// manual (non-hands-free) connected voice mode. In holdToTalk style listening is
-			// driven by holding the voice button / keybinding, so there is no listen cell.
-			const showListen = interactionStyle === 'listenButton' && voiceOn && !handsFree;
+			// The dedicated listen (start/stop speaking) toggle shows in manual
+			// (non-hands-free) connected voice mode. In hands-free mode the auto-listen
+			// loop drives listening, so there is no listen cell.
+			const showListen = voiceOn && !handsFree;
 
 			// Presence of each cell. The housing is a constant size; the absent cell
 			// collapses its width to 0 (mask recenters) so icons slide into place.
 			//   - dictation: shown when NOT in voice mode (home menu / dictating)
 			//   - voice:     shown unless dictation is actively recording
-			//   - listen:    shown only in manual-connected voice mode (listenButton style)
+			//   - listen:    shown only in manual-connected voice mode
 			const dictationPresent = dictationAvailable && !voiceOn;
 			const voicePresent = voiceAvailable && !isDictating;
 			const listenPresent = showListen;
@@ -449,15 +446,13 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._voiceCell!.classList.toggle('listening', listening);
 			this._voiceCell!.classList.toggle('speaking', speaking);
 			this._voiceCell!.setAttribute('aria-pressed', String(voiceOn));
-			this._voiceCell!.setAttribute('aria-label', !voiceOn
-				? localize('voiceInputMode.voice', "Voice Mode")
-				: interactionStyle === 'listenButton'
-					? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
-					: localize('voiceInputMode.holdOrTap', "Hold to talk, tap to turn off Voice Mode"));
+			this._voiceCell!.setAttribute('aria-label', voiceOn
+				? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
+				: localize('voiceInputMode.voice', "Voice Mode"));
 			// Simulated hover (walkthrough only) mirrors the real :hover disconnect preview.
 			this._voiceCell!.classList.toggle('sim-hover', this.voiceInputModeService.simulatedHover.read(reader));
 
-			// Listen / don't-listen toggle (listenButton style): person-voice icon,
+			// Listen / don't-listen toggle: person-voice icon,
 			// filled while listening, outline otherwise.
 			this._listenCell!.classList.toggle('collapsed', !listenPresent);
 			this._listenCell!.classList.toggle('active', listening);
@@ -552,86 +547,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this.commandService.executeCommand(dictating ? DICTATION_STOP_COMMAND_ID : DICTATION_START_COMMAND_ID);
 	}
 
-	private _onClickVoice(): void {
-		this.voiceInputModeService.setSelectedMode('voice');
-
-		// Mutual exclusion: stop dictation before entering Voice Mode.
-		if (this.speechService.hasActiveSpeechToTextSession) {
-			this.commandService.executeCommand(DICTATION_STOP_COMMAND_ID);
-		}
-
-		// Power toggle: same button connects when off and disconnects when on (a quick tap
-		// while connected). Listening is hold-to-talk (button hold / keybinding), so
-		// connecting just brings the session online in its idle "on" state.
-		const controller = this.voiceSessionController;
-		if (controller.isConnected.get() || controller.isConnecting.get()) {
-			controller.disconnect();
-		} else {
-			const targetWindow = getWindow(this._voiceCell);
-			controller.connect(targetWindow).catch(() => { /* surfaced/logged by the controller */ });
-		}
-	}
-
-	/** Threshold (ms) separating a quick tap (disconnect) from a hold (talk). */
-	private static readonly HOLD_THRESHOLD_MS = 180;
-
-	private _onVoicePointerDown(): void {
-		const controller = this.voiceSessionController;
-		// Only connected sessions support hold-to-talk; when disconnected let the click connect.
-		if (!controller.isConnected.get()) {
-			return;
-		}
-		this.voiceInputModeService.setSelectedMode('voice');
-		this._voiceHoldGesture = true;
-		this._voiceHoldListening = false;
-		const win = getWindow(this._voiceCell);
-		// Start listening only after the hold threshold, so a quick tap (disconnect) does
-		// not briefly flash the listening state.
-		this._voiceHoldTimer = win.setTimeout(() => {
-			this._voiceHoldTimer = undefined;
-			if (controller.isConnected.get()) {
-				this._voiceHoldListening = true;
-				controller.pttDown('explicit', true);
-			}
-		}, VoiceInputModeActionViewItem.HOLD_THRESHOLD_MS);
-		// End the gesture on release anywhere (in case the pointer leaves the button).
-		this._voicePointerUp.value = dom.addDisposableListener(win, dom.EventType.MOUSE_UP, () => this._endVoicePointerHold());
-	}
-
-	private _endVoicePointerHold(): void {
-		if (!this._voiceHoldGesture) {
-			return;
-		}
-		this._voiceHoldGesture = false;
-		this._voicePointerUp.clear();
-		if (this._voiceHoldTimer !== undefined) {
-			// Released before the threshold → a tap; let the click turn Voice Mode off.
-			getWindow(this._voiceCell).clearTimeout(this._voiceHoldTimer);
-			this._voiceHoldTimer = undefined;
-			this._voiceSuppressClick = false;
-		} else if (this._voiceHoldListening) {
-			// Held past the threshold → end the turn and send; suppress the trailing click
-			// so it does not also disconnect.
-			this._voiceHoldListening = false;
-			this._voiceSuppressClick = true;
-			this.voiceSessionController.pttUp('explicit', true);
-		}
-	}
-
-	override dispose(): void {
-		// If the view item is disposed mid-hold (widget closed/rerendered), finalize the
-		// gesture: clear the pending hold timer and, if we already started recording,
-		// send the turn — otherwise the controller keeps recording until its
-		// max-duration timeout.
-		if (this._voiceHoldGesture || this._voiceHoldTimer !== undefined) {
-			this._endVoicePointerHold();
-		}
-		super.dispose();
-	}
-
 	/**
-	 * listenButton style: the voice button is a power toggle. Connecting also begins
-	 * listening so the user can talk immediately; the separate listen cell then toggles
+	 * The voice button is a power toggle. Connecting also begins listening so the user
+	 * can talk immediately; in manual mode the separate listen cell then toggles
 	 * listening on and off.
 	 */
 	private _onClickVoicePowerToggle(): void {
@@ -656,7 +574,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	/** listenButton style: toggle listening on and off via the person-voice cell. */
+	/** Tap the person-voice cell to toggle listening on and off. */
 	private _onClickListen(): void {
 		const controller = this.voiceSessionController;
 		if (!controller.isConnected.get()) {
@@ -670,6 +588,61 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			controller.pttDown();
 			controller.pttUp();
 		}
+	}
+
+	/** Threshold (ms) separating a quick tap (toggle) from a press-and-hold (talk). */
+	private static readonly HOLD_THRESHOLD_MS = 180;
+
+	private _onListenPointerDown(): void {
+		const controller = this.voiceSessionController;
+		// Hold-to-talk only applies to a connected, non-listening session; otherwise let
+		// the trailing click drive the plain toggle.
+		if (!controller.isConnected.get() || controller.voiceState.get() === 'listening') {
+			return;
+		}
+		this._listenHoldGesture = true;
+		this._listenHoldListening = false;
+		const win = getWindow(this._listenCell);
+		// Start listening only after the hold threshold, so a quick tap (toggle) does not
+		// briefly flash the listening state.
+		this._listenHoldTimer = win.setTimeout(() => {
+			this._listenHoldTimer = undefined;
+			if (controller.isConnected.get()) {
+				this._listenHoldListening = true;
+				controller.pttDown('explicit', true);
+			}
+		}, VoiceInputModeActionViewItem.HOLD_THRESHOLD_MS);
+		// End the gesture on release anywhere (in case the pointer leaves the button).
+		this._listenPointerUp.value = dom.addDisposableListener(win, dom.EventType.MOUSE_UP, () => this._endListenPointerHold());
+	}
+
+	private _endListenPointerHold(): void {
+		if (!this._listenHoldGesture) {
+			return;
+		}
+		this._listenHoldGesture = false;
+		this._listenPointerUp.clear();
+		if (this._listenHoldTimer !== undefined) {
+			// Released before the threshold → a tap; let the trailing click toggle listening.
+			getWindow(this._listenCell).clearTimeout(this._listenHoldTimer);
+			this._listenHoldTimer = undefined;
+			this._listenSuppressClick = false;
+		} else if (this._listenHoldListening) {
+			// Held past the threshold → end the turn and send; suppress the trailing click
+			// so it does not immediately restart listening.
+			this._listenHoldListening = false;
+			this._listenSuppressClick = true;
+			this.voiceSessionController.pttUp('explicit', true);
+		}
+	}
+
+	override dispose(): void {
+		// If disposed mid-hold (widget closed/rerendered), finalize the gesture so the
+		// controller does not keep recording until its max-duration timeout.
+		if (this._listenHoldGesture || this._listenHoldTimer !== undefined) {
+			this._endListenPointerHold();
+		}
+		super.dispose();
 	}
 }
 
