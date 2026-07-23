@@ -24,7 +24,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -307,6 +307,10 @@ const emptyInputAttachments = observableMemento<readonly IChatRequestVariableEnt
 	fromStorage: deserializeUntitledInputAttachments,
 });
 
+interface IChatToolConfirmationCarouselEntry extends IDisposable {
+	readonly part: ChatToolConfirmationCarouselPart;
+}
+
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	private static _counter = 0;
 
@@ -321,7 +325,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _chatPlanReviewWidgets = this._register(new DisposableMap<string, ChatPlanReviewPart>());
 	private readonly _planReviewResponseIds = new Map<string, string>();
 	private readonly _planReviewSessionResources = new Map<string, URI>();
-	private readonly _chatToolConfirmationCarousels = this._register(new DisposableMap<string, ChatToolConfirmationCarouselPart>());
+	private readonly _chatToolConfirmationCarousels = this._register(new DisposableMap<string, IChatToolConfirmationCarouselEntry>());
 	private readonly _chatEditingTodosDisposables = this._register(new DisposableStore());
 	private _lastEditingSessionResource: URI | undefined;
 
@@ -3934,7 +3938,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private get _currentToolConfirmationCarousel(): ChatToolConfirmationCarouselPart | undefined {
 		const key = this._currentSessionKey;
-		return key ? this._chatToolConfirmationCarousels.get(key) : undefined;
+		return key ? this._chatToolConfirmationCarousels.get(key)?.part : undefined;
 	}
 
 	renderToolConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory, subAgentInvocationId?: string, agentName?: string, scrollToSubagent?: ScrollToSubagentCallback, toolPart?: ChatToolInvocationPart): ChatToolConfirmationCarouselPart {
@@ -3952,19 +3956,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const part = new ChatToolConfirmationCarouselPart(factory, [], scrollToSubagent, subAgentInvocationId, agentName);
 		part.addToolInvocation(tool, subAgentInvocationId, agentName, scrollToSubagent, toolPart);
-		this._chatToolConfirmationCarousels.set(key, part);
 		dom.append(this.chatToolConfirmationCarouselContainer, part.domNode);
 		dom.show(this.chatToolConfirmationCarouselContainer);
 		this.updateToolConfirmationCarouselMaxHeight();
 
 		const capturedKey = key;
-		this._register(Event.once(part.onDidEmpty)(() => {
+		const emptyListener = Event.once(part.onDidEmpty)(() => {
 			this._chatToolConfirmationCarousels.deleteAndDispose(capturedKey);
 			if (this._currentSessionKey === capturedKey) {
 				dom.clearNode(this.chatToolConfirmationCarouselContainer);
 				dom.hide(this.chatToolConfirmationCarouselContainer);
 			}
-		}));
+		});
+		const disposable = combinedDisposable(part, emptyListener);
+		this._chatToolConfirmationCarousels.set(key, { part, dispose: () => disposable.dispose() });
 
 		return part;
 	}
