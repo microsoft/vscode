@@ -8,39 +8,17 @@ import { AgentSession } from '../../common/agentService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../../common/state/protocol/commands.js';
 import { Customization, CustomizationType, DirectoryCustomization, MessageAttachmentKind, PluginCustomization, SkillCustomization } from '../../common/state/protocol/state.js';
 import { toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
+import { getCopilotConfigSlashCommandItems, ICopilotConfigSlashCommandState, isCopilotConfigSlashCommand } from '../../common/copilotConfigSlashCommands.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from '../agentHostCompletions.js';
 import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken } from '../agentHostSlashCompletion.js';
-import { localize } from '../../../../nls.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
+import type { CopilotSession } from '@github/copilot-sdk';
 
-const HIDDEN_RUNTIME_COMMANDS = new Set<string>(['agent', 'app', 'changelog', 'context', 'copy', 'cwd', 'exit', 'extensions', 'feedback', 'help', 'ide', 'instructions', 'login', 'logout', 'mcp', 'model', 'new', 'plugin', 'rename', 'restart', 'resume', 'sandbox', 'session', 'settings', 'skills', 'statusline', 'streamer-mode', 'subagents', 'tasks', 'terminal-setup', 'theme', 'undo', 'update', 'user', 'voice', 'worktree', 'autopilot', 'yolo']);
+export { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
+
+const HIDDEN_RUNTIME_COMMANDS = new Set<string>(['agent', 'app', 'changelog', 'context', 'copy', 'exit', 'extensions', 'feedback', 'help', 'ide', 'instructions', 'login', 'logout', 'mcp', 'model', 'new', 'plugin', 'rename', 'restart', 'resume', 'sandbox', 'session', 'settings', 'skills', 'statusline', 'streamer-mode', 'subagents', 'tasks', 'terminal-setup', 'theme', 'undo', 'update', 'user', 'voice', 'worktree', 'autopilot', 'yolo', 'cd', 'cwd', 'after', 'before', 'add-dir', 'allow-all', 'list-dirs', 'reset-allowed-tools']);
 
 export const DEFAULT_RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
-
-const CommandOptionDescriptions: Record<string, string> = {
-	'chronicle:cost-tips': localize('copilot.command.chronicle.cost.tips', "Get personalized tips to reduce token usage and Copilot cost"),
-	'chronicle:improve': localize('copilot.command.chronicle.improve', "Get personalized tips to improve your chat session usage"),
-	'chronicle:reindex': localize('copilot.command.chronicle.reindex', "Rebuild the local session index and sync to cloud"),
-	'chronicle:search': localize('copilot.command.chronicle.search', "Search recent chat sessions by keyword, file path, or PR/issue ref"),
-	'chronicle:standup': localize('copilot.command.chronicle.standup', "Generate a standup report from recent chat sessions"),
-	'chronicle:tips': localize('copilot.command.chronicle.tips', "Get personalized tips based on your chat session usage patterns"),
-};
-
-// Some hints like `prompt` or `directory` are not useful to show in the completion list, so we ignore them.
-// They are not useful as completion items.
-const CommandOptionsToIgnore = new Set([
-	'add-dir:directory',
-	'after:<delay> <prompt>',
-	'compact:focus instructions',
-	'directory',
-	'every:<interval> <prompt>',
-	'fleet:prompt',
-	'loop:<interval> <prompt>',
-	'plan:prompt',
-	'research:topic',
-	'review:additional instructions',
-	'security-review:additional instructions'
-]);
 
 /**
  * Lookup hooks used by {@link CopilotSlashCommandCompletionProvider} to
@@ -55,41 +33,16 @@ export interface ICopilotSlashCommandSessionInfo {
 	/** Runtime slash commands discovered from the SDK session. */
 	getRuntimeSlashCommands?(sessionId: string, options?: ICopilotRuntimeSlashCommandQueryOptions): Promise<readonly ICopilotRuntimeSlashCommandInfo[]>;
 	getSessionCustomizations: (session: string) => Promise<readonly Customization[]>;
+	/**
+	 * The session's current config state (`mode` / `autoApprove` axes), used to
+	 * filter config-action slash command completions so only the state-changing
+	 * forms are offered. When omitted, all forms are offered.
+	 */
+	getSessionConfigState?(sessionId: string): ICopilotConfigSlashCommandState | undefined;
 }
 
 export interface ICopilotRuntimeSlashCommandQueryOptions {
 	readonly maxWaitMs?: number;
-}
-
-/**
- * Result of {@link parseLeadingSlashCommand}.
- */
-export interface IParsedLeadingSlashCommand {
-	readonly command: string;
-	/** Trimmed text following the command (empty if none). */
-	readonly rest: string;
-	/** Raw text after the command delimiter (preserves multiline text). */
-	readonly rawRest: string;
-}
-
-/**
- * Parses a Copilot CLI slash command at the very start of `prompt`.
- *
- * Accepts any `/command` token where `command` is a single non-whitespace
- * segment (no leading/trailing spaces, no embedded slash), followed either
- * by end-of-input or by at least one whitespace character.
- */
-export function parseLeadingSlashCommand(prompt: string): IParsedLeadingSlashCommand | undefined {
-	const match = /^\/([^\s/]+)(?:$|\s+([\s\S]*))/.exec(prompt);
-	if (!match) {
-		return undefined;
-	}
-	const rawRest = match[2] ?? '';
-	return {
-		command: match[1],
-		rest: rawRest.trim(),
-		rawRest,
-	};
 }
 
 /**
@@ -99,9 +52,8 @@ export function parseLeadingSlashCommand(prompt: string): IParsedLeadingSlashCom
  *
  * The returned items carry a {@link MessageAttachmentKind.Simple}
  * attachment, which the workbench bridge maps into command/skill completion
- * attachments. Command dispatch happens text-side in
- * `CopilotAgentSession.send` via {@link parseLeadingSlashCommand}, so the
- * feature works whether the user picks the item or types it manually.
+ * attachments. Runtime command dispatch is text-side in `CopilotAgentSession.send`;
+ * client-side config commands also share the same leading slash parser.
  */
 export class CopilotSlashCommandCompletionProvider implements IAgentHostCompletionItemProvider {
 	readonly kinds: ReadonlySet<CompletionItemKind> = new Set([CompletionItemKind.UserMessage]);
@@ -181,29 +133,29 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			if (HIDDEN_RUNTIME_COMMANDS.has(command.name) || command.aliases?.some(alias => HIDDEN_RUNTIME_COMMANDS.has(alias))) {
 				continue;
 			}
+			// Config-action commands (permission/mode toggles) are surfaced below
+			// as workbench-defined items; skip any runtime command that collides
+			// with them (e.g. a runtime `plan`) to avoid duplicate suggestions.
+			if (isCopilotConfigSlashCommand(command.name) || command.aliases?.some(alias => isCopilotConfigSlashCommand(alias))) {
+				continue;
+			}
 			if (!rubberDuckEnabled && command.name === 'rubber-duck') {
 				continue;
 			}
 			if (typed.length > 0 && !command.name.toLowerCase().startsWith(typedLower) && !command.aliases?.some(alias => alias.toLowerCase().startsWith(typedLower))) {
 				continue;
 			}
-			// Hints contain sub commands like [on|off] or `on|off`
-			// First remove the brackets and then split by pipe to get the options
-			// If its a skill, then do not use the hint to construct the options.
-			const options: string[] = [];
-			let skillHint = '';
-			if (command.kind === 'skill') {
-				// do nothing, skills do not have options
-				skillHint = command.input?.hint ? `  \n(Prompt: ${command.input.hint})` : '';
-			} else {
-				options.push(...(command.input?.hint ?? '').replace(/[\[\]]/g, '').split('|'));
-				if (options.length && !command.input?.required) {
-					// If we have options but they are optional,
-					// then make sure we add an empty option so that the user can select just the command without any options.
-					options.unshift('');
-				}
-			}
+			// Use structured input choices as options; if there are none, emit a single item for the command and surface any free-text hint as a prompt.
+			const options: (NonNullable<NonNullable<ICopilotRuntimeSlashCommandInfo['input']>['choices']>[number] & { argumentHint?: string })[] = [];
 
+			// If we have a hint, then this means we have a structured command with sub commands or options.
+			// I.e. the standalone command is also valie.
+			if (command.input?.hint || !command.input?.choices?.length) {
+				options.push({ name: '', description: command.description, argumentHint: command.input?.hint });
+			}
+			if (command.input?.choices?.length) {
+				options.push(...command.input.choices);
+			}
 
 			// Generate completion items for each alias and option combination.
 			// If there are no options, generate a single completion item for the alias.
@@ -211,15 +163,13 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			aliases
 				.filter(alias => !addedAliases.has(alias))
 				.forEach(alias => {
-					(Array.from(new Set(options.length ? options : [''])))
-						.filter(option => !CommandOptionsToIgnore.has(`${command.name}:${option}`))
+					options
 						.forEach(option => {
 							// Add a trailing space after the command (and sub command/option if present).
 							// This is so user can continue to type additional arguments after the command and option.
-							const insertText = `/${alias}${option ? ' ' + option : ''} `;
-							const optionDescription = option ? CommandOptionDescriptions[`${command.name}:${option}`] : command.description;
-							const description = `${optionDescription ?? command.description}${skillHint}`;
-
+							const insertText = `/${alias}${option.name ? ' ' + option.name : ''} `;
+							const description = option.description ?? command.description;
+							const argumentHint = option.argumentHint;
 							addedAliases.add(alias);
 
 							completionItems.push({
@@ -231,7 +181,8 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 									label: insertText,
 									_meta: toCommandCompletionAttachmentMeta({
 										command: command.name,
-										...(description !== undefined ? { description } : {})
+										...(description !== undefined ? { description } : {}),
+										...(argumentHint !== undefined ? { argumentHint } : {})
 									}),
 								},
 							});
@@ -239,24 +190,38 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				});
 		}
 
-		return completionItems.sort((a, b) => a.insertText.localeCompare(b.insertText));
+		// Prepend workbench-defined config-action commands (permission/mode
+		// toggles). These are not runtime SDK commands; they carry an `action`
+		// bag on their `_meta` that the workbench interprets on accept. Only
+		// offered for leading `/command` tokens (not the whitespace-delimited
+		// skill form).
+		if (!returnJustSkills) {
+			const configState = this._sessionInfo.getSessionConfigState?.(sessionId);
+			for (const item of getCopilotConfigSlashCommandItems(typed, configState)) {
+				completionItems.push({
+					insertText: item.insertText,
+					label: item.label,
+					rangeStart,
+					rangeEnd,
+					attachment: {
+						type: MessageAttachmentKind.Simple,
+						label: item.label,
+						_meta: toCommandCompletionAttachmentMeta({
+							command: item.command,
+							description: item.description,
+							...(item.argumentHint !== undefined ? { argumentHint: item.argumentHint } : {}),
+							action: { applyConfig: item.applyConfig },
+						}),
+					},
+				});
+			}
+		}
+
+		return completionItems.sort((a, b) => (a.label ?? a.insertText).localeCompare(b.label ?? b.insertText));
 	}
 }
 
-export interface ICopilotRuntimeSlashCommandInfo {
-	readonly name: string;
-	readonly aliases?: readonly string[];
-	readonly description: string;
-	readonly kind: 'builtin' | 'skill' | 'client';
-	readonly input?: {
-		readonly hint: string;
-		readonly required?: boolean;
-		readonly preserveMultilineInput?: boolean;
-	};
-	readonly allowDuringAgentExecution: boolean;
-	readonly experimental?: boolean;
-	readonly schedulable?: boolean;
-}
+export type ICopilotRuntimeSlashCommandInfo = Awaited<ReturnType<CopilotSession['rpc']['commands']['list']>>['commands'][number];
 
 function isSyncedCustomization(container: PluginCustomization): boolean {
 	return container.uri.startsWith(SYNCED_CUSTOMIZATION_SCHEME + ':');

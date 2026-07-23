@@ -12,7 +12,7 @@ import type { IAgentModelInfo } from './agentService.js';
  * picker can render its cost hover.
  *
  * All cost values are expressed as credits per 1M tokens — the same unit the model picker hover renders (see
- * `getModelHoverContent` in `chatModelPicker.ts`). Fields are optional; agents omit what they don't know.
+ * `getModelHoverContent` in `modelPicker/modelPickerHover.ts`). Fields are optional; agents omit what they don't know.
  */
 export interface IAgentModelPricingMeta {
 	/** Request multiplier (e.g. `1.5` rendered as "1.5x"). */
@@ -37,6 +37,13 @@ export interface IAgentModelPricingMeta {
 	readonly priceCategory?: string;
 	/** Whole-number percentage discount (0-100) for the synthetic `auto` model; shown as a "{n}% discount" detail. */
 	readonly discountPercent?: number;
+	/** Promotional information when the model is experiencing a discount. */
+	readonly promo?: {
+		readonly id: string;
+		readonly discountPercent: number;
+		readonly endsAt: string;
+		readonly message: string;
+	};
 }
 
 const NUMBER_KEYS = [
@@ -71,6 +78,13 @@ export function readAgentModelPricingMeta(model: IAgentModelInfo | SessionModelI
 	}
 	if (typeof meta.priceCategory === 'string') {
 		result.priceCategory = meta.priceCategory;
+	}
+	const rawPromo = meta.promo;
+	if (rawPromo && typeof rawPromo === 'object' && !Array.isArray(rawPromo)) {
+		const p = rawPromo as Record<string, unknown>;
+		if (typeof p.id === 'string' && typeof p.discountPercent === 'number' && typeof p.endsAt === 'string' && typeof p.message === 'string') {
+			result.promo = { id: p.id, discountPercent: p.discountPercent, endsAt: p.endsAt, message: p.message };
+		}
 	}
 	return result;
 }
@@ -133,11 +147,28 @@ export function normalizeCAPIBilling(raw: unknown): ICAPIModelBilling | undefine
 		tokenPrices = { inputPrice, cachePrice, cacheWritePrice, outputPrice, contextMax, longContext };
 	}
 
-	return { multiplier, priceCategory, discountPercent, tokenPrices };
+	return { multiplier, priceCategory, discountPercent, promo: normalizePromo(billing), tokenPrices };
 }
 
 function asNumber(v: unknown): number | undefined {
 	return typeof v === 'number' ? v : undefined;
+}
+
+function normalizePromo(billing: Record<string, unknown>): ICAPIModelBilling['promo'] {
+	const raw = billing.promo as Record<string, unknown> | undefined;
+	if (!raw || typeof raw !== 'object') {
+		return undefined;
+	}
+	const id = typeof raw.id === 'string' ? raw.id : undefined;
+	const discountPercent = asNumber(raw.discountPercent) ?? asNumber(raw.discount_percent);
+	const endsAt = typeof raw.endsAt === 'string' ? raw.endsAt
+		: typeof raw.ends_at === 'string' ? raw.ends_at
+			: undefined;
+	const message = typeof raw.message === 'string' ? raw.message : undefined;
+	if (id && typeof discountPercent === 'number' && endsAt && message) {
+		return { id, discountPercent, endsAt, message };
+	}
+	return undefined;
 }
 
 /**
@@ -153,6 +184,13 @@ export interface ICAPIModelBilling {
 	readonly priceCategory?: string;
 	/** Whole-number percentage discount (0-100) for the synthetic `auto` model; rendered as a "{n}% discount" detail. */
 	readonly discountPercent?: number;
+	/** Promotional info when the model is experiencing a promotional discount. */
+	readonly promo?: {
+		readonly id: string;
+		readonly discountPercent: number;
+		readonly endsAt: string;
+		readonly message: string;
+	};
 	readonly tokenPrices?: {
 		readonly contextMax?: number;
 		readonly inputPrice?: number;
@@ -206,6 +244,7 @@ export function createPricingMetaFromBilling(billing: ICAPIModelBilling | undefi
 		longContextOutputCost: showLongContext ? (longContext.outputPrice ?? tokenPrices?.outputPrice) : undefined,
 		priceCategory: priceCategory ?? (typeof billing?.priceCategory === 'string' ? billing.priceCategory : undefined),
 		discountPercent: typeof billing?.discountPercent === 'number' ? billing.discountPercent : undefined,
+		promo: billing?.promo,
 	});
 }
 

@@ -34,8 +34,7 @@ import { IAutomationService } from '../../common/automations/automationService.j
 import { IAutomationDialogService } from '../../common/automations/automationDialogService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../common/automations/automationsEnabled.js';
 import { DAYS_OF_WEEK } from '../../common/automations/schedule.js';
-import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
-import { openSession as openSessionFromOpener } from '../agentSessions/agentSessionsOpener.js';
+import { openSessionByResource } from '../agentSessions/agentSessionsOpener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 
@@ -116,7 +115,6 @@ class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAut
 		private readonly editorService: IEditorService,
 		private readonly editorGroupsService: IEditorGroupsService,
 		private readonly logService: ILogService,
-		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly instantiationService: IInstantiationService,
 	) { }
 
@@ -159,9 +157,12 @@ class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAut
 		templateData.sep1.textContent = '·';
 		templateData.nextEl.textContent = formatNextRun(automation);
 		templateData.sepFolder.textContent = '·';
-		const folderLabel = this.widget.formatFolderLabel(automation.folderUri);
-		templateData.folderEl.textContent = localize('automationFolderLabel', "in {0}", folderLabel);
-		templateData.folderEl.title = automation.folderUri.toString();
+		templateData.folderEl.textContent = this.widget.formatTargetLabel(automation);
+		if (automation.target.kind === 'quickChat') {
+			templateData.folderEl.title = localize('automationQuickChatTitle', "Runs as a workspace-less chat");
+		} else {
+			templateData.folderEl.title = automation.target.folderUri.toString();
+		}
 
 		if (automation.lastRunAt) {
 			templateData.sep2.textContent = '·';
@@ -195,6 +196,7 @@ class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAut
 			this.renderHistoryPanel(templateData, automation, runs);
 		}
 		templateData.historyPanel.style.display = expanded ? '' : 'none';
+		templateData.container.classList.toggle('automations-row-wrapper-expanded', expanded);
 	}
 
 	private renderActions(templateData: IAutomationRowTemplateData, automation: IAutomation, expanded: boolean, inFlight: boolean): void {
@@ -310,13 +312,7 @@ class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAut
 				this.logService.debug(`[AutomationsListWidget] Opening session: ${sessionResource.toString()}`);
 				const activeEditor = this.editorService.activeEditor;
 				const activeGroupId = this.editorGroupsService.activeGroup.id;
-				const agentSession = this.agentSessionsService.getSession(sessionResource);
-				if (!agentSession) {
-					this.logService.warn(`[AutomationsListWidget] Session not found for ${sessionResource.toString()}`);
-					this.notificationService.error(localize('openRunSessionFailed', "Failed to open automation session"));
-					return;
-				}
-				this.instantiationService.invokeFunction(openSessionFromOpener, agentSession).then(() => {
+				this.instantiationService.invokeFunction(openSessionByResource, sessionResource).then(() => {
 					if (activeEditor) {
 						this.editorService.closeEditor({ editor: activeEditor, groupId: activeGroupId });
 					}
@@ -394,7 +390,6 @@ export class AutomationsListWidget extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 
@@ -431,7 +426,7 @@ export class AutomationsListWidget extends Disposable {
 
 	private createList(): void {
 		const delegate = new AutomationItemDelegate();
-		const renderer = new AutomationItemRenderer(this, this.hoverService, this.notificationService, this.editorService, this.editorGroupsService, this.logService, this.agentSessionsService, this.instantiationService);
+		const renderer = new AutomationItemRenderer(this, this.hoverService, this.notificationService, this.editorService, this.editorGroupsService, this.logService, this.instantiationService);
 
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList<IAutomationListEntry>,
@@ -446,10 +441,7 @@ export class AutomationsListWidget extends Disposable {
 				horizontalScrolling: false,
 				accessibilityProvider: {
 					getAriaLabel: (element: IAutomationListEntry) => {
-						const a = element.automation;
-						return a.enabled
-							? localize('automationAriaLabel', "{0}, {1}", a.name, formatSchedule(a))
-							: localize('automationAriaLabelDisabled', "{0}, disabled", a.name);
+						return this.formatAriaLabel(element.automation);
 					},
 					getWidgetAriaLabel() {
 						return localize('automationsListAriaLabel', "Automations");
@@ -534,12 +526,14 @@ export class AutomationsListWidget extends Disposable {
 		this.updateList(this.automationService.automations.get());
 		const previousRunId = this.automationService.runsFor(automation.id).get()[0]?.id;
 		try {
-			// The runner does not support cancellation yet.
-			await this.automationRunner.runOnce(automation, 'manual', 0, CancellationToken.None);
+			// Manual runs do not currently expose cancellation.
+			const operation = this.automationRunner.runOnce(automation, 'manual', 0, CancellationToken.None);
+			await operation.whenDispatched;
 			const latestRun = this.automationService.runsFor(automation.id).get()[0];
 			if (latestRun && latestRun.id !== previousRunId && latestRun.status !== 'failed') {
 				status(localize('automationStartedStatus', "Started automation {0}", automation.name));
 			}
+			await operation.whenCompleted;
 		} catch (err) {
 			this.logService.error('[Automations] runNow failed unexpectedly', err);
 		} finally {
@@ -624,6 +618,21 @@ export class AutomationsListWidget extends Disposable {
 		}
 		const segments = folderUri.path.split('/').filter(s => s.length > 0);
 		return segments[segments.length - 1] ?? folderUri.toString();
+	}
+
+	formatTargetLabel(automation: IAutomation): string {
+		if (automation.target.kind === 'quickChat') {
+			return localize('automationQuickChatLabel', "without a workspace");
+		}
+		return localize('automationFolderLabel', "in {0}", this.formatFolderLabel(automation.target.folderUri));
+	}
+
+	formatAriaLabel(automation: IAutomation): string {
+		const schedule = formatSchedule(automation);
+		const target = this.formatTargetLabel(automation);
+		return automation.enabled
+			? localize('automationAriaLabel', "{0}, {1}, {2}", automation.name, schedule, target)
+			: localize('automationAriaLabelDisabled', "{0}, disabled, {1}, {2}", automation.name, schedule, target);
 	}
 
 	private _isEnabled(): boolean {
@@ -741,7 +750,7 @@ function dayName(day: number): string {
 }
 
 function formatNextRun(a: IAutomation): string {
-	if (a.schedule.interval === 'manual' || !a.nextRunAt) {
+	if (!a.enabled || a.schedule.interval === 'manual' || !a.nextRunAt) {
 		return localize('nextRunNever', "No scheduled run");
 	}
 	return localize('nextRun', "Next run {0}", formatRelativeTimeOrIso(a.nextRunAt));

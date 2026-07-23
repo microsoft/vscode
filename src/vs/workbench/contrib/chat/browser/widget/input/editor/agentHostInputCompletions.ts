@@ -14,6 +14,12 @@ import { CompletionItem, CompletionItemKind } from '../../../../../../../editor/
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
+import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
+import { IAgentHostService } from '../../../../../../../platform/agentHost/common/agentService.js';
+import { getCompletionAction, type IAgentHostCompletionAction } from '../../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { Registry } from '../../../../../../../platform/registry/common/platform.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../../../../common/contributions.js';
 import { LifecyclePhase } from '../../../../../../services/lifecycle/common/lifecycle.js';
@@ -21,6 +27,10 @@ import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariab
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
+import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../../agentHostCompletionAction.js';
+import { applyAgentHostSessionConfigChange } from '../../../agentSessions/agentHost/applyAgentHostSessionConfig.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from '../../../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostInputCompletionsBase } from './agentHostInputCompletionsBase.js';
 /**
  * Completion provider that delegates `@`-mention (and other server-defined)
@@ -41,6 +51,7 @@ import { AgentHostInputCompletionsBase } from './agentHostInputCompletionsBase.j
 export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<IChatWidget, string> {
 
 	private static readonly addReferenceCommand = '_chatAgentHostAddReferenceCmd';
+	private static readonly configActionCommand = '_chatAgentHostConfigActionCmd';
 
 	/** Per-scheme registrations of the Monaco completion provider. */
 	private readonly _registrations = this._register(new DisposableMap<string>());
@@ -49,6 +60,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
@@ -63,6 +75,39 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 				data: arg.data,
 				_meta: arg._meta,
 			});
+		}));
+
+		// Accept handler for config-action completions (permission/mode toggles).
+		// Applies the session-config change (with the elevated-permission
+		// confirmation) and, for keep-text items, adds the argument-hint
+		// reference. Toggle items insert nothing, so there is no text to remove.
+		this._register(CommandsRegistry.registerCommand(AgentHostInputCompletions.configActionCommand, async (accessor, arg) => {
+			assertType(arg instanceof AgentHostConfigActionArgument);
+			const sessionResource = arg.widget.viewModel?.model.sessionResource;
+			if (!sessionResource) {
+				return;
+			}
+			const dialogService = accessor.get(IDialogService);
+			const storageService = accessor.get(IStorageService);
+			const services = {
+				agentHostService: accessor.get(IAgentHostService),
+				provisionalService: accessor.get(IAgentHostUntitledProvisionalSessionService),
+				workingDirectoryResolver: accessor.get(IAgentHostSessionWorkingDirectoryResolver),
+				workspaceContextService: accessor.get(IWorkspaceContextService),
+				configurationService: accessor.get(IConfigurationService),
+			};
+			const applied = await applyAgentHostCompletionAction(arg.action, dialogService, storageService, async config => { await applyAgentHostSessionConfigChange(sessionResource, config, services); });
+			if (applied && arg.reference) {
+				arg.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
+					id: arg.reference.id,
+					range: arg.reference.range,
+					isFile: arg.reference.isFile,
+					isDirectory: arg.reference.isDirectory,
+					fullName: arg.reference.displayName,
+					data: arg.reference.data,
+					_meta: arg.reference._meta,
+				});
+			}
 		}));
 
 		// Sync existing registrations and observe changes.
@@ -119,11 +164,41 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 		return { sessionResource, context: widget };
 	}
 
-	protected override _buildItem(position: Position, item: IChatInputCompletionItem, widget: IChatWidget): CompletionItem {
+	protected override _buildItem(position: Position, item: IChatInputCompletionItem, widget: IChatWidget): CompletionItem | undefined {
 		const replaceRange = AgentHostInputCompletions.computeRange(position, item);
 		const attachment = item.attachment;
 		switch (attachment.kind) {
 			case 'command': {
+				const action = getCompletionAction(attachment._meta);
+				if (action) {
+					// Omit an elevated auto-approve toggle (Allow all / Assisted)
+					// when enterprise policy disables global auto-approval, rather
+					// than offering an item that would warn then clamp to Default.
+					if (isPolicyBlockedCompletionAction(action, this._configurationService)) {
+						return undefined;
+					}
+					// Config-action completion (permission/mode toggle). Keep-text
+					// items (non-empty insertText) retain the `/command ` text and
+					// add the argument-hint reference; toggle items insert nothing.
+					const keep = item.insertText !== '';
+					const label = item.label ?? item.insertText;
+					const reference = keep
+						? AgentHostReferenceArgument.forCommand(widget, attachment.command, attachment.description, AgentHostInputCompletions._insertedTokenRange(replaceRange, item.insertText), attachment._meta)
+						: undefined;
+					return {
+						label: { label, description: attachment.description },
+						insertText: item.insertText,
+						filterText: label,
+						range: replaceRange,
+						kind: CompletionItemKind.Text,
+						detail: attachment.description,
+						command: {
+							id: AgentHostInputCompletions.configActionCommand,
+							title: '',
+							arguments: [new AgentHostConfigActionArgument(widget, action, reference)],
+						},
+					};
+				}
 				return {
 					label: { label: item.insertText, description: attachment.description },
 					insertText: item.insertText,
@@ -207,6 +282,20 @@ class AgentHostReferenceArgument {
 		const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, description ?? command, command, _meta);
 		return new AgentHostReferenceArgument(widget, entry.id, entry.value, description, false, false, range, _meta);
 	}
+}
+
+/**
+ * Argument passed to the config-action accept command. Carries the target
+ * widget, the {@link IAgentHostCompletionAction} to apply, and — for keep-text
+ * items — the argument-hint reference to add once applied. Toggle items insert
+ * nothing, so no text needs to be removed.
+ */
+class AgentHostConfigActionArgument {
+	constructor(
+		readonly widget: IChatWidget,
+		readonly action: IAgentHostCompletionAction,
+		readonly reference: AgentHostReferenceArgument | undefined,
+	) { }
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AgentHostInputCompletions, LifecyclePhase.Eventually);

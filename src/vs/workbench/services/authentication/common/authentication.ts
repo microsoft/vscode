@@ -174,6 +174,10 @@ export interface IAuthenticationProviderHostDelegate {
 	createXaa?(issuer: URI): Promise<string>;
 }
 
+export function getDynamicAuthenticationProviderId(authorizationServer: URI, resource: IAuthorizationProtectedResourceMetadata | undefined): string {
+	return resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
+}
+
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
 
 export interface IAuthenticationService {

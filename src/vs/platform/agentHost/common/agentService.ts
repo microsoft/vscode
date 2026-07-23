@@ -6,20 +6,20 @@
 import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
-import { isWeb } from '../../../base/common/platform.js';
 import { truncate } from '../../../base/common/strings.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import type { IConfigurationService } from '../../configuration/common/configuration.js';
+import type { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
+import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
-import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
+import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
@@ -42,16 +42,11 @@ export const enum AgentHostIpcChannels {
 	RemoteProxy = 'agentHostProxy',
 }
 
-/** Configuration key that controls whether the local agent host process is spawned. */
-export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
-
-/** Whether the local/process-backed agent host is enabled in this runtime. */
-export function isAgentHostEnabled(configurationService: IConfigurationService): boolean {
-	return !isWeb && !!configurationService.getValue<boolean>(AgentHostEnabledSettingId);
-}
-
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
+
+/** Configuration key controlling automatic OS system proxy discovery for agent-host Copilot sessions. */
+export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.enabled';
 
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
 // `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
@@ -126,6 +121,14 @@ export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_E
 export const AgentHostByokModelsEnabledEnvVar = 'VSCODE_AGENT_HOST_BYOK_MODELS_ENABLED';
 
 /**
+ * Overrides the grace period (in milliseconds) before an idle, fully
+ * unsubscribed session is released from memory. Defaults to 30_000. Primarily a
+ * test hook so real-SDK integration tests can force a prompt release without
+ * waiting the full production grace; production does not set it.
+ */
+export const AgentHostSessionReleaseGraceMsEnvVar = 'VSCODE_AGENT_HOST_SESSION_RELEASE_GRACE_MS';
+
+/**
  * Resolves the effective enable state for a Claude/Codex provider from the
  * env-var value forwarded by the starter. Recognized values (case- and
  * whitespace-insensitive):
@@ -194,46 +197,31 @@ export const ClaudePreferAgentHostAgentsSettingId = 'chat.agents.claude.preferAg
 export const ClaudePreferAgentHostEditorSettingId = 'chat.editor.claude.preferAgentHost';
 
 /**
- * The per-window setting that selects which Claude implementation surfaces:
- * the Agents Window reads {@link ClaudePreferAgentHostAgentsSettingId}, every
- * other window reads {@link ClaudePreferAgentHostEditorSettingId}. Callers that
- * observe the gate (to react to live flips) watch the id returned here; callers
- * that evaluate it use {@link shouldSurfaceLocalAgentHostProvider}.
+ * Selects whether the regular workbench surfaces Codex from the agent host
+ * instead of the OpenAI extension.
  */
+export const CodexPreferAgentHostEditorSettingId = 'chat.editor.codex.preferAgentHost';
+
 export function claudePreferAgentHostSettingId(isSessionsWindow: boolean): string {
 	return isSessionsWindow
 		? ClaudePreferAgentHostAgentsSettingId
 		: ClaudePreferAgentHostEditorSettingId;
 }
 
-/**
- * Whether this window should surface the agent host's implementation of
- * `provider`, given the per-window AH/EH preference settings. Today only the
- * `claude` provider has dual implementations (the GitHub Copilot Chat
- * extension's extension-host provider vs. the agent host's in-process
- * provider) and a corresponding preference; every other provider is AH-only
- * and unconditionally surfaced.
- *
- * Mirrors the EH-side gate declared in the extension's `chatSessions`
- * contribution `when` clause:
- *   - Agents Window  → {@link ClaudePreferAgentHostAgentsSettingId}
- *   - Editor Window  → {@link ClaudePreferAgentHostEditorSettingId}
- *
- * When the relevant setting is `false`, the extension-host Claude is the one
- * that surfaces in this window, so every agent-host surface (the chat session
- * contribution and the sessions-window picker) suppresses its own Claude to
- * avoid two identical entries.
- *
- * TODO: Remove this gate (and the `claude` special-case below) once the
- * extension-host Claude implementation is retired. With only the agent host
- * providing Claude there is no dual implementation to disambiguate, so this
- * should unconditionally return `true` and callers can drop the gate entirely.
- */
+export function affectsAgentHostProviderPreference(event: IConfigurationChangeEvent, isSessionsWindow: boolean): boolean {
+	return event.affectsConfiguration(claudePreferAgentHostSettingId(isSessionsWindow))
+		|| event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
+}
+
 export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
-	if (provider !== CLAUDE_AGENT_PROVIDER_ID) {
-		return true;
+	switch (provider) {
+		case CLAUDE_AGENT_PROVIDER_ID:
+			return configurationService.getValue<boolean>(claudePreferAgentHostSettingId(isSessionsWindow)) === true;
+		case CODEX_AGENT_PROVIDER_ID:
+			return configurationService.getValue<boolean>(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId) === true;
+		default:
+			return true;
 	}
-	return configurationService.getValue<boolean>(claudePreferAgentHostSettingId(isSessionsWindow)) === true;
 }
 
 // -- Codex agent settings --------------------------------------------------------
@@ -596,6 +584,68 @@ export interface IAgentHostInspectInfo {
 	readonly devtoolsUrl: string;
 }
 
+/** A network endpoint the agent host suggests probing, listed on {@link IAgentHostNetworkDiagnosticsInfo.endpoints}. */
+export interface IAgentHostNetworkEndpoint {
+	/** Human-readable name of the endpoint (e.g. "GitHub API"). */
+	readonly name: string;
+	/** The URL to probe. */
+	readonly url: string;
+	/** Substring the response body is expected to contain; when set, the probe reads the body and fails the check if it is absent. */
+	readonly expectedContent?: string;
+	/** HTTP status code the probe treats as success. Defaults to `200` when omitted. */
+	readonly expectedStatus?: number;
+}
+
+/** Host-level network context for diagnostics, produced by {@link IAgentConnection.getNetworkDiagnosticsInfo}. */
+export interface IAgentHostNetworkDiagnosticsInfo {
+	/** Agent host product version. */
+	readonly version: string;
+	/** Operating system platform of the agent host process (`process.platform`). */
+	readonly os: string;
+	/** CPU architecture of the agent host process (`process.arch`). */
+	readonly arch: string;
+	/** Authenticated GitHub account login, when known. */
+	readonly account?: string;
+	/** VS Code `http.*` proxy settings observed by the agent host, keyed by setting id (only those that are set). */
+	readonly proxySettings: Readonly<Record<string, string>>;
+	/** Proxy-related environment variables observed by the agent host process, keyed by name (only those that are set). */
+	readonly proxyEnv: Readonly<Record<string, string>>;
+	/** Endpoints the agent host suggests probing via {@link IAgentConnection.diagnosticsFetch}. */
+	readonly endpoints: readonly IAgentHostNetworkEndpoint[];
+}
+
+/** Result of a DNS lookup for a single address family, part of {@link IAgentHostNetworkFetchResult}. */
+export interface IAgentHostDnsResult {
+	/** The resolved address, when the lookup succeeded. */
+	readonly address?: string;
+	/** Time taken by the lookup, in milliseconds. */
+	readonly durationMs?: number;
+	/** Lookup error message, when it failed. */
+	readonly error?: string;
+}
+
+/** Result of a single connectivity probe, produced by {@link IAgentConnection.diagnosticsFetch}. */
+export interface IAgentHostNetworkFetchResult {
+	/** The URL that was probed. */
+	readonly url: string;
+	/** The resolved proxy URL for this endpoint, or `undefined` for a direct connection. */
+	readonly proxyUrl?: string;
+	/** IPv4 DNS lookup result for the host. */
+	readonly dnsIpv4?: IAgentHostDnsResult;
+	/** IPv6 DNS lookup result for the host. */
+	readonly dnsIpv6?: IAgentHostDnsResult;
+	/** HTTP status code from the probe, when a response arrived. */
+	readonly statusCode?: number;
+	/** HTTP status message from the probe, when a response arrived. */
+	readonly statusMessage?: string;
+	/** Response body text (possibly truncated), when a response arrived. Callers use it to check expected content. */
+	readonly body?: string;
+	/** Time taken by the reachability probe, in milliseconds. */
+	readonly durationMs?: number;
+	/** Probe error message, when the connection failed. */
+	readonly error?: string;
+}
+
 /**
  * IPC service exposed on the {@link AgentHostIpcChannels.ConnectionTracker}
  * channel. Used by the server process for lifetime management and by the
@@ -700,6 +750,9 @@ export type AgentProvider = string;
 
 /** Well-known agent provider id for the Claude agent-host backend. */
 export const CLAUDE_AGENT_PROVIDER_ID = 'claude' as const;
+
+/** Well-known agent provider id for the Codex agent-host backend. */
+export const CODEX_AGENT_PROVIDER_ID = 'codex' as const;
 
 /**
  * Static capability facts an agent backend advertises about itself. Each flag
@@ -828,6 +881,20 @@ export interface IAgentCreateSessionConfig {
 		 * per-turn data (e.g. SDK event ID mappings) in the session database.
 		 */
 		readonly turnIdMapping?: ReadonlyMap<string, string>;
+	};
+	/**
+	 * Import an existing (e.g. local) conversation into a brand-new session as
+	 * real, editable turns. The provider translates {@link turns} into a
+	 * Copilot event log seeded on disk and resumes the session so the turns are
+	 * reconstituted as genuine backend events (editable / forkable / truncatable).
+	 *
+	 * The service layer assigns fresh UUID turn ids before handing the turns to
+	 * the provider so the seeded event ids and the seeded protocol turns stay
+	 * aligned. Mutually exclusive with {@link fork}.
+	 */
+	readonly importConversation?: {
+		readonly turns: readonly Turn[];
+		readonly model?: ModelSelection;
 	};
 	/**
 	 * MCP-style opt-in progress token from the client's `createSession`. When
@@ -1037,8 +1104,11 @@ export interface IAgentChats {
 	 */
 	disposeChat(chat: URI): Promise<void>;
 
-	/** Send a user message into `chat`. */
-	sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void>;
+	/**
+	 * Send a user message into `chat`; on first send, the host passes the resolved
+	 * working directory (or `undefined` for workspace-less sessions).
+	 */
+	sendMessage(chat: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void>;
 
 	/** Abort the in-flight turn for `chat`. */
 	abort(chat: URI): Promise<void>;
@@ -1139,7 +1209,7 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
-	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory' | 'extension-management' | 'extension-permission-access';
+	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'extension-management' | 'extension-permission-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
 	/**
@@ -1182,6 +1252,15 @@ export interface IAgentSubagentStartedSignal {
 	 * Absent when the harness does not surface a task description.
 	 */
 	readonly taskDescription?: string;
+	/**
+	 * The full delegated instruction the parent handed the subagent (the
+	 * spawning tool's `prompt` input). Populated by each provider at emit
+	 * time from its own native source, so the shared orchestrator never
+	 * parses a provider-specific tool-input shape. Seeds the subagent peer
+	 * chat's opening request. Distinct from {@link taskDescription} (a short
+	 * tab-title label). Absent when the harness does not surface a prompt.
+	 */
+	readonly taskPrompt?: string;
 	/**
 	 * If set, the spawning tool call ({@link toolCallId}) itself lives
 	 * inside another subagent's chat — this is the tool call **one level up**
@@ -1352,13 +1431,13 @@ export interface IAgent {
 
 	// ---- Session lifecycle / configuration ---------------------------------
 
-	/** Create a new session. Returns server-owned session metadata. */
+	/** Create a new session. Host-owned worktree fields are omitted from `config.config`. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
 
-	/** Resolve the dynamic configuration schema for creating a session. */
+	/** Resolve provider-owned session configuration; host-owned worktree fields are omitted. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 
-	/** Return dynamic completions for a session configuration property. */
+	/** Return dynamic completions for a provider-owned session configuration property. */
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
 	/**
@@ -1448,6 +1527,17 @@ export interface IAgent {
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;
 
+	/**
+	 * Release a session's in-memory resources (SDK session/connection, cached
+	 * per-session state) without deleting any durable data. Unlike
+	 * {@link disposeSession}, this is non-destructive: the on-disk session log,
+	 * session database, and worktree are all preserved so the session can be
+	 * transparently resumed later. Used by idle-session eviction to bound
+	 * memory in long-lived host processes. Optional; providers that hold no
+	 * releasable in-memory state simply omit it.
+	 */
+	releaseSession?(session: URI): Promise<void>;
+
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
 
@@ -1468,6 +1558,15 @@ export interface IAgent {
 
 	/** Declare protected resources this agent requires auth for (RFC 9728). */
 	getProtectedResources(): ProtectedResourceMetadata[];
+
+	/**
+	 * Endpoints this provider uses and recommends probing in network
+	 * diagnostics. Optional.
+	 */
+	getNetworkDiagnosticsEndpoints?(): Promise<readonly IAgentHostNetworkEndpoint[]>;
+
+	/** Authenticated account name to display in network diagnostics, when known. */
+	getNetworkDiagnosticsAccount?(): Promise<string | undefined>;
 
 	/**
 	 * Fires when the agent's host-owned customizations change
@@ -1533,6 +1632,17 @@ export interface IAgent {
 	onArchivedChanged?(session: URI, isArchived: boolean): Promise<void>;
 
 	/**
+	 * Notifies the provider that a **client** (user) changed this session's
+	 * config — e.g. via an approvals/model picker. `values` is the post-reducer
+	 * merged config. Lets the provider propagate a session-mutable change (such
+	 * as Claude's `permissionMode`) to a running SDK mid-turn. Fires only for
+	 * client-originated changes; internal server-side config writes (e.g. a tool
+	 * persisting a mode) do NOT trigger it, so a provider can forward freely
+	 * without re-entering its own SDK callbacks. Optional.
+	 */
+	onSessionConfigChanged?(session: URI, values: Record<string, unknown>): void;
+
+	/**
 	 * Get (or lazily create) the per-session handle for an active client,
 	 * identified by `clientId`. Mutating the returned {@link IActiveClient}'s
 	 * `tools` / `customizations` updates only that client's contribution; the
@@ -1568,13 +1678,11 @@ export interface IAgent {
 	 */
 	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void;
 
-	/**
-	 * Notifies the agent that a customization has been toggled on or off.
-	 * The agent MAY restart its client before the next message is sent.
-	 *
-	 * @param id The opaque session-unique customization id.
-	 */
-	setCustomizationEnabled(id: string, enabled: boolean): void;
+	/** Request a session MCP server start/restart by customization id. */
+	startMcpServer?(session: URI, id: string): Promise<void>;
+
+	/** Request a session MCP server stop by customization id. */
+	stopMcpServer?(session: URI, id: string): Promise<void>;
 
 	/** Gracefully shut down all sessions. */
 	shutdown(): Promise<void>;
@@ -1724,6 +1832,20 @@ export interface IAgentService {
 	/** Gracefully shut down all sessions and the underlying client. */
 	shutdown(): Promise<void>;
 
+	/**
+	 * Host-level network context for diagnostics — agent host version, OS/arch,
+	 * account, proxy settings/env, and the endpoints worth probing (which
+	 * callers probe via {@link diagnosticsFetch}, plus any additional URLs).
+	 */
+	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
+
+	/**
+	 * Probe connectivity from the agent host process to a single `url`,
+	 * resolving the proxy and timing DNS + reachability. Used by the "Network
+	 * Diagnostics" developer command.
+	 */
+	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
+
 	// ---- Protocol methods (sessions process protocol) ----------------------
 
 	/**
@@ -1776,7 +1898,7 @@ export interface IAgentService {
 	 * rather than {@link URI} objects so that authority-less scheme URIs
 	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -1895,7 +2017,7 @@ export interface IAgentConnection {
 	 * than {@link URI} objects so authority-less scheme URIs like
 	 * `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void;
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;
@@ -1936,7 +2058,31 @@ export interface IAgentConnection {
 	 * user-message input. Resolves once on first request and is cached.
 	 */
 	getCompletionTriggerCharacters(): Promise<readonly string[]>;
+
+	/**
+	 * The host's `initialize` handshake result, exposed observably so callers
+	 * can derive advertised capabilities (e.g. {@link InitializeResult.terminalCommandPrefix},
+	 * {@link InitializeResult.completionTriggerCharacters}). `undefined` until
+	 * the handshake completes; local (in-process) connections synthesize a
+	 * minimal result carrying only the fields meaningful to that transport.
+	 */
+	readonly initializeResult: IObservable<InitializeResult | undefined>;
 	disposeSession(session: URI): Promise<void>;
+
+	/**
+	 * Host-level network context for diagnostics (version, OS/arch, account,
+	 * proxy settings/env, endpoints). Runs on the agent host process (local or
+	 * remote), so the result reflects the environment the Copilot SDK actually
+	 * runs in.
+	 */
+	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
+
+	/**
+	 * Probe connectivity from the agent host to a single `url`. Runs on the
+	 * agent host process (local or remote), so the result reflects the
+	 * environment the Copilot SDK actually runs in.
+	 */
+	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
 	/**
 	 * Create an additional peer chat inside an existing session. `chat` is a

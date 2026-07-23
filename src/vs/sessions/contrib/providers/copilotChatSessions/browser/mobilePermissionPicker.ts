@@ -15,7 +15,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { DEFAULT_PERMISSION_LEVELS, getPermissionLevelMeta, IPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
+import { DEFAULT_PERMISSION_LEVELS, IPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 
@@ -59,7 +59,7 @@ export class MobilePermissionPicker extends PermissionPicker {
 
 		const levels = this._delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
 		const items: IMobilePickerSheetItem[] = levels.map(level => {
-			const meta = getPermissionLevelMeta(level);
+			const meta = this._getPermissionLevelMeta(level);
 			return {
 				id: level,
 				label: meta.label,

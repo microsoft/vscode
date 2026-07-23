@@ -9,7 +9,7 @@
 import type { URI } from '../common/state.js';
 import type { BaseParams } from '../common/commands.js';
 import type { SessionActiveClient } from './state.js';
-import type { Turn, MessageAttachment } from '../channels-chat/state.js';
+import type { MessageAttachment } from '../channels-chat/state.js';
 
 // ─── createSession ───────────────────────────────────────────────────────────
 
@@ -63,8 +63,37 @@ export interface CreateSessionParams extends BaseParams {
 	channel: URI;
 	/** Agent provider ID */
 	provider?: string;
-	/** Working directory for the session */
-	workingDirectory?: URI;
+	/**
+	 * The working directories the session's agent is granted tool access to.
+	 * A session may span multiple directories; they are equal peers except when
+	 * the agent advertises
+	 * {@link MultipleWorkingDirectoriesCapability.requiresPrimary}, in which case
+	 * one of them should be designated the primary via
+	 * {@link primaryWorkingDirectory}.
+	 *
+	 * A client MUST NOT supply more than one entry unless the agent advertises
+	 * {@link AgentCapabilities.multipleWorkingDirectories}; a server without that
+	 * capability treats only the first entry as the session's working directory
+	 * and ignores the rest. Dispatch `session/workingDirectorySet` /
+	 * `session/workingDirectoryRemoved` to change the set after the session has
+	 * started.
+	 *
+	 * Ignored for forked sessions — a fork inherits its working directories
+	 * from the source session identified by `fork`.
+	 */
+	workingDirectories?: URI[];
+	/**
+	 * The primary working directory for the session's **default chat** — the
+	 * distinguished root that chat is centered on (see
+	 * {@link ChatState.primaryWorkingDirectory}). A session has no primary of its
+	 * own; this seeds the default chat's primary. When set, it MUST be one of
+	 * {@link workingDirectories}. A client SHOULD supply this when the agent
+	 * advertises {@link MultipleWorkingDirectoriesCapability.requiresPrimary}; a
+	 * host MAY reject creation that omits it, or fall back to the first entry of
+	 * `workingDirectories`. Ignored for forked sessions (a fork inherits the
+	 * source session's chats and their primaries).
+	 */
+	primaryWorkingDirectory?: URI;
 	/**
 	 * Fork from an existing session. The new session is populated with content
 	 * from the source session up to and including the specified turn's response.
@@ -117,8 +146,16 @@ export interface DisposeSessionParams extends BaseParams { }
 // ─── fetchTurns ──────────────────────────────────────────────────────────────
 
 /**
- * Fetches historical turns for a chat. Used for lazy loading of conversation
- * history.
+ * Requests that the host load older historical turns into a chat state.
+ *
+ * The command result does not carry turns. Instead, before responding, the host
+ * MUST dispatch `chat/turnsLoaded` to insert any loaded turns into the chat
+ * channel's `turns` state, ahead of the already-loaded window, and update or
+ * clear `turnsNextCursor`.
+ *
+ * Before applying any operation that references a turn outside the currently
+ * loaded window, the host MUST eagerly load enough older turns into state for
+ * that operation to reduce against valid state.
  *
  * @category Commands
  * @method fetchTurns
@@ -127,39 +164,31 @@ export interface DisposeSessionParams extends BaseParams { }
  * @version 1
  * @example
  * ```jsonc
- * // Client → Server (fetch the 20 most recent turns)
+ * // Client → Server (load the next page indicated by ChatState.turnsNextCursor)
  * { "jsonrpc": "2.0", "id": 8, "method": "fetchTurns",
- *   "params": { "channel": "ahp-chat:/<uuid>", "limit": 20 } }
+ *   "params": { "channel": "ahp-chat:/<uuid>", "cursor": "opaque-cursor" } }
  *
- * // Server → Client
- * { "jsonrpc": "2.0", "id": 8, "result": {
- *   "turns": [ { "id": "t1", ... }, { "id": "t2", ... } ],
- *   "hasMore": true
- * }}
- *
- * // Client → Server (fetch 20 turns before t1)
- * { "jsonrpc": "2.0", "id": 9, "method": "fetchTurns",
- *   "params": { "channel": "ahp-chat:/<uuid>", "before": "t1", "limit": 20 } }
+ * // Server updates chat state, then responds
+ * { "jsonrpc": "2.0", "id": 8, "result": {} }
  * ```
  */
 export interface FetchTurnsParams extends BaseParams {
 	/** Chat URI */
 	channel: URI;
-	/** Turn ID to fetch before (exclusive). Omit to fetch from the most recent turn. */
-	before?: string;
-	/** Maximum number of turns to return. Server MAY impose its own upper bound. */
-	limit?: number;
+	/**
+	 * Opaque cursor from `ChatState.turnsNextCursor`.
+	 *
+	 * The host MUST reject unrecognised cursors with `InvalidParams`. Omit only
+	 * when asking the host to opportunistically load its next older page for the
+	 * chat, if any.
+	 */
+	cursor?: string;
 }
 
 /**
  * Result of the `fetchTurns` command.
  */
-export interface FetchTurnsResult {
-	/** The requested turns, ordered oldest-first */
-	turns: Turn[];
-	/** Whether more turns exist before the returned range */
-	hasMore: boolean;
-}
+export interface FetchTurnsResult { }
 
 // ─── completions ─────────────────────────────────────────────────────────────
 
@@ -249,6 +278,15 @@ export interface CompletionItem {
 	 * The text inserted into the input when this item is accepted.
 	 */
 	insertText: string;
+
+	/**
+	 * Optional display label for the completion item. When omitted, the client
+	 * SHOULD display {@link insertText}. Provide an explicit label when the
+	 * inserted text differs from the label shown in the picker — e.g. a pure
+	 * action item that inserts nothing (`insertText: ''`) but should still be
+	 * shown to the user.
+	 */
+	label?: string;
 
 	/**
 	 * If defined, the start of the range in the input's `text` that is replaced

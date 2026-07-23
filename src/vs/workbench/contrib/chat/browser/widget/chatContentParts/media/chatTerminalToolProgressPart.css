@@ -14,9 +14,13 @@
  * single non-wrapping line. Each cell ellipsis-truncates and they split the
  * available width equally when the content overflows the row.
  */
-.chat-terminal-thinking-collapsible.chat-terminal-has-intention .chat-used-context-label,
-.chat-terminal-thinking-collapsible.chat-terminal-has-intention .monaco-button.monaco-icon-button {
+.chat-terminal-thinking-collapsible.chat-terminal-has-intention .chat-used-context-label {
 	width: 100%;
+	max-width: 100%;
+}
+
+.chat-terminal-thinking-collapsible.chat-terminal-has-intention .monaco-button.monaco-icon-button {
+	width: fit-content;
 	max-width: 100%;
 	justify-content: flex-start;
 }

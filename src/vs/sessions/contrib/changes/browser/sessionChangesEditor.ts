@@ -6,8 +6,12 @@
 import './media/sessionChangesEditor.css';
 import { $, append, Dimension } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derivedObservableWithCache, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -17,45 +21,118 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPane.js';
+import { AbstractEditorWithViewState } from '../../../../workbench/browser/parts/editor/editorWithViewState.js';
 import { ResourceLabel } from '../../../../workbench/browser/labels.js';
 import { IEditorHeaderActions, IEditorOpenContext } from '../../../../workbench/common/editor.js';
+import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
-import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
-import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
-import { shouldUseSinglePaneLayout, EditorHeaderPrimaryMenuId } from '../../../browser/parts/singlePaneEditorPart.js';
+import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
+import { Menus } from '../../../browser/menus.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ActiveSessionContextKeys } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { ChangesActionsBar } from './changesView.js';
+import { ChangesActionsBar, ChangesActionsBarActionViewItem, CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
+import { ISessionChangesService } from './sessionChangesService.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { IActionViewItemOptions, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { CheckboxActionViewItem } from '../../../../base/browser/ui/toggle/toggle.js';
+import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { localize } from '../../../../nls.js';
+import { getChangesEditorFileStats } from './changesEditorLabels.js';
 
 const HEADER_HEIGHT = 35;
+
+/**
+ * Optimizes the embedded diffs for the narrow Agents window panel while
+ * preserving the multi-diff editor's expandable unchanged-region widgets.
+ */
+const CHANGES_DIFF_EDITOR_OPTIONS: IDiffEditorOptions = {
+	hideOriginalLineNumbers: true,
+	folding: false,
+	lineNumbersMinChars: 3,
+};
 
 class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 
 	readonly headerClickToCollapse = true;
 
 	constructor(
+		private readonly changesObs: IObservable<readonly ISessionFileChange[]>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
-	createResourceLabel(element: HTMLElement): IResourceLabel {
+	createResourceLabel(element: HTMLElement, kind: MultiDiffEditorItemLabelKind): IResourceLabel {
 		const label = this.instantiationService.createInstance(ResourceLabel, element, {});
-		return {
-			setUri(uri, options = {}) {
-				if (!uri) {
-					label.element.clear();
+		const showDiffStats = kind === MultiDiffEditorItemLabelKind.Primary;
+		return new SessionChangesResourceLabel(label, element, showDiffStats, this.changesObs);
+	}
+
+	createToolbarActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
+		if (action.id === CHANGESET_REVIEW_ACTION_ID && action instanceof MenuItemAction) {
+			return this.instantiationService.createInstance(ChangesetReviewActionViewItem, action, options);
+		}
+		return undefined;
+	}
+}
+
+class SessionChangesResourceLabel extends Disposable implements IResourceLabel {
+
+	private readonly resource = observableValue<URI | undefined>(this, undefined);
+
+	constructor(
+		private readonly label: ResourceLabel,
+		element: HTMLElement,
+		showDiffStats: boolean,
+		changesObs: IObservable<readonly ISessionFileChange[]>,
+	) {
+		super();
+		this._register(label);
+
+		if (showDiffStats) {
+			const statsContainer = append(element, $('.session-changes-file-stats'));
+			const added = append(statsContainer, $('.working-set-lines-added'));
+			const removed = append(statsContainer, $('.working-set-lines-removed'));
+			added.setAttribute('aria-hidden', 'true');
+			removed.setAttribute('aria-hidden', 'true');
+
+			this._register(autorun(reader => {
+				const resource = this.resource.read(reader);
+				const stats = resource
+					? getChangesEditorFileStats(resource, changesObs.read(reader))
+					: undefined;
+				statsContainer.style.display = stats ? '' : 'none';
+				if (stats) {
+					added.textContent = `+${stats.insertions}`;
+					removed.textContent = `-${stats.deletions}`;
+					statsContainer.setAttribute('aria-label', localize('sessionChangesEditor.fileCounts', '{0} lines added, {1} lines removed', stats.insertions, stats.deletions));
 				} else {
-					label.element.setFile(uri, { strikethrough: options.strikethrough });
+					added.textContent = '';
+					removed.textContent = '';
+					statsContainer.removeAttribute('aria-label');
 				}
-			},
-			dispose() {
-				label.dispose();
-			}
-		};
+			}));
+		}
+	}
+
+	setUri(uri: URI | undefined, options: { strikethrough?: boolean } = {}): void {
+		if (!uri) {
+			this.label.element.clear();
+		} else {
+			this.label.element.setFile(uri, { strikethrough: options.strikethrough });
+		}
+		this.resource.set(uri, undefined);
 	}
 }
 
@@ -64,7 +141,7 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
  * diff stats header sitting above an embedded multi-diff editor showing the
  * session's file diffs.
  */
-export class SessionChangesEditor extends EditorPane {
+export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 
 	static readonly ID = SessionChangesEditorInput.EDITOR_ID;
 
@@ -75,17 +152,52 @@ export class SessionChangesEditor extends EditorPane {
 	private _singlePane = false;
 	private _scopedInstantiationService: IInstantiationService | undefined;
 
+	/** Session whose changes this editor is currently showing (from its input). */
+	private readonly _inputSessionResource = observableValue<URI | undefined>(this, undefined);
+
+	/**
+	 * Changes for this editor's own session, scoped so a stale row does not pick
+	 * up the counts of a different (globally active) session during a switch.
+	 */
+	private readonly _scopedChangesObs = derivedObservableWithCache<readonly ISessionFileChange[]>(this, (reader, lastValue) => {
+		const editorSession = this._inputSessionResource.read(reader);
+		const activeSession = this.changesViewService.activeSessionResourceObs.read(reader);
+		if (!editorSession || !activeSession || !isEqual(editorSession, activeSession)) {
+			return lastValue ?? [];
+		}
+		return this.changesViewService.activeSessionChangesObs.read(reader);
+	});
+
+	/** Deferred focus request awaiting the active diff editor to be rendered. */
+	private readonly _pendingFocus = this._register(new MutableDisposable());
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
+		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 	) {
-		super(SessionChangesEditor.ID, group, telemetryService, themeService, storageService);
+		super(
+			SessionChangesEditor.ID,
+			group,
+			'sessionChangesEditorViewState',
+			telemetryService,
+			instantiationService,
+			storageService,
+			textResourceConfigurationService,
+			themeService,
+			editorService,
+			editorGroupService,
+		);
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -103,7 +215,7 @@ export class SessionChangesEditor extends EditorPane {
 		// In single-pane, the header (Branch Changes dropdown, diff stats and primary
 		// actions) is hosted by the editor part's full-width header instead of inside
 		// this editor, so it spans the editor content and the docked detail panel.
-		this._singlePane = shouldUseSinglePaneLayout(this.configurationService);
+		this._singlePane = this.layoutService.isSinglePaneLayoutEnabled;
 		if (!this._singlePane) {
 			const header = append(root, $('.session-changes-editor-header'));
 			const left = append(header, $('.session-changes-editor-header-left'));
@@ -112,11 +224,38 @@ export class SessionChangesEditor extends EditorPane {
 		}
 
 		this.bodyContainer = append(root, $('.session-changes-editor-body'));
-		this.widget = this._register(scopedInstantiationService.createInstance(
+
+		// Create the widget in the editor-pane context (not the deeper scoped one)
+		// so its own multiDiffEditor* context keys (all-collapsed, render-side-by-side)
+		// are visible to the EditorTitle menu that drives the collapse/expand-all and
+		// inline-view toggle actions.
+		const paneInstantiationService = this._register(this.instantiationService.createChild(
+			new ServiceCollection([IContextKeyService, this.contextKeyService])));
+		this.widget = this._register(paneInstantiationService.createInstance(
 			MultiDiffEditorWidget,
 			this.bodyContainer,
-			scopedInstantiationService.createInstance(SessionChangesUIElementFactory),
+			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs),
+			CHANGES_DIFF_EDITOR_OPTIONS,
 		));
+		this._applyRenderSideBySide();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
+				this._applyRenderSideBySide();
+			}
+		}));
+	}
+
+	private _applyRenderSideBySide(): void {
+		this.widget?.setRenderSideBySide(this.configurationService.getValue<boolean>('diffEditor.renderSideBySide') ?? true);
+	}
+
+	/**
+	 * Resolves the diff editor and code editor showing the given file, mirroring
+	 * {@link MultiDiffEditor.tryGetCodeEditor} so file-toolbar actions can operate
+	 * on this editor and the plain multi-diff editor uniformly.
+	 */
+	tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
+		return this.widget?.tryGetCodeEditor(resource);
 	}
 
 	/** Creates the classic (non-single-pane) internal header toolbars. */
@@ -125,7 +264,7 @@ export class SessionChangesEditor extends EditorPane {
 
 		// The Branch Changes picker + diff stats render as the leading header menu;
 		// their custom action view items resolve globally via IActionViewItemService.
-		store.add(instantiationService.createInstance(MenuWorkbenchToolBar, left, EditorHeaderPrimaryMenuId, {
+		store.add(instantiationService.createInstance(MenuWorkbenchToolBar, left, Menus.SessionsEditorHeaderPrimary, {
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
@@ -147,20 +286,96 @@ export class SessionChangesEditor extends EditorPane {
 		return { instantiationService: this._scopedInstantiationService };
 	}
 
+	/**
+	 * In single-pane, render the Create Pull Request button bar ({@link ChangesActionsBar})
+	 * as the editor tabs title anchor action ({@link CHANGES_HEADER_ACTIONS_ID}).
+	 */
+	override getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
+		if (this._singlePane && action.id === CHANGES_HEADER_ACTIONS_ID) {
+			return this.instantiationService.createInstance(ChangesActionsBarActionViewItem, action, options);
+		}
+		return super.getActionViewItem(action, options);
+	}
+
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
+		this._inputSessionResource.set(this.sessionChangesService.getSessionResource(input.multiDiffSource), undefined);
 		const viewModel = await input.getViewModel();
 		if (token.isCancellationRequested) {
 			return;
 		}
 		this.viewModel = viewModel;
-		this.widget?.setViewModel(viewModel, { preserveFocus: options?.preserveFocus });
+
+		// Apply the model and any restored view state together so the widget's
+		// automatic first-change navigation sees the restored active item instead
+		// of navigating to (and focusing) the first file.
+		const viewState = this.loadEditorViewState(input, context);
+		this.widget?.setViewModel(viewModel, { preserveFocus: options?.preserveFocus, viewState });
 		this._applyOptions(options);
+	}
+
+	protected override setEditorVisible(visible: boolean): void {
+		// The Changes editor can be backgrounded without being cleared or closed
+		// (e.g. switching sessions makes another editor active, or the detail panel
+		// switches to Files). Persist its view state on hide so collapsed/scroll
+		// state survives regardless of the close/open ordering.
+		if (!visible) {
+			this._pendingFocus.clear();
+			this.saveCurrentEditorViewState();
+		}
+		super.setEditorVisible(visible);
+	}
+
+	protected override computeEditorViewState(_resource: URI): IMultiDiffEditorViewState | undefined {
+		if (!this.viewModel) {
+			return undefined; // nothing loaded: don't overwrite a saved state with an empty snapshot
+		}
+		return this.widget?.getViewState();
+	}
+
+	protected override tracksEditorViewState(input: EditorInput): boolean {
+		return input instanceof SessionChangesEditorInput;
+	}
+
+	protected override tracksDisposedEditorViewState(): boolean {
+		// The Changes editor is recreated from its per-session resource (e.g. when
+		// switching sessions closes/disposes the tab), so keep the view state around
+		// after the input is disposed and restore it when the editor reopens.
+		return true;
+	}
+
+	protected override toEditorViewStateResource(input: EditorInput): URI | undefined {
+		return input instanceof SessionChangesEditorInput ? input.multiDiffSource : undefined;
 	}
 
 	collapseAllDiffs(): void {
 		this.viewModel?.collapseAll();
 	}
+
+	expandAllDiffs(): void {
+		this.viewModel?.expandAll();
+	}
+
+	public collapse(resource: URI): void {
+		const item = this.viewModel?.items.read(undefined)
+			.find(i => isEqual(i.modifiedUri, resource) || isEqual(i.originalUri, resource));
+		if (!item) {
+			return;
+		}
+
+		this.viewModel?.collapse(item);
+	}
+
+	public expand(resource: URI): void {
+		const item = this.viewModel?.items.read(undefined)
+			.find(i => isEqual(i.modifiedUri, resource) || isEqual(i.originalUri, resource));
+		if (!item) {
+			return;
+		}
+
+		this.viewModel?.expand(item);
+	}
+
 
 	override setOptions(options: IMultiDiffEditorOptions | undefined): void {
 		this._applyOptions(options);
@@ -178,14 +393,39 @@ export class SessionChangesEditor extends EditorPane {
 	}
 
 	override clearInput(): void {
+		this._pendingFocus.clear();
+		// Let the base capture the current view state (it reads the widget) before the
+		// view model is torn down.
+		super.clearInput();
 		this.viewModel = undefined;
 		this.widget?.setViewModel(undefined);
-		super.clearInput();
 	}
 
 	override focus(): void {
 		super.focus();
-		this.widget?.getActiveControl()?.focus();
+		this._pendingFocus.clear();
+
+		const widget = this.widget;
+		if (!widget) {
+			return;
+		}
+
+		const control = widget.getActiveControl();
+		if (control) {
+			control.focus();
+			return;
+		}
+
+		// The active file's diff editor may not be rendered yet (e.g. the editor
+		// part was just revealed from a hidden state), so getActiveControl() is
+		// undefined. Focus it as soon as it becomes available.
+		this._pendingFocus.value = widget.onDidChangeActiveControl(() => {
+			const activeControl = widget.getActiveControl();
+			if (activeControl) {
+				this._pendingFocus.clear();
+				activeControl.focus();
+			}
+		});
 	}
 
 	override layout(dimension: Dimension): void {
@@ -193,5 +433,40 @@ export class SessionChangesEditor extends EditorPane {
 		// so the diff fills the full dimension; otherwise reserve the internal header.
 		const bodyHeight = this._singlePane ? dimension.height : Math.max(0, dimension.height - HEADER_HEIGHT);
 		this.widget?.layout(new Dimension(dimension.width, bodyHeight));
+	}
+}
+
+export const CHANGESET_REVIEW_ACTION_ID = 'changeset.review';
+
+/**
+ * Renders the per-file "Mark as Viewed" toggle in the Changes editor file header
+ * as a checkbox with a static "Viewed" label (mirroring the GitHub pull request
+ * "Viewed" checkbox), instead of the default icon-only toolbar button. The
+ * command's toggling title ("Mark as Viewed" / "Mark as Not Viewed") is kept as
+ * the accessible name so the action is announced, while the checkbox state
+ * conveys the reviewed state.
+ */
+class ChangesetReviewActionViewItem extends CheckboxActionViewItem {
+
+	constructor(action: MenuItemAction, options: IActionViewItemOptions) {
+		super(undefined, action, { ...options, label: true, checkboxStyles: { ...defaultCheckboxStyles, size: 14 } });
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('changeset-review-action');
+	}
+
+	override updateChecked(): void {
+		super.updateChecked();
+
+		this.updateAriaLabel();
+		this.updateTooltip();
+	}
+
+	override getTooltip(): string {
+		return this.action.checked
+			? localize('changeset.viewed.tooltip', "Mark as Not Viewed")
+			: localize('changeset.notViewed.tooltip', "Mark as Viewed");
 	}
 }

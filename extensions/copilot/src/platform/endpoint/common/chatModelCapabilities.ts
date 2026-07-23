@@ -155,17 +155,8 @@ export function isGpt55(model: LanguageModelChat | IChatEndpoint | string) {
 }
 
 export function isGpt56(model: LanguageModelChat | IChatEndpoint | string) {
-	return isGpt56SolOrTerra(model) || isGpt56Luna(model);
-}
-
-export function isGpt56SolOrTerra(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
-	return family === 'ember-alpha';
-}
-
-export function isGpt56Luna(model: LanguageModelChat | IChatEndpoint | string) {
-	const family = typeof model === 'string' ? model : model.family;
-	return family === 'opal-alpha';
+	return family === 'gpt-5.6-sol' || family === 'gpt-5.6-terra' || family === 'gpt-5.6-luna';
 }
 
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {
@@ -176,7 +167,7 @@ export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) 
 export function isKimiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
 	const matches = (value: string): boolean => {
 		const normalized = value.toLowerCase();
-		return normalized.startsWith('kimi-k2.6') || normalized.startsWith('kimi-k2.7-code');
+		return normalized.includes('kimi-k2.6') || normalized.includes('kimi-k2.7-code');
 	};
 
 	if (typeof model === 'string') {
@@ -288,14 +279,14 @@ export function modelPrefersJsonNotebookRepresentation(model: LanguageModelChat 
  * Model supports replace_string_in_file as an edit tool.
  */
 export function modelSupportsReplaceString(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isGeminiFamily(model) || model.family.includes('grok-code') || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
+	return isGeminiFamily(model) || isXAiFamily(model) || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
 }
 
 /**
  * Model supports multi_replace_string_in_file as an edit tool.
  */
 export function modelSupportsMultiReplaceString(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || isHiddenModelE(model) || isVSCModelReplaceStringSet(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
+	return isAnthropicFamily(model) || isXAiFamily(model) || isHiddenModelE(model) || isVSCModelReplaceStringSet(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
 }
 
 /**
@@ -303,7 +294,7 @@ export function modelSupportsMultiReplaceString(model: LanguageModelChat | IChat
  * without needing insert_edit_into_file.
  */
 export function modelCanUseReplaceStringExclusively(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || model.family.includes('grok-code') || isHiddenModelE(model) || model.family.toLowerCase().includes('gemini-3') || isVSCModelReplaceStringSet(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
+	return isAnthropicFamily(model) || isXAiFamily(model) || isHiddenModelE(model) || model.family.toLowerCase().includes('gemini-3') || isVSCModelReplaceStringSet(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
 }
 
 /**
@@ -385,6 +376,10 @@ export function isMinimaxFamily(model: LanguageModelChat | IChatEndpoint): boole
 	return model.family.toLowerCase().includes('minimax');
 }
 
+export function isXAiFamily(model: LanguageModelChat | IChatEndpoint): boolean {
+	return model.family.startsWith('grok');
+}
+
 export function isGpt5PlusFamily(model: LanguageModelChat | IChatEndpoint | string | undefined): boolean {
 	if (!model) {
 		return false;
@@ -442,11 +437,10 @@ export function isGpt51Family(model: LanguageModelChat | IChatEndpoint | string 
 /**
  * This takes a sync shortcut and should only be called when a model hash would have already been computed while rendering the prompt.
  */
-export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium' | 'high' | undefined {
-	if (model.family === 'gpt-5.1' || model.family === 'gpt-5-mini') {
+export function getVerbosityForModelSync(model: IChatEndpoint, responsesApiVerbosityEnabled?: boolean): 'low' | 'medium' | 'high' | undefined {
+	if (model.family === 'gpt-5.1' || model.family === 'gpt-5-mini' || (isGpt56(model) && responsesApiVerbosityEnabled)) {
 		return 'low';
 	}
-
 	return undefined;
 }
 

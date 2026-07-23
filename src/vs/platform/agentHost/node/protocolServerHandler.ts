@@ -59,6 +59,21 @@ const REPLAY_BUFFER_CAPACITY = 1000;
 
 const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
 
+/**
+ * Client-dispatchable actions that are declared in the protocol but not yet
+ * operational in this build. The multiroot working-directory mutations
+ * (`session|chat/workingDirectorySet|Removed`) would mutate the synchronized
+ * working-directory set without reconfiguring the agent's actual directory
+ * access, so they are rejected in the dispatch path until capability-backed
+ * multiroot support lands.
+ */
+const UNSUPPORTED_CLIENT_ACTION_TYPES: ReadonlySet<ActionType> = new Set([
+	ActionType.SessionWorkingDirectorySet,
+	ActionType.SessionWorkingDirectoryRemoved,
+	ActionType.ChatWorkingDirectorySet,
+	ActionType.ChatWorkingDirectoryRemoved,
+]);
+
 /** A client tool call in any of these statuses is still awaiting its result. */
 function isPendingToolCallStatus(status: ToolCallStatus): boolean {
 	return status === ToolCallStatus.Streaming
@@ -282,6 +297,10 @@ export interface IProtocolServerConfig {
 	 */
 	readonly completionTriggerCharacters?: readonly string[];
 	/**
+	 * Prefix that marks a user message as a host terminal command.
+	 */
+	readonly terminalCommandPrefix?: string;
+	/**
 	 * Optional emitter to use as the source for the OTLP logs channel
 	 * advertised via `InitializeResult.telemetry.logs`. When present, this
 	 * handler will route `subscribe`/`unsubscribe` requests on
@@ -420,6 +439,7 @@ export class ProtocolServerHandler extends Disposable {
 				}
 
 				if (!client) {
+					transport.send(jsonRpcError(msg.id, JsonRpcErrorCodes.MethodNotFound, `Method not found: ${msg.method}`));
 					return;
 				}
 				this._handleRequest(client, msg.method, msg.params, msg.id);
@@ -437,7 +457,22 @@ export class ProtocolServerHandler extends Disposable {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
 							const action = msg.params.action as SessionAction | ChatAction | TerminalAction | IRootConfigChangedAction;
 							const channel = msg.params.channel;
-							if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || action.type === ActionType.RootConfigChanged) {
+							// Multiroot working-directory mutations are declared in the
+							// protocol but not yet supported: they would mutate the
+							// synchronized access set without reconfiguring the agent's
+							// actual directory access. Reject them through the normal
+							// reconciliation path (preserving the client's origin) so the
+							// client rolls back its optimistic action instead of leaving
+							// it pending, until capability-backed multiroot support lands.
+							if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
+								this._logService.warn(`[ProtocolServer] rejecting unsupported client action: ${action.type}`);
+								this._stateManager.rejectClientAction(
+									channel,
+									action,
+									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
+									`Unsupported action: ${action.type}`,
+								);
+							} else if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || action.type === ActionType.RootConfigChanged) {
 								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq);
 							}
 						}
@@ -543,6 +578,7 @@ export class ProtocolServerHandler extends Disposable {
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
 				completionTriggerCharacters: this._config.completionTriggerCharacters,
+				terminalCommandPrefix: this._config.terminalCommandPrefix,
 				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
 			},
 		};
@@ -869,9 +905,8 @@ export class ProtocolServerHandler extends Disposable {
 	 * any armed timers, so this is a no-op when the client is active. The delay
 	 * is the remaining grace measured from when the client disconnected — so a
 	 * client that disconnected a while before the call was issued gets the
-	 * residual window rather than a fresh one, and a stamp from a long-dead
-	 * client fails promptly. A never-connected client has its grace clock pinned
-	 * to the first arm, so re-arms triggered by later orphaned tool calls in the
+	 * residual window rather than a fresh one, and a stamp from a long-disconnected
+	 * client fails promptly. Re-arms triggered by later orphaned tool calls in the
 	 * same session shrink the remaining window instead of resetting it.
 	 */
 	private _startClientToolCallDisconnectTimeout(clientId: string, session: string, chatChannel: string): void {
@@ -889,20 +924,21 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	/**
-	 * Scan a session for pending client tool calls whose owning client is not
-	 * currently connected, and arm the disconnect timeout for each such owner.
+	 * Scan a chat for pending client tool calls owned by a disconnected client
+	 * of this protocol server, and arm the disconnect timeout for each owner.
 	 * Called when a `ChatToolCallStart` / `ChatToolCallReady` envelope is
 	 * observed — covering calls issued for an already-gone client, which the
 	 * live disconnect path never sees. Ownerless client tool calls (no client
 	 * connected at stamp time) are failed immediately by the provider, so they
-	 * never reach a pending state here.
+	 * never reach a pending state here. Unknown client ids are ignored because
+	 * they may belong to another transport such as local IPC.
 	 */
 	private _checkOrphanedClientToolCalls(session: string, chatChannel: string): void {
 		const state = this._stateManager.getSessionState(chatChannel);
 		const orphanOwners = new Set<string>();
 		for (const { clientId } of this._pendingClientToolCalls(state)) {
 			const ownerRecord = this._clients.get(clientId);
-			if (ownerRecord?.state !== 'active') {
+			if (ownerRecord?.state === 'grace') {
 				orphanOwners.add(clientId);
 			}
 		}
@@ -1135,7 +1171,7 @@ export class ProtocolServerHandler extends Disposable {
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
-					workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
+					workingDirectory: params.workingDirectories?.[0] ? URI.parse(params.workingDirectories[0]) : undefined,
 					session: URI.parse(params.channel),
 					fork,
 					config: params.config,
@@ -1240,26 +1276,18 @@ export class ProtocolServerHandler extends Disposable {
 			return this._agentService.completions(params);
 		},
 		fetchTurns: async (_client, params) => {
-			const state = this._stateManager.getSessionState(params.channel);
+			const state = this._stateManager.getChatState(params.channel);
 			if (!state) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
 			}
-			const turns = state.turns;
-			const limit = Math.min(params.limit ?? 50, 100);
-
-			let endIndex = turns.length;
-			if (params.before) {
-				const idx = turns.findIndex(t => t.id === params.before);
-				if (idx !== -1) {
-					endIndex = idx;
-				}
+			if (params.cursor && params.cursor !== state.turnsNextCursor) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unrecognized fetchTurns cursor`);
 			}
-
-			const startIndex = Math.max(0, endIndex - limit);
-			return {
-				turns: turns.slice(startIndex, endIndex),
-				hasMore: startIndex > 0,
-			};
+			this._stateManager.dispatchServerAction(params.channel, {
+				type: ActionType.ChatTurnsLoaded,
+				turns: [],
+			});
+			return {};
 		},
 		resourceList: async (_client, params) => {
 			return this._agentService.resourceList(URI.parse(params.uri));
@@ -1396,7 +1424,7 @@ export class ProtocolServerHandler extends Disposable {
 			return;
 		}
 
-		client.transport.send(jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, `Unknown method: ${method}`));
+		client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.MethodNotFound, `Method not found: ${method}`));
 	}
 
 	/**
@@ -1404,10 +1432,14 @@ export class ProtocolServerHandler extends Disposable {
 	 * protocol. Returns a Promise if the method was recognized, undefined
 	 * otherwise.
 	 */
-	private _handleExtensionRequest(method: string, _params: unknown): Promise<unknown> | undefined {
+	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
 		switch (method) {
 			case 'shutdown':
 				return this._agentService.shutdown();
+			case 'getNetworkDiagnosticsInfo':
+				return this._agentService.getNetworkDiagnosticsInfo();
+			case 'diagnosticsFetch':
+				return this._agentService.diagnosticsFetch((params as { url: string }).url);
 			default:
 				return undefined;
 		}

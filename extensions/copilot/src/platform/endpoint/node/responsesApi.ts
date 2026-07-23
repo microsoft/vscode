@@ -45,10 +45,14 @@ export function getResponsesApiCompactionThreshold(configService: IConfiguration
 		: 50000;
 }
 
+export function getVerbosityForModelSyncBasedOnExp(configService: IConfigurationService, expService: IExperimentationService, endpoint: IChatEndpoint): 'low' | 'medium' | 'high' | undefined {
+	return getVerbosityForModelSync(endpoint, configService.getExperimentBasedConfig(ConfigKey.EnableGpt56Verbosity, expService));
+}
+
 export function createResponsesRequestBody(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions, model: string, endpoint: IChatEndpoint): IEndpointBody {
 	const configService = accessor.get(IConfigurationService);
 	const expService = accessor.get(IExperimentationService);
-	const verbosity = getVerbosityForModelSync(endpoint);
+	const verbosity = getVerbosityForModelSyncBasedOnExp(configService, expService, endpoint);
 	const compactThreshold = getResponsesApiCompactionThreshold(configService, expService, endpoint);
 	// compaction supported for all the models but works well for codex models and any future models after 5.3
 
@@ -455,19 +459,19 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 						// todod@connor4312: hack while responses API only supports text output from tools
 						input.push({ type: 'function_call_output', call_id: message.toolCallId, output: asText });
 						if (asImages.length) {
-							input.push({ role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
+							input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
 						}
 						if (asFiles.length) {
-							input.push({ role: 'user', content: [{ type: 'input_text', text: 'PDF associated with the above tool call:' }, ...asFiles] });
+							input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'PDF associated with the above tool call:' }, ...asFiles] });
 						}
 					}
 				}
 				break;
 			case Raw.ChatRole.User:
-				input.push({ role: 'user', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'user', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
 				break;
 			case Raw.ChatRole.System:
-				input.push({ role: 'system', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'system', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
 				break;
 		}
 

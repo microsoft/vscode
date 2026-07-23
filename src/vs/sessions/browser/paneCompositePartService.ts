@@ -23,9 +23,9 @@ import { MobileAuxiliaryBarPart } from './parts/mobile/mobileAuxiliaryBarPart.js
 import { getClientArea } from '../../base/browser/dom.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../platform/instantiation/common/extensions.js';
-import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
-import { shouldUseSinglePaneLayout, SinglePaneMainEditorPart } from './parts/singlePaneEditorPart.js';
+import { IAgentWorkbenchLayoutService } from './workbench.js';
+import { SinglePaneMainEditorPart } from './parts/singlePaneEditorPart.js';
 
 export class AgenticPaneCompositePartService extends Disposable implements IPaneCompositePartService {
 
@@ -41,7 +41,7 @@ export class AgenticPaneCompositePartService extends Disposable implements IPane
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 	) {
 		super();
@@ -54,7 +54,7 @@ export class AgenticPaneCompositePartService extends Disposable implements IPane
 
 		// In the single-pane layout the auxiliary bar is owned by (docked inside)
 		// the editor part; share that instance instead of creating a separate one.
-		const auxiliaryBarPart = shouldUseSinglePaneLayout(configurationService)
+		const auxiliaryBarPart = layoutService.isSinglePaneLayoutEnabled
 			? (editorGroupsService.mainPart as SinglePaneMainEditorPart).auxiliaryBar
 			: instantiationService.createInstance(isPhoneLayout ? MobileAuxiliaryBarPart : AuxiliaryBarPart);
 		this.registerPart(ViewContainerLocation.AuxiliaryBar, auxiliaryBarPart);

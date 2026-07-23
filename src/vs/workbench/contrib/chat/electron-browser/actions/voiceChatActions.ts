@@ -562,7 +562,8 @@ export class StartVoiceChatAction extends Action2 {
 				when: ContextKeyExpr.and(
 					FocusInChatInput,					// scope this action to chat input fields only
 					EditorContextKeys.focus.negate(), 	// do not steal the editor inline-chat keybinding
-					NOTEBOOK_EDITOR_FOCUSED.negate()	// do not steal the notebook inline-chat keybinding
+					NOTEBOOK_EDITOR_FOCUSED.negate(),	// do not steal the notebook inline-chat keybinding
+					ChatContextKeys.speechToTextConfigured.negate()	// built-in on-device dictation wins: yield the keybinding when it's available so it does not collide with the built-in dictation keybinding
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
@@ -575,6 +576,7 @@ export class StartVoiceChatAction extends Action2 {
 			menu: primaryVoiceActionMenu(ContextKeyExpr.and(
 				SegmentedVoiceInputModeDisabled,		// hide when the segmented voice/dictation toggle is enabled
 				HasSpeechProvider,
+				ChatContextKeys.speechToTextConfigured.negate(),	// built-in on-device dictation wins: hide the extension mic when it's available so only one mic shows
 				ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
 				AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
 			))

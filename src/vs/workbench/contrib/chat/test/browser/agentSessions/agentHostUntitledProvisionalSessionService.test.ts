@@ -23,6 +23,7 @@ import { IWorkspaceTrustManagementService } from '../../../../../../platform/wor
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 
 // ---- Mocks -----------------------------------------------------------------
 
@@ -133,6 +134,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 		folderService = ds.add(insta.createInstance(AgentHostNewSessionFolderService));
 		insta.stub(IAgentHostNewSessionFolderService, folderService);
+		insta.stub(IAgentHostImportConversationStore, new AgentHostImportConversationStore());
 		provisional = ds.add(insta.createInstance(AgentHostUntitledProvisionalSessionService));
 		cleanup = ds.add(new DisposableStore());
 	});
@@ -145,6 +147,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.strictEqual(a?.toString(), expectedBackendUri('a').toString());
 		assert.strictEqual(b?.toString(), a.toString());
 		assert.strictEqual(agentHost.createCalls.length, 1);
+		assert.deepStrictEqual(agentHost.createCalls[0].config, { isolation: 'folder' });
 	});
 
 	test('getOrCreate does not spawn a backend provisional in an untrusted workspace', async () => {

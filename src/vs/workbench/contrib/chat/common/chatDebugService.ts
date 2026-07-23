@@ -264,9 +264,11 @@ export interface IChatDebugService extends IDisposable {
 
 	/**
 	 * Register a callback that fetches available session resources from a provider.
-	 * Called lazily when `getAvailableSessionResources()` is first invoked.
+	 * Called lazily when `getAvailableSessionResources()` is first invoked. Multiple
+	 * fetchers may be registered (e.g. the extension host and local agent-host
+	 * discovery); each is invoked at most once. Dispose to unregister.
 	 */
-	registerAvailableSessionsFetcher(fetcher: (token: CancellationToken) => Promise<{ uri: URI; title?: string }[]>): void;
+	registerAvailableSessionsFetcher(fetcher: (token: CancellationToken) => Promise<{ uri: URI; title?: string }[]>): IDisposable;
 
 	/**
 	 * Get the stored title for a historical session discovered from disk.

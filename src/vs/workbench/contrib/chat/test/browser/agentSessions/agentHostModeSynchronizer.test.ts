@@ -47,7 +47,7 @@ suite('AgentHostModeSynchronizer', () => {
 		};
 	}
 
-	function createSynchronizer(initialMode: IChatMode, initialCustomModes: readonly IChatMode[] = []) {
+	function createSynchronizer(initialMode: IChatMode, initialCustomModes: readonly IChatMode[] = [], resource: URI = sessionResource) {
 		let customModes = [...initialCustomModes];
 		const modeChanges = store.add(new Emitter<IChatModeChangeEvent>());
 		const modesChanges = store.add(new Emitter<void>());
@@ -57,7 +57,7 @@ suite('AgentHostModeSynchronizer', () => {
 		const setChatModeCalls: string[] = [];
 
 		const widget = {
-			viewModel: { sessionResource },
+			viewModel: { sessionResource: resource },
 			input: {
 				onDidChangeCurrentChatMode: modeChanges.event,
 				currentModeObs: mode,
@@ -77,7 +77,7 @@ suite('AgentHostModeSynchronizer', () => {
 			getAllWidgets: () => [widget],
 			onDidAddWidget: Event.None,
 			onDidChangeFocusedSession: Event.None,
-			getWidgetBySessionResource: (resource: URI) => resource.toString() === sessionResource.toString() ? widget : undefined,
+			getWidgetBySessionResource: (r: URI) => r.toString() === resource.toString() ? widget : undefined,
 			lastFocusedWidget: widget,
 		} as unknown as IChatWidgetService;
 
@@ -122,8 +122,12 @@ suite('AgentHostModeSynchronizer', () => {
 	});
 
 	test('retries restore when custom modes load late', async () => {
-		const { modesChanges, setChatModeCalls, setCustomModes, storageService } = createSynchronizer(ChatMode.Agent);
-		storageService.store(agentHostAgentPickerStorageKey(sessionResource.scheme), agentUri, StorageScope.PROFILE, StorageTarget.MACHINE);
+		// The synchronizer only SEEDS the shared per-scheme agent into untitled (new) sessions;
+		// established sessions restore their own persisted mode elsewhere (ChatInputPart). Use an
+		// untitled resource so this exercises the seed-retry path when custom modes load late.
+		const untitledResource = URI.parse('agent-host-claude:/untitled-session-1');
+		const { modesChanges, setChatModeCalls, setCustomModes, storageService } = createSynchronizer(ChatMode.Agent, [], untitledResource);
+		storageService.store(agentHostAgentPickerStorageKey(untitledResource.scheme), agentUri, StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		await timeout(0);
 		assert.deepStrictEqual(setChatModeCalls, []);
@@ -133,5 +137,20 @@ suite('AgentHostModeSynchronizer', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(setChatModeCalls, [agentUri]);
+	});
+
+	test('does not restore the shared per-scheme agent to an established (non-untitled) session', async () => {
+		// Regression for the "custom agent picker flips to a stale agent after send" bug: the
+		// shared per-scheme agent is a seed for NEW sessions only, so an established/restored
+		// session must never have it applied — even when its custom modes load late.
+		const { modesChanges, setChatModeCalls, setCustomModes, storageService } = createSynchronizer(ChatMode.Agent);
+		storageService.store(agentHostAgentPickerStorageKey(sessionResource.scheme), agentUri, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		await timeout(0);
+		setCustomModes([createCustomMode()]);
+		modesChanges.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual(setChatModeCalls, []);
 	});
 });

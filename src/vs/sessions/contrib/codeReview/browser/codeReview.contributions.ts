@@ -10,8 +10,8 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { IsPhoneLayoutContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext } from '../../../common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionHasChangesContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -19,11 +19,30 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { CodeReviewService, ICodeReviewService } from './codeReviewService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
+import { Menus } from '../../../browser/menus.js';
+import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 
 registerSingleton(ICodeReviewService, CodeReviewService, InstantiationType.Delayed);
 
 const CODE_REVIEW_QUERY = '/code-review';
 
+const singlePaneDetailPanel = SinglePaneLayoutEnabledContext;
+
+// Code review is shown next to the diff-stats action in the single-pane Changes
+// editor header, so it is only contributed to the classic changes button bar
+// when single-pane is off.
+const codeReviewChangesToolbarWhen = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	SessionWorkspaceIsVirtualContext.toNegated(),
+	IsPhoneLayoutContext.negate(),
+	ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+	singlePaneDetailPanel.negate(),
+);
+
+// Code review in the single-pane Changes editor header: on the left
+// (SessionsEditorHeaderPrimary), in its own group right after the diff-stats
+// action (separated by a divider), whether the editor area is visible or
+// collapsed.
 class RunSessionCodeReviewAction extends Action2 {
 
 	static readonly ID = 'sessions.codeReview.run';
@@ -41,11 +60,22 @@ class RunSessionCodeReviewAction extends Action2 {
 					id: MenuId.AgentsChangesToolbar,
 					group: 'navigation',
 					order: 7,
+					when: codeReviewChangesToolbarWhen,
+				},
+				{
+					// A separate group (rather than 'navigation', which holds the Branch
+					// Changes picker + diff-stats) so a separator renders before it.
+					id: Menus.SessionsEditorHeaderPrimary,
+					group: '1_codeReview',
+					order: 1,
 					when: ContextKeyExpr.and(
 						IsSessionsWindowContext,
+						ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+						singlePaneDetailPanel,
+						IsAuxiliaryWindowContext.toNegated(),
+						IsTopRightEditorGroupContext,
 						SessionWorkspaceIsVirtualContext.toNegated(),
-						IsPhoneLayoutContext.negate(),
-						ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+						SessionHasChangesContext,
 					),
 				},
 			],

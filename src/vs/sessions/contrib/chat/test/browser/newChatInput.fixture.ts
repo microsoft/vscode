@@ -12,12 +12,19 @@ import { ISearchService } from '../../../../../workbench/services/search/common/
 import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IPromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
+import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
+import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 // The new-session input box styling lives in these stylesheets; `style.css`
 // provides the `--vscode-agentsChatInput-*` theme variables and the
@@ -69,6 +76,31 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 			}());
 			reg.defineInstance(IPromptsService, new class extends mock<IPromptsService>() {
 				override readonly onDidChangeSlashCommands = Event.None;
+			}());
+			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+				override readonly onDidChangeSlashCommands = Event.None;
+				override async getSlashCommands() { return []; }
+			}());
+			reg.defineInstance(INewChatVoiceTargetService, disposableStore.add(new NewChatVoiceTargetService()));
+			reg.defineInstance(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
+				override readonly isConnected = observableValue<boolean>('isConnected', false);
+				override readonly isConnecting = observableValue<boolean>('isConnecting', false);
+				override readonly voiceState = observableValue<'idle' | 'listening' | 'processing' | 'speaking' | 'error'>('voiceState', 'idle');
+				override readonly targetSession = observableValue<URI | undefined>('targetSession', undefined);
+				override readonly transcriptTurns = observableValue<never[]>('transcriptTurns', []);
+			}());
+			reg.defineInstance(ITtsPlaybackService, new class extends mock<ITtsPlaybackService>() {
+				override readonly analyserNode = undefined;
+			}());
+			reg.defineInstance(IMicCaptureService, new class extends mock<IMicCaptureService>() {
+				override readonly analyserNode = undefined;
+			}());
+			reg.defineInstance(IChatSpeechToTextService, new class extends mock<IChatSpeechToTextService>() {
+				override readonly onDidChangeState = Event.None;
+				override readonly onDidChangePreparingModel = Event.None;
+				override readonly state = ChatSpeechToTextState.Idle;
+				override readonly isConfigured = false;
+				override readonly isPreparingModel = false;
 			}());
 		},
 	});

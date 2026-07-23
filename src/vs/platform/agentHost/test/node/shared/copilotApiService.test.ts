@@ -126,6 +126,39 @@ suite('CopilotApiService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('combines internal organizations from the Copilot token with login from user discovery', async () => {
+		const service = createService(async input => {
+			const url = getUrl(input);
+			if (url.endsWith('/copilot_internal/user')) {
+				return new Response(JSON.stringify({
+					login: 'octocat',
+					copilotignore_enabled: true,
+					endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example' },
+				}), { status: 200 });
+			}
+			if (url.includes('/token')) {
+				return tokenResponse({
+					token: 'rt=1;tid=tracking-id',
+					organization_list: [
+						'a5db0bcaae94032fe715fb34a5e4bce2',
+						'551cca60ce19654d894e786220822482',
+					],
+				});
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		});
+
+		assert.deepStrictEqual(await service.resolveRestrictedTelemetryContext('gh-token'), {
+			restrictedTelemetryEnabled: true,
+			trackingId: 'tracking-id',
+			telemetryEndpoint: 'https://telemetry.example',
+			isInternal: true,
+			userName: 'octocat',
+			isVscodeTeamMember: true,
+			copilotIgnoreEnabled: true,
+		});
+	});
+
 	// #region Endpoint Discovery
 
 	suite('Endpoint Discovery', () => {
@@ -245,6 +278,30 @@ suite('CopilotApiService', () => {
 
 			await service.messages('gh-tok', baseRequest);
 			assert.strictEqual(captured().url, 'https://custom.copilot.example.com/v1/messages');
+		});
+
+		test('reuses endpoint discovery when resolving the GitHub login', async () => {
+			let discoveryCount = 0;
+			const service = createService(async input => {
+				const url = getUrl(input);
+				if (url.includes('/copilot_internal/user')) {
+					discoveryCount++;
+					return new Response(JSON.stringify({
+						login: 'octocat',
+						endpoints: { api: 'https://custom.copilot.example.com' },
+					}), { status: 200 });
+				}
+				throw new Error(`Unexpected URL: ${url}`);
+			});
+
+			const apiEndpoint = await service.resolveApiEndpoint('gh-tok');
+			const login = await service.resolveUserLogin('gh-tok');
+
+			assert.deepStrictEqual({ apiEndpoint, login, discoveryCount }, {
+				apiEndpoint: 'https://custom.copilot.example.com',
+				login: 'octocat',
+				discoveryCount: 1,
+			});
 		});
 
 		test('falls back to default API base when endpoints.api is missing', async () => {
@@ -391,14 +448,25 @@ suite('CopilotApiService', () => {
 
 		suite('CAPI URL override (VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE)', () => {
 			const ENV = 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE';
+			const SMOKE_TEST_ENV = 'VSCODE_SMOKE_TEST_PROXY_HEADER';
 			let saved: string | undefined;
+			let savedSmokeTestEnv: string | undefined;
 
-			setup(() => { saved = process.env[ENV]; });
+			setup(() => {
+				saved = process.env[ENV];
+				savedSmokeTestEnv = process.env[SMOKE_TEST_ENV];
+				delete process.env[SMOKE_TEST_ENV];
+			});
 			teardown(() => {
 				if (saved === undefined) {
 					delete process.env[ENV];
 				} else {
 					process.env[ENV] = saved;
+				}
+				if (savedSmokeTestEnv === undefined) {
+					delete process.env[SMOKE_TEST_ENV];
+				} else {
+					process.env[SMOKE_TEST_ENV] = savedSmokeTestEnv;
 				}
 			});
 
@@ -419,8 +487,27 @@ suite('CopilotApiService', () => {
 				assert.strictEqual(discoveryHit, false, 'discovery must be skipped for a loopback override');
 			});
 
+			test('the reserved smoke-test host skips discovery only with the proxy marker', async () => {
+				process.env[ENV] = 'http://vscode-smoke.test:12345';
+				process.env[SMOKE_TEST_ENV] = 'test-marker';
+				let discoveryHit = false;
+				const service = createService(async (input) => {
+					const url = getUrl(input);
+					if (url.includes('/copilot_internal')) {
+						discoveryHit = true;
+						return tokenResponse();
+					}
+					return anthropicResponse([{ type: 'text', text: 'ok' }]);
+				});
+
+				await service.messages('gh-secret', baseRequest);
+
+				assert.strictEqual(discoveryHit, false, 'the smoke-test override must skip endpoint discovery');
+			});
+
 			test('a non-loopback override is ignored and normal discovery runs (no token leak)', async () => {
 				process.env[ENV] = 'https://evil.example.com';
+				process.env[SMOKE_TEST_ENV] = 'test-marker';
 				let discoveryHit = false;
 				const service = createService(async (input) => {
 					const url = getUrl(input);

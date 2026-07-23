@@ -67,6 +67,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		return folders.map(folder => ({
 			uri: folder.uri,
 			label: this.promptsService.getPromptLocationLabel(folder),
+			source: folder.storage
 		}));
 	}
 

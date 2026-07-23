@@ -28,16 +28,18 @@ import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '.
 import { ITelemetryData, ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DeferredPromise, Promises, RunOnceWorker } from '../../../../base/common/async.js';
 import { EventType as TouchEventType, GestureEvent } from '../../../../base/browser/touch.js';
-import { IEditorGroupsView, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions, IEditorPartsView, IEditorGroupViewOptions, IEditorGroupHeaderMenuIds } from './editor.js';
+import { IEditorGroupsView, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions, IEditorPartsView, IEditorGroupViewOptions, IEditorGroupMenuIds } from './editor.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { SubmenuAction } from '../../../../base/common/actions.js';
+import { Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { IMenuChangeEvent, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getActionBarActions, PrimaryAndSecondaryActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { createEditorTypeActions, getAvailableEditorTypes } from './editorTypePicker.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { hash } from '../../../../base/common/hash.js';
 import { getMimeTypes } from '../../../../editor/common/services/languagesAssociations.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
@@ -147,8 +149,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	 */
 	private _headerHeight = 0;
 
-	/** The group's configured header menu ids (see {@link IEditorGroupViewOptions.headerMenuIds}). */
-	private readonly _headerMenuIds: IEditorGroupHeaderMenuIds | undefined;
+	/** The group's configured menu ids (see {@link IEditorGroupViewOptions.menuIds}). */
+	private readonly _menuIds: IEditorGroupMenuIds | undefined;
 
 	/** Renders and auto-sizes the optional header content (see {@link setHeaderContent}). */
 	private readonly _headerContent = this._register(new MutableDisposable());
@@ -189,11 +191,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IHostService private readonly hostService: IHostService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(themeService);
 
-		this._headerMenuIds = options?.headerMenuIds;
+		this._menuIds = options?.menuIds;
 
 		if (from instanceof EditorGroupView) {
 			this.model = this._register(from.model.clone());
@@ -242,7 +245,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.element.appendChild(this.titleContainer);
 
 			// Title control
-			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model));
+			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model, this._menuIds));
 
 			// Header container (optional, below the tab bar; empty by default)
 			this.headerContainer = $('.editor-group-header');
@@ -2141,6 +2144,22 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				'navigation',
 				shouldInlineGroup
 			);
+
+			// Add a "Reopen Editor With" submenu to the overflow (...) menu when the active editor's
+			// resource can be opened by more than one editor type (e.g. Text Editor vs. Markdown
+			// Preview). This mirrors the editor type dropdown shown in the breadcrumbs bar. It is
+			// built per group so it reflects that group's active editor.
+			if (menuId === MenuId.EditorTitle) {
+				const available = getAvailableEditorTypes(this.activeEditor, this.editorResolverService);
+				if (available) {
+					const editorTypeActions = createEditorTypeActions(available, this.editorResolverService, this.commandService, this.editorService);
+					const reopenWithSubmenu = new SubmenuAction('editor.reopenWith', localize('reopenWith', "Reopen Editor With"), editorTypeActions);
+					if (actions.secondary.length) {
+						actions.secondary.push(new Separator());
+					}
+					actions.secondary.push(reopenWithSubmenu);
+				}
+			}
 		} else {
 			// If there is no active pane in the group (it's the last group and it's empty)
 			// Trigger the change event when the active editor changes
@@ -2299,29 +2318,44 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	/**
-	 * Renders the group's configured header menus ({@link IEditorGroupViewOptions.headerMenuIds})
+	 * Renders the group's configured header menus ({@link IEditorGroupViewOptions.menuIds})
 	 * as leading/trailing toolbars below the tab bar, but only while the active editor
 	 * opts in ({@link IEditorPane.getHeaderActions}, which supplies the editor-scoped
 	 * instantiation service). The header height follows its rendered content, and
 	 * re-renders whenever the active editor changes.
 	 */
 	private _renderEditorHeader(): void {
-		const headerMenuIds = this._headerMenuIds;
+		const menuIds = this._menuIds;
 		const headerActions = this.activeEditorPane?.getHeaderActions?.();
-		if (!headerMenuIds || !headerActions) {
+		if ((!menuIds?.headerPrimary && !menuIds?.headerSecondary) || !headerActions) {
 			this._editorHeaderContent.clear();
 			return;
 		}
+		const headerPrimaryMenuId = menuIds.headerPrimary;
+		const headerSecondaryMenuId = menuIds.headerSecondary;
 
 		this._editorHeaderContent.value = this.setHeaderContent(container => {
 			const store = new DisposableStore();
 			container.classList.add('editor-group-header-toolbars');
+			// Keep both containers for the leading/trailing flex layout even when only
+			// one menu is provided; render a toolbar only for whichever id is defined.
 			const primaryContainer = append(container, $('.editor-group-header-primary'));
 			const secondaryContainer = append(container, $('.editor-group-header-secondary'));
 
-			const toolbarOptions = { menuOptions: { shouldForwardArgs: true } };
-			store.add(headerActions.instantiationService.createInstance(MenuWorkbenchToolBar, primaryContainer, headerMenuIds.primary, toolbarOptions));
-			store.add(headerActions.instantiationService.createInstance(MenuWorkbenchToolBar, secondaryContainer, headerMenuIds.secondary, toolbarOptions));
+			// Render every group inline with separators between groups, so header menus
+			// can arrange actions into separated segments. The sentinel `secondary` group
+			// is the exception: its items fall into the toolbar's overflow ("…") menu.
+			const toolbarOptions = {
+				menuOptions: { shouldForwardArgs: true },
+				highlightToggledItems: true,
+				toolbarOptions: { primaryGroup: (group: string) => group !== 'secondary', useSeparatorsInPrimaryActions: true }
+			};
+			if (headerPrimaryMenuId) {
+				store.add(headerActions.instantiationService.createInstance(MenuWorkbenchToolBar, primaryContainer, headerPrimaryMenuId, toolbarOptions));
+			}
+			if (headerSecondaryMenuId) {
+				store.add(headerActions.instantiationService.createInstance(MenuWorkbenchToolBar, secondaryContainer, headerSecondaryMenuId, toolbarOptions));
+			}
 
 			return store;
 		});

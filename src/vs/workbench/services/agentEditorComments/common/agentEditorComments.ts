@@ -25,6 +25,8 @@ export interface IAgentEditorComment {
  */
 export interface IAgentEditorCommentsProvider {
 	readonly onDidChangeComments: Event<void>;
+	/** Whether new comments can be added for the resource (i.e. it is in scope for a session). */
+	acceptsComments(resource: URI): boolean;
 	getComments(resource: URI): readonly IAgentEditorComment[];
 	addComment(resource: URI, range: IRange, body: string): void;
 	deleteComment(resource: URI, id: string): void;
@@ -43,6 +45,8 @@ export interface IAgentEditorCommentsBridge {
 	/** Fired when comments change, or when a provider is registered/unregistered. */
 	readonly onDidChangeComments: Event<void>;
 
+	/** Whether new comments can be added for the resource. `false` when no provider is registered. */
+	acceptsComments(resource: URI): boolean;
 	getComments(resource: URI): readonly IAgentEditorComment[];
 	addComment(resource: URI, range: IRange, body: string): void;
 	deleteComment(resource: URI, id: string): void;
@@ -72,6 +76,10 @@ export class AgentEditorCommentsBridge extends Disposable implements IAgentEdito
 				this._onDidChangeComments.fire();
 			}
 		});
+	}
+
+	acceptsComments(resource: URI): boolean {
+		return this._provider?.acceptsComments(resource) ?? false;
 	}
 
 	getComments(resource: URI): readonly IAgentEditorComment[] {

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'fs';
 import { homedir, tmpdir } from 'os';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -30,8 +31,8 @@ suite('SessionPermissionManager', () => {
 	// checks compare like-for-like (e.g. macOS `/var` -> `/private/var`).
 	let workDir: string;
 	let outsideDir: string;
-
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/s' }).toString();
+	const directoryLinkType = isWindows ? 'junction' : 'dir';
 
 	function makeSummary(resource: string, workingDirectory?: string): SessionSummary {
 		return {
@@ -42,12 +43,16 @@ suite('SessionPermissionManager', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///project', displayName: 'Project' },
-			workingDirectory,
+			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 		};
 	}
 
 	function writeEvent(permissionPath: string): IToolApprovalEvent {
 		return { toolCallId: 'tc-1', session: URI.parse(sessionUri), permissionKind: 'write', permissionPath };
+	}
+
+	function readEvent(permissionPath: string, resource = sessionUri): IToolApprovalEvent {
+		return { toolCallId: 'tc-read', session: URI.parse(resource), permissionKind: 'read', permissionPath };
 	}
 
 	function shellEvent(commandLine: string): IToolApprovalEvent {
@@ -70,7 +75,7 @@ suite('SessionPermissionManager', () => {
 
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		configService = disposables.add(new AgentConfigurationService(manager, new NullLogService()));
-		permissions = disposables.add(new SessionPermissionManager(manager, configService, new NullLogService()));
+		permissions = disposables.add(new SessionPermissionManager(manager, {}, configService, new NullLogService()));
 		await permissions.initialize();
 
 		manager.createSession(makeSummary(sessionUri, URI.file(workDir).toString()));
@@ -108,15 +113,15 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, undefined);
 	});
 
-	(isWindows ? test.skip : test)('requires confirmation when a symlink redirects outside the working directory', async () => {
-		symlinkSync(outsideDir, join(workDir, 'link'), 'dir');
+	test('requires confirmation when a symlink redirects outside the working directory', async () => {
+		symlinkSync(outsideDir, join(workDir, 'link'), directoryLinkType);
 		const result = await permissions.getAutoApproval(writeEvent(join(workDir, 'link', 'secret.txt')), sessionUri);
 		assert.strictEqual(result, undefined);
 	});
 
-	(isWindows ? test.skip : test)('auto-approves when a symlink stays inside the working directory', async () => {
+	test('auto-approves when a symlink stays inside the working directory', async () => {
 		mkdirSync(join(workDir, 'real'));
-		symlinkSync(join(workDir, 'real'), join(workDir, 'link-in'), 'dir');
+		symlinkSync(join(workDir, 'real'), join(workDir, 'link-in'), directoryLinkType);
 		const result = await permissions.getAutoApproval(writeEvent(join(workDir, 'link-in', 'note.txt')), sessionUri);
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 	});
@@ -138,15 +143,73 @@ suite('SessionPermissionManager', () => {
 	});
 
 	test('auto-approves reads inside but requires confirmation outside the working directory', async () => {
-		const inside = await permissions.getAutoApproval(
-			{ toolCallId: 'r', session: URI.parse(sessionUri), permissionKind: 'read', permissionPath: join(workDir, 'a.txt') },
-			sessionUri,
-		);
-		const outside = await permissions.getAutoApproval(
-			{ toolCallId: 'r', session: URI.parse(sessionUri), permissionKind: 'read', permissionPath: join(outsideDir, 'a.txt') },
-			sessionUri,
-		);
+		const inside = await permissions.getAutoApproval(readEvent(join(workDir, 'a.txt')), sessionUri);
+		const outside = await permissions.getAutoApproval(readEvent(join(outsideDir, 'a.txt')), sessionUri);
 		assert.deepStrictEqual([inside, outside], [ToolCallConfirmationReason.NotNeeded, undefined]);
+	});
+
+	test('requires confirmation when the working directory is not a file URI', async () => {
+		const remoteSessionUri = URI.from({ scheme: 'copilot', path: '/remote' }).toString();
+		const remoteWorkingDirectory = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+host', path: URI.file(workDir).path });
+		manager.createSession(makeSummary(remoteSessionUri, remoteWorkingDirectory.toString()));
+
+		const result = await permissions.getAutoApproval(readEvent(join(workDir, 'a.txt'), remoteSessionUri), remoteSessionUri);
+
+		assert.strictEqual(result, undefined);
+	});
+
+	test('requires confirmation when a symlinked read ancestor redirects outside the working directory', async () => {
+		mkdirSync(join(workDir, 'nested'));
+		symlinkSync(outsideDir, join(workDir, 'nested', 'link'), directoryLinkType);
+
+		const result = await permissions.getAutoApproval(readEvent(join(workDir, 'nested', 'link', 'secret.txt')), sessionUri);
+
+		assert.strictEqual(result, undefined);
+	});
+
+	test('auto-approves a read through a symlink that stays inside the working directory', async () => {
+		mkdirSync(join(workDir, 'real-read'));
+		symlinkSync(join(workDir, 'real-read'), join(workDir, 'link-read'), directoryLinkType);
+
+		const result = await permissions.getAutoApproval(readEvent(join(workDir, 'link-read', 'note.txt')), sessionUri);
+
+		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
+	});
+
+	test('requires confirmation when only the real read path is inside the working directory', async () => {
+		symlinkSync(workDir, join(outsideDir, 'link-to-workspace'), directoryLinkType);
+
+		const result = await permissions.getAutoApproval(readEvent(join(outsideDir, 'link-to-workspace', 'note.txt')), sessionUri);
+
+		assert.strictEqual(result, undefined);
+	});
+
+	test('auto-approves reads when the working directory is itself symlinked', async () => {
+		const linkedWorkDir = join(outsideDir, 'linked-workspace');
+		const linkedSessionUri = URI.from({ scheme: 'copilot', path: '/linked' }).toString();
+		symlinkSync(workDir, linkedWorkDir, directoryLinkType);
+		manager.createSession(makeSummary(linkedSessionUri, URI.file(linkedWorkDir).toString()));
+
+		const result = await permissions.getAutoApproval(readEvent(join(linkedWorkDir, 'note.txt'), linkedSessionUri), linkedSessionUri);
+
+		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
+	});
+
+	test('requires confirmation when read realpath resolution is denied', async () => {
+		const results: (ToolCallConfirmationReason | undefined)[] = [];
+		for (const code of ['EACCES', 'EPERM']) {
+			const deniedPermissions = disposables.add(new SessionPermissionManager(manager, {
+				realpath: async () => {
+					const error: NodeJS.ErrnoException = new Error(`realpath failed with ${code}`);
+					error.code = code;
+					throw error;
+				},
+			}, configService, new NullLogService()));
+			await deniedPermissions.initialize();
+			results.push(await deniedPermissions.getAutoApproval(readEvent(join(workDir, 'secret.txt')), sessionUri));
+		}
+
+		assert.deepStrictEqual(results, [undefined, undefined]);
 	});
 
 	test('auto-approves shell commands in default permission mode when terminal auto-approve is enabled', async () => {

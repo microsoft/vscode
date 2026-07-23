@@ -4,48 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IAutomation, IAutomationRun, AutomationRunTrigger, IAutomationSchedule } from './automation.js';
+import { IAutomation, IAutomationRun, AutomationRunTrigger, IAutomationSchedule, AutomationTarget } from './automation.js';
 
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 
 /**
  * Input for `createAutomation`. The service fills in `id`, timestamps, and
- * `nextRunAt`. `folderUri` is required.
+ * `nextRunAt`.
  */
 export interface ICreateAutomationOptions {
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
-	readonly folderUri: URI;
-	readonly providerId?: string;
-	readonly sessionTypeId?: string;
+	readonly target: AutomationTarget;
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly permissionLevel?: string;
-	readonly isolationMode?: string;
-	readonly branch?: string;
 	readonly enabled?: boolean;
 }
 
 /**
- * Patch for `updateAutomation`. Absent fields are unchanged. Pass `null` for
- * `providerId`/`sessionTypeId`/`modelId`/`mode`/`permissionLevel` to clear them;
- * `folderUri` cannot be cleared.
+ * Patch for `updateAutomation`. Absent fields are unchanged; a target change
+ * replaces the complete discriminated target atomically.
  */
 export interface IUpdateAutomationOptions {
 	readonly name?: string;
 	readonly prompt?: string;
 	readonly schedule?: IAutomationSchedule;
-	readonly folderUri?: URI;
-	readonly providerId?: string | null;
-	readonly sessionTypeId?: string | null;
+	readonly target?: AutomationTarget;
 	readonly modelId?: string | null;
 	readonly mode?: string | null;
 	readonly permissionLevel?: string | null;
-	readonly isolationMode?: string | null;
-	readonly branch?: string | null;
 	readonly enabled?: boolean;
 }
 
@@ -81,7 +71,7 @@ export interface IAutomationService {
 	updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation>;
 	deleteAutomation(id: string): Promise<void>;
 
-	/** Records a new run as `pending`. Throws if the automation does not exist. */
+	/** Records a new run as `pending` and advances the schedule for scheduled/catch-up runs. Throws if the automation does not exist. */
 	recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRun>;
 
 	/** Applies a patch to a run; returns the updated run or `undefined` if not found. */
@@ -92,10 +82,4 @@ export interface IAutomationService {
 
 	/** Marks all stuck (`pending`/`running`) runs failed. Called on startup to recover from crashes. */
 	markStaleRunsFailed(reason: string): Promise<void>;
-
-	/**
-	 * Sets `lastRunAt = now` and recomputes `nextRunAt`. Called right after
-	 * dispatch so the same automation isn't picked up twice on the next tick.
-	 */
-	advanceNextRunAt(id: string, now?: Date): Promise<IAutomation | undefined>;
 }

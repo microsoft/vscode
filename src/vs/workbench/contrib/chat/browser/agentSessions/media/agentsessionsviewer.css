@@ -88,6 +88,20 @@
 		}
 	}
 
+	.monaco-list-row .agent-session-pending-voice-indicator {
+		display: none;
+		height: 16px;
+		align-items: center;
+		margin-left: 4px;
+		color: var(--vscode-charts-blue);
+		font-size: 12px;
+		pointer-events: none;
+
+		&.visible {
+			display: flex;
+		}
+	}
+
 	.monaco-list-row .agent-session-title-toolbar {
 		/* for the absolute positioning of the toolbar below */
 		position: relative;
@@ -142,7 +156,7 @@
 
 			.agent-session-icon {
 				flex-shrink: 0;
-				font-size: 12px;
+				font-size: var(--vscode-codiconFontSize, 16px);
 				height: 16px;
 				display: flex;
 				align-items: center;

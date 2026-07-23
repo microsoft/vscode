@@ -92,6 +92,39 @@ suite('ChatModel', () => {
 		assert.strictEqual(model.customTitle, 'My Chat');
 	});
 
+	test('legacy requests without timestamps keep display time unknown', () => {
+		const creationDate = 1_752_012_321_000;
+		const serializableData: ISerializableChatData3 = {
+			version: 3,
+			sessionId: 'legacy-session',
+			creationDate,
+			customTitle: undefined,
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [{
+				requestId: 'req1',
+				message: { text: 'hello', parts: [] },
+				variableData: { variables: [] },
+				response: undefined,
+			}],
+			responderUsername: 'bot',
+		};
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serializableData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		assert.deepStrictEqual({
+			recencyTimestamp: model.getRequests()[0].timestamp,
+			requestTimestamp: model.getRequests()[0].requestTimestamp,
+			serializedTimestamp: model.toJSON().requests[0].timestamp,
+		}, {
+			recencyTimestamp: creationDate,
+			requestTimestamp: undefined,
+			serializedTimestamp: undefined,
+		});
+	});
+
 	test('initialization with invalid data', async () => {
 		const invalidData = {
 			// Missing required fields
@@ -178,6 +211,103 @@ suite('ChatModel', () => {
 		});
 	});
 
+	test('response details, elapsed time, and tokens roundtrip through serialization', () => {
+		const completedAt = 1_752_012_405_000;
+		const serializableData: ISerializableChatData3 = {
+			version: 3,
+			sessionId: 'test-session',
+			creationDate: Date.now(),
+			customTitle: undefined,
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [{
+				requestId: 'req1',
+				message: { text: 'hello', parts: [] },
+				variableData: { variables: [] },
+				timestamp: 1_752_012_321_000,
+				response: [{ value: 'response', isTrusted: false }],
+				result: { details: 'GPT-5.6 Sol' },
+				modelState: { value: ResponseModelState.Complete, completedAt },
+				responseTimestamp: 1_752_012_322_000,
+				elapsedMs: 83_000,
+				completionTokens: 1_234,
+			}],
+			responderUsername: 'bot',
+		};
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serializableData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		const response = model.getRequests()[0].response;
+		const serializedResponse = model.toJSON().requests[0];
+		assert.deepStrictEqual({
+			details: response?.result?.details,
+			requestTimestamp: model.getRequests()[0].timestamp,
+			visibleRequestTimestamp: model.getRequests()[0].requestTimestamp,
+			responseTimestamp: response?.timestamp,
+			completionTimestamp: response?.completionTimestamp,
+			elapsedMs: response?.elapsedMs,
+			completionTokens: response?.completionTokenCount,
+			serializedDetails: serializedResponse.result?.details,
+			serializedRequestTimestamp: serializedResponse.timestamp,
+			serializedResponseTimestamp: serializedResponse.responseTimestamp,
+			serializedElapsedMs: serializedResponse.elapsedMs,
+			serializedCompletionTokens: serializedResponse.completionTokens,
+		}, {
+			details: 'GPT-5.6 Sol',
+			requestTimestamp: 1_752_012_321_000,
+			visibleRequestTimestamp: 1_752_012_321_000,
+			responseTimestamp: 1_752_012_322_000,
+			completionTimestamp: completedAt,
+			elapsedMs: 83_000,
+			completionTokens: 1_234,
+			serializedDetails: 'GPT-5.6 Sol',
+			serializedRequestTimestamp: 1_752_012_321_000,
+			serializedResponseTimestamp: 1_752_012_322_000,
+			serializedElapsedMs: 83_000,
+			serializedCompletionTokens: 1_234,
+		});
+	});
+
+	test('persists reasoning duration when response progress moves on', () => {
+		const clock = sinon.useFakeTimers({ now: 1000 });
+		try {
+			const response = testDisposables.add(new Response([]));
+			response.updateContent({ kind: 'thinking', value: ['First', ' thought'] });
+			clock.tick(1500);
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Done') });
+
+			assert.deepStrictEqual(response.value.map(part => part.kind === 'thinking' ? {
+				kind: part.kind,
+				value: part.value,
+				reasoningDurationMs: part.reasoningDurationMs,
+			} : { kind: part.kind }), [
+				{ kind: 'thinking', value: ['First', ' thought'], reasoningDurationMs: 1500 },
+				{ kind: 'markdownContent' },
+			]);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('persists reasoning duration when response completes without a rendered row', () => {
+		const clock = sinon.useFakeTimers({ now: 1000 });
+		try {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const text = 'hello';
+			const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'thinking', value: 'Still reasoning' });
+			clock.tick(2300);
+			request.response?.complete();
+
+			const thinkingPart = request.response?.entireResponse.value.find(part => part.kind === 'thinking');
+			assert.strictEqual(thinkingPart?.kind === 'thinking' ? thinkingPart.reasoningDurationMs : undefined, 2300);
+		} finally {
+			clock.restore();
+		}
+	});
+
 	test('addCompleteRequest', async function () {
 		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
@@ -248,7 +378,7 @@ suite('ChatModel', () => {
 		const stringContextValue: StringChatContextValue = {
 			value: 'pr-content',
 			name: 'PR #123',
-			icon: Codicon.gitPullRequest,
+			iconPath: Codicon.gitPullRequest,
 			uri: URI.parse('pr://123'),
 			handle: 1
 		};
@@ -258,7 +388,7 @@ suite('ChatModel', () => {
 			value: 'pr-content',
 			id: 'string-id',
 			name: 'PR #123',
-			icon: Codicon.gitPullRequest,
+			iconPath: Codicon.gitPullRequest,
 			uri: URI.parse('pr://123'),
 			handle: 1
 		};
@@ -1293,6 +1423,34 @@ suite('ChatResponseModel', () => {
 		}
 	});
 
+	test('MCP tool authentication marks the response as needing input', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		const response = request.response!;
+		const toolInvocation = {
+			kind: 'toolInvocation',
+			invocationMessage: 'calling tool',
+			state: observableValue<any>('state', {
+				type: IChatToolInvocation.StateKind.WaitingForAuthentication,
+				server: { id: 'server', name: 'GitHub MCP', resource: 'https://api.githubcopilot.com/mcp' },
+				cancel: () => { },
+			}),
+		} as Partial<IChatToolInvocation> as IChatToolInvocation;
+
+		model.acceptResponseProgress(request, toolInvocation);
+
+		assert.deepStrictEqual({
+			isInProgress: response.isInProgress.get(),
+			isIncomplete: response.isIncomplete.get(),
+			pending: response.isPendingConfirmation.get()?.detail,
+		}, {
+			isInProgress: false,
+			isIncomplete: true,
+			pending: 'Authenticate GitHub MCP to continue...',
+		});
+	});
+
 	test('isIncomplete becomes false on cancellation', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
@@ -1303,8 +1461,15 @@ suite('ChatResponseModel', () => {
 		assert.strictEqual(response.isIncomplete.get(), true);
 
 		model.cancelRequest(request);
-		assert.strictEqual(response.isIncomplete.get(), false);
-		assert.strictEqual(response.state, ResponseModelState.Cancelled);
+		assert.deepStrictEqual({
+			isIncomplete: response.isIncomplete.get(),
+			state: response.state,
+			hasElapsedTime: typeof response.elapsedMs === 'number',
+		}, {
+			isIncomplete: false,
+			state: ResponseModelState.Cancelled,
+			hasElapsedTime: true,
+		});
 	});
 
 	test('cancellation transitions streaming tool invocations to Cancelled (issue #288701)', async () => {

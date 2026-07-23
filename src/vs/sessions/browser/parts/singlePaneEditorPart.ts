@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getClientArea } from '../../../base/browser/dom.js';
 import { DisposableMap } from '../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { MenuId } from '../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -16,29 +14,12 @@ import { IEditorGroupViewOptions, IEditorPartCreationOptions, IEditorPartsView }
 import { EditorGroupView } from '../../../workbench/browser/parts/editor/editorGroupView.js';
 import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../../common/sessionConfig.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
+import { EDITOR_PART_MINIMUM_WIDTH, SIDE_PANE_WIDTH_RATIO } from './editorPartSizing.js';
+import { Menus } from '../menus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { MainEditorPart } from './editorPart.js';
 import { SinglePaneAuxiliaryBarPart } from './singlePaneAuxiliaryBarPart.js';
-
-/** Leading (left) toolbar of the Agents window's full-width editor header. */
-export const EditorHeaderPrimaryMenuId = new MenuId('agentsWindow.editorHeader.primary');
-/** Trailing (right) toolbar of the Agents window's full-width editor header. */
-export const EditorHeaderSecondaryMenuId = new MenuId('agentsWindow.editorHeader.secondary');
-
-/**
- * Whether the Agents window should use the single-pane detail-panel layout, where
- * the auxiliary bar is owned by (docked inside) the editor part. True only when the
- * setting is enabled on a non-phone viewport — the classic and mobile layouts keep
- * the auxiliary bar as a standalone part. This is the single source of truth for
- * selecting the single-pane workbench, editor part, and auxiliary bar together.
- */
-export function shouldUseSinglePaneLayout(configurationService: IConfigurationService): boolean {
-	const { width } = getClientArea(mainWindow.document.body);
-	const isPhoneLayout = width < 640;
-	return !isPhoneLayout && configurationService.getValue<boolean>(DOCK_DETAIL_PANEL_SETTING) === true;
-}
 
 /**
  * Single-pane editor part: owns the docked auxiliary bar so "tab bar + editor
@@ -47,7 +28,7 @@ export function shouldUseSinglePaneLayout(configurationService: IConfigurationSe
  * the editor part share one instance) and the {@link DockedAuxiliaryBarController}
  * that docks and sizes the auxiliary bar inside the editor part. The full-width
  * header itself is rendered by the editor group from the group's configured header
- * menus ({@link EditorHeaderPrimaryMenuId} / {@link EditorHeaderSecondaryMenuId},
+ * menus ({@link Menus.SessionsEditorHeaderPrimary} / {@link Menus.SessionsEditorHeaderSecondary},
  * supplied via {@link getGroupViewOptions}) whenever the active editor opts in via
  * {@link IEditorPane.getHeaderActions}; the part only reacts to its height to
  * reposition the docked auxiliary bar.
@@ -59,7 +40,37 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 	private readonly _groupHeaderListeners = this._register(new DisposableMap<EditorGroupView>());
 
 	protected override getGroupViewOptions(): IEditorGroupViewOptions {
-		return { headerMenuIds: { primary: EditorHeaderPrimaryMenuId, secondary: EditorHeaderSecondaryMenuId } };
+		return {
+			menuIds: {
+				headerPrimary: Menus.SessionsEditorHeaderPrimary,
+				headerSecondary: Menus.SessionsEditorHeaderSecondary,
+				editorActions: Menus.SessionsEditorTitle,
+				tabsBarContext: Menus.SessionsEditorTabsBarContext,
+				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
+			}
+		};
+	}
+
+	// Double-click resets the sash to this width. Use the detail panel's default
+	// while editor content is hidden, not the 60% editor split.
+	get preferredWidth(): number | undefined {
+		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return DockedAuxiliaryBarController.DEFAULT_WIDTH;
+		}
+		return Math.max(EDITOR_PART_MINIMUM_WIDTH, Math.floor(this.layoutService.mainContainerDimension.width * SIDE_PANE_WIDTH_RATIO));
+	}
+
+	// Matches the sessions list's minimum while only the detail panel is shown.
+	override get minimumWidth(): number {
+		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return DockedAuxiliaryBarController.NO_EDITOR_MIN_WIDTH;
+		}
+		return super.minimumWidth;
+	}
+
+	// Snap-collapse via sash-drag, like the sessions list, only when detail-only.
+	override get snap(): boolean {
+		return !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 	}
 
 	constructor(
@@ -106,7 +117,7 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 				isEditorAreaVisible: () => layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 				isEditorVisible: () => layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
 				isAuxiliaryBarVisible: () => layoutService.isVisible(Parts.AUXILIARYBAR_PART),
-				hideAuxiliaryBar: () => layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART),
+				hideAuxiliaryBar: () => layoutService.setAuxiliaryBarHiddenForResize(true),
 				setEditorContentRightInset: (px: number) => this.setContentRightInset(px),
 				getHeaderHeight: () => (this.activeGroup as EditorGroupView).headerHeight,
 			},

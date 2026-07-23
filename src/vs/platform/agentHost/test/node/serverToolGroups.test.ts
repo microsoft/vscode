@@ -39,6 +39,30 @@ suite('serverToolGroups display', () => {
 		});
 	});
 
+	test('session-management tools resolve to dedicated display strings', () => {
+		const display = (toolName: string) => {
+			const d = getServerToolDisplay(toolName, undefined);
+			return { displayName: d?.displayName, invocation: text(d?.invocationMessage) };
+		};
+		assert.deepStrictEqual({
+			list: display('list_sessions'),
+			current: display('get_current_session'),
+			create: display('create_session'),
+			chat: display('create_chat'),
+			send: display('send_message'),
+			context: display('get_session_context'),
+			del: display('delete_session'),
+		}, {
+			list: { displayName: 'List Sessions', invocation: 'Checking sessions' },
+			current: { displayName: 'Get Current Session', invocation: 'Checking current session' },
+			create: { displayName: 'Create Session', invocation: 'Creating session' },
+			chat: { displayName: 'Create Chat', invocation: 'Creating chat' },
+			send: { displayName: 'Send Message', invocation: 'Sending message' },
+			context: { displayName: 'Get Session Context', invocation: 'Reading session context' },
+			del: { displayName: 'Delete Session', invocation: 'Deleting session' },
+		});
+	});
+
 	test('listComments past tense reflects the comment count parsed from the result', () => {
 		const past = (resultText?: string) =>
 			text(getServerToolDisplay('listComments', undefined, { text: resultText, success: true })?.pastTenseMessage);

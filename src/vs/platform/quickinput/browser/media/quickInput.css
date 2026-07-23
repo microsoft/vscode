@@ -13,6 +13,41 @@
 	box-shadow: var(--vscode-shadow-xl);
 }
 
+.style-override.monaco-enable-motion .quick-input-widget {
+	animation: quick-input-widget-open 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	transform-origin: top center;
+	will-change: transform, opacity;
+}
+
+.style-override.monaco-enable-motion .quick-input-widget.quick-input-widget-closing {
+	animation: quick-input-widget-close 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	pointer-events: none;
+}
+
+@keyframes quick-input-widget-open {
+	0% {
+		opacity: 0;
+		transform: scale(0.97);
+	}
+
+	100% {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@keyframes quick-input-widget-close {
+	0% {
+		opacity: 1;
+		transform: scale(1);
+	}
+
+	100% {
+		opacity: 0;
+		transform: scale(0.99);
+	}
+}
+
 .quick-input-titlebar {
 	cursor: grab;
 	display: flex;

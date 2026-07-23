@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentsessionsviewer.css';
-import { clearNode, h } from '../../../../../base/browser/dom.js';
+import { clearNode, h, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { IIdentityProvider, IListVirtualDelegate, NotSelectableGroupId, NotSelectableGroupIdType } from '../../../../../base/browser/ui/list/list.js';
 import { AriaRole } from '../../../../../base/browser/ui/aria/aria.js';
@@ -53,7 +53,8 @@ import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { compareIgnoreCase } from '../../../../../base/common/strings.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
+import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
+import { createPixelSpinner, IPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection | IAgentSessionShowMore | IAgentSessionShowLess;
@@ -70,6 +71,7 @@ interface IAgentSessionItemTemplate {
 	// Column 2 Row 1
 	readonly title: IconLabel;
 	readonly pinnedIndicator: HTMLElement;
+	readonly pendingVoiceIndicator: HTMLElement;
 	readonly statusContainer: HTMLElement;
 	readonly statusTime: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar;
@@ -94,74 +96,110 @@ interface IAgentSessionItemTemplate {
 	readonly disposables: IDisposable;
 }
 
-interface IAgentSessionStatusIconInputs {
-	readonly session: IAgentSession;
-	readonly statusOnly: boolean | undefined;
-}
-
 class AgentSessionStatusIcon extends Disposable {
 
 	private static readonly PIXEL_SPINNER_GRID_KEY = '__pixel_spinner_grid__';
 	private static readonly PIXEL_SPINNER_RING_KEY = '__pixel_spinner_ring__';
 
 	private _currentCacheKey: string | undefined;
-	private _lastInputs: IAgentSessionStatusIconInputs | undefined;
+	private _lastSession: IAgentSession | undefined;
+	private readonly spinner = this._register(new MutableDisposable<IPixelSpinner>());
 
 	constructor(
 		private readonly container: HTMLElement,
-		private readonly getIcon: (session: IAgentSession, statusOnly?: boolean) => ThemeIcon,
+		private readonly getIcon: (session: IAgentSession) => ThemeIcon,
 		private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 
 		this._register(this.accessibilityService.onDidChangeReducedMotion(() => {
-			if (this._lastInputs) {
-				this.render(this._lastInputs);
+			if (this._lastSession) {
+				this.render(this._lastSession);
 			}
 		}));
 	}
 
-	setStatus(session: IAgentSession, statusOnly?: boolean): void {
-		const inputs: IAgentSessionStatusIconInputs = { session, statusOnly };
-		this._lastInputs = inputs;
-		this.render(inputs);
+	setStatus(session: IAgentSession): void {
+		this._lastSession = session;
+		this.render(session);
 	}
 
 	reset(): void {
 		this._currentCacheKey = undefined;
-		this._lastInputs = undefined;
+		this._lastSession = undefined;
+		this.spinner.clear();
 		clearNode(this.container);
 	}
 
-	private render(inputs: IAgentSessionStatusIconInputs): void {
-		const { session, statusOnly } = inputs;
+	private render(session: IAgentSession): void {
 		this.container.className = `agent-session-icon${session.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
+		this.container.style.color = '';
 
 		if ((session.status === AgentSessionStatus.InProgress || session.status === AgentSessionStatus.NeedsInput) && !this.accessibilityService.isMotionReduced()) {
 			const isNeedsInput = session.status === AgentSessionStatus.NeedsInput;
 			const cacheKey = isNeedsInput ? AgentSessionStatusIcon.PIXEL_SPINNER_RING_KEY : AgentSessionStatusIcon.PIXEL_SPINNER_GRID_KEY;
-			this.container.style.color = isNeedsInput ? asCssVariable('list.warningForeground') : asCssVariable('textLink.foreground');
+			const color = isNeedsInput ? asCssVariable('list.warningForeground') : asCssVariable('textLink.foreground');
 			if (this._currentCacheKey === cacheKey) {
+				this.updateActiveIconColor(color);
 				return;
 			}
 
 			this._currentCacheKey = cacheKey;
+			this.spinner.clear();
 			clearNode(this.container);
-			createPixelSpinner(this.container, { variant: isNeedsInput ? 'ring' : 'grid' });
+			const spinner = createPixelSpinner(undefined, { variant: isNeedsInput ? 'ring' : 'grid' });
+			this.spinner.value = spinner;
+			spinner.element.style.color = color;
+			this.container.appendChild(spinner.element);
 			return;
 		}
 
-		const icon = this.getIcon(session, statusOnly);
+		const icon = this.getIcon(session);
 		const cacheKey = ThemeIcon.asCSSSelector(icon);
-		this.container.style.color = icon.color ? asCssVariable(icon.color.id) : '';
+		const color = icon.color ? asCssVariable(icon.color.id) : '';
 		if (this._currentCacheKey === cacheKey) {
+			this.updateActiveIconColor(color);
 			return;
 		}
 
 		this._currentCacheKey = cacheKey;
+		this.spinner.clear();
 		clearNode(this.container);
-		this.container.appendChild(h(`span${cacheKey}`).root);
+		const iconElement = h(`span${cacheKey}`).root;
+		iconElement.style.color = color;
+		this.container.appendChild(iconElement);
 	}
+
+	private updateActiveIconColor(color: string): void {
+		const activeIcon = this.container.firstElementChild;
+		if (isHTMLElement(activeIcon)) {
+			activeIcon.style.color = color;
+		}
+	}
+}
+
+export function getAgentSessionStatusIcon(session: IAgentSession): ThemeIcon {
+	if (session.status === AgentSessionStatus.InProgress) {
+		return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
+	}
+
+	if (session.status === AgentSessionStatus.NeedsInput) {
+		return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
+	}
+
+	if (session.status === AgentSessionStatus.Failed) {
+		return { ...Codicon.error, color: themeColorFromId('errorForeground') };
+	}
+
+	if (session.isArchived()) {
+		return { ...Codicon.passFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
+	}
+
+	if (!session.isRead()) {
+		return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
+	}
+
+	return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 }
 
 export interface IAgentSessionRendererOptions {
@@ -212,6 +250,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IVoicePlaybackService private readonly voicePlaybackService: IVoicePlaybackService,
 	) {
 		super();
 	}
@@ -230,6 +269,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 					h('div.agent-session-title-row', [
 						h('div.agent-session-title@title'),
 						h('div.agent-session-pinned-indicator@pinnedIndicator'),
+						h('div.agent-session-pending-voice-indicator@pendingVoiceIndicator'),
 						h('div.agent-session-title-toolbar@titleToolbar'),
 					]),
 					h('div.agent-session-details-row', [
@@ -265,9 +305,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		return {
 			element: elements.item,
 			icon: elements.icon,
-			statusIcon: disposables.add(new AgentSessionStatusIcon(elements.icon, (session, statusOnly) => this.getIcon(session, statusOnly), this.accessibilityService)),
+			statusIcon: disposables.add(new AgentSessionStatusIcon(elements.icon, session => this.getIcon(session), this.accessibilityService)),
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
 			pinnedIndicator: elements.pinnedIndicator,
+			pendingVoiceIndicator: elements.pendingVoiceIndicator,
 			titleToolbar,
 			detailsIcon: elements.detailsIcon,
 			badge: elements.badge,
@@ -311,9 +352,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			template.element.removeAttribute('data-section-label');
 		}
 
-		// Icon — in status-only mode, show status indicator in icon column and session type icon in details row
+		// Icon - status in the icon column, optional session type icon in details.
 		if (this.options.useStatusOnlyIcons) {
-			template.statusIcon.setStatus(session.element, true);
+			template.statusIcon.setStatus(session.element);
 			if (session.element.providerType === AgentSessionProviders.Background) {
 				template.detailsIcon.className = 'agent-session-details-icon'; // hide default provider icon (same as Local in non-status-only mode)
 			} else {
@@ -340,6 +381,19 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		const isPinned = session.element.isPinned();
 		template.pinnedIndicator.className = 'agent-session-pinned-indicator ' + (ThemeIcon.asClassName(Codicon.pinned));
 		template.pinnedIndicator.classList.toggle('visible', isPinned);
+
+		// Pending voice response indicator - shown when a voice response arrived
+		// while this session wasn't focused and is being held until it is.
+		const sessionResource = session.element.resource;
+		template.pendingVoiceIndicator.className = 'agent-session-pending-voice-indicator ' + ThemeIcon.asClassName(Codicon.unmute);
+		template.pendingVoiceIndicator.title = localize('pendingVoiceResponse', "Voice response ready");
+		const updatePendingVoice = () => {
+			template.pendingVoiceIndicator.classList.toggle('visible', this.voicePlaybackService.hasPendingResponse(sessionResource));
+		};
+		template.elementDisposable.add(autorun(reader => {
+			this.voicePlaybackService.pendingResponseVersion.read(reader);
+			updatePendingVoice();
+		}));
 
 		// Badge
 		const hasBadge = this.renderBadge(session, template);
@@ -494,50 +548,8 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		return true;
 	}
 
-	private getIcon(session: IAgentSession, statusOnly?: boolean): ThemeIcon {
-		if (session.status === AgentSessionStatus.InProgress) {
-			return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
-		}
-
-		if (session.status === AgentSessionStatus.NeedsInput) {
-			return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
-		}
-
-		if (session.status === AgentSessionStatus.Failed) {
-			return { ...Codicon.error, color: themeColorFromId('errorForeground') };
-		}
-
-		if (statusOnly) {
-			// PR status icons
-			const metadata = session.metadata;
-			const hasPR = metadata?.pullRequestUrl || metadata?.pullRequestNumber;
-			if (hasPR) {
-				switch (metadata?.pullRequestState) {
-					case 'merged':
-						return { ...Codicon.gitPullRequestDone, color: themeColorFromId('charts.purple') };
-					case 'closed':
-						return { ...Codicon.gitPullRequestClosed, color: themeColorFromId('charts.red') };
-					case 'draft':
-						return { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') };
-					default:
-						return { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
-				}
-			}
-		}
-
-		if (!session.isRead() && !session.isArchived()) {
-			return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
-		}
-
-		if (!statusOnly && (session.providerType === AgentSessionProviders.Local || session.providerType === AgentSessionProviders.AgentHostCopilot)) {
-			return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
-		}
-
-		if (!statusOnly) {
-			return session.icon;
-		}
-
-		return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
+	private getIcon(session: IAgentSession): ThemeIcon {
+		return getAgentSessionStatusIcon(session);
 	}
 
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {

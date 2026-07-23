@@ -64,7 +64,6 @@ export class ChatCompositeBar extends Disposable {
 	private _session: IActiveSession | undefined;
 	private readonly _newChatAction: Action;
 	private readonly _newChatContainer: HTMLElement;
-	private readonly _actionMenuToolbar: MenuWorkbenchToolBar;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
@@ -115,10 +114,9 @@ export class ChatCompositeBar extends Disposable {
 		}));
 		this._tabsRow.appendChild(this._tabsScrollbar.getDomNode());
 
-		// "New Chat" button pinned at the end of the tab strip (after the last
-		// tab). Starting a new chat is offered here while the tabs are shown; when
-		// the session has a single chat the session header toolbar offers it
-		// instead.
+		// "New Chat" button pinned at the end of the tab strip. Starting a new chat
+		// is offered here while the tabs are shown; when the session has a single
+		// chat the session header toolbar offers it instead.
 		const newChatAction = this._newChatAction = this._register(new Action(
 			'chatCompositeBar.addChat',
 			localize('chatCompositeBar.addChat', "New Chat"),
@@ -136,17 +134,6 @@ export class ChatCompositeBar extends Disposable {
 		newChatActionBar.push(newChatAction, { icon: true, label: false });
 		this._newChatContainer = newChatActionBar.getContainer();
 		this._newChatContainer.classList.add('chat-composite-bar-new-chat');
-
-		// Chat tab bar action menu (e.g. the Conversations dropdown) right-aligned
-		// at the end of the strip; items are contributed into Menus.SessionChatTabBar.
-		const actionMenuContainer = $('.chat-composite-bar-action-menu');
-		this._tabsRow.appendChild(actionMenuContainer);
-		this._actionMenuToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionMenuContainer, Menus.SessionChatTabBar, {
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			menuOptions: { shouldForwardArgs: true },
-			highlightToggledItems: true,
-			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
-		}));
 
 		// Keep the visual scrollbar in sync with native scrolling inside the tabs container
 		this._register(addDisposableListener(this._tabsContainer, EventType.SCROLL, () => {
@@ -187,8 +174,6 @@ export class ChatCompositeBar extends Disposable {
 			return;
 		}
 		this._session = session;
-
-		this._actionMenuToolbar.context = session;
 
 		const store = new DisposableStore();
 		this._sessionDisposables.value = store;

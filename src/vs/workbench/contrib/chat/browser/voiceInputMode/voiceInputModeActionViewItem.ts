@@ -130,7 +130,7 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 				await controller.connect(win);
 			}
 			if (controller.isConnected.get()) {
-				controller.pttDown(true);  // force clean new turn
+				controller.pttDown('explicit', true);  // force clean new turn
 				if (holdMode) {
 					await holdMode;        // wait for key release
 				} else if (!keyReleased) {
@@ -141,7 +141,7 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 						});
 					});
 				}
-				controller.pttUp(true);    // force finish turn and send
+				controller.pttUp('explicit', true);    // force finish turn and send
 			}
 		} finally {
 			releaseListener.dispose();
@@ -568,7 +568,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._voiceHoldTimer = undefined;
 			if (controller.isConnected.get()) {
 				this._voiceHoldListening = true;
-				controller.pttDown(true);
+				controller.pttDown('explicit', true);
 			}
 		}, VoiceInputModeActionViewItem.HOLD_THRESHOLD_MS);
 		// End the gesture on release anywhere (in case the pointer leaves the button).
@@ -591,7 +591,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			// so it does not also disconnect.
 			this._voiceHoldListening = false;
 			this._voiceSuppressClick = true;
-			this.voiceSessionController.pttUp(true);
+			this.voiceSessionController.pttUp('explicit', true);
 		}
 	}
 

@@ -5,6 +5,7 @@
 
 import { deepStrictEqual, strictEqual, ok } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { IChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -15,7 +16,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
+import { IRemoteAgentConnection, IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
@@ -72,6 +73,7 @@ suite('TerminalSandboxService - network domains', () => {
 	}
 
 	class MockRemoteAgentService {
+		connection: IRemoteAgentConnection | null = null;
 		remoteEnvironment: IRemoteAgentEnvironment | null = {
 			os: OperatingSystem.Linux,
 			tmpDir: URI.file('/tmp'),
@@ -97,8 +99,8 @@ suite('TerminalSandboxService - network domains', () => {
 			isUnsupportedGlibc: false
 		};
 
-		getConnection() {
-			return null;
+		getConnection(): IRemoteAgentConnection | null {
+			return this.connection;
 		}
 
 		async getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
@@ -332,6 +334,109 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(result.detail, 'No permissions to create namespace');
 	});
 
+	test('should install sandbox dependencies with the detected package manager', async () => {
+		sandboxHelperService.status = {
+			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
+			socatInstalled: false,
+			dependencyInstallCommand: 'sudo apt-get update && sudo apt-get install -y',
+		};
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		let sentCommand: string | undefined;
+		const commandFinishedEmitter = store.add(new Emitter<{ exitCode: number | undefined }>());
+		const terminal: ISandboxDependencyInstallTerminal = {
+			sendText: async command => {
+				sentCommand = command;
+				commandFinishedEmitter.fire({ exitCode: 0 });
+			},
+			focus: () => { },
+			capabilities: {
+				get: () => ({ onCommandFinished: commandFinishedEmitter.event }),
+				onDidAddCapability: Event.None,
+			},
+			onDidInputData: Event.None,
+			onDisposed: Event.None,
+		};
+
+		const result = await sandboxService.installMissingSandboxDependencies(['bubblewrap', 'socat'], undefined, CancellationToken.None, {
+			createTerminal: async () => terminal,
+			focusTerminal: async () => { },
+		});
+
+		strictEqual(result.exitCode, 0);
+		strictEqual(sentCommand, `sudo apt-get update && sudo apt-get install -y 'bubblewrap' 'socat'`);
+	});
+
+	test('should install sandbox dependencies with the remote host package manager', async () => {
+		sandboxHelperService.status = {
+			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
+			socatInstalled: false,
+			dependencyInstallCommand: 'sudo apt-get install -y',
+		};
+		const remoteStatus: ISandboxDependencyStatus = {
+			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
+			socatInstalled: false,
+			dependencyInstallCommand: 'sudo pacman -S --needed --noconfirm',
+		};
+		const channel: IChannel = {
+			call: async <T>(command: string): Promise<T> => {
+				strictEqual(command, 'checkSandboxDependencies');
+				return remoteStatus as T;
+			},
+			listen: () => Event.None,
+		};
+		remoteAgentService.connection = {
+			withChannel: async <T extends IChannel, R>(_channelName: string, callback: (channel: T) => Promise<R>): Promise<R> => callback(channel as T),
+		} as IRemoteAgentConnection;
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		let sentCommand: string | undefined;
+		const commandFinishedEmitter = store.add(new Emitter<{ exitCode: number | undefined }>());
+		const terminal: ISandboxDependencyInstallTerminal = {
+			sendText: async command => {
+				sentCommand = command;
+				commandFinishedEmitter.fire({ exitCode: 0 });
+			},
+			focus: () => { },
+			capabilities: {
+				get: () => ({ onCommandFinished: commandFinishedEmitter.event }),
+				onDidAddCapability: Event.None,
+			},
+			onDidInputData: Event.None,
+			onDisposed: Event.None,
+		};
+
+		const result = await sandboxService.installMissingSandboxDependencies(['bubblewrap'], undefined, CancellationToken.None, {
+			createTerminal: async () => terminal,
+			focusTerminal: async () => { },
+		});
+
+		strictEqual(result.exitCode, 0);
+		strictEqual(sentCommand, `sudo pacman -S --needed --noconfirm 'bubblewrap'`);
+	});
+
+	test('should not create a terminal without a supported package manager', async () => {
+		sandboxHelperService.status = {
+			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
+			socatInstalled: true,
+		};
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		let terminalCreated = false;
+
+		const result = await sandboxService.installMissingSandboxDependencies(['bubblewrap'], undefined, CancellationToken.None, {
+			createTerminal: async () => {
+				terminalCreated = true;
+				throw new Error('Unexpected terminal creation');
+			},
+			focusTerminal: async () => { },
+		});
+
+		strictEqual(result.exitCode, undefined);
+		strictEqual(terminalCreated, false);
+	});
+
 	test('should run the approved bubblewrap remediation command', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		const runAndCapture = async (remediation: TerminalSandboxPreCheckRemediation): Promise<string | undefined> => {
@@ -470,7 +575,10 @@ suite('TerminalSandboxService - network domains', () => {
 		}
 
 		const chainedGitConfig = await getConfigAfterWrap('git rebase main && npm install', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'npm', args: ['install'] }]);
-		strictEqual(Object.prototype.hasOwnProperty.call(chainedGitConfig.network, 'allowAllUnixSockets'), false, 'Chained Git commands should not allow all Unix sockets for the entire invocation');
+		strictEqual(chainedGitConfig.network.allowAllUnixSockets, true, 'Git commands chained with non-Docker commands should allow Unix sockets');
+
+		const chainedDockerConfig = await getConfigAfterWrap('git rebase main && docker ps', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'docker', args: ['ps'] }]);
+		strictEqual(Object.prototype.hasOwnProperty.call(chainedDockerConfig.network, 'allowAllUnixSockets'), false, 'Git commands chained with Docker commands should not allow all Unix sockets');
 
 		const npmConfig = await getConfigAfterWrap('npm install', [{ keyword: 'npm', args: ['install'] }]);
 		strictEqual(Object.prototype.hasOwnProperty.call(npmConfig.network, 'allowAllUnixSockets'), false, 'Commands without a matching Unix socket runtime rule should not allow all Unix sockets');
@@ -482,12 +590,11 @@ suite('TerminalSandboxService - network domains', () => {
 		deepStrictEqual(config, {}, 'Git GPG runtime values should not apply on Windows');
 	});
 
-	test('should add GnuPG runtime values for chains of compatible commands', () => {
+	test('should add GnuPG runtime values for chains without Docker commands', () => {
 		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [
 			{ keyword: 'git', args: ['rebase', 'main'] },
-			{ keyword: 'gh', args: ['pr', 'list'] },
-			{ keyword: 'gpg', args: ['--list-keys'] },
-			{ keyword: 'gpg2', args: ['--list-keys'] },
+			{ keyword: 'python', args: ['script.py'] },
+			{ keyword: 'echo', args: ['done'] },
 		]);
 
 		deepStrictEqual(config, {
@@ -501,14 +608,20 @@ suite('TerminalSandboxService - network domains', () => {
 		});
 	});
 
-	test('should skip unsafe command-specific runtime values for chained commands', () => {
-		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'npm', args: ['install'] }]);
+	test('should skip GnuPG runtime values for chains with Docker-related commands', () => {
+		for (const keyword of ['docker', 'docker-compose', 'dockerd']) {
+			const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [
+				{ keyword: 'git', args: ['rebase', 'main'] },
+				{ keyword, args: ['ps'] },
+				{ keyword: 'npm', args: ['install'] },
+			]);
 
-		deepStrictEqual(config, {
-			filesystem: {
-				allowWrite: ['~/.volta/']
-			}
-		});
+			deepStrictEqual(config, {
+				filesystem: {
+					allowWrite: ['~/.volta/']
+				}
+			});
+		}
 	});
 
 	test('should preserve user runtime settings over command-specific runtime values', async () => {
@@ -765,7 +878,11 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const chainedGitConfig = await getConfigAfterWrap('git rebase main && npm install', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'npm', args: ['install'] }]);
 		ok(chainedGitConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Chained Git commands should include GPG read allow-list paths');
-		ok(!chainedGitConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Chained Git commands should not include GPG write allow-list paths');
+		ok(chainedGitConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Git commands chained with non-Docker commands should include GPG write allow-list paths');
+
+		const chainedDockerConfig = await getConfigAfterWrap('git rebase main && docker ps', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'docker', args: ['ps'] }]);
+		ok(chainedDockerConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Git commands chained with Docker commands should retain Git-specific GPG read allow-list paths');
+		ok(!chainedDockerConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Git commands chained with Docker commands should not include GPG write allow-list paths');
 
 		const npmConfig = await getConfigAfterWrap('npm install', [{ keyword: 'npm', args: ['install'] }]);
 		ok(!npmConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Commands without a matching GPG rule should not include GPG read allow-list paths');

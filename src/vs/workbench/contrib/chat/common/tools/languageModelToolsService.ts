@@ -25,7 +25,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { ChatRequestToolReferenceEntry } from '../attachments/chatVariableEntries.js';
 import { IVariableReference } from '../chatModes.js';
-import { IChatAgentFeedbackReviewConfirmationData, IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatSearchToolInvocationData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
+import { ConfirmedReason, IChatAgentFeedbackReviewConfirmationData, IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatSearchToolInvocationData, IChatSessionCreatedData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
 import { ILanguageModelChatMetadata, LanguageModelPartAudience } from '../languageModels.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './promptTsxTypes.js';
@@ -190,13 +190,23 @@ export interface IToolInvocation {
 	 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
 	 */
 	subAgentInvocationId?: string;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData;
 	modelId?: string;
 	userSelectedTools?: UserSelectedTools;
 	/** The label of the custom button selected by the user during confirmation, if custom buttons were used. */
 	selectedCustomButton?: string;
 	/** Pre-tool-use hook result passed from the extension, if the hook was already executed externally. */
 	preToolUseResult?: IExternalPreToolUseHookResult;
+	/**
+	 * A confirmation reason resolved out-of-band by the caller (e.g. the agent
+	 * host, which decides auto-approval server-side). When set, the invocation
+	 * is treated as already auto-approved and transitions straight to executing
+	 * without ever entering the `WaitingForConfirmation` state. This avoids a
+	 * transient "needs input" flicker in surfaces (like the sessions list) that
+	 * observe pending confirmations, for tool calls that will be auto-approved
+	 * anyway.
+	 */
+	preApproved?: ConfirmedReason;
 	/**
 	 * Optional W3C trace context `traceparent` value identifying the parent distributed
 	 * tracing span for this tool invocation. Forwarded to MCP tool implementations as
@@ -336,12 +346,22 @@ export interface IToolResultDataPart {
 	title?: string;
 }
 
+export type IToolApprovalReason =
+	| { readonly status: 'loading' }
+	| {
+		readonly status: 'complete';
+		readonly explanation: string | IMarkdownString;
+		readonly safety: number;
+	};
+
 export interface IToolConfirmationMessages {
 	/** Title for the confirmation. If set, the user will be asked to confirm execution of the tool */
 	title?: string | IMarkdownString;
 	/** MUST be set if `title` is also set */
 	message?: string | IMarkdownString;
 	disclaimer?: string | IMarkdownString;
+	/** Model-provided assessment of whether automatic approval is safe. */
+	approvalReason?: IToolApprovalReason;
 	allowAutoConfirm?: boolean;
 	terminalCustomActions?: ToolConfirmationAction[];
 	/** If true, confirmation will be requested after the tool executes and before results are sent to the model */
@@ -395,7 +415,7 @@ export interface IPreparedToolInvocation {
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: ToolInvocationPresentation;
 	icon?: ThemeIcon;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData;
 }
 
 export interface IToolImpl {

@@ -34,7 +34,7 @@ import { HookTypeValue } from '../promptSyntax/hookTypes.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
-import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, type McpOAuthClient } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 export interface IChatRequest {
 	message: string;
@@ -483,6 +483,8 @@ export interface IChatQuestionCarousel {
 	data?: IChatQuestionAnswers;
 	/** Whether the carousel has been submitted/skipped */
 	isUsed?: boolean;
+	/** True when accepted/answered outside the carousel UI (e.g. via voice) without structured answers. */
+	answeredExternally?: boolean;
 	/** Top-level message shown above the questions (e.g. from MCP elicitation message) */
 	message?: string | IMarkdownString;
 	/** Source attribution (e.g. MCP server) */
@@ -535,6 +537,8 @@ export interface IChatThinkingPart {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 	generatedTitle?: string;
+	/** Elapsed reasoning time in milliseconds, persisted so the duration survives reload. */
+	reasoningDurationMs?: number;
 }
 
 /**
@@ -741,9 +745,18 @@ export type ConfirmedReason =
 	| { type: ToolConfirmKind.UserAction; selectedButton?: string; selectedButtonKind?: ConfirmationOptionKind }
 	| { type: ToolConfirmKind.Skipped };
 
+/**
+ * Active-only controls for a tool call executing on another connected client.
+ */
+export interface IChatToolInvocationOtherClientData {
+	readonly cancel: () => void;
+}
+
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData;
+	/** Active-only metadata that is omitted when the invocation is serialized. */
+	readonly otherClientToolCall?: IChatToolInvocationOtherClientData;
 	/**
 	 * Observable that tracks the `kind` of `toolSpecificData`. Used by the
 	 * tool invocation part to re-render when the kind changes (e.g. from
@@ -776,6 +789,7 @@ export namespace IChatToolInvocation {
 		WaitingForPostApproval,
 		Completed,
 		Cancelled,
+		WaitingForAuthentication,
 	}
 
 	interface IChatToolInvocationStateBase {
@@ -810,6 +824,12 @@ export namespace IChatToolInvocation {
 		progress: IObservable<{ message?: string | IMarkdownString; progress: number | undefined }>;
 	}
 
+	export interface IChatToolInvocationWaitingForAuthenticationState extends IChatToolInvocationStateBase, IChatToolInvocationPostConfirmState {
+		type: StateKind.WaitingForAuthentication;
+		readonly server: IChatMcpAuthenticationRequiredServer;
+		cancel(): void;
+	}
+
 	interface IChatToolInvocationPostExecuteState extends IChatToolInvocationPostConfirmState {
 		resultDetails: IToolResult['toolResultDetails'];
 	}
@@ -837,6 +857,7 @@ export namespace IChatToolInvocation {
 		| IChatToolInvocationStreamingState
 		| IChatToolInvocationWaitingForConfirmationState
 		| IChatToolInvocationExecutingState
+		| IChatToolInvocationWaitingForAuthenticationState
 		| IChatToolWaitingForPostApprovalState
 		| IChatToolInvocationCompleteState
 		| IChatToolInvocationCancelledState;
@@ -1021,7 +1042,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -1118,11 +1139,29 @@ export interface IChatToolResourcesInvocationData {
 	readonly values: Array<URI | Location>;
 }
 
+/**
+ * Tool-specific data for a completed `create_session` / `create_chat`
+ * agent-host tool call. Carries a clickable link so the renderer can show a
+ * deterministic confirmation + "open" button instead of relying on the model
+ * to echo a markdown link.
+ */
+export interface IChatSessionCreatedData {
+	readonly kind: 'sessionCreated';
+	/** The `agent-host-session://` link that opens the created/owning session. */
+	readonly openLink: string;
+	/** Label for the button (e.g. the session title / prompt). */
+	readonly label: string;
+	/** Whether this is a `create_chat` result (vs `create_session`); selects the pill icon. */
+	readonly isChat?: boolean;
+}
+
 export interface IChatModifiedFilesConfirmationData {
 	readonly kind: 'modifiedFilesConfirmation';
 	readonly options: readonly string[];
 	readonly modifiedFiles: readonly {
 		readonly uri: UriComponents;
+		/** The pending file operation represented by this entry. */
+		readonly editKind?: ChatExternalEditKind;
 		readonly originalUri?: UriComponents;
 		/**
 		 * Optional URI to read the modified (after) content from for the diff
@@ -1215,7 +1254,9 @@ export interface IChatMcpAuthenticationRequiredServer {
 	readonly id: string;
 	readonly name: string;
 	readonly resource: string;
+	readonly oauthClient?: McpOAuthClient;
 	readonly authorizationServers?: readonly string[];
+	readonly supportedScopes?: readonly string[];
 	readonly requiredScopes?: readonly string[];
 	readonly reason?: string;
 }
@@ -1626,6 +1667,8 @@ export type ChatSendResult =
 export interface ChatSendResultRejected {
 	readonly kind: 'rejected';
 	readonly reason: string;
+	/** Set when the session was replaced before the request was rejected (e.g. untitled -> read-only contributed session). */
+	readonly newSessionResource?: URI;
 }
 
 export interface ChatSendResultSent {

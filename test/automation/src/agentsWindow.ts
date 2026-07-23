@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Code } from './code';
+import { acceptToolConfirmationIfPresent } from './chat';
 import { QuickAccess } from './quickaccess';
 
 const AGENTS_WORKBENCH = '.agent-sessions-workbench';
@@ -126,6 +127,11 @@ export class AgentsWindow {
 
 		const itemSel = `.action-widget .monaco-list-row`;
 		const needle = label.toLowerCase();
+		const isEnabledAction = (el: { className: string }) => el.className.includes('action') && !el.className.includes('option-disabled');
+		const actionLabelMatches = (el: { textContent: string; attributes: Record<string, string> }) => {
+			const ariaLabel = (el.attributes['aria-label'] ?? '').trim().toLowerCase();
+			return ariaLabel === needle || ariaLabel.startsWith(`${needle}, `) || (!ariaLabel && (el.textContent ?? '').trim().toLowerCase() === needle);
+		};
 		const deadline = Date.now() + timeoutMs;
 
 		while (Date.now() < deadline) {
@@ -136,8 +142,7 @@ export class AgentsWindow {
 			const openDeadline = Math.min(deadline, Date.now() + 2_000);
 			while (Date.now() < openDeadline) {
 				const items = await this.code.getElements(itemSel, /* recursive */ true);
-				const labels = (items ?? []).map(i => (i.textContent ?? '').trim());
-				if (labels.some(t => t.toLowerCase().includes(needle))) {
+				if ((items ?? []).some(item => isEnabledAction(item) && actionLabelMatches(item))) {
 					found = true;
 					break;
 				}
@@ -174,6 +179,13 @@ export class AgentsWindow {
 		const itemSel = `.action-widget .monaco-list-row`;
 		const maxAttempts = 3;
 		const needle = label.toLowerCase();
+		const isActionRow = (el: { className: string }) => el.className.includes('action');
+		const isEnabledActionRow = (el: { className: string }) => isActionRow(el) && !el.className.includes('option-disabled');
+		const rowText = (el: { textContent: string }) => (el.textContent ?? '').trim().toLowerCase();
+		const actionLabelMatches = (el: { textContent: string; attributes: Record<string, string> }) => {
+			const ariaLabel = (el.attributes['aria-label'] ?? '').trim().toLowerCase();
+			return ariaLabel === needle || ariaLabel.startsWith(`${needle}, `) || (!ariaLabel && rowText(el) === needle);
+		};
 
 		// The picker click can silently do nothing if the active session
 		// isn't fully initialized yet, and the dropdown is async-populated:
@@ -188,7 +200,10 @@ export class AgentsWindow {
 			while (Date.now() < deadline) {
 				const items = await this.code.getElements(itemSel, /* recursive */ true);
 				lastSeen = (items ?? []).map(i => (i.textContent ?? '').trim());
-				if (lastSeen.some(t => t.toLowerCase().includes(needle))) {
+				if ((items ?? []).some(item =>
+					(isEnabledActionRow(item) && actionLabelMatches(item)) ||
+					(!isActionRow(item) && rowText(item) === needle)
+				)) {
 					break outer;
 				}
 				await new Promise(r => setTimeout(r, 250));
@@ -200,19 +215,17 @@ export class AgentsWindow {
 		}
 
 		const items = await this.code.waitForElements(itemSel, /* recursive */ true);
-		const isActionRow = (el: { className: string }) => el.className.includes('action');
-		const rowText = (el: { textContent: string }) => (el.textContent ?? '').trim().toLowerCase();
 
-		// Prefer an actionable row whose label matches directly (e.g. a
+		// Prefer an enabled actionable row whose label matches exactly (e.g. a
 		// session type label like "Claude" or "Copilot CLI").
-		let matchIndex = items.findIndex(el => isActionRow(el) && rowText(el).includes(needle));
+		let matchIndex = items.findIndex(el => isEnabledActionRow(el) && actionLabelMatches(el));
 		// Otherwise treat the label as a provider section header (e.g. "Local
 		// Agent Host"): headers are non-clickable rows rendered above their
 		// session types, so select the first actionable row beneath the header.
 		if (matchIndex < 0) {
-			const headerIndex = items.findIndex(el => !isActionRow(el) && rowText(el).includes(needle));
+			const headerIndex = items.findIndex(el => !isActionRow(el) && rowText(el) === needle);
 			if (headerIndex >= 0) {
-				matchIndex = items.findIndex((el, index) => index > headerIndex && isActionRow(el));
+				matchIndex = items.findIndex((el, index) => index > headerIndex && isEnabledActionRow(el));
 			}
 		}
 		if (matchIndex < 0) {
@@ -382,23 +395,45 @@ export class AgentsWindow {
 		let lastActiveTexts: string[] = [];
 		while (Date.now() < deadline) {
 			const rows = await this.code.getElements(SESSION_LIST_ROW, /* recursive */ true);
-			lastTexts = (rows ?? []).map(r => (r.textContent ?? '').trim());
-			const matchIndex = lastTexts.findIndex(t => !t.includes(workingStatus) && rowNeedles.some(n => t.toLowerCase().includes(n)));
-			if (matchIndex < 0) {
+			const renderedRows = rows ?? [];
+			lastTexts = renderedRows.map(r => (r.textContent ?? '').trim());
+			const renderedIndex = lastTexts.findIndex(t => !t.includes(workingStatus) && rowNeedles.some(n => t.toLowerCase().includes(n)));
+			if (renderedIndex < 0) {
 				await new Promise(r => setTimeout(r, 250));
 				continue;
 			}
 
+			// The list is virtualized, so a row's position among rendered DOM
+			// elements may differ from its absolute tree index.
+			const dataIndex = renderedRows[renderedIndex].attributes['data-index'];
+			if (dataIndex === undefined) {
+				throw new Error(`Matched session list row at rendered index ${renderedIndex} has no data-index attribute.`);
+			}
 			const summary = lastTexts.map((t, i) => `[${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n');
-			console.log(`[agentsWindow] activateSessionByLabel(${JSON.stringify(rowMatches)}) clicking index ${matchIndex}; all rows:\n${summary}`);
-			await this.code.waitAndClick(`${SESSION_LIST_ROW}[data-index="${matchIndex}"]`);
-			await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
+			const rowSelector = `${SESSION_LIST_ROW}[data-index="${dataIndex}"]`;
+			console.log(`[agentsWindow] activateSessionByLabel(${JSON.stringify(rowMatches)}) clicking data-index ${dataIndex} (rendered index ${renderedIndex}); all rows:\n${summary}`);
+			try {
+				// data-index is assigned by the virtualized list and can change as
+				// sessions are inserted or retitled. Do not poll a stale selector:
+				// if the row moves before this short click completes, re-read the
+				// list and resolve its current index on the next outer iteration.
+				const rowText = await this.code.waitForTextContent(rowSelector, undefined, text => rowNeedles.some(n => text.toLowerCase().includes(n)), 20);
+				if (rowText.includes(workingStatus)) {
+					continue;
+				}
+				await this.code.driver.robustClick(`${rowSelector} .session-main`);
+				await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, 20);
+			} catch {
+				await new Promise(r => setTimeout(r, 250));
+				continue;
+			}
 
 			// Wait until the active session view's chat widget actually shows a
 			// response matching `responseLabel`. A bare `is-active` check is not
 			// enough because the workbench may auto-create a fresh untitled
 			// session and route it into the active slot between row-render and click.
-			while (Date.now() < deadline) {
+			const activationDeadline = Math.min(deadline, Date.now() + 2_000);
+			while (Date.now() < activationDeadline) {
 				const responses = await this.code.getElements(activeResponseSelector, /* recursive */ true);
 				lastActiveTexts = (responses ?? []).map(el => (el.textContent ?? '').trim());
 				if (lastActiveTexts.some(t => t.toLowerCase().includes(responseNeedle))) {
@@ -406,13 +441,15 @@ export class AgentsWindow {
 				}
 				await new Promise(r => setTimeout(r, 250));
 			}
-			const activeSummary = lastActiveTexts.length
-				? lastActiveTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n')
-				: '  (no response bubbles in active session view)';
-			throw new Error(`Activated row index ${matchIndex} but the active session view never rendered a response containing "${responseLabel ?? rowMatches[0]}". Active view responses:\n${activeSummary}`);
+			// The index may have been recycled for another row while the click was
+			// dispatched. Re-resolve the desired row instead of failing immediately.
+			await new Promise(r => setTimeout(r, 250));
 		}
 		const summary = lastTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n');
-		throw new Error(`Timed out waiting for a settled session list row containing any of ${JSON.stringify(rowMatches)} (without "${workingStatus}"). Last-seen rows:\n${summary}`);
+		const activeSummary = lastActiveTexts.length
+			? lastActiveTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n')
+			: '  (no response bubbles in active session view)';
+		throw new Error(`Timed out activating a settled session list row containing any of ${JSON.stringify(rowMatches)} (without "${workingStatus}"). Last-seen rows:\n${summary}\nActive view responses:\n${activeSummary}`);
 	}
 
 	/**
@@ -428,7 +465,7 @@ export class AgentsWindow {
 	 * well after the content is on screen, so requiring `:not(.chat-response-loading)`
 	 * causes false-negative timeouts.
 	 */
-	async waitForAssistantText(predicate: RegExp | string, timeoutMs: number = 60_000): Promise<string> {
+	async waitForAssistantText(predicate: RegExp | string, timeoutMs: number = 60_000, options?: { acceptToolConfirmations?: boolean }): Promise<string> {
 		const retryCount = Math.ceil(timeoutMs / 100);
 		await this.code.waitForElement(RESPONSE, undefined, retryCount);
 
@@ -437,6 +474,12 @@ export class AgentsWindow {
 		const deadline = Date.now() + timeoutMs;
 		let lastTexts: string[] = [];
 		while (Date.now() < deadline) {
+			// When requested, accept any pending terminal tool confirmation so
+			// the agentic loop can proceed. No-op for sessions that
+			// auto-approve their shell commands.
+			if (options?.acceptToolConfirmations) {
+				await acceptToolConfirmationIfPresent(this.code);
+			}
 			// Look in BOTH the active session view and the broader workbench
 			// scope. The Agents Window can auto-swap the active slot to a
 			// fresh untitled session immediately after a follow-up commits,
@@ -571,12 +614,16 @@ export class AgentsWindow {
 				// that intercepts pointer events while the action widget animates open.
 				await row.click({ force: true });
 				// Confirm the selection actually committed: the picker name button
-				// must now display the chosen model. A non-committing click (e.g.
+				// must now reflect the chosen model. A non-committing click (e.g.
 				// absorbed by the animating pointer-block overlay) silently leaves the
 				// previous model selected and the picker dismissed, so waiting only
-				// for the popup to close would miss it. Scope to `:visible` so a hidden
-				// overflow duplicate of the name button can't produce a false positive.
-				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}:visible`, { hasText: modelName })
+				// for the popup to close would miss it. Match on the button's accessible
+				// name (aria-label, e.g. "Models, <modelName>") rather than the visible
+				// text: when the input is narrow the picker collapses to an icon-only
+				// button and no longer renders the model name as visible text. Scope to
+				// `:visible` so a hidden overflow duplicate of the name button can't
+				// produce a false positive.
+				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}[aria-label*="${modelName}"]:visible`)
 					.first()
 					.waitFor({ state: 'visible', timeout: 15_000 });
 				return;
