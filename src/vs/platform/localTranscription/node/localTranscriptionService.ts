@@ -103,6 +103,28 @@ function transcriptSeparator(current: string, next: string): '' | ' ' {
  */
 const SENTENCE_PAUSE_THRESHOLD_SECONDS = 0.7;
 
+/**
+ * Standalone speech disfluencies ("filler words") the streaming ASR model
+ * transcribes literally. Matches whole tokens only (word boundaries), covering
+ * the common lengthened variants: um/umm, uh/uhh, uhm, er/err/erm, hm/hmm. The
+ * `\b` boundaries keep real words that merely contain these letters (e.g. "huh",
+ * "duh", "summon") intact.
+ */
+const FILLER_WORDS = /\b(?:u+m+|u+h+|u+hm+|e+r+m?|h+m+)\b/gi;
+
+/**
+ * Remove filler words from a transcript fragment and tidy the whitespace and
+ * punctuation spacing left behind, so dictation reads as clean prose rather than
+ * a verbatim record of every "um" and "uh".
+ */
+function removeFillerWords(text: string): string {
+	return text
+		.replace(FILLER_WORDS, '')
+		.replace(/\s+([,.;:!?])/g, '$1')
+		.replace(/\s{2,}/g, ' ')
+		.trim();
+}
+
 /** Whether `text` already ends with sentence-terminal punctuation (allowing a trailing closing quote or bracket). */
 function endsWithTerminalPunctuation(text: string): boolean {
 	return /[.!?]["')\]]?$/.test(text.trimEnd());
@@ -180,11 +202,11 @@ export class TranscriptAccumulator {
 	}
 
 	/**
-	 * The cumulative finalized transcript, segments joined in time order. When a
-	 * long enough pause separates two segments (and the earlier one is not
-	 * already terminated), a sentence break is inserted so the on-device model's
-	 * unpunctuated output reads as sentences rather than one run-on. Sentence
-	 * starts and the pronoun "i" are capitalized.
+	 * The cumulative finalized transcript, segments joined in time order. Filler
+	 * words are stripped, and when a long enough pause separates two segments
+	 * (and the earlier one is not already terminated) a sentence break is
+	 * inserted so the on-device model's unpunctuated output reads as sentences
+	 * rather than one run-on. Sentence starts and the pronoun "i" are capitalized.
 	 */
 	getText(): string {
 		const ordered = [...this._segments.values()].sort((a, b) => {
@@ -200,14 +222,18 @@ export class TranscriptAccumulator {
 			return a.order - b.order;
 		});
 
+		const cleaned = ordered
+			.map(segment => ({ startTime: segment.startTime, endTime: segment.endTime, text: removeFillerWords(segment.text) }))
+			.filter(segment => segment.text.length > 0);
+
 		let text = '';
-		for (let i = 0; i < ordered.length; i++) {
-			const segment = ordered[i];
+		for (let i = 0; i < cleaned.length; i++) {
+			const segment = cleaned[i];
 			if (i === 0) {
 				text = segment.text;
 				continue;
 			}
-			const previous = ordered[i - 1];
+			const previous = cleaned[i - 1];
 			const pause = segment.startTime !== null && previous.endTime !== null
 				? segment.startTime - previous.endTime
 				: null;

@@ -44,4 +44,24 @@ suite('TranscriptAccumulator punctuation', () => {
 		accumulator.addFinal('how are you', null, null);
 		assert.strictEqual(accumulator.getText(), 'Hello there how are you');
 	});
+
+	test('strips filler words and their lengthened variants', () => {
+		const accumulator = new TranscriptAccumulator();
+		accumulator.addFinal('um so uh i was umm thinking err about it', 0, 2);
+		assert.strictEqual(accumulator.getText(), 'So I was thinking about it');
+	});
+
+	test('drops a segment that is only filler', () => {
+		const accumulator = new TranscriptAccumulator();
+		accumulator.addFinal('lets go', 0, 1);
+		accumulator.addFinal('um', 1.1, 1.4);
+		accumulator.addFinal('to the store', 1.5, 2);
+		assert.strictEqual(accumulator.getText(), 'Lets go to the store');
+	});
+
+	test('keeps real words that merely contain filler letters', () => {
+		const accumulator = new TranscriptAccumulator();
+		accumulator.addFinal('the summon duh huh number', 0, 1);
+		assert.strictEqual(accumulator.getText(), 'The summon duh huh number');
+	});
 });
