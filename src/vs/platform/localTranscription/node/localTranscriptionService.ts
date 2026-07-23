@@ -93,17 +93,6 @@ function transcriptSeparator(current: string, next: string): '' | ' ' {
 }
 
 /**
- * Minimum silence (in seconds) between two endpointed segments that we treat as
- * a sentence boundary. The on-device streaming ASR model emits lowercase,
- * largely unpunctuated text, so consecutive segments are otherwise joined into
- * one run-on sentence. Foundry Local endpoints a segment on a speech pause, so a
- * long enough gap between one segment's end and the next segment's start is a
- * strong sentence-break signal. Tuned to break at deliberate pauses while
- * tolerating the shorter pauses that occur mid-sentence.
- */
-const SENTENCE_PAUSE_THRESHOLD_SECONDS = 0.7;
-
-/**
  * Standalone speech disfluencies ("filler words") the streaming ASR model
  * transcribes literally. Matches whole tokens only (word boundaries), covering
  * the common lengthened variants: um/umm, uh/uhh, uhm, er/err/erm, hm/hmm. The
@@ -120,28 +109,11 @@ const FILLER_WORDS = /\b(?:u+m+|u+h+|u+hm+|e+r+m?|h+m+)\b/gi;
 function removeFillerWords(text: string): string {
 	return text
 		.replace(FILLER_WORDS, '')
+		.replace(/([,.;:!?])\s*[,.;:!?]+/g, '$1')
+		.replace(/^[,.;:!?]\s*/, '')
 		.replace(/\s+([,.;:!?])/g, '$1')
 		.replace(/\s{2,}/g, ' ')
 		.trim();
-}
-
-/** Whether `text` already ends with sentence-terminal punctuation (allowing a trailing closing quote or bracket). */
-function endsWithTerminalPunctuation(text: string): boolean {
-	return /[.!?]["')\]]?$/.test(text.trimEnd());
-}
-
-/**
- * Restore basic capitalization the streaming ASR model omits: uppercase the
- * first letter of the transcript and of every sentence (the first letter after
- * sentence-terminal punctuation), plus the standalone pronoun "i". Purely
- * cosmetic and deterministic, so it is safe to run on every transcript update.
- */
-function capitalizeSentences(text: string): string {
-	const capitalized = text.replace(
-		/(?<boundary>^|[.!?]["')\]]?\s+)(?<initial>\p{Ll})/gu,
-		(_match: string, boundary: string, initial: string) => `${boundary}${initial.toUpperCase()}`,
-	);
-	return capitalized.replace(/\bi\b/g, 'I');
 }
 
 /**
@@ -201,15 +173,9 @@ export class TranscriptAccumulator {
 		this._nextOrder++;
 	}
 
-	/**
-	 * The cumulative finalized transcript, segments joined in time order. Filler
-	 * words are stripped, and when a long enough pause separates two segments
-	 * (and the earlier one is not already terminated) a sentence break is
-	 * inserted so the on-device model's unpunctuated output reads as sentences
-	 * rather than one run-on. Sentence starts and the pronoun "i" are capitalized.
-	 */
-	getText(): string {
-		const ordered = [...this._segments.values()].sort((a, b) => {
+	/** The cumulative transcript with filler words removed. */
+	getText(partialText: string = ''): string {
+		const finalized = [...this._segments.values()].sort((a, b) => {
 			if (a.startTime !== null && b.startTime !== null) {
 				return a.startTime - b.startTime;
 			}
@@ -220,33 +186,12 @@ export class TranscriptAccumulator {
 				return 1;
 			}
 			return a.order - b.order;
-		});
-
-		const cleaned = ordered
-			.map(segment => ({ startTime: segment.startTime, endTime: segment.endTime, text: removeFillerWords(segment.text) }))
-			.filter(segment => segment.text.length > 0);
-
-		let text = '';
-		for (let i = 0; i < cleaned.length; i++) {
-			const segment = cleaned[i];
-			if (i === 0) {
-				text = segment.text;
-				continue;
-			}
-			const previous = cleaned[i - 1];
-			const pause = segment.startTime !== null && previous.endTime !== null
-				? segment.startTime - previous.endTime
-				: null;
-			if (pause !== null && pause >= SENTENCE_PAUSE_THRESHOLD_SECONDS && !endsWithTerminalPunctuation(text)) {
-				// A deliberate pause between two unterminated segments: end the
-				// prior sentence so the next segment starts a new one.
-				text = `${text}. ${segment.text}`;
-			} else {
-				text = `${text}${transcriptSeparator(text, segment.text)}${segment.text}`;
-			}
-		}
-
-		return capitalizeSentences(text.trim());
+		})
+			.map(segment => removeFillerWords(segment.text))
+			.filter(Boolean)
+			.reduce((text, segment) => `${text}${transcriptSeparator(text, segment)}${segment}`, '');
+		const partial = removeFillerWords(partialText);
+		return `${finalized}${transcriptSeparator(finalized, partial)}${partial}`.trim();
 	}
 
 	reset(): void {
@@ -643,15 +588,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 
 	/** Finalized transcript plus the current interim tail, joined naturally. */
 	private _cumulativeText(): string {
-		const finalized = this._accumulator.getText();
-		const partial = this._partialText;
-		if (!partial) {
-			return finalized;
-		}
-		if (!finalized) {
-			return partial;
-		}
-		return `${finalized}${transcriptSeparator(finalized, partial)}${partial}`;
+		return this._accumulator.getText(this._partialText);
 	}
 
 	private _resultText(result: LiveAudioTranscriptionResponse): string {

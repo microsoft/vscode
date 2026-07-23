@@ -64,6 +64,19 @@ const MAI_FINAL_TIMEOUT_MS = 4000;
 /** How long to wait for the backend to acknowledge the opened session before streaming audio anyway. */
 const MAI_SESSION_INIT_TIMEOUT_MS = 4000;
 
+/** Standalone filler tokens we remove from the displayed dictation transcript. */
+const FILLER_WORDS = /\b(?:u+m+|u+h+|u+hm+|e+r+m?|h+m+)\b/gi;
+
+function removeFillerWords(text: string): string {
+	return text
+		.replace(FILLER_WORDS, '')
+		.replace(/([,.;:!?])\s*[,.;:!?]+/g, '$1')
+		.replace(/^[,.;:!?]\s*/, '')
+		.replace(/\s+([,.;:!?])/g, '$1')
+		.replace(/\s{2,}/g, ' ')
+		.trim();
+}
+
 type SpeechToTextSessionEvent = {
 	outcome: 'completed' | 'cancelled' | 'error';
 	backend: string;
@@ -596,7 +609,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 * prefix; `isFinal` marks the terminal update after the session stops.
 	 */
 	private _emitTranscript(text: string, finalizedText: string, isFinal: boolean): void {
-		this._finalizedText = text;
+		this._finalizedText = removeFillerWords(text);
 		this._deltaText = '';
 		if (!isFinal) {
 			this._sessionSegments++;
@@ -605,7 +618,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		if (this._firstTranscriptMs === 0 && this._transcript.length > 0) {
 			this._firstTranscriptMs = Date.now();
 		}
-		this._onDidUpdateTranscript.fire({ text: this._transcript, finalizedText });
+		this._onDidUpdateTranscript.fire({ text: this._transcript, finalizedText: removeFillerWords(finalizedText) });
 	}
 
 	/**

@@ -7,48 +7,30 @@ import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TranscriptAccumulator } from '../../node/localTranscriptionService.js';
 
-suite('TranscriptAccumulator punctuation', () => {
+suite('TranscriptAccumulator', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('breaks a run-on into sentences at a long pause and capitalizes', () => {
+	test('joins finalized segments without adding punctuation', () => {
 		const accumulator = new TranscriptAccumulator();
 		accumulator.addFinal('hello there', 0, 1);
-		accumulator.addFinal('how are you', 2, 3); // 1.0s gap -> sentence break
-		assert.strictEqual(accumulator.getText(), 'Hello there. How are you');
-	});
-
-	test('keeps a short pause within the same sentence', () => {
-		const accumulator = new TranscriptAccumulator();
-		accumulator.addFinal('hello there', 0, 1);
-		accumulator.addFinal('my friend', 1.2, 2); // 0.2s gap -> same sentence
-		assert.strictEqual(accumulator.getText(), 'Hello there my friend');
-	});
-
-	test('does not double punctuate an already terminated segment', () => {
-		const accumulator = new TranscriptAccumulator();
-		accumulator.addFinal('Hello there.', 0, 1);
-		accumulator.addFinal('how are you', 2, 3); // long gap, but prior already ends with '.'
-		assert.strictEqual(accumulator.getText(), 'Hello there. How are you');
-	});
-
-	test('capitalizes the standalone pronoun "i"', () => {
-		const accumulator = new TranscriptAccumulator();
-		accumulator.addFinal('can i help you', 0, 1);
-		assert.strictEqual(accumulator.getText(), 'Can I help you');
-	});
-
-	test('falls back to a space join when segment timing is unavailable', () => {
-		const accumulator = new TranscriptAccumulator();
-		accumulator.addFinal('hello there', null, null);
-		accumulator.addFinal('how are you', null, null);
-		assert.strictEqual(accumulator.getText(), 'Hello there how are you');
+		accumulator.addFinal('how are you', 2, 3);
+		assert.strictEqual(accumulator.getText(), 'hello there how are you');
 	});
 
 	test('strips filler words and their lengthened variants', () => {
 		const accumulator = new TranscriptAccumulator();
 		accumulator.addFinal('um so uh i was umm thinking err about it', 0, 2);
-		assert.strictEqual(accumulator.getText(), 'So I was thinking about it');
+		assert.strictEqual(accumulator.getText(), 'so i was thinking about it');
+	});
+
+	test('keeps surrounding punctuation when removing filler words', () => {
+		const transcripts = ['um, hello', 'hello um.', 'um.', 'hello, um, there'].map(value => {
+			const accumulator = new TranscriptAccumulator();
+			accumulator.addFinal(value, 0, 1);
+			return accumulator.getText();
+		});
+		assert.deepStrictEqual(transcripts, ['hello', 'hello.', '', 'hello, there']);
 	});
 
 	test('drops a segment that is only filler', () => {
@@ -56,12 +38,18 @@ suite('TranscriptAccumulator punctuation', () => {
 		accumulator.addFinal('lets go', 0, 1);
 		accumulator.addFinal('um', 1.1, 1.4);
 		accumulator.addFinal('to the store', 1.5, 2);
-		assert.strictEqual(accumulator.getText(), 'Lets go to the store');
+		assert.strictEqual(accumulator.getText(), 'lets go to the store');
+	});
+
+	test('strips filler words from the interim tail', () => {
+		const accumulator = new TranscriptAccumulator();
+		accumulator.addFinal('hello', 0, 1);
+		assert.strictEqual(accumulator.getText(' um, there uh.'), 'hello there');
 	});
 
 	test('keeps real words that merely contain filler letters', () => {
 		const accumulator = new TranscriptAccumulator();
 		accumulator.addFinal('the summon duh huh number', 0, 1);
-		assert.strictEqual(accumulator.getText(), 'The summon duh huh number');
+		assert.strictEqual(accumulator.getText(), 'the summon duh huh number');
 	});
 });
