@@ -54,7 +54,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
 import { IChatModel, IChatModelInputState, IChatResponseModel, logChangesToStateModel } from '../../common/model/chatModel.js';
-import { ChatMode, getModeNameForTelemetry, IChatMode } from '../../common/chatModes.js';
+import { ChatMode, getModeNameForTelemetry, IChatMode, shouldAutoFireHandoff } from '../../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
@@ -335,6 +335,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _goalBannerDismissedForCurrentRequest = false;
 	private readonly _goalBannerDismissListener = this._register(new MutableDisposable<IDisposable>());
 
+	// Counts `send: true` handoffs Autopilot has auto-fired back to back with
+	// no human turn in between, so it can be capped — otherwise a handoff
+	// chain that cycles back on itself (e.g. two custom agents whose handoffs
+	// point at each other) auto-resubmits indefinitely with no user in the
+	// loop. Reset on any turn that wasn't itself an Autopilot auto-fire, and
+	// on switching sessions. See {@link renderChatSuggestNextWidget}.
+	private _consecutiveAutopilotAutoHandoffs = 0;
+
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
 
@@ -345,6 +353,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const previousSessionResource = this._viewModel?.sessionResource;
 		this.viewModelDisposables.clear();
+
+		// A widget instance can be reattached to a different session (session
+		// picker, history navigation, etc.). The Autopilot auto-handoff cap is
+		// per-session state, not per-widget: carrying a nonzero count across a
+		// session switch would let a brand new, entirely unrelated session's
+		// first legitimate auto-handoff start partway toward the cap.
+		this._consecutiveAutopilotAutoHandoffs = 0;
 
 		this._viewModel = viewModel;
 		if (viewModel) {
@@ -1374,9 +1389,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (permissionLevel === ChatPermissionLevel.Autopilot) {
 				const autoSendHandoff = handoffs.find(h => h.send);
 				if (autoSendHandoff) {
-					this.handleNextPromptSelection(autoSendHandoff);
-					return;
+					if (shouldAutoFireHandoff(this._consecutiveAutopilotAutoHandoffs)) {
+						this._consecutiveAutopilotAutoHandoffs++;
+						this.handleNextPromptSelection(autoSendHandoff);
+						return;
+					}
+					this.logService.warn(`[Autopilot] Suppressed auto-send handoff '${autoSendHandoff.label}' after ${this._consecutiveAutopilotAutoHandoffs} consecutive unattended handoffs, to avoid an unbounded resubmission loop`);
 				}
+			} else {
+				this._consecutiveAutopilotAutoHandoffs = 0;
 			}
 
 			// Log telemetry only when widget transitions from hidden to visible

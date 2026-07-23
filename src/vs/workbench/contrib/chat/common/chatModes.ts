@@ -750,6 +750,53 @@ export function getHandoffId(handoff: IHandOff): string {
 }
 
 /**
+ * Maximum number of `send: true` handoffs Autopilot will auto-fire back to
+ * back with no human turn in between. Autopilot already caps consecutive
+ * unattended continuations *within* a single turn at 3 (see
+ * `ToolCallingLoop.MAX_AUTOPILOT_ITERATIONS`); a cross-turn handoff is a
+ * coarser unit of work than an in-turn nudge (a whole completed, billed
+ * request per hop rather than one tool-call round), so this cap is set a
+ * little higher — enough room for a realistic multi-step chain, while
+ * staying in the same neighborhood as that existing precedent rather than
+ * allowing effectively unbounded automation.
+ */
+export const AUTOPILOT_MAX_CONSECUTIVE_AUTO_HANDOFFS = 5;
+
+/**
+ * Decides whether Autopilot may auto-fire another `send: true` handoff,
+ * given how many it has already auto-fired back to back with no human turn
+ * in between (`consecutiveAutoFiredCount`).
+ *
+ * Autopilot auto-submits a mode's `send: true` handoff as soon as a response
+ * completes (see `ChatWidget#renderChatSuggestNextWidget`), with no user
+ * turn in between. Nothing else bounds how many times this can happen in a
+ * row: if a handoff chain cycles back on itself (agent A's auto-send handoff
+ * eventually leads back to a handoff pointed at A again, whether directly or
+ * via intermediate agents, and whether or not the two directions happen to
+ * share a handoff id/label) Autopilot will resubmit it forever, one fully
+ * completed and billed turn per lap, with no external signal that anything
+ * is wrong.
+ *
+ * This is deliberately a plain attempt count rather than a check for a
+ * repeated handoff *identity* (agent + label). Identity-based detection has
+ * a real gap: two different-labeled handoffs pointing at each other (e.g.
+ * "Implement" from plan -> implement, "Review" from implement -> plan) form
+ * an infinite A <-> B loop whose two directions never share an id — which is
+ * the more natural way to author a back-and-forth handoff, not a contrived
+ * edge case — so an identity check would never trip at all. Counting
+ * attempts needs no assumption about identities lining up and bounds every
+ * unbounded chain, repeating or not.
+ *
+ * A legitimate multi-step chain (plan -> implement -> verify) is unaffected
+ * as long as it stays under the cap — which it always does in practice,
+ * since such chains terminate in a final response with no further
+ * `send: true` handoff rather than running indefinitely.
+ */
+export function shouldAutoFireHandoff(consecutiveAutoFiredCount: number): boolean {
+	return consecutiveAutoFiredCount < AUTOPILOT_MAX_CONSECUTIVE_AUTO_HANDOFFS;
+}
+
+/**
  * Describes a single handoff defined in a custom agent's `.agent.md` file.
  */
 export interface IHandoffInfo {
