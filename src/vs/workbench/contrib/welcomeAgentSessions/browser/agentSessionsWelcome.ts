@@ -565,6 +565,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			getHoverPosition: () => HoverPosition.BELOW,
 			trackActiveEditorSession: () => false,
 			source: 'welcomeView',
+			itemHeight: AgentSessionsListDelegate.ITEM_HEIGHT,
+			sectionHeight: AgentSessionsListDelegate.SECTION_HEIGHT,
 			notifySessionOpened: () => {
 				const isProjectionEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled);
 				if (!isProjectionEnabled) {
