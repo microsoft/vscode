@@ -83,6 +83,19 @@ export interface IAgentSdkProductConfig {
 	readonly urlTemplate: string;
 }
 
+/**
+ * Configuration for downloading the on-device dictation native runtime (the
+ * Foundry Local addon + core libraries) on demand. Produced per platform build
+ * and stamped by `build/dictation-runtime/produce.ts`; consumed by
+ * `foundryLocalRuntime.ts`, which substitutes `{target}` in `urlTemplate`
+ * against the host's `<platform>-<arch>` key. Absent in local dev builds, in
+ * which case the runtime falls back to the SDK's own `node_modules` payload.
+ */
+export interface IDictationRuntimeProductConfig {
+	readonly version: string;
+	readonly urlTemplate: string;
+}
+
 export interface IProductConfiguration {
 	readonly version: string;
 	readonly date?: string;
@@ -147,6 +160,8 @@ export interface IProductConfiguration {
 	 * publicly released, independent of any admin policy configuration.
 	 */
 	readonly enableExtensionGalleryEntraAuth?: boolean;
+  
+	readonly dictationRuntime?: IDictationRuntimeProductConfig;
 
 	readonly mcpGallery?: {
 		readonly serviceUrl: string;

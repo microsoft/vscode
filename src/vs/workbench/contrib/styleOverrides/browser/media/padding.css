@@ -233,3 +233,7 @@
 .style-override.monaco-workbench .sidebar .has-composite-bar.header-or-footer .monaco-action-bar .actions-container {
 	gap: 2px;
 }
+
+.style-override.monaco-workbench .monaco-pane-view .pane:not(.merged-header) .monaco-progress-container {
+	top: var(--vscode-spacing-size240);
+}

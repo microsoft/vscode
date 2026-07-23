@@ -131,6 +131,10 @@ steps:
     parameters:
       vscodePlatform: win32
 
+  - template: ../../common/dictation-runtime-produce.yml@self
+    parameters:
+      vscodePlatform: win32
+
   - pwsh: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)

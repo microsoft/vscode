@@ -128,7 +128,13 @@ export class AhpSnapshotRecorder {
 				if (message.id !== undefined) {
 					(direction === 'c2s' ? clientRequests : serverRequests).set(message.id, message.method);
 				}
-				if (message.method === 'root/sessionSummaryChanged') {
+				// notifications/tools/list_changed is legitimate behavior (Copilot >= 1.0.72
+				// emits session.tools_updated), but it is only forwarded for MCP servers
+				// in the Ready state. The harness runs against the real homedir, so the
+				// notification appears when the developer's ~/.copilot configures MCP
+				// servers and is absent on clean CI runners — it cannot live in a
+				// machine-independent snapshot.
+				if (message.method === 'root/sessionSummaryChanged' || message.method === 'notifications/tools/list_changed') {
 					continue;
 				}
 				if (message.method === 'dispatchAction' || message.method === 'action') {

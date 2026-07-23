@@ -100,7 +100,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 
 		if (!workingDirectory) {
-			const workingDirectoryStr = sessionState?.workingDirectory;
+			const workingDirectoryStr = sessionState?.workingDirectories?.[0];
 			if (workingDirectoryStr) {
 				workingDirectory = URI.parse(workingDirectoryStr);
 			}

@@ -7,10 +7,10 @@ import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEv
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { hash } from '../../../base/common/hash.js';
 import { AgentSession } from '../common/agentService.js';
-import type { MessageAttachment, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
+import type { ErrorInfo, MessageAttachment, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
-import { multiplexProperties, type IAgentHostRestrictedTelemetry } from './agentHostRestrictedTelemetry.js';
+import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -41,37 +41,83 @@ export type IAgentHostUserMessageSentClassification = {
 };
 
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
+type AgentHostModelSelectionKind = 'default' | 'auto' | 'explicit';
+export type AgentHostTurnFailureStage = 'validation' | 'workingDirectory' | 'modelSelection' | 'sendMessage' | 'provider';
 
 export interface IAgentHostTurnCompletedEvent {
 	provider: string;
 	agentSessionId: string;
+	turnId: string;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
 	model: string | undefined;
+	modelSelectionKind: AgentHostModelSelectionKind;
 	permissionLevel: string | undefined;
+	errorType: string | undefined;
+	failureStage: AgentHostTurnFailureStage | undefined;
 }
 
 export type IAgentHostTurnCompletedClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the turn within the agent host session.' };
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the first visible progress (text delta, response part, tool call start, or reasoning).' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model identifier selected for the session at turn start (e.g. gemini-3.5-flash).' };
+	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the client used the provider default, Auto, or an explicit model.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
+	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type when the turn fails.' };
+	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
 	owner: 'roblourens';
 	comment: 'Tracks agent host turn performance including time to first visible progress and total turn duration.';
 };
 
+export interface IAgentHostTurnFailedEvent {
+	provider: string;
+	agentSessionId: string;
+	turnId: string;
+	failureStage: AgentHostTurnFailureStage;
+	errorType: string;
+	errorName: string | undefined;
+	errorCode: string | undefined;
+	msg: string;
+	callstack: string | undefined;
+}
+
+export type IAgentHostTurnFailedClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the failed agent host turn.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the failed turn within the agent host session.' };
+	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
+	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type.' };
+	errorName: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The name of the exception, when available.' };
+	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The exception or protocol error code, when available.' };
+	msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
+	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error stack. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
+	owner: 'roblourens';
+	comment: 'Captures diagnostic details for failed agent host turns.';
+};
+
+export interface IAgentHostTurnFailure {
+	stage: AgentHostTurnFailureStage;
+	error: ErrorInfo;
+	errorName?: string;
+	errorCode?: string;
+	errorStack?: string;
+}
+
 export interface IAgentHostTurnCompletedReport {
 	provider: string;
 	session: string;
+	turnId: string;
 	timeToFirstProgress: number | undefined;
 	totalTime: number;
 	result: AgentHostTurnResult;
 	model: string | undefined;
 	permissionLevel: string | undefined;
+	failure: IAgentHostTurnFailure | undefined;
 }
 
 export interface IAgentHostToolInvokedReport {
@@ -112,6 +158,25 @@ export interface IAgentHostSkillContentReadReport {
 	pluginName: string | undefined;
 	/** Version of the plugin the skill came from, when applicable. */
 	pluginVersion: string | undefined;
+}
+
+export type AgentHostRepoInfoResult = 'success' | 'filesChanged' | 'diffTooLarge' | 'noChanges' | 'tooManyChanges' | 'mergeBaseTooOld' | 'virtualFileSystem' | 'tooManyCommits';
+
+export interface IAgentHostRepoInfoReport {
+	telemetryMessageId: string;
+	location: 'begin' | 'end';
+	remoteUrl: string;
+	repoId: string;
+	repoType: 'github' | 'ado';
+	headCommitHash: string;
+	headBranchName: string | undefined;
+	fileRelativePaths: string | undefined;
+	diffsJSON: string | undefined;
+	result: AgentHostRepoInfoResult;
+	isActiveRepository: 'true';
+	workspaceFileCount: number;
+	changedFileCount: number;
+	diffSizeBytes: number;
 }
 
 export interface IAgentHostToolCallStalledEvent {
@@ -375,17 +440,64 @@ export class AgentHostTelemetryReporter {
 		restricted.sendInternalMSFTTelemetryEvent('skillContentRead', plaintextProps);
 	}
 
+	reportRepoInfo(context: IAgentHostRestrictedTelemetryContext, report: IAgentHostRepoInfoReport): void {
+		const restricted = this._restricted;
+		if (!restricted) {
+			return;
+		}
+		const properties = {
+			remoteUrl: report.remoteUrl,
+			repoId: report.repoId,
+			repoType: report.repoType,
+			headCommitHash: report.headCommitHash,
+			headBranchName: report.headBranchName,
+			fileRelativePaths: report.fileRelativePaths,
+			diffsJSON: report.diffsJSON,
+			result: report.result,
+			isActiveRepository: report.isActiveRepository,
+			location: report.location,
+			telemetryMessageId: report.telemetryMessageId,
+		};
+		const measurements = {
+			workspaceFileCount: report.workspaceFileCount,
+			changedFileCount: report.changedFileCount,
+			diffSizeBytes: report.diffSizeBytes,
+			repoIndex: 0,
+			repoCount: 1,
+		};
+		const { headBranchName: _, fileRelativePaths: _2, ...internalProperties } = properties;
+		restricted.sendEnhancedGHTelemetryEventForContext(context, 'request.repoInfo', multiplexProperties(properties), measurements);
+		restricted.sendInternalMSFTTelemetryEventForContext(context, 'request.repoInfo', multiplexProperties(internalProperties), measurements);
+	}
+
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
+			turnId: report.turnId,
 			timeToFirstProgress: report.timeToFirstProgress,
 			totalTime: report.totalTime,
 			result: report.result,
 			model: report.model,
+			modelSelectionKind: report.model === undefined ? 'default' : report.model === 'auto' ? 'auto' : 'explicit',
 			permissionLevel: report.permissionLevel,
+			errorType: report.failure?.error.errorType,
+			failureStage: report.failure?.stage,
 		});
+		if (report.failure) {
+			this._telemetryService.publicLogError2<IAgentHostTurnFailedEvent, IAgentHostTurnFailedClassification>('agentHost.turnFailed', {
+				provider: report.provider,
+				agentSessionId: AgentSession.id(session),
+				turnId: report.turnId,
+				failureStage: report.failure.stage,
+				errorType: report.failure.error.errorType,
+				errorName: report.failure.errorName,
+				errorCode: report.failure.errorCode,
+				msg: report.failure.error.message,
+				callstack: report.failure.errorStack ?? report.failure.error.stack,
+			});
+		}
 	}
 
 	toolInvoked(report: IAgentHostToolInvokedReport): void {

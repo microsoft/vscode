@@ -559,6 +559,18 @@ describe('TaskApiBackend', () => {
 		expect(client.listCalls).toEqual([{ options: { per_page: 100 } }]);
 	});
 
+	it('fetchSessionList uses the global user-scoped list in the agents window even when repoIds are present', async () => {
+		// The agents window surfaces all of the user's sessions rather than scoping to the active
+		// workspace's repositories, so it must hit the global list and never the repo-scoped one.
+		const client = new FakeTaskApiClient();
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+
+		await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], true, false);
+
+		expect(client.listForRepoCalls).toEqual([]);
+		expect(client.listCalls).toEqual([{ options: { per_page: 100 } }]);
+	});
+
 	it('fetchSessionList resolves a global-list task repo by numeric id when it has no html_url', async () => {
 		// Global-list (repoIds undefined) tasks may carry only `repository.id` and no `html_url`.
 		// Without resolving it the session has no repo metadata and groups under "Unknown".

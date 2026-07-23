@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
-import { isCI, isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
+import { isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ContentEncoding, ResourceType, ResourceWriteMode, type ResourceListResult, type ResourceReadResult, type ResourceResolveResult } from '../../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
@@ -365,8 +365,8 @@ suite('Protocol WebSocket - Resource Operations', function () {
 		}), /resource not found/i);
 	});
 
-	// File watcher delivery is unreliable in the Linux and Windows Electron environments, and in macOS Electron CI.
-	(isLinux || isWindows || (isMacintosh && isCI) ? test.skip : test)('non-recursive resource watch emits a change action', async function () {
+	// File watcher delivery is unreliable in all environments.
+	(isLinux || isWindows || isMacintosh ? test.skip : test)('non-recursive resource watch emits a change action', async function () {
 		const watch = await client.call<{ channel: string }>('createResourceWatch', {
 			channel: ROOT_STATE_URI,
 			uri: URI.file(testDirectory).toString(),

@@ -171,6 +171,8 @@ class MockSessionStore implements ISessionsManagementService {
 	getAllSessionTypes(): ISessionType[] { return []; }
 	getSessionTypesForFolder(_folderUri: URI): IProviderSessionType[] { return []; }
 	getQuickChatSessionTypes(): IProviderSessionType[] { return []; }
+	isNewSessionTargetAvailable(_folderUri: URI, _options?: ICreateNewSessionOptions): boolean { return false; }
+	isQuickChatTargetAvailable(_options?: ICreateNewSessionOptions): boolean { return false; }
 	resolveWorkspace(_folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined { return undefined; }
 
 	async openSession(sessionResource: URI): Promise<void> {

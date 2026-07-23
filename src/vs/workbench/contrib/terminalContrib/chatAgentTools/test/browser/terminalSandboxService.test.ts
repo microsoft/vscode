@@ -339,7 +339,7 @@ suite('TerminalSandboxService - network domains', () => {
 			bubblewrapInstalled: false,
 			bubblewrapUsable: false,
 			socatInstalled: false,
-			dependencyInstallCommand: 'sudo pacman -S --needed --noconfirm',
+			dependencyInstallCommand: 'sudo apt-get update && sudo apt-get install -y',
 		};
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		let sentCommand: string | undefined;
@@ -364,7 +364,7 @@ suite('TerminalSandboxService - network domains', () => {
 		});
 
 		strictEqual(result.exitCode, 0);
-		strictEqual(sentCommand, `sudo pacman -S --needed --noconfirm 'bubblewrap' 'socat'`);
+		strictEqual(sentCommand, `sudo apt-get update && sudo apt-get install -y 'bubblewrap' 'socat'`);
 	});
 
 	test('should install sandbox dependencies with the remote host package manager', async () => {

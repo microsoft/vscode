@@ -18,7 +18,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
+import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatExecuteActionContext } from './chatExecuteActions.js';
@@ -119,7 +119,7 @@ export async function runDictationShortcut(context: IDictationShortcutContext, c
 	await stopDictation();
 }
 
-class ToggleChatSpeechToTextAction extends Action2 {
+export class ToggleChatSpeechToTextAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.toggleSpeechToText';
 
 	constructor() {
@@ -131,13 +131,13 @@ class ToggleChatSpeechToTextAction extends Action2 {
 			f1: false,
 			toggled: {
 				condition: ChatContextKeys.speechToTextRecording,
-				icon: Codicon.stopCircle,
+				icon: Codicon.micFilled,
 				title: localize2('chat.speechToText.stop', "Stop Dictation").value,
 			},
 			menu: [{
 				id: MenuId.ChatExecute,
 				order: -11,
-				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing.negate()),
+				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing.negate(), AGENTS_VOICE_CONNECTED.negate()),
 				group: 'navigation',
 			}],
 			keybinding: {
@@ -192,7 +192,7 @@ export class ChatSpeechToTextPreparingAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				order: -11,
-				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing),
+				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing, AGENTS_VOICE_CONNECTED.negate()),
 				group: 'navigation',
 			}],
 		});

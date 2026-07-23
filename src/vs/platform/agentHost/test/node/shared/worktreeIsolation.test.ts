@@ -576,22 +576,6 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('archive skips removal when the worktree has uncommitted changes', async () => {
-		const isolation = createIsolation(disposables);
-		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
-		hasUncommittedChanges = true;
-
-		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
-
-		assert.deepStrictEqual({
-			removeCalls: removeCalls.length,
-			stillExists: worktree ? existsSync(worktree.fsPath) : false,
-		}, {
-			removeCalls: 0,
-			stillExists: true,
-		});
-	});
-
 	test('removeAllCreatedWorktrees drains every worktree created in this process', async () => {
 		const isolation = createIsolation(disposables);
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });

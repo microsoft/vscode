@@ -603,9 +603,24 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			? tracker.parser.parseSegments(rawData)
 			: (rawData.length > 0 ? [{ kind: 'data', data: rawData }] : []);
 
-		let cleanedForClient = '';
+		// Preserve OSC 633 stream order when emitting AHP actions: command data must remain between
+		// TerminalCommandExecuted and TerminalCommandFinished, matching the AHP contract and xterm.
+		let pendingClientData = '';
+		const flushClientData = (): void => {
+			if (pendingClientData.length === 0) {
+				return;
+			}
+			managed.onDataEmitter.fire(pendingClientData);
+			this._stateManager.dispatchServerAction(managed.uri, {
+				type: ActionType.TerminalData,
+				data: pendingClientData,
+			});
+			pendingClientData = '';
+		};
+
 		for (const segment of segments) {
 			if (segment.kind === 'event') {
+				flushClientData();
 				this._handleOsc633Event(managed, tracker!, segment.event);
 				continue;
 			}
@@ -616,21 +631,14 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			const cleanedData = removeServerHandledTerminalQueries(segment.data, managed.terminalQueryFilterState);
 			if (cleanedData.length > 0) {
 				this._appendToContent(managed, cleanedData);
-				cleanedForClient += cleanedData;
+				pendingClientData += cleanedData;
 			}
 		}
 
+		flushClientData();
+
 		// Trim content if too large
 		this._trimContent(managed);
-
-		// Fire data event and dispatch to protocol (cleaned, without OSC 633)
-		if (cleanedForClient.length > 0) {
-			managed.onDataEmitter.fire(cleanedForClient);
-			this._stateManager.dispatchServerAction(managed.uri, {
-				type: ActionType.TerminalData,
-				data: cleanedForClient,
-			});
-		}
 	}
 
 	/** Handle a parsed OSC 633 event by dispatching the appropriate protocol actions. */

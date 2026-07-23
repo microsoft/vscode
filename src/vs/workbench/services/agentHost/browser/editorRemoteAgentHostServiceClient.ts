@@ -64,7 +64,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	private _connectStarted = false;
 
 	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -72,7 +72,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		super();
 
 		const enabled = agentHostEnablementService.enabled;
-		const connection = remoteAgentService.getConnection();
+		const connection = this._remoteAgentService.getConnection();
 		this._logService.info(`${LOG_PREFIX} Initializing (enabled=${enabled}, remoteAuthority=${connection?.remoteAuthority ?? 'none'})`);
 
 		if (!enabled) {
@@ -89,10 +89,9 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		// Create the protocol client eagerly so consumers can subscribe to
 		// rootState etc. before the AHP handshake completes. The transport's
 		// `connect()` will be awaited by `_connect()` below.
-		const channel = connection.getChannel(AgentHostIpcChannels.RemoteProxy);
-		const transport = new AgentHostIpcChannelTransport(channel);
+		const createTransport = () => new AgentHostIpcChannelTransport(connection.getChannel(AgentHostIpcChannels.RemoteProxy));
 		const address = `vscode-remote://${connection.remoteAuthority}`;
-		this._protocolClient = this._register(instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined));
+		this._protocolClient = this._register(instantiationService.createInstance(RemoteAgentHostProtocolClient, address, createTransport, undefined));
 		this._register(this._protocolClient.onDidClose(() => {
 			this._logService.info(`${LOG_PREFIX} Protocol client closed`);
 			this._onAgentHostExit.fire(0);
@@ -110,6 +109,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		}
 		this._connectStarted = true;
 		this._logService.info(`${LOG_PREFIX} Connecting to remote agent host...`);
+		await this._remoteAgentService.getRawEnvironment();
 		await this._protocolClient.connect();
 		this._logService.info(`${LOG_PREFIX} Connected; clientId=${this._protocolClient.clientId}`);
 		this._onAgentHostStart.fire();

@@ -30,6 +30,8 @@ import { ChatWidget, IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatContentParts/codeBlockPart.js';
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
 
+export { ChatOutline } from './chatOutline.js';
+
 /**
  * A workspace item that can be selected in the workspace picker.
  */

@@ -43,6 +43,10 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
 	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<undefined> { return undefined; }
+	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
+	async getUntrackedPaths(): Promise<[]> { return []; }
+	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
+	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
 suite('Copilot Git Project', () => {

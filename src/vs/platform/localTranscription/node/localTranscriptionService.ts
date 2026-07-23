@@ -5,7 +5,10 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { dirname, join } from '../../../base/common/path.js';
+import { ensureFoundryLocalRuntime } from './foundryLocalRuntime.js';
 import {
 	ILocalTranscriptionModelStatus,
 	ILocalTranscriptionResult,
@@ -27,6 +30,16 @@ const DEFAULT_MODEL = 'nemotron-speech-streaming-en-0.6b';
 
 /** Application name reported to Foundry Local for logs/telemetry and its data dir. */
 const FOUNDRY_APP_NAME = 'vscode-dictation';
+
+/**
+ * Directory holding the on-demand Foundry Local native runtime (addon + core
+ * libraries). Derived as a sibling of the model cache dir so both live under VS
+ * Code's cache home; kept separate from model files since it is versioned by SDK
+ * version and provisioned independently.
+ */
+function runtimeCacheDir(modelCacheDir: string): string {
+	return join(dirname(modelCacheDir), 'chatDictationRuntime');
+}
 
 /**
  * Foundry Local JS SDK. It is an ESM package that loads a native addon
@@ -189,6 +202,12 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	/** In-flight (or resolved) model download+load for the selected model. */
 	private _modelPromise: Promise<IModel> | undefined;
 
+	/**
+	 * Where to download the native runtime from (product.dictationRuntime), or
+	 * `undefined` in dev builds where the SDK's own node_modules payload is used.
+	 */
+	private _runtimeDownload: { urlTemplate: string; version: string } | undefined;
+
 	/** The active streaming session, once `start()` has opened it. */
 	private _session: LiveAudioTranscriptionSession | undefined;
 	/** Resolves when the background stream consumer for `_session` has drained. */
@@ -216,6 +235,17 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	private _pendingChunks: Uint8Array[] = [];
 
 	/**
+	 * Serializes every `session.append()` through a single FIFO chain. Both the
+	 * buffered-backlog flush and live `pushAudio()` enqueue here, so audio is
+	 * always appended to native core in capture order — even across the first-use
+	 * handoff — and `stop()` can await this to guarantee the final chunk lands
+	 * before `session.stop()` drains the stream. The stored tail swallows
+	 * rejections so one failed append doesn't break ordering for the rest; the
+	 * real (rejectable) promise is returned to callers that need to observe it.
+	 */
+	private _appendChain: Promise<void> = Promise.resolve();
+
+	/**
 	 * Monotonically bumped whenever a session starts or is reset, so a slow
 	 * session opened for one recording can detect that it is now stale and avoid
 	 * emitting its transcript into a later session.
@@ -238,7 +268,19 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		this._onDidChangeModelStatus.fire(status);
 	}
 
-	async start(options: { cacheDir: string; language?: string }): Promise<void> {
+	async start(options: { cacheDir: string; model?: string; language?: string; proxyUrl?: string; noProxy?: string; proxyStrictSSL?: boolean; proxyAuthorization?: string; runtimeUrlTemplate?: string; runtimeVersion?: string }): Promise<void> {
+		// Bridge VS Code's proxy settings into this process's environment before any
+		// first-use download, so both our own fetches and the native Foundry Local
+		// model download route through the configured proxy (they read the OS/env
+		// proxy, not VS Code settings directly).
+		this._applyProxyEnv(options.proxyUrl, options.noProxy, options.proxyStrictSSL, options.proxyAuthorization);
+
+		// Record where the native runtime is published (from product.json). When
+		// unset (dev builds), the SDK's own node_modules payload is used instead.
+		this._runtimeDownload = options.runtimeUrlTemplate && options.runtimeVersion
+			? { urlTemplate: options.runtimeUrlTemplate, version: options.runtimeVersion }
+			: undefined;
+
 		// Reset any prior session before starting a new one.
 		await this._disposeSession();
 		this._generation++;
@@ -249,11 +291,77 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		this._pendingChunks = [];
 		this._runtimeError = undefined;
 
+		const model = options.model ?? DEFAULT_MODEL;
 		const language = options.language;
 		// Do not block capture on the (possibly first-use) model download/load and
 		// session open; buffer audio until the session is ready, then flush it.
-		this._openPromise = this._openSession(options.cacheDir, DEFAULT_MODEL, language, generation);
+		this._openPromise = this._openSession(options.cacheDir, model, language, generation);
 		this._openPromise.catch(() => { /* status already reported */ });
+	}
+
+	/**
+	 * Apply VS Code's proxy settings as environment variables for this process, so
+	 * every download leg (our fetches and the native model download) honors a proxy
+	 * configured only in VS Code (not in the OS environment):
+	 * - `http.proxy`/`http.noProxy` → `HTTPS_PROXY`/`HTTP_PROXY`/`NO_PROXY`.
+	 * - `http.proxyAuthorization` (a `Basic <base64>` value) → folded into the proxy
+	 *   URL's userinfo so both our `HttpsProxyAgent` and the native HTTP stack send
+	 *   `Proxy-Authorization`. Non-`Basic` schemes (e.g. Negotiate/NTLM) cannot be
+	 *   carried this way and are left to OS-level auth.
+	 * - `http.proxyStrictSSL === false` → disable TLS certificate verification for
+	 *   the Node download legs. The native model leg still requires the CA in the OS
+	 *   trust store.
+	 *
+	 * A blank/undefined `proxyUrl` leaves any inherited environment proxy untouched.
+	 */
+	private _applyProxyEnv(proxyUrl: string | undefined, noProxy: string | undefined, proxyStrictSSL: boolean | undefined, proxyAuthorization: string | undefined): void {
+		if (proxyStrictSSL === false) {
+			// Covers both Node legs uniformly (our fetch and the SDK's bare
+			// `https.get` NuGet install); scoped to this dedicated utility process.
+			process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+		}
+		if (!proxyUrl) {
+			return;
+		}
+		const effectiveProxyUrl = this._embedProxyCredentials(proxyUrl, proxyAuthorization);
+		process.env.HTTPS_PROXY = effectiveProxyUrl;
+		process.env.HTTP_PROXY = effectiveProxyUrl;
+		if (noProxy) {
+			process.env.NO_PROXY = noProxy;
+		}
+	}
+
+	/**
+	 * Fold a `Basic <base64>` `http.proxyAuthorization` value into `proxyUrl`'s
+	 * userinfo so proxy credentials survive the env-var bridge to every leg.
+	 * Returns `proxyUrl` unchanged when there is nothing to add or the header is
+	 * not a decodable `Basic` credential or the URL already carries credentials.
+	 */
+	private _embedProxyCredentials(proxyUrl: string, proxyAuthorization: string | undefined): string {
+		if (!proxyAuthorization) {
+			return proxyUrl;
+		}
+		const basic = /^Basic\s+(?<token>[A-Za-z0-9+/=]+)$/i.exec(proxyAuthorization.trim());
+		if (!basic?.groups?.token) {
+			return proxyUrl;
+		}
+		let parsed: URL;
+		try {
+			parsed = new URL(proxyUrl);
+		} catch {
+			return proxyUrl;
+		}
+		if (parsed.username || parsed.password) {
+			return proxyUrl;
+		}
+		const decoded = Buffer.from(basic.groups.token, 'base64').toString('utf8');
+		const separator = decoded.indexOf(':');
+		if (separator < 0) {
+			return proxyUrl;
+		}
+		parsed.username = encodeURIComponent(decoded.slice(0, separator));
+		parsed.password = encodeURIComponent(decoded.slice(separator + 1));
+		return parsed.toString();
 	}
 
 	/**
@@ -295,13 +403,22 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 			this._consumePromise = this._consume(session, generation);
 
 			// Flush any audio captured before the session was ready, in order.
+			// Enqueue synchronously (no `await` before the loop completes) so the
+			// entire backlog is queued ahead of any live `pushAudio()` append —
+			// exposing `_session` above must not let a freshly captured chunk jump
+			// ahead of the buffered backlog.
 			const buffered = this._pendingChunks;
 			this._pendingChunks = [];
 			for (const chunk of buffered) {
 				if (generation !== this._generation) {
 					break;
 				}
-				await session.append(chunk);
+				this._enqueueAppend(session, generation, chunk).catch(err => {
+					if (generation === this._generation) {
+						const message = String(err instanceof Error ? err.message : err);
+						this._setStatus({ state: LocalTranscriptionModelState.Error, error: message, errorCode: classifyModelError(message) });
+					}
+				});
 			}
 		} catch (err) {
 			if (generation === this._generation) {
@@ -310,6 +427,23 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 			}
 			throw err;
 		}
+	}
+
+	/**
+	 * Append `chunk` to `session` after every previously enqueued append has
+	 * completed, preserving capture order. Returns a promise that rejects if this
+	 * particular append fails (for callers that must surface it); the internal
+	 * chain continues regardless so ordering is preserved for later chunks.
+	 */
+	private _enqueueAppend(session: LiveAudioTranscriptionSession, generation: number, chunk: Uint8Array): Promise<void> {
+		const result = this._appendChain.then(() => {
+			if (generation !== this._generation || this._session !== session) {
+				return; // superseded/reset; drop stale append
+			}
+			return session.append(chunk);
+		});
+		this._appendChain = result.catch(() => { /* keep the chain alive after a failed append */ });
+		return result;
 	}
 
 	/**
@@ -329,6 +463,20 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		this._modelPromise = (async () => {
 			try {
 				this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: 0 });
+
+				// Ensure the Foundry Local native runtime (N-API addon + core
+				// libraries) is available before loading the SDK. We do not ship
+				// it — the addon requires a newer glibc than our minimum supported
+				// Linux distros — so in packaged builds it is downloaded on demand
+				// from VS Code's CDN (per `product.dictationRuntime`) into a
+				// per-user cache and the SDK loader is pointed at it via env var.
+				// This is a no-op once cached. In dev builds (no product config)
+				// the SDK resolves its addon + core libs from node_modules, so we
+				// skip provisioning and leave the loader on its default path.
+				if (this._runtimeDownload) {
+					const nativeDir = await ensureFoundryLocalRuntime(runtimeCacheDir(cacheDir), this._runtimeDownload, CancellationToken.None);
+					process.env.VSCODE_FOUNDRY_LOCAL_NATIVE_DIR = nativeDir;
+				}
 
 				if (!this._sdk) {
 					this._sdk = await import('foundry-local-sdk');
@@ -443,11 +591,13 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		const pcm = new Uint8Array(bytes.byteLength);
 		pcm.set(bytes);
 		if (this._session) {
-			// Let an append rejection propagate: the renderer's pushAudio().catch
-			// fails the session so dictation doesn't silently continue while every
-			// subsequent chunk is dropped. Late failures after stop() are ignored
-			// by the renderer.
-			await this._session.append(pcm);
+			// Route through the shared append queue so this live chunk lands
+			// after any still-draining buffered backlog (preserving order across
+			// the first-use handoff). Let a rejection propagate: the renderer's
+			// pushAudio().catch fails the session so dictation doesn't silently
+			// continue while every subsequent chunk is dropped. Late failures
+			// after stop() are ignored by the renderer.
+			await this._enqueueAppend(this._session, this._generation, pcm);
 		} else {
 			// Model still loading / session not open yet: buffer until it is.
 			this._pendingChunks.push(pcm);
@@ -484,6 +634,13 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		}
 
 		try {
+			// Drain every queued append (buffered backlog + live chunks) so the
+			// final captured audio reaches native core before we stop — otherwise
+			// `stop()` can complete the stream while the tail append is still
+			// pending, truncating the transcript.
+			try {
+				await this._appendChain;
+			} catch { /* individual append failures already surfaced */ }
 			// `stop()` drains any buffered audio, emits final results into the
 			// stream, then completes it — so the consumer loop ends after this.
 			await session.stop();
@@ -544,6 +701,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		this._accumulator.reset();
 		this._partialText = '';
 		this._pendingChunks = [];
+		this._appendChain = Promise.resolve();
 		this._runtimeError = undefined;
 	}
 }

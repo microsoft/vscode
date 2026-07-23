@@ -923,7 +923,7 @@ export function renderForm(
 		chatInput.setPermissionLevel(initialPermissionLevel);
 	}
 	// On edit, apply the saved model with late-arrival retry if needed.
-	chatInput.resetLanguageModelToDefault(/* storeSelection */ false);
+	chatInput.resetLanguageModelToDefault();
 
 	if (initialModelId && !chatInput.switchModelByIdentifier(initialModelId, /* storeSelection */ false)) {
 		const languageModelsService = instantiationService.invokeFunction(accessor => accessor.get(ILanguageModelsService));
