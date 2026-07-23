@@ -2940,6 +2940,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			agent: chatAgent,
 			slashCommand,
 			requestId: request.id,
+			timestamp: requestTimestamp,
 			isCompleteAddedRequest,
 			codeBlockInfos: undefined,
 		});
@@ -2985,6 +2986,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				responseContent: [],
 				session: this,
 				requestId: request.id,
+				timestamp: request.requestTimestamp,
 				codeBlockInfos: undefined,
 			});
 		}
@@ -3035,6 +3037,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				responseContent: [],
 				session: this,
 				requestId: request.id,
+				timestamp: request.requestTimestamp,
 				codeBlockInfos: undefined,
 			});
 		}

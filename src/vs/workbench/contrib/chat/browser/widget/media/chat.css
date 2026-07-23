@@ -3348,6 +3348,50 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.interactive-item-container .chat-persistent-progress {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size40);
+	margin: 0 0 var(--vscode-spacing-size40);
+	padding-top: var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: "tnum";
+}
+
+.interactive-item-container .chat-persistent-progress-label {
+	background: linear-gradient(90deg,
+			var(--vscode-descriptionForeground) 0%,
+			var(--vscode-descriptionForeground) 30%,
+			var(--vscode-chat-thinkingShimmer) 50%,
+			var(--vscode-descriptionForeground) 70%,
+			var(--vscode-descriptionForeground) 100%);
+	background-size: 400% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: chat-thinking-shimmer 2s linear infinite;
+	will-change: background-position;
+}
+
+.monaco-reduce-motion .chat-persistent-progress-label,
+.monaco-workbench.monaco-reduce-motion .chat-persistent-progress-label {
+	background: none;
+	-webkit-text-fill-color: currentColor;
+	animation: none;
+	will-change: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-persistent-progress-label {
+		background: none;
+		-webkit-text-fill-color: currentColor;
+		animation: none;
+		will-change: auto;
+	}
+}
+
 .show-checkmarks .progress-container > .codicon.codicon-check,
 .progress-container.show-checkmarks > .codicon.codicon-check {
 	display: inline-flex;
@@ -4649,6 +4693,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 @keyframes dictation-download-ring-spin {
-	from { transform: translate(-50%, -50%) rotate(-90deg); }
-	to { transform: translate(-50%, -50%) rotate(270deg); }
+	from {
+		transform: translate(-50%, -50%) rotate(-90deg);
+	}
+	to {
+		transform: translate(-50%, -50%) rotate(270deg);
+	}
 }

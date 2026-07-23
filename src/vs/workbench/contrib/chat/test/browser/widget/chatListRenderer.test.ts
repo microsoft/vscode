@@ -438,7 +438,7 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({ whileStarting, afterStarting }, { whileStarting: true, afterStarting: false });
 	});
 
-	test('final markdown remains mounted after thinking and tool progress completes with reduced motion', async () => {
+	test('persistent progress remains outside rendered content and preserves final markdown', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
@@ -449,6 +449,7 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
 		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
+		configurationService.setUserConfiguration(ChatConfiguration.ChatPersistentProgressEnabled, true);
 		configurationService.setUserConfiguration('workbench.reduceMotion', 'on');
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
@@ -505,15 +506,30 @@ suite('ChatListRenderer', () => {
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Final response') });
 		renderer.renderElement(node, 0, template);
 		const mountedWhileStreaming = template.value.textContent?.includes('Final response') ?? false;
+		const progressLabelWhileStreaming = template.persistentProgressContainer.querySelector('.chat-persistent-progress-label')?.textContent;
+		const progressElapsedWhileStreaming = template.persistentProgressContainer.querySelector('.chat-persistent-progress-elapsed')?.textContent;
+		const progressIsOutsideRenderedContent = !template.value.contains(template.persistentProgressContainer)
+			&& template.persistentProgressContainer.previousElementSibling === template.value;
+		const reservesLegacyProgressSpace = template.rowContainer.classList.contains('chat-progress-reservable');
 
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
 		assert.deepStrictEqual({
 			mountedWhileStreaming,
 			mountedAfterCompletion: template.value.textContent?.includes('Final response') ?? false,
+			progressLabelWhileStreaming,
+			progressElapsedWhileStreaming: /^\d+s$/.test(progressElapsedWhileStreaming ?? ''),
+			progressIsOutsideRenderedContent,
+			reservesLegacyProgressSpace,
+			progressAfterCompletion: template.persistentProgressContainer.textContent,
 		}, {
 			mountedWhileStreaming: true,
 			mountedAfterCompletion: true,
+			progressLabelWhileStreaming: 'Working',
+			progressElapsedWhileStreaming: true,
+			progressIsOutsideRenderedContent: true,
+			reservesLegacyProgressSpace: false,
+			progressAfterCompletion: '',
 		});
 
 		disposables.dispose();

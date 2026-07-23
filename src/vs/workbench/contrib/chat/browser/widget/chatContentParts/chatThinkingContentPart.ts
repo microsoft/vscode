@@ -420,6 +420,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.allThinkingParts.push(content);
 		const configuredMode = getEffectiveThinkingDisplayMode(this.configurationService, contextKeyService);
 		this.thinkingDisplayMode = configuredMode;
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ChatPersistentProgressEnabled)) {
+				this.updateWorkingSpinnerVisibility();
+			}
+		}));
 
 		this.fixedScrollingMode = configuredMode === ThinkingDisplayMode.FixedScrolling;
 
@@ -1045,12 +1050,13 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 			return !IChatToolInvocation.isComplete(toolInvocation, reader);
 		});
+		const persistentProgressEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled);
 
 		const isAttached = this.workingSpinnerElement.parentNode === this.wrapper;
-		if (hasRunningTerminalTool && isAttached) {
+		if ((hasRunningTerminalTool || persistentProgressEnabled) && isAttached) {
 			this.workingSpinnerElement.remove();
 			this._onDidChangeHeight.fire();
-		} else if (!hasRunningTerminalTool && !isAttached && !this.streamingCompleted && !this.element.isComplete) {
+		} else if (!hasRunningTerminalTool && !persistentProgressEnabled && !isAttached && !this.streamingCompleted && !this.element.isComplete) {
 			this.wrapper.appendChild(this.workingSpinnerElement);
 			this._onDidChangeHeight.fire();
 		}

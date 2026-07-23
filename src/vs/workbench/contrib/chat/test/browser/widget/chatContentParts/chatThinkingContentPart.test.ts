@@ -232,6 +232,21 @@ suite('ChatThinkingContentPart', () => {
 			assert.ok(part.domNode.classList.contains('chat-thinking-box'), 'Should have chat-thinking-box class');
 		});
 
+		test('hides rotating progress while persistent progress is enabled', () => {
+			mockConfigurationService.setUserConfiguration(ChatConfiguration.ChatPersistentProgressEnabled, true);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				createThinkingPart('**Processing**'),
+				createMockRenderContext(false),
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			assert.strictEqual(part.domNode.querySelector('.chat-thinking-spinner-item'), null);
+		});
+
 		test('should extract title from bold markdown', () => {
 			const content = createThinkingPart('**Reading configuration files**');
 			const context = createMockRenderContext(false);

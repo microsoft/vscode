@@ -2216,12 +2216,14 @@ suite('ChatService', () => {
 			assert.deepStrictEqual({
 				timestamp: ref.object.getRequests()[0].timestamp,
 				requestTimestamp: ref.object.getRequests()[0].requestTimestamp,
+				responseTimestamp: ref.object.getRequests()[0].response?.timestamp,
 				elapsedMs: ref.object.getRequests()[0].response?.elapsedMs,
 				completedAt: ref.object.getRequests()[0].response?.completedAt,
 				completionTimestamp: ref.object.getRequests()[0].response?.completionTimestamp,
 			}, {
 				timestamp,
 				requestTimestamp: timestamp,
+				responseTimestamp: timestamp,
 				elapsedMs: 2_500,
 				completedAt,
 				completionTimestamp: completedAt,
@@ -2288,9 +2290,11 @@ suite('ChatService', () => {
 			assert.deepStrictEqual({
 				message: ref.object.lastRequest?.message.text,
 				timestamp: ref.object.lastRequest?.timestamp,
+				responseTimestamp: ref.object.lastRequest?.response?.timestamp,
 			}, {
 				message: 'server request',
 				timestamp,
+				responseTimestamp: timestamp,
 			});
 		});
 

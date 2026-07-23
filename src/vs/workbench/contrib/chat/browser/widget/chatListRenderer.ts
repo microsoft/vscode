@@ -95,7 +95,7 @@ import { ChatMcpAuthenticationContentPart } from './chatContentParts/chatMcpAuth
 import { ChatMcpServersStartingContentPart } from './chatContentParts/chatMcpServersStartingContentPart.js';
 import { ChatDisabledClaudeHooksContentPart } from './chatContentParts/chatDisabledClaudeHooksContentPart.js';
 import { ChatMultiDiffContentPart } from './chatContentParts/chatMultiDiffContentPart.js';
-import { ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
+import { ChatPersistentProgressPart, ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
 import { ChatPullRequestContentPart } from './chatContentParts/chatPullRequestContentPart.js';
 import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.js';
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
@@ -136,6 +136,7 @@ export interface IChatListItemTemplate {
 	 * they are disposed in a separate cycle after diffing with the next content to render.
 	 */
 	renderedParts?: IChatContentPart[];
+	persistentProgressPart?: ChatPersistentProgressPart;
 	/**
 	 * Tool parts that have been moved out of a thinking part into the row's value
 	 * container. Their lifecycle matches `renderedParts` (cleared by
@@ -163,6 +164,7 @@ export interface IChatListItemTemplate {
 	readonly username: HTMLElement;
 	readonly detail: HTMLElement;
 	readonly value: HTMLElement;
+	readonly persistentProgressContainer: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly instantiationService: IInstantiationService;
 	readonly templateDisposables: IDisposable;
@@ -820,6 +822,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const detail = dom.append(detailContainer, $('span.detail'));
 		dom.append(detailContainer, $('span.chat-animated-ellipsis'));
 		const value = dom.append(valueParent, $('.value'));
+		const persistentProgressContainer = dom.append(valueParent, $('.chat-persistent-progress-container'));
+		dom.hide(persistentProgressContainer);
 		const elementDisposables = templateDisposables.add(new DisposableStore());
 
 		const footerToolbarContainer = dom.append(rowContainer, $('.chat-footer-toolbar'));
@@ -893,7 +897,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 		const connectionObserver = document.createElement('connection-observer') as dom.ConnectionObserverElement;
 		dom.append(container, connectionObserver);
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, persistentProgressContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
 		this.templateDataByRow.set(rowContainer, template);
 
 		connectionObserver.onDidDisconnect = () => {
@@ -986,6 +990,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.movedOutToolParts?.dispose();
 		templateData.movedOutToolParts = undefined;
+		this.clearPersistentProgress(templateData);
 
 		// This template item is no longer in use, or having another element rendered into it,
 		// clear the context on toolbars so it doesn't retain the viewmodel.
@@ -996,6 +1001,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.checkpointToolbar.context = undefined;
 		templateData.checkpointRestoreToolbar.context = undefined;
 		templateData.currentElement = undefined;
+	}
+
+	private clearPersistentProgress(templateData: IChatListItemTemplate): void {
+		templateData.persistentProgressPart?.dispose();
+		templateData.persistentProgressPart = undefined;
+		dom.clearNode(templateData.persistentProgressContainer);
+		dom.hide(templateData.persistentProgressContainer);
 	}
 
 	private renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
@@ -1104,8 +1116,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		const progressMessageAtBottomOfResponse = checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse);
+		const persistentProgressEnabled = this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled);
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length && !progressMessageAtBottomOfResponse);
-		templateData.rowContainer.classList.toggle('chat-progress-reservable', isResponseVM(element) && !element.isComplete && !!progressMessageAtBottomOfResponse);
+		templateData.rowContainer.classList.toggle('chat-progress-reservable', isResponseVM(element) && !element.isComplete && !!progressMessageAtBottomOfResponse && !persistentProgressEnabled);
 
 		// Toggle show-checkmarks class at the container level for the accessibility setting,
 		// so child content parts can use CSS descendant selectors instead of each subscribing individually.
@@ -1285,6 +1298,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.renderChatRequest(element, index, templateData);
 			}
 		}
+		this.updatePersistentProgress(element, templateData);
 		templateData.renderedPartsMounted = true;
 	}
 
@@ -1343,6 +1357,44 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else if (this.rendererOptions.renderStyle !== 'minimal' && !element.isComplete && !checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse)) {
 			templateData.detail.textContent = localize('working', "Working");
 		}
+	}
+
+	private updatePersistentProgress(element: ChatTreeItem, templateData: IChatListItemTemplate): void {
+		const enabled = isResponseVM(element)
+			&& this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled)
+			&& !element.isComplete
+			&& !element.isCanceled
+			&& !element.agentOrSlashCommandDetected
+			&& this.rendererOptions.renderStyle !== 'minimal'
+			&& checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse);
+		if (!enabled) {
+			this.clearPersistentProgress(templateData);
+			return;
+		}
+
+		const label = this.getPersistentProgressLabel(element);
+		if (templateData.persistentProgressPart?.responseId !== element.id) {
+			this.clearPersistentProgress(templateData);
+			templateData.persistentProgressPart = this.instantiationService.createInstance(ChatPersistentProgressPart, element.id, element.model.timestamp, label);
+			templateData.persistentProgressContainer.appendChild(templateData.persistentProgressPart.domNode);
+		} else {
+			templateData.persistentProgressPart.updateLabel(label);
+		}
+		dom.show(templateData.persistentProgressContainer);
+	}
+
+	private getPersistentProgressLabel(element: IChatResponseViewModel): string {
+		const widget = this.chatWidgetService.getWidgetBySessionResource(element.sessionResource);
+		if (widget?.inputPart.hasActiveToolConfirmationCarousel) {
+			const count = this.getPendingToolConfirmationCount(element.response.value, false)
+				+ this.getPendingToolConfirmationCount(element.response.value, true);
+			return this.getConfirmationPendingLabel(Math.max(1, count));
+		}
+
+		const pendingPlanReview = element.response.value.find((part): part is IChatPlanReview => part.kind === 'planReview' && !part.isUsed);
+		return pendingPlanReview
+			? this.getPlanReviewProgressMessage(pendingPlanReview) ?? localize('chat.planReview.required', "Plan review required")
+			: localize('working', "Working");
 	}
 
 	private renderConfirmationAction(element: IChatRequestViewModel, templateData: IChatListItemTemplate) {
@@ -1445,6 +1497,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], moreContentAvailable: boolean, templateData: IChatListItemTemplate): IChatWorkingProgress | undefined {
 		if (element.agentOrSlashCommandDetected || this.rendererOptions.renderStyle === 'minimal' || element.isComplete || !checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse)) {
+			return undefined;
+		}
+		if (this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled)) {
 			return undefined;
 		}
 
@@ -1601,6 +1656,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private doUpdateWorkingProgressForPendingConfirmations(templateData: IChatListItemTemplate): void {
 		const element = templateData.currentElement;
 		if (!isResponseVM(element)) {
+			return;
+		}
+		if (this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled)) {
+			this.updatePersistentProgress(element, templateData);
 			return;
 		}
 
@@ -2636,6 +2695,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const addToolToCarousel = (tool: IChatToolInvocation) => {
 			widget.inputPart.addToolToConfirmationCarousel(tool, factory, subAgentInvocationId, agentName, scrollToSubagent);
+			this.updatePersistentProgress(context.element, templateData);
 			const listener = this.createUpdateWorkingProgressOnConfirmationEnd(tool, templateData);
 			if (listener) {
 				templateData.elementDisposables.add(listener);
@@ -3022,6 +3082,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const routePartToCarousel = (): boolean => {
 					widget.inputPart.addToolToConfirmationCarousel(toolInvocation, factory);
 					dom.hide(part.domNode);
+					this.updatePersistentProgress(context.element, templateData);
 					return true;
 				};
 				let hasScheduledCarouselRoute = false;
@@ -3875,6 +3936,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
+		this.clearPersistentProgress(templateData);
 
 		if (templateData.currentElement && !this.viewModel?.editing) {
 			this.templateDataByRequestId.delete(templateData.currentElement.id);

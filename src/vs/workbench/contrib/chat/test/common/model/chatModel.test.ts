@@ -211,6 +211,40 @@ suite('ChatModel', () => {
 		});
 	});
 
+	test('response uses the persisted request timestamp', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'hello';
+		const timestamp = 1_752_012_321_000;
+		const request = model.addRequest(
+			{ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] },
+			{ variables: [] },
+			0,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			false,
+			timestamp,
+		);
+
+		assert.deepStrictEqual({
+			requestTimestamp: request.requestTimestamp,
+			responseTimestamp: request.response?.timestamp,
+		}, {
+			requestTimestamp: timestamp,
+			responseTimestamp: timestamp,
+		});
+	});
+
 	test('response details, elapsed time, and tokens roundtrip through serialization', () => {
 		const completedAt = 1_752_012_405_000;
 		const serializableData: ISerializableChatData3 = {

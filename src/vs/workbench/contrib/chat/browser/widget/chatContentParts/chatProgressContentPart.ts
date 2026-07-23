@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, isHTMLElement } from '../../../../../../base/browser/dom.js';
+import { $, append, getWindow, isHTMLElement, WindowIntervalTimer } from '../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -28,6 +28,7 @@ import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildPhrasePool, defaultThinkingMessages, maybePickFunWorkingMessage } from './chatThinkingContentPart.js';
+import { formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -283,5 +284,39 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 
 	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
 		return other.kind === 'working' && other.content?.value === this.explicitContent?.value;
+	}
+}
+
+export class ChatPersistentProgressPart extends Disposable {
+	readonly domNode: HTMLElement;
+
+	private readonly labelElement: HTMLElement;
+	private readonly elapsedElement: HTMLElement;
+
+	constructor(
+		readonly responseId: string,
+		private readonly startedAt: number,
+		initialLabel: string,
+	) {
+		super();
+
+		this.domNode = $('.chat-persistent-progress');
+		this.labelElement = append(this.domNode, $('span.chat-persistent-progress-label'));
+		append(this.domNode, $('span.chat-persistent-progress-separator', { 'aria-hidden': 'true' }, '\u00B7'));
+		this.elapsedElement = append(this.domNode, $('span.chat-persistent-progress-elapsed'));
+
+		this.updateLabel(initialLabel);
+		this.updateElapsedTime();
+
+		const timer = this._register(new WindowIntervalTimer());
+		timer.cancelAndSet(() => this.updateElapsedTime(), 1000, getWindow(this.domNode));
+	}
+
+	updateLabel(label: string): void {
+		this.labelElement.textContent = label;
+	}
+
+	private updateElapsedTime(): void {
+		this.elapsedElement.textContent = formatElapsedTime(Math.max(0, Date.now() - this.startedAt));
 	}
 }

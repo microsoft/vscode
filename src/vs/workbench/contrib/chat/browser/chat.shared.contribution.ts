@@ -847,6 +847,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.verbose', "Show request and completion timestamps. Hover over a completion timestamp to show the elapsed response time."),
 		},
+		[ChatConfiguration.ChatPersistentProgressEnabled]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.persistentProgress.enabled', "Always show the current status and elapsed time at the bottom of an in-progress chat response."),
+			tags: ['preview'],
+		},
 		[ChatConfiguration.ProgressBorder]: {
 			type: 'boolean',
 			default: true,
