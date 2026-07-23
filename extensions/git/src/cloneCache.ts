@@ -28,3 +28,16 @@ export async function filterExistingCachedRepositories<T extends CachedCloneInfo
 	}));
 	return checks.filter(check => check.exists).map(check => check.folder);
 }
+
+/**
+ * Prefer the cached workspace association when it still exists; otherwise open the clone root.
+ */
+export async function resolveCachedCloneOpenPath(
+	info: CachedCloneInfo,
+	pathExists: (path: string) => Promise<boolean>
+): Promise<string> {
+	if (info.workspacePath !== info.repositoryPath && await pathExists(info.workspacePath)) {
+		return info.workspacePath;
+	}
+	return info.repositoryPath;
+}

@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { CachedCloneInfo, filterExistingCachedRepositories } from '../cloneCache';
+import { CachedCloneInfo, filterExistingCachedRepositories, resolveCachedCloneOpenPath } from '../cloneCache';
 
 suite('cloneCache', () => {
 	suite('filterExistingCachedRepositories', () => {
@@ -85,6 +85,26 @@ suite('cloneCache', () => {
 			} finally {
 				await fs.promises.rm(parent, { recursive: true, force: true });
 			}
+		});
+	});
+
+	suite('resolveCachedCloneOpenPath', () => {
+		test('uses workspacePath when it still exists', async () => {
+			const info: CachedCloneInfo = { repositoryPath: '/clones/repo', workspacePath: '/workspace/proj.code-workspace' };
+			const existing = new Set(['/clones/repo', '/workspace/proj.code-workspace']);
+			assert.strictEqual(
+				await resolveCachedCloneOpenPath(info, async (p) => existing.has(p)),
+				'/workspace/proj.code-workspace'
+			);
+		});
+
+		test('falls back to repositoryPath when workspacePath is gone', async () => {
+			const info: CachedCloneInfo = { repositoryPath: '/clones/repo', workspacePath: '/workspace/proj.code-workspace' };
+			const existing = new Set(['/clones/repo']);
+			assert.strictEqual(
+				await resolveCachedCloneOpenPath(info, async (p) => existing.has(p)),
+				'/clones/repo'
+			);
 		});
 	});
 });
