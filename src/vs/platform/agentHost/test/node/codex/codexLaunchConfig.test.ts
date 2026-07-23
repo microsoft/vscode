@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildCodexLaunchConfig, buildCodexResumeParams } from '../../../node/codex/codexLaunchConfig.js';
+import { buildCodexLaunchConfig, buildCodexResumeParams, isCodexThreadProviderCompatible } from '../../../node/codex/codexLaunchConfig.js';
 
 suite('CodexLaunchConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -23,7 +23,23 @@ suite('CodexLaunchConfig', () => {
 		assert.deepStrictEqual(config.args, ['app-server', '-c', 'features.tool_call_mcp_elicitation=false']);
 	});
 
-	test('resume overrides a thread persisted with a different usage source', () => {
+	test('identifies provider-compatible threads', () => {
+		assert.deepStrictEqual({
+			copilotProxy: isCodexThreadProviderCompatible('copilot', 'vscode-proxy'),
+			copilotOpenAI: isCodexThreadProviderCompatible('copilot', 'openai'),
+			openAIProxy: isCodexThreadProviderCompatible('openai', 'vscode-proxy'),
+			openAIDefault: isCodexThreadProviderCompatible('openai', 'openai'),
+			openAICustom: isCodexThreadProviderCompatible('openai', 'custom-provider'),
+		}, {
+			copilotProxy: true,
+			copilotOpenAI: false,
+			openAIProxy: false,
+			openAIDefault: true,
+			openAICustom: true,
+		});
+	});
+
+	test('resume explicitly binds the compatible provider', () => {
 		assert.deepStrictEqual(buildCodexResumeParams('openai', 'thread-a', {}), {
 			threadId: 'thread-a',
 			modelProvider: 'openai',

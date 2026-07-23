@@ -17,7 +17,11 @@ export interface ICodexLaunchConfig {
 	readonly args: readonly string[];
 }
 
-/** Override the rollout's persisted provider so resumed threads follow the current global usage source. */
+export function isCodexThreadProviderCompatible(usageSource: CodexUsageSource, modelProvider: string): boolean {
+	return usageSource === 'copilot' ? modelProvider === 'vscode-proxy' : modelProvider !== 'vscode-proxy';
+}
+
+/** Explicitly bind a compatible resumed thread to the current global usage source. */
 export function buildCodexResumeParams(usageSource: CodexUsageSource, threadId: string, mcpServers: Readonly<Record<string, unknown>>): ThreadResumeParams {
 	return {
 		threadId,

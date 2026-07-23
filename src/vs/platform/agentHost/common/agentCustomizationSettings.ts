@@ -50,3 +50,18 @@ export function readAgentCustomizationSettings(state: RootState | undefined, pro
 export function getProviderBackedRootConfigKeys(state: RootState | undefined): ReadonlySet<string> {
 	return new Set(getAgentCustomizationSettingsEntries(state).flatMap(entry => entry.settings.map(setting => setting.key)));
 }
+
+export function preserveProviderBackedRootConfigValues(state: RootState | undefined, replacement: Readonly<Record<string, unknown>>): Record<string, unknown> {
+	const values = { ...replacement };
+	const current = state?.config?.values;
+	if (!current) {
+		return values;
+	}
+
+	for (const key of getProviderBackedRootConfigKeys(state)) {
+		if (!Object.hasOwn(values, key) && Object.hasOwn(current, key)) {
+			values[key] = current[key];
+		}
+	}
+	return values;
+}
