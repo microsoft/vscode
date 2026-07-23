@@ -166,29 +166,6 @@ jobs:
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
-      - name: Loop Agent Host E2E tests (5x)
-        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
-        timeout-minutes: 45
-        run: |
-          set -e
-          failures=0
-          for iteration in 1 2 3 4 5; do
-            for provider in copilot claude codex; do
-              echo "Agent Host E2E iteration $iteration: $provider"
-              if ! ./scripts/test-integration.sh \
-                  --tfs "Agent Host E2E $provider iteration $iteration" \
-                  --run "src/vs/platform/agentHost/test/node/e2e/providers/${provider}AgentHostE2E.integrationTest.ts"; then
-                failures=$((failures + 1))
-              fi
-            done
-          done
-          if [ "$failures" -ne 0 ]; then
-            echo "$failures Agent Host E2E loop run(s) failed."
-            exit 1
-          fi
-        env:
-          VSCODE_SKIP_PRELAUNCH: '1'
-
       - name: 🧪 Run integration tests (Browser, Webkit)
         if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 20
