@@ -4336,7 +4336,8 @@ suite('CopilotAgent', () => {
 			return { client, getCreateSessionCalls: () => createSessionCalls };
 		}
 
-		test('falls back to createSession after a Start Over truncate leaves the session empty', async () => {
+		// TODO: re-enable — flaky (2000ms timeout in CI). Tracked in https://github.com/microsoft/vscode/issues/327214
+		test.skip('falls back to createSession after a Start Over truncate leaves the session empty', async () => {
 			// Simulates the post-`truncateSession`/"Start Over" case: the on-disk
 			// session has zero events, so the SDK's resumeSession refuses to
 			// resume it. The exact wording varies across SDK versions, so we
