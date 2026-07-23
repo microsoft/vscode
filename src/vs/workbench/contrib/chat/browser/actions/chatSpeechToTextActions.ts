@@ -32,6 +32,11 @@ import { cancelDictation, isDictating, startDictation, stopDictation } from '../
 export const ChatSpeechToTextConfigured = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(ChatContextKeys.speechToTextConfigured.key));
 /** True while the on-device model is downloading/loading (the mic shows a spinner instead). */
 export const ChatSpeechToTextPreparing = ContextKeyExpr.has(ChatContextKeys.speechToTextPreparing.key);
+/**
+ * True unless the segmented voice/dictation pill is enabled. The pill hosts its own
+ * dictation cell, so the standalone dictation buttons must hide when it is active.
+ */
+const SegmentedVoiceInputModeDisabled = ContextKeyExpr.notEquals('config.chat.voiceInputMode.segmentedToggle', true);
 
 
 /** Releases shorter than this are treated as an accidental tap and discarded. */
@@ -137,7 +142,7 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				order: -11,
-				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing.negate(), AGENTS_VOICE_CONNECTED.negate()),
+				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing.negate(), AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModeDisabled),
 				group: 'navigation',
 			}],
 			keybinding: {
@@ -192,7 +197,7 @@ export class ChatSpeechToTextPreparingAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				order: -11,
-				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing, AGENTS_VOICE_CONNECTED.negate()),
+				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing, AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModeDisabled),
 				group: 'navigation',
 			}],
 		});

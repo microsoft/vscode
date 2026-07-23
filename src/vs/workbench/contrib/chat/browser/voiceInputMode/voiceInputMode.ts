@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { isNative } from '../../../../../base/common/platform.js';
 import { IObservable, ISettableObservable, autorun, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -14,7 +13,7 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ISpeechService } from '../../../speech/common/speechService.js';
+import { IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
 
 /**
  * The two mutually-exclusive voice input modes exposed in the chat input.
@@ -135,7 +134,7 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISpeechService speechService: ISpeechService,
+		@IChatSpeechToTextService chatSpeechToTextService: IChatSpeechToTextService,
 	) {
 		super();
 
@@ -148,13 +147,14 @@ export class VoiceInputModeService extends Disposable implements IVoiceInputMode
 			configurationService.onDidChangeConfiguration,
 			() => configurationService.getValue<boolean>('agents.voice.enabled') === true);
 
-		// Dictation in the segmented control drives the `workbench.action.chat.startVoiceChat`
-		// / `stopListening` commands, which are only registered in the desktop (electron-browser)
-		// chat layer. Gate the segment to native so it never appears on web, where clicking it
-		// would execute an unknown command.
+		// The dictation segment drives built-in on-device dictation
+		// (`workbench.action.chat.toggleSpeechToText`). `isConfigured` already
+		// requires native on-device transcription support (false on web) and the
+		// `chat.speechToText.enabled` kill-switch, so the segment only appears
+		// where clicking it can actually dictate.
 		this.dictationAvailable = observableFromEvent(this,
-			speechService.onDidChangeHasSpeechProvider,
-			() => isNative && speechService.hasSpeechProvider);
+			configurationService.onDidChangeConfiguration,
+			() => chatSpeechToTextService.isConfigured);
 
 		this.handsFree = observableFromEvent(this,
 			configurationService.onDidChangeConfiguration,

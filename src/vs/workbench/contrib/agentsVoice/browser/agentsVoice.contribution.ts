@@ -286,6 +286,9 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					// The segmented voice pill's voice cell is itself the on/off toggle,
+					// so a separate disconnect button would be redundant there.
+					ContextKeyExpr.notEquals('config.chat.voiceInputMode.segmentedToggle', true),
 				),
 				group: 'navigation',
 				order: -9

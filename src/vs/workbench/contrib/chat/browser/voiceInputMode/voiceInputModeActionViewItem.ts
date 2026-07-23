@@ -27,12 +27,12 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
 import { IMicCaptureService } from '../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../voiceClient/ttsPlaybackService.js';
-import { ISpeechService } from '../../../speech/common/speechService.js';
-import { Event } from '../../../../../base/common/event.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextConfigured } from '../actions/chatSpeechToTextActions.js';
 import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceInputModeSegmentedSettingId, VoiceWalkthroughVersion } from './voiceInputMode.js';
 
-const DICTATION_START_COMMAND_ID = 'workbench.action.chat.startVoiceChat';
-const DICTATION_STOP_COMMAND_ID = 'workbench.action.chat.stopListening';
+/** Built-in on-device dictation toggle (start/stop). */
+const DICTATION_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
 
 /** Number of animated waveform bars shown in the voice segment. */
 const WAVEFORM_BAR_COUNT = 5;
@@ -59,7 +59,7 @@ export class ChatVoiceInputModeAction extends Action2 {
 					ChatContextKeys.currentlyEditing.negate(),
 					// At least one of the two modes must be available for the pill to show.
 					ContextKeyExpr.or(
-						ContextKeyExpr.has('hasSpeechProvider'),
+						ChatSpeechToTextConfigured,
 						ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					),
 				),
@@ -283,7 +283,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
-		@ISpeechService private readonly speechService: ISpeechService,
+		@IChatSpeechToTextService private readonly chatSpeechToTextService: IChatSpeechToTextService,
 	) {
 		super(undefined, action);
 	}
@@ -346,7 +346,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._syncBarAnimation();
 		}));
 
-		// --- Listen cell: person-voice icon that toggles listening in manual voice mode. ---
+		// --- Listen cell: mic/stop icon that toggles listening in manual voice mode. ---
 		this._listenCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.listen'));
 		this._listenCell.setAttribute('type', 'button');
 		this._listenCell.setAttribute('role', 'button');
@@ -373,11 +373,12 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._onClickListen();
 		}));
 
-		// Dictation activity: driven directly by the speech service so the mic reliably
-		// fills while a speech-to-text session is recording (global, not scope-dependent).
+		// Dictation activity: driven directly by the built-in on-device speech-to-text
+		// service so the mic reliably fills while a dictation session is recording or
+		// transcribing (global, not scope-dependent).
 		const dictationActive = observableFromEvent(this,
-			Event.any(this.speechService.onDidStartSpeechToTextSession, this.speechService.onDidEndSpeechToTextSession),
-			() => this.speechService.hasActiveSpeechToTextSession);
+			this.chatSpeechToTextService.onDidChangeState,
+			() => this.chatSpeechToTextService.state !== ChatSpeechToTextState.Idle);
 
 		this._register(autorun(reader => {
 			const dictationAvailable = this.voiceInputModeService.dictationAvailable.read(reader);
@@ -453,8 +454,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			// Simulated hover (walkthrough only) mirrors the real :hover disconnect preview.
 			this._voiceCell!.classList.toggle('sim-hover', this.voiceInputModeService.simulatedHover.read(reader));
 
-			// Listen / don't-listen toggle: person-voice icon,
-			// filled while listening, outline otherwise.
+			// Listen / stop-speaking toggle: mic to start, stop to end.
 			this._listenCell!.classList.toggle('collapsed', !listenPresent);
 			this._listenCell!.classList.toggle('active', listening);
 			this._listenCell!.classList.toggle('muted', !listening);
@@ -462,7 +462,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._listenCell!.setAttribute('aria-label', listening
 				? localize('voiceInputMode.stopListening', "Stop Listening")
 				: localize('voiceInputMode.startListening', "Start Listening"));
-			this._listenIcon!.className = `chat-voice-input-mode-person-voice${listening ? ' filled' : ''}`;
+			this._listenIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(listening ? Codicon.stopCircle : Codicon.mic)}`;
 
 			// Audio-reactive bars only while live (and not hovering the disconnect preview).
 			this._syncBarAnimation();
@@ -544,8 +544,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this.voiceSessionController.disconnect();
 		}
 
-		const dictating = this.speechService.hasActiveSpeechToTextSession;
-		this.commandService.executeCommand(dictating ? DICTATION_STOP_COMMAND_ID : DICTATION_START_COMMAND_ID);
+		// Toggle built-in on-device dictation (the command starts or stops based on
+		// the current recording state).
+		this.commandService.executeCommand(DICTATION_TOGGLE_COMMAND_ID);
 	}
 
 	/**
@@ -557,8 +558,8 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this.voiceInputModeService.setSelectedMode('voice');
 
 		// Mutual exclusion: stop dictation before entering Voice Mode.
-		if (this.speechService.hasActiveSpeechToTextSession) {
-			this.commandService.executeCommand(DICTATION_STOP_COMMAND_ID);
+		if (this.chatSpeechToTextService.state !== ChatSpeechToTextState.Idle) {
+			this.commandService.executeCommand(DICTATION_TOGGLE_COMMAND_ID);
 		}
 
 		const controller = this.voiceSessionController;
@@ -575,7 +576,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	/** Tap the person-voice cell to toggle listening on and off. */
+	/** Tap the listen cell to toggle listening on and off. */
 	private _onClickListen(): void {
 		const controller = this.voiceSessionController;
 		if (!controller.isConnected.get()) {
@@ -603,6 +604,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}
 		this._listenHoldGesture = true;
 		this._listenHoldListening = false;
+		// Fresh gesture: clear any suppression left over from a prior hold whose release
+		// landed off-button (and therefore produced no trailing click to consume it).
+		this._listenSuppressClick = false;
 		const win = getWindow(this._listenCell);
 		// Start listening only after the hold threshold, so a quick tap (toggle) does not
 		// briefly flash the listening state.
@@ -614,10 +618,10 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			}
 		}, VoiceInputModeActionViewItem.HOLD_THRESHOLD_MS);
 		// End the gesture on release anywhere (in case the pointer leaves the button).
-		this._listenPointerUp.value = dom.addDisposableListener(win, dom.EventType.MOUSE_UP, () => this._endListenPointerHold());
+		this._listenPointerUp.value = dom.addDisposableListener(win, dom.EventType.MOUSE_UP, e => this._endListenPointerHold(e));
 	}
 
-	private _endListenPointerHold(): void {
+	private _endListenPointerHold(e?: MouseEvent): void {
 		if (!this._listenHoldGesture) {
 			return;
 		}
@@ -629,10 +633,12 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._listenHoldTimer = undefined;
 			this._listenSuppressClick = false;
 		} else if (this._listenHoldListening) {
-			// Held past the threshold → end the turn and send; suppress the trailing click
-			// so it does not immediately restart listening.
+			// Held past the threshold → end the turn and send. A trailing `click` only fires
+			// when the release lands on the button, so only arm suppression in that case —
+			// otherwise a stale flag would swallow the next (e.g. keyboard) activation.
 			this._listenHoldListening = false;
-			this._listenSuppressClick = true;
+			const releasedOnCell = !!e?.target && this._listenCell!.contains(e.target as Node);
+			this._listenSuppressClick = releasedOnCell;
 			this.voiceSessionController.pttUp('explicit', true);
 		}
 	}

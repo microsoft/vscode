@@ -9,28 +9,28 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { ISpeechService } from '../../../speech/common/speechService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { VoiceInputModeService } from '../../browser/voiceInputMode/voiceInputMode.js';
 
 suite('VoiceInputModeService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSpeechService(hasProvider: boolean): ISpeechService {
-		const onDidChangeHasSpeechProvider = store.add(new Emitter<void>());
+	function createDictationService(configured: boolean): IChatSpeechToTextService {
 		return {
-			onDidChangeHasSpeechProvider: onDidChangeHasSpeechProvider.event,
-			get hasSpeechProvider() { return hasProvider; },
-		} as ISpeechService;
+			onDidChangeState: store.add(new Emitter<ChatSpeechToTextState>()).event,
+			get state() { return ChatSpeechToTextState.Idle; },
+			get isConfigured() { return configured; },
+		} as IChatSpeechToTextService;
 	}
 
-	function createService(options: { voiceEnabled?: boolean; hasSpeechProvider?: boolean } = {}) {
+	function createService(options: { voiceEnabled?: boolean; dictationConfigured?: boolean } = {}) {
 		const storageService = store.add(new TestStorageService());
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('agents.voice.enabled', options.voiceEnabled ?? false);
 		const contextKeyService = new MockContextKeyService();
-		const speechService = createSpeechService(options.hasSpeechProvider ?? false);
-		const service = store.add(new VoiceInputModeService(storageService, configurationService, contextKeyService, speechService));
+		const dictationService = createDictationService(options.dictationConfigured ?? false);
+		const service = store.add(new VoiceInputModeService(storageService, configurationService, contextKeyService, dictationService));
 		return { service, contextKeyService };
 	}
 
@@ -44,14 +44,14 @@ suite('VoiceInputModeService', () => {
 		assert.strictEqual(contextKeyService.getContextKeyValue('chatVoiceInputMode'), 'dictation');
 	});
 
-	test('reflects mode availability from config and speech provider', () => {
-		const { service } = createService({ voiceEnabled: true, hasSpeechProvider: true });
+	test('reflects mode availability from config and dictation service', () => {
+		const { service } = createService({ voiceEnabled: true, dictationConfigured: true });
 		assert.deepStrictEqual(
 			{ voice: service.voiceAvailable.get(), dictation: service.dictationAvailable.get() },
 			{ voice: true, dictation: true }
 		);
 
-		const { service: unavailable } = createService({ voiceEnabled: false, hasSpeechProvider: false });
+		const { service: unavailable } = createService({ voiceEnabled: false, dictationConfigured: false });
 		assert.deepStrictEqual(
 			{ voice: unavailable.voiceAvailable.get(), dictation: unavailable.dictationAvailable.get() },
 			{ voice: false, dictation: false }
