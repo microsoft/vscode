@@ -6,7 +6,7 @@
 import { Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
@@ -47,6 +47,8 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { packErrorForTelemetry } from '../../../../../../platform/telemetry/common/errorTelemetry.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -100,6 +102,34 @@ export { toolDataToDefinition };
  * elsewhere (`chatRepoInfo`). Larger buffers are not inlined; a dirty saved file then falls back to its on-disk path.
  */
 const MAX_INLINED_UNSAVED_EDITOR_BYTES = 1024 * 1024;
+type AgentHostInvocationFailureStage = 'resolveSession' | 'provisionalSession' | 'sessionState' | 'authentication' | 'createSession' | 'subscribeSession' | 'prepareTurn' | 'dispatchTurn' | 'observeTurn';
+
+type AgentHostInvocationFailedEvent = {
+	requestId: string;
+	provider: string;
+	failureStage: AgentHostInvocationFailureStage;
+	isFirstRequest: boolean;
+	hasUserSelectedModel: boolean;
+	errorName: string;
+	errorCode: string | undefined;
+	msg: string;
+	callstack: string | undefined;
+};
+
+type AgentHostInvocationFailedClassification = {
+	requestId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The chat request identifier, used to correlate this failure with provider and host turn telemetry.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host provider handling the request.' };
+	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded workbench adapter stage at which the request failed.' };
+	isFirstRequest: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether this was the first request in the chat session.' };
+	hasUserSelectedModel: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the workbench request carried a selected language model identifier.' };
+	errorName: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The name of the exception.' };
+	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The exception or protocol error code, when available.' };
+	msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
+	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error stack. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
+	owner: 'roblourens';
+	comment: 'Captures errors that prevent an agent host request from reaching a terminal host turn.';
+};
+
 
 // =============================================================================
 // AgentHostSessionHandler - renderer-side handler for a single agent host
@@ -719,6 +749,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IPathService private readonly _pathService: IPathService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IAgentHostCustomizationService private readonly _customizationService: IAgentHostCustomizationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._config = config;
@@ -1231,11 +1262,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// soon as real progress streams. Normal agent-host sessions — whose first
 		// turn is also slow to spawn — never flash it.
 		const preparingStatus = new MutableDisposable();
+		let failureStage: AgentHostInvocationFailureStage = 'resolveSession';
 
 		try {
 			const resolvedSession = this._resolveSessionUri(request.sessionResource);
 			const sessionKey = resolvedSession.toString();
 
+			failureStage = 'provisionalSession';
 			// The chat-input picker may have pre-created a provisional session
 			// against this resource (`IAgentHostUntitledProvisionalSessionService.getOrCreate`).
 			// In that case the agent already has the session + the user's chip
@@ -1250,6 +1283,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._ensureSessionSubscription(sessionKey);
 			}
 
+			failureStage = 'sessionState';
 			// The sessions provider may have eagerly created this session at
 			// folder-pick time and is holding the connection-level subscription
 			// open with hydrated state. Use the unmanaged accessor to peek
@@ -1288,10 +1322,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					undefined,
 					Object.keys(initialConfig).length > 0 ? initialConfig : undefined,
 					imported ? { turns: imported.turns, model: imported.model } : undefined,
+					stage => failureStage = stage,
 				);
 			} else {
+				failureStage = 'authentication';
 				await this._ensureRequiredAuthentication();
 
+				failureStage = 'subscribeSession';
 				// Eager-created session: take a refcounted subscription so the
 				// handler observes state changes for the duration of the chat
 				// session, then wire up the per-turn machinery that
@@ -1333,7 +1370,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				progress(parts);
 			};
 
-			const completedTurn = await this._handleTurn(resolvedSession, request, measuredProgress, cancellationToken);
+			failureStage = 'prepareTurn';
+			const completedTurn = await this._handleTurn(resolvedSession, request, measuredProgress, cancellationToken, stage => failureStage = stage);
 			const details = this._getTurnResponseDetails(request.sessionResource, resolvedSession, completedTurn);
 			const errorDetails = this._getTurnErrorDetails(completedTurn);
 
@@ -1342,12 +1380,33 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				...(details ? { details } : {}),
 				...(errorDetails ? { errorDetails } : {}),
 			};
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this._reportInvocationFailure(request, failureStage, error);
+			}
+			throw error;
 		} finally {
 			// Always cancel the pending "preparing" status — including when an
 			// await above (state read, create/subscribe, turn handling) rejects —
 			// so a stale status can never fire after the invocation has ended.
 			preparingStatus.dispose();
 		}
+	}
+
+	private _reportInvocationFailure(request: IChatAgentRequest, failureStage: AgentHostInvocationFailureStage, error: unknown): void {
+		const packed = packErrorForTelemetry(error);
+		const requests = this._chatService.getSession(request.sessionResource)?.getRequests();
+		this._telemetryService.publicLogError2<AgentHostInvocationFailedEvent, AgentHostInvocationFailedClassification>('agentHost.invocationFailed', {
+			requestId: request.requestId,
+			provider: this._config.provider,
+			failureStage,
+			isFirstRequest: requests?.[0]?.id === request.requestId,
+			hasUserSelectedModel: request.userSelectedModelId !== undefined,
+			errorName: error instanceof Error ? error.name : typeof error,
+			errorCode: getErrorCode(error),
+			msg: packed.msg,
+			callstack: packed.callstack,
+		});
 	}
 
 	/**
@@ -1769,11 +1828,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		request: IChatAgentRequest,
 		progress: (parts: IChatProgress[]) => void,
 		cancellationToken: CancellationToken,
+		onFailureStage: (stage: AgentHostInvocationFailureStage) => void,
 	): Promise<Turn | undefined> {
 		if (cancellationToken.isCancellationRequested) {
 			return;
 		}
 
+		onFailureStage('prepareTurn');
 		const turnId = request.requestId;
 		this._clientDispatchedTurnIds.add(turnId);
 		const chatURI = this._getChatURI(request.sessionResource);
@@ -1837,6 +1898,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			},
 		};
 		this._ensureTurnStopWatch(turnChannel, turnId);
+		onFailureStage('dispatchTurn');
 		this._config.connection.dispatch(turnChannel, turnAction);
 
 		// Ensure the snapshot controller records a sentinel checkpoint for this
@@ -1850,6 +1912,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// sink and resolves the promise from `onTurnEnded`. Cancellation is
 		// surfaced through the same path: the observer disposes itself when
 		// `cancellationToken` fires, then calls `onTurnEnded(undefined)`.
+		onFailureStage('observeTurn');
 		return new Promise<Turn | undefined>(resolve => {
 			const store = new DisposableStore();
 			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
@@ -3797,12 +3860,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Creates a new backend session and subscribes to its state. */
-	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }): Promise<URI> {
+	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }, onFailureStage?: (stage: AgentHostInvocationFailureStage) => void): Promise<URI> {
 		const workingDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
 		const requestedSession = fork ? undefined : this._resolveSessionUri(sessionResource);
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${model?.id ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
 
+		onFailureStage?.('authentication');
 		const protectedResources = await this._ensureRequiredAuthentication();
 
 		const activeClient = this._getCurrentActiveClient();
@@ -3814,6 +3878,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const progressToken = generateUuid();
 
 		let session: URI;
+		onFailureStage?.('createSession');
 		try {
 			session = await this._config.connection.createSession({
 				session: requestedSession,
@@ -3829,9 +3894,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		} catch (err) {
 			// If authentication is required (e.g. token expired), try interactive auth and retry once
 			if (this._isAuthRequiredError(err) && this._config.resolveAuthentication) {
+				onFailureStage?.('authentication');
 				this._logService.info('[AgentHost] Authentication required, prompting user...');
 				const authenticated = await this._config.resolveAuthentication(protectedResources);
 				if (authenticated) {
+					onFailureStage?.('createSession');
 					session = await this._config.connection.createSession({
 						session: requestedSession,
 						model,
@@ -3858,6 +3925,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._logService.trace(`[AgentHost] Created session: ${session.toString()}`);
 
 		// Subscribe to the new session's state
+		onFailureStage?.('subscribeSession');
 		const newSub = this._ensureSessionSubscription(session.toString());
 		if (!this._getSessionState(session.toString())) {
 			// Wait for the subscription to hydrate. `_whenSubscriptionHydrated`

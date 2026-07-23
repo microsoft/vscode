@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import type { VoiceState } from '../../../chat/browser/voiceClient/voiceSessionController.js';
-import { FONT_SIZE, addKeyboardActivation } from './tokens.js';
+import { FONT_SIZE, addKeyboardActivation, isSecondaryPointerGesture } from './tokens.js';
 
 export interface HeaderProps {
 	readonly copilotIconSrc: string;
@@ -27,6 +27,7 @@ export interface HeaderProps {
 	readonly onDisconnectClick: (e: MouseEvent) => void;
 	readonly onCloseClick: (e: MouseEvent) => void;
 	readonly onToggleClick: (e: MouseEvent) => void;
+	readonly onMicContextMenu: (e: MouseEvent) => void;
 	readonly onPopoutClick: (e: MouseEvent) => void;
 	readonly onFeedbackClick: (e: MouseEvent) => void;
 	readonly expanded: boolean;
@@ -156,8 +157,9 @@ export function createHeader(): HeaderComponent {
 			}
 			micBtn.onmouseenter = () => { micBtn.style.color = 'var(--vscode-foreground)'; };
 			micBtn.onmouseleave = () => { micBtn.style.color = micColor; };
-			micBtn.onmousedown = props.onMicDown;
-			micBtn.onmouseup = () => props.onMicUp();
+			micBtn.onmousedown = (e: MouseEvent) => { if (isSecondaryPointerGesture(e)) { return; } props.onMicDown(e); };
+			micBtn.onmouseup = (e: MouseEvent) => { if (isSecondaryPointerGesture(e)) { return; } props.onMicUp(); };
+			micBtn.oncontextmenu = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); props.onMicContextMenu(e); };
 
 			// Placeholder text — shown when not connected, displays PTT keybinding
 			placeholderText.style.display = showConnected ? 'none' : '';

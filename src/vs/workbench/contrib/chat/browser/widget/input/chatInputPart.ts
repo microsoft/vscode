@@ -1178,7 +1178,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			showUnavailableFeatured: useRichPicker,
 			showFeatured: useRichPicker,
 			showAutoModel: this._showAutoModel(),
-			useGenericModelIcon: !this.options.isSessionsWindow && this._usesHarnessProviderIcon(),
+			showModelIcon: this.options.isSessionsWindow || !this._usesHarnessProviderIcon(),
 		};
 	}
 

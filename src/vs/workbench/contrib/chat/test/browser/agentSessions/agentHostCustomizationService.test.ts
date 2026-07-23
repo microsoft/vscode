@@ -94,7 +94,11 @@ suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
 	function createSut() {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
-		instantiationService.stub(IOutputService, { showChannel: async () => { } });
+		instantiationService.stub(IOutputService, {
+			getChannel: () => undefined,
+			getChannelDescriptor: () => undefined,
+			showChannel: async () => { },
+		});
 		const sut = store.add(new TestAgentHostCustomizationService(instantiationService, new NullLogService(), store.add(new InMemoryStorageService())));
 		return sut;
 	}
@@ -167,6 +171,17 @@ suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
 		sut.setTarget(sessionA2, otherTarget);
 		sut.prepareMcpServersForTurn(sessionA2);
 		assert.deepStrictEqual(otherTarget.dispatched, []);
+	});
+
+	test('getMcpServers provides a stable diagnostics output channel id without creating a logger', () => {
+		const sut = createSut();
+		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)]));
+
+		const [first] = sut.getMcpServers(sessionA1);
+		const [second] = sut.getMcpServers(sessionA1);
+
+		assert.ok(first.logOutputChannelId);
+		assert.strictEqual(second.logOutputChannelId, first.logOutputChannelId);
 	});
 
 	test('does not reapply unchanged durable policy, preserving a later session-level toggle', () => {
