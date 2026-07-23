@@ -5,6 +5,7 @@ Thumbs.db
 node_modules/
 .tmp/
 .build/
+/extensionsCG/
 .vscode/extensions/**/out/
 extensions/**/dist/
 src/vs/base/browser/ui/codicons/codicon/codicon.ttf
@@ -13,6 +14,8 @@ src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 build/node_modules
 build/darwin/.dmgbuild
 coverage/
+!src/vs/platform/agentHost/test/node/protocol/coverage/
+!src/vs/platform/agentHost/test/node/protocol/coverage/agentHostE2E.json
 test_data/
 test-results/
 test-results.xml

@@ -8,79 +8,52 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { CustomizationStatus, StateComponents, type SessionCustomization, type AgentInfo, type CustomizationRef, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { ICustomizationAgentRef, ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
+import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { getAgentHostConfiguredCustomizations } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
+import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
+import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
+import { type ISyncedCustomizationOrigin } from './syncedCustomizationBundler.js';
+import { IAgentSource, ICustomAgent, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { getChatSessionType } from '../../../common/model/chatUri.js';
+import { localize } from '../../../../../../nls.js';
 
 
 const REMOTE_HOST_GROUP = 'remote-host';
 const REMOTE_CLIENT_GROUP = 'remote-client';
 
 
-type PluginMeta = { item: ICustomizationItem; nonce: string | undefined; status: ReturnType<typeof toStatusString>; statusMessage: string | undefined; enabled: boolean | undefined; childGroupKey: string; isBundleItem: boolean };
+type PluginMeta = { item: ICustomizationItem; nonce: string | undefined; status: ReturnType<typeof toStatusString>; statusMessage: string | undefined; enabled: boolean | undefined; childGroupKey: string; isBundleItem: boolean; pluginLabel: string | undefined };
 
 
 export class AgentCustomizationItemProvider extends Disposable implements ICustomizationItemProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private _agentCustomizations: readonly CustomizationRef[];
-
-	/** Cache: pluginUri → last expansion (keyed by nonce so we re-fetch on content change). */
-	private readonly _expansionCache = new ResourceMap<{ nonce: string | undefined; children: readonly ICustomizationItem[] }>();
+	/** Cache: pluginUri → last expansion (keyed by nonce and label so we re-fetch on content or display-name changes). */
+	private readonly _expansionCache = new ResourceMap<{ nonce: string | undefined; pluginLabel: string | undefined; children: readonly ICustomizationItem[] }>();
 	private readonly _contentExpander: AgentCustomizationContentExpander;
 
 	constructor(
-		private readonly _agentInfo: AgentInfo,
-		private readonly _connection: IAgentConnection,
 		private readonly _connectionAuthority: string,
-		private readonly _fileService: IFileService,
-		private readonly _logService: ILogService,
-		private readonly _getItemActions?: (customization: CustomizationRef, clientId: string | undefined) => ICustomizationItemAction[] | undefined,
+		private readonly _getItemActions: ((customization: PluginCustomization, clientId: string | undefined) => ICustomizationItemAction[] | undefined) | undefined,
+		private readonly _resolveSyncedOrigin: ((syncedUri: URI) => ISyncedCustomizationOrigin | undefined) | undefined,
+		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService,
+		@IAgentHostCustomizationService private readonly _customAgentsService: IAgentHostCustomizationService,
 	) {
 		super();
 		this._contentExpander = new AgentCustomizationContentExpander(this._fileService, this._logService);
-		const rootStateSubscription = this._connection.rootState;
-		this._agentCustomizations = this._readRootCustomizations(rootStateSubscription.value) ?? this._agentInfo.customizations ?? [];
 
-		this._register(rootStateSubscription.onDidChange(rootState => {
-			const next = this._readRootCustomizations(rootState) ?? this._readAgentCustomizations(rootState) ?? this._agentCustomizations;
-			if (next !== this._agentCustomizations) {
-				this._agentCustomizations = next;
-				this._onDidChange.fire();
-			}
+		this._register(this._customAgentsService.onDidChangeCustomizations(() => {
+			this._onDidChange.fire();
 		}));
-
-		this._register(this._connection.onDidAction(envelope => {
-			if (envelope.action.type === ActionType.SessionCustomizationsChanged || envelope.action.type === ActionType.SessionCustomizationUpdated) {
-				this._onDidChange.fire();
-			}
-		}));
-	}
-
-
-	private _readRootCustomizations(rootState: RootState | Error | undefined): readonly CustomizationRef[] | undefined {
-		if (!rootState || rootState instanceof Error || !rootState.config) {
-			return undefined;
-		}
-
-		return getAgentHostConfiguredCustomizations(rootState.config?.values);
-	}
-
-	private _readAgentCustomizations(rootState: RootState | Error | undefined): readonly CustomizationRef[] | undefined {
-		if (!rootState || rootState instanceof Error) {
-			return undefined;
-		}
-
-		return rootState.agents.find(agent => agent.provider === this._agentInfo.provider)?.customizations;
 	}
 
 	private toRemoteUri(customizationUri: string): URI {
@@ -95,7 +68,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return toAgentHostUri(original, this._connectionAuthority);
 	}
 
-	private toBadge(customization: CustomizationRef, fromClient: boolean): { badge?: string; badgeTooltip?: string; groupKey?: string } {
+	private toBadge(customization: PluginCustomization, fromClient: boolean): { badge?: string; badgeTooltip?: string; groupKey?: string } {
 		if (fromClient) {
 			return {
 				groupKey: REMOTE_CLIENT_GROUP,
@@ -107,20 +80,20 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		};
 	}
 
-	private toItem(customization: CustomizationRef, source: AICustomizationSource, sessionCustomization?: SessionCustomization): ICustomizationItem {
-		const clientId = sessionCustomization?.clientId; // set if the configuration came from the client
+	private toItem(customization: PluginCustomization, source: AICustomizationSource): ICustomizationItem {
+		const clientId = customization.clientId; // set if the configuration came from the client
 		const badge = this.toBadge(customization, clientId !== undefined);
 		const uri = this.toRemoteUri(customization.uri);
 		return {
 			itemKey: customizationItemKey(customization, clientId),
 			uri: uri,
 			type: 'plugin',
-			name: customization.displayName,
-			description: customization.description,
+			name: customization.name,
+			description: undefined,
 			source,
-			status: toStatusString(sessionCustomization?.status),
-			statusMessage: sessionCustomization?.statusMessage,
-			enabled: sessionCustomization?.enabled ?? true,
+			status: toStatusString(customization.load),
+			statusMessage: toStatusMessage(customization.load),
+			enabled: customization.enabled,
 			badge: badge.badge,
 			badgeTooltip: badge.badgeTooltip,
 			groupKey: badge.groupKey,
@@ -130,25 +103,111 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			actions: this._getItemActions?.(customization, clientId),
 		};
 	}
-	private _resolveSessionUri(sessionResource: URI): URI {
-		const rawId = sessionResource.path.substring(1);
-		return AgentSession.uri(this._agentInfo.provider, rawId);
+
+	private toDirectoryItems(customization: DirectoryCustomization, source: AICustomizationSource, isRemote: boolean): ICustomizationItem[] {
+		const items: ICustomizationItem[] = [];
+		for (const child of customization.children ?? []) {
+			const item = this.toDirectoryChildItem(child, source, isRemote);
+			if (item) {
+				items.push(item);
+			}
+		}
+		return items;
 	}
 
-	private getSessionCustomizations(sessionResource: URI): readonly SessionCustomization[] {
-		const sessionUri = this._resolveSessionUri(sessionResource);
-		const sessionState = this._connection.getSubscriptionUnmanaged(StateComponents.Session, sessionUri)?.value;
-		return sessionState && !(sessionState instanceof Error) ? sessionState.customizations ?? [] : [];
+	private toDirectoryChildItem(child: ChildCustomization, source: AICustomizationSource, isRemote: boolean): ICustomizationItem | undefined {
+		const type = toPromptsType(child.type);
+		if (!type) {
+			return undefined;
+		}
+		let userInvocable: boolean | undefined = undefined;
+		if (child.type === CustomizationType.Agent) {
+			userInvocable = readAgentCustomizationMeta(child).userInvocable !== false;
+		}
+		let groupKey = isRemote ? REMOTE_CLIENT_GROUP : undefined;
+		let badge: string | undefined = undefined;
+		let badgeTooltip: string | undefined = undefined;
+		if (!groupKey && child.type === CustomizationType.Rule) {
+			const pattern = child.globs?.[0];
+			if (child.globs && child.globs.length > 0) {
+				groupKey = 'context-instructions';
+				badge = pattern === '**'
+					? localize('alwaysAdded', 'always added')
+					: pattern;
+				badgeTooltip = pattern === '**'
+					? localize('alwaysIncluded', 'This instruction is automatically included in every interaction.')
+					: localize('contextInstructions', 'This instruction is automatically included when files matching \'{0}\' are in context.', pattern);
+			} else if (child.alwaysApply) {
+				groupKey = 'agent-instructions';
+			} else {
+				groupKey = 'on-demand-instructions';
+			}
+		}
+
+		return {
+			itemKey: child.id,
+			uri: this.toRemoteUri(child.uri),
+			type,
+			name: child.name,
+			description: getChildDescription(child),
+			source,
+			groupKey,
+			badge,
+			badgeTooltip,
+			extensionId: undefined,
+			pluginUri: undefined,
+			userInvocable,
+		};
 	}
 
-	async provideCustomAgents(sessionResource: URI): Promise<readonly ICustomizationAgentRef[]> {
-		const sessionCustomizations = this.getSessionCustomizations(sessionResource);
-		const agents = sessionCustomizations.flatMap(c => c.agents ?? []);
+	async provideSourceFolders(sessionResource: URI, type: PromptsType, _token: CancellationToken): Promise<readonly ICustomizationSourceFolder[]> {
+		const workingDirectory = this._customAgentsService.getWorkingDirectory(sessionResource);
+
+		const folders: ICustomizationSourceFolder[] = [];
+		for (const customization of this._customAgentsService.getCustomizations(sessionResource)) {
+			if (!isDirectoryCustomization(customization) || !customization.writable) {
+				continue;
+			}
+			if (toPromptsType(customization.contents) !== type) {
+				continue;
+			}
+			const source = workingDirectory && customization.uri.startsWith(workingDirectory + '/') ? AICustomizationSources.local : AICustomizationSources.user;
+			folders.push({
+				uri: this.toRemoteUri(customization.uri),
+				label: customization.name,
+				source,
+			});
+		}
+		return folders;
+	}
+
+	async provideCustomAgents(sessionResource: URI): Promise<readonly ICustomAgent[]> {
+		const agents = this._customAgentsService.getCustomAgents(sessionResource);
+		const sessionTypes = [getChatSessionType(sessionResource)];
 		return agents.map(agent => ({
+			id: agent.uri,
 			uri: this.toRemoteUri(agent.uri),
 			name: agent.name,
 			description: agent.description,
-		}));
+			sessionTypes: sessionTypes,
+			enabled: true,
+			// fill default/empty values for all other properties they will not be used by the UI
+			// when making a request, all that's needed is the agent id.
+			source: { storage: PromptsStorage.local } satisfies IAgentSource,
+			tools: undefined,
+			agents: undefined,
+			argumentHint: undefined,
+			handOffs: undefined,
+			hooks: undefined,
+			model: undefined,
+			agentInstructions: { content: '', toolReferences: [] },
+			visibility: {
+				agentInvocable: true,
+				userInvocable: readAgentCustomizationMeta(agent).userInvocable !== false
+			},
+			target: Target.Undefined
+		} satisfies ICustomAgent));
+
 	}
 
 	async provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {
@@ -158,50 +217,47 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		const plugins: PluginMeta[] = [];
 		const expandPromises: Promise<readonly ICustomizationItem[]>[] = [];
 
-		for (const customization of this._agentCustomizations) {
-			const item = this.toItem(customization, AICustomizationSources.plugin);
-			items.set(customizationItemKey(customization, undefined), item);
-			const pluginMeta = {
-				item,
-				nonce: customization.nonce,
-				status: undefined,
-				statusMessage: undefined,
-				enabled: undefined,
-				childGroupKey: REMOTE_HOST_GROUP,
-				isBundleItem: isSyntheticBundle(customization)
-			} satisfies PluginMeta;
-			plugins.push(pluginMeta);
-			expandPromises.push(this._expandPluginContents(pluginMeta, token));
-		}
-		for (const sessionCustomization of this.getSessionCustomizations(sessionResource)) {
-			const isBundleItem = isSyntheticBundle(sessionCustomization.customization);
-			const isClientSynced = sessionCustomization.clientId !== undefined;
-			const childGroupKey = isClientSynced ? REMOTE_CLIENT_GROUP : REMOTE_HOST_GROUP;
 
-			// Always show session customizations as distinct plugin entries —
-			// client-synced items appear in the "Local" group, host-owned in
-			// the "Remote" group. The synthetic bundle is an implementation
-			// detail and is not shown as a standalone entry, but is still
-			// expanded below so individual user files appear in per-type tabs.
-			let item: ICustomizationItem;
-			if (!isBundleItem) {
-				item = this.toItem(sessionCustomization.customization, AICustomizationSources.plugin, sessionCustomization);
-				items.set(customizationItemKey(sessionCustomization.customization, sessionCustomization.clientId), item);
+		const customizations = this._customAgentsService.getCustomizations(sessionResource);
+
+		const directoryCustomizations = [];
+		for (const sessionCustomization of customizations) {
+			if (isDirectoryCustomization(sessionCustomization)) {
+				directoryCustomizations.push(sessionCustomization);
+			} else if (sessionCustomization.type === CustomizationType.McpServer) {
+				// Bare MCP server entries aren't shown as plugin items in this view.
+				continue;
 			} else {
-				// create a dummy parent item for the synthetic bundle, it does not go into the items map, just need it to expand.
-				item = { uri: this.toRemoteUri(sessionCustomization.customization.uri), type: 'plugin', source: AICustomizationSources.plugin, name: '', groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined } satisfies ICustomizationItem;
+				const isBundleItem = isSyntheticBundle(sessionCustomization);
+				const isClientSynced = sessionCustomization.clientId !== undefined;
+				const childGroupKey = isClientSynced ? REMOTE_CLIENT_GROUP : REMOTE_HOST_GROUP;
+
+				// Always show session customizations as distinct plugin entries —
+				// client-synced items appear in the "Local" group, host-owned in
+				// the "Remote" group. The synthetic bundle is an implementation
+				// detail and is not shown as a standalone entry, but is still
+				// expanded below so individual user files appear in per-type tabs.
+				let item: ICustomizationItem;
+				if (!isBundleItem) {
+					item = this.toItem(sessionCustomization, AICustomizationSources.plugin);
+					items.set(customizationItemKey(sessionCustomization, sessionCustomization.clientId), item);
+				} else {
+					// create a dummy parent item for the synthetic bundle, it does not go into the items map, just need it to expand.
+					item = { uri: this.toRemoteUri(sessionCustomization.uri), type: 'plugin', source: AICustomizationSources.plugin, name: '', groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined } satisfies ICustomizationItem;
+				}
+				const pluginMeta = {
+					item,
+					nonce: (sessionCustomization as ClientPluginCustomization).nonce,
+					status: toStatusString(sessionCustomization.load),
+					statusMessage: toStatusMessage(sessionCustomization.load),
+					enabled: sessionCustomization.enabled,
+					childGroupKey,
+					isBundleItem,
+					pluginLabel: isBundleItem ? undefined : item.name,
+				} satisfies PluginMeta;
+				plugins.push(pluginMeta);
+				expandPromises.push(this._expandPluginContents(pluginMeta, token));
 			}
-			const pluginMeta = {
-				item,
-				nonce: sessionCustomization.customization.nonce,
-				status: toStatusString(sessionCustomization.status),
-				statusMessage: sessionCustomization.statusMessage,
-				enabled: sessionCustomization.enabled,
-				childGroupKey,
-				isBundleItem
-			} satisfies PluginMeta;
-			plugins.push(pluginMeta);
-			expandPromises.push(this._expandPluginContents(pluginMeta, token));
 		}
 
 		// Expand each plugin directory in parallel to discover individual skills, agents, instructions, and prompts inside.
@@ -214,9 +270,13 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		for (let i = 0; i < plugins.length; i++) {
 			const p = plugins[i];
 			for (const child of expansions[i]) {
+				// Files flattened into the synthetic bundle lost their original
+				// provenance; recover it (extension/plugin/built-in and source
+				// location) so the item reflects where it actually came from.
+				const enriched = p.isBundleItem ? this._applySyncedOrigin(child) : child;
 				// Children inherit the parent plugin's status/enabled state.
-				items.set(`${p.item.itemKey ?? p.item.uri.toString()}::${child.type}::${child.name}`, {
-					...child,
+				items.set(`${p.item.itemKey ?? p.item.uri.toString()}::${enriched.type}::${enriched.name}`, {
+					...enriched,
 					status: p.status,
 					statusMessage: p.statusMessage,
 					enabled: p.enabled,
@@ -224,7 +284,46 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}
 
+		const workingDirectory = this._customAgentsService.getWorkingDirectory(sessionResource);
+
+		for (const sessionCustomization of directoryCustomizations) {
+			const source = workingDirectory && isParentOrEqual(workingDirectory, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
+			const isRemote = sessionCustomization.clientId !== undefined;
+			for (const child of this.toDirectoryItems(sessionCustomization, source, isRemote)) {
+				items.set(child.itemKey ?? child.uri.toString(), {
+					...child,
+					status: toStatusString(sessionCustomization.load),
+					statusMessage: toStatusMessage(sessionCustomization.load),
+					enabled: sessionCustomization.enabled,
+				});
+			}
+		}
 		return [...items.values()];
+	}
+
+	/**
+	 * Rewrites a bundle child item to reflect the original source location of
+	 * the flattened file, when it can be recovered from the synthetic bundle's
+	 * reverse map. The synced (in-memory) URI is replaced with the real local
+	 * URI so the item points at its true origin, and the source/extension/plugin
+	 * metadata is restored. Returns the item unchanged when no origin is known.
+	 */
+	private _applySyncedOrigin(child: ICustomizationItem): ICustomizationItem {
+		const origin = this._resolveSyncedOrigin?.(child.uri);
+		if (!origin) {
+			return child;
+		}
+		return {
+			...child,
+			uri: origin.uri,
+			source: origin.source,
+			extensionId: origin.extensionId,
+			pluginUri: origin.pluginUri,
+			// Drop the synthetic bundle's `remote-client` group so the recovered
+			// source drives grouping (extension/plugin/built-in). Otherwise the
+			// item would keep rendering under the "Local" group.
+			groupKey: undefined,
+		};
 	}
 
 	/**
@@ -234,33 +333,70 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	 */
 	private async _expandPluginContents(plugin: PluginMeta, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
 		const cached = this._expansionCache.get(plugin.item.uri);
-		if (cached && cached.nonce === plugin.nonce) {
+		if (cached && cached.nonce === plugin.nonce && cached.pluginLabel === plugin.pluginLabel) {
 			return cached.children;
 		}
-		const children = await this._contentExpander.expandPluginContents(plugin.item.uri, plugin.childGroupKey, plugin.isBundleItem, plugin.item.source, token);
-		this._expansionCache.set(plugin.item.uri, { nonce: plugin.nonce, children });
+		const children = await this._contentExpander.expandPluginContents(plugin.item.uri, plugin.childGroupKey, plugin.isBundleItem, plugin.item.source, plugin.pluginLabel, token);
+		this._expansionCache.set(plugin.item.uri, { nonce: plugin.nonce, pluginLabel: plugin.pluginLabel, children });
 		return children;
 	}
 }
+function isParentOrEqual(folderURI: string, childURI: string): boolean {
+	return childURI === folderURI || childURI.startsWith(folderURI + '/');
+}
 
-function toStatusString(status: CustomizationStatus | undefined): 'loading' | 'loaded' | 'degraded' | 'error' | undefined {
-	switch (status) {
-		case CustomizationStatus.Loading: return 'loading';
-		case CustomizationStatus.Loaded: return 'loaded';
-		case CustomizationStatus.Degraded: return 'degraded';
-		case CustomizationStatus.Error: return 'error';
-		default: return undefined;
+function toStatusString(load: CustomizationLoadState | undefined): 'loading' | 'loaded' | 'degraded' | 'error' | undefined {
+	return load?.kind;
+}
+
+function toStatusMessage(load: CustomizationLoadState | undefined): string | undefined {
+	if (load?.kind === CustomizationLoadStatus.Degraded || load?.kind === CustomizationLoadStatus.Error) {
+		return load.message;
 	}
+	return undefined;
 }
 
-function customizationKey(customization: CustomizationRef): string {
-	return customization.uri;
+function customizationKey(customization: Customization): string {
+	return customization.id;
 }
 
-function customizationItemKey(customization: CustomizationRef, clientId: string | undefined): string {
+function customizationItemKey(customization: Customization, clientId: string | undefined): string {
 	return clientId !== undefined
 		? `${customizationKey(customization)}::${clientId}`
 		: customizationKey(customization);
+}
+
+function isDirectoryCustomization(customization: Customization): customization is DirectoryCustomization {
+	return customization.type === CustomizationType.Directory;
+}
+
+function toPromptsType(type: ChildCustomization['type']): PromptsType | undefined {
+	switch (type) {
+		case CustomizationType.Agent:
+			return PromptsType.agent;
+		case CustomizationType.Skill:
+			return PromptsType.skill;
+		case CustomizationType.Rule:
+			return PromptsType.instructions;
+		case CustomizationType.Prompt:
+			return PromptsType.prompt;
+		case CustomizationType.Hook:
+			return PromptsType.hook;
+		default:
+			return undefined;
+	}
+}
+
+function getChildDescription(child: ChildCustomization): string | undefined {
+	switch (child.type) {
+		case CustomizationType.Agent:
+		case CustomizationType.Skill:
+		case CustomizationType.Prompt:
+		case CustomizationType.Rule:
+			return child.description;
+		default:
+			return undefined;
+	}
 }
 
 /**
@@ -268,11 +404,10 @@ function customizationItemKey(customization: CustomizationRef, clientId: string 
  * which is an implementation detail of the customization sync pipeline
  * and should not be surfaced as a standalone item in the UI.
  */
-function isSyntheticBundle(customization: CustomizationRef): boolean {
+function isSyntheticBundle(customization: Customization): boolean {
 	try {
 		return URI.parse(customization.uri).scheme === SYNCED_CUSTOMIZATION_SCHEME;
 	} catch {
 		return false;
 	}
 }
-

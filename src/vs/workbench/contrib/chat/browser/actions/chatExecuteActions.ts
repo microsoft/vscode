@@ -21,7 +21,10 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -33,8 +36,8 @@ import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { isInClaudeAgentsFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { getAgentSessionProvider, AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../chat.js';
+import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
@@ -47,6 +50,7 @@ export interface IVoiceChatExecuteActionContext {
 export interface IChatExecuteActionContext {
 	widget?: IChatWidget;
 	inputValue?: string;
+	acceptInputOptions?: IChatAcceptInputOptions;
 	voice?: IVoiceChatExecuteActionContext;
 }
 
@@ -156,17 +160,17 @@ abstract class SubmitAction extends Action2 {
 		} else if (widget?.viewModel?.model.checkpoint) {
 			widget.viewModel.model.setCheckpoint(undefined);
 		}
-		widget?.acceptInput(context?.inputValue);
+		widget?.acceptInput(context?.inputValue, context?.acceptInputOptions);
 	}
 
-	private async handleDelegation(accessor: ServicesAccessor, widget: IChatWidget, delegationTarget: Exclude<AgentSessionProviders, AgentSessionProviders.Local>): Promise<void> {
+	private async handleDelegation(accessor: ServicesAccessor, widget: IChatWidget, delegationTarget: Exclude<AgentSessionTarget, AgentSessionProviders.Local>): Promise<void> {
 		const chatSessionsService = accessor.get(IChatSessionsService);
 
 		// Find the contribution for the delegation target
 		const contributions = chatSessionsService.getAllChatSessionContributions();
 		const targetContribution = contributions.find(contrib => {
 			const providerType = getAgentSessionProvider(contrib.type);
-			return providerType === delegationTarget;
+			return providerType === delegationTarget || contrib.type === delegationTarget;
 		});
 
 		if (!targetContribution) {
@@ -190,7 +194,7 @@ export class ChatSubmitAction extends SubmitAction {
 	constructor() {
 		const menuCondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
-			ChatContextKeys.inputHasText,
+			ChatContextKeys.inputHasSendableContent,
 			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.chatSessionOptionsValid,
 		);
@@ -200,11 +204,11 @@ export class ChatSubmitAction extends SubmitAction {
 			title: localize2('interactive.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.arrowUp,
+			icon: Codicon.newLine,
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.lockedToCodingAgent,
-				icon: Codicon.arrowUp,
+				icon: Codicon.newLine,
 				tooltip: localize('sendToAgent', "Send to Agent"),
 			},
 			keybinding: {
@@ -345,7 +349,7 @@ class ToggleChatModeAction extends Action2 {
 			isClaudeAgent
 		});
 
-		widget.input.setChatMode(switchToMode.id);
+		widget.input.setChatMode(switchToMode.id, true, true);
 
 		if (chatModeCheck.needToClearSession) {
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
@@ -427,6 +431,8 @@ export class OpenModelPickerAction extends Action2 {
 				group: 'navigation',
 				when:
 					ContextKeyExpr.and(
+						// Hide the model picker while a delegation (continue in) target is pending
+						ChatContextKeys.hasPendingDelegationTarget.negate(),
 						ContextKeyExpr.or(
 							ChatContextKeys.lockedToCodingAgent.negate(),
 							ChatContextKeys.chatSessionHasTargetedModels),
@@ -521,6 +527,8 @@ export class OpenModePickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
+						// Hide the agent picker while a delegation (continue in) target is pending
+						ChatContextKeys.hasPendingDelegationTarget.negate(),
 						ContextKeyExpr.or(
 							ChatContextKeys.lockedToCodingAgent.negate(),
 							ChatContextKeys.chatSessionHasCustomAgentTarget),
@@ -611,7 +619,8 @@ export class OpenDelegationPickerAction extends Action2 {
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
 						ChatContextKeys.chatSessionSupportsDelegation,
-						ChatContextKeys.chatSessionIsEmpty.negate()
+						ChatContextKeys.chatSessionIsEmpty.negate(),
+						IsSessionsWindowContext.negate()
 					),
 					group: 'navigation',
 				},
@@ -762,7 +771,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 
 		const menuCondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
-			ChatContextKeys.inputHasText,
+			ChatContextKeys.inputHasSendableContent,
 			notInProgressOrEditing,
 			ChatContextKeys.chatSessionOptionsValid
 		);
@@ -772,7 +781,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			title: localize2('edits.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.arrowUp,
+			icon: Codicon.newLine,
 			precondition,
 			menu: [
 				{
@@ -898,6 +907,11 @@ class SendToNewChatAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const dialogService = accessor.get(IDialogService);
 		const chatService = accessor.get(IChatService);
+		const configurationService = accessor.get(IConfigurationService);
+		const chatSessionsService = accessor.get(IChatSessionsService);
+		const storageService = accessor.get(IStorageService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -919,7 +933,7 @@ class SendToNewChatAction extends Action2 {
 		// Clear the input from the current session before creating a new one
 		widget.setInput('');
 
-		await clearChatSessionPreservingType(widget, viewsService);
+		await clearChatSessionPreservingType(widget, viewsService, undefined, configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace(), agentHostEnablementService.enabled);
 
 		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
 	}

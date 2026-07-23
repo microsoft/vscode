@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../nls.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { LoggingAgentConnection } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/loggingAgentConnection.js';
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 
 /**
@@ -21,7 +18,6 @@ class RemoteAgentHostTerminalContribution extends Disposable {
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -45,12 +41,7 @@ class RemoteAgentHostTerminalContribution extends Disposable {
 				this._remoteEntries.set(info.address, this._agentHostTerminalService.registerEntry({
 					name: info.name || info.address,
 					address: info.address,
-					getConnection: () => this._instantiationService.createInstance(
-						LoggingAgentConnection,
-						connection,
-						`agenthost.${connection.clientId}`,
-						localize('agentHostTerminal.channelRemote', "Agent Host Terminal ({0})", info.address),
-					),
+					getConnection: () => connection,
 				}));
 			}
 		}

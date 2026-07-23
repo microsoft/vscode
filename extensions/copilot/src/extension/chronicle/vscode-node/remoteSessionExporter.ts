@@ -692,7 +692,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		this._setSyncState({ kind: 'up-to-date', syncedCount: this._getLocalSyncedCount() });
 	}
 
-	// ── Cloud reindex (called from /chronicle:reindex) ──────────────────────────
+	// ── Cloud reindex (called from /chronicle reindex) ─────────────────────────
 
 	/**
 	 * Reindex all local sessions to the cloud. Creates cloud sessions for

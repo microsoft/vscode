@@ -757,7 +757,11 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The unique chat request ID." },
 			"hasChatSessionItem": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Invoked with a chat session item." },
 			"isUntitled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the chat session is untitled." },
-			"hasDelegatePrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the prompt is a /delegate command." }
+			"hasDelegatePrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the prompt is a /delegate command." },
+			"isolation": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The isolation mode of the session, if applicable." },
+			"isWorktree": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Convenience boolean for isolationMode == 'worktree'." },
+			"worktreeTurnIndex": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "1-based count of CLI turns issued against this worktree, including this one.", "isMeasurement": true },
+			"worktreeAgeBucketMs": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Bucketed age since worktree creation (e.g. '<5min', '<1h', '<1d', '<7d', '>=7d'). Measure short-lived vs long-lived worktrees." }
 		}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('copilotcli.chat.invoke', {
@@ -898,7 +902,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
 			const creditsUsed = this._chatQuotaService.getCreditsForTurn(request.id);
 			const { result, responseModelId } = await getCopilotCLIModelDetails(session.object, model, this.copilotCLIModels, this.logService, modelDetailsEnabled, creditsUsed);
-			await persistCopilotCLIResponseModelId(sdkSessionId, request.id, responseModelId, this.chatSessionMetadataStore, this.logService, creditsUsed);
+			await persistCopilotCLIResponseModelId(sdkSessionId, request.id, responseModelId, model?.model === 'auto', this.chatSessionMetadataStore, this.logService, creditsUsed);
 
 			return result;
 		} catch (ex) {
@@ -926,7 +930,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		}
 	}
 
-	private async getOrCreateSession(request: vscode.ChatRequest, chatResource: vscode.Uri, options: SessionInitOptions, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; isNewSession: boolean; model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined; trusted: boolean }> {
+	private async getOrCreateSession(request: vscode.ChatRequest, chatResource: vscode.Uri, options: SessionInitOptions, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; isNewSession: boolean; model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined; agent: SweCustomAgent | undefined; trusted: boolean }> {
 		const result = await this.sessionInitializer.getOrCreateSession(request, chatResource, options, disposables, token);
 		const { session, isNewSession, model, agent, trusted } = result;
 		if (!session || token.isCancellationRequested) {
@@ -1063,7 +1067,7 @@ export function registerCLIChatCommands(
 ): IDisposable {
 	const disposableStore = new DisposableStore();
 
-	async function deleteSessionById(sessionId: string, options?: { keepWorktree?: boolean }): Promise<void> {
+	async function deleteSessionById(sessionId: string, options?: { keepWorktree?: boolean; sessionLabel?: string }): Promise<void> {
 		const worktree = await copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
 		const worktreePath = await copilotCLIWorktreeManagerService.getWorktreePath(sessionId);
 
@@ -1078,7 +1082,7 @@ export function registerCLIChatCommands(
 					if (!repository) {
 						throw new Error(l10n.t('No active repository found to delete worktree.'));
 					}
-					await gitService.deleteWorktree(repository.rootUri, worktreePath.fsPath);
+					await gitService.deleteWorktree(repository.rootUri, worktreePath.fsPath, { label: options?.sessionLabel });
 				} catch (error) {
 					vscode.window.showErrorMessage(l10n.t('Failed to delete worktree: {0}', error instanceof Error ? error.message : String(error)));
 				}
@@ -1125,7 +1129,7 @@ export function registerCLIChatCommands(
 			);
 
 			if (result === deleteLabel) {
-				await deleteSessionById(id, { keepWorktree });
+				await deleteSessionById(id, { keepWorktree, sessionLabel: sessionItem.label });
 			}
 		}
 	}));
@@ -1154,7 +1158,7 @@ export function registerCLIChatCommands(
 				const id = SessionIdForCLI.parse(sessionItem.resource);
 				const worktreePath = await copilotCLIWorktreeManagerService.getWorktreePath(id);
 				const keepWorktree = !!worktreePath && await shouldKeepWorktreeForOtherSessions(id, worktreePath);
-				await deleteSessionById(id, { keepWorktree });
+				await deleteSessionById(id, { keepWorktree, sessionLabel: sessionItem.label });
 			}
 		}
 	}));

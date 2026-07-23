@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { AgentTaskGetResponse, AgentTaskSessionEvent } from '@vscode/copilot-api';
+import { AgentTaskCreatePullRequestResponse, AgentTaskGetResponse, AgentTaskSessionEvent, AgentTaskState } from '@vscode/copilot-api';
 import { GithubRepoId } from '../../../platform/git/common/gitService';
 import { PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
 
@@ -22,10 +22,9 @@ export type CloudSessionIdentity =
  * so the provider can resolve to a full {@link PullRequestSearchItem} when needed
  * for display. The Jobs API path doesn't use this — it returns pre-resolved PRs.
  *
- * See `pullArtifactResolver.ts` (`resolvePullArtifact`, `resolvePullArtifactWithRetry`).
+ * See `pullArtifactResolver.ts` (`resolvePullArtifact`).
  */
 export interface PullArtifactRef {
-	readonly repo: { readonly owner: string; readonly name: string };
 	/** GraphQL node id from the artifact, when available. */
 	readonly globalId?: string;
 	/** Internal PR database id; matches `PullRequestSearchItem.fullDatabaseId`. */
@@ -83,6 +82,29 @@ export interface CloudSessionData {
 	readonly latestSession: SessionInfo;
 	readonly pullRequest?: PullRequestSearchItem;
 	readonly pullArtifact?: PullArtifactRef;
+
+	/**
+	 * Owning repository for the entry, when known. A task has a repo regardless of whether it has
+	 * a pull artifact, so this is the single source of repo identity: the provider uses it to
+	 * attach `owner`/`name` metadata to PR-less task cards (otherwise they group under
+	 * "Unknown"/"Other" until a PR resolves) and passes it to `resolvePullArtifact` for PR lookup.
+	 */
+	readonly repo?: { readonly owner: string; readonly name: string };
+	/**
+	 * Branch comparison refs for a settled, PR-less task that pushed a branch. When present,
+	 * the provider fetches the changed files (`base...head`) so the session's changed-files
+	 * toolbar (and the "Create pull request" action) can render. Absent for PR-backed tasks
+	 * (changes come from the PR) and for tasks with no branch.
+	 */
+	readonly diffRefs?: { readonly owner: string; readonly repo: string; readonly baseRef: string; readonly headRef: string };
+
+	/**
+	 * Raw Task API lifecycle state for Task-backed entries (v2). The provider maps this directly
+	 * to a `ChatSessionStatus` so it can keep the non-terminal "agent handed the turn back" states
+	 * (`idle`, `waiting_for_user`) distinct from active work — they must not render as InProgress.
+	 * Absent for Jobs API (v1) entries, whose status is derived from `latestSession.state`.
+	 */
+	readonly taskState?: AgentTaskState;
 }
 
 /**
@@ -220,6 +242,17 @@ export interface TaskCloudAgentBackend extends CloudAgentBackendCommon {
 		repo: string,
 		prNumber: number,
 	): Promise<string | undefined>;
+
+	/**
+	 * Materialise a pull request for a task that finished without one. The v2 backend
+	 * no longer auto-creates a PR on `createTask`, so the provider offers a "Create pull
+	 * request" toolbar action in the chat input for a settled, PR-less task that calls this
+	 * method when invoked. Accepts the full task; the backend resolves `{owner, repo}` itself
+	 * (from the task's `html_url`, falling back to a GitHub lookup by `repository.id`).
+	 */
+	createPullRequestForTask(
+		task: AgentTaskGetResponse,
+	): Promise<AgentTaskCreatePullRequestResponse>;
 }
 
 /** Discriminated union of all backends. Narrow via `backend.kind`. */

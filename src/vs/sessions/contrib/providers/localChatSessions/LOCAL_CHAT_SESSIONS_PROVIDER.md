@@ -55,6 +55,7 @@ interface IStoredLocalSession {
 	readonly lastMessageDate: number;
 	readonly workingDirectory: UriComponents; // mandatory
 	readonly archived?: boolean;
+	readonly parentUri?: UriComponents; // primary chat's URI for child chats
 }
 ```
 
@@ -119,16 +120,31 @@ A `MutableDisposable` on `LocalSession` ensures repeated `trackModel` calls don'
 - **`deleteSession`** — calls `chatService.removeHistoryEntry()`, removes from cache, removes from storage.
 - **`renameChat`** — calls `chatService.setSessionTitle()`, updates session title, persists.
 - **`setModel`** — only meaningful for the current new session before send; updates pre-send model id.
-- **`createNewChat`** — for the current new session, returns the already-prepared `IChat` and updates `mainChat`.
+- **`createNewChat`** — for the current new session, returns the already-prepared `IChat` and updates `mainChat`. For an existing committed session, creates a subsequent (child) chat linked to the primary via `parentResource`.
+- **`deleteChat`** — removes a single child chat from a multi-chat session after a confirmation dialog; deleting the primary (or the last remaining chat) removes the whole session. An unknown/stale chat URI is a no-op.
+
+Local sessions advertise `capabilities.supportsDelete`, so the shared sessions-list **"Delete..."** action (contributed by the sessions workbench, gated on `SessionSupportsDeleteContext`) confirms and then calls `ISessionsManagementService.deleteSessions` (routing to `deleteSession`/`deleteSessions` above). There is no provider-specific delete action.
+
+## Multi-Chat Support
+
+A local session may host multiple chats. The hierarchy is stored entirely in the provider's own metadata — there is no setting and multi-chat is always enabled.
+
+- Each `LocalSession` has an optional `parentResource`. A session with no `parentResource` is a **primary** chat; one with a `parentResource` pointing at the primary's resource is a **child** chat.
+- The parent→child link is persisted via `IStoredLocalSession.parentUri` so the hierarchy survives reloads.
+- `getSessions()` surfaces only primary chats; children are aggregated into their primary's group. `_buildGroupISession` wraps a primary plus its children into a single `ISession` whose `chats` observable re-derives on group-membership changes, and whose `status`/`updatedAt`/`isRead`/`lastTurnEnd` are aggregated across the group. Such sessions report `capabilities.supportsMultipleChats: true`.
+- The management service sends subsequent messages with the group (primary) `sessionId` and the child's chat resource; `sendRequest` routes these to `_sendChildChat`. A child is added to the cache immediately on `createNewChat` but only persisted once its first send succeeds; a rejected/unsent child is rolled back.
+- On load, a child whose `parentUri` is not present in storage is promoted to a primary (non-destructive orphan handling).
 
 ## Picker Contributions
 
-Local sessions reuse the Copilot provider's pickers (`ModePicker`, `SessionModelPicker`, `PermissionPicker`) via `when` clauses that match `ActiveSessionTypeContext === 'local'`. The picker actions in `copilotChatSessionsActions.ts` include `IsActiveSessionLocal` in their `when` expressions so the same widgets surface for both the copilot CLI provider and this local provider.
+Local sessions reuse the Copilot provider's pickers (`ModePicker`, `PermissionPicker`) via `when` clauses that match `SessionTypeContext === 'local'`. The picker actions in `copilotChatSessionsActions.ts` include `IsActiveSessionLocal` in their `when` expressions so the same widgets surface for both the copilot CLI provider and this local provider.
+
+The model picker is contributed by the sessions core (`contrib/chat/browser/modelPicker.ts`), not by this provider. It reads models via `ISessionsProvider.getModelsSnapshot`; for local sessions this returns general-purpose registered language models (those without a `targetChatSessionType` that are user-selectable), an explicit `modelTarget: undefined` so the shared unsuffixed preference key is used, plus the desired identifier's `notRequested`, `pending`, `available`, or `unavailable` resolution. This provider's `getModelPickerOptions` returns `showManageModelsAction: true`, so the core picker surfaces the **Manage Models** action for local sessions — the decision lives in the provider, not in core.
 
 ## Differences from `CopilotChatSessionsProvider`
 
 - **No `IAgentSessionsService` dependency.** Uses `IChatService` directly.
 - **No untitled→committed URI swap.** Local session resources never change.
-- **No multi-chat support.** Each local session has exactly one chat.
+- **Multi-chat hierarchy stored in provider metadata.** A local session may host multiple chats; the parent→child link is persisted via `IStoredLocalSession.parentUri` (see Multi-Chat Support above).
 - **Self-managed session list.** Storage owns the source of truth, not the chat history.
 - **No worktree / branch / isolation.** Local sessions run in-process against the workspace folder as-is.

@@ -16,7 +16,7 @@ import { Selection } from '../../../../../../editor/common/core/selection.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { MARKERS_OWNER_ID } from './promptValidator.js';
+import { MARKERS_OWNER_ID, PromptValidatorMarkerCode } from './promptValidator.js';
 import { IMarkerData, IMarkerService } from '../../../../../../platform/markers/common/markers.js';
 import { CodeActionKind } from '../../../../../../editor/contrib/codeAction/common/types.js';
 import { getTarget, isVSCodeOrDefaultTarget } from './promptFileAttributes.js';
@@ -48,11 +48,13 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 		switch (promptType) {
 			case PromptsType.agent:
 				this.getUpdateToolsCodeActions(promptAST, promptType, model, range, result);
+				this.getEnableMcpServerCodeActions(model, range, result);
 				await this.getMigrateModeFileCodeActions(model, result);
 				break;
 			case PromptsType.prompt:
 				this.getUpdateModeCodeActions(promptAST, model, range, result);
 				this.getUpdateToolsCodeActions(promptAST, promptType, model, range, result);
+				this.getEnableMcpServerCodeActions(model, range, result);
 				break;
 		}
 
@@ -71,14 +73,105 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 		return markers.filter(marker => range.containsRange(marker));
 	}
 
-	private createCodeAction(model: ITextModel, range: Range, title: string, edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>): CodeAction {
+	private createCodeAction(model: ITextModel, range: Range, title: string, edits?: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>, command?: { id: string; title: string; arguments?: unknown[] }): CodeAction {
 		return {
 			title,
-			edit: { edits },
+			...(edits ? { edit: { edits } } : {}),
+			...(command ? { command } : {}),
 			ranges: [range],
 			diagnostics: this.getMarkers(model, range),
 			kind: CodeActionKind.QuickFix.value
 		};
+	}
+
+	private getEnableMcpServerCodeActions(model: ITextModel, range: Range, result: CodeAction[]): void {
+		const markersInRange = this.getMarkersInRange(model, range);
+		for (const marker of markersInRange) {
+			const markerCode = this.getMarkerCode(marker);
+			if (markerCode === PromptValidatorMarkerCode.MissingGithubMcpServer) {
+				result.push(this.createCodeAction(
+					model,
+					range,
+					localize('enableGithubMcpServerSetting', "Enable Built-in GitHub MCP Server"),
+					undefined,
+					{ id: 'workbench.action.openSettings', title: '', arguments: ['@id:github.copilot.chat.githubMcpServer.enabled'] }
+				));
+				result.push(this.createCodeAction(
+					model,
+					range,
+					localize('installGithubMcpServer', "Install GitHub MCP Server from Marketplace"),
+					undefined,
+					{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp github'] }
+				));
+			} else if (markerCode === PromptValidatorMarkerCode.MissingPlaywrightMcpServer) {
+				result.push(this.createCodeAction(
+					model,
+					range,
+					localize('installPlaywrightMcpServer', "Install Playwright MCP Server from Marketplace"),
+					undefined,
+					{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp playwright'] }
+				));
+			} else if (markerCode === PromptValidatorMarkerCode.UnknownExtensionReference) {
+				const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
+				const extensionId = reference.split('/')[0].replace(/^['"]|['"]$/g, '');
+				if (extensionId) {
+					result.push(this.createCodeAction(
+						model,
+						range,
+						localize('searchExtensionMarketplace', "Search Marketplace for Extension '{0}'", extensionId),
+						undefined,
+						{ id: 'workbench.extensions.search', title: '', arguments: [`@id:${extensionId}`] }
+					));
+				}
+			} else if (markerCode === PromptValidatorMarkerCode.UnknownMcpServerReference) {
+				const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
+				const serverId = reference.replace(/^['"]|['"]$/g, '');
+				if (serverId) {
+					result.push(this.createCodeAction(
+						model,
+						range,
+						localize('searchMcpServerMarketplace', "Search Marketplace for MCP Server '{0}'", serverId),
+						undefined,
+						{ id: 'workbench.extensions.search', title: '', arguments: [`@mcp ${serverId}`] }
+					));
+				}
+			} else {
+				const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
+				if (reference) {
+					const extensionId = reference.split('/')[0].replace(/^['"]|['"]$/g, '');
+					result.push(this.createCodeAction(
+						model,
+						range,
+						localize('searchExtensionMarketplaceGeneric', "Search Marketplace for Extension '{0}'", extensionId),
+						undefined,
+						{ id: 'workbench.extensions.search', title: '', arguments: [`@id:${extensionId}`] }
+					));
+					const serverId = reference.replace(/^['"]|['"]$/g, '');
+					result.push(this.createCodeAction(
+						model,
+						range,
+						localize('searchMcpServerMarketplaceGeneric', "Search Marketplace for MCP Server '{0}'", serverId),
+						undefined,
+						{ id: 'workbench.extensions.search', title: '', arguments: [`@mcp ${serverId}`] }
+					));
+				}
+			}
+		}
+	}
+
+	private getMarkerCode(marker: IMarkerData): string | undefined {
+		if (!marker.code) {
+			return undefined;
+		}
+		return typeof marker.code === 'string' ? marker.code : marker.code.value;
+	}
+
+	private getMarkersInRange(model: ITextModel, range: Range): IMarkerData[] {
+		const markers = this.markerService.read({ resource: model.uri, owner: MARKERS_OWNER_ID });
+		return markers.filter(marker => {
+			const markerRange = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
+			return markerRange.intersectRanges(range);
+		});
 	}
 
 	private getUpdateModeCodeActions(promptFile: ParsedPromptFile, model: ITextModel, range: Range, result: CodeAction[]): void {

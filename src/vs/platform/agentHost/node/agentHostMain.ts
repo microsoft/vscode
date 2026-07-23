@@ -7,24 +7,35 @@ import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Server as ChildProcessServer } from '../../../base/parts/ipc/node/ipc.cp.js';
 import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc.mp.js';
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
-import { Emitter } from '../../../base/common/event.js';
-import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostClaudeSdkPathEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
+import { AgentHostByokModelsEnabledEnvVar, AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentService } from './agentService.js';
+import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
+import { WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
-import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
+import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
+import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
+import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
+import { ByokLmProxyService, IByokLmProxyService } from './copilot/byokLmProxyService.js';
+import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
+import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
+import { INetworkDiagnosticsService, NetworkDiagnosticsService } from './networkDiagnosticsService.js';
+import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
@@ -48,6 +59,8 @@ import { Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
+import { registerAgentHostNetworkServices } from './agentHostBootstrap.js';
+import { BANG_COMMAND_PREFIX } from './agentHostBangCommand.js';
 import { SessionDataService } from './sessionDataService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../sandbox/common/terminalSandboxMxcRuntime.js';
@@ -55,12 +68,16 @@ import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService
 import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
+import { IEditSurvivalReporterFactory, EditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, createAgentHostClientResourceConnection } from '../common/agentHostClientResourceChannel.js';
+import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, createAgentHostClientByokLmConnection } from '../common/agentHostClientByokLmChannel.js';
+import { AGENT_HOST_CLIENT_PROXY_CHANNEL, createAgentHostClientProxyConnection } from '../common/agentHostClientProxyChannel.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { AgentPluginManager } from './agentPluginManager.js';
-import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
+import { AgentHostGitService } from './agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
@@ -68,6 +85,7 @@ import { registerPendingEditContentProvider } from './copilot/pendingEditContent
 import { join } from '../../../base/common/path.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -89,6 +107,7 @@ async function startAgentHost(): Promise<void> {
 	}
 
 	const disposables = new DisposableStore();
+	const errorTelemetry = disposables.add(new MutableDisposable<ErrorTelemetry>());
 
 	// Services
 	const productService: IProductService = { _serviceBrand: undefined, ...product };
@@ -119,20 +138,36 @@ async function startAgentHost(): Promise<void> {
 	// Session data service
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 	const rootConfigResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json');
-	const telemetryService = await createAgentHostTelemetryService({ environmentService, productService, fileService, loggerService, logService, disposables });
 
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
 	let instantiationService: IInstantiationService;
+	// Hoisted out of the `try` below so the protocol handlers (constructed
+	// after the block) can forward agent-SDK download progress to clients.
+	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
+	let byokLmBridgeRegistry: ByokLmBridgeRegistry;
+	let proxyResolver: IAgentHostProxyResolver | undefined;
+	// Gate BYOK *use* behind the opt-in `chat.agentHost.byokModels.enabled`
+	// setting, forwarded from the renderer as an env var. The proxy and bridge
+	// registry are always constructed below (so the session launcher can inject
+	// them), but when off they stay inert: the per-connection bridge and the
+	// renderer's BYOK server channel are not wired, so the registry stays empty
+	// and the proxy never binds.
+	const byokLmEnabled = isAgentEnabled(process.env[AgentHostByokModelsEnabledEnvVar], true);
 	try {
-		// Build the DI container early so the git service can be created via
-		// `createInstance` (it needs IFileService + INativeEnvironmentService).
+		// Build the process DI container and network stack before telemetry so every
+		// outbound fetch, including restricted telemetry, uses the same proxy resolver.
 		const diServices = new ServiceCollection();
 		diServices.set(INativeEnvironmentService, environmentService);
 		diServices.set(ILogService, logService);
 		diServices.set(IFileService, fileService);
 		diServices.set(ISessionDataService, sessionDataService);
 		diServices.set(IProductService, productService);
+		const networkServices = await registerAgentHostNetworkServices(diServices, fileService, environmentService, logService, disposables);
+		proxyResolver = networkServices.proxyResolver;
+		const fetchFn = proxyResolver.fetch.bind(proxyResolver);
+		const telemetryService = await createAgentHostTelemetryService({ environmentService, productService, fileService, loggerService, logService, disposables, fetchFn, requestService: networkServices.requestService });
+		errorTelemetry.value = new ErrorTelemetry(telemetryService);
 		diServices.set(ITelemetryService, telemetryService);
 		instantiationService = new InstantiationService(diServices);
 		const fileMonitorService = disposables.add(instantiationService.createInstance(AgentHostFileMonitorService));
@@ -147,36 +182,113 @@ async function startAgentHost(): Promise<void> {
 		// pipeline / end-of-turn capture).
 		const checkpointService = disposables.add(instantiationService.createInstance(AgentHostCheckpointService));
 		diServices.set(IAgentHostCheckpointService, checkpointService);
-		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
-		diServices.set(ICopilotApiService, copilotApiService);
-		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
-		diServices.set(IClaudeProxyService, claudeProxyService);
+		// Register the agent SDK downloader BEFORE any service that injects it
+		// (ClaudeAgentSdkService and CodexAgent below). The downloader resolves
+		// dev-override env var → on-disk cache → product.agentSdks download.
+		const agentSdkDownloader = disposables.add(instantiationService.createInstance(AgentSdkDownloader));
+		diServices.set(IAgentSdkDownloader, agentSdkDownloader);
+		sdkDownloadProgress = agentSdkDownloader.onDidDownloadProgress;
 		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
-		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
+		// BYOK language-model proxy + bridge registry. Always registered so the
+		// session launcher can inject them, but BYOK *use* is gated: the
+		// per-connection bridge below (and the renderer's server channel) are only
+		// wired when `chat.agentHost.byokModels.enabled` is on, so the registry
+		// stays empty and the proxy never binds when the feature is off.
+		byokLmBridgeRegistry = new ByokLmBridgeRegistry();
+		diServices.set(IByokLmBridgeRegistry, byokLmBridgeRegistry);
+		const byokLmProxyService = disposables.add(instantiationService.createInstance(ByokLmProxyService));
+		diServices.set(IByokLmProxyService, byokLmProxyService);
+		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService, fetchFn));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn);
+		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
+		diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
+		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
+		diServices.set(IAgentService, agentService);
+		diServices.set(IAgentHostStateManager, agentService.stateManager);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
 		diServices.set(IDiffComputeService, diffComputeService);
+		diServices.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
+		diServices.set(IAgentHostGitHubEndpointService, agentService.gitHubEndpointService);
 		diServices.set(IAgentHostCompletions, agentService.completionsService);
+
+		// CopilotApiService and the proxies that consume it are created AFTER the
+		// GitHub endpoint service is re-exported (above) so CAPI endpoint discovery
+		// can target a GitHub Enterprise host. Matches agentHostServerMain ordering.
+		const copilotApiService = instantiationService.createInstance(CopilotApiService, fetchFn);
+		diServices.set(ICopilotApiService, copilotApiService);
+		// Host-owned worktree isolation controller: a single instance drives folder
+		// / worktree isolation for every agent, so providers stay unaware of it. It
+		// owns its branch-name generator, created from ICopilotApiService.
+		agentService.setWorktreeIsolation(disposables.add(instantiationService.createInstance(WorktreeIsolation, undefined)));
+		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
+		diServices.set(IClaudeProxyService, claudeProxyService);
+		const codexProxyService = disposables.add(instantiationService.createInstance(CodexProxyService));
+		diServices.set(ICodexProxyService, codexProxyService);
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
-		// The Claude agent provider is opt-in. Gated on the
-		// `chat.agentHost.claudeAgent.path` workbench setting being non-empty,
-		// forwarded by the agent host starters as `VSCODE_AGENT_HOST_CLAUDE_SDK_PATH`.
-		// The SDK is intentionally not bundled with VS Code; the env var holds the
-		// absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package.
-		if (process.env[AgentHostClaudeSdkPathEnvVar]) {
+		// Claude and Codex providers are gated on two things:
+		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
+		//     forwarded as an env var by the starters). Claude defaults to on,
+		//     Codex defaults to off.
+		//  2. The SDK being reachable. Claude is a devDependency of this repo
+		//     so the bare-import path in `ClaudeAgentSdkService._loadSdk`
+		//     always succeeds in dev; in built products the SDK ships via
+		//     `product.agentSdks.claude` and the downloader handles it. Codex
+		//     is likewise a devDependency, so `CodexAgent._resolveSdkRoot`
+		//     resolves it from `node_modules` in dev; built products use the
+		//     env-var override or a `product.agentSdks.codex` entry.
+		// If either gate fails, the provider is not registered and never appears
+		// in the agent picker (matches the pre-CDN UX exactly).
+		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
 			agentService.registerProvider(instantiationService.createInstance(ClaudeAgent));
+		}
+		// Codex registration is one-way (register-on-enable): the env-var toggle
+		// or the renderer-forwarded `codexAgentEnabled` root config enables it.
+		// Disabling requires an agent host restart.
+		if (!environmentService.isBuilt || agentSdkDownloader.isAvailable(CodexSdkPackage)) {
+			const agentConfigurationService = agentService.configurationService;
+			let codexRegistered = false;
+			const registerCodexIfEnabled = () => {
+				if (codexRegistered) {
+					return;
+				}
+				const enabledByEnv = isAgentEnabled(process.env[AgentHostCodexAgentEnabledEnvVar], false);
+				const enabledByRootConfig = agentConfigurationService.getRootValue(platformRootSchema, AgentHostCodexEnabledConfigKey) === true;
+				if (enabledByEnv || enabledByRootConfig) {
+					codexRegistered = true;
+					agentService.registerProvider(instantiationService.createInstance(CodexAgent));
+				}
+			};
+			registerCodexIfEnabled();
+			disposables.add(agentConfigurationService.onDidRootConfigChange(() => registerCodexIfEnabled()));
 		}
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		throw err;
 	}
+
+	// Surface agent-SDK download progress to clients as generic `progress`
+	// notifications. The downloader fires process-global frames keyed by package
+	// id; the agent service fans each out to the `createSession` progress tokens
+	// of the sessions waiting on that provider's SDK, routed through the state
+	// manager so both the local (IPC) and any external (WebSocket) renderer
+	// receive them via the same path as session updates.
+	if (sdkDownloadProgress) {
+		disposables.add(sdkDownloadProgress(p => agentService.emitDownloadProgress(
+			p.packageId,
+			p.displayName,
+			p.receivedBytes,
+			p.totalBytes,
+			p.phase === 'completed' || p.phase === 'failed',
+		)));
+	}
+
 	const agentChannel = ProxyChannel.fromService(agentService, disposables);
 	server.registerChannel(AgentHostIpcChannels.AgentHost, agentChannel);
 
@@ -188,19 +300,35 @@ async function startAgentHost(): Promise<void> {
 	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
 
 	// Wire reverse-RPC for in-process renderer connections. The renderer's
-	// `MessagePortClient` ctx is its `clientId`, and it exposes
-	// `AGENT_HOST_CLIENT_RESOURCE_CHANNEL` for filesystem reads.
+	// `MessagePortClient` ctx is its `clientId`, and it exposes the
+	// `AGENT_HOST_CLIENT_RESOURCE_CHANNEL` (filesystem reads) and
+	// `AGENT_HOST_CLIENT_BYOK_LM_CHANNEL` (BYOK language-model calls).
 	if (server instanceof UtilityProcessServer) {
 		const authorityRegistrations = new Map<unknown, IDisposable>();
-		disposables.add(server.onDidAddConnection(connection => {
+		const registerConnection = (connection: (typeof server.connections)[number]) => {
+			if (authorityRegistrations.has(connection)) {
+				return;
+			}
 			const clientId = connection.ctx;
 			if (typeof clientId !== 'string' || !clientId) {
 				return;
 			}
-			const channel = server.getChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, c => c.ctx === clientId);
-			const fsConnection = createAgentHostClientResourceConnection(channel);
-			authorityRegistrations.set(connection, clientFileSystemProvider.registerAuthority(clientId, fsConnection));
-		}));
+			const connectionStore = new DisposableStore();
+			const getChannel = (channelName: string) => server.getChannel(channelName, c => c.ctx === clientId);
+			const fsConnection = createAgentHostClientResourceConnection(getChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL));
+			connectionStore.add(clientFileSystemProvider.registerAuthority(clientId, fsConnection));
+			const proxyConnection = createAgentHostClientProxyConnection(getChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL));
+			connectionStore.add(proxyResolver.register(clientId, proxyConnection));
+			// BYOK bridge is gated: only wire it when the feature is enabled, so
+			// the registry stays empty (and the launcher synthesizes no BYOK
+			// providers/models) when `chat.agentHost.byokModels.enabled` is off.
+			if (byokLmEnabled && byokLmBridgeRegistry) {
+				const byokLmConnection = createAgentHostClientByokLmConnection(getChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL));
+				connectionStore.add(byokLmBridgeRegistry.register(clientId, byokLmConnection));
+			}
+			authorityRegistrations.set(connection, connectionStore);
+		};
+		disposables.add(server.onDidAddConnection(registerConnection));
 		disposables.add(server.onDidRemoveConnection(connection => {
 			const reg = authorityRegistrations.get(connection);
 			if (reg) {
@@ -208,6 +336,9 @@ async function startAgentHost(): Promise<void> {
 				authorityRegistrations.delete(connection);
 			}
 		}));
+		for (const connection of server.connections) {
+			registerConnection(connection);
+		}
 	}
 
 	// Expose the WebSocket client connection count to the parent process via IPC.
@@ -239,6 +370,7 @@ async function startAgentHost(): Promise<void> {
 				{
 					defaultDirectory: URI.file(os.homedir()).toString(),
 					completionTriggerCharacters: agentService.completionTriggerCharacters,
+					terminalCommandPrefix: BANG_COMMAND_PREFIX,
 					otlpLogEmitter,
 				},
 				clientFileSystemProvider,
@@ -373,6 +505,7 @@ async function startWebSocketServer(
 		{
 			defaultDirectory: URI.file(os.homedir()).toString(),
 			completionTriggerCharacters: agentService.completionTriggerCharacters,
+			terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			otlpLogEmitter,
 		},
 		clientFileSystemProvider,

@@ -381,6 +381,25 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return undefined;
 	}
 
+	async createOrGetXaaProvider(issuer: URI): Promise<string | undefined> {
+		const providerId = `xaa:${issuer.toString(true)}`;
+		if (this._authenticationProviders.has(providerId)) {
+			return providerId;
+		}
+		const delegate = this._delegates.find(d => !!d.createXaa);
+		if (!delegate) {
+			this._logService.error('No authentication provider host delegate supports XAA');
+			return undefined;
+		}
+		const created = await delegate.createXaa!(issuer);
+		if (this._authenticationProviders.has(created)) {
+			this._logService.debug(`Created XAA authentication provider: ${created}`);
+			return created;
+		}
+		this._logService.error(`Failed to create XAA authentication provider for issuer: ${issuer.toString(true)}`);
+		return undefined;
+	}
+
 	registerAuthenticationProviderHostDelegate(delegate: IAuthenticationProviderHostDelegate): IDisposable {
 		this._delegates.push(delegate);
 		this._delegates.sort((a, b) => b.priority - a.priority);

@@ -10,7 +10,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IResponseDelta, OpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { APIUsage } from '../../../platform/networking/common/openai';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
-import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, stringifyToolDefinitionsForOTel, toSystemInstructions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -82,6 +82,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 		// This handles the case where AsyncLocalStorage context was lost crossing VS Code IPC.
 		const correlationId = (options as { modelOptions?: OTelModelOptions }).modelOptions?._capturingTokenCorrelationId;
 		const capturingToken = correlationId ? retrieveCapturingTokenByCorrelation(correlationId) : undefined;
+		const telemetryTurn = (options as { modelOptions?: OTelModelOptions }).modelOptions?._telemetryTurn;
 
 		// Restore OTel trace context to link spans back to the agent trace
 		const parentTraceContext = (options as { modelOptions?: OTelModelOptions }).modelOptions?._otelTraceContext ?? undefined;
@@ -202,14 +203,15 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 					otelSpan.setAttributes({
 						[GenAiAttr.USAGE_INPUT_TOKENS]: result.usage.prompt_tokens ?? 0,
 						[GenAiAttr.USAGE_OUTPUT_TOKENS]: result.usage.completion_tokens ?? 0,
-						...(result.usage.prompt_tokens_details?.cached_tokens
+						...(result.usage.prompt_tokens_details?.cached_tokens !== undefined
 							? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: result.usage.prompt_tokens_details.cached_tokens }
 							: {}),
 						[GenAiAttr.RESPONSE_MODEL]: model.id,
 						[GenAiAttr.RESPONSE_ID]: requestId,
 						[GenAiAttr.RESPONSE_FINISH_REASONS]: ['stop'],
-						[GenAiAttr.CONVERSATION_ID]: requestId,
+						[GenAiAttr.REQUEST_STREAM]: true,
 						...(result.ttft ? { [CopilotChatAttr.TIME_TO_FIRST_TOKEN]: result.ttft } : {}),
+						...(result.ttft ? { [GenAiAttr.RESPONSE_TIME_TO_FIRST_CHUNK]: result.ttft / 1000 } : {}),
 						[GenAiAttr.REQUEST_MAX_TOKENS]: model.maxOutputTokens ?? 0,
 					});
 					// Opt-in content capture
@@ -237,6 +239,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 					if (result.usage.prompt_tokens) { GenAiMetrics.recordTokenUsage(this._otelService, result.usage.prompt_tokens, 'input', metricAttrs); }
 					if (result.usage.completion_tokens) { GenAiMetrics.recordTokenUsage(this._otelService, result.usage.completion_tokens, 'output', metricAttrs); }
 					if (result.ttft) { GenAiMetrics.recordTimeToFirstToken(this._otelService, model.id, result.ttft / 1000); }
+					if (result.ttft) { GenAiMetrics.recordTimeToFirstChunk(this._otelService, result.ttft / 1000, metricAttrs); }
 				}
 
 				// Emit OTel inference details event
@@ -278,6 +281,8 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 						"clientPromptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, locally counted", "isMeasurement": true },
 						"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, server side counted", "isMeasurement": true },
 						"promptCacheTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens hitting cache as reported by server", "isMeasurement": true },
+						"promptCacheCreation1hTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Cache-creation input tokens written with the 1h (extended) TTL, billed at 2x base rate. Only populated when Anthropic reports the cache_creation breakdown.", "isMeasurement": true },
+						"promptCacheCreation5mTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Cache-creation input tokens written with the default 5m TTL, billed at 1.25x base rate. Only populated when Anthropic reports the cache_creation breakdown.", "isMeasurement": true },
 						"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum generated tokens", "isMeasurement": true },
 						"tokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated tokens", "isMeasurement": true },
 						"reasoningTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of reasoning tokens", "isMeasurement": true },
@@ -289,6 +294,23 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 						"timeToComplete": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time to complete the request", "isMeasurement": true },
 						"issuedTime": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Timestamp when the request was issued", "isMeasurement": true },
 						"isVisionRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request was for a vision model", "isMeasurement": true },
+						"imageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of input images attached to the request", "isMeasurement": true },
+						"totalImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of byte sizes for attached input images when known", "isMeasurement": true },
+						"maxImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image byte size in the request", "isMeasurement": true },
+						"maxImageWidth": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image width in the request", "isMeasurement": true },
+						"maxImageHeight": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image height in the request", "isMeasurement": true },
+						"maxImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image pixel count in the request", "isMeasurement": true },
+						"totalImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of known input image pixel counts in the request", "isMeasurement": true },
+						"imagePngCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of PNG input images", "isMeasurement": true },
+						"imageJpegCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of JPEG input images", "isMeasurement": true },
+						"imageGifCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of GIF input images", "isMeasurement": true },
+						"imageWebpCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of WebP input images", "isMeasurement": true },
+						"imageUnknownMimeCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose MIME type is unknown or unsupported", "isMeasurement": true },
+						"imageClipboardCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from clipboard or paste", "isMeasurement": true },
+						"imageScreenshotCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from screenshot capture", "isMeasurement": true },
+						"imageFileCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from local file attachment", "isMeasurement": true },
+						"imageUrlCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from URL", "isMeasurement": true },
+						"imageUnknownSourceCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose source could not be determined", "isMeasurement": true },
 						"isBYOK": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was for a BYOK model", "isMeasurement": true },
 						"isAuto": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request was for an Auto model", "isMeasurement": true },
 						"bytesReceived": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of bytes received in the response", "isMeasurement": true },
@@ -312,6 +334,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 					requestId,
 				}, {
 					totalTokenMax: model.maxInputTokens ?? -1,
+					...(telemetryTurn !== undefined ? { turn: telemetryTurn } : {}),
 					tokenCountMax: model.maxOutputTokens ?? -1,
 					promptTokenCount: result.usage?.prompt_tokens,
 					promptCacheTokenCount: result.usage?.prompt_tokens_details?.cached_tokens,
@@ -348,12 +371,20 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 
 		// Create OTel span and execute with trace context + CapturingToken
 		const executeRequest = async () => {
+			const chatSessionId = capturingToken?.chatSessionId;
+			const parentChatSessionId = capturingToken?.parentChatSessionId;
+			const debugLogLabel = capturingToken?.debugLogLabel;
 			otelSpan = this._otelService.startSpan(`chat ${model.id}`, {
 				kind: SpanKind.CLIENT,
 				attributes: {
 					[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
 					[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GEMINI,
 					[GenAiAttr.REQUEST_MODEL]: model.id,
+					...(chatSessionId ? { [GenAiAttr.CONVERSATION_ID]: chatSessionId } : {}),
+					...(chatSessionId ? { [CopilotChatAttr.SESSION_ID]: chatSessionId } : {}),
+					...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
+					...(parentChatSessionId ? { [CopilotChatAttr.PARENT_CHAT_SESSION_ID]: parentChatSessionId } : {}),
+					...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),
 					[GenAiAttr.AGENT_NAME]: 'GeminiBYOK',
 					[CopilotChatAttr.MAX_PROMPT_TOKENS]: model.maxInputTokens,
 					[StdAttr.SERVER_ADDRESS]: 'generativelanguage.googleapis.com',
@@ -363,9 +394,9 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 			if (this._otelService.config.captureContent) {
 				// Tool definitions on the chat span (issue #299934) with `parameters`
 				// per OTel GenAI semantic conventions (issue #300318).
-				const toolDefs = toToolDefinitions(options.tools);
-				if (toolDefs) {
-					otelSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs), this._otelService.config.maxAttributeSizeChars));
+				const toolDefsJson = stringifyToolDefinitionsForOTel(options.tools);
+				if (toolDefsJson) {
+					otelSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(toolDefsJson, this._otelService.config.maxAttributeSizeChars));
 				}
 				try {
 					const { systemTexts, inputMsgs } = buildOTelInputFromChatMessages(messages);

@@ -19,7 +19,7 @@ import { OS, OperatingSystem } from '../../../../base/common/platform.js';
 import { IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, ConfigurationTarget, isConfigurationOverrides, isConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ConfigurationChangeEvent, ConfigurationModel } from '../../../../platform/configuration/common/configurationModels.js';
-import { DefaultConfiguration, IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
+import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
 import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, keyFromOverrideIdentifiers } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IFileService, FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -27,10 +27,11 @@ import { IPolicyService, NullPolicyService } from '../../../../platform/policy/c
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFolder, WorkbenchState, Workspace } from '../../../../platform/workspace/common/workspace.js';
-import { FolderConfiguration, UserConfiguration, WorkspaceConfiguration } from '../../../../workbench/services/configuration/browser/configuration.js';
-import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, FOLDER_CONFIG_FOLDER_NAME, FOLDER_SETTINGS_PATH, IWorkbenchConfigurationService, RestrictedSettings } from '../../../../workbench/services/configuration/common/configuration.js';
+import { DefaultConfiguration, FolderConfiguration, UserConfiguration, WorkspaceConfiguration } from '../../../../workbench/services/configuration/browser/configuration.js';
+import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, FOLDER_CONFIG_FOLDER_NAME, FOLDER_SETTINGS_PATH, IConfigurationCache, IWorkbenchConfigurationService, RestrictedSettings } from '../../../../workbench/services/configuration/common/configuration.js';
 import { Configuration } from '../../../../workbench/services/configuration/common/configurationModels.js';
 import { IUserDataProfileService } from '../../../../workbench/services/userDataProfile/common/userDataProfile.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../../workbench/services/environment/browser/environmentService.js';
 
 // Import to register configuration contributions
 import '../../../../workbench/services/configuration/browser/configurationService.js';
@@ -38,7 +39,7 @@ import '../../../../workbench/services/configuration/browser/configurationServic
 class SessionsDefaultConfiguration extends DefaultConfiguration {
 
 	protected override getDefaultValue(_key: string, propertySchema: IRegisteredConfigurationPropertySchema): unknown {
-		if (propertySchema.agentsWindow) {
+		if (propertySchema.agentsWindow && propertySchema.defaultValueSource !== 'experiments') {
 			return deepClone(propertySchema.agentsWindow.default);
 		}
 		return super.getDefaultValue(_key, propertySchema);
@@ -76,11 +77,13 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		private readonly fileService: IFileService,
 		policyService: IPolicyService,
 		private readonly logService: ILogService,
+		configurationCache: IConfigurationCache,
+		environmentService: IBrowserWorkbenchEnvironmentService,
 	) {
 		super();
 
 		this.settingsResource = userDataProfileService.currentProfile.settingsResource;
-		this.defaultConfiguration = this._register(new SessionsDefaultConfiguration(logService));
+		this.defaultConfiguration = this._register(new SessionsDefaultConfiguration(userDataProfileService.currentProfile.id, configurationCache, environmentService, logService));
 		this.policyConfiguration = policyService instanceof NullPolicyService ? new NullPolicyConfiguration() : this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
 		this.initAgentsWindowReadOnlyKeys();
 		this.userConfiguration = this._register(new UserConfiguration(userDataProfileService.currentProfile.settingsResource, userDataProfileService.currentProfile.tasksResource, userDataProfileService.currentProfile.mcpResource, { exclude: [...this.agentsWindowReadOnlyKeys] }, fileService, uriIdentityService, logService));
@@ -271,6 +274,11 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	}
 
 	async reloadConfiguration(_target?: ConfigurationTarget | IWorkspaceFolder): Promise<void> {
+		this.reloadDefaultConfiguration();
+		if (_target === ConfigurationTarget.DEFAULT) {
+			return;
+		}
+
 		const userModel = await this.userConfiguration.initialize();
 		const previousData = this._configuration.toData();
 		const change = this._configuration.compareAndUpdateLocalUserConfiguration(userModel);
@@ -294,8 +302,12 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		this.triggerConfigurationChange(change, previousData, ConfigurationTarget.USER);
 	}
 
+	private reloadDefaultConfiguration(): void {
+		this.onDefaultConfigurationChanged(this.defaultConfiguration.reload());
+	}
+
 	hasCachedConfigurationDefaultsOverrides(): boolean {
-		return false;
+		return this.defaultConfiguration.hasCachedConfigurationDefaultsOverrides();
 	}
 
 	async whenRemoteConfigurationLoaded(): Promise<void> { }

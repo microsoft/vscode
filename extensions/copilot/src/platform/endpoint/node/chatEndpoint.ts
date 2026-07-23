@@ -19,7 +19,7 @@ import { ILogService } from '../../log/common/logService';
 import { isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
-import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride, ITokenPriceTier } from '../../networking/common/networking';
+import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride } from '../../networking/common/networking';
 import { CAPIChatMessage, ChatCompletion, FinishedCompletionReason, RawMessageConversionCallback } from '../../networking/common/openai';
 import { prepareChatCompletionForReturn } from '../../networking/node/chatStream';
 import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
@@ -29,12 +29,50 @@ import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/t
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
-import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
-import { CustomModel, IChatModelInformation, IModelTokenPriceTier, IModelTokenPrices, ModelSupportedEndpoint } from '../common/endpointProvider';
+import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
+import { normalizeTokenPrices } from '../../../extension/conversation/common/languageModelAccess';
 import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from './messagesApi';
 import { createResponsesRequestBody, getResponsesApiCompactionThreshold, processResponseFromChatEndpoint } from './responsesApi';
 import { filterHistoryImages } from './imageLimits';
+
+/**
+ * Rewrites tool call IDs into Kimi's native function-indexed format while preserving tool result pairings.
+ */
+function normalizeKimiToolCallIds(messages: CAPIChatMessage[]): CAPIChatMessage[] {
+	let nextIndex = 0;
+	const mappedToolCallIds = new Map<string, string>();
+
+	return messages.map(message => {
+		if (message.role === OpenAI.ChatRole.Assistant && message.tool_calls) {
+			const toolCalls = message.tool_calls.map(toolCall => {
+				const toolName = toolCall.function.name;
+				if (!toolName) {
+					return toolCall;
+				}
+
+				const id = `functions.${toolName}:${nextIndex++}`;
+				if (toolCall.id) {
+					mappedToolCallIds.set(toolCall.id, id);
+				}
+				return { ...toolCall, id };
+			});
+			return { ...message, tool_calls: toolCalls };
+		}
+
+		if (message.role === OpenAI.ChatRole.Tool) {
+			if (message.tool_call_id) {
+				const toolCallId = mappedToolCallIds.get(message.tool_call_id);
+				if (toolCallId) {
+					return { ...message, tool_call_id: toolCallId };
+				}
+			}
+		}
+
+		return message;
+	});
+}
 
 /**
  * The default processor for the stream format from CAPI
@@ -112,60 +150,6 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 	return AsyncIterableObject.fromArray(completions);
 }
 
-const TOKENS_PER_MILLION = 1_000_000;
-
-/**
- * Normalizes a single raw price tier into AICs per million tokens.
- *
- * Prices in the tiered structure (`default` / `long_context`) are already
- * denominated in AIUs, so no nano-AIU conversion is needed — only the
- * batch_size scaling is applied.
- */
-function normalizePriceTier(tier: IModelTokenPriceTier, scale: number): ITokenPriceTier {
-	return {
-		inputPrice: tier.input_price * scale,
-		outputPrice: tier.output_price * scale,
-		cacheReadTokenPrice: tier.cache_price * scale,
-		contextMax: tier.context_max,
-	};
-}
-
-function areTierPricesEqual(a: ITokenPriceTier, b: ITokenPriceTier): boolean {
-	return a.inputPrice === b.inputPrice
-		&& a.outputPrice === b.outputPrice
-		&& a.cacheReadTokenPrice === b.cacheReadTokenPrice;
-}
-
-/**
- * Converts raw billing token prices into normalized AICs per million tokens.
- *
- * The tiered pricing structure (`default` / `long_context`) uses AIU values
- * directly, scaled to per-million-token rates based on batch_size.
- *
- * The optional `long_context` tier is included only when its rates differ
- * from the `default` tier.
- */
-function normalizeTokenPricing(tokenPrices: IModelTokenPrices | undefined): IChatEndpointTokenPricing | undefined {
-	if (!tokenPrices) {
-		return undefined;
-	}
-	const scale = TOKENS_PER_MILLION / tokenPrices.batch_size;
-	const defaultTier = normalizePriceTier(tokenPrices.default, scale);
-
-	let longContext: ITokenPriceTier | undefined;
-	if (tokenPrices.long_context) {
-		const lcTier = normalizePriceTier(tokenPrices.long_context, scale);
-		if (!areTierPricesEqual(defaultTier, lcTier)) {
-			longContext = lcTier;
-		}
-	}
-
-	return {
-		default: defaultTier,
-		longContext,
-	};
-}
-
 export class ChatEndpoint implements IChatEndpoint {
 	private readonly _maxTokens: number;
 	private readonly _maxOutputTokens: number;
@@ -191,8 +175,11 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly restrictedToSkus?: string[] | undefined;
 	public readonly tokenPricing?: IChatEndpointTokenPricing | undefined;
 	public readonly priceCategory?: string | undefined;
+	public readonly modelPickerCategory?: string | undefined;
 	public readonly customModel?: CustomModel | undefined;
 	public readonly maxPromptImages?: number | undefined;
+	public readonly warningText?: Record<string, string> | undefined;
+	public readonly promo?: { id: string; discountPercent: number; endsAt: string; message: string } | undefined;
 
 	private readonly _supportsStreaming: boolean;
 
@@ -217,13 +204,18 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.version = modelMetadata.version;
 		const capabilityOverride = getModelCapabilityOverride(this.model, this._configurationService);
 		this.family = capabilityOverride?.family ?? modelMetadata.capabilities.family;
-		this.tokenizer = modelMetadata.capabilities.tokenizer;
+		this.tokenizer = modelMetadata.capabilities.tokenizer ?? TokenizerType.O200K;
 		this.showInModelPicker = modelMetadata.model_picker_enabled;
 		this.isPremium = modelMetadata.billing?.is_premium;
 		this.multiplier = modelMetadata.billing?.multiplier;
 		this.restrictedToSkus = modelMetadata.billing?.restricted_to;
-		this.tokenPricing = normalizeTokenPricing(modelMetadata.billing?.token_prices);
+		const normalized = normalizeTokenPrices(modelMetadata.billing?.token_prices);
+		this.tokenPricing = normalized ? {
+			default: { inputPrice: normalized.default.inputPrice, outputPrice: normalized.default.outputPrice, cacheReadTokenPrice: normalized.default.cachePrice, cacheWriteTokenPrice: normalized.default.cacheWritePrice, contextMax: normalized.default.contextMax },
+			longContext: normalized.longContext ? { inputPrice: normalized.longContext.inputPrice, outputPrice: normalized.longContext.outputPrice, cacheReadTokenPrice: normalized.longContext.cachePrice, cacheWriteTokenPrice: normalized.longContext.cacheWritePrice, contextMax: normalized.longContext.contextMax } : undefined,
+		} : undefined;
 		this.priceCategory = modelMetadata.model_picker_price_category;
+		this.modelPickerCategory = modelMetadata.model_picker_category;
 		this.isFallback = modelMetadata.is_chat_fallback;
 		this.supportsToolCalls = !!modelMetadata.capabilities.supports.tool_calls;
 		this.supportsVision = !!modelMetadata.capabilities.supports.vision;
@@ -237,6 +229,13 @@ export class ChatEndpoint implements IChatEndpoint {
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;
 		this.maxPromptImages = modelMetadata.capabilities.limits?.vision?.max_prompt_images;
+		this.warningText = modelMetadata.warning_text;
+		this.promo = modelMetadata.billing?.promo ? {
+			id: modelMetadata.billing.promo.id,
+			discountPercent: modelMetadata.billing.promo.discount_percent,
+			endsAt: modelMetadata.billing.promo.ends_at,
+			message: modelMetadata.billing.promo.message,
+		} : undefined;
 	}
 
 	// TODO: Thread enableThinking through the fetch pipeline (INetworkRequestOptions / chatMLFetcher positional params)
@@ -318,7 +317,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	}
 
 	public get degradationReason(): string | undefined {
-		return this.modelMetadata.warning_messages?.at(0)?.message ?? this.modelMetadata.info_messages?.at(0)?.message;
+		return this.modelMetadata.warning_messages?.at(0)?.message;
 	}
 
 	public get apiType(): string {
@@ -422,6 +421,43 @@ export class ChatEndpoint implements IChatEndpoint {
 			if (geminiFunctionCallingMode && typeof body.tool_choice !== 'object') {
 				body.tool_choice = geminiFunctionCallingMode;
 			}
+		}
+
+		// Apply an explicit reasoning effort for models that declare supported
+		// levels. Unlike the Responses and Messages APIs (which map this in their
+		// own body builders), the CAPI chat-completions path does not, so the UI
+		// thinking-effort selection (surfaced via modelCapabilities) and the
+		// ReasoningEffortOverride setting would otherwise be dropped. The override
+		// setting takes precedence over the UI selection; both are validated
+		// against the levels the model advertises.
+		const declaredLevels = this.supportsReasoningEffort?.length ? this.supportsReasoningEffort : undefined;
+		if (declaredLevels) {
+			const candidateEffort = this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
+				?? options.modelCapabilities?.reasoningEffort;
+			if (typeof candidateEffort === 'string' && candidateEffort.length > 0 && declaredLevels.includes(candidateEffort)) {
+				body.reasoning_effort = candidateEffort;
+			}
+		}
+
+		// Force low reasoning effort for Gemini 3 models when the experiment is
+		// enabled, unless the user has already selected an explicit effort above.
+		if (body.reasoning_effort === undefined && this.family.toLowerCase().includes('gemini-3')) {
+			const lowReasoningEnabled = this._configurationService.getExperimentBasedConfig(
+				ConfigKey.EnableGemini3LowReasoningEffort,
+				this._expService
+			);
+			if (lowReasoningEnabled) {
+				body.reasoning_effort = 'low';
+			}
+		}
+
+		// Force temperature and top_p for Kimi models regardless of what the client would otherwise send (per Moonshot recommendations). Temperature 0 strongly increases chances of looping.
+		if (isKimiFamily(this)) {
+			if (body.messages) {
+				body.messages = normalizeKimiToolCallIds(body.messages);
+			}
+			body.temperature = 1;
+			body.top_p = 0.95;
 		}
 
 		return body;

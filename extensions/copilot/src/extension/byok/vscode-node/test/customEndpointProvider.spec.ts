@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Raw } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
+import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TokenizerType } from '../../../../util/common/tokenizer';
@@ -277,6 +279,180 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			expect(endpoint.ownsAuthorization).toBe(true);
 		});
 
+		it('issue #321514: applies configured model options over default sampling parameters', () => {
+			const metadata: IChatModelInformation = {
+				...makeMetadata(undefined),
+				modelOptions: {
+					temperature: 1,
+					top_p: 0.95,
+				},
+			};
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				metadata,
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			const body = endpoint.createRequestBody({
+				debugName: 'test',
+				messages: [{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }]
+				}],
+				requestId: 'test-req-custom-model-options',
+				postOptions: {
+					temperature: 0.1,
+					top_p: 1,
+					stream: true,
+				},
+				finishedCb: undefined,
+				location: ChatLocation.Other,
+			});
+
+			expect({
+				temperature: body.temperature,
+				topP: body.top_p,
+			}).toEqual({
+				temperature: 1,
+				topP: 0.95,
+			});
+		});
+
+		it('omits sampling parameters configured as null', () => {
+			const metadata: IChatModelInformation = {
+				...makeMetadata(undefined),
+				modelOptions: {
+					temperature: null,
+					top_p: null,
+				},
+			};
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				metadata,
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			const body = endpoint.createRequestBody({
+				debugName: 'test',
+				messages: [{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }]
+				}],
+				requestId: 'test-req-omitted-model-options',
+				postOptions: {
+					temperature: 0.1,
+					top_p: 1,
+					stream: true,
+				},
+				finishedCb: undefined,
+				location: ChatLocation.Other,
+			});
+
+			expect({
+				temperature: body.temperature,
+				topP: body.top_p,
+			}).toEqual({
+				temperature: undefined,
+				topP: undefined,
+			});
+		});
+
+		it('keeps explicit per-request sampling parameters ahead of configured model options', () => {
+			const metadata: IChatModelInformation = {
+				...makeMetadata(undefined),
+				modelOptions: {
+					temperature: 1,
+					top_p: null,
+				},
+			};
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				metadata,
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			const body = endpoint.createRequestBody({
+				debugName: 'test',
+				messages: [{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }]
+				}],
+				requestId: 'test-req-explicit-model-options',
+				requestOptions: {
+					temperature: 0.7,
+					top_p: 0.9,
+				},
+				postOptions: {
+					temperature: 0.1,
+					top_p: 1,
+					stream: true,
+				},
+				finishedCb: undefined,
+				location: ChatLocation.Other,
+			});
+
+			expect({
+				temperature: body.temperature,
+				topP: body.top_p,
+			}).toEqual({
+				temperature: 0.7,
+				topP: 0.9,
+			});
+		});
+
+		it('applies configured model options to Responses and Messages API bodies', () => {
+			const results = [
+				{
+					supportedEndpoints: [ModelSupportedEndpoint.Responses],
+					url: 'https://api.example.com/v1/responses',
+				},
+				{
+					supportedEndpoints: [ModelSupportedEndpoint.Messages],
+					url: 'https://api.example.com/v1/messages',
+				},
+			].map(({ supportedEndpoints, url }) => {
+				const metadata: IChatModelInformation = {
+					...makeMetadata(supportedEndpoints),
+					modelOptions: {
+						temperature: 1,
+						top_p: 0.95,
+					},
+				};
+				const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+					metadata,
+					'test-api-key',
+					url);
+				const body = endpoint.createRequestBody({
+					debugName: 'test',
+					messages: [{
+						role: Raw.ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }]
+					}],
+					requestId: `test-req-${endpoint.apiType}-model-options`,
+					postOptions: {
+						temperature: 0.1,
+						top_p: 1,
+						stream: true,
+					},
+					finishedCb: undefined,
+					location: ChatLocation.Other,
+				});
+
+				return {
+					apiType: endpoint.apiType,
+					temperature: body.temperature,
+					topP: body.top_p,
+				};
+			});
+
+			expect(results).toEqual([
+				{
+					apiType: 'responses',
+					temperature: 1,
+					topP: 0.95,
+				},
+				{
+					apiType: 'messages',
+					temperature: 1,
+					topP: 0.95,
+				},
+			]);
+		});
+
 		it('replaces default Bearer with user-supplied Authorization header on Chat Completions endpoints', () => {
 			const metadata = makeMetadata(undefined);
 			metadata.requestHeaders = { 'Authorization': 'Bearer user-token' };
@@ -354,6 +530,53 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				authorization: undefined,
 				dashedApiKey: undefined,
 			});
+		});
+
+		// Regression for https://github.com/microsoft/vscode/issues/312746
+		// Custom endpoints pointed at DeepSeek / Kimi / Moonshot / Minimax must emit
+		// `reasoning_content` on assistant tool-call messages so the next request after
+		// a tool call is not rejected with HTTP 400.
+		it('issue #312746: emits reasoning_content on assistant tool-call message for custom Chat Completions endpoints (DeepSeek/Kimi/Moonshot)', () => {
+			const thinkingMetadata: IChatModelInformation = {
+				...makeMetadata(undefined),
+				capabilities: {
+					...makeMetadata(undefined).capabilities,
+					supports: {
+						...makeMetadata(undefined).capabilities.supports,
+						thinking: true,
+					},
+				},
+			};
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				thinkingMetadata,
+				'test-api-key',
+				'https://api.deepseek.com/v1/chat/completions');
+
+			const thinkingMessage: Raw.ChatMessage = {
+				role: Raw.ChatRole.Assistant,
+				content: [{
+					type: Raw.ChatCompletionContentPartKind.Opaque,
+					value: {
+						type: 'thinking',
+						thinking: {
+							id: 'reasoning-custom-1',
+							text: 'I should read the README before answering.'
+						}
+					}
+				}]
+			};
+			const body = endpoint.createRequestBody({
+				debugName: 'test',
+				messages: [thinkingMessage],
+				requestId: 'test-req-custom-deepseek',
+				postOptions: {},
+				finishedCb: undefined,
+				location: undefined as any,
+			});
+			const messages = body.messages as any[];
+			expect(messages[0].reasoning_content).toBe('I should read the README before answering.');
+			expect(messages[0].reasoning).toBe('I should read the README before answering.');
+			expect(messages[0].cot_summary).toBe('I should read the README before answering.');
 		});
 	});
 });

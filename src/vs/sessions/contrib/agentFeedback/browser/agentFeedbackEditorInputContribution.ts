@@ -5,31 +5,52 @@
 
 import './media/agentFeedbackEditorInput.css';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { ICodeEditor, IDiffEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
-import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { ICodeEditor, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { IEditorContribution, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
+import { addStandardDisposableListener, getWindow, isHTMLElement, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 import { URI } from '../../../../base/common/uri.js';
-import { addStandardDisposableListener, getWindow, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
-import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
-import { localize } from '../../../../nls.js';
+import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { ISession } from '../../../services/sessions/common/session.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 
-class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
+const addFeedbackAtCurrentLineActionId = 'agentFeedbackEditor.action.addAtCurrentLine';
+const agentFeedbackHoverGlyphClassName = 'agent-feedback-glyph';
+const hasAgentFeedbackSessionForEditor = new RawContextKey<boolean>('agentFeedbackEditor.hasSession', false);
+
+/**
+ * The inline "Add Feedback" input shown in the editor when the user selects a
+ * range to comment on. Exported so it can be rendered in a component fixture;
+ * it only depends on {@link ICodeEditor} for its layout geometry.
+ */
+export class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 
 	private static readonly _ID = 'agentFeedback.inputWidget';
 	private static readonly _MIN_WIDTH = 150;
 	private static readonly _MAX_WIDTH = 400;
+	// The input should never be wider than the editor itself. Cap it to this
+	// fraction of the editor width so it doesn't render past the editor bounds
+	// on narrow editors.
+	private static readonly _MAX_WIDTH_EDITOR_FRACTION = 0.9;
 
 	readonly allowEditorOverflow = false;
 
@@ -163,6 +184,14 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 		this._autoSize();
 	}
 
+	setPlaceholder(placeholder: string): void {
+		if (this._inputElement.placeholder === placeholder) {
+			return;
+		}
+		this._inputElement.placeholder = placeholder;
+		this._autoSize();
+	}
+
 	autoSize(): void {
 		this._autoSize();
 	}
@@ -184,14 +213,31 @@ class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 		this._measureElement.textContent = text;
 		const textWidth = this._measureElement.scrollWidth;
 
-		// Clamp width between min and max
-		const width = Math.max(AgentFeedbackInputWidget._MIN_WIDTH, Math.min(textWidth + 10, AgentFeedbackInputWidget._MAX_WIDTH));
+		// Clamp width between min and a max that never exceeds the editor width.
+		// On very narrow editors the max can drop below the nominal minimum, so
+		// derive an effective minimum that never exceeds the max and apply it
+		// inline to override the CSS `min-width` (otherwise the textarea would be
+		// forced back up to its CSS minimum and overflow the editor).
+		const maxWidth = this._computeMaxWidth();
+		const minWidth = Math.min(AgentFeedbackInputWidget._MIN_WIDTH, maxWidth);
+		const desiredWidth = Math.max(minWidth, textWidth + 10);
+		const width = Math.min(desiredWidth, maxWidth);
+		this._inputElement.style.minWidth = `${minWidth}px`;
 		this._inputElement.style.width = `${width}px`;
 
 		// Reset height to auto then expand to fit all content, with a minimum of 1 line
 		this._inputElement.style.height = 'auto';
 		const newHeight = Math.max(this._inputElement.scrollHeight, this._lineHeight);
 		this._inputElement.style.height = `${newHeight}px`;
+	}
+
+	private _computeMaxWidth(): number {
+		// The widget sticks to the editor's content left edge, so the space it
+		// has available is the content area width (to the right of the line
+		// numbers/glyph margin), not the full editor width.
+		const layoutInfo = this._editor.getLayoutInfo();
+		const contentWidth = Math.max(0, layoutInfo.width - layoutInfo.contentLeft);
+		return Math.min(AgentFeedbackInputWidget._MAX_WIDTH, contentWidth * AgentFeedbackInputWidget._MAX_WIDTH_EDITOR_FRACTION);
 	}
 
 }
@@ -204,18 +250,26 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	private _visible = false;
 	private _mouseDown = false;
 	private _suppressSelectionChangeOnce = false;
-	private _sessionResource: URI | undefined;
-	private _pinnedSelection: Selection | undefined;
+	private _session: ISession | undefined;
+	private _pinnedRange: Range | undefined;
+	private _anchorPosition: Position | undefined;
+	private _preferBelow = true;
+	private _hoverLineNumber: number | undefined;
+	private readonly _hoverDecorations: IEditorDecorationsCollection;
+	private readonly _hasAgentFeedbackSessionContext: IContextKey<boolean>;
 	private readonly _widgetListeners = this._store.add(new DisposableStore());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		this._hoverDecorations = this._editor.createDecorationsCollection();
+		this._store.add({ dispose: () => this._hoverDecorations.clear() });
+		this._hasAgentFeedbackSessionContext = hasAgentFeedbackSessionForEditor.bindTo(this._contextKeyService);
 
 		this._store.add(this._editor.onDidChangeCursorSelection(() => this._onSelectionChanged()));
 		this._store.add(this._editor.onDidChangeModel(() => this._onModelChanged()));
@@ -224,8 +278,27 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				this._updatePosition();
 			}
 		}));
+		this._store.add(this._editor.onDidLayoutChange(() => {
+			if (this._visible && this._widget) {
+				// The editor resized: re-clamp the input width to the new editor
+				// width and reposition it.
+				this._widget.autoSize();
+				this._updatePosition();
+			}
+		}));
+		this._store.add(this._editor.onMouseMove(e => this._onEditorMouseMove(e)));
+		this._store.add(this._editor.onMouseLeave(() => this._clearHoverGlyph()));
 		this._store.add(this._editor.onMouseDown((e) => {
 			if (this._isWidgetTarget(e.event.target)) {
+				return;
+			}
+			if (this._isHoverGlyphTarget(e)) {
+				e.event.preventDefault();
+				e.event.stopPropagation();
+				const lineNumber = e.target.position?.lineNumber;
+				if (lineNumber !== undefined) {
+					this._selectLine(lineNumber);
+				}
 				return;
 			}
 			this._mouseDown = true;
@@ -234,6 +307,9 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._store.add(this._editor.onMouseUp((e) => {
 			this._mouseDown = false;
 			if (this._isWidgetTarget(e.event.target)) {
+				return;
+			}
+			if (this._isHoverGlyphTarget(e)) {
 				return;
 			}
 			this._onSelectionChanged();
@@ -254,10 +330,15 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			}, 0);
 		}));
 		this._store.add(this._editor.onDidFocusEditorText(() => this._onSelectionChanged()));
+		this._getSessionForModel();
 	}
 
 	private _isWidgetTarget(target: EventTarget | Element | null): boolean {
 		return !!this._widget && !!target && this._widget.getDomNode().contains(target as Node);
+	}
+
+	private _isHoverGlyphTarget(e: IEditorMouseEvent): boolean {
+		return isHTMLElement(e.target.element) && e.target.element.classList.contains(agentFeedbackHoverGlyphClassName);
 	}
 
 	private _ensureWidget(): AgentFeedbackInputWidget {
@@ -272,8 +353,75 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _onModelChanged(): void {
 		this._hide();
+		this._clearHoverGlyph();
 		this._suppressSelectionChangeOnce = false;
-		this._sessionResource = undefined;
+		this._session = undefined;
+		this._getSessionForModel();
+	}
+
+	private _onEditorMouseMove(e: IEditorMouseEvent): void {
+		if (this._visible || this._hasInputText()) {
+			this._clearHoverGlyph();
+			return;
+		}
+		this._updateHoverGlyph(e.target.position?.lineNumber);
+	}
+
+	private _updateHoverGlyph(lineNumber: number | undefined): void {
+		const model = this._editor.getModel();
+		if (lineNumber === undefined || !model || lineNumber < 1 || lineNumber > model.getLineCount()) {
+			this._clearHoverGlyph();
+			return;
+		}
+
+		// Don't offer feedback on empty lines (nothing to comment on).
+		if (model.getLineFirstNonWhitespaceColumn(lineNumber) === 0) {
+			this._clearHoverGlyph();
+			return;
+		}
+
+		if (this._hoverLineNumber === lineNumber) {
+			return;
+		}
+
+		const session = this._getSessionForModel();
+		if (!session) {
+			this._clearHoverGlyph();
+			return;
+		}
+
+		// Don't render the add glyph on lines that already have a feedback
+		// comment, otherwise the add affordance overlaps the existing comment's
+		// gutter decoration and both become clickable on the same spot.
+		if (this._lineHasExistingFeedback(session, model.uri, lineNumber)) {
+			this._clearHoverGlyph();
+			return;
+		}
+
+		this._hoverLineNumber = lineNumber;
+		this._hoverDecorations.set([{
+			range: new Range(lineNumber, 1, lineNumber, 1),
+			options: {
+				description: 'agent-feedback-hover-glyph',
+				lineNumberClassName: `${agentFeedbackHoverGlyphClassName} line-hover`,
+				lineNumberHoverMessage: new MarkdownString(localize('agentFeedback.add', "Add Feedback")),
+			},
+		}]);
+	}
+
+	private _lineHasExistingFeedback(session: ISession, resourceUri: URI, lineNumber: number): boolean {
+		return this._agentFeedbackService.getFeedback(session.resource).some(feedback =>
+			isEqual(feedback.resourceUri, resourceUri)
+			&& lineNumber >= feedback.range.startLineNumber
+			&& lineNumber <= feedback.range.endLineNumber);
+	}
+
+	private _clearHoverGlyph(): void {
+		if (this._hoverLineNumber === undefined) {
+			return;
+		}
+		this._hoverLineNumber = undefined;
+		this._hoverDecorations.clear();
 	}
 
 	private _onSelectionChanged(): void {
@@ -294,7 +442,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		const selection = this._editor.getSelection();
-		if (!selection || (selection.isEmpty() && !this._getDiffHunkForSelection(selection))) {
+		if (!selection || selection.isEmpty()) {
 			this._autoHide();
 			return;
 		}
@@ -305,28 +453,44 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		const sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._sessionsManagementService);
-		if (!sessionResource) {
+		const session = this._getSessionForModel();
+		if (!session) {
 			this._autoHide();
 			return;
 		}
 
-		this._sessionResource = sessionResource;
-		this._show();
+		this._session = session;
+		const preferBelow = selection.getDirection() === SelectionDirection.LTR;
+		const anchorPosition = preferBelow ? selection.getEndPosition() : selection.getStartPosition();
+		this._show(Range.lift(selection), anchorPosition, preferBelow);
 	}
 
-	private _show(): void {
+	private _show(range: Range, anchorPosition: Position, preferBelow: boolean, focusInput = false): void {
 		const widget = this._ensureWidget();
+		this._clearHoverGlyph();
 
 		if (!this._visible) {
 			this._visible = true;
 			this._registerWidgetListeners(widget);
 		}
 
+		this._pinnedRange = range;
+		this._anchorPosition = anchorPosition;
+		this._preferBelow = preferBelow;
+		widget.setPlaceholder(this._getPlaceholder());
 		widget.clearInput();
 		widget.show();
-		this._pinnedSelection = this._editor.getSelection() ?? undefined;
 		this._updatePosition();
+		if (focusInput) {
+			widget.inputElement.focus();
+		}
+	}
+
+	private _getPlaceholder(): string {
+		const hasChanges = !!this._session && this._session.changes.get().length > 0;
+		return hasChanges
+			? localize('agentFeedback.addFeedback', "Add Feedback")
+			: localize('agentFeedback.addComment', "Add Comment");
 	}
 
 	private _hide(): void {
@@ -335,7 +499,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		this._visible = false;
-		this._pinnedSelection = undefined;
+		this._pinnedRange = undefined;
+		this._anchorPosition = undefined;
 		this._widgetListeners.clear();
 
 		if (this._widget) {
@@ -347,6 +512,81 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _hasInputText(): boolean {
 		return !!this._widget && this._widget.inputElement.value.trim().length > 0;
+	}
+
+	showAtCurrentLine(focusInput = true): void {
+		const position = this._editor.getPosition();
+		if (!position) {
+			return;
+		}
+		this._showAtLine(position.lineNumber, focusInput);
+	}
+
+	private _showAtLine(lineNumber: number, focusInput: boolean): void {
+		if (this._visible && this._hasInputText()) {
+			this.focusInput();
+			return;
+		}
+
+		const model = this._editor.getModel();
+		if (!model || lineNumber < 1 || lineNumber > model.getLineCount()) {
+			this._autoHide();
+			return;
+		}
+
+		const session = this._getSessionForModel();
+		if (!session) {
+			this._autoHide();
+			return;
+		}
+
+		this._session = session;
+		this._show(new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)), new Position(lineNumber, 1), true, focusInput);
+	}
+
+	/**
+	 * Select the whole line as a result of clicking the gutter glyph. Selecting
+	 * the line triggers the selection-change handler which opens the feedback
+	 * input automatically, so we don't open it directly here. Empty lines are
+	 * ignored as there is nothing to give feedback on.
+	 */
+	private _selectLine(lineNumber: number): void {
+		if (this._visible && this._hasInputText()) {
+			this.focusInput();
+			return;
+		}
+
+		const model = this._editor.getModel();
+		if (!model || lineNumber < 1 || lineNumber > model.getLineCount()) {
+			return;
+		}
+
+		if (model.getLineFirstNonWhitespaceColumn(lineNumber) === 0) {
+			return;
+		}
+
+		// Set the selection before focusing: the selection change while the
+		// editor is unfocused is ignored, then focusing re-evaluates the
+		// selection and opens the input for the freshly selected line.
+		this._editor.setSelection(new Selection(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)));
+		this._editor.focus();
+
+		// Focusing the editor synchronously opens the input via the
+		// selection-change handler, so move focus into it now that it is
+		// visible. This lets the user type feedback immediately after clicking
+		// the gutter glyph without having to click the input first.
+		this.focusInput();
+	}
+
+	private _getSessionForModel(): ISession | undefined {
+		const model = this._editor.getModel();
+		if (!model || !this._contextKeyService.contextMatchesRules(ChatContextKeys.enabled)) {
+			this._hasAgentFeedbackSessionContext.set(false);
+			return undefined;
+		}
+		const session = this._agentFeedbackService.getSessionForFile(model.uri);
+		this._hasAgentFeedbackSessionContext.set(!!session);
+		return session;
 	}
 
 	/**
@@ -500,13 +740,13 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return false;
 		}
 
-		const selection = this._pinnedSelection ?? this._editor.getSelection();
+		const range = this._pinnedRange ?? this._editor.getSelection();
 		const model = this._editor.getModel();
-		if (!selection || !model || !this._sessionResource) {
+		if (!range || !model || !this._session) {
 			return false;
 		}
 
-		this._agentFeedbackService.addFeedback(this._sessionResource, model.uri, selection, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, selection));
+		this._agentFeedbackService.addFeedback(this._session.resource, model.uri, range, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, range));
 		this._hideAndRefocusEditor();
 		return true;
 	}
@@ -521,75 +761,19 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		const selection = this._pinnedSelection ?? this._editor.getSelection();
+		const range = this._pinnedRange ?? this._editor.getSelection();
 		const model = this._editor.getModel();
-		if (!selection || !model || !this._sessionResource) {
+		if (!range || !model || !this._session) {
 			return;
 		}
 
-		const sessionResource = this._sessionResource;
+		const sessionResource = this._session.resource;
 		this._hideAndRefocusEditor();
-		this._agentFeedbackService.addFeedbackAndSubmit(sessionResource, model.uri, selection, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, selection));
-	}
-
-	private _getContainingDiffEditor(): IDiffEditor | undefined {
-		return this._codeEditorService.listDiffEditors().find(diffEditor =>
-			diffEditor.getModifiedEditor() === this._editor || diffEditor.getOriginalEditor() === this._editor
-		);
-	}
-
-	private _getDiffHunkForSelection(selection: Selection): { startLineNumber: number; endLineNumberExclusive: number } | undefined {
-		if (!selection.isEmpty()) {
-			return undefined;
-		}
-
-		const diffEditor = this._getContainingDiffEditor();
-		if (!diffEditor) {
-			return undefined;
-		}
-
-		const diffResult = diffEditor.getDiffComputationResult();
-		if (!diffResult) {
-			return undefined;
-		}
-
-		const position = selection.getStartPosition();
-		const lineNumber = position.lineNumber;
-		const isModifiedEditor = diffEditor.getModifiedEditor() === this._editor;
-		for (const change of diffResult.changes2) {
-			const lineRange = isModifiedEditor ? change.modified : change.original;
-			if (!lineRange.isEmpty && lineRange.contains(lineNumber)) {
-				// Don't show when cursor is at the start or end position of the hunk
-				const isAtHunkStart = lineNumber === lineRange.startLineNumber && position.column === 1;
-				const lastHunkLine = lineRange.endLineNumberExclusive - 1;
-				const model = this._editor.getModel();
-				const isAtHunkEnd = model && lineNumber === lastHunkLine && position.column === model.getLineMaxColumn(lastHunkLine);
-				if (isAtHunkStart || isAtHunkEnd) {
-					return undefined;
-				}
-				return {
-					startLineNumber: lineRange.startLineNumber,
-					endLineNumberExclusive: lineRange.endLineNumberExclusive,
-				};
-			}
-		}
-
-		return undefined;
+		this._agentFeedbackService.addFeedbackAndSubmit(sessionResource, model.uri, range, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, range));
 	}
 
 	private _updatePosition(): void {
 		if (!this._widget || !this._visible) {
-			return;
-		}
-
-		// While the user has typed text, keep the widget anchored to the
-		// selection it was opened against so it doesn't follow new selections
-		// or hide when the user clicks elsewhere in the editor.
-		const selection = (this._hasInputText() && this._pinnedSelection)
-			? this._pinnedSelection
-			: this._editor.getSelection();
-		if (!selection) {
-			this._autoHide();
 			return;
 		}
 
@@ -599,44 +783,13 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		const widgetHeight = widgetDom.offsetHeight || 30;
 		const widgetWidth = widgetDom.offsetWidth || 150;
 
-		if (selection.isEmpty()) {
-			const diffHunk = this._getDiffHunkForSelection(selection);
-			if (!diffHunk) {
-				this._autoHide();
-				return;
-			}
-
-			const cursorPosition = selection.getStartPosition();
-			const scrolledPosition = this._editor.getScrolledVisiblePosition(cursorPosition);
-			if (!scrolledPosition) {
-				this._widget.setPosition(null);
-				return;
-			}
-
-			const hunkLineCount = diffHunk.endLineNumberExclusive - diffHunk.startLineNumber;
-			const cursorLineOffset = cursorPosition.lineNumber - diffHunk.startLineNumber;
-			const topHalfLineCount = Math.ceil(hunkLineCount / 2);
-			const top = hunkLineCount < 10
-				? cursorLineOffset < topHalfLineCount
-					? scrolledPosition.top - (cursorLineOffset * lineHeight) - widgetHeight
-					: scrolledPosition.top + ((diffHunk.endLineNumberExclusive - cursorPosition.lineNumber) * lineHeight)
-				: scrolledPosition.top - widgetHeight;
-			const left = Math.max(0, Math.min(scrolledPosition.left, layoutInfo.width - widgetWidth));
-
-			this._widget.setPosition({
-				preference: {
-					top: Math.max(0, Math.min(top, layoutInfo.height - widgetHeight)),
-					left,
-				}
-			});
+		const target = this._getPositioningTarget();
+		if (!target) {
+			this._autoHide();
 			return;
 		}
 
-		const cursorPosition = selection.getDirection() === SelectionDirection.LTR
-			? selection.getEndPosition()
-			: selection.getStartPosition();
-
-		const scrolledPosition = this._editor.getScrolledVisiblePosition(cursorPosition);
+		const scrolledPosition = this._editor.getScrolledVisiblePosition(target.anchorPosition);
 		if (!scrolledPosition) {
 			this._widget.setPosition(null);
 			return;
@@ -644,7 +797,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 		// Compute vertical position, flipping if out of bounds
 		let top: number;
-		if (selection.getDirection() === SelectionDirection.LTR) {
+		if (target.preferBelow) {
 			// Cursor at end (bottom) of selection → prefer below the cursor line
 			top = scrolledPosition.top + lineHeight;
 			if (top + widgetHeight > layoutInfo.height) {
@@ -663,10 +816,35 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		// Clamp vertical position within editor bounds
 		top = Math.max(0, Math.min(top, layoutInfo.height - widgetHeight));
 
-		// Clamp horizontal position so the widget stays within the editor
-		const left = Math.max(0, Math.min(scrolledPosition.left, layoutInfo.width - widgetWidth));
+		// Clamp horizontal position so the widget stays within the editor and
+		// never renders on top of the line numbers/glyph margin (content left).
+		// When the editor is scrolled horizontally the cursor position can fall
+		// behind the content area, so stick the widget to the content left edge.
+		// Guard that the left edge (content left) never exceeds the right-most
+		// valid position, otherwise the widget would overflow the editor's right
+		// edge on very narrow editors or with a wide widget.
+		const minLeft = layoutInfo.contentLeft;
+		const maxLeft = Math.max(minLeft, layoutInfo.width - widgetWidth);
+		const left = Math.max(minLeft, Math.min(scrolledPosition.left, maxLeft));
 
 		this._widget.setPosition({ preference: { top, left } });
+	}
+
+	private _getPositioningTarget(): { anchorPosition: Position; preferBelow: boolean } | undefined {
+		if (this._pinnedRange && this._anchorPosition) {
+			return { anchorPosition: this._anchorPosition, preferBelow: this._preferBelow };
+		}
+
+		const selection = this._editor.getSelection();
+		if (!selection || selection.isEmpty()) {
+			return undefined;
+		}
+
+		const preferBelow = selection.getDirection() === SelectionDirection.LTR;
+		return {
+			anchorPosition: preferBelow ? selection.getEndPosition() : selection.getStartPosition(),
+			preferBelow,
+		};
 	}
 
 	override dispose(): void {
@@ -679,4 +857,28 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	}
 }
 
+class AddFeedbackAtCurrentLineAction extends Action2 {
+
+	constructor() {
+		super({
+			id: addFeedbackAtCurrentLineActionId,
+			title: localize2('agentFeedback.addAtCurrentLine', 'Add Feedback at Current Line'),
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, hasAgentFeedbackSessionForEditor),
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, hasAgentFeedbackSessionForEditor),
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const editor = codeEditorService.getFocusedCodeEditor() ?? codeEditorService.getActiveCodeEditor();
+		const contribution = editor?.getContribution<AgentFeedbackEditorInputContribution>(AgentFeedbackEditorInputContribution.ID);
+		contribution?.showAtCurrentLine(true);
+	}
+}
+
+registerAction2(AddFeedbackAtCurrentLineAction);
 registerEditorContribution(AgentFeedbackEditorInputContribution.ID, AgentFeedbackEditorInputContribution, EditorContributionInstantiation.Eventually);

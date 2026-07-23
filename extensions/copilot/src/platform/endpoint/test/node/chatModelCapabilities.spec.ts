@@ -8,7 +8,7 @@ import { ConfigKey, IConfigurationService } from '../../../configuration/common/
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import type { IChatEndpoint } from '../../../networking/common/networking';
-import { getModelCapabilityOverride, modelSupportsContextEditing, modelSupportsPDFDocuments, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isKimiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
 function fakeModel(family: string, model: string = family) {
 	return { family, model } as unknown as IChatEndpoint;
@@ -26,16 +26,86 @@ describe('modelSupportsPDFDocuments', () => {
 		expect(modelSupportsPDFDocuments(fakeModel('Anthropic-custom'))).toBe(true);
 	});
 
-	test('returns false for non-Anthropic families', () => {
+	test('returns true for gpt-5 plus families', () => {
+		expect(modelSupportsPDFDocuments(fakeModel('gpt-5.4'))).toBe(true);
+		expect(modelSupportsPDFDocuments(fakeModel('gpt-5.4-mini'))).toBe(true);
+		expect(modelSupportsPDFDocuments(fakeModel('gpt-5.5'))).toBe(true);
+		expect(modelSupportsPDFDocuments(fakeModel('gpt-5.5-mini'))).toBe(true);
 		expect(modelSupportsPDFDocuments(fakeModel('gpt-4'))).toBe(false);
-		expect(modelSupportsPDFDocuments(fakeModel('gpt-5.1'))).toBe(false);
+		expect(modelSupportsPDFDocuments(fakeModel('gpt-5.1'))).toBe(true);
+	});
+
+	test('returns false for other families', () => {
 		expect(modelSupportsPDFDocuments(fakeModel('gemini-2.0-flash'))).toBe(false);
 		expect(modelSupportsPDFDocuments(fakeModel('o4-mini'))).toBe(false);
 	});
 });
 
+describe('Kimi edit tool capabilities', () => {
+	test('uses replace-string tools without insert-edit or apply-patch', () => {
+		const models = {
+			'kimi-k2.6': fakeModel('kimi-k2.6'),
+			'kimi-k2.7-code': fakeModel('kimi-k2.7-code'),
+			'moonshot/kimi-k2.7-code': fakeModel('moonshot/kimi-k2.7-code'),
+			'moonshot/kimi-k2.6': fakeModel('moonshot/kimi-k2.6'),
+			'unknown-family + kimi model id': fakeModel('unknown-family', 'kimi-k2.7-code-preview'),
+		};
+		const actual = Object.fromEntries(Object.entries(models).map(([name, model]) => [name, {
+			isKimiFamily: isKimiFamily(model),
+			supportsReplaceString: modelSupportsReplaceString(model),
+			supportsMultiReplaceString: modelSupportsMultiReplaceString(model),
+			canUseReplaceStringExclusively: modelCanUseReplaceStringExclusively(model),
+			supportsApplyPatch: modelSupportsApplyPatch(model),
+			canUseApplyPatchExclusively: modelCanUseApplyPatchExclusively(model),
+		}]));
+
+		expect(actual).toEqual({
+			'kimi-k2.6': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'kimi-k2.7-code': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'moonshot/kimi-k2.7-code': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'moonshot/kimi-k2.6': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'unknown-family + kimi model id': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+		});
+	});
+});
+
 describe('modelSupportsToolSearch', () => {
-	test('supports Claude Sonnet/Opus 4.5 and up', () => {
+	test('supports Claude Sonnet/Opus 4.5 and up, including new and future families', () => {
 		expect(modelSupportsToolSearch('claude-sonnet-4-5')).toBe(true);
 		expect(modelSupportsToolSearch('claude-sonnet-4.5')).toBe(true);
 		expect(modelSupportsToolSearch('claude-sonnet-4-5-20250929')).toBe(true);
@@ -49,6 +119,9 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-opus-4.7')).toBe(true);
 		expect(modelSupportsToolSearch('claude-opus-4-7@1.0.0')).toBe(true);
 		expect(modelSupportsToolSearch('claude-sonnet-4-6@1.0.0')).toBe(true);
+		// Denylist: newer/future Claude families are picked up automatically.
+		expect(modelSupportsToolSearch('claude-opus-4-8')).toBe(true);
+		expect(modelSupportsToolSearch('claude-future-version')).toBe(true);
 	});
 
 	test('rejects pre-4.5 models, including date-suffixed ones', () => {
@@ -56,13 +129,16 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-sonnet-4-20250514')).toBe(false);
 		expect(modelSupportsToolSearch('claude-sonnet-4')).toBe(false);
 		expect(modelSupportsToolSearch('claude-opus-4')).toBe(false);
+		expect(modelSupportsToolSearch('claude-opus-4-20250514')).toBe(false);
 		expect(modelSupportsToolSearch('claude-opus-4-1')).toBe(false);
 		expect(modelSupportsToolSearch('claude-opus-4.1')).toBe(false);
 		expect(modelSupportsToolSearch('claude-opus-4-1-20250805')).toBe(false);
 	});
 
-	test('rejects non-Sonnet/Opus Claude families', () => {
+	test('rejects Haiku and legacy Claude families', () => {
+		// Haiku is current-gen but has no tool search support — denied explicitly.
 		expect(modelSupportsToolSearch('claude-haiku-4-5')).toBe(false);
+		expect(modelSupportsToolSearch('claude-haiku-4.5')).toBe(false);
 		expect(modelSupportsToolSearch('claude-3-5-sonnet-20241022')).toBe(false);
 		expect(modelSupportsToolSearch('claude-3-opus')).toBe(false);
 	});
@@ -105,12 +181,20 @@ describe('modelSupportsContextEditing', () => {
 	test('matches Claude id strings', () => {
 		expect({
 			'claude-opus-4.6': modelSupportsContextEditing('claude-opus-4.6'),
+			'claude-fable-5': modelSupportsContextEditing('claude-fable-5'),
+			'claude-opus-4.7': modelSupportsContextEditing('claude-opus-4.7'),
+			'claude-opus-4.8': modelSupportsContextEditing('claude-opus-4.8'),
+			'claude-opus-4-8-1m': modelSupportsContextEditing('claude-opus-4-8-1m'),
 			'claude-sonnet-4.5': modelSupportsContextEditing('claude-sonnet-4.5'),
 			'claude-haiku-4-5': modelSupportsContextEditing('claude-haiku-4-5'),
 			'claude-opus-4.6-1m': modelSupportsContextEditing('claude-opus-4.6-1m'),
 			'gpt-5': modelSupportsContextEditing('gpt-5'),
 		}).toEqual({
 			'claude-opus-4.6': true,
+			'claude-fable-5': true,
+			'claude-opus-4.7': true,
+			'claude-opus-4.8': true,
+			'claude-opus-4-8-1m': false, // 1M variant excluded
 			'claude-sonnet-4.5': true,
 			'claude-haiku-4-5': true,
 			'claude-opus-4.6-1m': false, // 1M variant excluded

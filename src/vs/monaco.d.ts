@@ -7066,7 +7066,6 @@ declare namespace monaco.languages {
 	 * Describes language specific folding markers such as '#region' and '#endregion'.
 	 * The start and end regexes will be tested against the contents of all lines and must be designed efficiently:
 	 * - the regex should start with '^'
-	 * - regexp flags (i, g) are ignored
 	 */
 	export interface FoldingMarkers {
 		start: RegExp;
@@ -7795,6 +7794,7 @@ declare namespace monaco.languages {
 		editKind: string | undefined;
 		longDistanceHintVisible?: boolean;
 		longDistanceHintDistance?: number;
+		isForAnotherDocument?: boolean;
 	};
 
 	export interface CodeAction {

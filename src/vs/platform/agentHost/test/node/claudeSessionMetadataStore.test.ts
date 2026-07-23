@@ -125,7 +125,6 @@ suite('ClaudeSessionMetadataStore', () => {
 
 		const projected = store.project(sdkInfo, {
 			customizationDirectory: URI.file('/custom'),
-			model: { id: 'claude-opus-4-6' },
 		});
 
 		assert.deepStrictEqual({
@@ -135,7 +134,6 @@ suite('ClaudeSessionMetadataStore', () => {
 			summary: projected.summary,
 			workingDirectory: projected.workingDirectory?.toString(),
 			customizationDirectory: projected.customizationDirectory?.toString(),
-			model: projected.model,
 		}, {
 			session: 'claude:/abc',
 			startTime: 1000,
@@ -143,7 +141,6 @@ suite('ClaudeSessionMetadataStore', () => {
 			summary: 'custom',
 			workingDirectory: URI.file('/repo').toString(),
 			customizationDirectory: URI.file('/custom').toString(),
-			model: { id: 'claude-opus-4-6' },
 		});
 	});
 
@@ -157,12 +154,10 @@ suite('ClaudeSessionMetadataStore', () => {
 			summary: projected.summary,
 			workingDirectory: projected.workingDirectory,
 			customizationDirectory: projected.customizationDirectory,
-			model: projected.model,
 		}, {
 			summary: 'fallback',
 			workingDirectory: undefined,
 			customizationDirectory: undefined,
-			model: undefined,
 		});
 	});
 });

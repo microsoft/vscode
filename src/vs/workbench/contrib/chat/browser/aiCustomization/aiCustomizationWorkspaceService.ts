@@ -7,12 +7,11 @@ import { constObservable, derived, IObservable, observableFromEventOpts } from '
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import {
 	GENERATE_AGENT_COMMAND_ID,
 	GENERATE_HOOK_COMMAND_ID,
@@ -30,7 +29,6 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 	) {
 		const workspaceFolders = observableFromEventOpts(
 			{ owner: this },
@@ -56,11 +54,8 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.Tools,
 	];
-
-	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
-		return this.harnessService.getStorageSourceFilter(type);
-	}
 
 	readonly isSessionsWindow = false;
 

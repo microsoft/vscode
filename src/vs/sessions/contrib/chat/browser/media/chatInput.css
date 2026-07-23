@@ -38,7 +38,7 @@
 	max-width: 800px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-agentsChatInput-border);
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-agentsChatInput-background);
 	color: var(--vscode-agentsChatInput-foreground);
 	overflow: hidden;
@@ -61,6 +61,29 @@
 	pointer-events: none;
 }
 
+.new-chat-input-status-hover {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	max-width: 360px;
+}
+
+.new-chat-input-status-hover-title {
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+.new-chat-input-status-hover-detail {
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 1.4;
+}
+
+.new-chat-input-status-hover-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: var(--vscode-spacing-size80);
+}
+
 /* Height constraints are driven by MIN_EDITOR_HEIGHT / MAX_EDITOR_HEIGHT in newChatViewPane.ts */
 .sessions-chat-editor {
 	padding: 2px 10px 0 10px;
@@ -68,10 +91,36 @@
 }
 
 .sessions-chat-editor .monaco-editor,
-.sessions-chat-editor .monaco-editor .overflow-guard,
-.sessions-chat-editor .monaco-editor-background {
+.sessions-chat-editor .monaco-editor .overflow-guard {
 	background-color: transparent !important;
-	border-radius: 8px 8px 0 0;
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+}
+
+/* The `.monaco-editor-background` layer must use a *solid* color (not transparent):
+ * the editor reuses this class for the reverse-rounded selection corner pieces,
+ * which "carve" the rounded notches out of the selection highlight. With a
+ * transparent background those pieces stop covering the selection layer and the
+ * corners render as blocky squares. Paint it with the same color the input area
+ * uses so the editor still visually matches its surroundings. */
+.sessions-chat-editor .monaco-editor-background {
+	background-color: var(--vscode-agentsChatInput-background) !important;
+}
+
+/* Inline decoration highlights for the new-session input editor: slash commands,
+ * `#file:` variable references, and agent-host completion references. Applied via
+ * editor decoration `inlineClassName`s from slashCommands.ts / variableCompletions.ts /
+ * agentHostInputCompletions.ts. */
+.sessions-chat-editor .monaco-editor .sessions-slash-command,
+.sessions-chat-editor .monaco-editor .sessions-variable-reference,
+.sessions-chat-editor .monaco-editor .sessions-agent-host-reference {
+	color: var(--vscode-chat-slashCommandForeground);
+	background-color: var(--vscode-chat-slashCommandBackground);
+	border-radius: 3px;
+}
+
+/* Description shown as ghost text after a recognized slash command. */
+.sessions-chat-editor .monaco-editor .sessions-slash-placeholder {
+	color: var(--vscode-input-placeholderForeground);
 }
 
 /* Toolbar */
@@ -79,7 +128,6 @@
 	display: flex;
 	align-items: center;
 	padding: 4px 6px 6px 6px;
-	gap: 4px;
 	color: var(--vscode-icon-foreground);
 }
 
@@ -87,8 +135,18 @@
 	flex: 1;
 }
 
+/* Voice mode controls (mic / stop / settings / disconnect) */
+.sessions-chat-voice-toolbar {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-voice-toolbar .monaco-toolbar {
+	position: relative;
+}
+
 /* Model picker - uses workbench ModelPickerActionItem */
-/* Session config toolbar (mode, model pickers via MenuWorkbenchToolBar) */
+/* Session config toolbar (model picker via MenuWorkbenchToolBar) */
 .sessions-chat-config-toolbar {
 	display: flex;
 	align-items: center;
@@ -125,10 +183,9 @@
 	display: flex;
 	align-items: center;
 	height: 16px;
-	padding: 3px 7px;
 	background-color: transparent;
 	border: none;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	touch-action: manipulation;
 	color: var(--vscode-icon-foreground);
@@ -144,12 +201,12 @@
 
 .sessions-chat-config-toolbar .action-label,
 .sessions-chat-config-toolbar .action-label .chat-input-picker-label {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
 }
 
 /* Allow long labels (e.g. the model picker name) to ellipsize when space is tight */
 .sessions-chat-config-toolbar .action-label .chat-input-picker-label {
-	margin-left: 6px;
+	margin-left: 4px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -162,7 +219,7 @@
 }
 
 .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	flex-shrink: 0;
 	/* Override the base .monaco-action-bar .action-item .codicon { width:16px; height:16px }
 	 * so the leading icon sizes naturally to its font-size, matching the bottom-row pickers. */
@@ -181,9 +238,9 @@
 	height: 12px;
 }
 
-/* Spacing between action items inside the chat input config toolbar (mode + model picker) */
+/* Spacing between action items inside the chat input config toolbar */
 .sessions-chat-config-toolbar .monaco-action-bar .actions-container {
-	gap: 4px;
+	gap: 2px;
 }
 
 /* Send button - wraps a Button widget */
@@ -305,7 +362,7 @@
 	width: 22px;
 	height: 22px;
 	flex-shrink: 0;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	color: var(--vscode-icon-foreground);
 	background: transparent;
@@ -326,6 +383,92 @@
 	font-size: 14px;
 }
 
+/* Dictation (speech-to-text) mic button */
+.sessions-chat-stt-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+	width: 22px;
+	height: 22px;
+	flex-shrink: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+	border: none;
+	outline: none;
+}
+
+.sessions-chat-stt-button.hidden {
+	display: none;
+}
+
+.sessions-chat-stt-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.sessions-chat-stt-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.sessions-chat-stt-button.recording {
+	color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+}
+
+.monaco-workbench .sessions-chat-stt-button .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize, 16px);
+}
+
+/* Determinate download ring shown over the mic while the on-device dictation
+	model downloads on first use (see DictationDownloadRing). */
+.sessions-chat-stt-button > .dictation-download-ring {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 22px;
+	height: 22px;
+	transform: translate(-50%, -50%) rotate(-90deg);
+	pointer-events: none;
+}
+
+.sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-track {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	opacity: 0.25;
+}
+
+.hc-black .sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-track,
+.hc-light .sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-track {
+	opacity: 1;
+}
+
+.sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-progress {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	stroke-linecap: round;
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-progress {
+	transition: stroke-dashoffset 120ms ease;
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button > .dictation-download-ring.indeterminate {
+	animation: dictation-download-ring-spin 1.2s linear infinite;
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button > .dictation-download-ring.indeterminate .dictation-download-ring-progress {
+	transition: none;
+}
+
+@keyframes dictation-download-ring-spin {
+	from { transform: translate(-50%, -50%) rotate(-90deg); }
+	to { transform: translate(-50%, -50%) rotate(270deg); }
+}
+
 /* Attached context container */
 .sessions-chat-attached-context {
 	display: flex;
@@ -344,10 +487,10 @@
 	display: inline-flex;
 	align-items: center;
 	overflow: hidden;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2, 11px);
 	padding: 0 4px 0 0;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	height: 18px;
 	max-width: 200px;
 	width: fit-content;
@@ -403,7 +546,7 @@
 }
 
 .sessions-chat-attachment-remove .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	padding: 0;
 }
 
@@ -443,7 +586,7 @@
 
 .sessions-chat-dnd-overlay .attach-context-overlay-text .codicon {
 	height: 12px;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	margin-right: 3px;
 }
 

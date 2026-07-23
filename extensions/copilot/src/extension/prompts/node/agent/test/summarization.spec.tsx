@@ -7,13 +7,16 @@ import { Raw } from '@vscode/prompt-tsx';
 import { afterAll, beforeAll, beforeEach, expect, suite, test } from 'vitest';
 import { IChatMLFetcher } from '../../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation } from '../../../../../platform/chat/common/commonTypes';
+import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../../../platform/chat/common/sessionTranscriptService';
 import { StaticChatMLFetcher } from '../../../../../platform/chat/test/common/staticChatMLFetcher';
 import { CodeGenerationTextInstruction, ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { MockEndpoint } from '../../../../../platform/endpoint/test/node/mockEndpoint';
 import { messageToMarkdown } from '../../../../../platform/log/common/messageStringify';
 import { IResponseDelta } from '../../../../../platform/networking/common/fetch';
+import { IMakeChatRequestOptions } from '../../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
+import { ITokenizerProvider } from '../../../../../platform/tokenizer/node/tokenizer';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { createTextDocumentData } from '../../../../../util/common/test/shims/textDocument';
 import { URI } from '../../../../../util/vs/base/common/uri';
@@ -27,11 +30,10 @@ import { IBuildPromptContext, IToolCall } from '../../../../prompt/common/intent
 import { ToolCallRound } from '../../../../prompt/common/toolCallRound';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { ToolName } from '../../../../tools/common/toolNames';
+import { IToolsService } from '../../../../tools/common/toolsService';
 import { PromptRenderer } from '../../base/promptRenderer';
 import { AgentPrompt, AgentPromptProps } from '../agentPrompt';
 import { PromptRegistry } from '../promptRegistry';
-import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../../../platform/chat/common/sessionTranscriptService';
-import { ITokenizerProvider } from '../../../../../platform/tokenizer/node/tokenizer';
 import { appendTranscriptHintToSummary, ConversationHistorySummarizationPrompt, extractSummary, stripToolSearchMessages, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../summarizedConversationHistory';
 
 suite('Agent Summarization', () => {
@@ -87,6 +89,22 @@ suite('Agent Summarization', () => {
 		normalizeSummariesOnRounds(promptContext.history);
 		if (!promptContext.conversation) {
 			promptContext = { ...promptContext, conversation };
+		}
+
+		// Real agent requests always advertise the non-deferred memory tool, which gates the
+		// memory context blocks. Advertise it here so the rendered Agent prompt matches real usage.
+		if (!promptContext.tools?.availableTools.some(t => t.name === ToolName.Memory)) {
+			const memoryTool = accessor.get(IToolsService).tools.find(t => t.name === ToolName.Memory);
+			if (memoryTool) {
+				promptContext = {
+					...promptContext,
+					tools: {
+						toolInvocationToken: promptContext.tools?.toolInvocationToken ?? (null as never),
+						toolReferences: promptContext.tools?.toolReferences ?? [],
+						availableTools: [...(promptContext.tools?.availableTools ?? []), memoryTool],
+					}
+				};
+			}
 		}
 
 		const baseProps = {
@@ -338,6 +356,55 @@ suite('Agent Summarization', () => {
 	test('FullSummarization - render summary in previous turn (with multiple)', () => testSummaryPrevTurnMultiple(TestPromptType.FullSummarization));
 	test('SimpleSummarization - render summary in previous turn (with multiple)', () => testSummaryPrevTurnMultiple(TestPromptType.SimpleSummarization));
 
+	test('manual /compact summary is honored when summarization is disabled (#311503)', async () => {
+		// Repro for #311503: with chat.summarizeAgentConversationHistory.enabled = false
+		// the agent renders the non-summarizing history path. A summary stored by a
+		// manual `/compact` must still cause the superseded history to be dropped
+		// instead of replayed verbatim, otherwise the context window immediately
+		// refills on the next turn.
+		const previousTurn = new Turn('id', { type: 'user', message: 'first user message EXCLUDED' });
+		previousTurn.setResponse(TurnStatus.Success, { type: 'user', message: 'response' }, 'responseId', {
+			metadata: {
+				toolCallRounds: [
+					new ToolCallRound('first response EXCLUDED', [createEditFileToolCall(1)], undefined, 'roundId1'),
+				],
+				toolCallResults: createEditFileToolResult(1),
+			}
+		});
+
+		const compactedTurn = new Turn('id', { type: 'user', message: 'second user message EXCLUDED' });
+		compactedTurn.setResponse(TurnStatus.Success, { type: 'user', message: 'response' }, 'responseId', {
+			metadata: {
+				summary: {
+					text: 'COMPACTED SUMMARY',
+					toolCallRoundId: 'roundId2'
+				},
+				toolCallRounds: [
+					new ToolCallRound('summarized round EXCLUDED', [createEditFileToolCall(2)], undefined, 'roundId2'),
+					new ToolCallRound('round after summary KEPT', [createEditFileToolCall(3)], undefined, 'roundId3'),
+				],
+				toolCallResults: createEditFileToolResult(2, 3),
+			}
+		});
+
+		const rendered = await agentPromptToString(
+			accessor,
+			{
+				chatVariables: new ChatVariablesCollection([{ id: 'vscode.file', name: 'file', value: fileTsUri }]),
+				history: [previousTurn, compactedTurn],
+				query: 'next prompt',
+				toolCallRounds: [],
+				tools,
+			},
+			{ enableSummarization: false },
+			TestPromptType.Agent
+		);
+
+		expect(rendered).toContain('COMPACTED SUMMARY');
+		expect(rendered).toContain('round after summary KEPT');
+		expect(rendered).not.toContain('EXCLUDED');
+	});
+
 	async function testSummarizeWithNoRoundsInCurrentTurn(promptType: TestPromptType) {
 		const previousTurn1 = new Turn('id', { type: 'user', message: 'previous turn 1' });
 		previousTurn1.setResponse(TurnStatus.Success, { type: 'user', message: 'response' }, 'responseId', {});
@@ -432,6 +499,26 @@ suite('Agent Summarization', () => {
 		expect(summaryMeta).toBeDefined();
 		expect(summaryMeta!.text).toBe('summarized successfully!');
 		expect(summaryMeta!.toolCallRoundId).toBeTruthy();
+	});
+
+	test('summarization request does not force stream:false (would break SSE-processed streaming models like Gemini) #321085', async () => {
+		chatResponse[0] = 'summarized successfully!';
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const capturedRequests: IMakeChatRequestOptions[] = [];
+		const originalMakeChatRequest2 = endpoint.makeChatRequest2.bind(endpoint);
+		endpoint.makeChatRequest2 = (options, token) => {
+			capturedRequests.push(options);
+			return originalMakeChatRequest2(options, token);
+		};
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		await renderer.render();
+
+		expect(capturedRequests.length).toBeGreaterThan(0);
+		for (const request of capturedRequests) {
+			expect(request.requestOptions?.stream).not.toBe(false);
+		}
 	});
 
 	test('failed summarization does not set round.summary', async () => {

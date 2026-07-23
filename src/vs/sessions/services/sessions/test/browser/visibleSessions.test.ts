@@ -4,18 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IAgentSession, IAgentSessionsModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
-import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { VisibleSessions } from '../../browser/visibleSessions.js';
-import { IChat, ISession } from '../../common/session.js';
+import { VisibleSession, VisibleSessions } from '../../browser/visibleSessions.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../common/session.js';
 
 const stubChat: IChat = {
 	resource: URI.parse('test:///chat'),
@@ -29,6 +26,7 @@ const stubChat: IChat = {
 	mode: constObservable(undefined),
 	isArchived: constObservable(false),
 	isRead: constObservable(true),
+	interactivity: constObservable(ChatInteractivity.Full),
 	description: constObservable(undefined),
 	lastTurnEnd: constObservable(undefined),
 };
@@ -56,22 +54,7 @@ function stubSession(sessionId: string): ISession {
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable([stubChat]),
 		mainChat: constObservable(stubChat),
-		capabilities: { supportsMultipleChats: false },
-	};
-}
-
-class TestAgentSessionsService extends mock<IAgentSessionsService>() {
-	override readonly onDidChangeSessionArchivedState = Event.None;
-	override readonly model: IAgentSessionsModel = {
-		onWillResolve: Event.None,
-		onDidResolve: Event.None,
-		onDidChangeSessions: Event.None,
-		onDidChangeSessionArchivedState: Event.None,
-		resolved: true,
-		sessions: [],
-		getSession: () => undefined,
-		observeSession: () => constObservable<IAgentSession | undefined>(undefined),
-		resolve: async () => { },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
 
@@ -83,11 +66,10 @@ suite('VisibleSessions', () => {
 		const uriIdentity = new class extends mock<IUriIdentityService>() {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		};
-		const agentSessions = new TestAgentSessionsService();
 		const model = disposables.add(new VisibleSessions(
 			session => session.mainChat.get(),
+			() => [],
 			uriIdentity,
-			agentSessions,
 		));
 		return model;
 	}
@@ -100,6 +82,23 @@ suite('VisibleSessions', () => {
 			sticky: visible.filter((s): s is NonNullable<typeof s> => !!s && s.sticky.get()).map(s => s.sessionId),
 		};
 	}
+
+	test('forwards Git availability through visible and resource-override wrappers', () => {
+		const hasGitRepository = observableValue('hasGitRepository', false);
+		const session = { ...stubSession('A'), hasGitRepository };
+		const model = createModel();
+		model.setActive(session);
+		const visible = model.activeSession.get();
+		const resourceOverride = model.updateResourceOfSession(session, URI.parse('test:///override'));
+
+		assert.deepStrictEqual({
+			visible: visible?.hasGitRepository === hasGitRepository,
+			resourceOverride: resourceOverride.hasGitRepository === hasGitRepository,
+		}, {
+			visible: true,
+			resourceOverride: true,
+		});
+	});
 
 	suite('setActive', () => {
 
@@ -575,6 +574,85 @@ suite('VisibleSessions', () => {
 		});
 	});
 
+	suite('restoreGrid', () => {
+
+		test('builds the grid in order with the correct active and sticky slots', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+
+			model.restoreGrid([
+				{ session: A, sticky: true },
+				{ session: B, sticky: false },
+				{ session: C, sticky: false },
+			], 1);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'B', 'C'],
+				active: 'B',
+				sticky: ['A'],
+			});
+		});
+
+		test('restores the empty (new-session) slot as active', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.restoreGrid([
+				{ session: A, sticky: true },
+				{ session: B, sticky: false },
+				{ session: undefined, sticky: false },
+			], 2);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'B', undefined],
+				active: undefined,
+				sticky: ['A'],
+			});
+		});
+
+		test('a later session can be inserted to the left of the empty slot without stealing active', () => {
+			const model = createModel();
+			const A = stubSession('A');
+
+			// Only the empty slot is available initially and it is active.
+			model.restoreGrid([
+				{ session: undefined, sticky: false },
+			], 0);
+
+			// A becomes available later and is anchored to the left of the empty slot.
+			model.insertAt(A, undefined, 'left', false);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', undefined],
+				active: undefined,
+				sticky: [],
+			});
+		});
+
+		test('replaces a previous transient state and disposes orphaned wrappers', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			// Transient state: a fresh session is shown.
+			model.setActive(A);
+
+			// Restore overrides it entirely with the persisted grid.
+			model.restoreGrid([
+				{ session: B, sticky: false },
+			], 0);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['B'],
+				active: 'B',
+				sticky: [],
+			});
+		});
+	});
+
 	suite('updateSession', () => {
 
 		test('is a no-op when the session is not visible', () => {
@@ -670,5 +748,540 @@ suite('VisibleSessions', () => {
 				sticky: ['A'],
 			});
 		});
+	});
+
+	suite('removeMany', () => {
+
+		test('removing the active middle session falls back to its leftward neighbour', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);
+			model.setActive(C);
+			model.toggleStickiness(C);     // [A, B, C] sticky:[A, B, C] active:C
+			model.setActive(B);            // active flips to B (sticky), keeps slot
+			model.removeMany(['B']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'C'],
+				active: 'A',
+				sticky: ['A', 'C'],
+			});
+		});
+
+		test('removing the active first session falls back to the new first slot', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);     // [A, B] sticky:[A, B] active:B
+			model.setActive(A);            // active A (sticky), keeps slot
+			model.removeMany(['A']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['B'],
+				active: 'B',
+				sticky: ['B'],
+			});
+		});
+
+		test('removing the active last session falls back to its leftward neighbour', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);     // [A, B] sticky:[A, B] active:B
+
+			model.removeMany(['B']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A'],
+				active: 'A',
+				sticky: ['A'],
+			});
+		});
+
+		test('removing the only visible active session clears the active observable', () => {
+			const model = createModel();
+			const A = stubSession('A');
+
+			model.setActive(A);            // [A] active:A
+			model.removeMany(['A']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: [],
+				active: undefined,
+				sticky: [],
+			});
+		});
+
+		test('removing the active session falls back to the empty slot when it is the leftward neighbour', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);     // [A] sticky:[A]
+			model.setActive(undefined);    // [A, undefined] active:undefined
+			model.insertAt(B, A.sessionId, 'right'); // [A, B, undefined] active:B (non-sticky)
+			model.removeMany(['B']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', undefined],
+				active: 'A',
+				sticky: ['A'],
+			});
+		});
+
+		test('removing the active empty slot falls back to its leftward neighbour', () => {
+			const model = createModel();
+			const A = stubSession('A');
+
+			model.setActive(A);
+			model.toggleStickiness(A);     // [A] sticky:[A]
+			model.setActive(undefined);    // [A, undefined] active:undefined (empty slot)
+			model.removeMany([undefined]);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A'],
+				active: 'A',
+				sticky: ['A'],
+			});
+		});
+
+		test('removing a non-active session leaves the active session unchanged', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);
+			model.setActive(C);
+			model.toggleStickiness(C);     // [A, B, C] sticky:[A, B, C] active:C
+			model.removeMany(['B']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'C'],
+				active: 'C',
+				sticky: ['A', 'C'],
+			});
+		});
+
+		test('removing the active session along with its leftward neighbour falls back further left', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);
+			model.setActive(C);
+			model.toggleStickiness(C);     // [A, B, C] sticky:[A, B, C] active:C
+
+			model.removeMany(['B', 'C']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A'],
+				active: 'A',
+				sticky: ['A'],
+			});
+		});
+
+		test('removing all visible sessions including the active clears the active observable', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.setActive(A);
+			model.toggleStickiness(A);
+			model.setActive(B);
+			model.toggleStickiness(B);     // [A, B] sticky:[A, B] active:B
+
+			model.removeMany(['A', 'B']);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: [],
+				active: undefined,
+				sticky: [],
+			});
+		});
+	});
+});
+
+suite('VisibleSession - open/close chats', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function makeChat(id: string): IChat {
+		return { ...stubChat, resource: URI.parse(`test:///chat/${id}`), title: constObservable(id) };
+	}
+
+	function makeChatWith(id: string, interactivity: ChatInteractivity): IChat {
+		return { ...makeChat(id), interactivity: constObservable(interactivity) };
+	}
+
+	function createSession(chats: IChat[], initialClosedChatUris?: Iterable<string>, initialActiveChat?: IChat) {
+		const chatsObs = observableValue<readonly IChat[]>('chats', chats);
+		const base = stubSession('S');
+		const session: ISession = { ...base, chats: chatsObs, mainChat: constObservable(chats[0]) };
+		const visible = disposables.add(new VisibleSession(session, initialActiveChat ?? chats[0], initialClosedChatUris));
+		const ids = (list: readonly IChat[]) => list.map(c => c.title.get());
+		return { visible, chatsObs, ids };
+	}
+
+	function snapshot(visible: VisibleSession, ids: (list: readonly IChat[]) => string[]) {
+		return {
+			open: ids(visible.openChats.get()),
+			closed: ids(visible.closedChats.get()),
+			active: visible.activeChat.get().title.get(),
+		};
+	}
+
+	test('closing a non-main chat hides it from the tab strip and lists it as closed', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, ids } = createSession([main, b]);
+		visible.setActiveChat(b);
+
+		visible.closeChat(b);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main'],
+			closed: ['b'],
+			active: 'main', // active falls back to an open chat
+		});
+	});
+
+	test('the main chat cannot be closed', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, ids } = createSession([main, b]);
+
+		visible.closeChat(main);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main', 'b'],
+			closed: [],
+			active: 'main',
+		});
+	});
+
+	test('opening a closed chat restores it to the tab strip', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, ids } = createSession([main, b]);
+		visible.closeChat(b);
+
+		visible.openChat(b);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main', 'b'],
+			closed: [],
+			active: 'main',
+		});
+	});
+
+	test('deleting a closed chat drops it from the closed list', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, chatsObs, ids } = createSession([main, b]);
+		visible.closeChat(b);
+
+		chatsObs.set([main], undefined); // chat is removed from the session
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main'],
+			closed: [],
+			active: 'main',
+		});
+	});
+
+	test('seeded closed chats are restored as hidden (persistence)', () => {
+		const [main, b, c] = [makeChat('main'), makeChat('b'), makeChat('c')];
+		const { visible, ids } = createSession([main, b, c], [b.resource.toString()]);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main', 'c'],
+			closed: ['b'],
+			active: 'main',
+		});
+	});
+
+	test('a seeded chat that is also the restored active chat stays open', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		// The persisted active chat must never be hidden, even if it also appears
+		// in the persisted closed set (inconsistent state).
+		const { visible, ids } = createSession([main, b], [b.resource.toString()], b);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main', 'b'],
+			closed: [],
+			active: 'b',
+		});
+	});
+
+	test('a seeded main chat is never hidden even if persisted as closed', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		// The main chat can never be closed, so a corrupt/legacy closed set that
+		// contains the main chat URI must not hide it from the tab strip.
+		const { visible, ids } = createSession([main, b], [main.resource.toString(), b.resource.toString()]);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main'],
+			closed: ['b'],
+			active: 'main',
+		});
+	});
+
+	test('lastClosedChat returns the most recently closed chat regardless of creation order', () => {
+		// B was created before C, but if C is closed first and then B,
+		// lastClosedChat should return B (not C, which closedChats.at(-1) would wrongly give).
+		const [main, b, c] = [makeChat('main'), makeChat('b'), makeChat('c')];
+		const { visible } = createSession([main, b, c]);
+
+		visible.closeChat(c); // close C first
+		visible.closeChat(b); // close B last
+
+		assert.strictEqual(visible.lastClosedChat?.title.get(), 'b');
+	});
+
+	test('lastClosedChat updates after reopening the last-closed chat', () => {
+		const [main, b, c] = [makeChat('main'), makeChat('b'), makeChat('c')];
+		const { visible } = createSession([main, b, c]);
+
+		visible.closeChat(b);
+		visible.closeChat(c);
+		assert.strictEqual(visible.lastClosedChat?.title.get(), 'c');
+
+		visible.openChat(c); // reopen C — B is now the last closed
+		assert.strictEqual(visible.lastClosedChat?.title.get(), 'b');
+	});
+
+	test('lastClosedChat returns undefined when no chats are closed', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible } = createSession([main, b]);
+
+		assert.strictEqual(visible.lastClosedChat, undefined);
+	});
+
+	test('lastClosedChat skips deleted chats and returns the next valid one', () => {
+		const [main, b, c] = [makeChat('main'), makeChat('b'), makeChat('c')];
+		const { visible, chatsObs } = createSession([main, b, c]);
+
+		visible.closeChat(b);
+		visible.closeChat(c);
+		// Delete C from the session (simulates permanent deletion)
+		chatsObs.set([main, b], undefined);
+
+		// C is gone; lastClosedChat should fall back to B
+		assert.strictEqual(visible.lastClosedChat?.title.get(), 'b');
+	});
+
+	test('hidden chats are excluded from the tab strip but read-only chats are not', () => {
+		const main = makeChatWith('main', ChatInteractivity.Full);
+		const readOnly = makeChatWith('ro', ChatInteractivity.ReadOnly);
+		const hidden = makeChatWith('hidden', ChatInteractivity.Hidden);
+		const { visible, ids } = createSession([main, readOnly, hidden]);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main', 'ro'],
+			closed: [],
+			active: 'main',
+		});
+	});
+});
+
+suite('VisibleSession - visibleChatTabs', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function makeChat(id: string, status = SessionStatus.Completed, origin?: ChatOriginKind): IChat {
+		return {
+			...stubChat,
+			resource: URI.parse(`test:///chat/${id}`),
+			title: constObservable(id),
+			status: constObservable(status),
+			origin: origin ? { kind: origin } : undefined,
+		};
+	}
+
+	function createSession(chats: IChat[]) {
+		const base = stubSession('S');
+		const session: ISession = { ...base, chats: constObservable(chats), mainChat: constObservable(chats[0]) };
+		return disposables.add(new VisibleSession(session, chats[0]));
+	}
+
+	test('keeps provider order and hides tool-origin (subagent) chats by default', () => {
+		const visible = createSession([
+			makeChat('main'),
+			makeChat('draft', SessionStatus.Untitled),
+			makeChat('tool', SessionStatus.Completed, ChatOriginKind.Tool),
+			makeChat('second'),
+		]);
+
+		// Subagent (tool-origin) chats are hidden from the tab strip by default.
+		assert.deepStrictEqual(visible.visibleChatTabs.get().map(c => c.title.get()), ['main', 'draft', 'second']);
+	});
+
+	test('surfaces a subagent tab once it is explicitly opened, and hides it again on close', () => {
+		const chats = [
+			makeChat('main'),
+			makeChat('tool', SessionStatus.Completed, ChatOriginKind.Tool),
+		];
+		const visible = createSession(chats);
+		const tool = chats[1];
+
+		visible.openChat(tool);
+		const afterOpen = visible.visibleChatTabs.get().map(c => c.title.get());
+		visible.closeChat(tool);
+		const afterClose = visible.visibleChatTabs.get().map(c => c.title.get());
+
+		assert.deepStrictEqual({ afterOpen, afterClose }, {
+			afterOpen: ['main', 'tool'],
+			afterClose: ['main'],
+		});
+	});
+
+	test('a closed subagent tab is not added to the reopenable closed chats', () => {
+		const chats = [
+			makeChat('main'),
+			makeChat('tool', SessionStatus.Completed, ChatOriginKind.Tool),
+		];
+		const visible = createSession(chats);
+		const tool = chats[1];
+
+		visible.openChat(tool);
+		visible.closeChat(tool);
+
+		assert.deepStrictEqual(visible.closedChats.get().map(c => c.title.get()), []);
+	});
+});
+
+suite('VisibleSession - shouldShowChatTabs', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function makeChat(id: string, title: string, origin?: ChatOriginKind): IChat {
+		return {
+			...stubChat,
+			resource: URI.parse(`test:///chat/${id}`),
+			title: constObservable(title),
+			status: constObservable(SessionStatus.Completed),
+			origin: origin ? { kind: origin } : undefined,
+		};
+	}
+
+	function createSession(sessionTitle: string, chats: IChat[]) {
+		const base = stubSession('S');
+		const session: ISession = { ...base, title: constObservable(sessionTitle), chats: constObservable(chats), mainChat: constObservable(chats[0]) };
+		return disposables.add(new VisibleSession(session, chats[0]));
+	}
+
+	test('hidden for a single chat matching the session title', () => {
+		const visible = createSession('Title', [makeChat('main', 'Title')]);
+		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
+	});
+
+	test('hidden for a single chat even when its title diverged from the session title', () => {
+		const visible = createSession('Session Title', [makeChat('main', 'Chat Title')]);
+		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
+	});
+
+	test('shown for more than one chat even if a chat title matches the session title', () => {
+		const visible = createSession('main', [makeChat('main', 'main'), makeChat('second', 'second')]);
+		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
+	});
+
+	test('hidden for a single non-tool chat matching the session title even when it has a subagent', () => {
+		const visible = createSession('Title', [
+			makeChat('main', 'Title'),
+			makeChat('tool', 'tool', ChatOriginKind.Tool),
+		]);
+		// Subagents on their own do not show the strip; the Conversations menu
+		// (which lists subagents) surfaces in the session header instead.
+		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
+	});
+
+	test('shown once a subagent tab is explicitly opened (multiple visible tabs)', () => {
+		const chats = [makeChat('main', 'Title'), makeChat('tool', 'tool', ChatOriginKind.Tool)];
+		const visible = createSession('Title', chats);
+		visible.openChat(chats[1]);
+		// Opening a subagent surfaces it as a second visible tab, so the strip is
+		// shown to display both tabs.
+		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
+	});
+
+	test('hidden when there are no tab chats', () => {
+		const main = makeChat('main', 'Title');
+		const base = stubSession('S');
+		const session: ISession = { ...base, title: constObservable('Title'), chats: constObservable<readonly IChat[]>([]), mainChat: constObservable(main) };
+		const visible = disposables.add(new VisibleSession(session, main));
+		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
+	});
+
+	test('hidden after a non-main chat is closed back down to a single visible tab', () => {
+		const main = makeChat('main', 'Title');
+		const second = makeChat('second', 'second');
+		const visible = createSession('Title', [main, second]);
+
+		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
+		assert.strictEqual(visible.visibleChatTabs.get().length, 2);
+
+		visible.closeChat(second);
+
+		assert.deepStrictEqual({
+			shouldShowChatTabs: visible.shouldShowChatTabs.get(),
+			visibleChatTabs: visible.visibleChatTabs.get().map(c => c.title.get()),
+		}, {
+			shouldShowChatTabs: false,
+			visibleChatTabs: ['Title'],
+		});
+	});
+});
+
+suite('VisibleSession - per-chat model/mode', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function makeChat(id: string, modelId: string | undefined, modeId: string | undefined): IChat {
+		return {
+			...stubChat,
+			resource: URI.parse(`test:///chat/${id}`),
+			title: constObservable(id),
+			modelId: constObservable(modelId),
+			mode: constObservable(modeId ? { id: modeId, kind: 'agent' } : undefined),
+		};
+	}
+
+	test('modelId and mode follow the active chat, not the session/default chat', () => {
+		const first = makeChat('first', 'model-1', 'agent-1');
+		const second = makeChat('second', 'model-2', 'agent-2');
+		const base = stubSession('S');
+		const session: ISession = { ...base, chats: constObservable([first, second]), mainChat: constObservable(first) };
+		const visible = disposables.add(new VisibleSession(session, first));
+
+		assert.deepStrictEqual(
+			{ modelId: visible.modelId.get(), mode: visible.mode.get() },
+			{ modelId: 'model-1', mode: { id: 'agent-1', kind: 'agent' } },
+		);
+
+		visible.setActiveChat(second);
+
+		assert.deepStrictEqual(
+			{ modelId: visible.modelId.get(), mode: visible.mode.get() },
+			{ modelId: 'model-2', mode: { id: 'agent-2', kind: 'agent' } },
+		);
 	});
 });

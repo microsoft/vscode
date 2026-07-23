@@ -33,6 +33,7 @@ export class ToolCallRound implements IToolCallRound {
 			params.thinking,
 			params.timestamp,
 			params.compaction,
+			params.statefulMarkerSummarizedAtRoundId,
 		);
 		round.summary = params.summary;
 		round.phase = params.phase;
@@ -58,6 +59,7 @@ export class ToolCallRound implements IToolCallRound {
 		public readonly thinking?: ThinkingData,
 		public readonly timestamp: number = Date.now(),
 		public readonly compaction?: OpenAIContextManagementResponse,
+		public readonly statefulMarkerSummarizedAtRoundId?: string,
 	) { }
 
 	private static generateID(): string {
@@ -70,6 +72,7 @@ export class ThinkingDataItem implements ThinkingData {
 	public metadata?: { [key: string]: any };
 	public tokens?: number;
 	public encrypted?: string;
+	public redacted?: boolean;
 
 	static createOrUpdate(item: ThinkingDataItem | undefined, delta: ThinkingDelta) {
 		if (!item) {
@@ -90,6 +93,9 @@ export class ThinkingDataItem implements ThinkingData {
 		}
 		if (isEncryptedThinkingDelta(delta)) {
 			this.encrypted = delta.encrypted;
+			if (delta.redacted !== undefined) {
+				this.redacted = delta.redacted;
+			}
 		}
 		if (delta.text !== undefined) {
 

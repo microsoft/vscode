@@ -53,6 +53,8 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 			uri: builtin,
 			type: PromptsType.skill,
 			source: AICustomizationSources.builtin,
+			pluginUri: undefined,
+			extensionId: undefined,
 			disabled: false,
 		}]);
 	});
@@ -87,17 +89,11 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 	});
 
 	test('returns empty when the prompts service exposes no built-in skills (regular workbench)', async () => {
-		// The regular workbench's PromptsServiceImpl throws for unknown
-		// storage values like BUILTIN_STORAGE. Model that here so the
-		// try/catch in enumerateLocalCustomizationsForHarness is covered.
-		const promptsService = {
-			async listPromptFilesForStorage(_type: PromptsType, storage: PromptsStorage): Promise<readonly IPromptPath[]> {
-				if ((storage as unknown as string) === BUILTIN_STORAGE) {
-					throw new Error(`Unsupported storage: ${storage}`);
-				}
-				return [];
-			},
-		} as unknown as IPromptsService;
+		// The regular workbench's PromptsServiceImpl treats `builtin` as a
+		// first-class storage that simply yields no files (rather than
+		// throwing). Model that here to confirm enumeration is a no-op outside
+		// Sessions.
+		const promptsService = makePromptsService(new Map());
 		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None);
 		assert.deepStrictEqual(result, []);
 	});

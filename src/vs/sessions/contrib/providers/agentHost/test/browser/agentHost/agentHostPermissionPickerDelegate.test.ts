@@ -9,19 +9,22 @@ import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { type IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
-import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema } from '../../../browser/agentHostPermissionPickerDelegate.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
+import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema, isWellKnownModeValue } from '../../../browser/agentHostPermissionPickerDelegate.js';
+import { getPermissionLevelMeta } from '../../../../copilotChatSessions/browser/permissionPicker.js';
 import { IAgentHostSessionsProvider } from '../../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../../services/sessions/browser/sessionsService.js';
 
 const PROVIDER_ID = 'local-agent-host';
 const SESSION_ID = 'local-agent-host:s1';
 
-function makeWellKnownConfig(value: string | undefined): ResolveSessionConfigResult {
+function makeWellKnownConfig(value: string | undefined, levels: readonly string[] = ['default', 'assisted', 'autoApprove']): ResolveSessionConfigResult {
 	return {
 		schema: {
 			type: 'object',
@@ -30,7 +33,7 @@ function makeWellKnownConfig(value: string | undefined): ResolveSessionConfigRes
 					title: 'Auto Approve',
 					description: '',
 					type: 'string',
-					enum: ['default', 'autoApprove', 'autopilot'],
+					enum: [...levels],
 					sessionMutable: true,
 				},
 			},
@@ -68,6 +71,7 @@ interface ITestRig {
 	readonly delegate: AgentHostPermissionPickerDelegate;
 	readonly provider: FakeProvider;
 	readonly activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
+	readonly setAssistedPermissionsEnabled: (enabled: boolean) => void;
 }
 
 function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSession | undefined, configValue?: string): ITestRig {
@@ -85,16 +89,27 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		}
 	})();
 	const activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
-	const sessionsManagementService = new (class extends mock<ISessionsManagementService>() {
+	let assistedPermissionsEnabled = true;
+	const configurationService = new class extends mock<IConfigurationService>() {
+		override getValue<T>(): T;
+		override getValue<T>(section: string): T;
+		override getValue<T>(overrides: IConfigurationOverrides): T;
+		override getValue<T>(section: string, overrides: IConfigurationOverrides): T;
+		override getValue<T>(section?: string | IConfigurationOverrides): T {
+			return (section === ChatConfiguration.AssistedPermissionsEnabled ? assistedPermissionsEnabled : undefined) as T;
+		}
+	}();
+	const sessionsManagementService = new (class extends mock<ISessionsService>() {
 		override readonly activeSession = activeSessionObs;
 	})();
 
 	const insta = store.add(new TestInstantiationService());
-	insta.set(ISessionsManagementService, sessionsManagementService);
+	insta.set(ISessionsService, sessionsManagementService);
 	insta.set(ISessionsProvidersService, sessionsProvidersService);
+	insta.set(IConfigurationService, configurationService);
 
-	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate));
-	return { delegate, provider, activeSessionObs };
+	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate, activeSessionObs));
+	return { delegate, provider, activeSessionObs, setAssistedPermissionsEnabled: enabled => assistedPermissionsEnabled = enabled };
 }
 
 function makeActiveSession(): IActiveSession {
@@ -121,12 +136,17 @@ suite('AgentHostPermissionPickerDelegate', () => {
 
 		assert.strictEqual(delegate.currentPermissionLevel.get(), ChatPermissionLevel.AutoApprove);
 
-		provider.config = makeWellKnownConfig('autopilot');
-		provider.fireChange();
-		assert.strictEqual(delegate.currentPermissionLevel.get(), ChatPermissionLevel.Autopilot);
-
 		provider.config = makeWellKnownConfig('default');
 		provider.fireChange();
+		assert.strictEqual(delegate.currentPermissionLevel.get(), ChatPermissionLevel.Default);
+	});
+
+	test('maps a legacy autoApprove=autopilot value to Default (Autopilot moved onto the mode axis)', () => {
+		const { delegate } = setup(store, makeActiveSession(), 'autopilot');
+
+		// `autopilot` is no longer a valid approval level — the picker does not
+		// offer it, so the chip must surface Default rather than a level it
+		// cannot render.
 		assert.strictEqual(delegate.currentPermissionLevel.get(), ChatPermissionLevel.Default);
 	});
 
@@ -140,12 +160,79 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
 
 		delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
-		delegate.setPermissionLevel(ChatPermissionLevel.Autopilot);
+		delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
+		delegate.setPermissionLevel(ChatPermissionLevel.Default);
 
 		assert.deepStrictEqual(provider.setCalls, [
 			[SESSION_ID, 'autoApprove', 'autoApprove'],
-			[SESSION_ID, 'autoApprove', 'autopilot'],
+			[SESSION_ID, 'autoApprove', 'assisted'],
+			[SESSION_ID, 'autoApprove', 'default'],
 		]);
+	});
+
+	test('offers Default approvals, Assisted permissions, and Allow all in order', () => {
+		const { delegate } = setup(store, makeActiveSession(), 'assisted');
+
+		assert.deepStrictEqual({
+			current: delegate.currentPermissionLevel.get(),
+			metadata: delegate.availableLevels.map(level => {
+				const baseMeta = getPermissionLevelMeta(level);
+				const { label, detail, hover } = delegate.getPermissionLevelMeta(level, baseMeta);
+				return { label, detail, hover };
+			}),
+			available: delegate.availableLevels,
+		}, {
+			current: ChatPermissionLevel.Assisted,
+			metadata: [
+				{ label: 'Default approvals', detail: 'Asks when approval settings don\'t apply', hover: undefined },
+				{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', hover: 'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.' },
+				{ label: 'Allow all', detail: 'Runs tool calls without asking', hover: undefined },
+			],
+			available: [
+				ChatPermissionLevel.Default,
+				ChatPermissionLevel.Assisted,
+				ChatPermissionLevel.AutoApprove,
+			],
+		});
+	});
+
+	test('offers only levels advertised by the active schema', () => {
+		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
+		provider.config = makeWellKnownConfig('default', ['default', 'autoApprove']);
+		provider.fireChange();
+
+		assert.deepStrictEqual(delegate.availableLevels, [
+			ChatPermissionLevel.Default,
+			ChatPermissionLevel.AutoApprove,
+		]);
+	});
+
+	test('hides and rejects Assisted permissions when the setting is disabled', () => {
+		const { delegate, provider, setAssistedPermissionsEnabled } = setup(store, makeActiveSession(), 'default');
+		setAssistedPermissionsEnabled(false);
+
+		delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
+
+		assert.deepStrictEqual({
+			available: delegate.availableLevels,
+			setCalls: provider.setCalls,
+		}, {
+			available: [
+				ChatPermissionLevel.Default,
+				ChatPermissionLevel.AutoApprove,
+			],
+			setCalls: [],
+		});
+	});
+
+	test('does not write a level omitted by the active schema', () => {
+		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
+		provider.config = makeWellKnownConfig('default', ['default', 'autoApprove']);
+		provider.fireChange();
+
+		delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
+
+		assert.deepStrictEqual(provider.setCalls, []);
 	});
 
 	test('setPermissionLevel is a no-op when there is no active session', () => {
@@ -154,6 +241,24 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
 
 		assert.deepStrictEqual(provider.setCalls, []);
+	});
+
+	test('provides agent-host-specific hover copy for permission levels', () => {
+		const { delegate } = setup(store, makeActiveSession(), 'autoApprove');
+
+		assert.strictEqual(
+			delegate.getPermissionLevelHover(ChatPermissionLevel.AutoApprove, getPermissionLevelMeta(ChatPermissionLevel.AutoApprove)),
+			'Copilot runs all tools without asking for approval.'
+		);
+	});
+
+	test('provides agent-host-specific hover copy for Approve When Safe', () => {
+		const { delegate } = setup(store, makeActiveSession(), 'assisted');
+
+		assert.strictEqual(
+			delegate.getPermissionLevelHover(ChatPermissionLevel.Assisted, getPermissionLevelMeta(ChatPermissionLevel.Assisted)),
+			'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.'
+		);
 	});
 
 	test('isApplicable reacts to active session and config changes', () => {
@@ -185,13 +290,17 @@ suite('isWellKnownAutoApproveSchema', () => {
 			title: 'Auto Approve',
 			description: 'desc',
 			type: 'string',
-			enum: ['default', 'autoApprove', 'autopilot'],
+			enum: ['default', 'assisted', 'autoApprove'],
 			...overrides,
 		} as SessionConfigPropertySchema;
 	}
 
 	test('matches the canonical three-value enum', () => {
 		assert.strictEqual(isWellKnownAutoApproveSchema(schema()), true);
+	});
+
+	test('still accepts a legacy enum that contains "autopilot" for backward compatibility', () => {
+		assert.strictEqual(isWellKnownAutoApproveSchema(schema({ enum: ['default', 'autoApprove', 'autopilot'] })), true);
 	});
 
 	test('matches a subset that still contains "default"', () => {
@@ -244,6 +353,20 @@ suite('isWellKnownModeSchema', () => {
 		assert.strictEqual(isWellKnownModeSchema(schema({ enum: undefined })), false);
 		assert.strictEqual(isWellKnownModeSchema(schema({ enum: [] })), false);
 	});
+
+	test('accepts only values still present in the current schema', () => {
+		assert.deepStrictEqual({
+			interactive: isWellKnownModeValue(schema(), 'interactive'),
+			plan: isWellKnownModeValue(schema(), 'plan'),
+			removed: isWellKnownModeValue(schema({ enum: ['interactive'] }), 'plan'),
+			unknownSchema: isWellKnownModeValue(schema({ enum: ['plan'] }), 'plan'),
+		}, {
+			interactive: true,
+			plan: true,
+			removed: false,
+			unknownSchema: false,
+		});
+	});
 });
 
 suite('isWellKnownClaudePermissionModeSchema', () => {
@@ -254,7 +377,7 @@ suite('isWellKnownClaudePermissionModeSchema', () => {
 			title: 'Approvals',
 			description: 'desc',
 			type: 'string',
-			enum: ['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk', 'auto'],
+			enum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'],
 			...overrides,
 		} as SessionConfigPropertySchema;
 	}
@@ -265,6 +388,10 @@ suite('isWellKnownClaudePermissionModeSchema', () => {
 
 	test('matches a subset that still contains "default"', () => {
 		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['default', 'acceptEdits'] })), true);
+	});
+
+	test('rejects schemas that include unsupported SDK-only values', () => {
+		assert.strictEqual(isWellKnownClaudePermissionModeSchema(schema({ enum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions', 'dontAsk'] })), false);
 	});
 
 	test('rejects schemas missing "default" or containing custom values', () => {

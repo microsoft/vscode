@@ -450,7 +450,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 	private installPreferredSchemeListener() {
 		this._register(this.hostColorService.onDidChangeColorScheme(() => {
-			if (this.settings.isDetectingColorScheme()) {
+			if (this.settings.isDetectingColorScheme() || this.settings.isDetectingHighContrast()) {
 				this.restoreColorTheme();
 			}
 		}));

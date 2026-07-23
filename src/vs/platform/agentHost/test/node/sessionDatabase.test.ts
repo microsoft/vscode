@@ -9,10 +9,12 @@ import * as fs from 'fs/promises';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SessionDatabase, runMigrations, sessionDatabaseMigrations, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
-import { FileEditKind } from '../../common/state/sessionState.js';
+import { FileEditKind, MessageKind } from '../../common/state/sessionState.js';
+import type { IReviewedFileRecord } from '../../common/sessionDataService.js';
 import type { Database } from '@vscode/sqlite3';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
 
 suite('SessionDatabase', () => {
 
@@ -35,6 +37,13 @@ suite('SessionDatabase', () => {
 			const inst = new TestableSessionDatabase(path, migrations);
 			await inst._ensureDb();
 			return inst;
+		}
+
+		async setRawChatDraft(chat: URI, draft: string): Promise<void> {
+			const rawDb = await this._ensureDb();
+			await new Promise<void>((resolve, reject) => {
+				rawDb.run('INSERT OR REPLACE INTO chat_drafts (chat_uri, draft) VALUES (?, ?)', [chat.toString(), draft], err => err ? reject(err) : resolve());
+			});
 		}
 
 		/** Extract the raw db connection; this instance becomes inert. */
@@ -401,6 +410,79 @@ suite('SessionDatabase', () => {
 		});
 	});
 
+	// ---- Turn event ids -------------------------------------------------
+
+	suite('turn event ids', () => {
+
+		test('getNextTurnEventId returns the next turn\'s event id by `turns.id`', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.createTurn('turn-2');
+			await db.setTurnEventId('turn-1', 'evt-1');
+			await db.setTurnEventId('turn-2', 'evt-2');
+
+			assert.strictEqual(await db.getNextTurnEventId('turn-1'), 'evt-2');
+		});
+
+		test('getNextTurnEventId falls back to `event_id` when the key is the SDK event id', async () => {
+			// Sessions restored from disk surface SDK envelope ids as the
+			// protocol turn id (see mapSessionEvents.ts), but `turns.id`
+			// was populated live with the client-side `request_xxx` id.
+			// The fallback lets fork / truncate resolve the boundary
+			// without forcing every caller to translate.
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('request_aaa');
+			await db.createTurn('request_bbb');
+			await db.setTurnEventId('request_aaa', 'sdk-evt-1');
+			await db.setTurnEventId('request_bbb', 'sdk-evt-2');
+
+			assert.strictEqual(await db.getNextTurnEventId('sdk-evt-1'), 'sdk-evt-2');
+		});
+
+		test('getNextTurnEventId returns undefined for the last turn', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+
+			assert.strictEqual(await db.getNextTurnEventId('turn-1'), undefined);
+			assert.strictEqual(await db.getNextTurnEventId('evt-1'), undefined);
+		});
+
+		test('getNextTurnEventId returns undefined for an unknown key', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+
+			assert.strictEqual(await db.getNextTurnEventId('does-not-exist'), undefined);
+		});
+	});
+
+	// ---- Turn checkpoint refs -------------------------------------------
+
+	suite('turn checkpoint refs', () => {
+
+		test('getTurnCheckpointRef falls back to `event_id` when the key is the SDK event id', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('request_aaa');
+			await db.setTurnEventId('request_aaa', 'sdk-evt-1');
+			await db.setTurnCheckpointRef('request_aaa', 'ref-1');
+
+			assert.strictEqual(await db.getTurnCheckpointRef('sdk-evt-1'), 'ref-1');
+		});
+
+		test('getPreviousCheckpointRef falls back to `event_id` when the key is the SDK event id', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('request_aaa');
+			await db.createTurn('request_bbb');
+			await db.setTurnEventId('request_aaa', 'sdk-evt-1');
+			await db.setTurnEventId('request_bbb', 'sdk-evt-2');
+			await db.setTurnCheckpointRef('request_aaa', 'ref-1');
+			await db.setTurnCheckpointRef('request_bbb', 'ref-2');
+
+			assert.strictEqual(await db.getPreviousCheckpointRef('sdk-evt-2'), 'ref-1');
+		});
+	});
+
 	// ---- Dispose --------------------------------------------------------
 
 	suite('dispose', () => {
@@ -491,6 +573,128 @@ suite('SessionDatabase', () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			const tables = await db.getAllTables();
 			assert.ok(tables.includes('session_metadata'));
+		});
+	});
+
+	suite('chat drafts', () => {
+		const chat = URI.parse('ahp-chat://default/Y29waWxvdDovLy9zZXNzaW9uLTE');
+
+		test('setChatDraft and getChatDraft round-trip', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const draft = {
+				text: 'draft',
+				origin: { kind: MessageKind.User },
+				model: { id: 'opus' },
+				agent: { uri: 'agent://reviewer' },
+			};
+
+			await db.setChatDraft(chat, draft);
+
+			assert.deepStrictEqual(await db.getChatDraft(chat), draft);
+		});
+
+		test('setChatDraft undefined clears a draft', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const draft = { text: 'draft', origin: { kind: MessageKind.User } };
+
+			await db.setChatDraft(chat, draft);
+			await db.setChatDraft(chat, undefined);
+
+			assert.strictEqual(await db.getChatDraft(chat), undefined);
+		});
+
+		test('getChatDraft returns undefined for corrupt draft rows', async () => {
+			const testDb = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = testDb;
+
+			await testDb.setRawChatDraft(chat, '{');
+
+			assert.strictEqual(await db.getChatDraft(chat), undefined);
+		});
+
+		test('migration v6 creates chat draft tables', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const tables = await db.getAllTables();
+			assert.ok(tables.includes('chat_drafts'));
+		});
+	});
+
+	// ---- reviewed files -------------------------------------------------
+
+	suite('reviewed files', () => {
+		const uriA = URI.parse('file:///workspace/a.ts');
+		const uriB = URI.parse('file:///workspace/b.ts');
+
+		const normalize = (records: readonly IReviewedFileRecord[]) => records.map(r => ({ uri: r.uri.toString(), nonce: r.nonce }));
+
+		test('markFileReviewed and isFileReviewed discriminate by uri and nonce', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.markFileReviewed(uriA, 'n1');
+
+			assert.deepStrictEqual(
+				await Promise.all([
+					db.isFileReviewed(uriA, 'n1'),
+					db.isFileReviewed(uriA, 'n2'),
+					db.isFileReviewed(uriB, 'n1'),
+				]),
+				[true, false, false],
+			);
+		});
+
+		test('getReviewedFiles returns all entries in insertion order', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.markFileReviewed(uriA, 'n1');
+			await db.markFileReviewed(uriB, 'n2');
+			await db.markFileReviewed(uriA, 'n3');
+
+			assert.deepStrictEqual(normalize(await db.getReviewedFiles()), [
+				{ uri: uriA.toString(), nonce: 'n1' },
+				{ uri: uriB.toString(), nonce: 'n2' },
+				{ uri: uriA.toString(), nonce: 'n3' },
+			]);
+		});
+
+		test('getReviewedFilesForUri returns only the given uri', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.markFileReviewed(uriA, 'n1');
+			await db.markFileReviewed(uriB, 'n2');
+			await db.markFileReviewed(uriA, 'n3');
+
+			assert.deepStrictEqual(normalize(await db.getReviewedFilesForUri(uriA)), [
+				{ uri: uriA.toString(), nonce: 'n1' },
+				{ uri: uriA.toString(), nonce: 'n3' },
+			]);
+		});
+
+		test('unmarkFileReviewed removes an entry and is a no-op when absent', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.markFileReviewed(uriA, 'n1');
+			await db.unmarkFileReviewed(uriA, 'n1');
+			await db.unmarkFileReviewed(uriA, 'n1'); // no-op, must not throw
+
+			assert.deepStrictEqual(
+				await Promise.all([db.isFileReviewed(uriA, 'n1'), db.getReviewedFiles()]),
+				[false, []],
+			);
+		});
+
+		test('marking the same (uri, nonce) twice keeps a single entry', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.markFileReviewed(uriA, 'n1');
+			await db.markFileReviewed(uriA, 'n1');
+
+			assert.deepStrictEqual(normalize(await db.getReviewedFiles()), [{ uri: uriA.toString(), nonce: 'n1' }]);
+		});
+
+		test('migration v7 creates the reviewed_files table', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const tables = await db.getAllTables();
+			assert.ok(tables.includes('reviewed_files'));
 		});
 	});
 

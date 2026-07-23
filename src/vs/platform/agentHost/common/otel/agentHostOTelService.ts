@@ -3,26 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { TelemetryConfig } from '@github/copilot-sdk';
 import type { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 
-/**
- * Structural mirror of `@github/copilot-sdk`'s `TelemetryConfig` (kept in
- * sync manually). Mirroring rather than importing keeps this file free of
- * Node-only dependencies and lets it live in the `common/` layer.
- */
-export interface IAgentHostSdkTelemetryConfig {
-	/** OTLP HTTP endpoint URL for trace/metric export. */
-	readonly otlpEndpoint?: string;
-	/** File path for JSON-lines trace output. */
-	readonly filePath?: string;
-	/** Exporter backend type: "otlp-http" or "file". */
-	readonly exporterType?: string;
-	/** Instrumentation scope name. */
-	readonly sourceName?: string;
-	/** Whether to capture message content (prompts, responses). */
-	readonly captureContent?: boolean;
-}
 
 /**
  * Lean service that wires the @github/copilot-sdk telemetry hook to either:
@@ -45,7 +29,7 @@ export interface IAgentHostOTelService {
 	 * starting the loopback receiver + store on first call when in DB mode.
 	 * Resolves to `undefined` when telemetry is disabled.
 	 */
-	getSdkTelemetryConfig(): Promise<IAgentHostSdkTelemetryConfig | undefined>;
+	getSdkTelemetryConfig(): Promise<TelemetryConfig | undefined>;
 
 	/**
 	 * Path of the SQLite span store, or `undefined` when DB mode is off.

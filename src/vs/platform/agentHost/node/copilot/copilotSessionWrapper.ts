@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotSession, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 
@@ -14,10 +14,20 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
  */
 export class CopilotSessionWrapper extends Disposable {
 
+	private readonly _handledEventTypes = new Set<SessionEventType>();
+	private readonly _onUnhandledEvent = this._register(new Emitter<SessionEvent>());
+	readonly onUnhandledEvent = this._onUnhandledEvent.event;
+
 	constructor(readonly session: CopilotSession) {
 		super();
+		const unsubscribeAll = session.on(event => {
+			if (!this._handledEventTypes.has(event.type)) {
+				this._onUnhandledEvent.fire(event);
+			}
+		});
+		this._register(toDisposable(unsubscribeAll));
 		this._register(toDisposable(() => {
-			session.destroy().catch(() => { /* best-effort */ });
+			session.disconnect().catch(() => { /* best-effort */ });
 		}));
 	}
 
@@ -41,6 +51,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onToolComplete: Event<SessionEventPayload<'tool.execution_complete'>> | undefined;
 	get onToolComplete(): Event<SessionEventPayload<'tool.execution_complete'>> {
 		return this._onToolComplete ??= this._sdkEvent('tool.execution_complete');
+	}
+
+	private _onPermissionRequested: Event<SessionEventPayload<'permission.requested'>> | undefined;
+	get onPermissionRequested(): Event<SessionEventPayload<'permission.requested'>> {
+		return this._onPermissionRequested ??= this._sdkEvent('permission.requested');
 	}
 
 	private _onIdle: Event<SessionEventPayload<'session.idle'>> | undefined;
@@ -68,9 +83,19 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSessionInfo ??= this._sdkEvent('session.info');
 	}
 
+	private _onSessionWarning: Event<SessionEventPayload<'session.warning'>> | undefined;
+	get onSessionWarning(): Event<SessionEventPayload<'session.warning'>> {
+		return this._onSessionWarning ??= this._sdkEvent('session.warning');
+	}
+
 	private _onSessionModelChange: Event<SessionEventPayload<'session.model_change'>> | undefined;
 	get onSessionModelChange(): Event<SessionEventPayload<'session.model_change'>> {
 		return this._onSessionModelChange ??= this._sdkEvent('session.model_change');
+	}
+
+	private _onAutoModeResolved: Event<SessionEventPayload<'session.auto_mode_resolved'>> | undefined;
+	get onAutoModeResolved(): Event<SessionEventPayload<'session.auto_mode_resolved'>> {
+		return this._onAutoModeResolved ??= this._sdkEvent('session.auto_mode_resolved');
 	}
 
 	private _onSessionHandoff: Event<SessionEventPayload<'session.handoff'>> | undefined;
@@ -208,13 +233,41 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSystemMessage ??= this._sdkEvent('system.message');
 	}
 
+	private _onSystemNotification: Event<SessionEventPayload<'system.notification'>> | undefined;
+	get onSystemNotification(): Event<SessionEventPayload<'system.notification'>> {
+		return this._onSystemNotification ??= this._sdkEvent('system.notification');
+	}
+
 	private _onSessionModeChanged: Event<SessionEventPayload<'session.mode_changed'>> | undefined;
 	get onSessionModeChanged(): Event<SessionEventPayload<'session.mode_changed'>> {
 		return this._onSessionModeChanged ??= this._sdkEvent('session.mode_changed');
 	}
 
+	private _onMcpServersLoaded: Event<SessionEventPayload<'session.mcp_servers_loaded'>> | undefined;
+	get onMcpServersLoaded(): Event<SessionEventPayload<'session.mcp_servers_loaded'>> {
+		return this._onMcpServersLoaded ??= this._sdkEvent('session.mcp_servers_loaded');
+	}
+
+	private _onMcpServerStatusChanged: Event<SessionEventPayload<'session.mcp_server_status_changed'>> | undefined;
+	get onMcpServerStatusChanged(): Event<SessionEventPayload<'session.mcp_server_status_changed'>> {
+		return this._onMcpServerStatusChanged ??= this._sdkEvent('session.mcp_server_status_changed');
+	}
+
+	private _onToolsUpdated: Event<SessionEventPayload<'session.tools_updated'>> | undefined;
+	get onToolsUpdated(): Event<SessionEventPayload<'session.tools_updated'>> {
+		return this._onToolsUpdated ??= this._sdkEvent('session.tools_updated');
+	}
+
+	private _onCommandsChanged: Event<SessionEventPayload<'commands.changed'>> | undefined;
+	get onCommandsChanged(): Event<SessionEventPayload<'commands.changed'>> {
+		return this._onCommandsChanged ??= this._sdkEvent('commands.changed');
+	}
+
 	private _sdkEvent<K extends SessionEventType>(eventType: K): Event<SessionEventPayload<K>> {
-		const emitter = this._register(new Emitter<SessionEventPayload<K>>());
+		const emitter = this._register(new Emitter<SessionEventPayload<K>>({
+			onDidAddFirstListener: () => this._handledEventTypes.add(eventType),
+			onDidRemoveLastListener: () => this._handledEventTypes.delete(eventType),
+		}));
 		const unsubscribe = this.session.on(eventType, (data: SessionEventPayload<K>) => emitter.fire(data));
 		this._register(toDisposable(unsubscribe));
 		return emitter.event;

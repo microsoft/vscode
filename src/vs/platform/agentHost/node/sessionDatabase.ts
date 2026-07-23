@@ -6,8 +6,10 @@
 import * as fs from 'fs';
 import { SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
+import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
+import { URI } from '../../../base/common/uri.js';
+import type { Message } from '../common/state/sessionState.js';
 
 /**
  * A single numbered migration. Migrations are applied in order of
@@ -84,6 +86,31 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 	{
 		version: 5,
 		sql: `ALTER TABLE turns ADD COLUMN checkpoint_ref TEXT`,
+	},
+	{
+		version: 6,
+		sql: `CREATE TABLE IF NOT EXISTS chat_drafts (
+			chat_uri TEXT PRIMARY KEY NOT NULL,
+			draft    TEXT NOT NULL
+		)`,
+	},
+	{
+		version: 7,
+		sql: `CREATE TABLE IF NOT EXISTS reviewed_files (
+			uri   TEXT NOT NULL,
+			nonce TEXT NOT NULL,
+			PRIMARY KEY (uri, nonce)
+		)`,
+	},
+	{
+		version: 8,
+		sql: `CREATE TABLE IF NOT EXISTS local_turns (
+			turn_id        TEXT PRIMARY KEY NOT NULL,
+			chat_uri       TEXT NOT NULL,
+			anchor_turn_id TEXT,
+			seq            INTEGER NOT NULL,
+			payload        TEXT NOT NULL
+		)`,
 	},
 ];
 
@@ -312,9 +339,19 @@ export class SessionDatabase implements ISessionDatabase {
 
 	async getNextTurnEventId(turnId: string): Promise<string | undefined> {
 		const db = await this._ensureDb();
+		// `turns.id` is the canonical turn key — either a live `request_xxx`
+		// dispatched by the client or, for sessions restored from disk, the
+		// SDK envelope id surfaced by `mapSessionEvents`. The `event_id`
+		// fallback covers the case where the caller asks about a turn that
+		// was set up live (id=`request_xxx`) but is now being referenced
+		// via the SDK event id, or vice versa.
 		const row = await dbGet(
 			db,
-			`SELECT event_id FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?) ORDER BY rowid LIMIT 1`,
+			`SELECT event_id FROM turns
+				WHERE rowid > (
+					SELECT rowid FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1
+				)
+				ORDER BY rowid LIMIT 1`,
 			[turnId],
 		);
 		return row?.event_id as string | undefined ?? undefined;
@@ -336,7 +373,7 @@ export class SessionDatabase implements ISessionDatabase {
 
 	async getTurnCheckpointRef(turnId: string): Promise<string | undefined> {
 		const db = await this._ensureDb();
-		const row = await dbGet(db, 'SELECT checkpoint_ref FROM turns WHERE id = ?', [turnId]);
+		const row = await dbGet(db, 'SELECT checkpoint_ref FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1', [turnId]);
 		return row?.checkpoint_ref as string | undefined ?? undefined;
 	}
 
@@ -345,7 +382,7 @@ export class SessionDatabase implements ISessionDatabase {
 		const row = await dbGet(
 			db,
 			`SELECT checkpoint_ref FROM turns
-				WHERE rowid < (SELECT rowid FROM turns WHERE id = ?)
+				WHERE rowid < (SELECT rowid FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1)
 					AND checkpoint_ref IS NOT NULL
 				ORDER BY rowid DESC LIMIT 1`,
 			[turnId],
@@ -388,6 +425,41 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._track(async () => {
 			const db = await this._ensureDb();
 			await dbExec(db, 'DELETE FROM turns');
+		});
+	}
+
+	// ---- Local (host-injected) turns ------------------------------------
+
+	insertLocalTurn(record: ILocalTurnRecord): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db,
+				'INSERT OR REPLACE INTO local_turns (turn_id, chat_uri, anchor_turn_id, seq, payload) VALUES (?, ?, ?, ?, ?)',
+				[record.turnId, record.chatUri, record.anchorTurnId ?? null, record.seq, record.payload],
+			);
+		});
+	}
+
+	async getLocalTurns(): Promise<ILocalTurnRecord[]> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, 'SELECT turn_id, chat_uri, anchor_turn_id, seq, payload FROM local_turns ORDER BY seq', []);
+		return rows.map(r => ({
+			turnId: r.turn_id as string,
+			chatUri: r.chat_uri as string,
+			anchorTurnId: (r.anchor_turn_id as string | null) ?? undefined,
+			seq: r.seq as number,
+			payload: r.payload as string,
+		}));
+	}
+
+	deleteLocalTurns(turnIds: readonly string[]): Promise<void> {
+		return this._track(async () => {
+			if (turnIds.length === 0) {
+				return;
+			}
+			const db = await this._ensureDb();
+			const placeholders = turnIds.map(() => '?').join(',');
+			await dbRun(db, `DELETE FROM local_turns WHERE turn_id IN (${placeholders})`, [...turnIds]);
 		});
 	}
 
@@ -539,6 +611,65 @@ export class SessionDatabase implements ISessionDatabase {
 		}));
 	}
 
+	setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {
+		const chatUri = chat.toString();
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			if (!draft) {
+				await dbRun(db, 'DELETE FROM chat_drafts WHERE chat_uri = ?', [chatUri]);
+				return;
+			}
+			await dbRun(db, 'INSERT OR REPLACE INTO chat_drafts (chat_uri, draft) VALUES (?, ?)', [chatUri, JSON.stringify(draft)]);
+		});
+	}
+
+	async getChatDraft(chat: URI): Promise<Message | undefined> {
+		const db = await this._ensureDb();
+		const row = await dbGet(db, 'SELECT draft FROM chat_drafts WHERE chat_uri = ?', [chat.toString()]);
+		if (typeof row?.draft !== 'string') {
+			return undefined;
+		}
+		try {
+			return JSON.parse(row.draft) as Message;
+		} catch {
+			return undefined;
+		}
+	}
+
+	// ---- Reviewed files -------------------------------------------------
+
+	markFileReviewed(uri: URI, nonce: string): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db, 'INSERT OR IGNORE INTO reviewed_files (uri, nonce) VALUES (?, ?)', [uri.toString(), nonce]);
+		});
+	}
+
+	unmarkFileReviewed(uri: URI, nonce: string): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db, 'DELETE FROM reviewed_files WHERE uri = ? AND nonce = ?', [uri.toString(), nonce]);
+		});
+	}
+
+	async getReviewedFiles(): Promise<IReviewedFileRecord[]> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, 'SELECT uri, nonce FROM reviewed_files ORDER BY rowid', []);
+		return rows.map(toReviewedFileRecord);
+	}
+
+	async getReviewedFilesForUri(uri: URI): Promise<IReviewedFileRecord[]> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, 'SELECT uri, nonce FROM reviewed_files WHERE uri = ? ORDER BY rowid', [uri.toString()]);
+		return rows.map(toReviewedFileRecord);
+	}
+
+	async isFileReviewed(uri: URI, nonce: string): Promise<boolean> {
+		const db = await this._ensureDb();
+		const row = await dbGet(db, 'SELECT 1 FROM reviewed_files WHERE uri = ? AND nonce = ? LIMIT 1', [uri.toString(), nonce]);
+		return !!row;
+	}
+
 	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {
 		return this._track(async () => {
 			const db = await this._ensureDb();
@@ -563,6 +694,18 @@ export class SessionDatabase implements ISessionDatabase {
 				for (const [oldId, newId] of mapping) {
 					await dbRun(db, 'UPDATE turns SET id = ? WHERE id = ?', [newId, oldId]);
 					await dbRun(db, 'UPDATE file_edits SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				}
+
+				if (oldIds.length > 0) {
+					const placeholders = oldIds.map(() => '?').join(',');
+					await dbRun(db,
+						`DELETE FROM local_turns WHERE turn_id NOT IN (${placeholders})`,
+						oldIds,
+					);
+				}
+				for (const [oldId, newId] of mapping) {
+					await dbRun(db, 'UPDATE local_turns SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+					await dbRun(db, 'UPDATE local_turns SET anchor_turn_id = ? WHERE anchor_turn_id = ?', [newId, oldId]);
 				}
 				await dbExec(db, 'COMMIT');
 			} catch (err) {
@@ -612,6 +755,13 @@ export class SessionDatabase implements ISessionDatabase {
 	dispose(): void {
 		this.close();
 	}
+}
+
+function toReviewedFileRecord(row: Record<string, unknown>): IReviewedFileRecord {
+	return {
+		uri: URI.parse(row.uri as string),
+		nonce: row.nonce as string,
+	};
 }
 
 function toUint8Array(value: unknown): Uint8Array {

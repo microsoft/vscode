@@ -72,6 +72,7 @@ export interface ReminderInstructionsProps extends BasePromptElementProps {
 	readonly hasEditFileTool: boolean;
 	readonly hasReplaceStringTool: boolean;
 	readonly hasMultiReplaceStringTool: boolean;
+	readonly hasMemoryTool: boolean;
 }
 
 export function getEditingReminder(hasEditFileTool: boolean, hasReplaceStringTool: boolean, useStrongReplaceStringHint: boolean, hasMultiStringReplace: boolean) {

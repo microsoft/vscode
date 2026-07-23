@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as l10n from '@vscode/l10n';
+import { BudgetExceededError } from '@vscode/prompt-tsx/dist/base/materialized';
 import * as path from 'path';
 import type * as vscode from 'vscode';
 import { ChatFetchResponseType } from '../../../platform/chat/common/commonTypes';
@@ -22,9 +23,11 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { ChatResponseNotebookEditPart, ChatResponseTextEditPart, ChatToolInvocationPart, ExtendedLanguageModelToolResult, LanguageModelTextPart, MarkdownString, Range } from '../../../vscodeTypes';
 import { Conversation, Turn } from '../../prompt/common/conversation';
 import { IBuildPromptContext } from '../../prompt/common/intents';
-import { SearchSubagentToolCallingLoop } from '../../prompt/node/searchSubagentToolCallingLoop';
+import type { IToolCallLoopResult } from '../../intents/node/toolCallingLoop';
+import { SearchSubagentToolCallingLoop, isContextOverflowBadRequest } from '../../prompt/node/searchSubagentToolCallingLoop';
 import { ToolName } from '../common/toolNames';
 import { CopilotToolMode, ICopilotTool, ICopilotToolCtor, ToolRegistry } from '../common/toolsRegistry';
+import { stripFinalAnswerTags, updateSubagentInvocation } from './subagentToolUtils';
 import { assertFileOkForTool, isFileExternalAndNeedsConfirmation } from './toolUtils';
 
 export interface ISearchSubagentParams {
@@ -49,13 +52,26 @@ const THOROUGHNESS_MULTIPLIERS: Record<NonNullable<ISearchSubagentParams['thorou
 	deep: 2,
 };
 
+export const CONTEXT_OVERFLOW_FALLBACK = `<final_answer>\nThe search subagent was unable to complete this query because the accumulated search context exceeded the model's context window. Consider issuing a more focused query.\n</final_answer>`;
+
 function computeToolCallLimitForThoroughness(baseLimit: number, thoroughness: NonNullable<ISearchSubagentParams['thoroughness']>): number {
 	return Math.max(1, Math.round(baseLimit * THOROUGHNESS_MULTIPLIERS[thoroughness]));
+}
+
+export function mapLoopResponseToText(result: IToolCallLoopResult): string {
+	if (result.response.type === ChatFetchResponseType.Success) {
+		return result.toolCallRounds.at(-1)?.response ?? result.round.response ?? '';
+	}
+	if (isContextOverflowBadRequest(result.response)) {
+		return CONTEXT_OVERFLOW_FALLBACK;
+	}
+	return `The search subagent request failed with this message:\n${result.response.type}: ${result.response.reason}`;
 }
 
 class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 	public static readonly toolName = ToolName.SearchSubagent;
 	public static readonly nonDeferred = true;
+	protected readonly toolName: ToolName = ToolName.SearchSubagent;
 	private _inputContext: IBuildPromptContext | undefined;
 
 	constructor(
@@ -106,11 +122,12 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 
 		const request = this._inputContext!.request!;
 		const parentSessionId = this._inputContext?.conversation?.sessionId ?? generateUuid();
+		const parentToolCallId = options.chatStreamToolCallId;
 		// Generate a stable session ID for this subagent invocation that will be used:
 		// 1. As subAgentInvocationId in the subagent's tool context
 		// 2. As subAgentInvocationId in toolMetadata for parent trajectory linking
 		// 3. As the session_id in the subagent's own trajectory
-		const subAgentInvocationId = generateUuid();
+		const subAgentInvocationId = parentToolCallId ?? generateUuid();
 
 		const toolCallLimit = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolCallLimit, this.experimentationService);
 		const thoroughnessEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentThoroughnessEnabled, this.experimentationService);
@@ -126,7 +143,7 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 			location: request.location,
 			promptText: options.input.query,
 			subAgentInvocationId: subAgentInvocationId,
-			parentToolCallId: options.chatStreamToolCallId,
+			parentToolCallId,
 			parentHeaderRequestId: this._inputContext?.parentHeaderRequestId,
 			parentModelCallId: this._inputContext?.parentModelCallId,
 			topLevelTurnId: this._inputContext?.requestId,
@@ -137,6 +154,13 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 			this._inputContext.stream,
 			part => part instanceof ChatToolInvocationPart || part instanceof ChatResponseTextEditPart || part instanceof ChatResponseNotebookEditPart
 		);
+		const modelName = await loop.getModelName();
+		updateSubagentInvocation(stream, parentToolCallId, this.toolName, {
+			description: options.input.description,
+			agentName: 'search',
+			prompt: options.input.query,
+			modelName,
+		});
 
 		// Create a new capturing token to group this search subagent and all its nested tool calls
 		// Similar to how DefaultIntentRequestHandler does it
@@ -156,8 +180,6 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 
 		// Wrap the loop execution in captureInvocation with the new token
 		// All nested tool calls will now be logged under this same CapturingToken
-		const loopResult = await this.requestLogger.captureInvocation(searchSubagentToken, () => loop.run(stream, token));
-
 		// Build subagent trajectory metadata that will be logged via toolMetadata
 		// All nested tool calls are already logged by ToolCallingLoop.logToolResult()
 		const toolMetadata = {
@@ -165,17 +187,29 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 			description: options.input.description,
 			// The subAgentInvocationId links this tool call to the subagent's trajectory
 			subAgentInvocationId: subAgentInvocationId,
-			agentName: 'search'
+			agentName: 'search',
+			modelName,
 		};
 
-		let subagentResponse = '';
-		if (loopResult.response.type === ChatFetchResponseType.Success) {
-			subagentResponse = loopResult.toolCallRounds.at(-1)?.response ?? loopResult.round.response ?? '';
-		} else {
-			subagentResponse = `The search subagent request failed with this message:\n${loopResult.response.type}: ${loopResult.response.reason}`;
+		let subagentResponse: string;
+		try {
+			const loopResult = await this.requestLogger.captureInvocation(searchSubagentToken, () => loop.run(stream, token));
+			subagentResponse = mapLoopResponseToText(loopResult);
+		} catch (err) {
+			if (!(err instanceof BudgetExceededError)) {
+				throw err;
+			}
+			subagentResponse = CONTEXT_OVERFLOW_FALLBACK;
 		}
 		// Parse and hydrate code snippets from <final_answer> tags
-		const hydratedResponse = await this.parseFinalAnswerAndHydrate(subagentResponse, cwd, options.workingDirectory, token);
+		const hydratedResponse = stripFinalAnswerTags(await this.parseFinalAnswerAndHydrate(subagentResponse, cwd, options.workingDirectory, token));
+		updateSubagentInvocation(stream, parentToolCallId, this.toolName, {
+			description: options.input.description,
+			agentName: 'search',
+			prompt: options.input.query,
+			modelName,
+			result: hydratedResponse,
+		});
 
 		// toolMetadata will be automatically included in exportAllPromptLogsAsJsonCommand
 		const result = new ExtendedLanguageModelToolResult([new LanguageModelTextPart(hydratedResponse)]);
@@ -286,6 +320,7 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 class ExploreSubagentTool extends (SearchSubagentTool as new (...args: never[]) => SearchSubagentTool) {
 	public static readonly toolName = ToolName.ExploreSubagent;
 	public static readonly nonDeferred = true;
+	protected override readonly toolName: ToolName = ToolName.ExploreSubagent;
 }
 
 ToolRegistry.registerTool(SearchSubagentTool);

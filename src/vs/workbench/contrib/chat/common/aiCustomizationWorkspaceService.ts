@@ -6,10 +6,9 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isEqualOrParent } from '../../../../base/common/resources.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
-import { IChatPromptSlashCommand, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand } from './promptSyntax/service/promptsService.js';
 
 export const IAICustomizationWorkspaceService = createDecorator<IAICustomizationWorkspaceService>('aiCustomizationWorkspaceService');
 
@@ -42,73 +41,22 @@ export const AICustomizationManagementSection = {
 	Instructions: 'instructions',
 	Prompts: 'prompts',
 	Hooks: 'hooks',
+	Automations: 'automations',
 	McpServers: 'mcpServers',
 	Plugins: 'plugins',
 	Models: 'models',
+	Tools: 'tools',
 } as const;
 
 export type AICustomizationManagementSection = typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
 
 /**
- * Per-type filter policy controlling which storage sources and user file
- * roots are visible for a given customization type.
- */
-export interface IStorageSourceFilter {
-	/**
-	 * Which storage groups to display (e.g. workspace, user, extension, builtin).
-	 */
-	readonly sources: readonly AICustomizationSource[];
-
-	/**
-	 * If set, only user files under these roots are shown (allowlist).
-	 * If `undefined`, all user file roots are included.
-	 */
-	readonly includedUserFileRoots?: readonly URI[];
-}
-
-/**
- * Controls which features are shown on the welcome page of the
- * AI Customization Management Editor.
+ * Per-type filter policy controlling which storage sources are visible
+ * for a given customization type.
  */
 export interface IWelcomePageFeatures {
 	/** Show the "Configure Your AI" getting-started banner. */
 	readonly showGettingStartedBanner: boolean;
-}
-
-/**
- * Applies a source filter to an array of items that have uri and source.
- * Removes items whose source is not in the filter's source list,
- * and for user-source items, removes those not under an allowed root.
- */
-export function applySourceFilter<T extends { readonly uri: URI; readonly source: AICustomizationSource }>(items: readonly T[], filter: IStorageSourceFilter): readonly T[] {
-	const sourceSet = new Set(filter.sources);
-	return items.filter(item => {
-		if (!sourceSet.has(item.source)) {
-			return false;
-		}
-		if (item.source === AICustomizationSources.user && filter.includedUserFileRoots) {
-			return filter.includedUserFileRoots.some(root => isEqualOrParent(item.uri, root));
-		}
-		return true;
-	});
-}
-
-/**
- * Applies a storage filter to an array of items that have uri and storage.
- * Removes items whose storage is not in the filter's source list,
- * and for user-storage items, removes those not under an allowed root.
- */
-export function applyStorageSourceFilter<T extends { readonly uri: URI; readonly storage: PromptsStorage }>(items: readonly T[], filter: IStorageSourceFilter): readonly T[] {
-	const sourceSet = new Set(filter.sources);
-	return items.filter(item => {
-		if (!sourceSet.has(item.storage)) {
-			return false;
-		}
-		if (item.storage === PromptsStorage.user && filter.includedUserFileRoots) {
-			return filter.includedUserFileRoots.some(root => isEqualOrParent(item.uri, root));
-		}
-		return true;
-	});
 }
 
 /**
@@ -131,12 +79,6 @@ export interface IAICustomizationWorkspaceService {
 	 * The sections to show in the AI Customization Management Editor sidebar.
 	 */
 	readonly managementSections: readonly AICustomizationManagementSection[];
-
-	/**
-	 * Returns the storage source filter for a given customization type.
-	 * Controls which storage groups and user file roots are visible.
-	 */
-	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter;
 
 	/**
 	 * Whether this is a sessions window (vs core VS Code).
