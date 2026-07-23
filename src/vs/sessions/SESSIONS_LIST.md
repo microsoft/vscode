@@ -185,7 +185,7 @@ The sessions list defines menu IDs that contributions can target to add actions.
 
 | Menu | Constant | Where it appears | Use for |
 |------|----------|------------------|---------|
-| `SessionGroupToolbar` | `SessionGroupToolbarMenuId` | Toolbar on user-created group headers | Group-scoped actions: "New Session" (opens the new-session composer and joins the started session to the group), "Rename", and "Delete Group". The "New Session" intent is recorded via `ISessionGroupsService.setPendingNewSessionGroup` and bound to the committed session when it is started; abandoning the new session clears it. |
+| `SessionGroupToolbar` | `SessionGroupToolbarMenuId` | Toolbar on user-created group headers | Group-scoped actions: "Mark All as Done" when the group has visible sessions, "Delete Group" when it has no members, and "New Session" (opens the new-session composer and joins the started session to the group). A group whose members are all pinned, archived, or filtered out shows neither destructive action. The "New Session" intent is recorded via `ISessionGroupsService.setPendingNewSessionGroup` and bound to the committed session when it is started; abandoning the new session clears it. |
 
 ### View Title Menus
 
@@ -240,6 +240,8 @@ Context keys available for `when` clauses when contributing to session list menu
 | Key | Type | Description |
 |-----|------|-------------|
 | `sessionSection.type` | string | `'pinned'`, `'quickchats'`, `'archived'`, `'workspace:<label>'`, `'recent'`, etc. |
+| `sessionGroup.hasVisibleSessions` | boolean | Whether a user-created group has visible session rows |
+| `sessionGroup.isEmpty` | boolean | Whether a user-created group has no members |
 
 ### View-Level
 

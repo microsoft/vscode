@@ -99,6 +99,8 @@ export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessio
 /** Whether the focused session item currently belongs to a user group. */
 export const SessionItemInGroupContext = new RawContextKey<boolean>('sessionItem.inGroup', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
+export const SessionGroupHasVisibleSessionsContext = new RawContextKey<boolean>('sessionGroup.hasVisibleSessions', false);
+export const SessionGroupIsEmptyContext = new RawContextKey<boolean>('sessionGroup.isEmpty', false);
 
 //#region Types
 
@@ -133,6 +135,7 @@ export interface ISessionSection {
 export interface ISessionGroupItem {
 	readonly group: ISessionGroup;
 	readonly sessions: ISession[];
+	readonly isEmpty: boolean;
 	readonly editing: boolean;
 }
 
@@ -1055,6 +1058,8 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 
 		template.label.textContent = element.group.name;
 		this.updateChevron(template, node.collapsible, node.collapsed);
+		SessionGroupHasVisibleSessionsContext.bindTo(template.contextKeyService).set(element.sessions.length > 0);
+		SessionGroupIsEmptyContext.bindTo(template.contextKeyService).set(element.isEmpty);
 		template.toolbar.context = element;
 
 		template.container.classList.toggle('session-group-editing', element.editing);
@@ -2178,7 +2183,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		for (const group of this._sessionGroupsService.getGroups()) {
 			const members = groupedMembers.get(group.id) ?? [];
 			const sortedMembers = sortSessions(members, sorting, sortKeyForGrouping);
-			groupItemsById.set(group.id, { group, sessions: sortedMembers, editing: group.id === this._editingGroupId });
+			groupItemsById.set(group.id, {
+				group,
+				sessions: sortedMembers,
+				isEmpty: this._sessionGroupsService.getSessionIdsInGroup(group.id).length === 0,
+				editing: group.id === this._editingGroupId,
+			});
 		}
 		const defaultGroupIds = [...groupItemsById.values()]
 			.sort((a, b) => b.group.createdAt - a.group.createdAt)
