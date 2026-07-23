@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEventPayload } from '@github/copilot-sdk';
+import type { SessionEventPayload, SystemNotification } from '@github/copilot-sdk';
 import { softAssertNever } from '../../../../base/common/assert.js';
 import { localize } from '../../../../nls.js';
 
@@ -16,7 +16,7 @@ export interface ICopilotSystemNotification {
 
 export function buildCopilotSystemNotification(event: SessionEventPayload<'system.notification'>): ICopilotSystemNotification | undefined {
 	const data = event.data;
-	const kind = data.kind;
+	const kind: SystemNotification = data.kind;
 	const content = cleanSystemNotificationContent(data.content);
 	if (!content) {
 		return undefined;

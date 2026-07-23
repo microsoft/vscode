@@ -859,7 +859,7 @@ export function getActionEnvelope(n: AhpNotification): ActionEnvelope {
 export async function createAndSubscribeSession(c: TestProtocolClient, clientId: string, workingDirectory?: string): Promise<string> {
 	await c.call('initialize', { channel: 'ahp-root://', protocolVersions: [PROTOCOL_VERSION], clientId });
 
-	await c.call('createSession', { channel: nextSessionUri(), provider: 'mock', workingDirectory });
+	await c.call('createSession', { channel: nextSessionUri(), provider: 'mock', workingDirectories: workingDirectory ? [workingDirectory] : undefined });
 
 	const notif = await c.waitForNotification(n =>
 		n.method === 'root/sessionAdded'

@@ -1,0 +1,41 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read the file at ${workdir}/nested/peer.txt and reply with its exact contents only.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: bash
+          input:
+            command: cat "${workdir}/nested/peer.txt"
+            description: Read peer.txt file
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read the file at ${workdir}/nested/peer.txt and reply with its exact contents only.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: cat "${workdir}/nested/peer.txt"
+                description: Read peer.txt file
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                PEER_NESTED_READ
+                <shellId: 0 completed with exit code 0>
+    response:
+      content: PEER_NESTED_READ
+      stopReason: end_turn

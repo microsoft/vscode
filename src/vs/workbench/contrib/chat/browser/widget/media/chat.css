@@ -1186,6 +1186,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) {
 	position: relative;
 	border-radius: var(--vscode-cornerRadius-circle);
+	/* Separate the round primary send button from the preceding mic / voice-mode
+		toggle icons so it doesn't visually crowd them (see #326932). */
+	margin-left: 4px;
 }
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, ExitPlanModeRequest, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, ExitPlanModeRequest, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { DeferredPromise, Sequencer } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -42,7 +42,7 @@ import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAtt
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isDefaultChatUri, isSubagentSession, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isDefaultChatUri, isSubagentSession, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -54,6 +54,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
+import { NonPtyShellTerminalStreams } from './copilotNonPtyShellTerminals.js';
 import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
@@ -658,6 +659,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
 	private readonly _isLaunchTokenStillCurrent: () => boolean;
 	private readonly _shellManager: ShellManager | undefined;
+	/** Streams runtime-executed shell output into output-only (non-pty) terminal channels. */
+	private readonly _nonPtyShellTerminals: NonPtyShellTerminalStreams;
 	private readonly _workingDirectory: URI | undefined;
 	private readonly _customizationDirectory: URI | undefined;
 	private readonly _serverToolHost: IAgentServerToolHost | undefined;
@@ -735,6 +738,7 @@ export class CopilotAgentSession extends Disposable {
 		this._launchPlan = options.launchPlan;
 		this._isLaunchTokenStillCurrent = options.isLaunchTokenCurrent ?? (() => true);
 		this._shellManager = options.shellManager;
+		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri));
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
@@ -3121,6 +3125,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, mcpServerName: e.data.mcpServerName, meta: undefined });
+			if (isShellTool(e.data.toolName)) {
+				this._nonPtyShellTerminals.track(e.data.toolCallId, displayName);
+			}
 			if (isTaskCompleteTool(e.data.toolName)) {
 				const scope = parentToolCallId ?? '';
 				this._currentTurn?.markdownPartIds.delete(scope);
@@ -3275,7 +3282,39 @@ export class CopilotAgentSession extends Disposable {
 			if (toolOutput !== undefined) {
 				content.push({ type: ToolResultContentType.Text, text: toolOutput });
 			}
-			appendSdkToolResultContent(content, e.data.result?.contents);
+
+			// Attach the pty terminal reference for shell tools before folding in
+			// SDK result content, so a `shell_exit` lands its completion data on
+			// the terminal block (skip if any terminal block was already added
+			// while the tool was running).
+			const ptyTerminalUri = isShellTool(tracked.toolName) ? this._shellManager?.getTerminalUriForToolCall(e.data.toolCallId) : undefined;
+			if (ptyTerminalUri && !content.some(c => c.type === ToolResultContentType.Terminal)) {
+				content.push({
+					type: ToolResultContentType.Terminal,
+					resource: ptyTerminalUri,
+					title: tracked.displayName,
+				});
+			}
+
+			const shellExit = appendSdkToolResultContent(content, e.data.result?.contents, { session: this.sessionUri, toolCallId: e.data.toolCallId, title: tracked.displayName });
+			if (isShellTool(tracked.toolName) && !ptyTerminalUri) {
+				const completion = this._nonPtyShellTerminals.completeToolCall(e.data.toolCallId, toolOutput, shellExit);
+				if (completion) {
+					const terminalIndex = content.findIndex(c => c.type === ToolResultContentType.Terminal);
+					if (terminalIndex === -1) {
+						content.push({
+							type: ToolResultContentType.Terminal,
+							resource: completion.uri,
+							title: tracked.displayName,
+							isPty: false,
+							...(completion.result ? { result: completion.result } : {}),
+						});
+					} else if (completion.result) {
+						const terminalBlock = content[terminalIndex] as ToolResultTerminalContent;
+						content[terminalIndex] = { ...terminalBlock, result: completion.result };
+					}
+				}
+			}
 
 			const command = isString(tracked.parameters?.command) ? tracked.parameters.command : undefined;
 			const filePaths = isEditTool(tracked.toolName, command) ? this._getEditFilePaths(tracked.parameters) : [];
@@ -3287,19 +3326,6 @@ export class CopilotAgentSession extends Disposable {
 					}
 				} catch (err) {
 					this._logService.warn(`[Copilot:${sessionId}] Failed to take completed edit`, err);
-				}
-			}
-
-			// Add terminal content reference for shell tools (skip if already
-			// added during onDidAssociateTerminal while the tool was running)
-			if (isShellTool(tracked.toolName) && this._shellManager) {
-				const terminalUri = this._shellManager.getTerminalUriForToolCall(e.data.toolCallId);
-				if (terminalUri && !content.some(c => c.type === ToolResultContentType.Terminal && c.resource === terminalUri)) {
-					content.push({
-						type: ToolResultContentType.Terminal,
-						resource: terminalUri,
-						title: tracked.displayName,
-					});
 				}
 			}
 
@@ -3596,7 +3622,7 @@ export class CopilotAgentSession extends Disposable {
 			// Capture the base usage before the await boundary so concurrent
 			// usage events don't overwrite what we merge into.
 			const baseUsage = lastParentUsageTurnId === turnId ? lastParentUsage : undefined;
-			const usage = baseUsage ?? {
+			const usage: UsageInfo = baseUsage ?? {
 				inputTokens: e.data.inputTokens,
 				outputTokens: e.data.outputTokens,
 				model: e.data.model,
@@ -3679,7 +3705,7 @@ export class CopilotAgentSession extends Disposable {
 		// change is also logged (with structured metadata) so it flows to the
 		// agent host's OTLP log stream and the per-server Output channels.
 		this._register(wrapper.onMcpServersLoaded(e => {
-			this._logMcpServersSnapshot(e.data.servers.map(s => ({
+			this._logMcpServersSnapshot(e.data.servers.map((s: McpServersLoadedServer) => ({
 				name: s.name,
 				status: s.status,
 				error: s.error,
@@ -4253,6 +4279,30 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onToolPartialResult(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Tool partial result: ${e.data.toolCallId} (${e.data.partialOutput.length} chars)`);
+			const tracked = this._activeToolCalls.get(e.data.toolCallId);
+			if (!tracked || !isShellTool(tracked.toolName)) {
+				return;
+			}
+			if (this._shellManager?.getTerminalUriForToolCall(e.data.toolCallId)) {
+				// Client-hosted pty shell — its terminal channel streams live output itself.
+				return;
+			}
+			const appended = this._nonPtyShellTerminals.append(e.data.toolCallId, e.data.partialOutput);
+			if (appended?.created) {
+				const { uri } = appended;
+				tracked.content.push({
+					type: ToolResultContentType.Terminal,
+					resource: uri,
+					title: tracked.displayName,
+					isPty: false,
+				});
+				this._emitAction({
+					type: ActionType.ChatToolCallContentChanged,
+					turnId: this._turnId,
+					toolCallId: e.data.toolCallId,
+					content: tracked.content,
+				}, tracked.parentToolCallId);
+			}
 		}));
 
 		this._register(wrapper.onToolProgress(e => {

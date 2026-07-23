@@ -1,0 +1,31 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word PEAR. Reply exactly "ready".
+    response:
+      content: |-
+        I'll remember the code word PEAR.
+
+        ready
+      stopReason: end_turn
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word PEAR. Reply exactly "ready".
+        - role: assistant
+          content: |-
+            I'll remember the code word PEAR.
+
+            ready
+        - role: user
+          content: What code word did I ask you to remember? Reply with only the code word.
+    response:
+      content: PEAR
+      stopReason: end_turn

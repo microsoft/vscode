@@ -23,6 +23,8 @@ import { TestContextService } from '../../../../../test/common/workbenchTestServ
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { AbstractAgentPluginDiscovery } from '../../../common/plugins/agentPluginServiceImpl.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
+import { AGENT_PLUGIN_MCP_SCHEMA, AGENT_PLUGIN_SCHEMA } from '../../../../../../platform/agentPlugins/common/agentPluginParser.js';
+import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 
 /**
  * Concrete discovery subclass that returns a fixed list of plugin URIs,
@@ -217,6 +219,7 @@ suite('AgentPlugin format detection', () => {
 			name: 'dual-plugin',
 			mcpServers: { 'open-server': { command: 'echo', args: ['open'] } },
 		}));
+
 		// Claude manifest defines a different server to prove it's NOT read.
 		await writeFile('/plugins/dual-plugin/.claude-plugin/plugin.json', JSON.stringify({
 			name: 'dual-plugin',
@@ -234,6 +237,94 @@ suite('AgentPlugin format detection', () => {
 		const mcpDefs = plugins[0].mcpServerDefinitions.get();
 		assert.strictEqual(mcpDefs.length, 1);
 		assert.strictEqual(mcpDefs[0].name, 'open-server');
+	}));
+
+	test('Agent Plugin root takes priority and exposes only portable core components', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/agent-plugin');
+		await writeFile('/plugins/agent-plugin/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA, name: 'agent-plugin' }));
+		await writeFile('/plugins/agent-plugin/.plugin/plugin.json', JSON.stringify({
+			name: 'legacy',
+			mcpServers: { legacy: { command: 'node' } },
+		}));
+		await writeFile('/plugins/agent-plugin/skills/portable/SKILL.md', '---\nname: portable\ndescription: Portable skill\n---');
+		await writeFile('/plugins/agent-plugin/commands/ignored.md', '# Ignored');
+		await writeFile('/plugins/agent-plugin/agents/ignored.md', '# Ignored');
+		await writeFile('/plugins/agent-plugin/.mcp.json', JSON.stringify({ mcpServers: { ignored: { command: 'node' } } }));
+		await writeFile('/plugins/agent-plugin/mcp.json', JSON.stringify({
+			$schema: AGENT_PLUGIN_MCP_SCHEMA,
+			mcpServers: { portable: { type: 'streamable-http', url: 'https://example.com/mcp' } },
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugin = getDiscoveredPlugins(discovery)[0];
+		await Promise.all([
+			waitForState(plugin.skills, skills => skills.length > 0),
+			waitForState(plugin.mcpServerDefinitions, definitions => definitions.length > 0),
+		]);
+		assert.deepStrictEqual({
+			label: plugin.label,
+			skills: plugin.skills.get().map(skill => skill.name),
+			mcp: plugin.mcpServerDefinitions.get().map(server => server.name),
+			commands: plugin.commands.get(),
+			agents: plugin.agents.get(),
+			hooks: plugin.hooks.get(),
+			instructions: plugin.instructions.get(),
+		}, {
+			label: 'agent-plugin',
+			skills: ['portable'],
+			mcp: ['portable'],
+			commands: [],
+			agents: [],
+			hooks: [],
+			instructions: [],
+		});
+	}));
+
+	test('recognized Agent Plugin without a name uses the directory label without legacy fallback', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/rejected-agent-plugin');
+		await writeFile('/plugins/rejected-agent-plugin/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA }));
+		await writeFile('/plugins/rejected-agent-plugin/.plugin/plugin.json', JSON.stringify({ name: 'legacy' }));
+		await writeFile('/plugins/rejected-agent-plugin/commands/legacy.md', '# Legacy');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugin = getDiscoveredPlugins(discovery)[0];
+		assert.deepStrictEqual({
+			format: plugin.format,
+			label: plugin.label,
+			commands: plugin.commands.get(),
+		}, {
+			format: PluginFormat.AgentPlugin,
+			label: 'rejected-agent-plugin',
+			commands: [],
+		});
+	}));
+
+	test('adding an Agent Plugin manifest re-detects an existing plugin', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/updated-plugin');
+		await writeFile('/plugins/updated-plugin/.plugin/plugin.json', JSON.stringify({ name: 'legacy' }));
+		await writeFile('/plugins/updated-plugin/commands/legacy.md', '# Legacy');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+		assert.strictEqual(getDiscoveredPlugins(discovery)[0].format, PluginFormat.OpenPlugin);
+
+		await writeFile('/plugins/updated-plugin/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA, name: 'updated' }));
+		const plugins = await waitForState(discovery.plugins, value => value?.[0]?.format === PluginFormat.AgentPlugin);
+
+		assert.deepStrictEqual({
+			format: plugins?.[0].format,
+			commands: plugins?.[0].commands.get(),
+		}, {
+			format: PluginFormat.AgentPlugin,
+			commands: [],
+		});
 	}));
 
 	test('Open Plugin reads MCP definitions from .plugin/plugin.json inline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

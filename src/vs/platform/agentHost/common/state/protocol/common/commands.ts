@@ -276,7 +276,7 @@ export interface InitializeResult {
  * @method ping
  * @direction Client → Server
  * @messageType Request
- * @version 0.1.0
+ * @version 1
  */
 export interface PingParams extends BaseParams {
 	channel: 'ahp-root://';

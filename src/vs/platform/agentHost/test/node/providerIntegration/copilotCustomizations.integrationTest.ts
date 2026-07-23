@@ -14,9 +14,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { type SessionCustomizationDiscoveryMode } from '../../../common/agentHostCustomizationConfig.js';
+import { AgentHostConfigKey, type SessionCustomizationDiscoveryMode } from '../../../common/agentHostCustomizationConfig.js';
 import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
-import { customizationId, CustomizationType, ISessionWithDefaultChat, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { customizationId, CustomizationType, ISessionWithDefaultChat, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { type AhpNotification } from '../../../common/state/sessionProtocol.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
@@ -76,7 +76,7 @@ async function waitForAssert(
 	);
 }
 
-const TEST_WATCH = false;
+const TEST_WATCH = true;
 
 suite('Agent Host Provider Integration — Copilot Customizations', function () {
 
@@ -187,7 +187,8 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			await runSimpleSkillWatchTest('scan');
 		});
 
-		test('watch skill file changes [discover]', async function () {
+		// skipped for https://github.com/github/copilot-agent-runtime/issues/13285
+		test.skip('watch skill file changes [discover]', async function () {
 			this.timeout(TEST_TIMEOUT_MS);
 			await runSimpleSkillWatchTest('discover');
 		});
@@ -207,7 +208,8 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			await runSimpleInstructionWatchTest('scan');
 		});
 
-		test('watch instruction file changes [discover]', async function () {
+		// skipped for https://github.com/github/copilot-agent-runtime/issues/13000
+		test.skip('watch instruction file changes [discover]', async function () {
 			this.timeout(TEST_TIMEOUT_MS);
 			await runSimpleInstructionWatchTest('discover');
 		});
@@ -233,7 +235,16 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	}
 
 	async function setupSession(sessionUri: string, clientId: string, discoveryMode: SessionCustomizationDiscoveryMode, turnId = 'turn-customizations-empty-mock', configuredCustomizations?: readonly { uri: string; displayName: string; description?: string }[]): Promise<ISessionWithDefaultChat> {
-		void discoveryMode;
+		client.dispatch({
+			channel: ROOT_STATE_URI,
+			clientSeq: 0,
+			action: {
+				type: ActionType.RootConfigChanged,
+				config: {
+					[AgentHostConfigKey.SessionCustomizationDiscoveryMode]: discoveryMode,
+				},
+			},
+		});
 		const activeClientCustomizations = configuredCustomizations?.map((customization): ClientPluginCustomization => ({
 			type: CustomizationType.Plugin,
 			id: customizationId(customization.uri),
@@ -404,7 +415,6 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), children: [URI.file(userSkillFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), children: [URI.file(userAgentFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Hook, uri: URI.file(join(userHomeDir, '.copilot', 'hooks')).toString(), children: [URI.file(userHookFile).toString()] },
-			{ type: CustomizationType.Directory, contents: CustomizationType.Rule, uri: URI.file(join(userHomeDir, '.copilot', 'instructions')).toString(), children: [URI.file(userInstructionFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.copilot', 'skills')).toString(), children: [URI.file(userCopilotSkillFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(workspaceDir, '.agents', 'skills')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), children: [] },
@@ -413,6 +423,12 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			{ type: CustomizationType.Directory, contents: CustomizationType.Hook, uri: URI.file(join(workspaceDir, '.github', 'hooks')).toString(), children: [URI.file(join(hooksDir, 'pre-tool.json')).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Rule, uri: URI.file(join(workspaceDir, '.github', 'instructions')).toString(), children: [URI.file(join(instructionsDir, 'policy.instructions.md')).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(workspaceDir, '.github', 'skills')).toString(), children: [URI.file(join(skillsDir, 'SKILL.md')).toString()] },
+			{
+				type: CustomizationType.Directory,
+				contents: CustomizationType.Rule,
+				uri: URI.file(join(userHomeDir, '.copilot', 'instructions')).toString(),
+				children: discoveryMode === 'scan' ? [URI.file(userInstructionFile).toString()] : [],
+			},
 		].sort((a, b) => a.uri.localeCompare(b.uri));
 		assert.deepStrictEqual(mappedCustomizations, expectedCustomizations);
 	}

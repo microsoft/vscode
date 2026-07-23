@@ -1,0 +1,49 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: bash
+          input:
+            command: |-
+              cat > "${workdir}/peer-edit.txt" << 'EOF'
+              AFTER_PEER
+              EOF
+              cat "${workdir}/peer-edit.txt"
+            description: Replace contents of peer-edit.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of ${workdir}/peer-edit.txt with AFTER_PEER.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: |-
+                  cat > "${workdir}/peer-edit.txt" << 'EOF'
+                  AFTER_PEER
+                  EOF
+                  cat "${workdir}/peer-edit.txt"
+                description: Replace contents of peer-edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                AFTER_PEER
+                <shellId: 0 completed with exit code 0>
+    response:
+      content: Done — the file now contains only `AFTER_PEER`.
+      stopReason: end_turn

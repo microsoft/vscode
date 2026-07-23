@@ -26,7 +26,7 @@ import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -34,6 +34,8 @@ import { sessionReducer, chatReducer } from '../../../../../../platform/agentHos
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IProgress, IProgressNotificationOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
@@ -225,6 +227,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		// Simulate the server's eager active-client claim: if the caller
 		// provided activeClient, seed the session state so subscribers see it.
 		if (config?.activeClient) {
+			const resolvedWorkingDir = (this.nextResolvedWorkingDirectory ?? config.workingDirectory)?.toString();
 			const summary: SessionSummary = {
 				resource: session.toString(),
 				provider: 'copilot',
@@ -232,7 +235,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
-				workingDirectory: (this.nextResolvedWorkingDirectory ?? config.workingDirectory)?.toString(),
+				workingDirectories: resolvedWorkingDir ? [resolvedWorkingDir] : undefined,
 			};
 			const state: SessionState = {
 				...this._withDefaultChatCatalog(createSessionState(summary), session.toString()),
@@ -503,7 +506,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			status: seeded?.status ?? SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
-			workingDirectory: seeded?.workingDirectory,
+			workingDirectories: seeded?.workingDirectories,
 			project: seeded?.project,
 		};
 		const chatSummary = createDefaultChatSummary(sessionSummary, chatUriStr);
@@ -529,7 +532,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			status: state.status,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
-			workingDirectory: state.workingDirectory,
+			workingDirectories: state.workingDirectories,
 			project: state.project,
 		};
 		const chatUri = buildDefaultChatUri(resource);
@@ -668,6 +671,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IProductService, { quality: 'insider' });
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Free, quotas: {} } as Partial<IChatEntitlementService> as IChatEntitlementService);
 	instantiationService.stub(IChatAgentService, chatAgentService);
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
@@ -2546,7 +2550,7 @@ suite('AgentHostChatContribution', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date(1000).toISOString(),
 					modifiedAt: new Date(2000).toISOString(),
-					workingDirectory: URI.file('/other/workspace').toString(),
+					workingDirectories: [URI.file('/other/workspace').toString()],
 				},
 			} as INotification);
 
@@ -2563,7 +2567,7 @@ suite('AgentHostChatContribution', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date(1000).toISOString(),
 					modifiedAt: new Date(2000).toISOString(),
-					workingDirectory: URI.file('/workspace/root/sub').toString(),
+					workingDirectories: [URI.file('/workspace/root/sub').toString()],
 				},
 			} as INotification);
 
@@ -5356,6 +5360,48 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		});
 
+		test('output-only terminal attaches to chat without reviving a terminal instance', async () => {
+			let reviveCalls = 0;
+			let attachmentDisposed = false;
+			let attached: { terminalUri: string; terminalToolSessionId: string } | undefined;
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				agentHostTerminalServiceOverride: {
+					reviveTerminal: async () => {
+						reviveCalls++;
+						return {} as ITerminalInstance;
+					},
+					attachOutputTerminal: (_connection, terminalUri, terminalToolSessionId) => {
+						attached = { terminalUri: terminalUri.toString(), terminalToolSessionId };
+						return toDisposable(() => attachmentDisposed = true);
+					},
+				},
+			});
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-output', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ChatAction);
+			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-output', invocationMessage: 'Running command', toolInput: 'long-running-command', confirmed: 'not-needed' } as ChatAction);
+			fire({
+				type: 'chat/toolCallContentChanged',
+				session,
+				turnId,
+				toolCallId: 'tc-output',
+				content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/output', title: 'Terminal', isPty: false }],
+			} as ChatAction);
+
+			const terminalData = (collected[0][0] as ChatToolInvocation).toolSpecificData as IChatTerminalToolInvocationData;
+			assert.strictEqual(reviveCalls, 0);
+			assert.strictEqual(terminalData.isPty, false);
+			assert.deepStrictEqual(attached, {
+				terminalUri: 'agenthost-terminal://shell/output',
+				terminalToolSessionId: JSON.stringify({ terminal: 'agenthost-terminal://shell/output', session: 'copilot:/new-turntest' }),
+			});
+
+			fire({ type: 'chat/toolCallComplete', session, turnId, toolCallId: 'tc-output', result: { success: true, pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/output', title: 'Terminal', isPty: false }] } } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			assert.strictEqual(attachmentDisposed, true);
+		});
+
 		test('bash tool renders as terminal command block with output', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -7084,6 +7130,62 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(registered);
 			assert.strictEqual(registered.data.extensionId.value, 'vscode.agent-host');
 			assert.strictEqual(registered.data.extensionDisplayName, 'Agent Host');
+		});
+
+		test('reports failures before an agent host turn is dispatched', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const events: { eventName: string; data: Record<string, unknown> | undefined }[] = [];
+			instantiationService.stub(ITelemetryService, {
+				...NullTelemetryService,
+				publicLogError2(eventName: string, data: Record<string, unknown> | undefined): void {
+					events.push({ eventName, data });
+				},
+			});
+			agentHostService.createSession = async () => {
+				const error = new ProtocolError(-32603, 'create failed');
+				error.name = 'ProtocolError';
+				error.stack = 'Error: create failed\n    at createSession (agentHostSessionHandler.ts:1:1)';
+				throw error;
+			};
+
+			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'invocation-failure-test',
+				sessionType: 'invocation-failure-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const registered = chatAgentService.registeredAgents.get('invocation-failure-test');
+			assert.ok(registered);
+			await assert.rejects(registered.impl.invoke(
+				makeRequest({
+					requestId: 'request-correlation-id',
+					agentId: 'invocation-failure-test',
+					sessionResource: URI.from({ scheme: 'invocation-failure-test', path: '/new-error' }),
+					userSelectedModelId: 'selected-model',
+				}),
+				() => { },
+				[],
+				CancellationToken.None,
+			));
+
+			assert.deepStrictEqual(events, [{
+				eventName: 'agentHost.invocationFailed',
+				data: {
+					requestId: 'request-correlation-id',
+					provider: 'copilot',
+					failureStage: 'createSession',
+					isFirstRequest: false,
+					hasUserSelectedModel: true,
+					errorName: 'ProtocolError',
+					errorCode: '-32603',
+					msg: 'create failed',
+					callstack: 'Error: create failed\n    at createSession (agentHostSessionHandler.ts:1:1)',
+				},
+			}]);
 		});
 
 		test('handler uses resolveWorkingDirectory callback', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -9551,6 +9653,36 @@ suite('AgentHostChatContribution', () => {
 					},
 				],
 			});
+		});
+
+		test('uses a command attachment label when it differs from the inserted text', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			(agentHostService as unknown as { completions: (p: CompletionsParams) => Promise<CompletionsResult> }).completions = async () => ({
+				items: [
+					{
+						insertText: '',
+						attachment: {
+							type: MessageAttachmentKind.Simple,
+							label: '/yolo on',
+							_meta: {
+								command: 'yolo',
+								description: 'Set permissions to bypass approvals',
+								action: { applyConfig: { autoApprove: 'autoApprove' } },
+							},
+						},
+					},
+				],
+			});
+
+			const result = await sessionHandler.provideChatInputCompletions(
+				URI.from({ scheme: 'agent-host-copilot', path: '/abc' }),
+				{ text: '/y', offset: 2 },
+				CancellationToken.None,
+			);
+
+			assert.strictEqual(result?.items[0].label, '/yolo on');
+			assert.strictEqual(result?.items[0].insertText, '');
 		});
 
 		test('returns undefined when the request is cancelled', async () => {

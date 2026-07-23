@@ -142,38 +142,45 @@ function callBuild(
 		onRequestTrust?: () => void;
 		setupRequired?: boolean;
 		onRequestSetup?: () => void;
+		onSelect?: (model: ILanguageModelChatMetadataAndIdentifier) => void;
+		entitlementService?: IChatEntitlementService;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
-	const onSelect = () => { };
-	const entitlementService = createStubEntitlementService({
+	const onSelect = opts.onSelect ?? (() => { });
+	const entitlementService = opts.entitlementService ?? createStubEntitlementService({
 		entitlement: opts.entitlement ?? ChatEntitlement.Pro,
 		anonymous: opts.anonymous ?? false,
 	});
-	return buildModelPickerItems(
+	return buildModelPickerItems({
 		models,
-		opts.selectedModelId,
-		opts.recentModelIds ?? [],
-		opts.pinnedModelIds ?? [],
-		opts.controlModels ?? {},
-		opts.currentVSCodeVersion ?? '1.100.0',
-		opts.updateStateType ?? StateType.Idle,
-		onSelect,
-		undefined,
-		opts.manageSettingsUrl,
-		true,
-		stubManageModelsAction,
-		entitlementService,
-		opts.showUnavailableFeatured ?? true,
-		opts.showFeatured ?? true,
-		opts.languageModelsService ?? stubLanguageModelsService,
-		undefined,
-		opts.showAutoModel ?? true,
-		undefined,
-		opts.restrictedMode ?? false,
-		opts.onRequestTrust,
-		opts.setupRequired ?? false,
-		opts.onRequestSetup,
-	);
+		selectedModelId: opts.selectedModelId,
+		recentModelIds: opts.recentModelIds ?? [],
+		pinnedModelIds: opts.pinnedModelIds ?? [],
+		controlModels: opts.controlModels ?? {},
+		currentVSCodeVersion: opts.currentVSCodeVersion ?? '1.100.0',
+		updateStateType: opts.updateStateType ?? StateType.Idle,
+		manageSettingsUrl: opts.manageSettingsUrl,
+		manageModelsAction: stubManageModelsAction,
+		chatEntitlementService: entitlementService,
+		languageModelsService: opts.languageModelsService ?? stubLanguageModelsService,
+		openerService: undefined,
+		presentation: {
+			useGroupedModelPicker: true,
+			showUnavailableFeatured: opts.showUnavailableFeatured ?? true,
+			showFeatured: opts.showFeatured ?? true,
+			showAutoModel: opts.showAutoModel ?? true,
+			restrictedMode: opts.restrictedMode ?? false,
+			setupRequired: opts.setupRequired ?? false,
+			isUBB: false,
+		},
+		actions: {
+			onSelect,
+			onTogglePin: undefined,
+			onConfigure: undefined,
+			onRequestTrust: opts.onRequestTrust,
+			onRequestSetup: opts.onRequestSetup,
+		},
+	});
 }
 
 function createControlManifest(): IModelsControlManifest {
@@ -890,24 +897,7 @@ suite('buildModelPickerItems', () => {
 		const modelA = createModel('gpt-4o', 'GPT-4o');
 		let selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 		const onSelect = (m: ILanguageModelChatMetadataAndIdentifier) => { selectedModel = m; };
-		const items = buildModelPickerItems(
-			[auto, modelA],
-			undefined,
-			[],
-			[],
-			{},
-			'1.100.0',
-			StateType.Idle,
-			onSelect,
-			undefined,
-			undefined,
-			true,
-			undefined,
-			stubChatEntitlementService,
-			true,
-			true,
-			stubLanguageModelsService,
-		);
+		const items = callBuild([auto, modelA], { onSelect, entitlementService: stubChatEntitlementService });
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem?.item);
 		gptItem.item.run();
@@ -978,24 +968,12 @@ suite('buildModelPickerItems', () => {
 	test('admin unavailable model shows manage settings link in description', () => {
 		const auto = createAutoModel();
 		const businessEntitlementService = createStubEntitlementService({ entitlement: ChatEntitlement.Business });
-		const items = buildModelPickerItems(
-			[auto],
-			undefined,
-			['missing-model'],
-			[],
-			{ 'missing-model': { label: 'Missing Model' } as IModelControlEntry },
-			'1.100.0',
-			StateType.Idle,
-			() => { },
-			undefined,
-			'https://aka.ms/github-copilot-settings',
-			true,
-			undefined,
-			businessEntitlementService,
-			true,
-			true,
-			stubLanguageModelsService,
-		);
+		const items = callBuild([auto], {
+			recentModelIds: ['missing-model'],
+			controlModels: { 'missing-model': { label: 'Missing Model' } as IModelControlEntry },
+			manageSettingsUrl: 'https://aka.ms/github-copilot-settings',
+			entitlementService: businessEntitlementService,
+		});
 
 		const adminItem = getActionItems(items).find(a => a.label === 'Missing Model');
 		assert.ok(adminItem);
@@ -1066,24 +1044,7 @@ suite('buildModelPickerItems', () => {
 		let selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 		const onSelect = (m: ILanguageModelChatMetadataAndIdentifier) => { selectedModel = m; };
 		const anonymousEntitlementService = createStubEntitlementService({ entitlement: ChatEntitlement.Unknown, anonymous: true });
-		const items = buildModelPickerItems(
-			[auto, modelA],
-			undefined,
-			[],
-			[],
-			{},
-			'1.100.0',
-			StateType.Idle,
-			onSelect,
-			undefined,
-			undefined,
-			true,
-			undefined,
-			anonymousEntitlementService,
-			true,
-			true,
-			stubLanguageModelsService,
-		);
+		const items = callBuild([auto, modelA], { onSelect, entitlementService: anonymousEntitlementService });
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem?.item);
 		gptItem.item.run();

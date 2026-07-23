@@ -728,4 +728,11 @@ export const codiconsLibrary = {
 	vscodeOutline: register('vscode-outline', 0xecca),
 	voiceMode: register('voice-mode', 0xeccb),
 	voiceModeCompact: register('voice-mode-compact', 0xeccc),
+	micDownload: register('mic-download', 0xeccd),
+	micDownloadCompact: register('mic-download-compact', 0xecce),
+	voiceModeDownload: register('voice-mode-download', 0xeccf),
+	voiceModeDownloadCompact: register('voice-mode-download-compact', 0xecd0),
+	googleGemini: register('google-gemini', 0xecd1),
+	kimi: register('kimi', 0xecd2),
+	microsoft: register('microsoft', 0xecd3),
 } as const;

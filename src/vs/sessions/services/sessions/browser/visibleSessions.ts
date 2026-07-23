@@ -116,30 +116,12 @@ export class VisibleSession extends Disposable implements IActiveSession {
 				c.origin?.kind !== ChatOriginKind.Tool ||
 				shownSubagents.has(c.resource.toString()));
 		});
-		// Shown for more than one real (non-tool) chat — counting closed ones —
-		// or a single chat whose title diverged from the session title. An opened
-		// subagent tab also warrants showing the strip, so any time there is more
-		// than one visible tab the strip is shown. The strip is also shown as soon
-		// as the session has any subagent (tool-origin) chat, so the Conversations
-		// menu (which lists subagents) surfaces in the tab bar.
+		// Shown only when there is more than one chat actually showing as a tab.
+		// A single visible tab (even if other chats are closed, or its title
+		// diverged from the session title, or subagents exist) always hides the
+		// strip; the Conversations menu surfaces in the session header instead.
 		this.shouldShowChatTabs = derived(this, reader => {
-			const chats = this._session.chats.read(reader);
-			if (chats.some(c => c.origin?.kind === ChatOriginKind.Tool)) {
-				return true;
-			}
-			const tabChats = chats.filter(c =>
-				c.origin?.kind !== ChatOriginKind.Tool &&
-				c.interactivity.read(reader) !== ChatInteractivity.Hidden);
-			if (tabChats.length > 1) {
-				return true;
-			}
-			if (this.visibleChatTabs.read(reader).length > 1) {
-				return true;
-			}
-			if (tabChats.length === 1) {
-				return tabChats[0].title.read(reader) !== this._session.title.read(reader);
-			}
-			return false;
+			return this.visibleChatTabs.read(reader).length > 1;
 		});
 	}
 

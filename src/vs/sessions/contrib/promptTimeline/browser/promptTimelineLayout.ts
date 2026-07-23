@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/** Below this transcript width a rail hides so it does not crowd the content (the native scrollbar is kept). */
+export const MIN_HOST_WIDTH = 320;
+
 /** A rail mark with a mutable centre position (px), used by {@link spaceMarkCenters}. */
 export interface IPositionedMark {
 	center: number;

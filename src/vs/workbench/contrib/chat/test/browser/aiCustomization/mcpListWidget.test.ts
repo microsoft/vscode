@@ -199,35 +199,44 @@ suite('mcpListWidget', () => {
 			});
 		});
 
-		test('active-session error opens the agent-host output without opening the row', () => {
+		test('active-session error registers the channel, closes the editor, then opens output', async () => {
 			const shownChannels: string[] = [];
 			let localOutputCount = 0;
+			const actions: string[] = [];
 			const outputHandler = getMcpServerOutputHandler(
-				{ showChannel: async channelId => { shownChannels.push(channelId); } },
+				{
+					showChannel: async channelId => {
+						actions.push('show-output');
+						shownChannels.push(channelId);
+					}
+				},
 				{ showOutput: async () => { localOutputCount++; } },
 				createAgentHostServer({ logOutputChannelId: 'agent-host-output' }),
+				async () => {
+					actions.push('close-editor');
+				},
+				async beforeShow => {
+					actions.push('register-agent-host-output');
+					await beforeShow?.();
+					actions.push('show-agent-host-output');
+				},
 			);
 			assert.ok(outputHandler);
-			const row = document.createElement('div');
-			let rowClicks = 0;
-			disposables.add(DOM.addDisposableListener(row, DOM.EventType.CLICK, () => rowClicks++));
-			const button = disposables.add(new Button(row, unthemedButtonStyles));
-			registerMcpInlineButtonAction(disposables, button, outputHandler);
 
-			button.element.click();
+			await outputHandler();
 
 			assert.deepStrictEqual({
 				shownChannels,
 				localOutputCount,
-				rowClicks,
+				actions,
 			}, {
-				shownChannels: ['agent-host-output'],
+				shownChannels: [],
 				localOutputCount: 0,
-				rowClicks: 0,
+				actions: ['register-agent-host-output', 'close-editor', 'show-agent-host-output'],
 			});
 		});
 
-		test('local error opens local output when no agent-host output exists', () => {
+		test('local error opens local output when no agent-host output exists', async () => {
 			const shownChannels: string[] = [];
 			let localOutputCount = 0;
 			const outputHandler = getMcpServerOutputHandler(
@@ -236,7 +245,7 @@ suite('mcpListWidget', () => {
 				undefined,
 			);
 
-			outputHandler?.();
+			await outputHandler?.();
 
 			assert.deepStrictEqual({
 				shownChannels,

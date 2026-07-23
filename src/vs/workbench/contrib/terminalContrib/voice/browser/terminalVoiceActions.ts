@@ -14,6 +14,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { HasSpeechProvider, SpeechToTextInProgress } from '../../../speech/common/speechService.js';
+import { IChatSpeechToTextService } from '../../../chat/browser/speechToText/chatSpeechToTextService.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
 import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
@@ -38,7 +39,10 @@ export function registerTerminalVoiceActions() {
 			const dialogService = accessor.get(IDialogService);
 			const workbenchExtensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
 			const extensionManagementService = accessor.get(IExtensionManagementService);
-			if (HasSpeechProvider.getValue(contextKeyService)) {
+			const chatSpeechToTextService = accessor.get(IChatSpeechToTextService);
+			// Start dictation whenever an engine is available: the built-in
+			// on-device engine (preferred), or the speech extension's provider.
+			if (chatSpeechToTextService.isConfigured || HasSpeechProvider.getValue(contextKeyService)) {
 				const instantiationService = accessor.get(IInstantiationService);
 				TerminalVoiceSession.getInstance(instantiationService).start();
 				return;

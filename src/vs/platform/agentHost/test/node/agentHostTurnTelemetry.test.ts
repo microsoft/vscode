@@ -69,7 +69,9 @@ class CapturingTelemetryService implements ITelemetryService {
 		this.events.push({ eventName, data });
 	}
 	publicLogError(): void { }
-	publicLogError2(): void { }
+	publicLogError2(eventName: string, data?: unknown): void {
+		this.events.push({ eventName, data });
+	}
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
 }
@@ -93,7 +95,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	const sessionKey = sessionUri.toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
 
-	function setupSession(): void {
+	function setupSession(ready = true): void {
 		stateManager.createSession({
 			resource: sessionKey,
 			provider: 'mock',
@@ -102,7 +104,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 		});
-		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
+		if (ready) {
+			stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
+		}
 	}
 
 	function setAutoApprove(level: string): void {
@@ -143,6 +147,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	function completedEvents(): { eventName: string; data: unknown }[] {
 		return telemetry.events.filter(e => e.eventName === 'agentHost.turnCompleted');
+	}
+
+	function failedEvents(): { eventName: string; data: unknown }[] {
+		return telemetry.events.filter(e => e.eventName === 'agentHost.turnFailed');
 	}
 
 	setup(() => {
@@ -308,6 +316,44 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(events.length, 1);
 		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'error');
 		assert.strictEqual((events[0].data as Record<string, unknown>).errorType, 'sendFailed');
+		assert.deepStrictEqual(failedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return {
+				failureStage: data.failureStage,
+				errorType: data.errorType,
+				errorName: data.errorName,
+				msg: data.msg,
+				hasStack: typeof data.callstack === 'string',
+			};
+		}), [{
+			failureStage: 'sendMessage',
+			errorType: 'sendFailed',
+			errorName: 'Error',
+			msg: 'Error: boom',
+			hasStack: true,
+		}]);
+	});
+
+	test('fails the turn when model selection rejects instead of sending with a stale model', async () => {
+		setupSession(false);
+		agent.changeModel = async () => { throw new Error('unknown model'); };
+
+		startTurn('turn-1', 'hello', 'missing-model');
+		await new Promise(r => setTimeout(r, 10));
+
+		const completed = completedEvents()[0].data as Record<string, unknown>;
+		const failed = failedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			completed: { result: completed.result, errorType: completed.errorType, failureStage: completed.failureStage },
+			failed: { errorType: failed.errorType, failureStage: failed.failureStage, msg: failed.msg },
+			creationErrorType: stateManager.getSessionState(sessionKey)?.creationError?.errorType,
+			sendMessageCalls: agent.sendMessageCalls.length,
+		}, {
+			completed: { result: 'error', errorType: 'modelSelectionFailed', failureStage: 'modelSelection' },
+			failed: { errorType: 'modelSelectionFailed', failureStage: 'modelSelection', msg: 'Error: unknown model' },
+			creationErrorType: 'modelSelectionFailed',
+			sendMessageCalls: 0,
+		});
 	});
 
 	test('emits result=error when a queued sendMessage rejects', async () => {

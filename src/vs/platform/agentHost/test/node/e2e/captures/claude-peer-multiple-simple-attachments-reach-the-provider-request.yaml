@@ -1,0 +1,19 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: Reply exactly "attachments".
+            - type: text
+              text: |-
+                PEER_FIRST_ATTACHMENT
+
+                PEER_SECOND_ATTACHMENT
+    response:
+      content: attachments
+      stopReason: end_turn

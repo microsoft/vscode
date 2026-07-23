@@ -972,9 +972,11 @@ export class WorkspacePicker extends Disposable {
 		// Fall back to the first resolvable recent workspace from a connected provider.
 		// Fallbacks (vs. the user's explicit checked pick) require the provider
 		// to be ready: we don't want to silently land on, e.g., a disconnected
-		// remote workspace that the user never picked.
+		// remote workspace that the user never picked. Restrict to the sessions'
+		// own recent history (not VS Code's global recents) so restoration never
+		// seeds a new session from a folder merely opened in another window.
 		try {
-			for (const recent of this.recentWorkspacesService.getRecentWorkspaces()) {
+			for (const recent of this.recentWorkspacesService.getRecentWorkspaces(false)) {
 				if (this._isProviderUnavailable(recent.providerId)) {
 					continue;
 				}
@@ -996,7 +998,7 @@ export class WorkspacePicker extends Disposable {
 	 */
 	private _restoreCheckedWorkspace(): IResolvedFolderWorkspace | undefined {
 		try {
-			return this.recentWorkspacesService.getRecentWorkspaces().find(recent => recent.checked);
+			return this.recentWorkspacesService.getRecentWorkspaces(false).find(recent => recent.checked);
 		} catch {
 			return undefined;
 		}

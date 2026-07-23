@@ -223,6 +223,7 @@ export class CapiReplayProxy {
 	private readonly _replayBuckets = new Map<string, IReplayBucket>();
 	/** Exchanges captured during recording, in arrival order. */
 	private readonly _recorded: IRecordedExchange[] = [];
+	private readonly _observedModelRequestBodies: string[] = [];
 	private readonly _cacheMisses: string[] = [];
 	private _workingDirectory: string | undefined;
 
@@ -321,12 +322,17 @@ export class CapiReplayProxy {
 		this._fixturePath = fixturePath;
 		this._workingDirectory = undefined;
 		this._replayBuckets.clear();
+		this._observedModelRequestBodies.length = 0;
 		this._cacheMisses.length = 0;
 		this._loadFixture();
 	}
 
 	setWorkingDirectory(workingDirectory: string): void {
 		this._workingDirectory = workingDirectory;
+	}
+
+	get observedModelRequestBodies(): readonly string[] {
+		return this._observedModelRequestBodies;
 	}
 
 	/**
@@ -412,6 +418,9 @@ export class CapiReplayProxy {
 		}
 
 		const key = `${method} ${path}`;
+		if (MODEL_ENDPOINTS.has(path)) {
+			this._observedModelRequestBodies.push(this._normalize(body));
+		}
 		const bucket = this._replayBuckets.get(key);
 
 		let item: IReplayItem | undefined;
@@ -451,6 +460,9 @@ export class CapiReplayProxy {
 	private _record(req: http.IncomingMessage, body: string, res: http.ServerResponse): void {
 		const method = req.method ?? 'GET';
 		const path = new URL(req.url ?? '/', 'http://localhost').pathname;
+		if (MODEL_ENDPOINTS.has(path)) {
+			this._observedModelRequestBodies.push(this._normalize(body));
+		}
 		const upstreamBase = this._upstreamFor(path);
 		const upstream = new URL(req.url ?? '/', upstreamBase);
 		const isHttps = upstream.protocol === 'https:';

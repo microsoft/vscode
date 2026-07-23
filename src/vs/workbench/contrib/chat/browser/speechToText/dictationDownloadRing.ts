@@ -86,3 +86,18 @@ export function getDictationDownloadHoverContent(): IManagedHoverContent {
 	markdown.appendMarkdown(localize('chatStt.hover.preparing', "Preparing the on-device model. This happens only the first time you dictate."));
 	return { markdown, markdownNotSupportedFallback: markdown.value };
 }
+
+/**
+ * A short, live label describing the on-device model's preparation state, for
+ * surfaces without a progress ring (editor placeholder, terminal decoration).
+ * Reads out the download percentage when known, otherwise a generic preparing
+ * message (indeterminate download or loading into memory).
+ */
+export function getDictationPreparingLabel(service: IChatSpeechToTextService): string {
+	const progress = service.modelDownloadProgress;
+	if (typeof progress === 'number') {
+		const percent = Math.max(0, Math.min(100, Math.round(progress * 100)));
+		return localize('chatStt.preparing.downloading', "Downloading speech-to-text model… {0}%", percent);
+	}
+	return localize('chatStt.preparing.preparing', "Preparing speech-to-text model…");
+}

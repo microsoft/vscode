@@ -455,7 +455,7 @@ suite('SessionModelSelectionModel', () => {
 		}, {
 			beforeResolve: {
 				current: undefined,
-				pending: { source: 'desired', reference: second.identifier },
+				pending: { reference: second.identifier },
 				stored: second.identifier,
 				writes: [],
 				desiredModelIds: [undefined, second.identifier],

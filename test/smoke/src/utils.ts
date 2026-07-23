@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { execFileSync } from 'child_process';
+import * as sqlite3 from '@vscode/sqlite3';
 import * as fs from 'fs';
 import { Suite, Context } from 'mocha';
 import { dirname, join } from 'path';
@@ -136,24 +136,25 @@ export function createApp(options: ApplicationOptions, optionsTransform?: (opts:
  * installed") and surfaces a "try again" dialog before the retry recovers.
  *
  * Mirrors the perf:chat harness (`scripts/chat-simulation/common/utils.js`).
- * Requires the `sqlite3` CLI on PATH; best-effort, so a missing CLI just falls
- * back to the (working) retry path.
  */
-export function preseedChatExtensionEnablement(userDataDir: string | undefined): void {
+export async function preseedChatExtensionEnablement(userDataDir: string | undefined): Promise<void> {
 	if (!userDataDir) {
 		return;
 	}
+
+	const globalStorageDir = join(userDataDir, 'User', 'globalStorage');
+	fs.mkdirSync(globalStorageDir, { recursive: true });
+	const dbPath = join(globalStorageDir, 'state.vscdb');
+	const database = await new Promise<sqlite3.Database>((resolve, reject) => {
+		const instance = new sqlite3.Database(dbPath, error => error ? reject(error) : resolve(instance));
+	});
 	try {
-		const globalStorageDir = join(userDataDir, 'User', 'globalStorage');
-		fs.mkdirSync(globalStorageDir, { recursive: true });
-		const dbPath = join(globalStorageDir, 'state.vscdb');
-		const sql = [
+		await new Promise<void>((resolve, reject) => database.exec([
 			'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB);',
 			'INSERT INTO ItemTable (key, value) VALUES (\'builtinChatExtensionEnablementMigration\', \'true\');',
-		].join(' ');
-		execFileSync('sqlite3', [dbPath, sql]);
-	} catch {
-		// best-effort: a missing `sqlite3` CLI just falls back to the retry path
+		].join(' '), error => error ? reject(error) : resolve()));
+	} finally {
+		await new Promise<void>((resolve, reject) => database.close(error => error ? reject(error) : resolve()));
 	}
 }
 

@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSession } from '../../common/agentService.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart } from '../../common/state/sessionState.js';
-import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
+import { appendSdkToolResultContent, mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
 suite('mapSessionEvents — history replay', () => {
@@ -234,7 +233,13 @@ suite('mapSessionEvents — history replay', () => {
 		if (part.toolCall.status !== ToolCallStatus.Completed) { return; }
 		assert.deepStrictEqual(part.toolCall.content, [
 			{ type: ToolResultContentType.Text, text: 'hi\n' },
-			{ type: ToolResultContentType.TerminalComplete, exitCode: 0, cwd: URI.file('/repo').toString(), preview: 'hi\n' },
+			{
+				type: ToolResultContentType.Terminal,
+				resource: 'agenthost-terminal://shell/test-session/tc-1',
+				title: 'Run Shell Command',
+				isPty: false,
+				result: { exitCode: 0, preview: 'hi\n' },
+			},
 		]);
 	});
 
@@ -263,8 +268,13 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(part.toolCall.status, ToolCallStatus.Completed);
 		if (part.toolCall.status !== ToolCallStatus.Completed) { return; }
 		assert.strictEqual(part.toolCall.success, true);
-		assert.ok(part.toolCall.content?.some(content => content.type === ToolResultContentType.TerminalComplete && content.exitCode === 127));
-		assert.ok(!part.toolCall.content?.some(content => content.type === ToolResultContentType.Terminal));
+		assert.deepStrictEqual(part.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal), {
+			type: ToolResultContentType.Terminal,
+			resource: 'agenthost-terminal://shell/test-session/tc-1',
+			title: 'Run Shell Command',
+			isPty: false,
+			result: { exitCode: 127 },
+		});
 	});
 
 	test('restores best-effort model, fallback agent, and attachments onto user messages', async () => {
@@ -722,5 +732,30 @@ suite('mapSessionEvents — subagent routing', () => {
 				{ kind: ResponsePartKind.Markdown, content: 'Late partial result.' },
 			],
 		});
+	});
+});
+
+suite('appendSdkToolResultContent', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('folds shell_exit into an existing terminal block instead of adding a second one', () => {
+		const content: ToolResultContent[] = [
+			{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/abc', title: 'Bash' },
+		];
+
+		const result = appendSdkToolResultContent(content, [
+			{ type: 'shell_exit', shellId: '0', exitCode: 2, outputPreview: 'boom\n', outputTruncated: false },
+		], { session: AgentSession.uri('copilot', 'test-session'), toolCallId: 'tc-1', title: 'Run Shell Command' });
+
+		assert.deepStrictEqual(result, { shellId: '0', result: { exitCode: 2, preview: 'boom\n', truncated: false } });
+		assert.deepStrictEqual(content, [
+			{
+				type: ToolResultContentType.Terminal,
+				resource: 'agenthost-terminal://shell/abc',
+				title: 'Bash',
+				result: { exitCode: 2, preview: 'boom\n', truncated: false },
+			},
+		]);
 	});
 });

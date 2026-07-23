@@ -9,8 +9,10 @@ import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.j
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { AGENT_PLUGIN_SCHEMA } from '../../../../../../platform/agentPlugins/common/agentPluginParser.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService, IFileSystemWatcher } from '../../../../../../platform/files/common/files.js';
@@ -409,6 +411,85 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 		assert.ok(requestUrls.length > 0);
 		assert.ok(requestUrls.every(url => url.includes('/marketplace/')));
 		assert.ok(requestUrls.every(url => !url.includes('/main/')));
+	});
+});
+
+suite('PluginMarketplaceService - Agent Plugin direct install probes', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class ProbeFileService {
+		readonly files = new Map<string, string>();
+
+		async exists(resource: URI): Promise<boolean> {
+			return this.files.has(resource.toString());
+		}
+
+		async readFile(resource: URI): Promise<{ value: VSBuffer }> {
+			const value = this.files.get(resource.toString());
+			if (value === undefined) {
+				throw new Error(`Missing file: ${resource.toString()}`);
+			}
+			return { value: VSBuffer.fromString(value) };
+		}
+
+		createWatcher(): IFileSystemWatcher {
+			return { onDidChange: Event.None, dispose: () => { } };
+		}
+	}
+
+	function createService(fileService: ProbeFileService): PluginMarketplaceService {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: [],
+			[ChatConfiguration.PluginsEnabled]: true,
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+		instantiationService.stub(IFileService, fileService as unknown as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, { agentPluginsHome: URI.file('/agent-plugins') } as unknown as IAgentPluginRepositoryService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+		instantiationService.stub(IExtensionsWorkbenchService, {
+			getAutoUpdateValue: () => 'off',
+		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
+		return store.add(instantiationService.createInstance(PluginMarketplaceService));
+	}
+
+	function seedCompatibleManifest(fileService: ProbeFileService, repoDir: URI): void {
+		fileService.files.set(joinPath(repoDir, 'plugin.json').toString(), JSON.stringify({
+			$schema: AGENT_PLUGIN_SCHEMA.replace('/1.0.0/', '/1.0.1/'),
+			name: 'compatible-plugin',
+		}));
+	}
+
+	test('reads a Git direct-source manifest with a compatible schema revision', async () => {
+		const fileService = new ProbeFileService();
+		const repoDir = URI.file('/repos/compatible');
+		seedCompatibleManifest(fileService, repoDir);
+		const service = createService(fileService);
+
+		const result = await service.readSinglePluginManifest(repoDir, parseMarketplaceReference('owner/compatible')!);
+
+		assert.strictEqual(result?.name, 'compatible-plugin');
+	});
+
+	test('recognizes a local directory with a compatible schema revision', async () => {
+		const fileService = new ProbeFileService();
+		const repoDir = URI.file('/plugins/compatible');
+		seedCompatibleManifest(fileService, repoDir);
+		const service = createService(fileService);
+
+		const result = await service.isPluginDirectory(repoDir);
+
+		assert.strictEqual(result, true);
 	});
 });
 

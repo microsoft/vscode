@@ -22,6 +22,7 @@ import { ISessionFileChange, SessionStatus } from '../../../../services/sessions
 import { SinglePaneChangesTabMissingContext, HasDockedDetailsContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
+import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IEditorWillOpenEvent, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
@@ -2243,6 +2244,22 @@ suite('LayoutController (desktop)', () => {
 		harness.setPartHiddenCalls = [];
 
 		openEditor(Object.create(FileEditorInput.prototype) as FileEditorInput);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), [true]);
+	});
+
+	test('[Scenario 8] hides the sessions list when a single-file diff is opened in a created session with the editor closed', async () => {
+		createSinglePaneController({ mainContainerWidth: 800 });
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		await timeout(0);
+		harness.setPartHiddenCalls = [];
+
+		const diffEditor = Object.create(DiffEditorInput.prototype) as DiffEditorInput;
+		Object.defineProperty(diffEditor, 'original', { value: Object.create(FileEditorInput.prototype) });
+		Object.defineProperty(diffEditor, 'modified', { value: Object.create(FileEditorInput.prototype) });
+		openEditor(diffEditor);
 
 		assert.deepStrictEqual(sidebarHiddenCalls(), [true]);
 	});

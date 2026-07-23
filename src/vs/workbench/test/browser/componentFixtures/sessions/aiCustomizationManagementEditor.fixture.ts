@@ -22,6 +22,7 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
@@ -1055,6 +1056,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 function makeInstalledPlugin(name: string, uri: URI, enabled: boolean): IAgentPlugin {
 	return new class extends mock<IAgentPlugin>() {
 		override readonly uri = uri;
+		override readonly format = PluginFormat.Copilot;
 		override readonly label = name;
 		override readonly enablement = constObservable(enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile);
 		override readonly hooks = constObservable([]);

@@ -955,22 +955,26 @@ export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<I
 export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSessionListItem> {
 
 	static readonly ITEM_HEIGHT = 54;
+	static readonly COMPACT_ITEM_HEIGHT = 52;
 	static readonly SECTION_HEIGHT = 26;
+	static readonly SPACED_SECTION_HEIGHT = 30;
 
 	constructor(private readonly _approvalModel?: AgentSessionApprovalModel,
 		private readonly _compactShowMore?: boolean,
+		private readonly _getItemHeight: () => number = () => AgentSessionsListDelegate.ITEM_HEIGHT,
+		private readonly _getSectionHeight: () => number = () => AgentSessionsListDelegate.SECTION_HEIGHT,
 	) { }
 
 	getHeight(element: AgentSessionListItem): number {
 		if (isAgentSessionSection(element)) {
-			return AgentSessionsListDelegate.SECTION_HEIGHT;
+			return this._getSectionHeight();
 		}
 
 		if (isAgentSessionShowMore(element) || isAgentSessionShowLess(element)) {
 			return this._compactShowMore ? AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT : AgentSessionShowMoreRenderer.HEIGHT;
 		}
 
-		let height = AgentSessionsListDelegate.ITEM_HEIGHT;
+		let height = this._getItemHeight();
 		const approval = this._approvalModel?.getApproval(element.resource).get();
 		if (approval) {
 			height += AgentSessionRenderer.getApprovalRowHeight(approval.label);

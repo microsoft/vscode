@@ -40,12 +40,12 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
 
 		const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
-		await context.client.call('createSession', { channel: sessionUri, provider: config.provider, workingDirectory: workingDirUri }, 30_000);
+		await context.client.call('createSession', { channel: sessionUri, provider: config.provider, workingDirectories: [workingDirUri] }, 30_000);
 		createdSessions.push(sessionUri);
 
 		const subscribeResult = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri }, 30_000);
 		const sessionState = subscribeResult.snapshot!.state as SessionState;
-		assert.strictEqual(sessionState.workingDirectory, workingDirUri,
+		assert.strictEqual(sessionState.workingDirectories?.[0], workingDirUri,
 			`subscribe snapshot summary should carry the requested working directory`);
 	});
 
@@ -86,7 +86,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 
 		const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
 		await context.client.call('createSession', {
-			channel: sessionUri, provider: config.provider, workingDirectory: workingDirUri,
+			channel: sessionUri, provider: config.provider, workingDirectories: [workingDirUri],
 			config: { isolation: 'worktree', branch: defaultBranch },
 		});
 		createdSessions.push(sessionUri);
@@ -124,10 +124,11 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 		);
 		const addedSummary = (addedNotif.params as SessionAddedParams).summary;
 
-		assert.ok(addedSummary.workingDirectory, 'sessionAdded notification should have a workingDirectory');
-		assert.ok(addedSummary.workingDirectory!.includes('.worktrees'),
-			`workingDirectory should be under the .worktrees folder, got: ${addedSummary.workingDirectory}`);
-		const resolvedWorkingDirectoryPath = URI.parse(addedSummary.workingDirectory!).fsPath;
+		const addedWorkingDirectory = addedSummary.workingDirectories?.[0];
+		assert.ok(addedWorkingDirectory, 'sessionAdded notification should have a workingDirectory');
+		assert.ok(addedWorkingDirectory.includes('.worktrees'),
+			`workingDirectory should be under the .worktrees folder, got: ${addedWorkingDirectory}`);
+		const resolvedWorkingDirectoryPath = URI.parse(addedWorkingDirectory).fsPath;
 
 		await context.client.waitForNotification(
 			n => isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'),

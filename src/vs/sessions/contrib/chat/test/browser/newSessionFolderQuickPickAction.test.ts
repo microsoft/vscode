@@ -51,14 +51,15 @@ suite('New Session Folder Quick Pick', () => {
 		const vsCodeRecentUri = URI.file('/repo-b');
 
 		const recentWorkspacesService = createRecentWorkspacesService([
-			createResolvedRecent(ownRecentUri),
-			createResolvedRecent(vsCodeRecentUri),
+			createResolvedRecent(ownRecentUri, 'provider-a'),
+			createResolvedRecent(vsCodeRecentUri, 'provider-b'),
 		]);
 
 		const items = buildFolderQuickPickItems(recentWorkspacesService, labelService);
 
 		const folderItems = items.filter((i): i is IFolderQuickPickItem => !isSeparator(i) && !i.browse);
 		assert.deepStrictEqual(folderItems.map(i => i.folderUri?.toString()), [ownRecentUri.toString(), vsCodeRecentUri.toString()]);
+		assert.deepStrictEqual(folderItems.map(i => i.providerId), ['provider-a', 'provider-b'], 'each item carries its recent entry\'s provider ID');
 
 		const separators = items.filter(isSeparator);
 		assert.strictEqual(separators.length, 2);

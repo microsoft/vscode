@@ -188,6 +188,38 @@ suite('Modal Editor Group', () => {
 		await modalPart1.close();
 	});
 
+	test('createModalEditorPart is race-proof: concurrent creation returns same singleton instance', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		let addGroupCount = 0;
+		disposables.add(parts.onDidAddGroup(() => {
+			addGroupCount++;
+		}));
+
+		// Fire multiple concurrent creation requests before any of them has a
+		// chance to resolve and assign the singleton instance
+		const [modalPart1, modalPart2, modalPart3] = await Promise.all([
+			parts.createModalEditorPart(),
+			parts.createModalEditorPart(),
+			parts.createModalEditorPart()
+		]);
+
+		// All concurrent calls must resolve to the exact same singleton instance/group
+		assert.strictEqual(modalPart1, modalPart2);
+		assert.strictEqual(modalPart2, modalPart3);
+		assert.strictEqual(modalPart1.activeGroup.id, modalPart2.activeGroup.id);
+		assert.strictEqual(modalPart1.activeGroup.id, modalPart3.activeGroup.id);
+
+		// Only a single group/registration event should have fired for the singleton,
+		// proving only one modal part was ever created despite the concurrent calls
+		assert.strictEqual(addGroupCount, 1);
+
+		await modalPart1.close();
+	});
+
 	test('modal editor part singleton is reset after close', async () => {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));

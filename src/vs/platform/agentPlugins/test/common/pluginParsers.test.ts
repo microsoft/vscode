@@ -4,8 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { FileSystemProviderCapabilities } from '../../../files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../agentHost/common/state/protocol/state.js';
 import { DEFAULT_MCP_APP } from '../../../agentHost/common/state/protocol/mcpAppDefaults.js';
@@ -26,7 +33,10 @@ import {
 	convertBareEnvVarsToVsCodeSyntax,
 	toParsedAgent,
 	toParsedSkill,
+	parsePlugin,
+	PluginFormat,
 } from '../../common/pluginParsers.js';
+import { AGENT_PLUGIN_MCP_SCHEMA, AGENT_PLUGIN_SCHEMA } from '../../common/agentPluginParser.js';
 
 suite('pluginParsers', () => {
 
@@ -409,6 +419,120 @@ suite('pluginParsers', () => {
 				enabled: true,
 				state: { kind: McpServerStatus.Stopped },
 				mcpApp: DEFAULT_MCP_APP,
+			});
+		});
+
+		suite('Agent Plugin', () => {
+			const store = new DisposableStore();
+			let fileService: FileService;
+
+			setup(() => {
+				fileService = store.add(new FileService(new NullLogService()));
+				store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+			});
+
+			teardown(() => store.clear());
+
+			async function write(path: string, contents: string): Promise<void> {
+				await fileService.writeFile(URI.from({ scheme: Schemas.inMemory, path }), VSBuffer.fromString(contents));
+			}
+
+			async function parse(path = '/plugins/example') {
+				const root = URI.from({ scheme: Schemas.inMemory, path });
+				return parsePlugin(root, fileService, undefined, URI.from({ scheme: Schemas.inMemory, path: '/home' }), root);
+			}
+
+			test('recognizes the Agent Plugin schema and gives it precedence over legacy metadata', async () => {
+				await write('/plugins/example/plugin.json', JSON.stringify({
+					$schema: AGENT_PLUGIN_SCHEMA.replace('/1.0.0/', '/1.0.1/'),
+					name: 'agent-plugin',
+					description: 42,
+					unknown: true,
+					extensions: 'ignored',
+				}));
+				await write('/plugins/example/.plugin/plugin.json', JSON.stringify({ name: 'legacy-plugin', commands: './commands' }));
+				await write('/plugins/example/commands/legacy.md', '# Legacy');
+				await write('/plugins/example/skills/good/SKILL.md', '---\nname: good\ndescription: A valid skill\n---\nUse it.');
+				await write('/plugins/example/SKILL.md', '---\nname: example\ndescription: Root fallback\n---');
+
+				const plugin = await parse();
+				assert.deepStrictEqual({
+					format: plugin.format,
+					skills: plugin.skills.map(skill => skill.name),
+					agents: plugin.agents.length,
+					hooks: plugin.hooks.length,
+					instructions: plugin.instructions.length,
+				}, {
+					format: PluginFormat.AgentPlugin,
+					skills: ['good'],
+					agents: 0,
+					hooks: 0,
+					instructions: 0,
+				});
+			});
+
+			test('reads usable immediate-child skills permissively', async () => {
+				await write('/plugins/example/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA, name: 'example' }));
+				await write('/plugins/example/skills/SKILL.md', '---\nname: ignored\ndescription: Not an immediate child\n---');
+				await write('/plugins/example/skills/valid/SKILL.md', '---\nname: valid\ndescription: Valid skill\n---');
+				await write('/plugins/example/skills/mismatch/SKILL.md', '---\nname: other\ndescription: Wrong directory\n---');
+				await write('/plugins/example/skills/nested/deeper/SKILL.md', '---\nname: deeper\ndescription: Too deep\n---');
+
+				assert.deepStrictEqual((await parse()).skills.map(skill => skill.name), ['other', 'valid']);
+			});
+
+			test('reads known MCP fields and leaves harness placeholders unresolved', async () => {
+				await write('/plugins/example/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA, name: 'example' }));
+				await write('/plugins/example/mcp.json', JSON.stringify({
+					$schema: AGENT_PLUGIN_MCP_SCHEMA.replace('/1.0.0/', '/1.0.1/'),
+					mcpServers: {
+						stdio: {
+							type: 'stdio',
+							command: 'server',
+							args: ['${PLUGIN_ROOT}', '${PLUGIN_DATA}', '${UNKNOWN}'],
+							env: { ROOT: '${PLUGIN_ROOT}' },
+							cwd: './work',
+						},
+						http: { type: 'streamable-http', url: 'https://example.com/mcp' },
+						sse: { type: 'sse', url: 'http://127.0.0.2:3000/sse' },
+					},
+				}));
+
+				const servers = new Map((await parse()).mcpServers.map(server => [server.name, server.configuration]));
+				assert.deepStrictEqual([...servers.keys()], ['http', 'sse', 'stdio']);
+				assert.strictEqual(servers.get('http')?.type, McpServerType.REMOTE);
+				assert.strictEqual(servers.get('sse')?.type, McpServerType.REMOTE);
+				const stdio = servers.get('stdio');
+				assert.ok(stdio?.type === McpServerType.LOCAL);
+				assert.deepStrictEqual({
+					command: stdio.command,
+					args: stdio.args,
+					env: stdio.env,
+					cwd: stdio.cwd,
+				}, {
+					command: 'server',
+					args: ['${PLUGIN_ROOT}', '${PLUGIN_DATA}', '${UNKNOWN}'],
+					env: { ROOT: '${PLUGIN_ROOT}' },
+					cwd: './work',
+				});
+			});
+
+			test('rejects filesystem-resolved skill escapes', async () => {
+				class RealpathProvider extends InMemoryFileSystemProvider {
+					override get capabilities(): FileSystemProviderCapabilities {
+						return super.capabilities | FileSystemProviderCapabilities.FileRealpath;
+					}
+					async realpath(resource: URI): Promise<string> {
+						return resource.path.endsWith('/skills/escape/SKILL.md') ? '/outside/SKILL.md' : resource.path;
+					}
+				}
+
+				fileService = store.add(new FileService(new NullLogService()));
+				store.add(fileService.registerProvider(Schemas.inMemory, store.add(new RealpathProvider())));
+				await write('/plugins/example/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA, name: 'example' }));
+				await write('/plugins/example/skills/escape/SKILL.md', '---\nname: escape\ndescription: Escaped\n---');
+
+				assert.deepStrictEqual((await parse()).skills, []);
 			});
 		});
 

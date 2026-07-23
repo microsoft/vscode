@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -81,6 +82,7 @@ function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; mcpS
 	const { label = 'Plugin', enabled = true, mcpServers = 0 } = options;
 	return {
 		uri,
+		format: PluginFormat.Copilot,
 		label,
 		enablement: observableValue('enablement', enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile),
 		mcpServerDefinitions: observableValue('mcpServers', new Array(mcpServers).fill({})),

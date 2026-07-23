@@ -8,7 +8,7 @@ Agent plugins are a modular extension system that allows external packages of pr
 | File | Role |
 |------|------|
 | `agentPluginService.ts` | Core interfaces (`IAgentPlugin`, `IAgentPluginService`, `IAgentPluginDiscovery`) and the discovery registry singleton |
-| `agentPluginServiceImpl.ts` | `AgentPluginService` implementation, `AbstractAgentPluginDiscovery` base class, format adapters (Copilot / Claude / Open Plugin) |
+| `agentPluginServiceImpl.ts` | `AgentPluginService` implementation, `AbstractAgentPluginDiscovery` base class, and workbench projections for all plugin formats |
 | `agentPluginEnablement.ts` | Plugin collision enablement, canonical plugin identity, and enterprise-policy identity helpers |
 | `agentPluginRepositoryService.ts` | `IAgentPluginRepositoryService` — abstract repository clone/pull/cache operations |
 | `pluginMarketplaceService.ts` | `IPluginMarketplaceService` — marketplace metadata, installed-plugin storage, trusted-marketplace tracking, periodic update checks |
@@ -72,7 +72,7 @@ Discoveries are registered into the global `agentPluginDiscoveryRegistry` single
 
 Shared base class that handles:
 
-1. **Format detection** — auto-detects whether a plugin uses the Copilot, Claude, or Open Plugin format based on path conventions and manifest existence.
+1. **Format detection** — recognizes strict Agent Plugins v1 by its root schema, then falls back to the Copilot, Claude, and Open Plugin path conventions.
 2. **Content reading** — reads commands, skills, agents, hooks, and MCP server definitions from the filesystem.
 3. **File watching** — watches plugin directories for changes and re-reads contents on a 200 ms debounced scheduler.
 4. **Observable propagation** — sets the `plugins` observable on each refresh cycle.
@@ -89,26 +89,29 @@ Subclasses implement `_discoverPluginSources()` to determine *which* plugin URIs
 
 ### Plugin Formats
 
-Three format adapters implement `IAgentPluginFormatAdapter`:
+Four format adapters share the discovery surface:
 
-| | Copilot | Claude | Open Plugin |
-|-|---------|--------|-------------|
-| Manifest | `plugin.json` | `.claude-plugin/plugin.json` | `.plugin/plugin.json` |
-| Hooks config | `hooks.json` | `hooks/hooks.json` | `hooks/hooks.json` |
-| Hook parser | `parseCopilotHooks()` | `parseClaudeHooks()` | `parseClaudeHooks()` |
-| Special handling | — | `${CLAUDE_PLUGIN_ROOT}` token replacement, `CLAUDE_PLUGIN_ROOT` env var injection | `${PLUGIN_ROOT}` token replacement, `PLUGIN_ROOT` env var injection |
+| | Agent Plugins v1 | Copilot | Claude | Open Plugin |
+|-|------------------|---------|--------|-------------|
+| Manifest | `plugin.json` with the exact Agent Plugins v1 schema | `plugin.json` | `.claude-plugin/plugin.json` | `.plugin/plugin.json` |
+| Portable components | `skills/*/SKILL.md`, `mcp.json` | Host-specific components | Host-specific components | Open Plugin components |
+| Hooks config | None | `hooks.json` | `hooks/hooks.json` | `hooks/hooks.json` |
+| Special handling | Compatible schema recognition, fixed paths, and package containment | Legacy permissive behavior | `${CLAUDE_PLUGIN_ROOT}` token replacement | `${PLUGIN_ROOT}` token replacement |
 
-Auto-detection logic: if a `.plugin/plugin.json` manifest exists, the Open Plugin adapter is used; if the plugin URI path contains `.claude` or a `.claude-plugin/plugin.json` manifest exists, the Claude adapter is used; otherwise, the Copilot adapter is used.
+Auto-detection first reads root `plugin.json`. The Agent adapter is selected when `$schema` uses the `agent-plugins.org` plugin schema namespace. Compatible schema revisions are accepted and known usable fields are read without rejecting unknown or malformed optional metadata. An Agent manifest wins over coexisting legacy metadata. Otherwise `.plugin/plugin.json` selects Open Plugin, a Claude path or manifest selects Claude, and the remaining packages use the Copilot adapter.
+
+Agent Plugins use the shared plugin discovery pipeline and permissive component readers with format-specific fixed paths. Discovery scans only immediate skill children and root `mcp.json`, keeps usable known fields, normalizes remote servers to the existing MCP configuration consumed by transport auto-detection, and never interprets legacy inline fields or custom component paths. Unknown or malformed optional metadata is ignored.
 
 ### Plugin Contents (Filesystem Layout)
 
 ```
 <plugin-root>/
-├── plugin.json                                    # Copilot manifest
+├── plugin.json                                    # Agent Plugins v1 or Copilot manifest
 ├── .claude-plugin/plugin.json                     # Claude manifest
 ├── .plugin/plugin.json                            # Open Plugin manifest
 ├── hooks.json   OR  hooks/hooks.json              # hook definitions
-├── .mcp.json                                      # MCP server definitions (optional)
+├── mcp.json                                       # Agent Plugins v1 MCP definitions
+├── .mcp.json                                      # Legacy MCP server definitions
 ├── commands/
 │   ├── do-thing.md                                # → IAgentPluginCommand
 │   └── other.md
@@ -195,15 +198,19 @@ The entire system is built on `IObservable`:
 ## Integration Points
 
 - **Chat prompts** — plugin hooks are contributed to the prompt system via the hook infrastructure.
-- **MCP servers** — plugins can define MCP server configurations (stdio or SSE) that are registered with the MCP platform.
+- **MCP servers** — plugins can define stdio and remote MCP servers. Agent Plugins v1 validates Streamable HTTP and legacy SSE declarations before passing remote servers to the existing MCP transport auto-detection.
 - **AI Customization UI** — the AI customization views aggregate plugin stats alongside MCP servers, prompts, and other customization surfaces.
 - **Extension API** — the plugin system is internal; there is no public `vscode` API surface for third-party access.
 
 ## Key Design Patterns
 
-- **Strategy pattern** — format adapters (`IAgentPluginFormatAdapter`) and source strategies (`IPluginSource`) allow the system to support multiple plugin formats and installation mechanisms without coupling.
+- **Strategy pattern** — the separate strict Agent Plugin and permissive legacy adapters, plus source strategies (`IPluginSource`), keep portable validation isolated from backward-compatible host behavior.
 - **Discovery registry** — `agentPluginDiscoveryRegistry` decouples discovery implementations from the core service via priority-ordered `SyncDescriptor0<IAgentPluginDiscovery>` registration.
 - **Disposable management** — plugin entries are tracked in a `Map` keyed by URI string, each with its own `DisposableStore` for file watchers. Removal or format changes dispose the store.
 - **Debounced refresh** — filesystem changes trigger a 200 ms `RunOnceScheduler` to batch rapid edits into a single re-read.
 - **Collision enablement** — multiple discoveries may produce equivalent plugins from different install roots; the service groups them by canonical identity so only the highest-priority copy is enabled by default, while enabling any copy disables the other copies in the same group.
 - **Lazy instantiation** — the service is registered as `InstantiationType.Delayed` and only created on first injection.
+
+Synthetic `.plugin/plugin.json` plus `.mcp.json` bundles created by customization synchronization remain legacy Open Plugin packages. Root Agent Plugin recognition is also used for direct standalone installs, but `MarketplaceType.OpenPlugin` and the existing marketplace protocol remain unchanged because Agent Plugins v1 defines no marketplace format.
+
+Provider adapters do not delegate strict packages to legacy SDK plugin discovery. Copilot explicitly receives skills and MCP, Codex explicitly receives skills and MCP, and Claude explicitly receives remote MCP. Remote MCP transport selection remains the responsibility of each provider's existing auto-detection. The Claude SDK currently has no external skill-directory API or per-server stdio working-directory option, so strict Claude skills and stdio MCP are skipped rather than reinterpreted.

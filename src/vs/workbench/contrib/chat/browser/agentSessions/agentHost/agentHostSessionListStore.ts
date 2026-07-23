@@ -251,7 +251,7 @@ export class AgentHostSessionListStore extends Disposable {
 
 	private _onNotification(notification: INotification): void {
 		if (notification.type === 'root/sessionAdded') {
-			if (!this._isWorkingDirectoryInWorkspace(notification.summary.workingDirectory)) {
+			if (!this._isWorkingDirectoryInWorkspace(notification.summary.workingDirectories?.[0])) {
 				return;
 			}
 			const entry = this._makeEntryFromSummary(notification.summary);
@@ -284,7 +284,7 @@ export class AgentHostSessionListStore extends Disposable {
 			}
 
 			const updatedSummary = { ...cached.summary, ...notification.changes };
-			if (!this._isWorkingDirectoryInWorkspace(updatedSummary.workingDirectory)) {
+			if (!this._isWorkingDirectoryInWorkspace(updatedSummary.workingDirectories?.[0])) {
 				this.removeSession(provider, rawId);
 				return;
 			}
@@ -323,7 +323,7 @@ export class AgentHostSessionListStore extends Disposable {
 				createdAt: new Date(session.startTime).toISOString(),
 				modifiedAt: new Date(session.modifiedTime).toISOString(),
 				changes: session.changes,
-				workingDirectory: session.workingDirectory?.toString(),
+				workingDirectories: session.workingDirectory ? [session.workingDirectory.toString()] : undefined,
 			},
 		};
 	}

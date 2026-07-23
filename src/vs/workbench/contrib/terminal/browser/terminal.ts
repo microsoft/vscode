@@ -130,6 +130,13 @@ export interface IChatTerminalToolProgressPart {
 	getCommandAndOutputAsText(): string | undefined;
 }
 
+/** A read-only output stream rendered by chat without a workbench terminal instance. */
+export interface IChatTerminalOutputSource {
+	readonly onDidChange: Event<void>;
+	readonly output: string;
+	readonly exitCode: number | undefined;
+}
+
 export interface ITerminalChatService {
 	readonly _serviceBrand: undefined;
 
@@ -138,6 +145,7 @@ export interface ITerminalChatService {
 	 * the chat UI first renders, enabling late binding of the focus action.
 	 */
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance>;
+	readonly onDidRegisterOutputSource: Event<string>;
 
 	/**
 	 * Associate a tool session id with a terminal instance. The association is automatically
@@ -200,6 +208,9 @@ export interface ITerminalChatService {
 	 * @returns True if the terminal is a background terminal, false otherwise
 	 */
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
+
+	registerOutputSource(terminalToolSessionId: string, source: IChatTerminalOutputSource): IDisposable;
+	getOutputSource(terminalToolSessionId: string | undefined): IChatTerminalOutputSource | undefined;
 
 	/**
 	 * Register a chat terminal tool progress part for tracking and focus management.

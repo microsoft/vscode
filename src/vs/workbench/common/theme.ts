@@ -5,6 +5,7 @@
 
 import { localize } from '../../nls.js';
 import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionBackground, editorForeground, toolbarHoverBackground, inputBorder, widgetBorder, scrollbarShadow } from '../../platform/theme/common/colorRegistry.js';
+import { foreground } from '../../platform/theme/common/colors/baseColors.js';
 import { IColorTheme } from '../../platform/theme/common/themeService.js';
 import { Color } from '../../base/common/color.js';
 import { ColorScheme } from '../../platform/theme/common/theme.js';
@@ -657,6 +658,29 @@ export const SIDE_BAR_STICKY_SCROLL_BACKGROUND = registerColor('sideBarStickyScr
 export const SIDE_BAR_STICKY_SCROLL_BORDER = registerColor('sideBarStickyScroll.border', null, localize('sideBarStickyScrollBorder', "Border color of sticky scroll in the side bar."));
 
 export const SIDE_BAR_STICKY_SCROLL_SHADOW = registerColor('sideBarStickyScroll.shadow', scrollbarShadow, localize('sideBarStickyScrollShadow', "Shadow color of sticky scroll in the side bar."));
+
+// < --- Surface --- >
+
+// Generic framed container surfaces ("cards"). Used by the modern workbench
+// layout to frame the floating parts (side bar, panel, auxiliary bar, editor).
+// Defaults mirror the agent sessions window's panel treatment so the look is
+// shared, but themes can target these tokens independently.
+
+export const SURFACE_BACKGROUND = registerColor('surface.background', {
+	dark: SIDE_BAR_BACKGROUND,
+	light: editorBackground,
+	hcDark: SIDE_BAR_BACKGROUND,
+	hcLight: SIDE_BAR_BACKGROUND
+}, localize('surfaceBackground', "Background color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
+
+export const SURFACE_FOREGROUND = registerColor('surface.foreground', SIDE_BAR_FOREGROUND, localize('surfaceForeground', "Foreground color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
+
+export const SURFACE_BORDER = registerColor('surface.border', {
+	dark: transparent(foreground, 0.15),
+	light: transparent(foreground, 0.15),
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('surfaceBorder', "Border color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
 
 // < --- Title Bar --- >
 

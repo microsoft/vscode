@@ -169,11 +169,34 @@ export class PromptTimelineModel extends Disposable {
 	});
 	get ticks(): IObservable<readonly PromptTick[]> { return this._ticks; }
 
+	/**
+	 * One tick per user prompt — unbucketed and uncapped, decorated with per-prompt diff stats. The
+	 * dock rail lists every prompt as its own entry (no recency bucketing/sampling), so it needs the
+	 * raw prompt list rather than the capped {@link ticks} the overview ruler uses.
+	 */
+	private readonly _promptTicks = derived<readonly PromptTick[]>(this, reader => {
+		const prompts = this._prompts.read(reader);
+		return prompts.map((prompt): PromptTick => {
+			const base: PromptTick = {
+				requestId: prompt.requestId,
+				allRequestIds: [prompt.requestId],
+				text: prompt.text,
+				timestamp: prompt.timestamp,
+				count: 1,
+				ariaLabel: localize('promptTimeline.tick', "Prompt: {0}", prompt.text),
+			};
+			const stat = this._statForRequests(base.allRequestIds, reader);
+			return stat ? { ...base, stat } : base;
+		});
+	});
+	get promptTicks(): IObservable<readonly PromptTick[]> { return this._promptTicks; }
+
 	private readonly _activeRequestId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
 	get activeRequestId(): IObservable<string | undefined> { return this._activeRequestId; }
 
-	/** The exact request currently scrolled to the top, unbucketed — drives the sticky header's label/position. */
+	/** The exact request currently scrolled to the top, unbucketed — drives the sticky header's label/position and the dock rail's active row. */
 	private readonly _activePromptId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
+	get activePromptId(): IObservable<string | undefined> { return this._activePromptId; }
 
 	/** True once the active prompt's own row has scrolled above the viewport top (drives the sticky header). */
 	private readonly _scrollPinned: ISettableObservable<boolean> = observableValue<boolean>(this, false);
@@ -469,6 +492,18 @@ export class PromptTimelineModel extends Disposable {
 		// works even when the id is a mid-bucket prompt (picker).
 		const owningTick = this._baseTicks.get().find(t => t.allRequestIds.includes(requestId));
 		this._activeRequestId.set(owningTick?.requestId ?? requestId, undefined);
+	}
+
+	/**
+	 * Reveals the prompt the sticky header currently names — the one held by button navigation, else the
+	 * prompt scrolled to the top. Used when the header's label is activated so it jumps straight to that
+	 * prompt (aligned to the top of the transcript) instead of opening a picker.
+	 */
+	revealActivePrompt(): void {
+		const id = this._navPinnedId.get() ?? this._activePromptId.get();
+		if (id !== undefined) {
+			this.reveal(id);
+		}
 	}
 
 	/**

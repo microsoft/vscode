@@ -53,6 +53,9 @@ const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsHostTerminalTool: true,
 	supportsSubagents: true,
 	supportsPlanMode: true,
+	supportsMultipleChats: true,
+	supportsChatFork: true,
+	supportsChatForkE2E: true,
 };
 
 defineAgentHostE2ETests(COPILOT_CONFIG);

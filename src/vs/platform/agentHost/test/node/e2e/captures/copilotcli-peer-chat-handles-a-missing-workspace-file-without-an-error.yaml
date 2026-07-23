@@ -1,0 +1,41 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Try to read ${workdir}/peer-missing.txt. If it does not exist, reply exactly "missing".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: bash
+          input:
+            command: cat "${workdir}/peer-missing.txt" 2>&1
+            description: Check if file exists
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Try to read ${workdir}/peer-missing.txt. If it does not exist, reply exactly "missing".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: cat "${workdir}/peer-missing.txt" 2>&1
+                description: Check if file exists
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                cat: ${workdir}/peer-missing.txt: No such file or directory
+                <shellId: 0 completed with exit code 1>
+    response:
+      content: missing
+      stopReason: end_turn

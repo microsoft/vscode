@@ -11,15 +11,13 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { PromptTimelineCard } from './promptTimelineCard.js';
-import { spaceMarkCenters } from './promptTimelineLayout.js';
+import { MIN_HOST_WIDTH, spaceMarkCenters } from './promptTimelineLayout.js';
 import { IPromptScrollLayout, PromptFileDiff, PromptTick } from './promptTimelineModel.js';
 import { IPromptReviewFileEvent, IPromptTimelineRail } from './promptTimelineRail.js';
 import './media/promptTimeline.css';
 
 /** Minimum clickable target size (WCAG 2.5.8) for each mark's hit area. */
 const MIN_TARGET = 24;
-/** Below this transcript width the rail hides so it does not crowd the content (and the native scrollbar is kept). */
-export const MIN_HOST_WIDTH = 320;
 /** Skip re-positioning a mark for sub-pixel drift, so estimate noise doesn't cause micro-jitter. */
 const RELAYOUT_MIN_DELTA = 0.5;
 /** Fisheye "fan" lens: standard deviation (px) of the magnification falloff around the focus. */

@@ -90,6 +90,18 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		assert.match(output, /Page ID:/, `Expected output to contain "Page ID:", got: ${output}`);
 	});
 
+	test('list_browser_pages returns pages opened through the browser tools', async function () {
+		this.timeout(60000);
+
+		const openOutput = await invokeTool('open_browser_page', { url: 'about:blank', forceNew: true });
+		const pageId = openOutput.match(/Page ID:\s*(\S+)/)?.[1];
+		assert.ok(pageId, `Could not extract Page ID from: ${openOutput}`);
+
+		const listOutput = await invokeTool('list_browser_pages', {});
+
+		assert.match(listOutput, new RegExp(`^- \\[${pageId}\\]`, 'm'), `Expected list output to contain page ID "${pageId}", got: ${listOutput}`);
+	});
+
 	test('Open a page from the web', async function () {
 		this.timeout(60000);
 

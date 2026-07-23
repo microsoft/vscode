@@ -10,7 +10,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
-import { joinPath, dirname as uriDirname, isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
+import { joinPath, dirname as uriDirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { compare as compareStrings } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isAbsolute, dirname as nodeDirname } from '../../../../base/common/path.js';
@@ -300,9 +300,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 				if (instructionPath.kind === 'file') {
 					const fileUri = this._pathToUri(instructionPath.path);
 					const discoveredFile: IDiscoveredFile = { uri: fileUri, etag: '' };
-					if (isEqualOrParent(fileUri, this._workingDirectory)) {
+					if (extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, this._workingDirectory)) {
 						workspaceAgentInstructionFiles.push(discoveredFile);
-					} else if (isEqualOrParent(fileUri, this._userHome)) {
+					} else if (extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, this._userHome)) {
 						userAgentInstructionFiles.push(discoveredFile);
 					}
 					continue;
@@ -404,9 +404,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 			toResolve.add(dirUri);
 
 			let current = dirUri;
-			while (!isEqual(current, this._workingDirectory) && !isEqual(current, this._userHome)) {
+			while (!extUriBiasedIgnorePathCase.isEqual(current, this._workingDirectory) && !extUriBiasedIgnorePathCase.isEqual(current, this._userHome)) {
 				const parent = uriDirname(current);
-				if (isEqual(parent, current)) {
+				if (extUriBiasedIgnorePathCase.isEqual(parent, current)) {
 					break;
 				}
 				toResolve.add(parent);
@@ -417,9 +417,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 				throwIfCancelled(token);
 
 				let currentFilePath = file.uri;
-				while (!isEqual(currentFilePath, this._workingDirectory) && !isEqual(currentFilePath, this._userHome)) {
+				while (!extUriBiasedIgnorePathCase.isEqual(currentFilePath, this._workingDirectory) && !extUriBiasedIgnorePathCase.isEqual(currentFilePath, this._userHome)) {
 					const parent = uriDirname(currentFilePath);
-					if (isEqual(parent, currentFilePath)) {
+					if (extUriBiasedIgnorePathCase.isEqual(parent, currentFilePath)) {
 						break;
 					}
 					toResolve.add(parent);
@@ -450,9 +450,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 			}
 
 			let current = dirUri;
-			while (!isEqual(current, this._workingDirectory) && !isEqual(current, this._userHome)) {
+			while (!extUriBiasedIgnorePathCase.isEqual(current, this._workingDirectory) && !extUriBiasedIgnorePathCase.isEqual(current, this._userHome)) {
 				const parent = uriDirname(current);
-				if (isEqual(parent, current)) {
+				if (extUriBiasedIgnorePathCase.isEqual(parent, current)) {
 					break;
 				}
 				if (existingDirectories.has(parent)) {
@@ -465,9 +465,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 				throwIfCancelled(token);
 
 				let currentFilePath = file.uri;
-				while (!isEqual(currentFilePath, this._workingDirectory) && !isEqual(currentFilePath, this._userHome)) {
+				while (!extUriBiasedIgnorePathCase.isEqual(currentFilePath, this._workingDirectory) && !extUriBiasedIgnorePathCase.isEqual(currentFilePath, this._userHome)) {
 					const parent = uriDirname(currentFilePath);
-					if (isEqual(parent, currentFilePath)) {
+					if (extUriBiasedIgnorePathCase.isEqual(parent, currentFilePath)) {
 						break;
 					}
 					if (existingDirectories.has(parent)) {
@@ -707,9 +707,15 @@ export class SessionCustomizationDiscovery extends Disposable {
 			}
 			return d.type === DiscoveredType.Skill;
 		});
-		const outputDirectories = type === CustomizationType.Rule
-			? discoveredDirectories.filter(d => d.type !== DiscoveredType.AgentInstruction || isEqual(d.uri, this._workingDirectory) || isEqual(d.uri, this._userHome))
+		const candidateOutputDirectories = type === CustomizationType.Rule
+			? discoveredDirectories.filter(d => d.type !== DiscoveredType.AgentInstruction || extUriBiasedIgnorePathCase.isEqual(d.uri, this._workingDirectory) || extUriBiasedIgnorePathCase.isEqual(d.uri, this._userHome))
 			: discoveredDirectories;
+		const outputDirectories = type === CustomizationType.Skill
+			? candidateOutputDirectories.filter(directory => !candidateOutputDirectories.some(candidate =>
+				!extUriBiasedIgnorePathCase.isEqual(directory.uri, candidate.uri)
+				&& extUriBiasedIgnorePathCase.isEqualOrParent(directory.uri, candidate.uri)
+			))
+			: candidateOutputDirectories;
 		const byParent = new ResourceMap<{ readonly uri: URI; readonly name: string; readonly writable: boolean; readonly children: ChildCustomization[] }>();
 		for (const discoveredDirectory of outputDirectories) {
 			byParent.set(discoveredDirectory.uri, {
@@ -743,15 +749,15 @@ export class SessionCustomizationDiscovery extends Disposable {
 			}
 
 			const childUri = URI.parse(customization.uri);
-			let bestParent = outputDirectories.find(d => isEqualOrParent(childUri, d.uri));
+			let bestParent = outputDirectories.find(d => extUriBiasedIgnorePathCase.isEqualOrParent(childUri, d.uri));
 			if (!bestParent && customization.type === CustomizationType.Rule && customization.alwaysApply && customization.name.match(/\.md$/i)) {
 				bestParent = outputDirectories.find(d =>
-					d.type === DiscoveredType.AgentInstruction && isEqualOrParent(childUri, d.uri)
+					d.type === DiscoveredType.AgentInstruction && extUriBiasedIgnorePathCase.isEqualOrParent(childUri, d.uri)
 				) ?? outputDirectories.find(d => d.type === DiscoveredType.AgentInstruction);
 			}
 			if (bestParent) {
 				for (const candidate of outputDirectories) {
-					if (isEqualOrParent(childUri, candidate.uri) && candidate.uri.path.length > bestParent.uri.path.length) {
+					if (extUriBiasedIgnorePathCase.isEqualOrParent(childUri, candidate.uri) && candidate.uri.path.length > bestParent.uri.path.length) {
 						bestParent = candidate;
 					}
 				}

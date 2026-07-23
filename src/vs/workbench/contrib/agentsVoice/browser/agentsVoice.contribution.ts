@@ -32,7 +32,7 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
+import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -50,9 +50,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 // --- Context Keys ---
 
 export const AGENTS_VOICE_WIDGET_FOCUSED = new RawContextKey<boolean>('agentsVoiceWidgetFocused', false);
-const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
-const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
-const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
 
 // --- Context Key Binding ---
 
@@ -161,6 +158,10 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_LISTENING.negate(),
 					AGENTS_VOICE_CONNECTING.negate(),
+					// Hide Voice Mode while dictation is active (recording or the
+					// model is loading) so the two mic affordances never compete.
+					ChatContextKeys.speechToTextRecording.negate(),
+					ChatContextKeys.speechToTextPreparing.negate(),
 				),
 				group: 'navigation',
 				order: -10
@@ -346,28 +347,15 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// --- Open Voice Mode Settings (gear button, shown left of Disconnect when connected) ---
+// --- Open Voice Mode Settings (surfaced via the mic button context menu, no toolbar gear) ---
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'agentsVoice.openSettings',
 			title: nls.localize2('agentsVoice.openSettings', "Voice Mode Settings"),
-			icon: Codicon.settingsGear,
 			f1: true,
 			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
-			menu: {
-				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					ChatContextKeys.currentlyEditing.negate(),
-					AGENTS_VOICE_CONNECTED.isEqualTo(true),
-				),
-				group: 'navigation',
-				// Just before the Disconnect button (order -9) and after the mic/stop button (order -10).
-				order: -9.5
-			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -592,7 +580,7 @@ configurationRegistry.registerConfiguration({
 		'agents.voice.handsFree': {
 			type: 'boolean',
 			markdownDescription: nls.localize('agents.voice.handsFree', "When enabled, voice mode automatically re-enters listening after the assistant finishes speaking, so you can hold a hands-free back-and-forth conversation. When disabled, you start each turn manually. This controls only the auto-listen loop; how a turn ends is controlled by {0} and {1}.", '`#agents.voice.turn.silenceMs#`', '`#agents.voice.turn.stopPhrases#`'),
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.turn.silenceMs': {

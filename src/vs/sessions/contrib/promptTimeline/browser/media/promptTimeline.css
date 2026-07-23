@@ -447,3 +447,209 @@
 		transition: none;
 	}
 }
+
+/* ---- Dock rail ------------------------------------------------------------------------------
+ * A minimal alternative to the overview ruler, pinned to the transcript's LEFT edge. At rest it is
+ * a small handle (one dot per prompt) sitting in the left gutter; hovering, tapping, or
+ * keyboard-activating it expands a flyout that lists every prompt. Unlike the ruler it is not tied
+ * to scroll position, so it stays stable while the transcript virtualizes. The handle lives in the
+ * existing left inset, so no content reservation is needed. */
+.prompt-timeline-rail.prompt-timeline-rail-dock {
+	left: 0;
+	right: auto;
+	/* Wide enough to host the flyout as a hover surface; the rail itself is pointer-transparent and
+	 * only its children (the handle and the flyout) opt back in. */
+	width: 300px;
+}
+
+/* Too narrow to place the handle beside the content: hide it (the native scrollbar remains). */
+.prompt-timeline-rail-dock.overflowing .prompt-timeline-dock-rest,
+.prompt-timeline-rail-dock.overflowing .prompt-timeline-dock-panel {
+	display: none;
+}
+
+/* The resting handle: a disclosure button carrying one neutral dot per prompt, vertically centred
+ * against the transcript. It carries no count text or diff colour — deliberately quiet. */
+.prompt-timeline-dock-rest {
+	position: absolute;
+	left: 4px;
+	top: 50%;
+	transform: translateY(-50%);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 4px;
+	padding: 8px 6px;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	pointer-events: auto;
+	cursor: pointer;
+	opacity: 1;
+	transition: opacity 140ms ease, transform 140ms ease, background-color 140ms ease;
+}
+
+.prompt-timeline-dock-rest:hover {
+	transform: translateY(-50%) translateX(1px);
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.prompt-timeline-dock-rest:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+/* The flyout takes over on reveal; fade the handle out so they don't overlap. Reveal is driven by
+ * the JS-managed `.revealed` class (hover or explicit disclosure), not `:focus-within`, so returning
+ * focus to the handle after activation collapses the flyout instead of pinning it open. */
+.prompt-timeline-rail-dock.revealed .prompt-timeline-dock-rest {
+	opacity: 0;
+	pointer-events: none;
+}
+
+.prompt-timeline-dock-dot {
+	width: 4px;
+	height: 4px;
+	border-radius: 50%;
+	background-color: var(--vscode-descriptionForeground);
+	opacity: 0.55;
+	transition: opacity 140ms ease;
+}
+
+.prompt-timeline-dock-rest:hover .prompt-timeline-dock-dot {
+	opacity: 1;
+}
+
+/* Overflow marker shown when there are more prompts than dots: a short vertical bar reading as
+ * "…and more", dimmer than the dots so it recedes. */
+.prompt-timeline-dock-dot-more {
+	width: 2px;
+	height: 8px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-descriptionForeground);
+	opacity: 0.4;
+	transition: opacity 140ms ease;
+}
+
+.prompt-timeline-dock-rest:hover .prompt-timeline-dock-dot-more {
+	opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.prompt-timeline-dock-rest {
+		transition: opacity 140ms ease;
+	}
+}
+
+/* The flyout: a hover-card-styled popover listing the prompts. Hidden at rest (kept in the DOM and
+ * only faded, so its rows stay keyboard-focusable), and pointer-transparent so the resting state
+ * never blocks the transcript. Visibility is driven by the JS-managed `.revealed` class. */
+.prompt-timeline-dock-panel {
+	position: absolute;
+	left: 8px;
+	top: 50%;
+	transform: translate(-6px, -50%) scale(0.98);
+	transform-origin: left center;
+	display: flex;
+	flex-direction: column;
+	width: 260px;
+	max-height: calc(100% - 24px);
+	padding: 4px;
+	box-sizing: border-box;
+	overflow-y: auto;
+	background-color: var(--vscode-editorHoverWidget-background);
+	color: var(--vscode-editorHoverWidget-foreground);
+	border: 1px solid var(--vscode-editorHoverWidget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 140ms ease, transform 140ms ease;
+	z-index: 20;
+}
+
+.prompt-timeline-rail-dock.revealed .prompt-timeline-dock-panel {
+	opacity: 1;
+	transform: translate(0, -50%) scale(1);
+	pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.prompt-timeline-dock-panel {
+		transition: opacity 140ms ease;
+		transform: translateY(-50%);
+	}
+
+	.prompt-timeline-rail-dock.revealed .prompt-timeline-dock-panel {
+		transform: translateY(-50%);
+	}
+}
+
+/* High-contrast themes suppress the decorative shadow and lean on the explicit border. */
+.hc-black .prompt-timeline-dock-panel,
+.hc-light .prompt-timeline-dock-panel {
+	box-shadow: none;
+}
+
+/* Each prompt is a full-width row: its text on the left, an optional diff badge on the right. */
+.prompt-timeline-dock-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 6px 8px;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.prompt-timeline-dock-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Pair the selection background with its matching foreground so the label stays legible in themes
+ * where the two are designed together. */
+.prompt-timeline-dock-row.active {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.prompt-timeline-dock-row:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.prompt-timeline-dock-row-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-size: 12px;
+}
+
+.prompt-timeline-dock-row-stat {
+	flex: 0 0 auto;
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.prompt-timeline-dock-row-stat.hidden {
+	display: none;
+}
+
+.prompt-timeline-dock-row-stat .added {
+	color: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green));
+}
+
+.prompt-timeline-dock-row-stat .removed {
+	color: var(--vscode-gitDecoration-deletedResourceForeground, var(--vscode-charts-red));
+	margin-left: 4px;
+}
