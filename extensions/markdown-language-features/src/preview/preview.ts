@@ -797,6 +797,10 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 				return;
 			}
 
+			if (this.#isTabPinned()) {
+				return;
+			}
+
 			if (isMarkdownFile(editor.document) && !this.#locked && !this.#preview.isPreviewOf(editor.document.uri)) {
 				const line = getVisibleLine(editor);
 				this.update(editor.document.uri, line ? new StartingScrollLine(line) : undefined);
@@ -908,6 +912,40 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 
 	public matches(otherPreview: DynamicMarkdownPreview): boolean {
 		return this.matchesResource(otherPreview.#preview.resource, otherPreview.position, otherPreview.#locked);
+	}
+
+	#isTabPinned(): boolean {
+		const viewColumn = this.#webviewPanel.viewColumn;
+		if (typeof viewColumn === 'undefined') {
+			return false;
+		}
+
+		const tabGroup = vscode.window.tabGroups.all.find(group => group.viewColumn === viewColumn);
+		if (!tabGroup) {
+			return false;
+		}
+
+		const previewTabs = tabGroup.tabs.filter(tab =>
+			tab.input instanceof vscode.TabInputWebview &&
+			tab.input.viewType === DynamicMarkdownPreview.viewType
+		);
+		if (previewTabs.length === 0) {
+			return false;
+		}
+
+		for (const tab of previewTabs) {
+			if (tab.isPinned) {
+				// If there's a single preview tab in this column, it's us
+				if (previewTabs.length === 1) {
+					return true;
+				}
+				// Multiple previews: match by locked state via title convention ([...] prefix)
+				if (tab.label.startsWith('[') === this.#locked) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	#createPreview(resource: vscode.Uri, startingScroll?: StartingScrollLocation): MarkdownPreview {
