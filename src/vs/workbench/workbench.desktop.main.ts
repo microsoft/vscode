@@ -111,6 +111,9 @@ registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataIni
 
 //#region --- workbench contributions
 
+// Repoctx
+import './contrib/repoctx/electron-browser/repoctx.contribution.js';
+
 // Logs
 import './contrib/logs/electron-browser/logs.contribution.js';
 

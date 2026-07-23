@@ -1,4 +1,5 @@
 .DS_Store
+/.dev-context/
 .cache
 npm-debug.log
 Thumbs.db

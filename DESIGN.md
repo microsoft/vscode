@@ -47,7 +47,7 @@ Connected evidence may use one-pixel lines or subtle tonal bands. Focus and sele
 - Evidence row: label, state icon, short reason, and one clear next action. It expands to reveal sources and timestamps.
 - Repository map: connected nodes for real files, routes, tests, owners, and dependencies. It supports keyboard navigation and a readable list alternative.
 - Readiness pill: a concise state such as `Needs evidence`, `Review ready`, or `Blocked`. Never show a score without its meaning.
-- Trust rail: a narrow, persistent route to Context, Impact, Review, and Audit. It should not compete with Explorer or Source Control.
+- Trust rail: a narrow, persistent route to Context, Impact, Review, Gate, and Audit. It should not compete with Explorer or Source Control.
 - Action button: one primary action per region. Secondary actions use native button and link treatments.
 - Creator credit: `Created by Oluwasegun Olumbe` appears quietly in Welcome and About, below the product promise or product name.
 
