@@ -588,6 +588,13 @@ export abstract class AbstractReplaceStringTool<T extends { explanation: string 
 			options.forceConfirmationReason,
 			undefined,
 			options.workingDirectory,
+			async (uri) => {
+				const prepared = (await this.prepareEdits(options, token)).find(e => extUriBiasedIgnorePathCase.isEqual(e.uri, uri));
+				if (!prepared || !prepared.generatedEdit.success || !prepared.generatedEdit.updated) {
+					return undefined;
+				}
+				return { before: prepared.document?.getText() ?? '', after: prepared.generatedEdit.updated.getText() };
+			},
 		);
 	}
 

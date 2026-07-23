@@ -20,7 +20,7 @@ import { isMacintosh, isWindows } from '../../../../util/vs/base/common/platform
 import { URI } from '../../../../util/vs/base/common/uri';
 import { WorkspaceEdit } from '../../../../vscodeTypes';
 import { applyEdits as applyTextEdits } from '../../../prompt/node/intents';
-import { applyEdit, assertPathIsSafe, ConfirmationCheckResult, ContentFormatError, makeUriConfirmationChecker, MultipleMatchesError, NoChangeError, NoMatchError, setSimilarityMatchThresholdForTests } from '../editFileToolUtils';
+import { applyEdit, assertPathIsSafe, ConfirmationCheckResult, ContentFormatError, frontmatterHooksChanged, isAgentDefinitionFile, makeUriConfirmationChecker, MultipleMatchesError, NoChangeError, NoMatchError, setSimilarityMatchThresholdForTests } from '../editFileToolUtils';
 
 describe('replace_string_in_file - applyEdit', () => {
 	let workspaceEdit: WorkspaceEdit;
@@ -1113,3 +1113,58 @@ describe('makeUriConfirmationChecker', async () => {
 		});
 	});
 });
+
+describe('agent hooks confirmation', () => {
+	describe('isAgentDefinitionFile', () => {
+		test('matches markdown files in agent folders', () => {
+			expect(isAgentDefinitionFile(URI.file('/workspace/.github/agents/dev-helper.md'))).toBe(true);
+			expect(isAgentDefinitionFile(URI.file('/workspace/.github/agents/dev-helper.agent.md'))).toBe(true);
+			expect(isAgentDefinitionFile(URI.file('/workspace/.claude/agents/reviewer.md'))).toBe(true);
+			expect(isAgentDefinitionFile(URI.file('/workspace/nested/.github/agents/x.md'))).toBe(true);
+		});
+
+		test('does not match other files', () => {
+			expect(isAgentDefinitionFile(URI.file('/workspace/.github/agents/config.json'))).toBe(false);
+			expect(isAgentDefinitionFile(URI.file('/workspace/.github/workflows/ci.md'))).toBe(false);
+			expect(isAgentDefinitionFile(URI.file('/workspace/src/agents/agent.md'))).toBe(false);
+			expect(isAgentDefinitionFile(URI.parse('untitled:Untitled-1'))).toBe(false);
+		});
+	});
+
+	describe('frontmatterHooksChanged', () => {
+		const withHooks = `---\nname: dev-helper\nhooks:\n  SubagentStart:\n    - type: command\n      command: "echo hi"\n---\nBody`;
+		const withHooksReworded = `---\nname: dev-helper\nhooks:\n  SubagentStart:\n    - type: command\n      command: "echo hi"\n---\nCompletely different body`;
+		const withDifferentHooks = `---\nname: dev-helper\nhooks:\n  SubagentStart:\n    - type: command\n      command: "rm -rf /"\n---\nBody`;
+		const noHooks = `---\nname: dev-helper\ndescription: Helper\n---\nBody`;
+
+		test('creating a file that adds hooks is a change', () => {
+			expect(frontmatterHooksChanged('', withHooks)).toBe(true);
+		});
+
+		test('adding hooks to an existing file is a change', () => {
+			expect(frontmatterHooksChanged(noHooks, withHooks)).toBe(true);
+		});
+
+		test('modifying the hook command is a change', () => {
+			expect(frontmatterHooksChanged(withHooks, withDifferentHooks)).toBe(true);
+		});
+
+		test('removing hooks is a change', () => {
+			expect(frontmatterHooksChanged(withHooks, noHooks)).toBe(true);
+		});
+
+		test('editing the body without touching hooks is not a change', () => {
+			expect(frontmatterHooksChanged(withHooks, withHooksReworded)).toBe(false);
+		});
+
+		test('editing a file that never had hooks is not a change', () => {
+			expect(frontmatterHooksChanged(noHooks, `${noHooks} more text`)).toBe(false);
+		});
+
+		test('unparseable frontmatter errs on the side of confirmation', () => {
+			const broken = `---\nname: dev-helper\nhooks: [unclosed\n---\nBody`;
+			expect(frontmatterHooksChanged(noHooks, broken)).toBe(true);
+		});
+	});
+});
+

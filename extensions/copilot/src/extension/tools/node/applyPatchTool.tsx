@@ -35,6 +35,7 @@ import { ResourceMap, ResourceSet } from '../../../util/vs/base/common/map';
 import { count } from '../../../util/vs/base/common/strings';
 import { isDefined } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
+import { extUriBiasedIgnorePathCase } from '../../../util/vs/base/common/resources';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatRequestEditorData, ChatResponseTextEditPart, ExtendedLanguageModelToolResult, LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelToolResult, MarkdownString, Position, Range, WorkspaceEdit } from '../../../vscodeTypes';
 import { IBuildPromptContext } from '../../prompt/common/intents';
@@ -682,7 +683,40 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 			options.forceConfirmationReason,
 			undefined,
 			options.workingDirectory,
+			async (uri) => {
+				const { commit } = await this.processPatchCached(options, token);
+				for (const [file, changes] of Object.entries(commit.changes)) {
+					const changeUri = resolveToolInputPath(file, this.promptPathRepresentationService);
+					if (extUriBiasedIgnorePathCase.isEqual(changeUri, uri)) {
+						return { before: changes.oldContent || '', after: changes.newContent || '' };
+					}
+				}
+				return undefined;
+			},
 		);
+	}
+
+	/**
+	 * Builds the patch commit for `options`, reusing the cached result when the
+	 * input hasn't changed. The commit is also cached for later use in invoke().
+	 */
+	private processPatchCached(options: vscode.LanguageModelToolInvocationPrepareOptions<IApplyPatchToolParams>, token: CancellationToken): Promise<{ commit: Commit; docTexts: DocText; healed?: string }> {
+		if (this.lastProcessed?.input === options.input.input) {
+			return this.lastProcessed.output;
+		}
+		const docTexts: DocText = {};
+		const output = (async () => {
+			const { commit, healed } = await this.buildCommitWithHealing(
+				this._promptContext?.request?.model,
+				options.input.input,
+				docTexts,
+				options.input.explanation,
+				token
+			);
+			return { commit, docTexts, healed };
+		})();
+		this.lastProcessed = { input: options.input.input, output };
+		return output;
 	}
 
 	private async generatePatchConfirmationDetails(
@@ -693,23 +727,8 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 		const instantiationService = this.instantiationService;
 		const promptPathRepresentationService = this.promptPathRepresentationService;
 
-		// Process the patch and cache it for later use in invoke()
-		const docTexts: DocText = {};
-		const processPromise = (async () => {
-			const { commit, healed } = await this.buildCommitWithHealing(
-				this._promptContext?.request?.model,
-				options.input.input,
-				docTexts,
-				options.input.explanation,
-				token
-			);
-			return { commit, docTexts, healed };
-		})();
-
-		// Cache using stringified params
-		this.lastProcessed = { input: options.input.input, output: processPromise };
-
-		const { commit } = await processPromise;
+		// Process the patch (reusing the cached result) and keep it for use in invoke()
+		const { commit } = await this.processPatchCached(options, token);
 
 		// Create a set of URIs needing confirmation for quick lookup
 		const urisNeedingConfirmationSet = new ResourceSet(urisNeedingConfirmation);

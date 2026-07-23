@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { t } from '@vscode/l10n';
+import * as yaml from 'yaml';
 import { realpath } from 'fs/promises';
 import { homedir } from 'os';
 import * as path from 'path';
@@ -729,6 +730,55 @@ const specializedPatterns: (glob.ParsedPattern | string | undefined)[] =
 const platformConfirmationRequiredPaths = specializedPatterns.filter(isDefined).concat(allPlatformPatterns);
 
 /**
+ * Returns whether `uri` points at a custom-agent definition file. Markdown files
+ * in these folders are loaded as agents and their frontmatter may declare a
+ * `hooks:` block that runs shell commands during the agent lifecycle.
+ */
+export function isAgentDefinitionFile(uri: URI): boolean {
+	if (uri.scheme !== Schemas.file) {
+		return false;
+	}
+	let p = uri.path;
+	if (isWindows || isMacintosh) {
+		p = p.toLowerCase();
+	}
+	return p.endsWith('.md') && (p.includes('/.github/agents/') || p.includes('/.claude/agents/'));
+}
+
+const HOOKS_PARSE_ERROR = Symbol('hooksParseError');
+
+/** Extracts the parsed `hooks` value from a file's YAML frontmatter, if any. */
+function extractFrontmatterHooks(content: string): unknown {
+	const match = /^\uFEFF?---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(content);
+	if (!match) {
+		return undefined;
+	}
+	try {
+		const parsed = yaml.parse(match[1]);
+		if (parsed && typeof parsed === 'object' && 'hooks' in parsed) {
+			return (parsed as Record<string, unknown>).hooks;
+		}
+		return undefined;
+	} catch {
+		return HOOKS_PARSE_ERROR;
+	}
+}
+
+/**
+ * Returns whether the `hooks:` frontmatter field differs between the current and
+ * proposed file contents. Errs on the side of `true` (confirmation required) when
+ * the frontmatter cannot be parsed.
+ */
+export function frontmatterHooksChanged(before: string, after: string): boolean {
+	const beforeHooks = extractFrontmatterHooks(before);
+	const afterHooks = extractFrontmatterHooks(after);
+	if (beforeHooks === HOOKS_PARSE_ERROR || afterHooks === HOOKS_PARSE_ERROR) {
+		return true;
+	}
+	return JSON.stringify(beforeHooks ?? null) !== JSON.stringify(afterHooks ?? null);
+}
+
+/**
  * Validates that a path doesn't contain suspicious characters that could be used
  * to bypass security checks on Windows (e.g., NTFS Alternate Data Streams, invalid chars).
  * Throws an error if the path is suspicious.
@@ -796,6 +846,7 @@ export const enum ConfirmationCheckResult {
 	Sensitive,
 	SystemFile,
 	OutsideWorkspace,
+	SensitiveHooks,
 }
 
 /**
@@ -952,7 +1003,7 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 	};
 }
 
-export async function createEditConfirmation(accessor: ServicesAccessor, uris: readonly URI[], allowedUris: ResourceSet | undefined, detailMessage?: (urisNeedingConfirmation: readonly URI[]) => Promise<string>, forceConfirmationReason?: string, getWorkspaceFolder?: (resource: URI) => URI | undefined, workingDirectory?: URI): Promise<PreparedToolInvocation> {
+export async function createEditConfirmation(accessor: ServicesAccessor, uris: readonly URI[], allowedUris: ResourceSet | undefined, detailMessage?: (urisNeedingConfirmation: readonly URI[]) => Promise<string>, forceConfirmationReason?: string, getWorkspaceFolder?: (resource: URI) => URI | undefined, workingDirectory?: URI, getEditedContents?: (uri: URI) => Promise<{ before: string; after: string } | undefined>): Promise<PreparedToolInvocation> {
 	// If forceConfirmationReason is provided, require confirmation for all URIs
 	if (forceConfirmationReason) {
 		const details = detailMessage ? await detailMessage(uris) : undefined;
@@ -973,7 +1024,20 @@ export async function createEditConfirmation(accessor: ServicesAccessor, uris: r
 	}
 	const checker = makeUriConfirmationChecker(accessor.get(IConfigurationService), getWorkspaceFolder, accessor.get(ICustomInstructionsService));
 	const needsConfirmation = (await Promise.all(uris
-		.map(async uri => ({ uri, reason: await checker(uri) }))
+		.map(async uri => {
+			let reason = await checker(uri);
+			// Agent definition files are otherwise freely editable, but adding or
+			// changing their `hooks:` frontmatter registers shell commands that run
+			// during the agent lifecycle, so those edits must be confirmed. When the
+			// resulting contents can't be determined, err on the side of confirming.
+			if (reason === ConfirmationCheckResult.NoConfirmation && isAgentDefinitionFile(uri)) {
+				const contents = getEditedContents ? await getEditedContents(uri) : undefined;
+				if (!contents || frontmatterHooksChanged(contents.before, contents.after)) {
+					reason = ConfirmationCheckResult.SensitiveHooks;
+				}
+			}
+			return { uri, reason };
+		})
 	)).filter(r => r.reason !== ConfirmationCheckResult.NoConfirmation && !allowedUris?.has(r.uri));
 
 	if (!needsConfirmation.length) {
@@ -987,6 +1051,8 @@ export async function createEditConfirmation(accessor: ServicesAccessor, uris: r
 		message = t`The model wants to edit files you don't have permission to modify (${fileParts}).`;
 	} else if (needsConfirmation.some(r => r.reason === ConfirmationCheckResult.Sensitive)) {
 		message = t`The model wants to edit sensitive files (${fileParts}).`;
+	} else if (needsConfirmation.some(r => r.reason === ConfirmationCheckResult.SensitiveHooks)) {
+		message = t`The model wants to add or modify agent hooks that can run shell commands (${fileParts}).`;
 	} else if (needsConfirmation.some(r => r.reason === ConfirmationCheckResult.OutsideWorkspace)) {
 		message = t`The model wants to edit files outside of your workspace (${fileParts}).`;
 	} else {
