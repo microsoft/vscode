@@ -44,6 +44,11 @@ interface ISessionTerminalInfo {
 	readonly agentHostCwd?: URI;
 }
 
+interface IPendingTerminalOperation {
+	count: number;
+	replaced: boolean;
+}
+
 /**
  * Returns terminal info for the given session: worktree or repository path for
  * workspace-backed agent sessions. Returns `undefined` for sessions without a
@@ -84,6 +89,8 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private _activeKey: string | undefined;
 	private _activeSessionId: string | undefined;
 	private readonly _sessionTerminals = new Map<string, Set<number>>();
+	/** In-flight terminal work for drafts, retained only until each operation settles. */
+	private readonly _pendingTerminalOperations = new Map<string, IPendingTerminalOperation>();
 
 	/**
 	 * Session ids already processed as archived. The archive cleanup runs only
@@ -175,23 +182,17 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			this._onActiveSessionChanged(session);
 		}));
 
+		// Repeated New Session actions replace one draft with another. Transfer
+		// the old draft's terminals when both drafts use the same cwd and backend.
+		this._register(this._sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => {
+			this._onDidReplaceNewDraftSession(from, to);
+		}));
+
 		// When a session is replaced (untitled → committed graduation), transfer
 		// tracked terminals from the old session id to the new one so they are
 		// not orphaned and closed by the removal cleanup.
 		this._register(this._sessionsManagementService.onDidReplaceSession(({ from, to }) => {
-			const terminalIds = this._sessionTerminals.get(from.sessionId);
-			if (terminalIds && terminalIds.size > 0) {
-				let targetIds = this._sessionTerminals.get(to.sessionId);
-				if (!targetIds) {
-					targetIds = new Set<number>();
-					this._sessionTerminals.set(to.sessionId, targetIds);
-				}
-				for (const id of terminalIds) {
-					targetIds.add(id);
-				}
-				this._logService.trace(`[SessionsTerminal] Transferred ${terminalIds.size} terminal(s) from session ${from.sessionId} to ${to.sessionId}`);
-			}
-			this._sessionTerminals.delete(from.sessionId);
+			this._transferTerminals(from.sessionId, to.sessionId);
 		}));
 
 		// Clean up tracked terminal ids when terminals are externally disposed
@@ -293,10 +294,30 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	 * host, the terminal is created on the agent host instead of locally.
 	 */
 	async ensureTerminal(cwd: URI, focus: boolean, session?: ISession): Promise<ITerminalInstance[]> {
+		if (!session) {
+			return this._ensureTerminal(cwd, focus, session);
+		}
+
+		this._beginTerminalOperation(session.sessionId);
+		try {
+			return await this._ensureTerminal(cwd, focus, session);
+		} finally {
+			this._endTerminalOperation(session.sessionId);
+		}
+	}
+
+	private async _ensureTerminal(cwd: URI, focus: boolean, session?: ISession): Promise<ITerminalInstance[]> {
+		if (session && this._pendingTerminalOperations.get(session.sessionId)?.replaced) {
+			return [];
+		}
+
 		const key = cwd.fsPath.toLowerCase();
 		let existing = session ? this._getTrackedTerminalsForSession(session.sessionId) : [];
 		if (existing.length === 0) {
 			existing = await this._findTerminalsForKey(key, { excludeTracked: !!session });
+			if (session && this._pendingTerminalOperations.get(session.sessionId)?.replaced) {
+				return [];
+			}
 		}
 
 		if (existing.length === 0) {
@@ -304,6 +325,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				const instance = await this._createTerminalForSession(cwd, session);
 				const createdInstance = this._getAvailableTerminal(instance, `activate created terminal for ${cwd.fsPath}`);
 				if (!createdInstance) {
+					return [];
+				}
+				if (session && this._pendingTerminalOperations.get(session.sessionId)?.replaced) {
+					await this._terminalService.safeDisposeTerminal(createdInstance);
 					return [];
 				}
 				existing = [createdInstance];
@@ -361,23 +386,28 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			return;
 		}
 
-		const info = getSessionTerminalInfo(session);
-		const targetPath = info?.cwd ?? await this._pathService.userHome();
-		const targetKey = targetPath.fsPath.toLowerCase();
-		if (this._activeKey === targetKey && this._activeSessionId === session.sessionId) {
-			return;
-		}
-		this._activeKey = targetKey;
-		this._activeSessionId = session.sessionId;
+		this._beginTerminalOperation(session.sessionId);
+		try {
+			const info = getSessionTerminalInfo(session);
+			const targetPath = info?.cwd ?? await this._pathService.userHome();
+			const targetKey = targetPath.fsPath.toLowerCase();
+			if (this._activeKey === targetKey && this._activeSessionId === session.sessionId) {
+				return;
+			}
+			this._activeKey = targetKey;
+			this._activeSessionId = session.sessionId;
 
-		const instances = await this.ensureTerminal(targetPath, false, session);
+			const instances = await this._ensureTerminal(targetPath, false, session);
 
-		// If the active session or key changed while we were awaiting, a newer
-		// call has taken over — skip the visibility update to avoid flicker.
-		if (this._activeKey !== targetKey || this._activeSessionId !== session.sessionId) {
-			return;
+			// If the active session or key changed while we were awaiting, a newer
+			// call has taken over — skip the visibility update to avoid flicker.
+			if (this._activeKey !== targetKey || this._activeSessionId !== session.sessionId) {
+				return;
+			}
+			await this._updateTerminalVisibility(session, targetKey, instances.map(instance => instance.instanceId));
+		} finally {
+			this._endTerminalOperation(session.sessionId);
 		}
-		await this._updateTerminalVisibility(session, targetKey, instances.map(instance => instance.instanceId));
 	}
 
 	/**
@@ -418,6 +448,58 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		for (const instance of instances) {
 			terminalIds.add(instance.instanceId);
 		}
+	}
+
+	private _beginTerminalOperation(sessionId: string): void {
+		const operation = this._pendingTerminalOperations.get(sessionId);
+		if (operation) {
+			operation.count++;
+			return;
+		}
+		this._pendingTerminalOperations.set(sessionId, { count: 1, replaced: false });
+	}
+
+	private _endTerminalOperation(sessionId: string): void {
+		const operation = this._pendingTerminalOperations.get(sessionId);
+		if (!operation) {
+			return;
+		}
+		operation.count--;
+		if (operation.count > 0) {
+			return;
+		}
+		this._pendingTerminalOperations.delete(sessionId);
+	}
+
+	private _onDidReplaceNewDraftSession(from: ISession, to: ISession): void {
+		const pendingOperation = this._pendingTerminalOperations.get(from.sessionId);
+		if (pendingOperation) {
+			pendingOperation.replaced = true;
+		}
+
+		const fromCwd = getSessionTerminalInfo(from)?.cwd.fsPath.toLowerCase();
+		const toCwd = getSessionTerminalInfo(to)?.cwd.fsPath.toLowerCase();
+		const fromAgentHostAddress = this._getSessionAgentHostAddress(from);
+		const toAgentHostAddress = this._getSessionAgentHostAddress(to);
+		if (fromCwd === toCwd && fromAgentHostAddress === toAgentHostAddress) {
+			this._transferTerminals(from.sessionId, to.sessionId);
+		}
+	}
+
+	private _transferTerminals(fromSessionId: string, toSessionId: string): void {
+		const terminalIds = this._sessionTerminals.get(fromSessionId);
+		if (terminalIds && terminalIds.size > 0) {
+			let targetIds = this._sessionTerminals.get(toSessionId);
+			if (!targetIds) {
+				targetIds = new Set<number>();
+				this._sessionTerminals.set(toSessionId, targetIds);
+			}
+			for (const id of terminalIds) {
+				targetIds.add(id);
+			}
+			this._logService.trace(`[SessionsTerminal] Transferred ${terminalIds.size} terminal(s) from session ${fromSessionId} to ${toSessionId}`);
+		}
+		this._sessionTerminals.delete(fromSessionId);
 	}
 
 	private _getTrackedTerminalsForSession(sessionId: string): ITerminalInstance[] {
