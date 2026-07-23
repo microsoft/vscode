@@ -24,13 +24,13 @@ suite('TranscriptAccumulator', () => {
 		assert.strictEqual(accumulator.getText(), 'so i was thinking about it');
 	});
 
-	test('keeps surrounding punctuation when removing filler words', () => {
+	test('strips punctuation attached to filler words', () => {
 		const transcripts = ['um, hello', 'hello um.', 'um.', 'hello, um, there'].map(value => {
 			const accumulator = new TranscriptAccumulator();
 			accumulator.addFinal(value, 0, 1);
 			return accumulator.getText();
 		});
-		assert.deepStrictEqual(transcripts, ['hello', 'hello.', '', 'hello, there']);
+		assert.deepStrictEqual(transcripts, ['hello', 'hello', '', 'hello, there']);
 	});
 
 	test('drops a segment that is only filler', () => {

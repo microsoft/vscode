@@ -65,13 +65,11 @@ const MAI_FINAL_TIMEOUT_MS = 4000;
 const MAI_SESSION_INIT_TIMEOUT_MS = 4000;
 
 /** Standalone filler tokens we remove from the displayed dictation transcript. */
-const FILLER_WORDS = /\b(?:u+m+|u+h+|u+hm+|e+r+m?|h+m+)\b/gi;
+const FILLER_WORDS = /\b(?:u+m+|u+h+|u+hm+|e+r+m?|h+m+)\b(?:\s*[,.;:!?])*/gi;
 
 function removeFillerWords(text: string): string {
 	return text
 		.replace(FILLER_WORDS, '')
-		.replace(/([,.;:!?])\s*[,.;:!?]+/g, '$1')
-		.replace(/^[,.;:!?]\s*/, '')
 		.replace(/\s+([,.;:!?])/g, '$1')
 		.replace(/\s{2,}/g, ' ')
 		.trim();

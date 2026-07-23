@@ -99,7 +99,7 @@ function transcriptSeparator(current: string, next: string): '' | ' ' {
  * `\b` boundaries keep real words that merely contain these letters (e.g. "huh",
  * "duh", "summon") intact.
  */
-const FILLER_WORDS = /\b(?:u+m+|u+h+|u+hm+|e+r+m?|h+m+)\b/gi;
+const FILLER_WORDS = /\b(?:u+m+|u+h+|u+hm+|e+r+m?|h+m+)\b(?:\s*[,.;:!?])*/gi;
 
 /**
  * Remove filler words from a transcript fragment and tidy the whitespace and
@@ -109,8 +109,6 @@ const FILLER_WORDS = /\b(?:u+m+|u+h+|u+hm+|e+r+m?|h+m+)\b/gi;
 function removeFillerWords(text: string): string {
 	return text
 		.replace(FILLER_WORDS, '')
-		.replace(/([,.;:!?])\s*[,.;:!?]+/g, '$1')
-		.replace(/^[,.;:!?]\s*/, '')
 		.replace(/\s+([,.;:!?])/g, '$1')
 		.replace(/\s{2,}/g, ' ')
 		.trim();
