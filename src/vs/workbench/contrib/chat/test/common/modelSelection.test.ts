@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
-import { IModelSelectionMemory, IModelSelectionModelsContext, IModelSelectionSessionContext, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, resolveModelIdentifierFromCatalog, transitionModelSelection } from '../../common/modelSelection.js';
+import { IModelSelectionMemory, IModelSelectionModelsContext, IModelSelectionSessionContext, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, resolveModelIdentifierForTarget, resolveModelIdentifierFromCatalog, transitionModelSelection } from '../../common/modelSelection.js';
 
 function model(identifier: string, metadataId = identifier, family = identifier, version = '1.0'): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -89,6 +89,29 @@ suite('ModelSelection', () => {
 			{ kind: 'pending', identifier: first.identifier },
 			{ kind: 'unavailable', identifier: first.identifier },
 		]);
+	});
+
+	test('retargets only matching model identifier prefixes', () => {
+		const canonical = model('agent-host-copilotcli:gpt-5.6-sol');
+		const legacy = model('copilotcli/gpt-5.6-sol');
+
+		assert.deepStrictEqual({
+			exact: resolveModelIdentifierForTarget([canonical], canonical.identifier, 'copilotcli', 'agent-host-copilotcli'),
+			canonicalBeforeCatalog: resolveModelIdentifierForTarget([], canonical.identifier, 'copilotcli', 'agent-host-copilotcli'),
+			legacy: resolveModelIdentifierForTarget([], legacy.identifier, 'copilotcli', 'agent-host-copilotcli'),
+			preservesModelId: resolveModelIdentifierForTarget([], 'copilotcli/provider/model', 'copilotcli', 'agent-host-copilotcli'),
+			logicalTarget: resolveModelIdentifierForTarget([legacy], legacy.identifier, 'copilotcli', 'copilotcli'),
+			unrelated: resolveModelIdentifierForTarget([], 'copilot/gpt-5.6-sol', 'copilotcli', 'agent-host-copilotcli'),
+			malformed: resolveModelIdentifierForTarget([], 'copilotcli/', 'copilotcli', 'agent-host-copilotcli'),
+		}, {
+			exact: canonical.identifier,
+			canonicalBeforeCatalog: canonical.identifier,
+			legacy: canonical.identifier,
+			preservesModelId: 'agent-host-copilotcli:provider/model',
+			logicalTarget: legacy.identifier,
+			unrelated: undefined,
+			malformed: undefined,
+		});
 	});
 
 	test('uses shared vendor readiness for empty and live catalogs', () => {

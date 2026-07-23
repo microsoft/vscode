@@ -550,6 +550,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._currentLanguageModel;
 	}
 
+	get userExplicitlySelectedLanguageModel(): boolean {
+		return this._modelSelectionController.userExplicitlySelectedModel;
+	}
+
 	private _onDidChangeCurrentChatMode: Emitter<IChatModeChangeEvent> = this._register(new Emitter<IChatModeChangeEvent>());
 	readonly onDidChangeCurrentChatMode: Event<IChatModeChangeEvent> = this._onDidChangeCurrentChatMode.event;
 

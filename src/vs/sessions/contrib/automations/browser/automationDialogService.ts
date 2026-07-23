@@ -20,6 +20,7 @@ import { createWorkbenchDialogOptions } from '../../../../workbench/browser/part
 import { AutomationTarget, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, updateSaveButtonState } from './automationDialog.js';
@@ -62,6 +63,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -158,7 +160,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 					const formPane = DOM.append(container, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.productService, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId);
+					const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), this.instantiationService, this.languageModelsService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.productService, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId);
 					getPrompt = handle.getPrompt;
 					getMode = handle.getMode;
 					getPermissionLevel = handle.getPermissionLevel;

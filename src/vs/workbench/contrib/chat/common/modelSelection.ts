@@ -37,6 +37,39 @@ export function resolveModelIdentifier(
 		: { kind: 'pending', identifier };
 }
 
+/**
+ * Resolves an identifier against a target-scoped model pool, translating a legacy source target
+ * to the concrete target while preserving the model id after the first separator.
+ */
+export function resolveModelIdentifierForTarget(
+	models: readonly ILanguageModelChatMetadataAndIdentifier[],
+	identifier: string,
+	sourceTarget: string | undefined,
+	target: string | undefined,
+): string | undefined {
+	if (!target) {
+		return undefined;
+	}
+	if (models.some(model => model.identifier === identifier)) {
+		return identifier;
+	}
+
+	const separator = identifier.search(/[/:]/);
+	if (separator <= 0 || separator === identifier.length - 1) {
+		return undefined;
+	}
+
+	const identifierTarget = identifier.substring(0, separator);
+	if (identifierTarget === target) {
+		return identifier;
+	}
+	if (identifierTarget !== sourceTarget) {
+		return undefined;
+	}
+
+	return `${target}:${identifier.substring(separator + 1)}`;
+}
+
 /** Resolves a model identifier using vendor-level catalog readiness. */
 export function resolveModelIdentifierFromCatalog(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],

@@ -629,8 +629,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				throw new CancellationError();
 			}
 			if (createOptions?.modelId) {
-				await this._waitForRequestedModel(provider, session, createOptions.modelId, token, folderUri);
-				provider.setModel(session.sessionId, createOptions.modelId);
+				const modelId = await this._waitForRequestedModel(provider, session, createOptions.modelId, token, folderUri);
+				provider.setModel(session.sessionId, modelId);
 			}
 			if (createOptions?.modeId) {
 				provider.setMode?.(session.sessionId, createOptions.modeId);
@@ -660,11 +660,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	private async _waitForRequestedModel(provider: ISessionsProvider, session: ISession, modelId: string, token: CancellationToken, folderUri?: URI): Promise<void> {
+	private async _waitForRequestedModel(provider: ISessionsProvider, session: ISession, modelId: string, token: CancellationToken, folderUri?: URI): Promise<string> {
 		const resolveCurrent = () => provider.getModelsSnapshot(session.sessionId, modelId).desiredModelResolution;
 		const initial = resolveCurrent();
-		if (initial.kind === 'available' || initial.kind === 'notRequested') {
-			return;
+		if (initial.kind === 'available') {
+			return initial.model.identifier;
+		}
+		if (initial.kind === 'notRequested') {
+			return modelId;
 		}
 		if (initial.kind === 'unavailable') {
 			throw new Error(`Model '${modelId}' is unavailable for sessions provider '${provider.id}'`);
@@ -673,10 +676,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new CancellationError();
 		}
 
-		await new Promise<void>((resolve, reject) => {
+		return new Promise<string>((resolve, reject) => {
 			const disposables = new DisposableStore();
 			let settled = false;
-			const finish = (error?: Error) => {
+			const finish = (resolvedModelId: string | undefined, error?: Error) => {
 				if (settled) {
 					return;
 				}
@@ -684,32 +687,34 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				disposables.dispose();
 				if (error) {
 					reject(error);
-				} else {
-					resolve();
+				} else if (resolvedModelId) {
+					resolve(resolvedModelId);
 				}
 			};
 			const check = () => {
 				const resolution = resolveCurrent();
-				if (resolution.kind === 'available' || resolution.kind === 'notRequested') {
-					finish();
+				if (resolution.kind === 'available') {
+					finish(resolution.model.identifier);
+				} else if (resolution.kind === 'notRequested') {
+					finish(modelId);
 				} else if (resolution.kind === 'unavailable') {
-					finish(new Error(`Model '${modelId}' is unavailable for sessions provider '${provider.id}'`));
+					finish(undefined, new Error(`Model '${modelId}' is unavailable for sessions provider '${provider.id}'`));
 				}
 			};
 			disposables.add(provider.onDidChangeModels(check));
 			disposables.add(provider.onDidChangeSessionTypes(() => {
 				const sessionTypes = folderUri ? provider.getSessionTypes(folderUri) : provider.sessionTypes;
 				if (!sessionTypes.some(type => type.id === session.sessionType)) {
-					finish(new Error(`Session type '${session.sessionType}' is no longer available for sessions provider '${provider.id}'`));
+					finish(undefined, new Error(`Session type '${session.sessionType}' is no longer available for sessions provider '${provider.id}'`));
 				}
 			}));
 			disposables.add(this.sessionsProvidersService.onDidChangeProviders(event => {
 				if (event.removed.includes(provider)) {
-					finish(new Error(`Sessions provider '${provider.id}' is no longer available`));
+					finish(undefined, new Error(`Sessions provider '${provider.id}' is no longer available`));
 				}
 			}));
-			disposables.add(token.onCancellationRequested(() => finish(new CancellationError())));
-			disposables.add(this._disposeCts.token.onCancellationRequested(() => finish(new CancellationError())));
+			disposables.add(token.onCancellationRequested(() => finish(undefined, new CancellationError())));
+			disposables.add(this._disposeCts.token.onCancellationRequested(() => finish(undefined, new CancellationError())));
 			check();
 		});
 	}
