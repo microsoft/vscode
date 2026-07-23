@@ -14,7 +14,6 @@
 .agentSessionsWelcome-scrollable {
 	height: 100%;
 	display: flex !important;
-	align-items: safe center;
 	justify-content: center;
 }
 
@@ -22,6 +21,8 @@
 	display: flex;
 	flex-direction: column;
 	align-items: center;
+	justify-content: safe center;
+	height: 100%;
 	padding: 40px;
 	max-width: 900px;
 	width: 100%;
