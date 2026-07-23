@@ -88,7 +88,7 @@ export {
 	type ToolCallContributor,
 	type ToolDefinition, type ToolResultContent,
 	type ToolResultFileEditContent,
-	type ToolResultTerminalCompleteContent,
+	type TerminalCommandResult,
 	type ToolResultSubagentContent,
 	type ToolResultTerminalContent,
 	type ToolResultTextContent,

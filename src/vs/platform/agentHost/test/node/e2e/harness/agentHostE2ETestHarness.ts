@@ -715,7 +715,7 @@ export class AgentHostE2EServerLease {
 						clientSeq: 9999,
 						action: { type: 'session/abortTurn', session },
 					});
-					await client.call('disposeSession', { session }, 30_000);
+					await client.call('disposeSession', { channel: session }, 30_000);
 				} catch { /* best-effort */ }
 			}
 			client.close();
