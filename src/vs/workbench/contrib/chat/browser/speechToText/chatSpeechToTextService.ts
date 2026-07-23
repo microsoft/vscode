@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { VSBuffer, encodeBase64 } from '../../../../../base/common/buffer.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -15,7 +15,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProgress, IProgressService, IProgressStep, Progress, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../nls.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
@@ -29,7 +29,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatMessageRole, getTextResponseFromStream, ILanguageModelsService } from '../../common/languageModels.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
 import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
@@ -61,8 +61,11 @@ const MAI_MODEL_ID = 'mai';
  */
 const LLM_CLEANUP_SETTING = 'dictation.experimental.llmCleanup';
 
-/** Upper bound on transcript length (characters) sent to the cleanup model, to cap latency and cost. */
+/** Upper bound on transcript length (characters) eligible for cleanup; longer transcripts skip cleanup and are returned raw. */
 const LLM_CLEANUP_MAX_CHARS = 4000;
+
+/** Bounded deadline for the cleanup request, so a stalled provider can never leave dictation stuck in `Transcribing`. */
+const LLM_CLEANUP_TIMEOUT_MS = 10000;
 
 /** Utility model used for transcript cleanup — a small, fast model in the spirit of gpt-4o-mini. */
 const LLM_CLEANUP_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' };
@@ -361,6 +364,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _firstTranscriptMs = 0;
 	/** Milliseconds from stopping recording to the final transcript resolving; -1 until measured. */
 	private _finalizeMs = -1;
+
+	/** Cancellation for the in-flight experimental LLM cleanup request, aborted when the session is cancelled or disposed. */
+	private readonly _cleanupCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	// Model-preparation telemetry accumulator. `_prepareStartMs` is non-zero
 	// while a preparation is being tracked, so the terminal Ready/Error status
@@ -1004,13 +1010,24 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			this._sessionErrorCode = this._sessionErrorCode || 'transcribe';
 			this._logService.error('[chat-stt] final transcription failed', err);
 		}
-		this._finalizeMs = Date.now() - stopMs;
+
 		if (text && this._configurationService.getValue<boolean>(LLM_CLEANUP_SETTING) === true) {
-			const cleaned = await this._cleanupWithLanguageModel(text, CancellationToken.None);
+			const cts = this._cleanupCts.value = new CancellationTokenSource();
+			const cleaned = await this._cleanupWithLanguageModel(text, cts.token);
+			if (cts.token.isCancellationRequested) {
+				// The session was cancelled or disposed while cleanup was running:
+				// `cancel()` has already torn down and may have started a new
+				// session, so we must not touch shared state or return a result.
+				return undefined;
+			}
 			if (cleaned) {
 				text = cleaned;
 			}
 		}
+
+		// Measured after cleanup so it reflects the transcript actually returned
+		// to the caller, including any language-model latency.
+		this._finalizeMs = Date.now() - stopMs;
 		this._logSessionTelemetry(this._sessionErrorCode ? 'error' : 'completed');
 		this._teardown();
 		this._setState(ChatSpeechToTextState.Idle);
@@ -1020,22 +1037,31 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	/**
 	 * Experimental: run the raw ASR transcript through a small utility language
 	 * model to restore punctuation, capitalization, and paragraph breaks that the
-	 * streaming model omits. Returns the cleaned text, or `undefined` when no
-	 * model is available (e.g. AI features are disabled) or the request fails — in
-	 * which case the caller keeps the raw transcript.
+	 * streaming model omits. Returns the cleaned text, or `undefined` when cleanup
+	 * is skipped or fails (no model available, over-length input, timeout,
+	 * cancellation, or a streaming/result error) — in which case the caller keeps
+	 * the raw transcript. Only a fully successful response can replace it.
 	 */
 	private async _cleanupWithLanguageModel(text: string, token: CancellationToken): Promise<string | undefined> {
+		// Over-length transcripts are returned raw rather than truncated: sending
+		// only a prefix and replacing the whole transcript would silently drop the
+		// remainder, breaking the raw-transcript fallback guarantee.
+		if (text.length > LLM_CLEANUP_MAX_CHARS) {
+			return undefined;
+		}
+
+		const cts = new CancellationTokenSource(token);
+		const timer = setTimeout(() => cts.cancel(), LLM_CLEANUP_TIMEOUT_MS);
 		try {
 			const models = await this._languageModelsService.selectLanguageModels(LLM_CLEANUP_MODEL_SELECTOR);
-			if (!models.length || token.isCancellationRequested) {
+			if (!models.length || cts.token.isCancellationRequested) {
 				return undefined;
 			}
 
-			const input = text.length > LLM_CLEANUP_MAX_CHARS ? text.slice(0, LLM_CLEANUP_MAX_CHARS) : text;
 			const systemPrompt = [
 				'You clean up raw speech-to-text (dictation) output. The input is a verbatim transcript with little or no punctuation or capitalization.',
 				'Add sentence punctuation, capitalization, and paragraph breaks so it reads naturally. Split run-on sentences and group related sentences into paragraphs separated by a blank line.',
-				'Do NOT add, remove, reword, translate, summarize, or answer the content — only fix punctuation, casing, and spacing. Remove filler words (um, uh) and obvious false starts.',
+				'Preserve the wording exactly: do not add, reword, translate, summarize, or answer the content — only fix punctuation, casing, and spacing. The single exception is that you should delete filler words (such as "um" and "uh") and obvious false starts.',
 				'Reply with the cleaned transcript only — no preamble, no quotes, no commentary. This is a benign formatting task: never refuse.',
 			].join(' ');
 
@@ -1044,17 +1070,40 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				undefined,
 				[
 					{ role: ChatMessageRole.System, content: [{ type: 'text', value: systemPrompt }] },
-					{ role: ChatMessageRole.User, content: [{ type: 'text', value: input }] },
+					{ role: ChatMessageRole.User, content: [{ type: 'text', value: text }] },
 				],
 				{},
-				token,
+				cts.token,
 			);
 
-			const cleaned = (await getTextResponseFromStream(response)).trim();
-			return cleaned || undefined;
+			// Consume the stream with strict error propagation and await the
+			// result: `getTextResponseFromStream` would return accumulated partial
+			// text on a mid-stream failure, which could replace the complete raw
+			// transcript with a truncated one. Any error here falls through to the
+			// catch and yields `undefined` (raw-transcript fallback).
+			let cleaned = '';
+			for await (const part of response.stream) {
+				if (cts.token.isCancellationRequested) {
+					return undefined;
+				}
+				const parts = Array.isArray(part) ? part : [part];
+				for (const item of parts) {
+					if (item.type === 'text') {
+						cleaned += item.value;
+					}
+				}
+			}
+			await response.result;
+			if (cts.token.isCancellationRequested) {
+				return undefined;
+			}
+			return cleaned.trim() || undefined;
 		} catch (err) {
 			this._logService.warn('[chat-stt] language model transcript cleanup failed; using raw transcript', err);
 			return undefined;
+		} finally {
+			clearTimeout(timer);
+			cts.dispose();
 		}
 	}
 
@@ -1078,6 +1127,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	cancel(): void {
 		const wasRecording = this._state === ChatSpeechToTextState.Recording;
+		this._cleanupCts.value?.cancel();
 		this._logSessionTelemetry('cancelled');
 		this._cancelBackend();
 		this._teardown();

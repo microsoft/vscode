@@ -281,7 +281,7 @@ configurationRegistry.registerConfiguration({
 		'dictation.experimental.llmCleanup': {
 			type: 'boolean',
 			markdownDescription: nls.localize('dictation.experimental.llmCleanup', "Experimental: pass the final dictation transcript through a small language model to restore punctuation, capitalization, and paragraph breaks. Requires Copilot to be enabled; the transcript is sent to the language model for cleanup. Falls back to the raw transcript when no model is available."),
-			default: false,
+			default: true,
 			tags: ['experimental']
 		},
 		'chat.editor.fontSize': {
