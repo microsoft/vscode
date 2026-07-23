@@ -996,4 +996,3 @@ export namespace ErrorCodes {
 export function isSchemaResolveError(d: Diagnostic) {
 	return typeof d.code === 'number' && d.code >= ErrorCodes.SchemaResolveError;
 }
-
