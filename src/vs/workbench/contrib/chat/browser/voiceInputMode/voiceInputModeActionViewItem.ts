@@ -18,6 +18,8 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -30,10 +32,18 @@ import { IMicCaptureService } from '../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../voiceClient/ttsPlaybackService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
 import { ChatSpeechToTextConfigured } from '../actions/chatSpeechToTextActions.js';
+import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
 import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceInputModeSegmentedSettingId, VoiceWalkthroughVersion } from './voiceInputMode.js';
 
 /** Built-in on-device dictation toggle (start/stop). */
 const DICTATION_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
+
+/**
+ * Stable command the Voice Mode "Configure Keybinding" context-menu entry targets.
+ * The rendered voice affordance swaps between states, but the keybinding lives on
+ * the start command, so target it in every state.
+ */
+const VOICE_START_COMMAND_ID = 'agentsVoice.startVoiceInChat';
 
 /** Number of animated waveform bars shown in the voice segment. */
 const WAVEFORM_BAR_COUNT = 5;
@@ -292,6 +302,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		@IVoiceInputModeService private readonly voiceInputModeService: IVoiceInputModeService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
@@ -324,6 +337,11 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			dom.EventHelper.stop(e, true);
 			this._onClickDictation();
 		}));
+		this._register(addMicButtonContextMenuListener(
+			this._dictationCell,
+			() => getDictationContextMenuActions(this.commandService, this.configurationService, this.keybindingService, DICTATION_TOGGLE_COMMAND_ID),
+			this.contextMenuService,
+		));
 
 		// --- Voice cell: a single waveform that transforms across states (no glyph). ---
 		this._voiceCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.voice'));
@@ -348,6 +366,11 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			dom.EventHelper.stop(e, true);
 			this._onClickVoicePowerToggle();
 		}));
+		this._register(addMicButtonContextMenuListener(
+			this._voiceCell,
+			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
+			this.contextMenuService,
+		));
 		// Pause the audio-reactive bars while hovering so the CSS "silent" preview shows.
 		this._register(dom.addDisposableListener(this._voiceCell, dom.EventType.MOUSE_ENTER, () => {
 			this._voiceHovering = true;
@@ -364,6 +387,11 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._listenCell.setAttribute('role', 'button');
 		this._listenCell.setAttribute('aria-label', localize('voiceInputMode.listenToggle', "Toggle Listening"));
 		this._listenIcon = dom.append(this._listenCell, dom.$('span.chat-voice-input-mode-icon'));
+		this._register(addMicButtonContextMenuListener(
+			this._listenCell,
+			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
+			this.contextMenuService,
+		));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._listenCell,
 			() => this.voiceSessionController.voiceState.get() === 'listening'
 				? localize('voiceInputMode.stopListening', "Stop Listening")
@@ -487,7 +515,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._listenCell!.setAttribute('aria-label', listening
 				? localize('voiceInputMode.stopListening', "Stop Listening")
 				: localize('voiceInputMode.startListening', "Start Listening"));
-			this._listenIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(listening ? Codicon.stopCircle : Codicon.mic)}`;
+			this._listenIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(listening ? Codicon.micFilled : Codicon.mic)}`;
 
 			// Audio-reactive bars only while live (and not hovering the disconnect preview).
 			this._syncBarAnimation();
