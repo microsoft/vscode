@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, ExitPlanModeRequest, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, ExitPlanModeRequest, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { DeferredPromise, Sequencer } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -3596,7 +3596,7 @@ export class CopilotAgentSession extends Disposable {
 			// Capture the base usage before the await boundary so concurrent
 			// usage events don't overwrite what we merge into.
 			const baseUsage = lastParentUsageTurnId === turnId ? lastParentUsage : undefined;
-			const usage = baseUsage ?? {
+			const usage: UsageInfo = baseUsage ?? {
 				inputTokens: e.data.inputTokens,
 				outputTokens: e.data.outputTokens,
 				model: e.data.model,
@@ -3679,7 +3679,7 @@ export class CopilotAgentSession extends Disposable {
 		// change is also logged (with structured metadata) so it flows to the
 		// agent host's OTLP log stream and the per-server Output channels.
 		this._register(wrapper.onMcpServersLoaded(e => {
-			this._logMcpServersSnapshot(e.data.servers.map(s => ({
+			this._logMcpServersSnapshot(e.data.servers.map((s: McpServersLoadedServer) => ({
 				name: s.name,
 				status: s.status,
 				error: s.error,

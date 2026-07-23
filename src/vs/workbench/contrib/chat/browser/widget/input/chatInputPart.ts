@@ -107,8 +107,10 @@ import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { ChatHistoryNavigator } from '../../../common/widget/chatWidgetHistoryService.js';
 import { ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenDelegationPickerAction, OpenModelPickerAction, OpenModePickerAction, OpenPermissionPickerAction, OpenSessionTargetPickerAction, OpenWorkspacePickerAction } from '../../actions/chatExecuteActions.js';
-import { ChatSpeechToTextPreparingAction } from '../../actions/chatSpeechToTextActions.js';
+import { ChatSpeechToTextPreparingAction, ToggleChatSpeechToTextAction } from '../../actions/chatSpeechToTextActions.js';
+import { DictationActionViewItem } from '../../speechToText/dictationActionViewItem.js';
 import { DictationDownloadActionViewItem } from '../../speechToText/dictationDownloadActionViewItem.js';
+import { VoiceModeActionViewItem } from '../../voiceClient/voiceModeActionViewItem.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
@@ -1175,7 +1177,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			showUnavailableFeatured: useRichPicker,
 			showFeatured: useRichPicker,
 			showAutoModel: this._showAutoModel(),
-			useGenericModelIcon: !this.options.isSessionsWindow && this._usesHarnessProviderIcon(),
+			showModelIcon: this.options.isSessionsWindow || !this._usesHarnessProviderIcon(),
 		};
 	}
 
@@ -3223,6 +3225,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ChatSpeechToTextPreparingAction.ID && action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(DictationDownloadActionViewItem, action, options);
+				}
+				if (action.id === ToggleChatSpeechToTextAction.ID && action instanceof MenuItemAction) {
+					return this.instantiationService.createInstance(DictationActionViewItem, action, options);
+				}
+				// Voice Mode mic button: add a right-click context menu (Select
+				// Microphone / Disable Voice Mode) mirroring dictation. While
+				// listening the toolbar swaps the start action for the
+				// push-to-talk stop action, so cover both so the menu stays put.
+				if ((action.id === 'agentsVoice.startVoiceInChat' || action.id === 'agentsVoice.pttStopInChat') && action instanceof MenuItemAction) {
+					return this.instantiationService.createInstance(VoiceModeActionViewItem, action, options);
 				}
 				return undefined;
 			},

@@ -40,6 +40,8 @@ interface IRuntimeState {
 	resolved: boolean;
 	readonly sessionType: string;
 	configuredModel?: string;
+	/** Defaults to `true` (a new/empty session). Set to `false` to model a reopened conversation with history. */
+	isEmpty?: boolean;
 }
 
 function createRuntime(
@@ -51,7 +53,7 @@ function createRuntime(
 		location: ChatAgentLocation.Chat,
 		getCurrentModeKind: () => ChatModeKind.Ask,
 		getCurrentSessionType: () => state.sessionType,
-		isEmpty: () => true,
+		isEmpty: () => state.isEmpty ?? true,
 		getModels: () => state.models,
 		getAllModels: () => state.models,
 		requiresCustomModels: () => false,
@@ -554,6 +556,9 @@ suite('ChatInputModelSelectionController', () => {
 	});
 
 	test('late configured default does not overwrite a restored conversation model', () => {
+		// A genuine reopened conversation is NON-empty, so the configured default must never override
+		// its restored model. The empty/new-session case (where the configured default wins over a
+		// spilled-over restore) is covered by the empty-session tests above.
 		const restored = model('test/restored');
 		const configured = model('copilot/configured');
 		let models = [restored];
@@ -562,7 +567,7 @@ suite('ChatInputModelSelectionController', () => {
 			location: ChatAgentLocation.Chat,
 			getCurrentModeKind: () => ChatModeKind.Ask,
 			getCurrentSessionType: () => undefined,
-			isEmpty: () => true,
+			isEmpty: () => false,
 			getModels: () => models,
 			getAllModels: () => models,
 			requiresCustomModels: () => false,
@@ -701,6 +706,103 @@ suite('ChatInputModelSelectionController', () => {
 		assert.deepStrictEqual({ configuredApplied, applied }, {
 			configuredApplied: true,
 			applied: [first.identifier, second.identifier],
+		});
+	});
+
+	test('re-applies the configured default over a spilled-over session-restore on an empty session', () => {
+		// Regression for the local "+ new session" / back-to-list cases: a new empty session that
+		// inherits the previous session's model as a session-restore must still reset to the
+		// configured `chat.defaultModel`. See the SessionRestore-is-not-a-blocker rule in
+		// `applyConfiguredDefault`.
+		const gpt = model('test/gpt');
+		const opus = model('test/opus');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(
+			createRuntime({ models: [gpt, opus], resolved: true, sessionType: 'test', configuredModel: gpt.metadata.id }, modelChanges, applied)));
+
+		controller.beginSessionSwitch(true, false, false);
+		controller.syncFromConversationState(opus, undefined, 'test', 'chat:one');
+		const afterSpillover = controller.currentModel.get()?.identifier;
+		const configuredApplied = controller.applyConfiguredDefault();
+
+		assert.deepStrictEqual({ afterSpillover, configuredApplied, applied, current: controller.currentModel.get()?.identifier }, {
+			afterSpillover: opus.identifier,
+			configuredApplied: true,
+			applied: [opus.identifier, gpt.identifier],
+			current: gpt.identifier,
+		});
+	});
+
+	test('preserves an explicit user pick on an empty session over the configured default', () => {
+		const gpt = model('test/gpt');
+		const opus = model('test/opus');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(
+			createRuntime({ models: [gpt, opus], resolved: true, sessionType: 'test', configuredModel: gpt.metadata.id }, modelChanges, applied)));
+
+		controller.beginSessionSwitch(true, false, false);
+		controller.applyExplicitSelection(opus, () => applied.push(opus.identifier), false);
+		const configuredApplied = controller.applyConfiguredDefault();
+
+		assert.deepStrictEqual({ configuredApplied, applied, current: controller.currentModel.get()?.identifier, userPicked: controller.userExplicitlySelectedModel }, {
+			configuredApplied: false,
+			applied: [opus.identifier],
+			current: opus.identifier,
+			userPicked: true,
+		});
+	});
+
+	test('keeps the restored model on a reopened non-empty conversation even when a default is configured', () => {
+		const gpt = model('test/gpt');
+		const opus = model('test/opus');
+		const applied: string[] = [];
+		const runtime: IChatInputModelSelectionRuntime = {
+			location: ChatAgentLocation.Chat,
+			getCurrentModeKind: () => ChatModeKind.Ask,
+			getCurrentSessionType: () => undefined,
+			isEmpty: () => false,
+			getModels: () => [gpt, opus],
+			getAllModels: () => [gpt, opus],
+			requiresCustomModels: () => false,
+			getConfiguredModelValue: () => gpt.metadata.id,
+			resolveModelIdentifier: identifier => resolveModelIdentifier([gpt, opus], identifier, true),
+			subscribeToModelChanges: () => toDisposable(() => { }),
+			getBoundConversationKey: () => 'chat:one',
+			getVisibleConversationKey: () => 'chat:one',
+			restoreModelConfiguration: () => { },
+			applyModel: selected => applied.push(selected.identifier),
+		};
+		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
+
+		controller.syncFromConversationState(opus, undefined, undefined, 'chat:one');
+		const configuredApplied = controller.applyConfiguredDefault();
+
+		assert.deepStrictEqual({ configuredApplied, applied, current: controller.currentModel.get()?.identifier }, {
+			configuredApplied: false,
+			applied: [opus.identifier],
+			current: opus.identifier,
+		});
+	});
+
+	test('leaves the spilled-over model sticky when no default model is configured', () => {
+		// The fix must be inert when `chat.defaultModel` is unset: sticky "last-used" behavior wins.
+		const gpt = model('test/gpt');
+		const opus = model('test/opus');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(
+			createRuntime({ models: [gpt, opus], resolved: true, sessionType: 'test' }, modelChanges, applied)));
+
+		controller.beginSessionSwitch(true, false, false);
+		controller.syncFromConversationState(opus, undefined, 'test', 'chat:one');
+		const configuredApplied = controller.applyConfiguredDefault();
+
+		assert.deepStrictEqual({ configuredApplied, applied, current: controller.currentModel.get()?.identifier }, {
+			configuredApplied: false,
+			applied: [opus.identifier],
+			current: opus.identifier,
 		});
 	});
 
@@ -924,7 +1026,9 @@ suite('ChatInputModelSelectionController', () => {
 		const matchBase = targetedModel('test/match', sessionType);
 		const match = { ...matchBase, metadata: { ...matchBase.metadata, id: desired.metadata.id } };
 		const configured = targetedModel('test/configured', sessionType);
-		const state: IRuntimeState = { models: [], resolved: false, sessionType, configuredModel: configured.metadata.id };
+		// A genuine reopened conversation is NON-empty, so its best-match restore stays authoritative and
+		// the configured default must not override it. The empty-session behavior is covered above.
+		const state: IRuntimeState = { models: [], resolved: false, sessionType, configuredModel: configured.metadata.id, isEmpty: false };
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
