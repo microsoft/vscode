@@ -81,6 +81,8 @@ Automations use a discriminated target that is either workspace-backed or a work
 
 The Agents window contributes a built-in **Automations** client-tool set with `listAutomations`, `configureAutomation`, and `deleteAutomation`. Listing is read-only and returns stable IDs plus editable fields. Configuration uses the invoking session as the default target for new entries and follows the normal tool-approval policy: calls that require interaction show standard tool confirmation, while auto-approved calls proceed directly. Both paths validate and commit through `IAutomationService`, and successful creates and updates return a clickable chat result that opens the affected automation. Manual workspace choices in the automation dialog never update the new-session recent-workspace list. Deletion uses **Delete**/**Cancel** confirmation when required, removes the automation and retained run history, and lets already-dispatched sessions continue. Cancellation, denial, invalid IDs, disabled Automations, and stale confirmed updates leave the ledger unchanged.
 
+For Agent Host client tools, a call made while the SDK is in **Allow all** mode carries `autoApproveBySetting` on its ready action. A plain `not-needed` confirmation reason is insufficient because client tools that did not consult the setting can use the same reason.
+
 ### IAICustomizationWorkspaceService
 
 The `IAICustomizationWorkspaceService` interface controls per-window behavior:
