@@ -115,12 +115,17 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 				group: 'navigation',
 			}],
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
+				// Outrank the legacy "Start Voice Chat" action, which binds the
+				// same Cmd+I in the chat input at WorkbenchContrib weight. When
+				// dictation is configured it should win the chord.
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				// Dedicated chord scoped to the chat input. Kept distinct from
+				// Voice Mode's Cmd+Shift+Space so the two never contend.
 				when: ContextKeyExpr.and(
 					ChatSpeechToTextConfigured,
 					ChatContextKeys.inChatInput,
 				),
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyV,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 			},
 		});
 	}

@@ -560,7 +560,7 @@ export class StartVoiceChatAction extends Action2 {
 					FocusInChatInput,					// scope this action to chat input fields only
 					EditorContextKeys.focus.negate(), 	// do not steal the editor inline-chat keybinding
 					NOTEBOOK_EDITOR_FOCUSED.negate(),	// do not steal the notebook inline-chat keybinding
-					ChatContextKeys.speechToTextConfigured.negate()	// built-in dictation replaces this legacy voice-chat action when available
+					ChatContextKeys.speechToTextConfigured.negate()	// built-in on-device dictation wins: yield the keybinding when it's available so it does not collide with the built-in dictation keybinding
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
