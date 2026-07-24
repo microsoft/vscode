@@ -114,6 +114,7 @@
 	box-sizing: border-box;
 	padding-left: calc(var(--vscode-codiconFontSize, 16px) + 6px);
 	border-bottom: 1px solid var(--vscode-agentsPanel-border, transparent);
+	border-radius: 0 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-agentsPanel-background);
 	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
 	box-shadow: 0 6px 6px -6px var(--vscode-widget-shadow, transparent);
