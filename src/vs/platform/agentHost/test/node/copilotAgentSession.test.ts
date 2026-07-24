@@ -25,6 +25,7 @@ import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUt
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
+import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
@@ -5021,11 +5022,13 @@ suite('CopilotAgentSession', () => {
 				toolCallId: readyAction.toolCallId,
 				toolInput: readyAction.toolInput === undefined ? undefined : JSON.parse(readyAction.toolInput),
 				confirmed: readyAction.confirmed,
+				autoApproveBySetting: readToolCallMeta(readyAction).autoApproveBySetting,
 			}, {
 				permissionModeSetCalls: ['on'],
 				toolCallId: 'tc-allow-all',
 				toolInput: { file: 'test.ts' },
 				confirmed: ToolCallConfirmationReason.NotNeeded,
+				autoApproveBySetting: true,
 			});
 
 			const handlerPromise = invokeClientToolHandler(runtime.createClientSdkTools()[0], 'tc-allow-all', { file: 'test.ts' });

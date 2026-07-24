@@ -31,6 +31,7 @@ import { testWorkspace } from '../../../../../../platform/workspace/test/common/
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../../../../../platform/sandbox/common/terminalSandboxMxcRuntime.js';
+import { getTerminalSandboxReadAllowListForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxReadAllowList.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxRuntimeConfigurationPerOperation.js';
 
 suite('TerminalSandboxService - network domains', () => {
@@ -866,6 +867,8 @@ suite('TerminalSandboxService - network domains', () => {
 			const config = await getConfigAfterWrap(command, [{ keyword: 'git', args }]);
 			ok(config.filesystem.allowRead.includes('/home/user/.gnupg'), `${command} should include GPG read allow-list paths`);
 			ok(config.filesystem.allowWrite.includes('/home/user/.gnupg'), `${command} should include GPG write allow-list paths`);
+			ok(config.filesystem.allowRead.includes('/home/user/.ssh'), `${command} should include SSH read allow-list paths`);
+			ok(!config.filesystem.allowWrite.includes('/home/user/.ssh'), `${command} should not include SSH write allow-list paths`);
 			ok(config.filesystem.allowRead.includes('/home/user/.gitconfig'), `${command} should still include generic Git read allow-list paths`);
 			ok(config.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), `${command} should include the GitHub CLI config`);
 			ok(!config.filesystem.allowWrite.includes('/home/user/.config/gh/config.yml'), `${command} should not make the GitHub CLI config writable`);
@@ -875,6 +878,18 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(gpgConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'GPG commands should include GPG read allow-list paths');
 		ok(!gpgConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'GPG commands should not include GPG write allow-list paths');
 		ok(!gpgConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'GPG commands should not include generic git read allow-list paths');
+		ok(!gpgConfig.filesystem.allowRead.includes('/home/user/.ssh'), 'GPG commands should not include SSH read allow-list paths');
+
+		for (const command of [
+			{ keyword: 'ssh', args: ['example.com'] },
+			{ keyword: 'scp', args: ['file.txt', 'example.com:/tmp'] },
+			{ keyword: 'sftp', args: ['example.com'] },
+			{ keyword: 'rsync', args: ['file.txt', 'example.com:/tmp'] },
+		]) {
+			const config = await getConfigAfterWrap(`${command.keyword} ${command.args.join(' ')}`, [command]);
+			ok(config.filesystem.allowRead.includes('/home/user/.ssh'), `${command.keyword} should include SSH read allow-list paths`);
+			ok(!config.filesystem.allowWrite.includes('/home/user/.ssh'), `${command.keyword} should not include SSH write allow-list paths`);
+		}
 
 		const chainedGitConfig = await getConfigAfterWrap('git rebase main && npm install', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'npm', args: ['install'] }]);
 		ok(chainedGitConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Chained Git commands should include GPG read allow-list paths');
@@ -887,10 +902,31 @@ suite('TerminalSandboxService - network domains', () => {
 		const npmConfig = await getConfigAfterWrap('npm install', [{ keyword: 'npm', args: ['install'] }]);
 		ok(!npmConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Commands without a matching GPG rule should not include GPG read allow-list paths');
 		ok(!npmConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Commands without a matching GPG rule should not include GPG write allow-list paths');
+		ok(!npmConfig.filesystem.allowRead.includes('/home/user/.ssh'), 'Commands without a matching SSH rule should not include SSH read allow-list paths');
+		ok(!npmConfig.filesystem.allowWrite.includes('/home/user/.ssh'), 'Commands without a matching SSH rule should not include SSH write allow-list paths');
 
 		const echoConfig = await getConfigAfterWrap('echo "git commit"', [{ keyword: 'echo', args: ['git commit'] }]);
 		ok(!echoConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Quoted command text should not include GPG read allow-list paths');
 		ok(!echoConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Quoted command text should not include GPG write allow-list paths');
+		ok(!echoConfig.filesystem.allowRead.includes('/home/user/.ssh'), 'Quoted command text should not include SSH read allow-list paths');
+		ok(!echoConfig.filesystem.allowWrite.includes('/home/user/.ssh'), 'Quoted command text should not include SSH write allow-list paths');
+	});
+
+	test('should add SSH read allow-list paths only for supported commands on Linux and macOS', () => {
+		for (const os of [OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+			for (const keyword of ['git', 'ssh', 'scp', 'sftp', 'rsync']) {
+				const paths = getTerminalSandboxReadAllowListForCommands(os, [], [{ keyword, args: [] }]);
+				ok(paths.includes('~/.ssh'), `${keyword} should include SSH read access on ${os}`);
+			}
+			for (const keyword of ['gpg', 'npm', 'curl']) {
+				const paths = getTerminalSandboxReadAllowListForCommands(os, [], [{ keyword, args: [] }]);
+				ok(!paths.includes('~/.ssh'), `${keyword} should not include SSH read access on ${os}`);
+			}
+		}
+	});
+
+	test('should add GnuPG read allow-list paths for gpg command keywords', () => {
+		deepStrictEqual(getTerminalSandboxReadAllowListForCommands(OperatingSystem.Linux, ['gpg']), ['~/.gnupg']);
 	});
 
 	test('should not rewrite sandbox config when the parsed command details produce unchanged allow-lists', async () => {

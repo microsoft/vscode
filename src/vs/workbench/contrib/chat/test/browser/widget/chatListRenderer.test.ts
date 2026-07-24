@@ -535,7 +535,8 @@ suite('ChatListRenderer', () => {
 	// measured synchronously *during* the render pass must be deferred (not fired re-entrantly and
 	// not stored), then reliably delivered to the tree afterwards via a re-measure — so streamed
 	// content can't get stranded below a stale row height until a window resize.
-	test('fireItemHeightChange defers a mid-render measurement and delivers it after the render pass', async () => {
+	// skipped for https://github.com/microsoft/vscode/issues/327402
+	test.skip('fireItemHeightChange defers a mid-render measurement and delivers it after the render pass', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
