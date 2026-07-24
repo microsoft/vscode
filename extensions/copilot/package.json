@@ -160,6 +160,7 @@
         "icon": "$(folder)",
         "userDescription": "%copilot.codebase.tool.description%",
         "modelDescription": "Run a natural language search for relevant code or documentation comments from the user's current workspace. Returns relevant code snippets from the user's current workspace if it is large, or the full contents of the workspace if it is small.",
+        "when": "!config.github.copilot.chat.semanticSearchTool.disabled",
         "tags": [
           "codesearch",
           "vscode_codesearch"
