@@ -8,6 +8,7 @@ import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -18,6 +19,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED } from '../../../agentsVoice/common/agentsVoice.js';
+import { NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { SegmentedVoiceInputModePillInactive } from '../voiceInputMode/voiceInputModeContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -124,6 +126,8 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ChatSpeechToTextConfigured,
 					ChatContextKeys.inChatInput,
+					EditorContextKeys.focus.negate(),
+					NOTEBOOK_EDITOR_FOCUSED.negate(),
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 			},

@@ -167,13 +167,55 @@ export const enum ChatOriginKind {
 	User = 'user',
 	/** Forked from an existing chat at a specific turn. */
 	Fork = 'fork',
+	/** Created as an independent side conversation from a specific turn. */
+	SideChat = 'sideChat',
 	/** Spawned by a tool call running in another chat (e.g. a sub-agent delegation). */
 	Tool = 'tool',
 }
 
 /**
+ * Immutable selected-text snapshot captured when a side chat is created.
+ *
+ * The host records this exact text when it accepts `createChat`; later changes
+ * to the source chat do not alter it.
+ *
+ * @category Chat State
+ */
+export interface SideChatSelection {
+	/**
+	 * Exact selected-text snapshot captured at `createChat` acceptance.
+	 *
+	 * MUST be non-empty.
+	 */
+	text: string;
+	/**
+	 * Optional provenance for the response part that contained {@link text} when
+	 * the host took the snapshot.
+	 *
+	 * Advisory only: this is not a live range or offset and MUST NOT be used to
+	 * recompute `text`.
+	 */
+	responsePartId?: string;
+}
+
+/**
  * How a chat came into existence. Clients MAY use it to render
  * contextual UI (parent indicators, fork markers, "spawned by tool" badges).
+ *
+ * Fork and side-chat origins both carry a stable top-level `turnId` alongside
+ * their discriminated `kind` value instead of snapshotting whether that turn
+ * was active or historical at creation time. Consumers resolve the identifier
+ * against the
+ * source chat's current `activeTurn` or retained `turns` as needed.
+ *
+ * When a host accepts side-chat creation from the source chat's current active
+ * turn, it snapshots the retained history plus that turn's current user
+ * message and any partial assistant response already available. Later
+ * source-turn deltas do not retroactively change the created side chat's
+ * starting context, and once the source turn completes it is still referenced
+ * by the same `turnId`. Side-chat origins MAY also retain an immutable
+ * {@link SideChatSelection | selected-text snapshot} captured at acceptance
+ * time; any `responsePartId` there is provenance only, not a range.
  *
  * The `tool` variant records a tool-spawned worker from the worker's side: its
  * `chat`/`toolCallId` identify the spawning tool call in the parent chat. This
@@ -186,6 +228,7 @@ export const enum ChatOriginKind {
 export type ChatOrigin =
 	| { kind: ChatOriginKind.User }
 	| { kind: ChatOriginKind.Fork; chat: URI; turnId: string }
+	| { kind: ChatOriginKind.SideChat; chat: URI; turnId: string; selection?: SideChatSelection }
 	| { kind: ChatOriginKind.Tool; chat: URI; toolCallId: string };
 
 /**
@@ -505,6 +548,8 @@ export const enum MessageAttachmentKind {
 	Resource = 'resource',
 	/** An attachment that references annotations on an annotations channel. */
 	Annotations = 'annotations',
+	/** An attachment that references a bounded transcript from another chat. */
+	Chat = 'chat',
 }
 
 /**
@@ -768,6 +813,30 @@ export interface MessageAnnotationsAttachment extends MessageAttachmentBase {
 }
 
 /**
+ * An attachment that references a chat transcript through a fixed completed
+ * turn.
+ *
+ * The referenced chat MUST belong to the same session as the message's chat.
+ * The host resolves the transcript from its first retained turn through
+ * `endTurn`, inclusive, when accepting the message. Later turns do not
+ * change the context represented by an already-sent attachment.
+ *
+ * Hosts MUST NOT recursively expand chat attachments found inside the
+ * referenced transcript. Clients SHOULD keep rendering `label` if the
+ * referenced chat is later pruned, and treat opening `resource` as best-effort.
+ *
+ * @category Turn Types
+ */
+export interface MessageChatAttachment extends MessageAttachmentBase {
+	/** Discriminant */
+	type: MessageAttachmentKind.Chat;
+	/** URI of the referenced chat. */
+	resource: URI;
+	/** Last completed turn included in the referenced transcript. */
+	endTurn: string;
+}
+
+/**
  * An attachment associated with a {@link Message}.
  *
  * @category Turn Types
@@ -776,7 +845,8 @@ export type MessageAttachment =
 	| SimpleMessageAttachment
 	| MessageEmbeddedResourceAttachment
 	| MessageResourceAttachment
-	| MessageAnnotationsAttachment;
+	| MessageAnnotationsAttachment
+	| MessageChatAttachment;
 
 // ─── Response Parts ──────────────────────────────────────────────────────────
 

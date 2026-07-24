@@ -1044,6 +1044,37 @@ export const SESSION_META_GIT_KEY = 'git';
  */
 export const SESSION_META_GITHUB_KEY = 'github';
 
+export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
+
+/** Latest known prompt-cache state for the model active in an agent session. */
+export interface ISessionPromptCacheState {
+	readonly modelId: string;
+	readonly cacheExpiresAt: string;
+}
+
+/** Reads the latest known prompt-cache state from session metadata. */
+export function readSessionPromptCacheState(meta: SessionMeta | undefined): ISessionPromptCacheState | undefined {
+	const value = meta?.[SESSION_META_PROMPT_CACHE_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	return typeof raw['modelId'] === 'string' && typeof raw['cacheExpiresAt'] === 'string'
+		? { modelId: raw['modelId'], cacheExpiresAt: raw['cacheExpiresAt'] }
+		: undefined;
+}
+
+/** Returns session metadata with the prompt-cache slot updated or removed. */
+export function withSessionPromptCacheState(meta: SessionMeta | undefined, promptCache: ISessionPromptCacheState | undefined): SessionMeta | undefined {
+	const next: SessionMeta = { ...meta };
+	if (promptCache) {
+		next[SESSION_META_PROMPT_CACHE_KEY] = promptCache;
+	} else {
+		delete next[SESSION_META_PROMPT_CACHE_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
 /**
  * Git state of a session's working directory, carried under
  * {@link SessionMeta} at {@link SESSION_META_GIT_KEY}. Used by clients to

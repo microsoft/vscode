@@ -40,7 +40,6 @@ import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobileP
 import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -654,7 +653,6 @@ registerAction2(class OpenAutomationsIsolationGroupAction extends Action2 {
 export function renderForm(
 	form: HTMLElement,
 	state: IFormState,
-	options: IShowAutomationDialogOptions,
 	disposables: DisposableStore,
 	validation: IValidationState,
 	revalidate: () => void,
@@ -755,13 +753,13 @@ export function renderForm(
 	const isolationModel = new AutomationIsolationModel(state);
 	const workspaceControlsVisible = derived(reader => !isolationModel.isQuickChatObs.read(reader));
 	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), { persistSelection: false, telemetrySource: 'AutomationSessionTypePicker' }));
+	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
 	sessionTypePicker.setFolderSource(isolationModel.folderUriObs, {
 		initialPick: state.sessionTypeId
 			? { providerId: state.providerId, sessionTypeId: state.sessionTypeId }
 			: undefined,
 		preserveUnavailableInitialPick: true,
 	});
-	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
 	// The dialog has no session, so the input part reads the active session type from the picker via this delegate.
 	const onDidChangeSessionType = disposables.add(new Emitter<AgentSessionTarget>());
 	const onDidChangeSessionTarget = disposables.add(new Emitter<void>());
@@ -796,7 +794,7 @@ export function renderForm(
 	workspacePicker.setLayoutService(layoutService);
 
 	if (state.folderUri) {
-		workspacePicker.setSelectedWorkspace(state.folderUri, { fireEvent: false });
+		workspacePicker.setSelectedWorkspace(state.folderUri, { fireEvent: false, persist: false });
 	}
 
 	disposables.add(workspacePicker.onDidSelectWorkspace(uri => {
@@ -919,8 +917,13 @@ export function renderForm(
 		}
 		// Retry on cold-start when extension-contributed modes arrive late.
 		if (chatInput.currentModeObs.get().id !== initialMode && !isHiddenCustomInitialMode()) {
+			const baseline = chatInput.currentModeObs.get().id;
 			const retry = disposables.add(new MutableDisposable<IDisposable>());
 			const tryApply = () => {
+				if (chatInput.currentModeObs.get().id !== baseline) {
+					retry.clear();
+					return;
+				}
 				if (isHiddenCustomInitialMode()) {
 					logService.trace(`[AutomationDialog] Skipping hidden custom initial mode "${initialMode}" after modes updated. Falling back to the default mode.`);
 					retry.clear();
@@ -1101,6 +1104,10 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 	}
 
 	protected override _showTabs(): boolean {
+		return false;
+	}
+
+	protected override _shouldPersistSelection(): boolean {
 		return false;
 	}
 
