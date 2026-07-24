@@ -39,6 +39,7 @@ jobs:
           condition: and(succeededOrFailed(), eq(variables.HAS_SCREENSHOTS, 'true'))
           continueOnError: true
           sbomEnabled: false
+          isProduction: false
         - output: pipelineArtifact
           targetPath: $(CRASH_DUMPS_DIR)
           artifactName: crash-dumps-${{ parameters.name }}-$(System.JobAttempt)
@@ -46,6 +47,7 @@ jobs:
           condition: and(succeededOrFailed(), eq(variables.HAS_CRASH_DUMPS, 'true'))
           continueOnError: true
           sbomEnabled: false
+          isProduction: false
     variables:
       TEST_DIR: $(Build.SourcesDirectory)/test/sanity
       LOG_FILE: $(TEST_DIR)/results.xml
