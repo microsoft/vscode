@@ -92,12 +92,15 @@ export function buildClaudeDebugArtifacts(logPaths: readonly string[], transcrip
 /**
  * Encodes a working directory into the Claude CLI's transcript "project" slug —
  * every non-alphanumeric character becomes `-`, e.g. `/Users/foo/my-proj` →
- * `-Users-foo-my-proj`. The CLI derives the slug from its *resolved* process cwd
- * (so a symlinked path like `/tmp` → `/private/tmp` encodes to `-private-tmp`);
- * a caller holding an unresolved path therefore gets a best-effort match.
+ * `-Users-foo-my-proj` and `C:\foo\bar` → `C--foo-bar`. The CLI slugs its native
+ * `process.cwd()`, so two caveats for a caller holding a VS Code URI's `fsPath`:
+ * it resolves symlinks (`/tmp` → `/private/tmp`), and on Windows it keeps the
+ * drive letter uppercase while VS Code lowercases it — so we re-uppercase a
+ * leading `<drive>:` here. A mismatch is best-effort: the caller should have a
+ * scan fallback.
  */
 export function claudeProjectSlug(cwd: string): string {
-	return cwd.replace(/[^a-zA-Z0-9]/g, '-');
+	return cwd.replace(/^([a-zA-Z]):/, (_, drive: string) => `${drive.toUpperCase()}:`).replace(/[^a-zA-Z0-9]/g, '-');
 }
 
 /**

@@ -61,11 +61,14 @@ suite('agentHostLogNaming', () => {
 			{
 				slug: claudeProjectSlug('/Users/tyleonha/Code/Microsoft/vscode-2'),
 				symlinked: claudeProjectSlug('/private/tmp'),
+				windows: claudeProjectSlug('c:\\Users\\test\\project'),
 				transcript: buildClaudeTranscriptPath(URI.file('/home'), '/work/my-proj', 'sess-1').path,
 			},
 			{
 				slug: '-Users-tyleonha-Code-Microsoft-vscode-2',
 				symlinked: '-private-tmp',
+				// VS Code lowercases the URI drive, but the CLI keeps it uppercase.
+				windows: 'C--Users-test-project',
 				transcript: '/home/.claude/projects/-work-my-proj/sess-1.jsonl',
 			},
 		);

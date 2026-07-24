@@ -80,12 +80,14 @@ suite('ClaudeDebugArtifacts', () => {
 		]);
 	});
 
-	test('refresh addresses the transcript by cwd slug, ignoring one filed under a different project', async () => {
+	test('refresh falls back to scanning when the transcript is filed under a different slug', async () => {
 		const { fileService, artifacts } = setup();
-		// Same session id, but under a project dir that isn't this cwd's slug: a scan
-		// would wrongly pick it up; a computed path does not.
-		await write(fileService, joinPath(USER_HOME, '.claude', 'projects', '-some-other-proj', `${SESSION_ID}.jsonl`));
-		assert.deepStrictEqual(await artifacts.refresh(CWD), []);
+		// A symlinked/renamed cwd (or an encoder mismatch) can land the transcript
+		// under a project dir that isn't this cwd's slug: the direct path misses, so
+		// the scan fallback still finds it by session id.
+		const transcript = joinPath(USER_HOME, '.claude', 'projects', '-some-other-proj', `${SESSION_ID}.jsonl`);
+		await write(fileService, transcript);
+		assert.deepStrictEqual(await artifacts.refresh(CWD), [{ label: CLAUDE_TRANSCRIPT_LABEL, path: transcript.fsPath }]);
 	});
 
 	test('refresh surfaces the transcript alone when no debug log has been written yet', async () => {

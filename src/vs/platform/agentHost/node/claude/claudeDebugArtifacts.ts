@@ -87,16 +87,42 @@ export class ClaudeDebugArtifacts {
 	/**
 	 * The SDK session transcript JSONL, once written. The CLI stores it at a
 	 * deterministic `~/.claude/projects/<slug>/<sessionId>.jsonl` derived from the
-	 * cwd (see {@link buildClaudeTranscriptPath}), so this is a single `stat` — not
-	 * a scan of every project directory. `undefined` until the first turn writes it
-	 * (or if the cwd's resolved slug differs, e.g. a symlinked path — best-effort).
+	 * cwd (see {@link buildClaudeTranscriptPath}), so the fast path is a single
+	 * `stat`. The slug is only a best-effort match, though — a symlinked cwd, an
+	 * unusual path char the encoder gets wrong, or a CLI version change all make it
+	 * miss — so on a miss we fall back to scanning the project dirs for this
+	 * session's file (newest first). `undefined` until the first turn writes it.
 	 */
 	private async _readTranscriptPath(cwd: URI): Promise<string | undefined> {
+		const direct = await this._resolveTranscriptFile(buildClaudeTranscriptPath(this._userHome, cwd.fsPath, this._sessionId));
+		if (direct) {
+			return direct.path;
+		}
+		let best: { path: string; mtime: number } | undefined;
 		try {
-			const meta = await this._fileService.resolve(buildClaudeTranscriptPath(this._userHome, cwd.fsPath, this._sessionId), { resolveMetadata: true });
-			return meta.isDirectory ? undefined : meta.resource.fsPath;
+			const stat = await this._fileService.resolve(joinPath(this._userHome, '.claude', 'projects'));
+			for (const child of stat.children ?? []) {
+				if (!child.isDirectory) {
+					continue;
+				}
+				const found = await this._resolveTranscriptFile(joinPath(child.resource, `${this._sessionId}.jsonl`));
+				if (found && (!best || found.mtime > best.mtime)) {
+					best = found;
+				}
+			}
 		} catch {
-			return undefined; // Not written yet, or the cwd doesn't map to an on-disk project dir.
+			// ~/.claude/projects may not exist yet.
+		}
+		return best?.path;
+	}
+
+	/** Resolve a candidate transcript file to `{ path, mtime }`, or `undefined` if it is absent or a directory. */
+	private async _resolveTranscriptFile(file: URI): Promise<{ path: string; mtime: number } | undefined> {
+		try {
+			const meta = await this._fileService.resolve(file, { resolveMetadata: true });
+			return meta.isDirectory ? undefined : { path: meta.resource.fsPath, mtime: meta.mtime ?? 0 };
+		} catch {
+			return undefined;
 		}
 	}
 }
