@@ -14,9 +14,9 @@ import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSepara
 import { ISessionOpenOptions, openSession } from './agentSessionsOpener.js';
 import { IAgentSession, isAgentHostAgentSessionItem, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
-import { AgentSessionsSorter, groupAgentSessionsByDate, type IAgentSessionsFilter, sessionDateFromNow } from './agentSessionsViewer.js';
+import { AgentSessionsSorter, groupAgentSessionsByDate, groupAgentSessionsByRepository, type IAgentSessionsFilter, sessionDateFromNow } from './agentSessionsViewer.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
-import { AgentSessionsFilter } from './agentSessionsFilter.js';
+import { AgentSessionsFilter, AgentSessionsGrouping } from './agentSessionsFilter.js';
 
 interface ISessionPickItem extends IQuickPickItem {
 	readonly session: IAgentSession;
@@ -73,8 +73,6 @@ export interface IAgentSessionsPickerOptions {
 }
 
 export class AgentSessionsPicker {
-
-	private readonly sorter = new AgentSessionsSorter();
 
 	constructor(
 		private readonly anchor: HTMLElement | undefined,
@@ -146,16 +144,31 @@ export class AgentSessionsPicker {
 	}
 
 	private createPickerItems(filter: AgentSessionsFilter): (ISessionPickItem | IQuickPickSeparator)[] {
+		// use the same sorter as the viewer so sort order matches
+		const sorter = new AgentSessionsSorter(sortBy ? () => sortBy : undefined);
 		const sessions = this.agentSessionsService.model.sessions
 			.filter(session => shouldShowSessionInPicker(session, filter))
-			.sort(this.sorter.compare.bind(this.sorter));
+			.sort(sorter.compare.bind(sorter));
+
 		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
 
-		const groupedSessions = groupAgentSessionsByDate(sessions);
-		for (const group of groupedSessions.values()) {
-			if (group.sessions.length > 0) {
-				items.push({ type: 'separator', label: group.label });
-				items.push(...group.sessions.map(session => this.toPickItem(session)));
+		if (groupBy === AgentSessionsGrouping.Repository) {
+			// group by repository, same as the viewer
+			const grouped = groupAgentSessionsByRepository(sessions);
+			for (const { label, sessions: groupSessions } of grouped) {
+				if (groupSessions.length > 0) {
+					items.push({ type: 'separator', label });
+					items.push(...groupSessions.map(session => this.toPickItem(session)));
+				}
+			}
+		} else {
+			// default: group by date (respects the sortBy so section buckets match the viewer)
+			const groupedSessions = groupAgentSessionsByDate(sessions, sortBy);
+			for (const group of groupedSessions.values()) {
+				if (group.sessions.length > 0) {
+					items.push({ type: 'separator', label: group.label });
+					items.push(...group.sessions.map(session => this.toPickItem(session)));
+				}
 			}
 		}
 
