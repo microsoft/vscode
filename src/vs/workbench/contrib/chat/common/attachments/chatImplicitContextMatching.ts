@@ -25,22 +25,22 @@ export function isImplicitContextAlreadyAttached(
 	target: IImplicitContextAttachmentTarget,
 ): boolean {
 	const { uri: targetUri, range: targetRange, handle: targetHandle, resourceUri: targetResourceUri } = target;
+	const isStringTarget = targetHandle !== undefined;
 
 	return attachments.some(a => {
-		if (targetHandle !== undefined && isStringVariableEntry(a) && a.handle === targetHandle) {
+		if (isStringTarget && isStringVariableEntry(a) && a.handle === targetHandle) {
 			return true;
 		}
 
 		// String/PR attachments store text in `value` and identity on `resourceUri`.
-		// Their `uri` is the editor/webview resource, so it must not hide file suggestions.
+		// Their `uri` is the editor/webview resource and is not attachment identity —
+		// matching on it would hide later suggestions from the same tab after refresh.
 		if (isStringVariableEntry(a)) {
-			if (targetResourceUri && a.resourceUri && isEqual(targetResourceUri, a.resourceUri)) {
-				return true;
-			}
-			// Fallback when the target is also string-shaped (has a handle) but no resourceUri.
-			if (targetHandle !== undefined && targetUri && a.uri && isEqual(targetUri, a.uri)) {
-				return true;
-			}
+			return !!(targetResourceUri && a.resourceUri && isEqual(targetResourceUri, a.resourceUri));
+		}
+
+		// String-shaped targets only match string attachments (by handle or resourceUri).
+		if (isStringTarget) {
 			return false;
 		}
 

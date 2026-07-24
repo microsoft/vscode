@@ -75,6 +75,28 @@ suite('isImplicitContextAlreadyAttached', () => {
 		}), false);
 	});
 
+	test('does not treat editor uri as string attachment identity when handle and resourceUri differ', () => {
+		const attachments: IChatRequestVariableEntry[] = [stringAttachment({ handle: 1, resourceUri: undefined })];
+
+		assert.strictEqual(isImplicitContextAlreadyAttached(attachments, {
+			uri: editorUri,
+			handle: 2,
+			resourceUri: undefined,
+		}), false);
+	});
+
+	test('does not hide string suggestion when a file with the same editor uri is attached', () => {
+		const attachments: IChatRequestVariableEntry[] = [
+			{ kind: 'file', id: 'file', name: 'pr', value: editorUri },
+		];
+
+		assert.strictEqual(isImplicitContextAlreadyAttached(attachments, {
+			uri: editorUri,
+			handle: 1,
+			resourceUri,
+		}), false);
+	});
+
 	test('still matches file attachments by uri', () => {
 		const file = URI.file('/repo/src/foo.ts');
 		const attachments: IChatRequestVariableEntry[] = [
