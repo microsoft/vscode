@@ -34,6 +34,10 @@ export const enum AgentHostIpcChannels {
 	Logger = 'agentHostLogger',
 	/** Channel for WebSocket client connection count (server process management only) */
 	ConnectionTracker = 'agentHostConnectionTracker',
+	/** Channel carrying raw Agent Host Protocol frames over a MessagePort. */
+	Protocol = 'agentHostProtocol',
+	/** Narrow local management channel that remains outside of the AHP data plane. */
+	Management = 'agentHostManagement',
 	/**
 	 * Channel registered by the remote server that proxies AHP JSON-RPC
 	 * frames between a renderer and the agent host running on the server.
@@ -670,6 +674,30 @@ export interface IConnectionTrackerService {
 	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
 }
 
+/**
+ * Narrow renderer-to-local-agent-host control surface. All stateful agent
+ * operations travel over {@link AgentHostIpcChannels.Protocol}.
+ */
+export interface IAgentHostManagementService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Local-only compatibility path for session fields not yet represented by
+	 * AHP `createSession` (`model`, `agent`, and `importConversation`).
+	 */
+	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI>;
+	/**
+	 * Local-only compatibility path for chat fields not yet represented by AHP
+	 * `createChat` (`title` and `model`).
+	 */
+	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatOptions): Promise<void>;
+	shutdown(): Promise<void>;
+	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
+	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
+	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
+	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
+}
+
 // ---- IPC data types (serializable across MessagePort) -----------------------
 
 export interface IAgentSessionMetadata {
@@ -774,6 +802,7 @@ export interface IAgentDescriptor {
 	/** Static capability flags the agent advertises (see {@link IAgentCapabilities}). */
 	readonly capabilities?: IAgentCapabilities;
 }
+
 
 // ---- Auth types (RFC 9728 / RFC 6750 inspired) -----------------------------
 
@@ -2062,8 +2091,7 @@ export interface IAgentConnection {
 	 * The host's `initialize` handshake result, exposed observably so callers
 	 * can derive advertised capabilities (e.g. {@link InitializeResult.terminalCommandPrefix},
 	 * {@link InitializeResult.completionTriggerCharacters}). `undefined` until
-	 * the handshake completes; local (in-process) connections synthesize a
-	 * minimal result carrying only the fields meaningful to that transport.
+	 * the handshake completes.
 	 */
 	readonly initializeResult: IObservable<InitializeResult | undefined>;
 	disposeSession(session: URI): Promise<void>;

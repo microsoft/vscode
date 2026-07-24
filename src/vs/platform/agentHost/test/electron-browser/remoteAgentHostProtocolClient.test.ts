@@ -193,8 +193,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 		};
 	}
 
-	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService()): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
-		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, loadEstimator, logService, permissionService, configurationService));
+	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
+		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, loadEstimator, clientId, logService, permissionService, configurationService));
 		return { client, transport, configurationService };
 	}
 
@@ -258,6 +258,173 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: { entries: [{ name: 'late', type: 'file' }] } });
 		assert.strictEqual(transport.sentMessages.length, 1);
+	});
+
+	test('queues requests and notifications until a client transport initializes', async () => {
+		const transport = disposables.add(new TestClientProtocolTransport());
+		const { client } = createClient(transport);
+		const resource = URI.file('/workspace');
+		const request = client.resourceList(resource);
+		client.dispatch(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { preInitialize: true } });
+		assert.strictEqual(transport.sentMessages.length, 0);
+		disposables.add(client.onDidChangeConnectionState(state => {
+			if (state === AgentHostClientState.Connected) {
+				client.dispatch(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { onConnected: true } });
+			}
+		}));
+
+		const connect = client.connect();
+		await Promise.resolve();
+		assert.strictEqual(transport.sentMessages.length, 0);
+
+		transport.connectDeferred.complete();
+		while (transport.sentMessages.length === 0) {
+			await Promise.resolve();
+		}
+		const initialize = transport.sentMessages[0] as JsonRpcRequest;
+		assert.strictEqual(initialize.method, 'initialize');
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: initialize.id,
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+		});
+		await connect;
+
+		const resourceList = transport.sentMessages.find((message): message is JsonRpcRequest =>
+			hasKey(message, { method: true }) && message.method === 'resourceList');
+		assert.ok(resourceList);
+		const actions = transport.sentMessages.filter((message): message is JsonRpcNotification =>
+			hasKey(message, { method: true }) && message.method === 'dispatchAction');
+		const preInitialize = actions.find(action => (action.params as ITestRootConfigNotificationParams).action?.config?.preInitialize === true);
+		const onConnected = actions.find(action => (action.params as ITestRootConfigNotificationParams).action?.config?.onConnected === true);
+		assert.ok(preInitialize);
+		assert.ok(onConnected);
+		assert.ok(transport.sentMessages.indexOf(resourceList) < transport.sentMessages.indexOf(preInitialize));
+		assert.ok(transport.sentMessages.indexOf(preInitialize) < transport.sentMessages.indexOf(onConnected));
+		transport.fireMessage({ jsonrpc: '2.0', id: resourceList.id, result: { entries: [] } });
+		assert.deepStrictEqual(await request, { entries: [] });
+	});
+
+	test('rejects queued requests and drops queued notifications when initialization fails', async () => {
+		const transport = disposables.add(new TestClientProtocolTransport());
+		const { client } = createClient(transport);
+		const request = client.resourceList(URI.file('/workspace'));
+		client.dispatch(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { preInitialize: true } });
+		assert.strictEqual(transport.sentMessages.length, 0);
+
+		const connect = client.connect();
+		transport.connectDeferred.complete();
+		while (transport.sentMessages.length === 0) {
+			await Promise.resolve();
+		}
+		const initialize = transport.sentMessages[0] as JsonRpcRequest;
+		const expected = { code: -32001, message: 'Initialization failed' };
+		const requestError = assertRemoteProtocolError(request, expected);
+		const connectError = assertRemoteProtocolError(connect, expected);
+		transport.fireMessage({ jsonrpc: '2.0', id: initialize.id, error: expected });
+
+		await Promise.all([requestError, connectError]);
+		assert.deepStrictEqual(transport.sentMessages, [initialize]);
+	});
+
+	test('waits for initialization before returning completion trigger characters', async () => {
+		const transport = disposables.add(new TestClientProtocolTransport());
+		const { client } = createClient(transport);
+		const completionTriggerCharacters = client.getCompletionTriggerCharacters();
+		let settled = false;
+		void completionTriggerCharacters.then(() => settled = true);
+		await Promise.resolve();
+		assert.strictEqual(settled, false);
+
+		const connect = client.connect();
+		transport.connectDeferred.complete();
+		while (transport.sentMessages.length === 0) {
+			await Promise.resolve();
+		}
+		const initialize = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: initialize.id,
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], completionTriggerCharacters: ['.', '@'] },
+		});
+
+		await connect;
+		assert.deepStrictEqual(await completionTriggerCharacters, ['.', '@']);
+	});
+
+	test('rejects completion trigger characters after an incompatible initialization', async () => {
+		const transport = disposables.add(new TestClientProtocolTransport());
+		const { client } = createClient(transport);
+		const completionTriggerCharacters = assertRemoteProtocolError(client.getCompletionTriggerCharacters(), {
+			code: AhpErrorCodes.UnsupportedProtocolVersion,
+			message: 'Protocol versions do not match',
+		});
+		const connect = client.connect();
+		transport.connectDeferred.complete();
+		while (transport.sentMessages.length === 0) {
+			await Promise.resolve();
+		}
+		const initialize = transport.sentMessages[0] as JsonRpcRequest;
+		const connectError = assertRemoteProtocolError(connect, {
+			code: AhpErrorCodes.UnsupportedProtocolVersion,
+			message: 'Protocol versions do not match',
+		});
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: initialize.id,
+			error: { code: AhpErrorCodes.UnsupportedProtocolVersion, message: 'Protocol versions do not match' },
+		});
+
+		await Promise.all([completionTriggerCharacters, connectError]);
+	});
+
+	test('maps protocol-supported create session fork and progress token', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		const session = URI.parse('ahp-session:/new');
+		const source = URI.parse('ahp-session:/source');
+		const creation = client.createSession({
+			provider: 'copilot',
+			session,
+			fork: { session: source, turnIndex: 2, turnId: 'turn-2' },
+			progressToken: 'progress-token',
+		});
+
+		const request = transport.sentMessages.find((message): message is JsonRpcRequest =>
+			hasKey(message, { method: true }) && message.method === 'createSession');
+		assert.deepStrictEqual(request?.params, {
+			channel: session.toString(),
+			provider: 'copilot',
+			workingDirectories: undefined,
+			fork: { session: source.toString(), turnId: 'turn-2' },
+			config: undefined,
+			activeClient: undefined,
+			progressToken: 'progress-token',
+		});
+		assert.strictEqual(client.getInflightSessionCreate(session), creation);
+		assert.ok(request);
+		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+		assert.strictEqual(await creation, session);
+	});
+
+	test('maps protocol-supported create chat fork', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		const session = URI.parse('ahp-session:/session');
+		const chat = URI.parse('ahp-chat:/chat');
+		const source = URI.parse('ahp-chat:/source');
+		const creation = client.createChat(session, chat, { fork: { source, turnId: 'turn-1' } });
+
+		const request = transport.sentMessages.find((message): message is JsonRpcRequest =>
+			hasKey(message, { method: true }) && message.method === 'createChat');
+		assert.deepStrictEqual(request?.params, {
+			channel: session.toString(),
+			chat: chat.toString(),
+			source: { chat: source.toString(), turnId: 'turn-1' },
+		});
+		assert.ok(request);
+		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+		await creation;
 	});
 
 	test('preserves JSON-RPC error code and data', async () => {
@@ -525,7 +692,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 	test('initialize handshake offers PROTOCOL_VERSION as a SemVer array', async () => {
 		const transport = disposables.add(new TestClientProtocolTransport());
-		const { client } = createClient(transport);
+		const { client } = createClient(transport, undefined, undefined, undefined, undefined, 'renderer-client-id');
 		const connectPromise = client.connect();
 
 		transport.connectDeferred.complete();
@@ -539,7 +706,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		assert.strictEqual(sent.method, 'initialize');
 		const params = sent.params as { protocolVersions: readonly string[]; clientId: string };
 		assert.deepStrictEqual(params.protocolVersions, [PROTOCOL_VERSION]);
-		assert.strictEqual(typeof params.clientId, 'string');
+		assert.strictEqual(params.clientId, 'renderer-client-id');
 
 		// Reply with a successful handshake so `connect()` resolves and the
 		// test can finish cleanly.
@@ -747,7 +914,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 	});
 
-	test('rejects connect when host returns UnsupportedProtocolVersion (-32005)', async () => {
+	test('rejects normal traffic but retains the transport for an incompatible protocol upgrade', async () => {
 		const transport = disposables.add(new TestClientProtocolTransport());
 		const { client } = createClient(transport);
 		const connectPromise = client.connect();
@@ -764,15 +931,36 @@ suite('RemoteAgentHostProtocolClient', () => {
 			error: {
 				code: AhpErrorCodes.UnsupportedProtocolVersion,
 				message: 'Client offered protocol versions [0.1.0], but this server only supports 0.2.0.',
-				data: { supportedVersions: ['0.2.0'] },
+				data: { supportedVersions: ['0.2.0'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' } },
 			},
 		});
 
 		await assertRemoteProtocolError(connectPromise, {
 			code: AhpErrorCodes.UnsupportedProtocolVersion,
 			message: 'Client offered protocol versions [0.1.0], but this server only supports 0.2.0.',
-			data: { supportedVersions: ['0.2.0'] },
+			data: { supportedVersions: ['0.2.0'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' } },
 		});
+		assert.strictEqual(client.connectionState, AgentHostClientState.Incompatible);
+		await assertRemoteProtocolError(client.resourceList(URI.file('/workspace')), {
+			code: AhpErrorCodes.UnsupportedProtocolVersion,
+			message: 'Client offered protocol versions [0.1.0], but this server only supports 0.2.0.',
+			data: { supportedVersions: ['0.2.0'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' } },
+		});
+		client.dispatch(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { dropped: true } });
+		assert.strictEqual(transport.sentMessages.length, 1);
+
+		const upgrade = client.triggerVscodeUpgrade('_vscodeUpgrade');
+		const request = transport.sentMessages[1] as JsonRpcRequest;
+		assert.deepStrictEqual(request, {
+			jsonrpc: '2.0',
+			id: 2,
+			method: '_vscodeUpgrade',
+			params: {},
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { ok: true, upgradeStarted: true } });
+		assert.deepStrictEqual(await upgrade, { ok: true, upgradeStarted: true });
+		transport.fireClose();
+		assert.strictEqual(client.connectionState, AgentHostClientState.Closed);
 	});
 
 	test('sends shutdown as a JSON-RPC request shape', async () => {
@@ -1205,7 +1393,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				return t;
 			};
 			const client = disposables.add(new RemoteAgentHostProtocolClient(
-				'test.example:1234', factory, undefined, new NullLogService(), permissionService, new TestConfigurationService(),
+				'test.example:1234', factory, undefined, undefined, new NullLogService(), permissionService, new TestConfigurationService(),
 			));
 			return { client, transports };
 		}
