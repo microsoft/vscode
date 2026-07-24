@@ -552,9 +552,10 @@ export class WorkspacePicker extends Disposable {
 	 *        own the resulting session (e.g. "New Session" invoked from a workspace
 	 *        section in the sessions list, where the existing sessions for the
 	 *        workspace were created by a specific provider).
+	 * @param options.persist Whether to persist the selection as a recent workspace. Defaults to true.
 	 */
-	setSelectedWorkspace(folderUri: URI, options?: { fireEvent?: boolean; providerId?: string }): void {
-		this._selectFolder(folderUri, options?.fireEvent ?? true, options?.providerId);
+	setSelectedWorkspace(folderUri: URI, options?: { fireEvent?: boolean; providerId?: string; persist?: boolean }): void {
+		this._selectFolder(folderUri, options?.fireEvent ?? true, options?.providerId, options?.persist ?? true);
 	}
 
 	/**
@@ -579,7 +580,9 @@ export class WorkspacePicker extends Disposable {
 		this._connectionStatusWatch.clear();
 		this._selectedFolderUri = undefined;
 		this._selectedResolved = undefined;
-		this.recentWorkspacesService.clearCheckedWorkspace();
+		if (this._shouldPersistSelection()) {
+			this.recentWorkspacesService.clearCheckedWorkspace();
+		}
 		this._updateTriggerLabel();
 		this._onDidChangeSelection.fire();
 	}
@@ -593,7 +596,7 @@ export class WorkspacePicker extends Disposable {
 		}
 	}
 
-	private _selectFolder(folderUri: URI, fireEvent = true, providerIdHint?: string): void {
+	private _selectFolder(folderUri: URI, fireEvent = true, providerIdHint?: string, persist = true): void {
 		this._selectionGeneration++;
 		this._userHasPicked = true;
 		this._connectionStatusWatch.clear();
@@ -607,12 +610,18 @@ export class WorkspacePicker extends Disposable {
 		const resolved = this._resolveFolder(folderUri, providerIdHint ?? storedProviderId);
 		this._selectedFolderUri = folderUri;
 		this._selectedResolved = resolved;
-		this.recentWorkspacesService.addRecentWorkspace(folderUri, resolved?.providerId, true);
+		if (persist && this._shouldPersistSelection()) {
+			this.recentWorkspacesService.addRecentWorkspace(folderUri, resolved?.providerId, true);
+		}
 		this._updateTriggerLabel();
 		this._onDidChangeSelection.fire();
 		if (fireEvent) {
 			this._onDidSelectWorkspace.fire(folderUri);
 		}
+	}
+
+	protected _shouldPersistSelection(): boolean {
+		return true;
 	}
 
 	/**

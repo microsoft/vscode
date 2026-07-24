@@ -965,6 +965,12 @@ export interface IAgentCreateChatOptions {
 	 * is forked from the source so it can continue independently.
 	 */
 	readonly fork?: IAgentCreateChatForkSource;
+	/**
+	 * Create this new chat as a side chat branching from a turn in an existing
+	 * chat (via `/btw`). Unlike {@link fork}, inherited context is provider-owned
+	 * and must not appear in the chat's visible history.
+	 */
+	readonly sideChat?: IAgentCreateChatSideChatSource;
 }
 
 /** Identifies a source chat and turn to fork a new chat from. */
@@ -979,6 +985,30 @@ export interface IAgentCreateChatForkSource {
 	 * ID mappings) in the forked chat's database.
 	 */
 	readonly turnIdMapping?: ReadonlyMap<string, string>;
+}
+
+/** Immutable selected-text snapshot captured when a side chat is created. */
+export interface IAgentCreateChatSideChatSelection {
+	/** Exact selected-text snapshot captured at side-chat creation time. */
+	readonly text: string;
+	/** Optional provenance for the response part that contained {@link text}. */
+	readonly responsePartId?: string;
+}
+
+/** Identifies a source chat and turn a side chat (`/btw`) branches from. */
+export interface IAgentCreateChatSideChatSource {
+	/** URI of the existing chat the side chat branches from. */
+	readonly source: URI;
+	/** Turn ID in the source chat the side chat records as its provenance. */
+	readonly turnId: string;
+	/** Optional selected-text snapshot captured from the source chat transcript. */
+	readonly selection?: IAgentCreateChatSideChatSelection;
+	/** Concrete provider turn ID to fork/resume from when `turnId` names a host-only local turn. */
+	readonly providerAnchorTurnId?: string;
+	/** Bounded source-chat context captured from host state when the provider transcript lags. */
+	readonly sourceContext?: string;
+	/** User-visible assistant text captured while the source turn was active. */
+	readonly partialResponse?: string;
 }
 
 /** Result of {@link IAgentChats.createChat}: the opaque blob to persist for restore. */
@@ -1540,16 +1570,16 @@ export interface IAgent {
 	readonly onDidSpawnChat?: Event<IAgentSpawnChatEvent>;
 
 	/**
-	 * Called when the session's pending (steering) message changes.
+	 * Called when a chat's pending (steering) message changes.
 	 * The agent harness decides how to react — e.g. inject steering
-	 * mid-turn via `mode: 'immediate'`. When `chat` is provided (an additional
-	 * peer chat's URI), the steering targets that chat's chat rather
-	 * than the session's default chat.
+	 * mid-turn via `mode: 'immediate'`. Steering is always addressed by a
+	 * concrete chat channel URI — the session's default chat or an additional
+	 * peer chat — so it never leaks into a sibling chat of the same session.
 	 *
 	 * Queued messages are consumed on the server side and are not
 	 * forwarded to the agent; `queuedMessages` will always be empty.
 	 */
-	setPendingMessages?(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], chat?: URI): void;
+	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void;
 
 	/**
 	 * Retrieve the reconstructed turns for a session, used when restoring

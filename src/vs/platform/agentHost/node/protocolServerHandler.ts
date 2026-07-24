@@ -11,8 +11,9 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
-import { AgentSession, type IAgentService, type IMcpNotification } from '../common/agentService.js';
+import { AgentSession, type IAgentCreateChatOptions, type IAgentService, type IMcpNotification } from '../common/agentService.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
+import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
@@ -1211,12 +1212,30 @@ export class ProtocolServerHandler extends Disposable {
 			if (URI.parse(params.chat).toString() === URI.parse(defaultChat).toString()) {
 				return null;
 			}
+			const source = params.source;
+			let options: IAgentCreateChatOptions | undefined;
+			if (source) {
+				switch (source.kind) {
+					case ChatSourceKind.Fork:
+						options = { fork: { source: URI.parse(source.chat), turnId: source.turnId } };
+						break;
+					case ChatSourceKind.SideChat:
+						options = {
+							sideChat: {
+								source: URI.parse(source.chat),
+								turnId: source.turnId,
+								...(source.selection ? { selection: source.selection } : {}),
+							},
+						};
+						break;
+					default:
+						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unsupported createChat source kind: ${String((source as { kind?: unknown }).kind)}`);
+				}
+			}
 			await this._agentService.createChat(
 				URI.parse(params.channel),
 				URI.parse(params.chat),
-				{
-					...(params.source ? { fork: { source: URI.parse(params.source.chat), turnId: params.source.turnId } } : {}),
-				},
+				options,
 			);
 			return null;
 		},

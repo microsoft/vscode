@@ -13,7 +13,7 @@ import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { IAgentHostGitService } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
@@ -66,8 +66,8 @@ suite('WorktreeIsolation', () => {
 			getCurrentBranch: async () => 'feature',
 			getDefaultBranch: async () => ({ name: 'main', startPoint: 'main' }),
 			getBranches: async () => [
-				{ ref: 'refs/heads/main', name: 'main' },
-				{ ref: 'refs/heads/feature', name: 'feature' },
+				{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head },
+				{ ref: 'refs/heads/feature', name: 'feature', kind: GitRefType.Head },
 			],
 			branchExists: async () => branchExists,
 			hasUncommittedChanges: async () => hasUncommittedChanges,

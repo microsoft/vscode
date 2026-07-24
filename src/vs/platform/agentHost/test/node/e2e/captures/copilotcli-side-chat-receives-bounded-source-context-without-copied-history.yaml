@@ -1,0 +1,31 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-haiku-4.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the exact token SIDECHAT42 for a later question. Reply with exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+      usage:
+        inputTokens: 9
+        outputTokens: 65
+  - request:
+      model: claude-haiku-4.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the exact token SIDECHAT42 for a later question. Reply with exactly "ready".
+        - role: assistant
+          content: ready
+        - role: user
+          content: What exact token did I ask you to remember? Reply with only the token.
+    response:
+      content: SIDECHAT42
+      stopReason: end_turn
+      usage:
+        inputTokens: 9
+        outputTokens: 61

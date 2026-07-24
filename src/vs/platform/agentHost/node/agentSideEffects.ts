@@ -23,6 +23,7 @@ import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMe
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type SessionInputRequest } from '../common/state/protocol/state.js';
 import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
@@ -33,6 +34,7 @@ import {
 	isSubagentChatUri,
 	isChatReadOnly,
 	AH_META_IS_ARCHIVED_DB_KEY,
+	MessageAttachmentKind,
 	MessageKind,
 	parseChatUri,
 	parseRequiredSessionUriFromChatUri,
@@ -46,6 +48,7 @@ import {
 	type ErrorInfo,
 	type ISessionWithDefaultChat,
 	type Message,
+	type MessageAttachment,
 	type URI as ProtocolURI,
 	type SessionState,
 	type ToolCallState,
@@ -93,6 +96,8 @@ export interface IAgentSideEffectsOptions {
 	 * {@link AgentService}.
 	 */
 	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string }) => Promise<URI | undefined>;
+	/** Resolves a referenced chat's turns, hydrating its owning session when needed. */
+	readonly resolveChatAttachmentTurns?: (resource: ProtocolURI) => Promise<readonly Turn[]>;
 	/**
 	 * Called after each top-level session turn completes so git state can be
 	 * refreshed and published via `SessionMetaChanged`. Subagent turns are
@@ -1397,7 +1402,7 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
-	 * Pushes the current pending message state from the session to the agent.
+	 * Pushes the current pending message state from the chat to the agent.
 	 * The server controls queued message consumption; only steering messages
 	 * are forwarded to the agent for mid-turn injection.
 	 */
@@ -1409,10 +1414,9 @@ export class AgentSideEffects extends Disposable {
 		}
 		const agent = this._options.getAgent(sessionChannel);
 		agent?.setPendingMessages?.(
-			URI.parse(sessionChannel),
+			URI.parse(chatChannel),
 			state.steeringMessage,
 			[],
-			isDefaultChatUri(chatChannel) ? undefined : URI.parse(chatChannel),
 		);
 
 		// Steering message removal is now dispatched by the agent
@@ -1593,7 +1597,8 @@ export class AgentSideEffects extends Disposable {
 			await Promise.all(selectionUpdates);
 
 			failureStage = 'sendMessage';
-			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectory, message.attachments, turnId, senderClientId);
+			const resolvedAttachments = await this._resolveChatAttachments(sessionChannel, message.attachments);
+			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectory, resolvedAttachments, turnId, senderClientId);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
 			const error = failure.error;
@@ -1608,6 +1613,45 @@ export class AgentSideEffects extends Disposable {
 			this._toolCallTracker.clearSession(turnChannel);
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
 		}
+	}
+
+	private async _resolveChatAttachments(sessionChannel: ProtocolURI, attachments: readonly MessageAttachment[] | undefined): Promise<readonly MessageAttachment[] | undefined> {
+		if (!attachments?.some(attachment => attachment.type === MessageAttachmentKind.Chat)) {
+			return attachments;
+		}
+		return Promise.all(attachments.map(async attachment => {
+			if (attachment.type !== MessageAttachmentKind.Chat) {
+				return attachment;
+			}
+			const sourceSession = isAhpChatChannel(attachment.resource)
+				? parseRequiredSessionUriFromChatUri(attachment.resource)
+				: URI.parse(attachment.resource).toString();
+			if (sourceSession !== URI.parse(sessionChannel).toString()) {
+				throw new Error(`Chat attachment source must belong to the target session: ${attachment.resource}`);
+			}
+			const sourceState = this._resolveSourceChatState(attachment.resource);
+			if (sourceState?.activeTurn?.id === attachment.endTurn) {
+				throw new Error(`Chat attachment endTurn must reference a completed turn: ${attachment.resource}#${attachment.endTurn}`);
+			}
+			const sourceTurns = await this._options.resolveChatAttachmentTurns?.(attachment.resource)
+				?? sourceState?.turns
+				?? [];
+			return resolveChatAttachment(attachment, sourceTurns);
+		}));
+	}
+
+	private _resolveSourceChatState(sourceUri: string) {
+		const peerState = this._stateManager.getChatState(sourceUri);
+		if (peerState) {
+			return peerState;
+		}
+		if (!isAhpChatChannel(sourceUri)) {
+			return this._stateManager.getDefaultChatState(sourceUri);
+		}
+		if (isDefaultChatUri(sourceUri)) {
+			return this._stateManager.getDefaultChatState(parseRequiredSessionUriFromChatUri(sourceUri));
+		}
+		return undefined;
 	}
 
 	/**

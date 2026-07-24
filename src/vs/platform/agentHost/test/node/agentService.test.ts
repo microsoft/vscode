@@ -1744,6 +1744,8 @@ suite('AgentService (node dispatcher)', () => {
 				_serviceBrand: undefined,
 				getCurrentBranch: async () => undefined,
 				getDefaultBranch: async () => undefined,
+				getBranch: async () => undefined,
+				getRefs: async () => [],
 				getBranches: async () => [],
 				getRepositoryRoot: async () => undefined,
 				getWorktreeRoots: async () => [],
@@ -1848,6 +1850,8 @@ suite('AgentService (node dispatcher)', () => {
 				_serviceBrand: undefined,
 				getCurrentBranch: async () => undefined,
 				getDefaultBranch: async () => undefined,
+				getBranch: async () => undefined,
+				getRefs: async () => [],
 				getBranches: async () => [],
 				getRepositoryRoot: async () => undefined,
 				getWorktreeRoots: async () => [],
@@ -3261,6 +3265,292 @@ suite('AgentService (node dispatcher)', () => {
 				leakedAfterRestart: false,
 			});
 		});
+	});
+
+	suite('createChat side chats', () => {
+
+		class SideChatAgent extends MockAgent {
+			lastCreateOptions: IAgentCreateChatOptions | undefined;
+			readonly chatMessages = new Map<string, readonly Turn[]>();
+			override async createChat(_session: URI, _chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> {
+				this.lastCreateOptions = options;
+			}
+			override async getSessionMessages(chat: URI): Promise<readonly Turn[]> {
+				return this.chatMessages.get(chat.toString()) ?? super.getSessionMessages(chat);
+			}
+		}
+
+		function completedTurn(id: string, userText = 'user text', assistantText = 'assistant text'): Turn {
+			return {
+				id,
+				state: TurnState.Complete,
+				message: { text: userText, origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: `${id}-md`, content: assistantText }],
+				usage: undefined,
+			};
+		}
+
+		test('rejects a side chat whose source turn does not exist', async () => {
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const chatUri = URI.parse(buildChatUri(session, 'side-1'));
+
+			await assert.rejects(
+				() => service.createChat(session, chatUri, { sideChat: { source: session, turnId: 'missing' } }),
+				/side chat source turn/,
+			);
+		});
+
+		test('rejects an empty side-chat selection snapshot', async () => {
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			service.stateManager.seedDefaultChatTurns(session.toString(), [completedTurn('t1')]);
+			const chatUri = URI.parse(buildChatUri(session, 'side-1'));
+
+			await assert.rejects(
+				() => service.createChat(session, chatUri, { sideChat: { source: session, turnId: 't1', selection: { text: ' \n ' } } }),
+				/selection text must be non-empty/,
+			);
+		});
+
+		test('rejects a side chat whose source chat is in a different session', async () => {
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			service.registerProvider(agent);
+			const sessionA = await service.createSession({ provider: 'copilot' });
+			const sessionB = await service.createSession({ provider: 'copilot' });
+			service.stateManager.seedDefaultChatTurns(sessionB.toString(), [completedTurn('t1')]);
+			const chatUri = URI.parse(buildChatUri(sessionA, 'side-1'));
+
+			await assert.rejects(
+				() => service.createChat(sessionA, chatUri, { sideChat: { source: sessionB, turnId: 't1' } }),
+				/does not belong to session/,
+			);
+		});
+
+		test('creates a fresh peer with a SideChat origin and no copied source turns', async () => {
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			service.stateManager.seedDefaultChatTurns(session.toString(), [completedTurn('t1'), completedTurn('t2')]);
+			const chatUri = URI.parse(buildChatUri(session, 'side-1'));
+			const defaultChatUri = buildDefaultChatUri(session);
+			const selection = { text: '  selected text  ', responsePartId: 'response-part-1' };
+
+			await service.createChat(session, chatUri, { sideChat: { source: session, turnId: 't1', selection } });
+			const state = service.stateManager.getChatState(chatUri.toString());
+
+			assert.deepStrictEqual({
+				origin: state?.origin,
+				copiedTurns: state?.turns.length,
+				forkForwarded: agent.lastCreateOptions?.fork,
+				sideChatForwarded: agent.lastCreateOptions?.sideChat,
+			}, {
+				origin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1', selection },
+				copiedTurns: 0,
+				forkForwarded: undefined,
+				sideChatForwarded: { source: URI.parse(defaultChatUri), turnId: 't1', selection },
+			});
+		});
+
+		test('creates a side chat from a completed local turn without losing its stable source turn identity', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const { session } = await agent.createSession();
+			const sessionResource = (await agent.listSessions())[0].session;
+			const defaultChatUri = buildDefaultChatUri(sessionResource.toString());
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'real-1', content: 'first question', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'real-1-a', content: 'first answer', toolRequests: [] },
+			];
+			const localTurn: Turn = {
+				id: 'local-1',
+				state: TurnState.Complete,
+				message: { text: '!command', origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+			};
+			await db.insertLocalTurn({ turnId: 'local-1', chatUri: defaultChatUri, anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
+			await localService.restoreSession(sessionResource);
+			const chatUri = URI.parse(buildChatUri(sessionResource, 'side-local'));
+
+			await localService.createChat(sessionResource, chatUri, { sideChat: { source: URI.parse(defaultChatUri), turnId: 'local-1' } });
+
+			assert.deepStrictEqual({
+				origin: localService.stateManager.getChatState(chatUri.toString())?.origin,
+				sideChatForwarded: agent.lastCreateOptions?.sideChat && {
+					source: agent.lastCreateOptions.sideChat.source.toString(),
+					turnId: agent.lastCreateOptions.sideChat.turnId,
+					providerAnchorTurnId: agent.lastCreateOptions.sideChat.providerAnchorTurnId,
+					sourceContext: agent.lastCreateOptions.sideChat.sourceContext,
+				},
+			}, {
+				origin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 'local-1' },
+				sideChatForwarded: {
+					source: defaultChatUri,
+					turnId: 'local-1',
+					providerAnchorTurnId: 'real-1',
+					sourceContext: 'User request:\nfirst question\n\nAgent response:\nfirst answer\n\n---\n\nUser request:\n!command',
+				},
+			});
+		});
+
+		test('creates a side chat from the current active turn', async () => {
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const sourceChat = buildDefaultChatUri(session);
+			service.dispatchAction(sourceChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'active-turn',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'still running', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+			service.stateManager.dispatchServerAction(sourceChat, {
+				type: ActionType.ChatResponsePart,
+				turnId: 'active-turn',
+				part: { kind: ResponsePartKind.Markdown, id: 'partial', content: 'partial answer' },
+			});
+			const chatUri = URI.parse(buildChatUri(session, 'side-active'));
+
+			await service.createChat(session, chatUri, { sideChat: { source: URI.parse(sourceChat), turnId: 'active-turn' } });
+
+			assert.deepStrictEqual({
+				sourceActiveTurn: service.stateManager.getChatState(sourceChat)?.activeTurn?.id,
+				origin: service.stateManager.getChatState(chatUri.toString())?.origin,
+				sideChatForwarded: agent.lastCreateOptions?.sideChat
+					? {
+						source: agent.lastCreateOptions.sideChat.source.toString(),
+						turnId: agent.lastCreateOptions.sideChat.turnId,
+						sourceContext: agent.lastCreateOptions.sideChat.sourceContext,
+						partialResponse: agent.lastCreateOptions.sideChat.partialResponse,
+					}
+					: undefined,
+			}, {
+				sourceActiveTurn: 'active-turn',
+				origin: { kind: ChatOriginKind.SideChat, chat: sourceChat, turnId: 'active-turn' },
+				sideChatForwarded: { source: sourceChat, turnId: 'active-turn', sourceContext: 'User request:\nstill running', partialResponse: 'partial answer' },
+			});
+		});
+
+		test('creates a side chat from a later active turn without losing the current user question', async () => {
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const sourceChat = buildDefaultChatUri(session);
+			service.stateManager.seedDefaultChatTurns(session.toString(), [completedTurn('t1', 'first question', 'first answer')]);
+			service.dispatchAction(sourceChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'active-turn',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'second question', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+			service.stateManager.dispatchServerAction(sourceChat, {
+				type: ActionType.ChatResponsePart,
+				turnId: 'active-turn',
+				part: { kind: ResponsePartKind.Markdown, id: 'partial', content: 'partial answer' },
+			});
+			const chatUri = URI.parse(buildChatUri(session, 'side-active-later'));
+
+			await service.createChat(session, chatUri, { sideChat: { source: URI.parse(sourceChat), turnId: 'active-turn' } });
+
+			assert.deepStrictEqual(agent.lastCreateOptions?.sideChat && {
+				source: agent.lastCreateOptions.sideChat.source.toString(),
+				turnId: agent.lastCreateOptions.sideChat.turnId,
+				sourceContext: agent.lastCreateOptions.sideChat.sourceContext,
+				partialResponse: agent.lastCreateOptions.sideChat.partialResponse,
+			}, {
+				source: sourceChat,
+				turnId: 'active-turn',
+				sourceContext: 'User request:\nfirst question\n\nAgent response:\nfirst answer\n\n---\n\nUser request:\nsecond question',
+				partialResponse: 'partial answer',
+			});
+		});
+
+		test('persists and restores the SideChat origin', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			localService.stateManager.seedDefaultChatTurns(session.toString(), [completedTurn('t1')]);
+			const chatUri = URI.parse(buildChatUri(session, 'side-1'));
+			const defaultChatUri = buildDefaultChatUri(session);
+			const selection = { text: '  selected text  ', responsePartId: 'response-part-1' };
+			await localService.createChat(session, chatUri, { sideChat: { source: session, turnId: 't1', selection } });
+
+			let persistedOrigin: unknown;
+			for (let i = 0; i < 50; i++) {
+				const raw = await db.getMetadata('peerChats');
+				if (raw !== undefined) {
+					const parsed = JSON.parse(raw) as { uri: string; origin?: unknown }[];
+					persistedOrigin = parsed.find(entry => entry.uri === chatUri.toString())?.origin;
+					if (persistedOrigin) {
+						break;
+					}
+				}
+				await timeout(1);
+			}
+
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual({
+				persistedOrigin,
+				restoredOrigin: localService.stateManager.getChatState(chatUri.toString())?.origin,
+			}, {
+				persistedOrigin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1', selection },
+				restoredOrigin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1', selection },
+			});
+		});
+
+		test('hydrates a missing peer chat when resolving a generic Chat attachment', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new SideChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peerChat = URI.parse(buildChatUri(session, 'peer-1'));
+			await localService.createChat(session, peerChat);
+			for (let i = 0; i < 50 && await db.getMetadata('peerChats') === undefined; i++) {
+				await timeout(1);
+			}
+			agent.chatMessages.set(peerChat.toString(), [completedTurn('peer-turn', 'Remember X', 'Remembered')]);
+			localService.stateManager.removeChat(session.toString(), peerChat.toString());
+
+			const sent = Event.toPromise(agent.onDidSendMessage);
+			localService.dispatchAction(buildDefaultChatUri(session), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: {
+					text: 'What was remembered?',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Chat,
+						resource: peerChat.toString(),
+						endTurn: 'peer-turn',
+						label: 'Earlier chat',
+					}],
+				},
+			}, 'client-1', 1);
+			await sent;
+
+			const attachment = agent.sendMessageCalls[0].attachments?.[0];
+			assert.deepStrictEqual({
+				peerHydrated: !!localService.stateManager.getChatState(peerChat.toString()),
+				type: attachment?.type,
+				hasTranscript: attachment?.type === MessageAttachmentKind.Simple && attachment.modelRepresentation?.includes('User: Remember X'),
+			}, {
+				peerHydrated: true,
+				type: MessageAttachmentKind.Simple,
+				hasTranscript: true,
+			});
+		});
+
 	});
 
 	// ---- chat surface routing (G-C1) ----------------------------
