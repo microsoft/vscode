@@ -9,6 +9,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ISession } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 
 /**
@@ -39,10 +40,8 @@ export interface ISessionGroupsChangeEvent {
  * groups. State is purely local (persisted to profile storage) and not synced
  * to providers.
  *
- * A session belongs to at most one group. Group membership is independent of
- * where the session renders: a grouped session that becomes pinned or archived
- * is rendered in the Pinned/Done section but retains its membership, so it
- * returns to the group once unpinned/restored.
+ * A session belongs to at most one group. Pinned sessions retain their
+ * membership, while archiving a session removes it from its group.
  */
 export interface ISessionGroupsService {
 	readonly _serviceBrand: undefined;
@@ -142,11 +141,13 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		super();
 
 		this.load();
+		const archivedMembershipChanged = new Set<string>();
+		this.removeArchivedMembership(this.sessionsManagementService.getSessions(), archivedMembershipChanged);
+		if (archivedMembershipChanged.size > 0) {
+			this.save();
+		}
 
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
-			if (e.removed.length === 0) {
-				return;
-			}
 			const changed = new Set<string>();
 			for (const session of e.removed) {
 				this._inFlightSessionGroups.delete(session.sessionId);
@@ -154,10 +155,16 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 					changed.add(session.sessionId);
 				}
 			}
+			this.removeArchivedMembership(e.added, changed);
+			this.removeArchivedMembership(e.changed, changed);
 			if (changed.size > 0) {
 				this.save();
 				this._onDidChange.fire({ groupsChanged: false, membershipChanged: changed });
 			}
+		}));
+
+		this._register(this.sessionsManagementService.onDidArchiveSession(session => {
+			this.removeFromGroup(session.sessionId);
 		}));
 
 		// Lock the pending group onto the specific draft at send-dispatch, before
@@ -308,6 +315,14 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		if (this._membership.get(sessionId) !== groupId) {
 			this._membership.set(sessionId, groupId);
 			changed.add(sessionId);
+		}
+	}
+
+	private removeArchivedMembership(sessions: readonly ISession[], changed: Set<string>): void {
+		for (const session of sessions) {
+			if (session.isArchived.get() && this._membership.delete(session.sessionId)) {
+				changed.add(session.sessionId);
+			}
 		}
 	}
 

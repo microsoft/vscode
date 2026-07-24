@@ -244,6 +244,21 @@ function pendingConfirmationModel(resource: URI): IChatModel {
 	} as unknown as IChatModel;
 }
 
+function completedResponseModel(markdown: string, errorMessage?: string): IChatModel {
+	const response = {
+		isPendingConfirmation: observableValue('pending', undefined),
+		isIncomplete: observableValue('incomplete', false),
+		response: {
+			value: [],
+			getMarkdown: () => markdown,
+		},
+		result: errorMessage ? { errorDetails: { message: errorMessage } } : undefined,
+	};
+	return {
+		getRequests: () => [{ response }],
+	} as unknown as IChatModel;
+}
+
 class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override readonly onDidChangeFocusedSession = Event.None;
 	override readonly onDidAddWidget = Event.None;
@@ -331,6 +346,21 @@ suite('VoiceSessionController', () => {
 		));
 	}
 
+	test('includes response errors in the summary sent to the voice backend', () => {
+		const controller = createController(new TestVoiceClientService());
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => { state: string; last_response_summary?: string };
+
+		assert.deepStrictEqual([
+			getAgentStateInfo.call(controller, completedResponseModel('', 'The branch main was not found.')),
+			getAgentStateInfo.call(controller, completedResponseModel('I could not rebase the branch.', 'The branch main was not found.')),
+			getAgentStateInfo.call(controller, completedResponseModel('The rebase completed.')),
+		], [
+			{ state: 'idle', last_response_summary: 'The branch main was not found.' },
+			{ state: 'idle', last_response_summary: 'I could not rebase the branch.\n\nThe branch main was not found.' },
+			{ state: 'idle', last_response_summary: 'The rebase completed.' },
+		]);
+	});
+
 	test('explicit disconnect clears routing target and pending confirmations and the tracker cannot repopulate them before reconnect', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const chatService = new ControllableChatService();
@@ -381,7 +411,14 @@ suite('VoiceSessionController', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
 		const commandService = new TestCommandService();
-		const controller = createController(voiceClientService, ttsPlaybackService, commandService);
+		const controller = createController(
+			voiceClientService,
+			ttsPlaybackService,
+			commandService,
+			NullTelemetryService,
+			undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }),
+		);
 		await controller.connect(mainWindow);
 
 		voiceClientService.fireAudioResponse({
@@ -830,6 +867,47 @@ suite('VoiceSessionController', () => {
 
 		assert.strictEqual(mic.pttDownCalls.length, 1);
 		assert.strictEqual(mic.pttDownCalls[0].passive, true);
+	});
+
+	test('connect only arms listening automatically in hands-free mode', () => {
+		const manualVoiceClientService = new TestVoiceClientService();
+		const manualController = createController(manualVoiceClientService, undefined, undefined, undefined, undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': false }));
+
+		const handsFreeVoiceClientService = new TestVoiceClientService();
+		const handsFreeController = createController(handsFreeVoiceClientService, undefined, undefined, undefined, undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }));
+		const manualShouldArm = Reflect.get(manualController, '_shouldEnterListenOnSessionInit') as (isResuming: boolean) => boolean;
+		const handsFreeShouldArm = Reflect.get(handsFreeController, '_shouldEnterListenOnSessionInit') as (isResuming: boolean) => boolean;
+
+		assert.deepStrictEqual({
+			manualFreshConnect: manualShouldArm.call(manualController, false),
+			handsFreeFreshConnect: handsFreeShouldArm.call(handsFreeController, false),
+			handsFreeResume: handsFreeShouldArm.call(handsFreeController, true),
+		}, {
+			manualFreshConnect: false,
+			handsFreeFreshConnect: true,
+			handsFreeResume: false,
+		});
+	});
+
+	test('stopping listening in manual mode submits the transcript', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const controller = createController(voiceClientService, undefined, commandService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		controller.pttDown();
+		controller.stopListening();
+		voiceClientService.fireToolCall({
+			callId: 'manual-transcription',
+			name: 'send_to_chat',
+			args: { text: 'send this when listening stops' },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual(commandService.acceptedInputs, ['send this when listening stops']);
 	});
 
 	test('auto-listen is skipped when window does not have focus (multi-window hands-free)', () => {

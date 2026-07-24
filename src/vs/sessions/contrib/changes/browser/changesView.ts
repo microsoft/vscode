@@ -423,8 +423,7 @@ export class ChangesActionsBar extends Disposable {
 
 		let currentWidget: IChangesButtonBarWidget | undefined;
 		const updateVisibility = () => {
-			const status = sessionsService.activeSession.get()?.status.get();
-			const visible = status !== SessionStatus.Untitled && (currentWidget?.hasActions ?? false);
+			const visible = currentWidget?.hasActions ?? false;
 			dom.setVisibility(visible, container);
 		};
 
