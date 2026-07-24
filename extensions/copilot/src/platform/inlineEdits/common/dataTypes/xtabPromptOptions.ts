@@ -91,7 +91,7 @@ export type DiffHistoryOptions = {
 };
 
 export enum RejectedEditsMemoryMode {
-	DiffWithTags = 'diffWithTags',
+	DiffWithTags = 'diffWithTags', // This is currently the only mode, so it is used by default but defined as a string for future extensibility.
 }
 
 export type PromptMemoryOptions = {
