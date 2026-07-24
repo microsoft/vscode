@@ -24,7 +24,7 @@ import { Instant, now } from '../utils/utils';
 
 export interface IXtabHistoryDocumentEntry {
 	docId: DocumentId;
-	readonly sequence: number;
+	readonly sequence: number; // Sequence number for ordering diff + memory entries in history. Higher numbers are more recent.
 }
 
 export interface IXtabHistoryEditEntry extends IXtabHistoryDocumentEntry {
