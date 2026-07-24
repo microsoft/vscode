@@ -562,30 +562,30 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		schemaAssociationRefreshTrigger?.dispose();
 	}));
 
-	const catalogWatchers = new Map<string, Disposable>();
-	const updateCatalogWatchers = () => {
-		const catalogUris = new Set(getSchemaRegistryUris().map(uri => uri.toString()));
-		for (const [uri, watcher] of catalogWatchers) {
-			if (!catalogUris.has(uri)) {
+	const registryWatchers = new Map<string, Disposable>();
+	const updateRegistryWatchers = () => {
+		const registryUris = new Set(getSchemaRegistryUris().map(uri => uri.toString()));
+		for (const [uri, watcher] of registryWatchers) {
+			if (!registryUris.has(uri)) {
 				watcher.dispose();
-				catalogWatchers.delete(uri);
+				registryWatchers.delete(uri);
 			}
 		}
-		for (const uri of catalogUris) {
-			if (!catalogWatchers.has(uri)) {
-				const catalogUri = Uri.parse(uri);
-				const fileName = catalogUri.path.substring(catalogUri.path.lastIndexOf('/') + 1);
-				const parentUri = catalogUri.with({ path: catalogUri.path.substring(0, catalogUri.path.length - fileName.length), query: undefined, fragment: undefined });
+		for (const uri of registryUris) {
+			if (!registryWatchers.has(uri)) {
+				const registryUri = Uri.parse(uri);
+				const fileName = registryUri.path.substring(registryUri.path.lastIndexOf('/') + 1);
+				const parentUri = registryUri.with({ path: registryUri.path.substring(0, registryUri.path.length - fileName.length), query: undefined, fragment: undefined });
 				const watcher = workspace.createFileSystemWatcher(new RelativePattern(parentUri, fileName));
-				catalogWatchers.set(uri, Disposable.from(watcher, watcher.onDidCreate(refreshSchemaAssociations), watcher.onDidChange(refreshSchemaAssociations), watcher.onDidDelete(refreshSchemaAssociations)));
+				registryWatchers.set(uri, Disposable.from(watcher, watcher.onDidCreate(refreshSchemaAssociations), watcher.onDidChange(refreshSchemaAssociations), watcher.onDidDelete(refreshSchemaAssociations)));
 			}
 		}
 	};
-	updateCatalogWatchers();
-	toDispose.push(new Disposable(() => catalogWatchers.forEach(watcher => watcher.dispose())));
+	updateRegistryWatchers();
+	toDispose.push(new Disposable(() => registryWatchers.forEach(watcher => watcher.dispose())));
 
 	toDispose.push(extensions.onDidChange(() => {
-		updateCatalogWatchers();
+		updateRegistryWatchers();
 		refreshSchemaAssociations();
 	}));
 
@@ -802,7 +802,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 
 async function computeSchemaAssociations(): Promise<ISchemaAssociation[]> {
 	const extensionAssociations = getSchemaExtensionAssociations();
-	return extensionAssociations.concat(await getSchemaCatalogAssociations());
+	return extensionAssociations.concat(await getSchemaRegistryAssociations());
 }
 
 function resolveExtensionResource(extensionUri: Uri, resource: string): Uri {
@@ -848,11 +848,11 @@ function getSchemaExtensionAssociations(): ISchemaAssociation[] {
 function getSchemaRegistryUris(): Uri[] {
 	const result: Uri[] = [];
 	for (const extension of extensions.allAcrossExtensionHosts) {
-		const catalogs = extension.packageJSON?.contributes?.jsonValidationRegistry;
-		if (Array.isArray(catalogs)) {
-			for (const catalog of catalogs) {
-				if (typeof catalog?.url === 'string') {
-					result.push(resolveExtensionResource(extension.extensionUri, catalog.url));
+		const registrys = extension.packageJSON?.contributes?.jsonValidationRegistry;
+		if (Array.isArray(registrys)) {
+			for (const registry of registrys) {
+				if (typeof registry?.url === 'string') {
+					result.push(resolveExtensionResource(extension.extensionUri, registry.url));
 				}
 			}
 		}
@@ -860,15 +860,15 @@ function getSchemaRegistryUris(): Uri[] {
 	return result;
 }
 
-async function getSchemaCatalogAssociations(): Promise<ISchemaAssociation[]> {
+async function getSchemaRegistryAssociations(): Promise<ISchemaAssociation[]> {
 	const result: ISchemaAssociation[] = [];
-	for (const catalogUri of getSchemaRegistryUris()) {
+	for (const registryUri of getSchemaRegistryUris()) {
 		try {
-			const data = await workspace.fs.readFile(catalogUri);
+			const data = await workspace.fs.readFile(registryUri);
 			const rawStr = new TextDecoder().decode(data);
-			const catalog = <{ schemas?: { url?: string; fileMatch?: string[] }[] }>JSON.parse(rawStr);
-			if (Array.isArray(catalog.schemas)) {
-				for (const schema of catalog.schemas) {
+			const registry = <{ schemas?: { url?: string; fileMatch?: string[] }[] }>JSON.parse(rawStr);
+			if (Array.isArray(registry.schemas)) {
+				for (const schema of registry.schemas) {
 					if (typeof schema.url === 'string' && Array.isArray(schema.fileMatch) && schema.fileMatch.every(fileMatch => typeof fileMatch === 'string')) {
 						result.push({
 							fileMatch: schema.fileMatch,
@@ -878,7 +878,7 @@ async function getSchemaCatalogAssociations(): Promise<ISchemaAssociation[]> {
 				}
 			}
 		} catch {
-			// Ignore unavailable or invalid catalogs.
+			// Ignore unavailable or invalid registry.
 		}
 	}
 	return result;
