@@ -1161,10 +1161,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		return this.options.voiceRoutesWhileSessionActive === true;
 	}
 
-	getInput(): string {
-		return this._editor?.getModel()?.getValue() ?? '';
-	}
-
 	prefillInput(text: string): void {
 		const editor = this._editor;
 		const model = editor?.getModel();

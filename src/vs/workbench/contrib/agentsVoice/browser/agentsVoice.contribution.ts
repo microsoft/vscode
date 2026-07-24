@@ -201,11 +201,12 @@ registerAction2(class extends Action2 {
 		// releases the key while we're still connecting, `holdMode` resolves
 		// early and the awaited release below fires right after pttDown() — the
 		// controller then treats it as a quick tap (toggle on).
-		if (!voiceController.isConnected.get()) {
+		const wasConnected = voiceController.isConnected.get();
+		if (!wasConnected) {
 			await voiceController.connect(mainWindow);
 		}
 
-		if (!holdMode && !handsFree) {
+		if (!holdMode && !handsFree && !wasConnected) {
 			return;
 		}
 
@@ -592,7 +593,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'agents.voice.handsFree': {
 			type: 'boolean',
-			markdownDescription: nls.localize('agents.voice.handsFree', "When enabled, voice mode automatically re-enters listening after the assistant finishes speaking, so you can hold a hands-free back-and-forth conversation. When disabled, you start each turn manually, and stopping listening leaves the transcript in the chat input for review instead of sending it. Turns are not ended automatically on trailing silence or a stop phrase unless {0} or {1} is explicitly configured.", '`#agents.voice.turn.silenceMs#`', '`#agents.voice.turn.stopPhrases#`'),
+			markdownDescription: nls.localize('agents.voice.handsFree', "When enabled, voice mode automatically re-enters listening after the assistant finishes speaking, so you can hold a hands-free back-and-forth conversation. When disabled, you start and end each turn manually, and ending the turn sends it. Turns are not ended automatically on trailing silence or a stop phrase unless {0} or {1} is explicitly configured.", '`#agents.voice.turn.silenceMs#`', '`#agents.voice.turn.stopPhrases#`'),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 		},

@@ -1713,12 +1713,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					toolName: e.name,
 					toolArgs: e.args,
 				});
-				const submit = this._isHandsFreeEnabled();
-				if (submit) {
-					this._setAwaitingReply();
-				}
+				this._setAwaitingReply();
 				const sendPromise = text.trim()
-					? this._sendTranscriptionToChat(text, submit)
+					? this._sendTranscriptionToChat(text)
 					: Promise.resolve();
 				sendPromise.finally(() => {
 					this.voiceClientService.sendToolResult(e.callId, 'ok');
@@ -2752,27 +2749,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	/**
-	 * Route transcription text to the target session or active chat, optionally submitting it.
+	 * Send transcription text to the target session or active chat.
 	 */
-	private async _sendTranscriptionToChat(text: string, submit: boolean): Promise<void> {
+	private async _sendTranscriptionToChat(text: string): Promise<void> {
 		// A focus-change submit pins routing to the session the user was
 		// dictating into; it takes priority over the user-picked target and the
 		// currently focused session so their words land where they were aimed.
 		const target = this._consumePinnedSubmitSession() ?? this._targetSession.get();
-		if (!submit) {
-			const currentSession = await this.commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession').catch(() => undefined);
-			if (target && currentSession !== target.toString()) {
-				const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', target.toString()).catch(() => false);
-				if (!switched) {
-					this.logService.warn('[voice] Could not switch to the target session to populate the transcription');
-					return;
-				}
-			}
-			await this.commandService.executeCommand('_chat.voice.acceptInput', text, false).catch(err => {
-				this.logService.warn('[voice] failed to populate transcription in chat input:', err);
-			});
-			return;
-		}
 		if (target) {
 			// Check if target is the currently visible session
 			const currentSession = await this.commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession').catch(() => undefined);

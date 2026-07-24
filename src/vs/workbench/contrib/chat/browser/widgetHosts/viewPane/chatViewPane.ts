@@ -398,7 +398,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		if (this.configurationService.getValue<boolean>('agents.voice.enabled')) {
 			// Voice command bridge — lets the VoiceSessionController reach into the chat widget
-			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (accessor, text: string, submit = true) => {
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (accessor, text: string) => {
 				const chatWidgetService = accessor.get(IChatWidgetService);
 				// Ignore lastFocusedWidget when its input no longer has focus because blur does not clear it.
 				const focusedWidget = chatWidgetService.lastFocusedWidget;
@@ -408,11 +408,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						// When editing an old message, populate the active input
 						// editor so the user can review before submitting.
 						widget.input.setValue(text, false);
-					} else if (submit) {
+					} else {
 						// Preserve any text the user already typed in the input.
 						widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
-					} else {
-						widget.input.setValue(combineVoiceInput(widget.getInput(), text), false);
 					}
 				}
 			}));
@@ -421,10 +419,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					return false;
 				}
 				try {
-					this.viewState.sessionResource = URI.parse(resourceStr);
+					const resource = URI.parse(resourceStr);
+					this.viewState.sessionResource = resource;
 					this.applyModel();
 					await this.restoringSession;
-					return this._widget?.viewModel?.sessionResource?.toString() === resourceStr;
+					const restoredResource = this._widget?.viewModel?.sessionResource;
+					return !!restoredResource && isEqual(restoredResource, resource);
 				} catch {
 					return false;
 				}

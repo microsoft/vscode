@@ -252,7 +252,6 @@ class TestChatWidgetService extends mock<IChatWidgetService>() {
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly acceptedInputs: string[] = [];
-	readonly acceptInputCalls: { text: string; submit: boolean | undefined }[] = [];
 
 	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
 		let result: string | undefined;
@@ -260,7 +259,6 @@ class TestCommandService extends mock<ICommandService>() {
 			result = 'chat-session';
 		} else if (commandId === '_chat.voice.acceptInput' && typeof args[0] === 'string') {
 			this.acceptedInputs.push(args[0]);
-			this.acceptInputCalls.push({ text: args[0], submit: typeof args[1] === 'boolean' ? args[1] : undefined });
 		}
 		return result as T;
 	}
@@ -863,7 +861,7 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
-	test('stopping listening in manual mode prefills the transcript without submitting it', async () => {
+	test('stopping listening in manual mode submits the transcript', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const commandService = new TestCommandService();
 		const controller = createController(voiceClientService, undefined, commandService);
@@ -875,14 +873,11 @@ suite('VoiceSessionController', () => {
 		voiceClientService.fireToolCall({
 			callId: 'manual-transcription',
 			name: 'send_to_chat',
-			args: { text: 'review this before sending' },
+			args: { text: 'send this when listening stops' },
 		});
 		await voiceClientService.toolResultReceived;
 
-		assert.deepStrictEqual(commandService.acceptInputCalls, [{
-			text: 'review this before sending',
-			submit: false,
-		}]);
+		assert.deepStrictEqual(commandService.acceptedInputs, ['send this when listening stops']);
 	});
 
 	test('auto-listen is skipped when window does not have focus (multi-window hands-free)', () => {

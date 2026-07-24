@@ -61,7 +61,7 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 
 		// Prefer the active session widget; Agents often leaves DOM focus on the
 		// sessions list, making `lastFocusedWidget` stale.
-		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string, submit = true) => {
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string) => {
 			if (!text) {
 				return;
 			}
@@ -69,11 +69,7 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 			// session instead of using a stale `lastFocusedWidget`.
 			const composer = this._activeComposerTarget();
 			if (composer) {
-				if (submit) {
-					composer.sendQuery(text);
-				} else {
-					composer.prefillInput(combineVoiceInput(composer.getInput(), text));
-				}
+				composer.sendQuery(text);
 				return;
 			}
 			const widget = this._activeSessionWidget() ?? this.chatWidgetService.lastFocusedWidget;
@@ -81,11 +77,9 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 				if (widget.viewModel.editing) {
 					// Let the user review edited input before submitting.
 					widget.input.setValue(text, false);
-				} else if (submit) {
+				} else {
 					// Preserve any text the user already typed in the input.
 					widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
-				} else {
-					widget.input.setValue(combineVoiceInput(widget.getInput(), text), false);
 				}
 			}
 		}));
