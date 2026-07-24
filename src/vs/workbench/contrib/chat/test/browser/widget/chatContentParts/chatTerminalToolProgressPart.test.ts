@@ -94,9 +94,9 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 				terminalContent,
 				context,
 				false,
+				false,
+				false,
 				true,
-				false,
-				false,
 				undefined,
 			));
 			mainWindow.document.body.appendChild(part.domNode);
@@ -117,12 +117,14 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 				initiallyInert,
 				expandedInert: animationContent.inert,
 				containsTerminal: animationContent.contains(terminalContent),
+				hasShowLink: !!part.domNode.querySelector('.chat-terminal-show-link'),
 			}, {
 				hasAnimationClass: true,
 				animationDisplay: 'grid',
 				initiallyInert: true,
 				expandedInert: false,
 				containsTerminal: true,
+				hasShowLink: false,
 			});
 		});
 	});
