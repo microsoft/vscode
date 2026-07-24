@@ -219,6 +219,7 @@
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-left:not(.last-in-row) + .tab.drop-target-right::before {
 	left: calc(-1 * var(--vscode-spacing-size20));
+	transform: translateX(-50%);
 }
 
 /*
