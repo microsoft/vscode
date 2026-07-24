@@ -73,6 +73,7 @@ export const FIND_IDS = {
 	ToggleRegexCommand: 'toggleFindRegex',
 	ToggleSearchScopeCommand: 'toggleFindInSelection',
 	TogglePreserveCaseCommand: 'togglePreserveCase',
+	FocusEditorFromFindWidgetCommand: 'focusEditorFromFindWidget',
 	ReplaceOneAction: 'editor.action.replaceOne',
 	ReplaceAllAction: 'editor.action.replaceAll',
 	SelectAllMatchesAction: 'editor.action.selectAllMatches'

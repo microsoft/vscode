@@ -13,7 +13,7 @@ import { EditOperation } from '../../../../common/core/editOperation.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
-import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction, StartFindWithSelectionAction } from '../../browser/findController.js';
+import { CommonFindController, FindStartFocusAction, FocusEditorFromFindWidgetCommand, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction, StartFindWithSelectionAction } from '../../browser/findController.js';
 import { CONTEXT_FIND_INPUT_FOCUSED } from '../../browser/findModel.js';
 import { withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -289,6 +289,38 @@ suite('FindController', () => {
 			assert.strictEqual(findController.getState().searchString, testRegexString);
 
 			findController.dispose();
+		});
+	});
+
+	test('issue #175444: focus editor from find widget is keybinding-dispatchable', async () => {
+		await withAsyncTestCodeEditor([
+			'ABC',
+		], { serviceCollection: serviceCollection, hasTextFocus: false }, async (editor) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			let didFocusEditor = false;
+			const originalFocus = editor.focus.bind(editor);
+			editor.focus = () => {
+				didFocusEditor = true;
+				originalFocus();
+			};
+			try {
+				await findController.start({
+					forceRevealReplace: false,
+					seedSearchStringFromSelection: 'none',
+					seedSearchStringFromNonEmptySelection: false,
+					seedSearchStringFromGlobalClipboard: false,
+					shouldFocus: FindStartFocusAction.FocusFindInput,
+					shouldAnimate: false,
+					updateSearchScope: false,
+					loop: true
+				});
+
+				await editor.runCommand(FocusEditorFromFindWidgetCommand);
+				assert.strictEqual(didFocusEditor, true);
+			} finally {
+				editor.focus = originalFocus;
+				findController.dispose();
+			}
 		});
 	});
 
