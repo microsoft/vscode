@@ -647,6 +647,7 @@ describe('getUserPrompt', () => {
 			kind: 'rejectedEdit',
 			docId: documentId,
 			hunks: [{ startLineNumber: 1, oldLines: ['  const x = 1;'], newLines: ['  const x = 2;'] }],
+			sequence: 0,
 		}];
 
 		return new PromptPieces(

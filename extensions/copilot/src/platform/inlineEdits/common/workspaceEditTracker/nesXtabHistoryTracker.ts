@@ -24,7 +24,7 @@ import { Instant, now } from '../utils/utils';
 
 export interface IXtabHistoryDocumentEntry {
 	docId: DocumentId;
-	readonly sequence?: number;
+	readonly sequence: number;
 }
 
 export interface IXtabHistoryEditEntry extends IXtabHistoryDocumentEntry {
