@@ -508,7 +508,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._dictationCell!.classList.toggle('preparing', dictationBusy);
 			this._dictationCell!.setAttribute('aria-pressed', String(isDictating));
 			this._dictationCell!.setAttribute('aria-label', dictationBusy
-				? getDictationPreparingLabel(this.chatSpeechToTextService)
+				? localize('voiceInputMode.dictationPreparingCancelable', "Cancel Dictation. {0}", getDictationPreparingLabel(this.chatSpeechToTextService))
 				: localize('voiceInputMode.dictation', "Dictation"));
 			const dictationIcon = dictationBusy
 				? this.chatSpeechToTextService.currentBackend === 'mai' ? Codicon.loading : Codicon.micDownload
