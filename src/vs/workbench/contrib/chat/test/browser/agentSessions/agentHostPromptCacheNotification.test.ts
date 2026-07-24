@@ -44,8 +44,8 @@ suite('AgentHostPromptCacheNotification', () => {
 			actions: notification.actions.map(action => action.label),
 			sessionResources: notification.sessionResources?.map(resource => resource.toString()),
 		})), [{
-			message: 'Start a new chat for better performance',
-			actions: ['Don\'t Show Again', 'Start New Chat'],
+			message: 'This chat\'s prompt cache is stale',
+			actions: ['Don\'t Show Again', 'Learn More', 'Start New Chat'],
 			sessionResources: [sessionResource.toString()],
 		}]);
 		clock.restore();
