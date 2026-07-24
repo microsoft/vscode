@@ -65,7 +65,10 @@ suite('WorktreeIsolation', () => {
 			revParse: async (_root, expr) => expr === 'HEAD' ? headCommit : undefined,
 			getCurrentBranch: async () => 'feature',
 			getDefaultBranch: async () => ({ name: 'main', startPoint: 'main' }),
-			getBranches: async () => ['main', 'feature'],
+			getBranches: async () => [
+				{ ref: 'refs/heads/main', name: 'main' },
+				{ ref: 'refs/heads/feature', name: 'feature' },
+			],
 			branchExists: async () => branchExists,
 			hasUncommittedChanges: async () => hasUncommittedChanges,
 			addWorktree: async (_root, worktree, branch, startPoint) => {
