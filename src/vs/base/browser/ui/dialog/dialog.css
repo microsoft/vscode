@@ -102,6 +102,10 @@
 	white-space: normal;
 }
 
+.monaco-dialog-box .dialog-message-row .dialog-message-container {
+	min-width: 0;
+}
+
 .monaco-dialog-box .dialog-footer-row {
 	margin-top: 20px;
 }
@@ -127,12 +131,20 @@
 	font-size: 14px;
 	font-weight: 600;
 	flex: 1; /* let the message always grow */
+	min-width: 0;
 	white-space: normal;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
 	min-height: 22px;
 	margin-bottom: 4px;
 	display: flex;
 	align-items: center;
+}
+
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message .dialog-message-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /** Dialog: Details */
