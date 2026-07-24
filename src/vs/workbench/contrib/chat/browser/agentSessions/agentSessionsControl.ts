@@ -36,7 +36,7 @@ import { IStyleOverride } from '../../../../../platform/theme/browser/defaultSty
 import { IAgentSessionsControl } from './agentSessions.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { resolveContextMenuSessions } from './agentSessionMultiSelect.js';
 import { ISessionOpenOptions, openSession } from './agentSessionsOpener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
@@ -718,10 +718,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
 
 		const selection = this.getSelection();
-		const sessionInSelection = selection.some(selected => isEqual(selected.resource, session.resource));
+		// Match by resource URI: list selection can hold different object instances for the same session.
 		const marshalledContext: IMarshalledAgentSessionContext = {
 			session,
-			sessions: selection.length > 1 && sessionInSelection ? selection : [session],
+			sessions: resolveContextMenuSessions(session, selection),
 			$mid: MarshalledId.AgentSessionContext
 		};
 
@@ -886,15 +886,15 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	}
 
 	getFocus(): IAgentSession[] {
-		const focused = this.sessionsList?.getFocus() ?? [];
-
-		return focused.filter(e => isAgentSession(e));
+		return this.getAgentSessionsFromList(this.sessionsList?.getFocus() ?? []);
 	}
 
 	getSelection(): IAgentSession[] {
-		const selection = this.sessionsList?.getSelection() ?? [];
+		return this.getAgentSessionsFromList(this.sessionsList?.getSelection() ?? []);
+	}
 
-		return selection.filter(e => isAgentSession(e));
+	private getAgentSessionsFromList(elements: readonly unknown[]): IAgentSession[] {
+		return elements.filter(e => isAgentSession(e));
 	}
 
 	reveal(sessionResource: URI): boolean {
