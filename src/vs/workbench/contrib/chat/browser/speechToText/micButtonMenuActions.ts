@@ -20,8 +20,10 @@ export const SELECT_MICROPHONE_COMMAND = 'workbench.action.chat.selectSpeechToTe
 const CANCEL_DICTATION_COMMAND = 'workbench.action.chat.cancelSpeechToText';
 /** Command that tears down an active Voice Mode session. */
 const VOICE_DISCONNECT_COMMAND = 'agentsVoice.disconnect';
+/** Command that opens the Voice Mode settings; the affordance that used to live behind the toolbar gear. */
+const VOICE_OPEN_SETTINGS_COMMAND = 'agentsVoice.openSettings';
 /** Setting that enables dictation; toggled off by "Disable Dictation". */
-const DICTATION_ENABLED_SETTING = 'chat.speechToText.enabled';
+const DICTATION_ENABLED_SETTING = 'dictation.enabled';
 /** Setting that enables Voice Mode; toggled off by "Disable Voice Mode". */
 const VOICE_ENABLED_SETTING = 'agents.voice.enabled';
 
@@ -84,12 +86,29 @@ export function getDictationContextMenuActions(commandService: ICommandService, 
 }
 
 /**
+ * "Voice Mode Settings" entry. Opens the Voice Mode settings — the affordance
+ * that used to live behind the toolbar gear button.
+ */
+function createVoiceModeSettingsAction(commandService: ICommandService): IAction {
+	return toAction({
+		id: VOICE_OPEN_SETTINGS_COMMAND,
+		label: localize('voiceMode.openSettings', "Open Settings"),
+		run: () => commandService.executeCommand(VOICE_OPEN_SETTINGS_COMMAND),
+	});
+}
+
+/**
  * Actions for the Voice Mode mic button context menu, mirroring
- * {@link getDictationContextMenuActions} but with "Disable Voice Mode".
+ * {@link getDictationContextMenuActions} but with "Disable Voice Mode". The
+ * "Configure Keybinding" entry opens the keybindings editor scoped to the Voice
+ * Mode keybinding and "Voice Mode Settings" opens the Voice Mode settings — the
+ * affordances that used to live behind the toolbar gear button.
+ * `keybindingCommandId` is the stable command the keybinding entry targets.
  */
 export function getVoiceModeContextMenuActions(commandService: ICommandService, configurationService: IConfigurationService, keybindingService: IKeybindingService, keybindingCommandId: string): IAction[] {
 	return [
 		createConfigureKeybindingAction(commandService, keybindingService, keybindingCommandId),
+		createVoiceModeSettingsAction(commandService),
 		createSelectMicrophoneAction(commandService),
 		createDisableVoiceModeAction(commandService, configurationService),
 	];

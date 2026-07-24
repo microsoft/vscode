@@ -85,7 +85,7 @@
 	white-space: nowrap;
 }
 
-/* Outlined ghost style for secondary action buttons (e.g. "Reveal Checks"). */
+/* Outlined ghost style for secondary action buttons (e.g. "Reveal"). */
 .session-input-banner .session-input-banner-action.secondary {
 	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBackground, var(--vscode-button-border, var(--vscode-contrastBorder)));
 	background: transparent;

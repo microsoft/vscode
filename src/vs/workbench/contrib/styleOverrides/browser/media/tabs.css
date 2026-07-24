@@ -39,6 +39,14 @@
 	--tab-border-top-color: transparent !important;
 }
 
+.style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab:last-child {
+	margin-right: calc(var(--last-tab-margin-right) + var(--vscode-spacing-size40)) !important;
+}
+
+.style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container {
+	row-gap: var(--vscode-spacing-size40);
+}
+
 .style-override .part.editor .tabs-container > .tab > .tab-label > .monaco-icon-label-container {
 	font-weight: var(--vscode-fontWeight-semiBold);
 }

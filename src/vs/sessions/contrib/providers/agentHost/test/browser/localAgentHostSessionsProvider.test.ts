@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentHostCodexAgentEnabledSettingId, AgentSession, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, IAgentHostService, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -339,7 +339,7 @@ function createSchemaDefaultConfigurationService(): TestConfigurationService {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService; agentHostEnabled?: boolean }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService; agentHostEnabled?: boolean }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -387,7 +387,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = visibleSessionsObs;
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
-		override getActiveClient = (_sessionType: string, clientId: string) => ({ clientId, tools: [], customizations: [] });
+		override getActiveClient = (_sessionType: string, clientId: string) => ({ clientId, ...(options?.activeClient ?? { tools: [], customizations: [] }) });
 	}());
 
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
@@ -1294,6 +1294,41 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			models: ['matching'],
 			modelTarget: 'agent-host-copilotcli',
+		});
+	});
+
+	test('getModelsSnapshot canonicalizes a matching logical-session model identifier', () => {
+		const modelId = 'gpt-5.6-sol';
+		const logicalIdentifier = `copilotcli/${modelId}`;
+		const unrelatedIdentifier = `other/${modelId}`;
+		const targetIdentifier = `agent-host-copilotcli:${modelId}`;
+		const languageModelIds = [logicalIdentifier, unrelatedIdentifier];
+		const languageModels = new Map([
+			[logicalIdentifier, { ...createTestLanguageModel(modelId), vendor: 'copilotcli', targetChatSessionType: 'copilotcli' }],
+			[unrelatedIdentifier, { ...createTestLanguageModel(modelId), vendor: 'other', targetChatSessionType: 'other' }],
+			[targetIdentifier, { ...createTestLanguageModel(modelId), targetChatSessionType: 'agent-host-copilotcli' }],
+		]);
+		const provider = createProvider(disposables, agentHost, undefined, {
+			languageModelIds,
+			lookupLanguageModel: id => languageModels.get(id),
+		});
+		fireSessionAdded(agentHost, 'model-alias', { title: 'Model Alias Session' });
+		const session = provider.getSessions().find(session => session.title.get() === 'Model Alias Session');
+		assert.ok(session);
+
+		const pending = provider.getModelsSnapshot(session.sessionId, logicalIdentifier).desiredModelResolution;
+		const unrelated = provider.getModelsSnapshot(session.sessionId, unrelatedIdentifier).desiredModelResolution;
+		languageModelIds.push(targetIdentifier);
+		const available = provider.getModelsSnapshot(session.sessionId, logicalIdentifier).desiredModelResolution;
+
+		assert.deepStrictEqual({
+			pending,
+			unrelated,
+			available: available.kind === 'available' ? { kind: available.kind, identifier: available.model.identifier } : available,
+		}, {
+			pending: { kind: 'pending', identifier: targetIdentifier },
+			unrelated: { kind: 'unavailable', identifier: unrelatedIdentifier },
+			available: { kind: 'available', identifier: targetIdentifier },
 		});
 	});
 
@@ -2421,6 +2456,38 @@ suite('LocalAgentHostSessionsProvider', () => {
 			resolvedResource: session.resource.toString(),
 			resolvedWorkspaceLabel: 'my-project',
 		});
+	});
+
+	test('joins the active client with customizations when opening an existing session', () => {
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeClient = {
+			tools: [],
+			customizations: [{
+				type: CustomizationType.Plugin,
+				id: 'file:///customizations/test',
+				uri: 'file:///customizations/test',
+				name: 'Test Customization',
+				enabled: true,
+			}],
+		} satisfies Omit<SessionActiveClient, 'clientId'>;
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession, activeClient });
+		const resource = URI.from({ scheme: 'agent-host-copilotcli', path: '/active-client' });
+		activeSession.set({
+			providerId: provider.id,
+			sessionId: `${provider.id}:${resource.toString()}`,
+			resource,
+		} as IActiveSession, undefined);
+		fireSessionAdded(agentHost, 'active-client');
+
+		assert.deepStrictEqual(agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet), [{
+			channel: AgentSession.uri('copilotcli', 'active-client').toString(),
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId: 'test-local-client', ...activeClient },
+			},
+			clientId: 'test-local-client',
+			clientSeq: 0,
+		}]);
 	});
 
 	test('createNewSession eagerly creates the backend session with the client-allocated URI', async () => {

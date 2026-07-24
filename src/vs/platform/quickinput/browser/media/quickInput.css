@@ -329,6 +329,10 @@
 	overflow: hidden;
 }
 
+.quick-input-list .monaco-list-row.focused .quick-input-list-label-meta {
+	opacity: 1;
+}
+
 /* preserve list-like styling instead of tree-like styling */
 .quick-input-list .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
 	font-weight: bold;
