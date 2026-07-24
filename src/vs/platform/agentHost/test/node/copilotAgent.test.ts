@@ -2260,32 +2260,6 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('getSessionMetadata preserves legacy customizationDirectory without inferring workingDirectory', async () => {
-		const sessionDataService = disposables.add(new TestSessionDataService());
-		const session = AgentSession.uri('copilotcli', 'legacy-customization-directory');
-		const db = sessionDataService.openDatabase(session);
-		await db.object.setMetadata('copilot.customizationDirectory', URI.file('/legacy-workspace').toString());
-		db.dispose();
-
-		const client = new TestCopilotClient([sdkSession('legacy-customization-directory')]);
-		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
-		try {
-			await agent.authenticate('https://api.github.com', 'token');
-
-			const metadata = await agent.getSessionMetadata(session);
-			assert.ok(metadata);
-			assert.deepStrictEqual(withoutUndefinedProperties(metadata), {
-				session,
-				startTime: 1000,
-				modifiedTime: 2000,
-				summary: 'SDK legacy-customization-directory',
-				customizationDirectory: URI.file('/legacy-workspace'),
-			});
-		} finally {
-			await disposeAgent(agent);
-		}
-	});
-
 	test('getSessionMetadata only returns sessions with a database', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const session = AgentSession.uri('copilotcli', 'external');

@@ -141,11 +141,13 @@ export class ClaudeSessionMetadataStore {
 	}
 
 	/**
-	 * Combine an SDK-supplied {@link SDKSessionInfo} with this store's
-	 * read overlay into the platform's {@link IAgentSessionMetadata} shape.
-	 * Pure projection — does not touch the DB.
+	 * Project an SDK-supplied {@link SDKSessionInfo} onto the platform's
+	 * {@link IAgentSessionMetadata} shape. Pure projection — does not touch
+	 * the DB. The per-session overlay no longer contributes any projected
+	 * field, so it is not read here; the store is still consulted on the
+	 * harness's internal restoration paths (see {@link read}).
 	 */
-	project(entry: SDKSessionInfo, overlay: IClaudeSessionOverlay): IAgentSessionMetadata {
+	project(entry: SDKSessionInfo): IAgentSessionMetadata {
 		return {
 			session: AgentSession.uri(this._provider, entry.sessionId),
 			startTime: entry.createdAt ?? entry.lastModified,

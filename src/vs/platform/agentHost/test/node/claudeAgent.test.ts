@@ -3712,8 +3712,6 @@ suite('ClaudeAgent', () => {
 			summaryB: 'Session B',
 			modifiedA: 1000,
 			modifiedB: 2000,
-			custDirA: URI.file('/foo').toString(),
-			custDirB: undefined,
 			sdkCalls: 1,
 		});
 	});

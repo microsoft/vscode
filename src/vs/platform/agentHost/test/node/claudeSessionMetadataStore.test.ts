@@ -119,13 +119,11 @@ suite('ClaudeSessionMetadataStore', () => {
 		assert.deepStrictEqual(overlay.model, { id: 'm', config: { thinking: 'high' } });
 	});
 
-	test('project combines SDK info with overlay onto IAgentSessionMetadata', async () => {
+	test('project maps SDK info onto IAgentSessionMetadata', async () => {
 		const store = createStore(disposables);
 		const sdkInfo = makeSdkInfo({ sessionId: 'abc', summary: 'sdk-summary', customTitle: 'custom', cwd: '/repo' });
 
-		const projected = store.project(sdkInfo, {
-			customizationDirectory: URI.file('/custom'),
-		});
+		const projected = store.project(sdkInfo);
 
 		assert.deepStrictEqual({
 			session: projected.session.toString(),
@@ -146,7 +144,7 @@ suite('ClaudeSessionMetadataStore', () => {
 		const store = createStore(disposables);
 		const sdkInfo = makeSdkInfo({ summary: 'fallback', customTitle: undefined, cwd: undefined });
 
-		const projected = store.project(sdkInfo, {});
+		const projected = store.project(sdkInfo);
 
 		assert.deepStrictEqual({
 			summary: projected.summary,
