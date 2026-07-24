@@ -563,7 +563,7 @@ export function isAggressivenessStrategy(strategy: PromptingStrategy | undefined
 		|| strategy === PromptingStrategy.Xtab275EditIntentShort;
 }
 
-export function isRejectedEditMemoryEnabled(options: Pick<PromptOptions, 'promptingStrategy' | 'memory'>): boolean {
+export function isRejectedEditMemoryEnabled(options: { readonly promptingStrategy: PromptingStrategy | undefined; readonly memory?: PromptMemoryOptions }): boolean {
 	return options.promptingStrategy === PromptingStrategy.PatchBased02 && options.memory?.rejectedEdits === true;
 }
 
