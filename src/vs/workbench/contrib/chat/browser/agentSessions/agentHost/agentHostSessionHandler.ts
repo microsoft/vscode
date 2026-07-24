@@ -88,6 +88,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
+import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
 import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
@@ -679,6 +680,7 @@ export interface IAgentHostSessionHandlerConfig {
 	 *   state that require authentication.
 	 */
 	readonly resolveAuthentication?: (protectedResources: ProtectedResourceMetadata[]) => Promise<boolean>;
+	readonly promptCacheNotification?: AgentHostPromptCacheNotification;
 }
 
 /**
@@ -1202,6 +1204,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			},
 		);
 		this._activeSessions.set(sessionResource, session);
+		if (sessionSubscription && this._config.promptCacheNotification) {
+			session.registerDisposable(this._config.promptCacheNotification.trackSession(sessionResource, sessionSubscription));
+		}
 
 		if (!isNewSession) {
 			this._ensurePendingMessageSubscription(sessionResource, resolvedSession);
