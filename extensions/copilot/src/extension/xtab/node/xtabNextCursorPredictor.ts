@@ -160,12 +160,17 @@ export class XtabNextCursorPredictor {
 			{
 				...promptPieces.opts,
 				includePostScript: false,
+				// Cursor prediction only selects a location; rejected edit suggestions are irrelevant context.
+				memory: undefined,
 				lintOptions,
 				recentlyViewedDocuments: {
 					...promptPieces.opts.recentlyViewedDocuments,
 					includeLineNumbers: includeLineNumbersInRecentSnippets,
 				},
 			},
+			undefined,
+			undefined,
+			[],
 		);
 
 		const { prompt: userMessage } = getUserPrompt(newPromptPieces);
