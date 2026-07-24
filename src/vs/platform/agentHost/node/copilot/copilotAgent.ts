@@ -308,15 +308,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Bounded exponential-backoff retry for {@link _refreshModels}. The SDK's
 	 * `models.list` RPC can fail transiently (e.g. a `429 "too many requests"`
 	 * right after startup). Without a retry the model picker would stay empty
-	 * until the GitHub token next changes — the only other trigger for a
-	 * refresh — so we retry a few times before giving up. Overridable in tests
-	 * to avoid real delays.
+	 * until the next external refresh trigger (a GitHub token change, a CLI
+	 * client restart, or the host's periodic scheduler), so we retry a few
+	 * times before giving up. Overridable in tests to avoid real delays.
 	 */
 	protected readonly _modelRefreshMaxAttempts: number = 5;
 	protected readonly _modelRefreshBaseDelayMs: number = 1_000;
 	protected readonly _modelRefreshMaxDelayMs: number = 30_000;
 	/** Pending model-refresh retry timer; cleared on a fresh refresh, shutdown, or dispose. */
 	private readonly _modelRefreshRetry = this._register(new MutableDisposable());
+	/**
+	 * Invalidates model requests bound to a superseded token/client/catalog
+	 * source. Token identity alone is insufficient: restarting the client for
+	 * a `COPILOT_GH_HOST` change keeps the same token while changing the CAPI
+	 * endpoint whose catalog is authoritative.
+	 */
+	private _modelCatalogGeneration = 0;
+	/**
+	 * In-flight {@link refreshModels} call, so overlapping triggers (an auth
+	 * token change landing on top of a periodic tick) collapse into a single
+	 * `models.list` request. Only covers the request itself: {@link _refreshModels}
+	 * returns as soon as it *schedules* a backoff retry, so a pending retry
+	 * never suppresses a later tick — which is what lets the scheduler act as
+	 * the long-term retry path once the bounded attempts are exhausted.
+	 */
+	private _modelRefreshInFlight: Promise<void> | undefined;
 
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
@@ -547,6 +563,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._sessions.clearAndDisposeAll();
 			this._mcpNotificationSubs.clearAndDisposeAll();
 			await this._stopClient();
+			// The model list came from the subprocess we just tore down, and the
+			// replacement may be pointed at a different CAPI endpoint entirely
+			// (`COPILOT_GH_HOST` routes through this same helper). Re-enumerate
+			// rather than serving the old client's catalog until the next token
+			// change. Not hooked in `_ensureClient`, since `_listModels` calls
+			// it and would recurse.
+			this._capiModels = [];
+			this._publishModels();
+			void this._startModelRefresh();
 		}
 	}
 
@@ -678,7 +703,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'}`);
 		if (tokenChanged) {
 			await this._restartClientIfProxyChanged();
-			void this._refreshModels();
+			void this._startModelRefresh();
 		}
 		return true;
 	}
@@ -774,7 +799,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _refreshModels(attempt = 0): Promise<void> {
+	/**
+	 * {@link IAgent.refreshModels}. Coalesces onto an in-flight refresh and
+	 * never rejects — {@link _refreshModels} already logs and retains the last
+	 * known-good list on failure.
+	 *
+	 * Only safe for callers with no new input to apply (the host's periodic
+	 * scheduler). Triggers that invalidate the in-flight request — a rotated
+	 * token, a restarted client — must call {@link _startModelRefresh} so they
+	 * are not answered by a refresh bound to the superseded input.
+	 */
+	refreshModels(): Promise<void> {
+		return this._modelRefreshInFlight ?? this._startModelRefresh();
+	}
+
+	/**
+	 * Unconditionally begins a refresh, superseding any in-flight one as the
+	 * coalescing target. The superseded request stays harmless: its own
+	 * stale-write guard drops the result if the token or client generation
+	 * moved on.
+	 */
+	private _startModelRefresh(): Promise<void> {
+		const generation = ++this._modelCatalogGeneration;
+		const refresh = this._refreshModels(0, generation).finally(() => {
+			if (this._modelRefreshInFlight === refresh) {
+				this._modelRefreshInFlight = undefined;
+			}
+		});
+		this._modelRefreshInFlight = refresh;
+		return refresh;
+	}
+
+	private async _refreshModels(attempt = 0, generation = this._modelCatalogGeneration): Promise<void> {
 		// A fresh refresh (e.g. a token change) supersedes any scheduled retry.
 		this._modelRefreshRetry.clear();
 
@@ -793,7 +849,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		try {
 			const models = await this._listModels(tokenAtRefreshStart);
-			if (this._githubToken === tokenAtRefreshStart) {
+			if (this._githubToken === tokenAtRefreshStart && this._modelCatalogGeneration === generation) {
 				this._capiModels = models;
 				this._publishModels();
 			}
@@ -801,14 +857,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Token rotated mid-flight — a newer refresh owns the result — or
 			// teardown began while the request was in flight, in which case a
 			// retry would just resurrect the client we are tearing down.
-			if (this._githubToken !== tokenAtRefreshStart || this._shutdownPromise) {
+			if (this._githubToken !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise) {
 				return;
 			}
 			if (attempt + 1 < this._modelRefreshMaxAttempts) {
 				const delay = this._modelRefreshBackoff(attempt);
 				this._logService.warn(`[Copilot] Failed to refresh models (attempt ${attempt + 1}), retrying in ${delay}ms`, err);
 				this._modelRefreshRetry.value = disposableTimeout(() => {
-					void this._refreshModels(attempt + 1);
+					void this._refreshModels(attempt + 1, generation);
 				}, delay);
 				return;
 			}

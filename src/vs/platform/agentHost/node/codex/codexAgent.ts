@@ -1021,14 +1021,24 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private _queueModelRefresh(): void {
+	/**
+	 * {@link IAgent.refreshModels}. Coalesces onto an in-flight refresh — from
+	 * an account/usage-source change or an earlier tick — rather than issuing a
+	 * second enumeration, and never rejects: {@link _refreshModels} logs and
+	 * applies its own stale-write guards on failure.
+	 */
+	refreshModels(): Promise<void> {
+		return this._modelsRefreshPromise ?? this._queueModelRefresh();
+	}
+
+	private _queueModelRefresh(): Promise<void> {
 		const refreshPromise = this._refreshModels().finally(() => {
 			if (this._modelsRefreshPromise === refreshPromise) {
 				this._modelsRefreshPromise = undefined;
 			}
 		});
 		this._modelsRefreshPromise = refreshPromise;
-		void this._modelsRefreshPromise;
+		return refreshPromise;
 	}
 
 	private _ensureAuthenticated(): string | undefined {
@@ -1234,9 +1244,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._models.set(models, undefined);
 		} catch (err) {
 			this._logService.warn(`[Codex] Failed to refresh models: ${err instanceof Error ? err.message : String(err)}`);
-			if (this._usageSource === usageSource && this._githubToken === token) {
-				this._models.set([], undefined);
-			}
+			// Keep the last known-good catalog. Usage-source changes clear the
+			// list in `_applyUsageSourceChange`; a transient periodic failure
+			// must not make every model disappear.
 		}
 	}
 
@@ -1268,9 +1278,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		} catch (err) {
 			this._logService.warn(`[Codex] Failed to refresh OpenAI models: ${err instanceof Error ? err.message : String(err)}`);
-			if (this._usageSource === 'openai') {
-				this._models.set([], undefined);
-			}
+			// Keep the last known-good catalog. Usage-source changes clear the
+			// list in `_applyUsageSourceChange`; a transient periodic failure
+			// must not make every model disappear.
 		}
 	}
 
