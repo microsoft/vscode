@@ -278,6 +278,11 @@
 	border-radius: calc(var(--vscode-sash-hover-size) / 2);
 }
 
+/* Keep the diff editor's bottom boundary from clipping the sash radius. */
+.style-override .monaco-diff-editor > .monaco-sash.vertical:before {
+	height: calc(100% - (var(--vscode-sash-hover-size) / 2));
+}
+
 .style-override .monaco-sash:not(.disabled) > .orthogonal-drag-handle {
 	border-radius: var(--vscode-sash-size);
 }

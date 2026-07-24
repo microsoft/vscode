@@ -536,7 +536,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		store.add(autorun(reader => {
 			const active = this._visibility.activeSession.read(reader);
 			if (active && active.sessionId === followId) {
-				const chats = active.chats.read(reader);
+				const chats = active.visibleChatTabs.read(reader);
 				const lastChat = chats[chats.length - 1];
 				if (lastChat) {
 					this._visibility.setActiveChat(active, lastChat);

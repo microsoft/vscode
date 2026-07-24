@@ -14,7 +14,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentSessionProjectInfo } from '../../common/agentService.js';
-import { IAgentHostGitService, IDefaultBranch, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
+import { getBranchCompletions, IAgentHostGitService, IDefaultBranch, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -382,8 +382,10 @@ export class WorktreeIsolation extends Disposable {
 		if (!workingDirectory) {
 			return { items: [] };
 		}
-		const branches = await this._gitService.getBranches(workingDirectory, { query, limit: BRANCH_COMPLETION_LIMIT });
-		return { items: branches.map(branch => ({ value: branch, label: branch })) };
+		const branches = await this._gitService.getBranches(workingDirectory, { pattern: ['refs/heads'], sort: 'committerdate' });
+		const branchCompletions = getBranchCompletions(branches.map(branch => branch.name), { query, limit: BRANCH_COMPLETION_LIMIT });
+
+		return { items: branchCompletions.map(branch => ({ value: branch, label: branch })) };
 	}
 
 	/**

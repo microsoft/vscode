@@ -10,7 +10,7 @@ import { URI } from '../../base/common/uri.js';
 import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type McpServerState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type McpServerState, type RootState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 
@@ -120,6 +120,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly onDidChangeRootConfig: Event<void>;
 	/** Returns the last-known root (agent host) configuration, or `undefined` if the host has not published any. */
 	getRootConfig(): RootConfigState | undefined;
+	getRootState(): RootState | undefined;
+	mapAgentHostResource(uri: URI): URI;
 	/**
 	 * Sets one root configuration property.
 	 *
