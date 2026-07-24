@@ -641,6 +641,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			}
 		}
 	},
+	[AgentSandboxSettingId.AgentSandboxSettingsAutoUpdate]: {
+		markdownDescription: localize('agentSandbox.autoUpdate', "Controls whether the effective sandbox configuration is automatically adjusted based on the terminal command being executed. When disabled, only explicitly configured sandbox settings are used. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		type: 'boolean',
+		default: true,
+		tags: ['preview'],
+		restricted: true
+	},
 	[TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem]: {
 		markdownDescription: localize('agentSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on Linux. Paths do not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env). **bubblewrap** and **socat** should be installed for this setting to work.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'object',

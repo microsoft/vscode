@@ -15,6 +15,7 @@ export const SANDBOX_SETTING_KEYS: readonly string[] = [
 	AgentSandboxSettingId.AgentSandboxWindowsEnabled,
 	AgentSandboxSettingId.AgentSandboxAllowNetwork,
 	AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
+	AgentSandboxSettingId.AgentSandboxSettingsAutoUpdate,
 	AgentSandboxSettingId.AgentSandboxLinuxFileSystem,
 	AgentSandboxSettingId.AgentSandboxMacFileSystem,
 	AgentSandboxSettingId.AgentSandboxWindowsFileSystem,
