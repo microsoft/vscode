@@ -15,6 +15,7 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { Disposable, DisposableMap, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { basename } from '../../../../../base/common/resources.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 
 export const IChatContextService = createDecorator<IChatContextService>('chatContextService');
 
@@ -45,6 +46,8 @@ export class ChatContextService extends Disposable {
 
 	private readonly _providers = new Map<string, IChatContextProviderEntry>();
 	private readonly _workspaceContext = new Map<string, IChatContextItem[]>();
+	private readonly _onDidChangeWorkspaceContext = this._register(new Emitter<void>());
+	readonly onDidChangeWorkspaceContext: Event<void> = this._onDidChangeWorkspaceContext.event;
 	private readonly _registeredPickers = this._register(new DisposableMap<string, IDisposable>());
 	private _lastResourceContext: Map<StringChatContextValue, { originalItem: IChatContextItem; provider: IChatResourceContextProvider }> = new Map();
 	private _executeCommandCallback: ((itemHandle: number) => Promise<void>) | undefined;
@@ -109,11 +112,12 @@ export class ChatContextService extends Disposable {
 
 	updateWorkspaceContextItems(id: string, items: IChatContextItem[]): void {
 		this._workspaceContext.set(id, items);
+		this._onDidChangeWorkspaceContext.fire();
 	}
 
 	getWorkspaceContextItems(): IChatRequestWorkspaceVariableEntry[] {
 		const items: IChatRequestWorkspaceVariableEntry[] = [];
-		for (const workspaceContexts of this._workspaceContext.values()) {
+		for (const [providerId, workspaceContexts] of this._workspaceContext) {
 			for (const item of workspaceContexts) {
 				if (!item.value) {
 					continue;
@@ -124,8 +128,11 @@ export class ChatContextService extends Disposable {
 					value: item.value,
 					name: derivedLabel,
 					modelDescription: item.modelDescription,
-					id: derivedLabel,
-					kind: 'workspace'
+					id: `${providerId}:${item.handle}`,
+					kind: 'workspace',
+					displayInChat: item.displayInChat,
+					iconPath: item.iconPath,
+					tooltip: item.tooltip,
 				});
 			}
 		}

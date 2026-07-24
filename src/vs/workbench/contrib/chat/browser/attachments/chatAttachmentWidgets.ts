@@ -70,7 +70,7 @@ import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../
 import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
+import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath, isWorkspaceVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../common/languageModels.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -805,7 +805,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		const description = correspondingContentReference?.options?.status?.description;
 
 		// Provider-supplied icon path (ThemeIcon | Uri | { light, dark }) for context items
-		const iconPath = (isStringVariableEntry(attachment) || attachment.kind === 'generic') ? attachment.iconPath : undefined;
+		const iconPath = (isStringVariableEntry(attachment) || attachment.kind === 'generic' || isWorkspaceVariableEntry(attachment)) ? attachment.iconPath : undefined;
 
 		this._applyLabel(attachment, attachmentLabel, description, iconPath);
 
@@ -853,7 +853,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 
 		// Setup tooltip hover for string context attachments
-		if ((isStringVariableEntry(attachment) || attachment.kind === 'generic') && attachment.tooltip) {
+		if ((isStringVariableEntry(attachment) || attachment.kind === 'generic' || isWorkspaceVariableEntry(attachment)) && attachment.tooltip) {
 			this._setupTooltipHover(attachment.tooltip);
 		}
 

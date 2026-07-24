@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
@@ -97,10 +100,18 @@ export class RepoctxChatContextContribution extends Disposable implements IWorkb
 			return undefined;
 		}
 
+		const evidenceCount = repoctxEvidenceStages.filter(stage => evidencePaths[stage.id]).length;
+		const label = evidenceCount === 1
+			? localize('repoctx.agentContext.oneEvidenceFile', "Repoctx · 1 evidence file")
+			: localize('repoctx.agentContext.evidenceFiles', "Repoctx · {0} evidence files", evidenceCount);
+
 		return {
 			handle,
-			label: `Repoctx: ${folder.name}`,
+			label,
 			modelDescription: 'Repoctx repository map and trust evidence',
+			iconPath: Codicon.shield,
+			tooltip: new MarkdownString(localize('repoctx.agentContext.tooltip', "Automatic repository context is attached to this request. Open the Repoctx Trust Rail for evidence details.")),
+			displayInChat: true,
 			value,
 		};
 	}

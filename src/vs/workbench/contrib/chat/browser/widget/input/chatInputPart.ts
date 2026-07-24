@@ -2965,6 +2965,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 			this._handleAttachedContextChange();
 		}));
+		this._register(this.chatContextService.onDidChangeWorkspaceContext(() => this._handleAttachedContextChange()));
 
 		this.renderChatEditingSessionState(null);
 
@@ -3624,7 +3625,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const shouldFocusClearButton = index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, attachments.length - 1) && this._indexOfLastAttachedContextDeletedWithKeyboard > -1;
 
 			let attachmentWidget;
-			const options = { shouldFocusClearButton, supportsDeletion: true, isCurrentInput: true };
+			const options = { shouldFocusClearButton, supportsDeletion: attachment.kind !== 'workspace', isCurrentInput: true };
 			const lm = this._currentLanguageModel.get();
 			if (attachment.kind === 'tool' || attachment.kind === 'toolset') {
 				attachmentWidget = this.instantiationService.createInstance(ToolSetOrToolItemAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
@@ -3713,7 +3714,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * rather than pills, so they are excluded here.
 	 */
 	private getRenderableAttachments(): IChatRequestVariableEntry[] {
-		return this.attachmentModel.attachments.filter(attachment => !isAgentHostCompletionVariableEntry(attachment));
+		const visibleWorkspaceContext = this.chatContextService.getWorkspaceContextItems().filter(attachment => attachment.displayInChat);
+		return [...this.attachmentModel.attachments, ...visibleWorkspaceContext].filter(attachment => !isAgentHostCompletionVariableEntry(attachment));
 	}
 
 	private handleAttachmentOpen(index: number, attachment: IChatRequestVariableEntry): void {

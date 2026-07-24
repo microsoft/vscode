@@ -15,6 +15,11 @@ export interface IChatContextItem {
 	resourceUri?: URI;
 	modelDescription?: string;
 	tooltip?: IMarkdownString;
+	/**
+	 * Show this automatic workspace context as a read-only attachment in Chat.
+	 * The context remains attached automatically whether or not it is shown.
+	 */
+	displayInChat?: boolean;
 	handle: number;
 	value?: string;
 	command?: {
