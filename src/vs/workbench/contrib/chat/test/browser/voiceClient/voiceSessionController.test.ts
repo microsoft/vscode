@@ -252,6 +252,7 @@ class TestChatWidgetService extends mock<IChatWidgetService>() {
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly acceptedInputs: string[] = [];
+	readonly acceptInputCalls: { text: string; submit: boolean | undefined }[] = [];
 
 	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
 		let result: string | undefined;
@@ -259,6 +260,7 @@ class TestCommandService extends mock<ICommandService>() {
 			result = 'chat-session';
 		} else if (commandId === '_chat.voice.acceptInput' && typeof args[0] === 'string') {
 			this.acceptedInputs.push(args[0]);
+			this.acceptInputCalls.push({ text: args[0], submit: typeof args[1] === 'boolean' ? args[1] : undefined });
 		}
 		return result as T;
 	}
@@ -381,7 +383,14 @@ suite('VoiceSessionController', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
 		const commandService = new TestCommandService();
-		const controller = createController(voiceClientService, ttsPlaybackService, commandService);
+		const controller = createController(
+			voiceClientService,
+			ttsPlaybackService,
+			commandService,
+			NullTelemetryService,
+			undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }),
+		);
 		await controller.connect(mainWindow);
 
 		voiceClientService.fireAudioResponse({
@@ -830,6 +839,50 @@ suite('VoiceSessionController', () => {
 
 		assert.strictEqual(mic.pttDownCalls.length, 1);
 		assert.strictEqual(mic.pttDownCalls[0].passive, true);
+	});
+
+	test('connect only arms listening automatically in hands-free mode', () => {
+		const manualVoiceClientService = new TestVoiceClientService();
+		const manualController = createController(manualVoiceClientService, undefined, undefined, undefined, undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': false }));
+
+		const handsFreeVoiceClientService = new TestVoiceClientService();
+		const handsFreeController = createController(handsFreeVoiceClientService, undefined, undefined, undefined, undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }));
+		const manualShouldArm = Reflect.get(manualController, '_shouldEnterListenOnSessionInit') as (isResuming: boolean) => boolean;
+		const handsFreeShouldArm = Reflect.get(handsFreeController, '_shouldEnterListenOnSessionInit') as (isResuming: boolean) => boolean;
+
+		assert.deepStrictEqual({
+			manualFreshConnect: manualShouldArm.call(manualController, false),
+			handsFreeFreshConnect: handsFreeShouldArm.call(handsFreeController, false),
+			handsFreeResume: handsFreeShouldArm.call(handsFreeController, true),
+		}, {
+			manualFreshConnect: false,
+			handsFreeFreshConnect: true,
+			handsFreeResume: false,
+		});
+	});
+
+	test('stopping listening in manual mode prefills the transcript without submitting it', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const controller = createController(voiceClientService, undefined, commandService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		controller.pttDown();
+		controller.stopListening();
+		voiceClientService.fireToolCall({
+			callId: 'manual-transcription',
+			name: 'send_to_chat',
+			args: { text: 'review this before sending' },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual(commandService.acceptInputCalls, [{
+			text: 'review this before sending',
+			submit: false,
+		}]);
 	});
 
 	test('auto-listen is skipped when window does not have focus (multi-window hands-free)', () => {

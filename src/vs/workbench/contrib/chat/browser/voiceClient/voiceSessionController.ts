@@ -1461,16 +1461,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._statusText.set('Hold to speak...', undefined);
 				this._voiceState.set('idle', undefined);
 
-				// Enter listening as soon as a fresh session is ready. Starting
-				// voice mode always begins the first turn listening, regardless
-				// of `handsFree` (which only controls whether we RE-listen after
-				// the assistant speaks). We wait for the backend `session_init`
-				// ack (see onSessionInit below) rather than acting here, because
-				// the mic/handshake isn't settled yet at connection time.
-				// Previously this was deferred until a welcome greeting finished
-				// playing, but the greeting was removed. A short fallback timer
-				// covers backends that don't emit `session_init`.
-				this._enterListenOnSessionInit = !isResuming;
+				// Wait for the backend session ack before opening the hands-free mic.
+				this._enterListenOnSessionInit = this._shouldEnterListenOnSessionInit(isResuming);
 				this.logService.trace(`[voice] connected: isResuming=${isResuming} handsFree=${this._isHandsFreeEnabled()} armListen=${this._enterListenOnSessionInit}`);
 				if (this._enterListenOnSessionInit) {
 					this._voiceEventDisposables.add(disposableTimeout(() => {
@@ -1721,9 +1713,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					toolName: e.name,
 					toolArgs: e.args,
 				});
-				this._setAwaitingReply();
+				const submit = this._isHandsFreeEnabled();
+				if (submit) {
+					this._setAwaitingReply();
+				}
 				const sendPromise = text.trim()
-					? this._sendTranscriptionToChat(text)
+					? this._sendTranscriptionToChat(text, submit)
 					: Promise.resolve();
 				sendPromise.finally(() => {
 					this.voiceClientService.sendToolResult(e.callId, 'ok');
@@ -2539,6 +2534,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
 	}
 
+	private _shouldEnterListenOnSessionInit(isResuming: boolean): boolean {
+		return !isResuming && this._isHandsFreeEnabled();
+	}
+
 	private _isLiveTranscriptEnabled(): boolean {
 		// Default-off: live word-by-word transcripts are opt-in, so only an
 		// explicit `true` enables the interim rendering. An unresolved/undefined
@@ -2753,15 +2752,27 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	/**
-	 * Send transcription text to the target session or active chat.
-	 * If a target session is selected, sends directly via chatService.
-	 * Otherwise sends to whatever is currently active via the view pane command.
+	 * Route transcription text to the target session or active chat, optionally submitting it.
 	 */
-	private async _sendTranscriptionToChat(text: string): Promise<void> {
+	private async _sendTranscriptionToChat(text: string, submit: boolean): Promise<void> {
 		// A focus-change submit pins routing to the session the user was
 		// dictating into; it takes priority over the user-picked target and the
 		// currently focused session so their words land where they were aimed.
 		const target = this._consumePinnedSubmitSession() ?? this._targetSession.get();
+		if (!submit) {
+			const currentSession = await this.commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession').catch(() => undefined);
+			if (target && currentSession !== target.toString()) {
+				const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', target.toString()).catch(() => false);
+				if (!switched) {
+					this.logService.warn('[voice] Could not switch to the target session to populate the transcription');
+					return;
+				}
+			}
+			await this.commandService.executeCommand('_chat.voice.acceptInput', text, false).catch(err => {
+				this.logService.warn('[voice] failed to populate transcription in chat input:', err);
+			});
+			return;
+		}
 		if (target) {
 			// Check if target is the currently visible session
 			const currentSession = await this.commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession').catch(() => undefined);

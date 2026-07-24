@@ -183,6 +183,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
 		const keybindingService = accessor.get(IKeybindingService);
+		const handsFree = accessor.get(IConfigurationService).getValue<boolean>('agents.voice.handsFree') === true;
 
 		// Capture hold-mode FIRST, synchronously, before any `await`. The
 		// keybinding service only reports a held chord while it is still
@@ -202,6 +203,10 @@ registerAction2(class extends Action2 {
 		// controller then treats it as a quick tap (toggle on).
 		if (!voiceController.isConnected.get()) {
 			await voiceController.connect(mainWindow);
+		}
+
+		if (!holdMode && !handsFree) {
+			return;
 		}
 
 		// Map the physical key/button gesture directly onto the controller's
@@ -587,7 +592,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'agents.voice.handsFree': {
 			type: 'boolean',
-			markdownDescription: nls.localize('agents.voice.handsFree', "When enabled, voice mode automatically re-enters listening after the assistant finishes speaking, so you can hold a hands-free back-and-forth conversation. When disabled, you start each turn manually, and turns are not sent automatically on trailing silence or a stop phrase unless {0} or {1} is explicitly configured.", '`#agents.voice.turn.silenceMs#`', '`#agents.voice.turn.stopPhrases#`'),
+			markdownDescription: nls.localize('agents.voice.handsFree', "When enabled, voice mode automatically re-enters listening after the assistant finishes speaking, so you can hold a hands-free back-and-forth conversation. When disabled, you start each turn manually, and stopping listening leaves the transcript in the chat input for review instead of sending it. Turns are not ended automatically on trailing silence or a stop phrase unless {0} or {1} is explicitly configured.", '`#agents.voice.turn.silenceMs#`', '`#agents.voice.turn.stopPhrases#`'),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 		},
