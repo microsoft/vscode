@@ -4214,6 +4214,15 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.semanticSearchTool.disabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.semanticSearchTool.disabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.anthropic.tools.websearch.enabled": {
             "type": "boolean",
             "default": false,
