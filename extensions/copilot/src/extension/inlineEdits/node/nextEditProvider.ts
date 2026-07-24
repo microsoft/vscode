@@ -864,6 +864,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		const projectedDocuments = historyContext.documents.map(doc => this._processDoc(doc));
 
 		const xtabEditHistory = this._xtabHistoryTracker.getHistory();
+		const rejectedEditHistory = this._xtabHistoryTracker.getRejectedEditHistory();
 
 		const firstEdit = new DeferredPromise<Result<CachedOrRebasedEdit, NoNextEditReason>>();
 
@@ -885,7 +886,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			logContext.recordingBookmark,
 			recording,
 			req.providerRequestStartDateTime,
-			this._xtabHistoryTracker.getRejectedEditHistory(),
+			rejectedEditHistory,
 		);
 		let nextEditResult: StatelessNextEditResult | undefined;
 
@@ -1389,6 +1390,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		});
 
 		const xtabEditHistory = this._xtabHistoryTracker.getHistory();
+		const rejectedEditHistory = this._xtabHistoryTracker.getRejectedEditHistory();
 		const suggestedEdit: IXtabHistoryEditEntry = { kind: 'edit', docId: curDocId, edit: rootedEdit };
 		xtabEditHistory.push(suggestedEdit);
 
@@ -1429,7 +1431,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			undefined, // recordingBookmark
 			recording,
 			undefined, // providerRequestStartDateTime
-			this._xtabHistoryTracker.getRejectedEditHistory(),
+			rejectedEditHistory,
 		);
 
 		logContext.setRequestInput(nextEditRequest);
@@ -1605,10 +1607,9 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		if (shownDuration > 1000 && suggestion.result.edit) {
 			// we can argue that the user had the time to review this
 			// so it wasn't an accidental rejection
-			const targetDocumentId = suggestion.result.targetDocumentId ?? docId;
-			this._rejectionCollector.reject(targetDocumentId, suggestion.result.edit);
+			this._rejectionCollector.reject(docId, suggestion.result.edit);
 			if (this._isRejectedEditMemoryEnabled()) {
-				this._xtabHistoryTracker.recordRejectedEdit(targetDocumentId, suggestion.result.documentBeforeEdits, suggestion.result.edit);
+				this._xtabHistoryTracker.recordRejectedEdit(suggestion.result.targetDocumentId ?? docId, suggestion.result.documentBeforeEdits, suggestion.result.edit);
 			}
 			this._nextEditCache.rejectedNextEdit(suggestion.source.headerRequestId);
 		}
