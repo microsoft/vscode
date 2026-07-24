@@ -71,6 +71,9 @@ import { IAgentHostFileSystemService } from '../../../../../services/agentHost/c
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
+import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
+import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
+import { IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -830,6 +833,18 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		isNewSession: sessionResource => workingDirectoryResolver?.isNewSession?.(sessionResource) ?? sessionResource.path.substring(1).startsWith('new-'),
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow } as Partial<IWorkbenchEnvironmentService>);
+	instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
+	instantiationService.stub(IChatInputNotificationService, {
+		_serviceBrand: undefined,
+		onDidChange: Event.None,
+		onDidDismiss: Event.None,
+		setNotification: () => { },
+		deleteNotification: () => { },
+		dismissNotification: () => { },
+		getActiveNotification: () => undefined,
+		handleMessageSent: () => { },
+		announceRendered: () => { },
+	});
 	instantiationService.stub(IAgentHostCustomizationService, customizationServiceOverride ?? new NullAgentHostCustomizationService());
 	instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 		onDidChange: Event.None,

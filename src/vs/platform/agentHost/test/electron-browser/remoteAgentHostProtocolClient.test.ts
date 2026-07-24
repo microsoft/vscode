@@ -18,6 +18,7 @@ import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../brows
 import { AgentHostPermissionMode, AgentHostResourcePermissionError, IAgentHostResourceService } from '../../common/agentHostResourceService.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
+import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
@@ -407,26 +408,68 @@ suite('RemoteAgentHostProtocolClient', () => {
 		assert.strictEqual(await creation, session);
 	});
 
-	test('maps protocol-supported create chat fork', async () => {
-		const { client, transport } = createClient();
-		await connectClient(client, transport);
-		const session = URI.parse('ahp-session:/session');
-		const chat = URI.parse('ahp-chat:/chat');
-		const source = URI.parse('ahp-chat:/source');
-		const creation = client.createChat(session, chat, { fork: { source, turnId: 'turn-1' } });
+	suite('createChat', () => {
+		const sessionUri = URI.parse('ahp-session:/test');
+		const chatUri = URI.parse('ahp-session:/test/chat-1');
+		const sourceUri = URI.parse('ahp-session:/test/chat-0');
 
-		const request = transport.sentMessages.find((message): message is JsonRpcRequest =>
-			hasKey(message, { method: true }) && message.method === 'createChat');
-		assert.deepStrictEqual(request?.params, {
-			channel: session.toString(),
-			chat: chat.toString(),
-			source: { chat: source.toString(), turnId: 'turn-1' },
+		test('forwards a fork source tagged with kind "fork"', async () => {
+			const { client, transport } = createClient();
+
+			const resultPromise = client.createChat(sessionUri, chatUri, { fork: { source: sourceUri, turnId: 'turn-1' } });
+
+			assert.deepStrictEqual(transport.sentMessages[0], {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'createChat',
+				params: {
+					channel: sessionUri.toString(),
+					chat: chatUri.toString(),
+					source: { kind: ChatSourceKind.Fork, chat: sourceUri.toString(), turnId: 'turn-1' },
+				},
+			});
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+			await resultPromise;
 		});
-		assert.ok(request);
-		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
-		await creation;
-	});
 
+		test('forwards a side chat (`/btw`) source tagged with kind "sideChat"', async () => {
+			const { client, transport } = createClient();
+
+			const selection = { text: '  selected text  ', responsePartId: 'response-part-1' };
+			const resultPromise = client.createChat(sessionUri, chatUri, { sideChat: { source: sourceUri, turnId: 'turn-1', selection } });
+
+			assert.deepStrictEqual(transport.sentMessages[0], {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'createChat',
+				params: {
+					channel: sessionUri.toString(),
+					chat: chatUri.toString(),
+					source: { kind: ChatSourceKind.SideChat, chat: sourceUri.toString(), turnId: 'turn-1', selection },
+				},
+			});
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+			await resultPromise;
+		});
+
+		test('omits source entirely when neither fork nor sideChat is requested', async () => {
+			const { client, transport } = createClient();
+
+			const resultPromise = client.createChat(sessionUri, chatUri);
+
+			assert.deepStrictEqual(transport.sentMessages[0], {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'createChat',
+				params: { channel: sessionUri.toString(), chat: chatUri.toString() },
+			});
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+			await resultPromise;
+		});
+	});
 	test('preserves JSON-RPC error code and data', async () => {
 		const { client, transport } = createClient();
 		const resultPromise = client.resourceRead(URI.file('/missing'));

@@ -15,7 +15,7 @@ import { IObservable, ISettableObservable, observableValue, constObservable } fr
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
@@ -200,6 +200,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
 		return this._requireClient().getNetworkDiagnosticsInfo();
+	}
+
+	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> {
+		return this._requireClient().getManagedSettingsDiagnostics();
 	}
 
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {

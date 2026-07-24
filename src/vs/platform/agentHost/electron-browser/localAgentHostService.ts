@@ -33,6 +33,7 @@ import {
 	IAgentCreateSessionConfig,
 	IAgentHostInspectInfo,
 	IAgentHostManagementService,
+	IAgentHostManagedSettingsDiagnostics,
 	IAgentHostNetworkDiagnosticsInfo,
 	IAgentHostNetworkFetchResult,
 	IAgentHostService,
@@ -328,6 +329,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
 		return this._management.getNetworkDiagnosticsInfo();
+	}
+
+	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> {
+		return this._management.getManagedSettingsDiagnostics();
 	}
 
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {

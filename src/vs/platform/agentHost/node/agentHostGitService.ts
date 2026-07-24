@@ -16,7 +16,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { EMPTY_TREE_OBJECT, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions } from '../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { Limiter, SequencerByKey } from '../../../base/common/async.js';
 
@@ -67,7 +67,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return undefined;
 	}
 
-	async getBranches(workingDirectory: URI, query?: IRefQuery): Promise<IBranch[]> {
+	async getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]> {
 		const args = ['for-each-ref', '--format=%(refname)%00%(upstream)'];
 
 		if (query?.sort && query.sort !== 'alphabetically') {
@@ -86,7 +86,17 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		const output = await this._runGit(workingDirectory, args);
-		return parseBranchRefs(output);
+		return parseGitRefs(output);
+	}
+
+	async getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]> {
+		const refs = await this.getRefs(workingDirectory, query);
+		return refs.filter(r => r.kind === GitRefType.Head || r.kind === GitRefType.RemoteHead);
+	}
+
+	async getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined> {
+		const refs = await this.getBranches(workingDirectory, { pattern: name });
+		return refs.length > 0 ? refs[0] : undefined;
 	}
 
 	async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> {
@@ -1195,32 +1205,42 @@ export function parseRemoteBranchRef(ref: string): { ref: string; name: string; 
 	return { ref, name, remote };
 }
 
-export function parseBranchRefs(output: string | undefined): IBranch[] {
+export function parseGitRefs(output: string | undefined): GitRef[] {
 	if (!output) {
 		return [];
 	}
 
-	const branches: IBranch[] = [];
+	const refs: GitRef[] = [];
 	for (const line of output.split(/\r?\n/g)) {
 		const [ref, upstream] = line.trim().split('\0');
 
 		if (ref.startsWith('refs/heads/')) {
-			branches.push({
+			refs.push({
 				ref,
 				name: ref.substring(11),
 				upstream: upstream
 					? parseRemoteBranchRef(upstream)
-					: undefined
-			});
+					: undefined,
+				kind: GitRefType.Head
+			} satisfies IBranch);
 		} else if (ref.startsWith('refs/remotes/') && !/^refs\/remotes\/[^/]+\/HEAD$/.test(ref)) {
 			const parsedRemoteBranch = parseRemoteBranchRef(ref);
 			if (parsedRemoteBranch) {
-				branches.push(parsedRemoteBranch);
+				refs.push({
+					...parsedRemoteBranch,
+					kind: GitRefType.RemoteHead
+				} satisfies IRemoteBranch);
 			}
+		} else if (ref.startsWith('refs/tags/')) {
+			refs.push({
+				ref,
+				name: ref.substring(10),
+				kind: GitRefType.Tag
+			} satisfies ITag);
 		}
 	}
 
-	return branches;
+	return refs;
 }
 
 function stripUndefined<T extends object>(obj: T): T {

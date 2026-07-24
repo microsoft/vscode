@@ -18,7 +18,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentSession, AgentHostCodexAgentEnabledSettingId, AgentHostSystemProxyEnabledSettingId, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
+import { AgentSession, AgentHostCodexAgentEnabledSettingId, AgentHostSystemProxyEnabledSettingId, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
@@ -31,7 +31,7 @@ import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolErr
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes } from '../common/state/protocol/errors.js';
-import { ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
@@ -97,6 +97,7 @@ function transportLostError(address: string): ProtocolError {
 interface IRemoteAgentHostExtensionCommandMap {
 	'shutdown': { params: undefined; result: void };
 	'getNetworkDiagnosticsInfo': { params: undefined; result: IAgentHostNetworkDiagnosticsInfo };
+	'getManagedSettingsDiagnostics': { params: undefined; result: readonly IAgentHostManagedSettingsDiagnostics[] };
 	'diagnosticsFetch': { params: { url: string }; result: IAgentHostNetworkFetchResult };
 }
 
@@ -943,6 +944,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._sendExtensionRequest('getNetworkDiagnosticsInfo');
 	}
 
+	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> {
+		return this._sendExtensionRequest('getManagedSettingsDiagnostics');
+	}
+
 	/**
 	 * Probe connectivity from the remote agent host to a single `url`.
 	 */
@@ -961,7 +966,17 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		await this._sendRequest('createChat', {
 			channel: session.toString(),
 			chat: chat.toString(),
-			...(options?.fork ? { source: { chat: options.fork.source.toString(), turnId: options.fork.turnId } } : {}),
+			...(options?.fork ? {
+				source: { kind: ChatSourceKind.Fork, chat: options.fork.source.toString(), turnId: options.fork.turnId }
+			} : {}),
+			...(options?.sideChat ? {
+				source: {
+					kind: ChatSourceKind.SideChat,
+					chat: options.sideChat.source.toString(),
+					turnId: options.sideChat.turnId,
+					...(options.sideChat.selection ? { selection: options.sideChat.selection } : {}),
+				}
+			} : {}),
 		});
 	}
 

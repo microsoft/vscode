@@ -89,6 +89,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
+import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
 import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
@@ -532,6 +533,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly isReadOnly: IObservable<boolean>;
 	private readonly _sessionState = observableValue<IObservable<SessionState | undefined>>(this, constObservable(undefined));
 	private readonly _chatState = observableValue<IObservable<ChatState | undefined>>(this, constObservable(undefined));
+	private readonly _promptCacheTracking = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -550,6 +552,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		readonly title: string | undefined,
 		sessionSubscription: IAgentSubscription<SessionState> | undefined,
 		chatSubscription: IAgentSubscription<ChatState> | undefined,
+		private readonly _promptCacheNotification: AgentHostPromptCacheNotification | undefined,
 		private readonly _forkSession: ((request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>),
 		private readonly _renameSession: ((title: string, token: CancellationToken) => Promise<void>),
 		inputState: ISerializableChatModelInputState | undefined,
@@ -585,6 +588,8 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	}
 
 	setStateSubscriptions(sessionSubscription: IAgentSubscription<SessionState> | undefined, chatSubscription: IAgentSubscription<ChatState> | undefined): void {
+		this._promptCacheTracking.clear();
+		this._promptCacheTracking.value = sessionSubscription ? this._promptCacheNotification?.trackSession(this.sessionResource, sessionSubscription) : undefined;
 		transaction(tx => {
 			this._sessionState.set(sessionSubscription ? observableFromSubscription(this, sessionSubscription) : constObservable(undefined), tx);
 			this._chatState.set(chatSubscription ? observableFromSubscription(this, chatSubscription) : constObservable(undefined), tx);
@@ -680,6 +685,7 @@ export interface IAgentHostSessionHandlerConfig {
 	 *   state that require authentication.
 	 */
 	readonly resolveAuthentication?: (protectedResources: ProtectedResourceMetadata[]) => Promise<boolean>;
+	readonly promptCacheNotification?: AgentHostPromptCacheNotification;
 }
 
 /**
@@ -1152,6 +1158,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			sessionTitle,
 			sessionSubscription,
 			chatSubscription,
+			this._config.promptCacheNotification,
 			(request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => {
 				if (!this._getSessionState(resolvedSession.toString())) {
 					throw new Error('Cannot fork session before the initial request');

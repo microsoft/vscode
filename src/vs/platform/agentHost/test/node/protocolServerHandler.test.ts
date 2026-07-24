@@ -11,8 +11,8 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
-import { type IAgentCreateSessionConfig, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
-import { CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
+import { type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
+import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction, type ProgressParams } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
@@ -88,6 +88,7 @@ class MockAgentService implements IAgentService {
 	readonly readErrors = new Map<string, Error>();
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
+	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	shutdownCalls = 0;
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
@@ -130,10 +131,10 @@ class MockAgentService implements IAgentService {
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async disposeSession(_session: URI): Promise<void> { }
-	readonly createdChats: { session: string; chat: string }[] = [];
+	readonly createdChats: { session: string; chat: string; options?: IAgentCreateChatOptions }[] = [];
 	readonly disposedChats: { session: string; chat: string }[] = [];
-	async createChat(session: URI, chat: URI): Promise<void> {
-		this.createdChats.push({ session: session.toString(), chat: chat.toString() });
+	async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+		this.createdChats.push({ session: session.toString(), chat: chat.toString(), ...(options ? { options } : {}) });
 		this._stateManager.addChat(session.toString(), chat.toString());
 	}
 	async disposeChat(session: URI, chat: URI): Promise<void> {
@@ -152,6 +153,7 @@ class MockAgentService implements IAgentService {
 	unsubscribe(_resource: URI, _clientId: string): void { }
 	async shutdown(): Promise<void> { this.shutdownCalls++; }
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
+	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return this.managedSettingsDiagnostics; }
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
 	getAuthToken(): string | undefined { return undefined; }
@@ -790,6 +792,122 @@ suite('ProtocolServerHandler', () => {
 				result: null,
 				created: [{ session: sessionUri, chat: peerChat }],
 				inCatalog: true,
+			});
+		});
+
+		test('createChat forwards a fork source to the agent service', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				source: { kind: ChatSourceKind.Fork, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-1' },
+			}));
+			const resp = await responsePromise;
+
+			assert.deepStrictEqual({
+				result: (resp as { result: null }).result,
+				created: agentService.createdChats,
+			}, {
+				result: null,
+				created: [{
+					session: sessionUri,
+					chat: peerChat,
+					options: {
+						fork: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-1' },
+					},
+				}],
+			});
+		});
+
+		test('createChat rejects a source without kind', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				source: {
+					chat: buildDefaultChatUri(sessionUri),
+					turnId: 'turn-1',
+				},
+			}));
+			const resp = await responsePromise as { error?: { code: number; message: string } };
+
+			assert.deepStrictEqual({
+				code: resp.error?.code,
+				message: resp.error?.message,
+				created: agentService.createdChats,
+			}, {
+				code: JsonRpcErrorCodes.InvalidParams,
+				message: 'Unsupported createChat source kind: undefined',
+				created: [],
+			});
+		});
+
+		test('createChat forwards a side chat source to the agent service', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				source: {
+					kind: ChatSourceKind.SideChat,
+					chat: buildDefaultChatUri(sessionUri),
+					turnId: 'turn-active',
+					selection: { text: '  selected text  ', responsePartId: 'response-part-1' },
+				},
+			}));
+			const resp = await responsePromise;
+
+			assert.deepStrictEqual({
+				result: (resp as { result: null }).result,
+				created: agentService.createdChats,
+			}, {
+				result: null,
+				created: [{
+					session: sessionUri,
+					chat: peerChat,
+					options: {
+						sideChat: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-active', selection: { text: '  selected text  ', responsePartId: 'response-part-1' } },
+					},
+				}],
+			});
+		});
+
+		test('createChat rejects an unknown source kind', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				source: {
+					kind: 'unknown',
+					chat: buildDefaultChatUri(sessionUri),
+					turnId: 'turn-1',
+				},
+			}));
+			const resp = await responsePromise as { error?: { code: number; message: string } };
+
+			assert.deepStrictEqual({
+				code: resp.error?.code,
+				message: resp.error?.message,
+				created: agentService.createdChats,
+			}, {
+				code: JsonRpcErrorCodes.InvalidParams,
+				message: 'Unsupported createChat source kind: unknown',
+				created: [],
 			});
 		});
 
@@ -1858,6 +1976,30 @@ suite('ProtocolServerHandler', () => {
 
 		assert.ok(!resp.error, `unexpected error: ${resp.error?.message}`);
 		assert.deepStrictEqual(resp.result, {});
+	});
+
+	test('getManagedSettingsDiagnostics returns provider SDK snapshots', async () => {
+		agentService.managedSettingsDiagnostics = [{
+			provider: 'copilot',
+			snapshot: {
+				source: 'device',
+				serverManaged: false,
+				deviceManaged: true,
+				failClosed: false,
+				bypassPermissionsDisabled: false,
+				managedKeys: ['permissions'],
+				settings: { permissions: { allow: ['Shell(echo *)'] } },
+			},
+		}];
+		const transport = connectClient('client-managed-settings');
+		transport.sent.length = 0;
+
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'getManagedSettingsDiagnostics'));
+		const response = await responsePromise as { result?: unknown; error?: { message: string } };
+
+		assert.ok(!response.error, `unexpected error: ${response.error?.message}`);
+		assert.deepStrictEqual(response.result, agentService.managedSettingsDiagnostics);
 	});
 
 	test('extension request preserves ProtocolError code and data', async () => {

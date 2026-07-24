@@ -26,7 +26,7 @@ import { autorun, derived, observableFromEvent, observableValue } from '../../..
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ChatPerfMark, markChat } from '../../common/chatPerf.js';
+import { ChatPerfMark, clearChatMarks, markChat } from '../../common/chatPerf.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -2730,6 +2730,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			attachedContext: options?.enableImplicitContext === false ? this.input.getAttachedContext() : this.input.getAttachedAndImplicitContext(),
 		};
 
+		if (this.viewModel.model.requestInProgress.get() && await this._executeSlashCommandDuringRequest(requestInputs.input, isUserQuery, options.preserveFocus)) {
+			return;
+		}
 		const isEditing = this.viewModel?.editing;
 		const editedModelRequestOptions = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input'
 			? this.getSelectedModelRequestOptions()
@@ -2927,6 +2930,54 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		});
 
 		return sent.data.responseCreatedPromise;
+	}
+
+	private async _executeSlashCommandDuringRequest(input: string, storeToHistory: boolean, preserveFocus: boolean | undefined): Promise<boolean> {
+		const viewModel = this.viewModel;
+		if (!viewModel) {
+			return false;
+		}
+		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(
+			viewModel.sessionResource,
+			input,
+			this.location,
+			{
+				selectedAgent: this._lastSelectedAgent,
+				mode: this.input.currentModeKind,
+				attachmentCapabilities: this.attachmentCapabilities,
+				forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined,
+			},
+		);
+		const commandPart = parsedRequest.parts.find((part): part is ChatRequestSlashCommandPart => part instanceof ChatRequestSlashCommandPart);
+		if (!commandPart?.slashCommand.executeDuringRequest || commandPart.slashCommand.silent !== true) {
+			return false;
+		}
+
+		const history: IChatMessage[] = [];
+		for (const request of viewModel.model.getRequests()) {
+			if (!request.response) {
+				continue;
+			}
+			history.push({ role: ChatMessageRole.User, content: [{ type: 'text', value: request.message.text }] });
+			history.push({ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: request.response.response.toString() }] });
+		}
+
+		this.input.acceptInput(storeToHistory, preserveFocus);
+		const prompt = parsedRequest.text.slice(commandPart.range.endExclusive).trimStart();
+		try {
+			await this.chatSlashCommandService.executeCommand(
+				commandPart.slashCommand.command,
+				prompt,
+				Progress.None,
+				history,
+				this.location,
+				viewModel.sessionResource,
+				CancellationToken.None,
+			);
+		} finally {
+			clearChatMarks(viewModel.sessionResource);
+		}
+		return true;
 	}
 
 	// Resolve images from directory attachments to send as additional variables.

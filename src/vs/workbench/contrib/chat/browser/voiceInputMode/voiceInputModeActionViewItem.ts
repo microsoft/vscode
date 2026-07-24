@@ -634,11 +634,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._toggleDictation();
 	}
 
-	/**
-	 * The voice button is a power toggle. Connecting also begins listening so the user
-	 * can talk immediately; in manual mode the separate listen cell then toggles
-	 * listening on and off.
-	 */
+	/** The voice button connects or disconnects; hands-free mode starts listening after connect. */
 	private _onClickVoicePowerToggle(): void {
 		this.voiceInputModeService.setSelectedMode('voice');
 
@@ -652,12 +648,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			controller.disconnect();
 		} else {
 			const targetWindow = getWindow(this._voiceCell);
-			controller.connect(targetWindow).then(() => {
-				if (controller.isConnected.get()) {
-					controller.pttDown();
-					controller.pttUp();
-				}
-			}, () => { /* connect failures are surfaced/logged by the controller */ });
+			controller.connect(targetWindow).catch(() => { /* connect failures are surfaced/logged by the controller */ });
 		}
 	}
 
@@ -667,10 +658,8 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		if (!controller.isConnected.get()) {
 			return;
 		}
-		// While toggle-listening, a single `pttDown()` finishes the turn (stop). Otherwise
-		// `pttDown(); pttUp();` (re)starts listening, interrupting any in-progress playback.
 		if (controller.voiceState.get() === 'listening') {
-			controller.pttDown();
+			controller.stopListening();
 		} else {
 			controller.pttDown();
 			controller.pttUp();

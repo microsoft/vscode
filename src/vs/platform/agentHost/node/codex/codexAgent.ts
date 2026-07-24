@@ -3282,13 +3282,16 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	setPendingMessages(sessionUri: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
 		// Queued messages are consumed server-side (AgentSideEffects drives a
 		// fresh turn per `idle`); only the single steering message reaches the
 		// agent for mid-turn injection.
 		if (!steeringMessage) {
 			return;
 		}
+		// Codex is single-chat: a session owns exactly one (default) chat, so
+		// the addressed chat channel always resolves to its owning session.
+		const sessionUri = this._sessionUriFromChat(chat);
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (!session) {

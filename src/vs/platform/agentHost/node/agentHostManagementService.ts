@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
-import { IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService } from '../common/agentService.js';
+import { IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService } from '../common/agentService.js';
 
 export class AgentHostManagementService implements IAgentHostManagementService {
 	declare readonly _serviceBrand: undefined;
@@ -28,6 +28,10 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
 		return this._agentService.getNetworkDiagnosticsInfo();
+	}
+
+	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> {
+		return this._agentService.getManagedSettingsDiagnostics();
 	}
 
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
