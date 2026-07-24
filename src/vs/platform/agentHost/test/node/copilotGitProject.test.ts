@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IAgentHostGitService, IDefaultBranch } from '../../common/agentHostGitService.js';
+import type { IAgentHostGitService, IBranch, IDefaultBranch } from '../../common/agentHostGitService.js';
 import { projectFromCopilotContext, projectFromRepository, resolveGitProject } from '../../node/copilot/copilotGitProject.js';
 
 class TestAgentHostGitService implements IAgentHostGitService {
@@ -17,7 +17,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 
 	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
 	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return undefined; }
-	async getBranches(): Promise<string[]> { return []; }
+	async getBranches(): Promise<IBranch[]> { return []; }
 	async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
 	async getWorktreeRoots(): Promise<URI[]> { return this.worktreeRoots; }
 	async addWorktree(): Promise<void> { }

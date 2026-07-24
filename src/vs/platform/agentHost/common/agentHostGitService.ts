@@ -91,6 +91,25 @@ export interface IPullOptions {
 
 export const IAgentHostGitService = createDecorator<IAgentHostGitService>('agentHostGitService');
 
+export interface IRefQuery {
+	readonly count?: number;
+	readonly pattern?: string | string[];
+	readonly sort?: 'alphabetically' | 'committerdate' | 'creatordate';
+}
+
+export interface IBranch {
+	readonly ref: string;
+	readonly name: string;
+	readonly remote?: string;
+	readonly upstream?: IUpstreamBranch;
+}
+
+export interface IUpstreamBranch {
+	readonly ref: string;
+	readonly name: string;
+	readonly remote: string;
+}
+
 export interface IDefaultBranch {
 	readonly name: string;
 	readonly startPoint: string;
@@ -100,7 +119,7 @@ export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
-	getBranches(workingDirectory: URI, options?: { readonly query?: string; readonly limit?: number }): Promise<string[]>;
+	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<IBranch[]>;
 	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void>;

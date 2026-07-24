@@ -42,7 +42,7 @@ import { ActionType, type ChatAction, type SessionAction } from '../../common/st
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { IAgentHostGitService, type IDefaultBranch } from '../../common/agentHostGitService.js';
+import { IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
@@ -147,7 +147,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 
 	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
 	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return undefined; }
-	async getBranches(): Promise<string[]> { return []; }
+	async getBranches(): Promise<IBranch[]> { return []; }
 	async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
 	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void> {
