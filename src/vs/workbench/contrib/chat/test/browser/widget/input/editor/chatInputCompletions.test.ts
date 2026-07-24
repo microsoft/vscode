@@ -16,7 +16,7 @@ import { LanguageFeaturesService } from '../../../../../../../../editor/common/s
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { AgentHostInputCompletionsBase } from '../../../../../browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
-import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult } from '../../../../../common/chatSessionsService.js';
+import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
 import { MockChatSessionsService } from '../../../../common/mockChatSessionsService.js';
 
@@ -35,6 +35,14 @@ class TestChatSessionsService extends MockChatSessionsService {
 }
 
 class TestAgentHostInputCompletions extends AgentHostInputCompletionsBase<void> {
+	constructor(
+		languageFeaturesService: LanguageFeaturesService,
+		chatSessionsService: IChatSessionsService,
+		private readonly _completionKind = CompletionItemKind.File,
+	) {
+		super(languageFeaturesService, chatSessionsService);
+	}
+
 	register(): IDisposable {
 		return this._registerProvider({ scheme: 'test' }, 'testAgentHostInputCompletions', ['#'], undefined);
 	}
@@ -48,7 +56,7 @@ class TestAgentHostInputCompletions extends AgentHostInputCompletionsBase<void> 
 			label: item.insertText,
 			insertText: item.insertText,
 			range: Range.fromPositions(position),
-			kind: CompletionItemKind.File,
+			kind: this._completionKind,
 		};
 	}
 }
@@ -75,6 +83,26 @@ suite('AgentHostInputCompletionsBase', () => {
 				insertText: '#roadmap.md',
 				range: new Range(1, 2, 1, 2),
 				kind: CompletionItemKind.File,
+			}],
+			incomplete: true,
+		});
+	});
+
+	test('marks non-file results incomplete so the host can fuzzy match them', async () => {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new TestChatSessionsService(), CompletionItemKind.Text));
+		store.add(completions.register());
+		const model = store.add(createTextModel('#', null, undefined, URI.parse('test:input')));
+		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
+
+		const result = await provider.provideCompletionItems(model, new Position(1, 2), { triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: '#' }, CancellationToken.None);
+
+		assert.deepStrictEqual(result, {
+			suggestions: [{
+				label: '#roadmap.md',
+				insertText: '#roadmap.md',
+				range: new Range(1, 2, 1, 2),
+				kind: CompletionItemKind.Text,
 			}],
 			incomplete: true,
 		});
