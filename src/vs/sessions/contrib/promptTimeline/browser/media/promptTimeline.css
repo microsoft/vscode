@@ -100,10 +100,11 @@
 }
 
 /* The visible band mirrors .chat-composite-bar-header: it fills the padded host and carries the
- * background, hairline bottom border, and soft shadow, so it lines up with the header above. The left
- * inset matches the header's status-icon column (codicon size + 6px gap) so the prompt text aligns with
- * the title and the prompts below. It overlays scrolling transcript rows, so it stays opaque by
- * compositing the (translucent) chat request-bubble tint over the opaque panel base. */
+ * background, hairline side and bottom border, and soft shadow, so it lines up with the header above.
+ * The top is left open so it reads as anchored to the top of the transcript. The left inset matches the
+ * header's status-icon column (codicon size + 6px gap) so the prompt text aligns with the title and the
+ * prompts below. It overlays scrolling transcript rows, so it stays opaque by compositing the
+ * (translucent) chat request-bubble tint over the opaque panel base. */
 .prompt-timeline-sticky-band {
 	display: flex;
 	align-items: center;
@@ -113,7 +114,8 @@
 	height: 30px;
 	box-sizing: border-box;
 	padding-left: calc(var(--vscode-codiconFontSize, 16px) + 6px);
-	border-bottom: 1px solid var(--vscode-agentsPanel-border, transparent);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border, transparent);
+	border-top: none;
 	border-radius: 0 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-agentsPanel-background);
 	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
