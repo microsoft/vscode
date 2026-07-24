@@ -108,11 +108,7 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 
 	const currentFilePath = toUniquePath(activeDoc.id, activeDoc.workspaceRoot?.path);
 
-	const rejectedEditMemoryPostScript = rejectedEditMemoryEnabled
-		? `Edit history hunks whose header ends with \`<|rejected/|>\` are previous suggestions the developer rejected; avoid repeating them unless later context makes them clearly appropriate.`
-		: '';
-	const modelPostScript = promptPieces.opts.includePostScript ? getPostScript(opts.promptingStrategy, currentFilePath, aggressivenessLevel) : '';
-	const postScript = [rejectedEditMemoryPostScript, modelPostScript].filter(part => part.length > 0).join(' ');
+	const postScript = getPostScript(opts, currentFilePath, aggressivenessLevel);
 
 	const lintsWithNewLinePadding = opts.lintOptions ? `\n${lintErrors.getFormattedLintErrors(opts.lintOptions)}\n` : '';
 
@@ -367,15 +363,21 @@ function appendWithNewLineIfNeeded(base: string, toAppend: string, minNewLines: 
 	return (base + '\n'.repeat(newLinesToAdd) + toAppend).trim();
 }
 
-function getPostScript(strategy: PromptingStrategy | undefined, currentFilePath: string, aggressivenessLevel: AggressivenessLevel) {
+function getPostScript(opts: PromptOptions, currentFilePath: string, aggressivenessLevel: AggressivenessLevel) {
+	const { promptingStrategy } = opts;
 	const xtab275BasePostScript = `The developer was working on a section of code within the tags \`code_to_edit\` in the file located at \`${currentFilePath}\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, \`area_around_code_to_edit\`, and the cursor position marked as \`${PromptTags.CURSOR}\`, please continue the developer's work. Update the \`code_to_edit\` section by predicting and completing the changes they would have made next. Provide the revised code that was between the \`${PromptTags.EDIT_WINDOW.start}\` and \`${PromptTags.EDIT_WINDOW.end}\` tags, but do not include the tags themselves. Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Don't include the line numbers or the form #| in your response. Do not skip any lines. Do not be lazy.`;
 
 	let postScript: string | undefined;
-	switch (strategy) {
+	switch (promptingStrategy) {
 		case PromptingStrategy.PatchBased01:
 		case PromptingStrategy.Codexv21NesUnified:
 			break;
 		case PromptingStrategy.PatchBased02:
+			postScript = `The developer was working on a section of code within the \`current_file_content\` - carefully note their \`cursor_location\` marked with \`<|cursor|>\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, and \`cursor_location\`, please continue the developer's work. Output a modified diff format with a sequence of intuitive next changes, where each patch must start with \`<filename>:<line number>\`. Order changes by priority and flow; for instance, edits adjacent to the user's cursor should always be prioritized, followed by lines near the cursor, followed by lines farther away. If there are no good edit candidates, output the empty string "". Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Adhere meticulously to the diff format.`;
+			if (isRejectedEditMemoryEnabled(opts)) {
+				postScript = `${postScript} Edit history hunks whose header ends with \`<|rejected/|>\` are previous suggestions the developer rejected; avoid repeating them unless later context makes them clearly appropriate.`;
+			}
+			break;
 		case PromptingStrategy.PatchBased02WithRecentLineNumbers:
 		case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 			postScript = `The developer was working on a section of code within the \`current_file_content\` - carefully note their \`cursor_location\` marked with \`<|cursor|>\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, and \`cursor_location\`, please continue the developer's work. Output a modified diff format with a sequence of intuitive next changes, where each patch must start with \`<filename>:<line number>\`. Order changes by priority and flow; for instance, edits adjacent to the user's cursor should always be prioritized, followed by lines near the cursor, followed by lines farther away. If there are no good edit candidates, output the empty string "". Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Adhere meticulously to the diff format.`;
@@ -417,7 +419,7 @@ they would have made next. Provide the revised code that was between the \`${Pro
 \`\`\``;
 			break;
 		default:
-			assertNever(strategy);
+			assertNever(promptingStrategy);
 	}
 
 	const formattedPostScript = postScript === undefined ? '' : `\n\n${postScript}`;
