@@ -496,7 +496,7 @@ export type PromptOptions = {
 	readonly languageContext: LanguageContextOptions;
 	readonly neighborFiles: NeighborFilesOptions;
 	readonly diffHistory: DiffHistoryOptions;
-	readonly memory?: PromptMemoryOptions;
+	readonly memory: PromptMemoryOptions | undefined;
 	readonly includePostScript: boolean;
 	readonly lintOptions: LintOptions | undefined;
 	/**
