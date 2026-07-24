@@ -185,6 +185,10 @@ export class NesXtabHistoryTracker extends Disposable {
 		return [...this.rejectedEditHistory];
 	}
 
+	allocateSequence(): number {
+		return this.sequence++;
+	}
+
 	recordRejectedEdit(docId: DocumentId, base: StringText, edit: StringReplacement): void {
 		if (edit.replaceRange.length + edit.newText.length > NesXtabHistoryTracker.MAX_REJECTED_EDIT_CHARS) {
 			return;
@@ -235,7 +239,7 @@ export class NesXtabHistoryTracker extends Disposable {
 			return;
 		}
 
-		this.rejectedEditHistory.push({ kind: 'rejectedEdit', docId, sequence: this.sequence++, hunks });
+		this.rejectedEditHistory.push({ kind: 'rejectedEdit', docId, sequence: this.allocateSequence(), hunks });
 		if (this.rejectedEditHistory.size > NesXtabHistoryTracker.MAX_REJECTED_EDIT_HISTORY_SIZE) {
 			this.rejectedEditHistory.shift();
 		}
@@ -262,7 +266,7 @@ export class NesXtabHistoryTracker extends Disposable {
 			previousRecord.removeFromHistory();
 		}
 
-		const entry: IXtabHistoryEntry = { docId: doc.id, kind: 'visibleRanges', sequence: this.sequence++, visibleRanges: visibleRangesChange.value, documentContent: doc.value.get() };
+		const entry: IXtabHistoryEntry = { docId: doc.id, kind: 'visibleRanges', sequence: this.allocateSequence(), visibleRanges: visibleRangesChange.value, documentContent: doc.value.get() };
 		const removeFromHistory = this.history.push(entry);
 		this.idToEntry.set(doc.id, { entry, removeFromHistory, lastEditTimestamp: now() });
 
@@ -330,7 +334,7 @@ export class NesXtabHistoryTracker extends Disposable {
 	}
 
 	private pushToHistory(docId: DocumentId, edit: RootedEdit) {
-		const entry: IXtabHistoryEntry = { docId, kind: 'edit', sequence: this.sequence++, edit };
+		const entry: IXtabHistoryEntry = { docId, kind: 'edit', sequence: this.allocateSequence(), edit };
 		const removeFromHistory = this.history.push(entry);
 		this.idToEntry.set(docId, { entry, removeFromHistory, lastEditTimestamp: now() });
 

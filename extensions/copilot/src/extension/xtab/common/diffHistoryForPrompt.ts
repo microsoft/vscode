@@ -88,16 +88,28 @@ export function getEditDiffHistory(
 }
 
 function mergeRejectionsIntoHistory(xtabHistory: readonly IXtabHistoryEntry[], rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[]): (IXtabHistoryEntry | IXtabHistoryRejectedEditEntry)[] {
-	if (rejectedEditHistory.length > 0) {
-		// Merge rejections in with edit history, assuming sequence number is always increasing and using the item index as a fallback (shouldn't really happen).
-		return [...xtabHistory, ...rejectedEditHistory]
-			.map((entry, index) => ({ entry, sequence: entry.sequence ?? index }))
-			.sort((a, b) => a.sequence - b.sequence)
-			.map(({ entry }) => entry);
-	}
-	else {
+	if (rejectedEditHistory.length === 0) {
 		return xtabHistory.slice();
 	}
+
+	const history: (IXtabHistoryEntry | IXtabHistoryRejectedEditEntry)[] = [];
+	let rejectedIndex = 0;
+	for (const entry of xtabHistory) {
+		if (entry.sequence === undefined) {
+			continue;
+		}
+		while (true) {
+			const rejectedEntry = rejectedEditHistory[rejectedIndex];
+			if (rejectedEntry?.sequence === undefined || rejectedEntry.sequence >= entry.sequence) {
+				break;
+			}
+			history.push(rejectedEntry);
+			rejectedIndex++;
+		}
+		history.push(entry);
+	}
+	pushMany(history, rejectedEditHistory.slice(rejectedIndex));
+	return history;
 }
 
 function generateRejectedDocDiff(entry: IXtabHistoryRejectedEditEntry, workspacePath: string | undefined): string {

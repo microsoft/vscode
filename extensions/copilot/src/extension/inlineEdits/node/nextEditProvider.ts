@@ -1391,7 +1391,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		const xtabEditHistory = this._xtabHistoryTracker.getHistory();
 		const rejectedEditHistory = this._xtabHistoryTracker.getRejectedEditHistory();
-		const suggestedEdit: IXtabHistoryEditEntry = { kind: 'edit', docId: curDocId, edit: rootedEdit };
+		const suggestedEdit: IXtabHistoryEditEntry = { kind: 'edit', docId: curDocId, sequence: this._xtabHistoryTracker.allocateSequence(), edit: rootedEdit };
 		xtabEditHistory.push(suggestedEdit);
 
 		const firstEdit = new DeferredPromise<Result<CachedOrRebasedEdit, NoNextEditReason>>();

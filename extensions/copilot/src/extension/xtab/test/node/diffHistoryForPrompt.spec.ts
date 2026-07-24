@@ -184,6 +184,30 @@ describe('getEditDiffHistory', () => {
 		expect(result.indexOf('<|rejected/|>')).toBeLessThan(result.indexOf('+BBB'));
 	});
 
+	it('inserts rejections by sequence before a synthetic history entry', () => {
+		const docId = DocumentId.create('file:///workspace/src/a.ts');
+		const activeDoc = createActiveDocument(docId, new StringText('aaa\nbbb\nccc'));
+		const normalEntry = {
+			...createHistoryEntry(docId, 'aaa\nbbb\nccc', [new StringReplacement(new OffsetRange(0, 3), 'AAA')]),
+			sequence: 47,
+		};
+		const syntheticEntry = {
+			...createHistoryEntry(docId, 'AAA\nbbb\nccc', [new StringReplacement(new OffsetRange(8, 11), 'CCC')]),
+			sequence: 49,
+		};
+		const rejectedEntry: IXtabHistoryRejectedEditEntry = {
+			kind: 'rejectedEdit',
+			docId,
+			sequence: 48,
+			hunks: [{ startLineNumber: 1, oldLines: ['bbb'], newLines: ['BBB'] }],
+		};
+
+		const result = runGetEditDiffHistory(activeDoc, [normalEntry, syntheticEntry], new Set(), computeTokens, diffHistoryOptions, [rejectedEntry]);
+
+		expect(result.indexOf('+AAA')).toBeLessThan(result.indexOf('<|rejected/|>'));
+		expect(result.indexOf('<|rejected/|>')).toBeLessThan(result.indexOf('+CCC'));
+	});
+
 	it('skips an over-budget rejected sample without starving normal history', () => {
 		const docId = DocumentId.create('file:///workspace/src/a.ts');
 		const activeDoc = createActiveDocument(docId, new StringText('a\nb'));
