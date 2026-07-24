@@ -18,6 +18,7 @@ import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
+import { ChatSessionArchiveActionWordingSettingId } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -822,6 +823,18 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			description: nls.localize('chat.viewProgressBadge.enabled', "Show a progress badge on the chat view when an agent session is in progress that is opened in that view."),
+		},
+		[ChatSessionArchiveActionWordingSettingId]: {
+			type: 'string',
+			enum: ['archive', 'done'],
+			enumDescriptions: [
+				nls.localize('chat.experimental.sessionArchiveActionWording.archive', "Use Archive, Archive All, Unarchive, and Unarchive All."),
+				nls.localize('chat.experimental.sessionArchiveActionWording.done', "Use Mark as Done, Mark All as Done, Restore, and Restore All."),
+			],
+			default: 'archive',
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+			description: nls.localize('chat.experimental.sessionArchiveActionWording', "Controls the wording and icons used by actions that archive and unarchive chat sessions."),
 		},
 		[ChatConfiguration.AgentsHandoffTipMode]: {
 			type: 'string',

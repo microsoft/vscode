@@ -10,5 +10,5 @@
  * without crossing the sessions layering rules.
  */
 
-/** Unarchives ("Restore") a session. Registered in `sessionsViewActions.ts`. */
+/** Unarchives a session. Registered in `sessionsViewActions.ts`. */
 export const UNARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.unarchiveSession';

@@ -57,6 +57,8 @@ class TestGitService implements IAgentHostGitService {
 
 	async getCurrentBranch(): Promise<string | undefined> { return 'feature/test'; }
 	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return { name: 'main', startPoint: 'main' }; }
+	async getBranch(): Promise<IBranch | undefined> { return undefined; }
+	async getRefs(): Promise<IBranch[]> { return []; }
 	async getBranches(): Promise<IBranch[]> { return []; }
 	async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
 	async getWorktreeRoots(): Promise<URI[]> { return []; }

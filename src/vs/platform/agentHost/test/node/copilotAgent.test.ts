@@ -148,6 +148,8 @@ class TestAgentHostGitService implements IAgentHostGitService {
 
 	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
 	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return undefined; }
+	async getBranch(): Promise<IBranch | undefined> { return undefined; }
+	async getRefs(): Promise<IBranch[]> { return []; }
 	async getBranches(): Promise<IBranch[]> { return []; }
 	async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
@@ -3218,6 +3220,32 @@ suite('CopilotAgent', () => {
 				agent.respondToUserInputRequest('req-2', 'submit' as never);
 
 				assert.deepStrictEqual(chat.events, ['input:req-2']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('setPendingMessages steers the addressed chat, not the session\'s default chat', async () => {
+			// Regression for #326244: a steering message submitted in a forked
+			// (peer) chat must only reach that chat's SDK session.
+			const agent = createTestAgent(disposables);
+			try {
+				const sessionUri = AgentSession.uri('copilotcli', 'session-steer');
+				const chatUri = URI.parse(buildChatUri(sessionUri, 'peer-steer'));
+				const steered: string[] = [];
+				setDefaultSessionStub(agent, AgentSession.id(sessionUri), {
+					sendSteering: async (msg: { id: string }) => { steered.push(`default:${msg.id}`); },
+					dispose() { },
+				});
+				setPeerChatStub(agent, chatUri, {
+					sendSteering: async (msg: { id: string }) => { steered.push(`peer:${msg.id}`); },
+					dispose() { },
+				});
+
+				agent.setPendingMessages(chatUri, { id: 'steer-peer', message: { text: 'stop', origin: { kind: MessageKind.User } } }, []);
+				agent.setPendingMessages(URI.parse(buildDefaultChatUri(sessionUri)), { id: 'steer-default', message: { text: 'stop', origin: { kind: MessageKind.User } } }, []);
+
+				assert.deepStrictEqual(steered, ['peer:steer-peer', 'default:steer-default']);
 			} finally {
 				await disposeAgent(agent);
 			}
