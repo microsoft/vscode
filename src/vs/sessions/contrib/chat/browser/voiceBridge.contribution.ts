@@ -200,16 +200,17 @@ registerWorkbenchContribution2(SessionsVoiceBridgeContribution.ID, SessionsVoice
  * response deferral, and buffered playback follow the visible session.
  *
  * Agents can render multiple chat widgets while DOM focus stays on the sessions
- * list, so forward {@link ISessionsService.activeSession}. Draft composers report
- * `undefined` to avoid reusing a stale session.
+ * list, so forward {@link ISessionsService.activeSession}. Draft composers use a
+ * sentinel resource so routing does not fall back to a stale chat widget.
  */
-class SessionsVoiceActiveSessionContribution extends Disposable implements IWorkbenchContribution {
+export class SessionsVoiceActiveSessionContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.voiceActiveSession';
 
 	constructor(
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 	) {
 		super();
 
@@ -217,7 +218,9 @@ class SessionsVoiceActiveSessionContribution extends Disposable implements IWork
 			const active = this.sessionsService.activeSession.read(reader);
 			const resource = active?.isCreated.read(reader)
 				? active.activeChat.read(reader)?.resource
-				: undefined;
+				: this.newChatVoiceTargetService.activeComposer.read(reader)
+					? NEW_CHAT_VOICE_SENTINEL
+					: undefined;
 			this.voiceSessionController.setActiveSessionShown(resource);
 		}));
 	}
