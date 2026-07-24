@@ -3,35 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { structuralEquals } from '../../../../base/common/equals.js';
-import { IObservable, observableValueOpts } from '../../../../base/common/observable.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
-import { buildClaudeDebugArtifacts, buildClaudeDebugFilePath, CLAUDE_LOG_DIR, claudeDebugLogSessionToken, toFileTimestamp } from '../../common/agentHostLogNaming.js';
+import { buildClaudeDebugArtifacts, buildClaudeDebugFilePath, buildClaudeTranscriptPath, CLAUDE_LOG_DIR, claudeDebugLogSessionToken, toFileTimestamp } from '../../common/agentHostLogNaming.js';
 import { type IDebugArtifact } from '../../common/state/sessionState.js';
 
 /**
- * Owns discovery + publishing of a Claude session's debug artifacts (the SDK
- * `--debug` log files plus the session transcript JSONL). Kept separate from
+ * Discovers a Claude session's debug artifacts (the SDK `--debug` log files plus
+ * the session transcript JSONL) from disk. Kept separate from
  * {@link ClaudeAgentSession} so the disk I/O is unit-testable against an
- * in-memory {@link IFileService}, and so the session holds no artifact state of
- * its own beyond bridging {@link artifacts} into `_meta`.
+ * in-memory {@link IFileService}.
  *
- * {@link artifacts} is the single source of truth and a pure projection of what
- * is on disk: {@link refresh} re-reads both locations and republishes, and its
- * structural equality means a refresh that finds nothing new does not fire.
- *
- * Depends only on the two home URIs (not the environment service) so a test
- * needs nothing more than an in-memory file service and two paths.
+ * Stateless: {@link refresh} reads the two on-disk locations and returns the
+ * projected set — the session owns publishing it into `_meta`. Depends only on
+ * the two home URIs (not the environment service), so a test needs nothing more
+ * than an in-memory file service and two paths.
  */
 export class ClaudeDebugArtifacts {
-
-	private readonly _artifacts = observableValueOpts<readonly IDebugArtifact[]>({ equalsFn: structuralEquals }, []);
-
-	/** The advertised artifact set, rebuilt from disk truth by {@link refresh}. */
-	readonly artifacts: IObservable<readonly IDebugArtifact[]> = this._artifacts;
 
 	constructor(
 		private readonly _sessionId: string,
@@ -66,14 +56,15 @@ export class ClaudeDebugArtifacts {
 	}
 
 	/**
-	 * Re-read the two on-disk locations the host/SDK own for this session and
-	 * republish the projected artifact set via the pure, unit-tested
-	 * {@link buildClaudeDebugArtifacts}. No cached state: the truth lives on disk
-	 * and {@link artifacts} dedupes redundant refreshes structurally.
+	 * Read the two on-disk locations the host/SDK own for this session and return
+	 * the projected artifact set via the pure, unit-tested
+	 * {@link buildClaudeDebugArtifacts}. `cwd` is the session's working directory,
+	 * used to address the transcript directly. Stateless: the truth lives on disk,
+	 * so callers just re-read whenever the set might have changed.
 	 */
-	async refresh(): Promise<void> {
-		const [logPaths, transcriptPath] = await Promise.all([this._readDebugLogPaths(), this._readTranscriptPath()]);
-		this._artifacts.set(buildClaudeDebugArtifacts(logPaths, transcriptPath), undefined);
+	async refresh(cwd: URI): Promise<readonly IDebugArtifact[]> {
+		const [logPaths, transcriptPath] = await Promise.all([this._readDebugLogPaths(), this._readTranscriptPath(cwd)]);
+		return buildClaudeDebugArtifacts(logPaths, transcriptPath);
 	}
 
 	/** This session's debug-log files (current + prior runs). The host owns `<logsHome>/claude/`, so scanning it is not cross-component path-guessing. */
@@ -94,33 +85,18 @@ export class ClaudeDebugArtifacts {
 	}
 
 	/**
-	 * The SDK session transcript JSONL, once written. The SDK stores it at
-	 * `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`; rather than replicate
-	 * the cwd-encoding we glob the `projects/*` dirs for `<sessionId>.jsonl`,
-	 * preferring the newest (the cwd can change mid-session, e.g. a worktree
-	 * adoption). `undefined` until the first turn writes it.
+	 * The SDK session transcript JSONL, once written. The CLI stores it at a
+	 * deterministic `~/.claude/projects/<slug>/<sessionId>.jsonl` derived from the
+	 * cwd (see {@link buildClaudeTranscriptPath}), so this is a single `stat` — not
+	 * a scan of every project directory. `undefined` until the first turn writes it
+	 * (or if the cwd's resolved slug differs, e.g. a symlinked path — best-effort).
 	 */
-	private async _readTranscriptPath(): Promise<string | undefined> {
-		const fileName = `${this._sessionId}.jsonl`;
-		let best: { path: string; mtime: number } | undefined;
+	private async _readTranscriptPath(cwd: URI): Promise<string | undefined> {
 		try {
-			const stat = await this._fileService.resolve(joinPath(this._userHome, '.claude', 'projects'));
-			for (const child of stat.children ?? []) {
-				if (!child.isDirectory) {
-					continue;
-				}
-				try {
-					const meta = await this._fileService.resolve(joinPath(child.resource, fileName), { resolveMetadata: true });
-					if (!meta.isDirectory && (!best || (meta.mtime ?? 0) > best.mtime)) {
-						best = { path: meta.resource.fsPath, mtime: meta.mtime ?? 0 };
-					}
-				} catch {
-					// No transcript for this session under this project dir.
-				}
-			}
+			const meta = await this._fileService.resolve(buildClaudeTranscriptPath(this._userHome, cwd.fsPath, this._sessionId), { resolveMetadata: true });
+			return meta.isDirectory ? undefined : meta.resource.fsPath;
 		} catch {
-			// ~/.claude/projects may not exist yet.
+			return undefined; // Not written yet, or the cwd doesn't map to an on-disk project dir.
 		}
-		return best?.path;
 	}
 }

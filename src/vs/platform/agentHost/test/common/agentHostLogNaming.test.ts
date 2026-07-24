@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildClaudeDebugArtifacts, buildClaudeDebugFilePath, CLAUDE_DEBUG_LOG_LABEL, CLAUDE_TRANSCRIPT_LABEL, claudeDebugLogSessionToken, sanitizeFilePart, toFileTimestamp } from '../../common/agentHostLogNaming.js';
+import { buildClaudeDebugArtifacts, buildClaudeDebugFilePath, buildClaudeTranscriptPath, CLAUDE_DEBUG_LOG_LABEL, CLAUDE_TRANSCRIPT_LABEL, claudeDebugLogSessionToken, claudeProjectSlug, sanitizeFilePart, toFileTimestamp } from '../../common/agentHostLogNaming.js';
 
 suite('agentHostLogNaming', () => {
 
@@ -53,6 +53,21 @@ suite('agentHostLogNaming', () => {
 				{ label: `${CLAUDE_DEBUG_LOG_LABEL} 2`, path: '/logs/claude/claude-b.log' },
 				{ label: CLAUDE_TRANSCRIPT_LABEL, path: '/home/.claude/projects/p/s.jsonl' },
 			],
+		);
+	});
+
+	test('claudeProjectSlug + buildClaudeTranscriptPath encode the cwd like the CLI', () => {
+		assert.deepStrictEqual(
+			{
+				slug: claudeProjectSlug('/Users/tyleonha/Code/Microsoft/vscode-2'),
+				symlinked: claudeProjectSlug('/private/tmp'),
+				transcript: buildClaudeTranscriptPath(URI.file('/home'), '/work/my-proj', 'sess-1').path,
+			},
+			{
+				slug: '-Users-tyleonha-Code-Microsoft-vscode-2',
+				symlinked: '-private-tmp',
+				transcript: '/home/.claude/projects/-work-my-proj/sess-1.jsonl',
+			},
 		);
 	});
 });

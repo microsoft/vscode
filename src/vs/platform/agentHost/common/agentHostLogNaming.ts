@@ -88,3 +88,24 @@ export function buildClaudeDebugArtifacts(logPaths: readonly string[], transcrip
 	}
 	return artifacts;
 }
+
+/**
+ * Encodes a working directory into the Claude CLI's transcript "project" slug —
+ * every non-alphanumeric character becomes `-`, e.g. `/Users/foo/my-proj` →
+ * `-Users-foo-my-proj`. The CLI derives the slug from its *resolved* process cwd
+ * (so a symlinked path like `/tmp` → `/private/tmp` encodes to `-private-tmp`);
+ * a caller holding an unresolved path therefore gets a best-effort match.
+ */
+export function claudeProjectSlug(cwd: string): string {
+	return cwd.replace(/[^a-zA-Z0-9]/g, '-');
+}
+
+/**
+ * The Claude CLI session transcript path for a working directory + session id:
+ * `<userHome>/.claude/projects/<slug>/<sessionId>.jsonl` (see
+ * {@link claudeProjectSlug}). A pure projection, so resolving the transcript is a
+ * single deterministic `stat` rather than a scan of every project directory.
+ */
+export function buildClaudeTranscriptPath(userHome: URI, cwd: string, sessionId: string): URI {
+	return joinPath(userHome, '.claude', 'projects', claudeProjectSlug(cwd), `${sessionId}.jsonl`);
+}

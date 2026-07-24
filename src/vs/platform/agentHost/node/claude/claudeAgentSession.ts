@@ -7,8 +7,7 @@ import type { McpSdkServerConfigWithInstance, OnElicitation, Options, Permission
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -26,7 +25,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallContributorKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { isDefaultChatUri, readSessionDebugArtifacts, withSessionDebugArtifacts, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
+import { isDefaultChatUri, withSessionDebugArtifacts, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { ClaudeDebugArtifacts } from './claudeDebugArtifacts.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
@@ -371,37 +370,32 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
-	 * Discovery + publishing of this session's debug artifacts (SDK debug logs +
-	 * transcript). The session's only artifact state; assigned in the constructor
-	 * and bridged into `_meta` by {@link _watchDebugArtifacts}.
+	 * Discovery of this session's debug artifacts (SDK debug logs + transcript),
+	 * assigned in the constructor. Stateless — {@link _publishDebugArtifacts} reads
+	 * it from disk and mirrors the result into `_meta`.
 	 */
 	private readonly _debugArtifacts: ClaudeDebugArtifacts;
 
 	/**
-	 * Reactively mirror this session's debug artifacts into the well-known `_meta`
-	 * key whenever they change, so the export command reads concrete host-side
-	 * paths instead of re-deriving the on-disk layout. Merges with existing `_meta`
-	 * slots (git/github). Host-local absolute paths; the client resolves them via
-	 * the resource proxy (`file://` local / `vscode-agent-host://` remote).
-	 *
-	 * Returns an {@link IDisposable} for the caller to register after materialize
-	 * commits, so `setSessionMeta` always targets a live, registered session.
+	 * Re-read this session's debug artifacts from disk and publish them into the
+	 * well-known `_meta` key, so the export command reads concrete host-side paths
+	 * instead of re-deriving the on-disk layout. `withSessionDebugArtifacts` merges
+	 * with the existing `_meta` slots (git/github) and, on an empty set, clears only
+	 * this slot — so the advertised state stays a projection of disk truth. Called
+	 * at the moments the set can change: materialize/rematerialize (a new debug log)
+	 * and once after the first turn (the transcript file appears). Host-local
+	 * absolute paths; the client resolves them via the resource proxy (`file://`
+	 * local / `vscode-agent-host://` remote).
 	 */
-	private _watchDebugArtifacts(): IDisposable {
-		return autorun(reader => {
-			const artifacts = this._debugArtifacts.artifacts.read(reader);
-			const sessionKey = this.sessionUri.toString();
-			const current = this._stateManager.getSessionState(sessionKey)?._meta;
-			// Publish disk truth: a non-empty set advertises the artifacts; an empty
-			// set clears a previously-advertised slot (`withSessionDebugArtifacts`
-			// removes only this slot, preserving git/github). Skip only the initial
-			// nothing-advertised-and-nothing-to-clear case, to avoid a redundant
-			// `_meta` write before the first refresh lands.
-			if (artifacts.length === 0 && readSessionDebugArtifacts(current) === undefined) {
-				return;
-			}
-			this._stateManager.setSessionMeta(sessionKey, withSessionDebugArtifacts(current, artifacts));
-		});
+	private async _publishDebugArtifacts(): Promise<void> {
+		const cwd = this.workingDirectory;
+		if (!cwd) {
+			return; // Not materialized yet; nothing on disk to advertise.
+		}
+		const artifacts = await this._debugArtifacts.refresh(cwd);
+		const sessionKey = this.sessionUri.toString();
+		const current = this._stateManager.getSessionState(sessionKey)?._meta;
+		this._stateManager.setSessionMeta(sessionKey, withSessionDebugArtifacts(current, artifacts));
 	}
 
 	/**
@@ -536,17 +530,14 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
 		this._pipeline = pipeline;
-		// Mirror the debug artifacts into `_meta`. The locations never change per
-		// turn: debug logs are created at materialize/rematerialize (refreshed there),
-		// and the transcript's path is fixed at materialize. The one thing that isn't
-		// on disk at materialize is a fresh session's transcript FILE — the SDK writes
-		// it during the first turn — so refresh exactly ONCE more, after the first turn
-		// completes (a short debounce lets it flush). The artifact set dedupes
-		// structurally, so nothing re-pushes once it is stable.
-		this._register(this._watchDebugArtifacts());
-		const refreshDebugArtifacts = this._register(new RunOnceScheduler(() => void this._debugArtifacts.refresh(), 500));
-		this._register(Event.once(Event.filter(pipeline.onDidProduceSignal, s => s.kind === 'action' && s.action.type === ActionType.ChatTurnComplete))(() => refreshDebugArtifacts.schedule()));
-		void this._debugArtifacts.refresh();
+		// Publish the debug artifacts into `_meta` at the moments the set can change.
+		// The debug log exists now (the SDK wrote it during startup); the transcript
+		// FILE of a fresh session isn't on disk until the first turn writes it, so
+		// publish once more after the first turn completes (a short debounce lets it
+		// flush). Locations never change per turn, so no steady-state re-publishing.
+		const publishDebugArtifacts = this._register(new RunOnceScheduler(() => void this._publishDebugArtifacts(), 500));
+		this._register(Event.once(Event.filter(pipeline.onDidProduceSignal, s => s.kind === 'action' && s.action.type === ActionType.ChatTurnComplete))(() => publishDebugArtifacts.schedule()));
+		void this._publishDebugArtifacts();
 		// The materialize succeeded with the staged anchor applied to `Options`
 		// — clear it now so it isn't re-applied. A throw before this point (e.g.
 		// `startup` / pipeline-create) leaves it staged for the next retry.
@@ -623,8 +614,8 @@ export class ClaudeAgentSession extends Disposable {
 				// retries the truncation instead of dropping the restore.
 				this._pendingResumeSessionAt = undefined;
 				// Rebuild started, so the SDK will write a fresh debug log; re-read from
-				// disk and re-publish (the autorun mirrors the change into `_meta`).
-				void this._debugArtifacts.refresh();
+				// disk and re-publish it into `_meta`.
+				void this._publishDebugArtifacts();
 				return { warm: rebuildWarm, abortController: rebuildAbort };
 			} catch (err) {
 				this.toolDiff.markDirty();
