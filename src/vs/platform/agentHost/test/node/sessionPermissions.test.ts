@@ -108,6 +108,21 @@ suite('SessionPermissionManager', () => {
 		assert.deepStrictEqual(results, files.map(() => undefined));
 	});
 
+	test('requires confirmation for files that can register lifecycle hooks', async () => {
+		const files = [
+			join('.github', 'agents', 'dev-helper.md'),
+			join('.github', 'hooks', 'say-hi.json'),
+			join('.claude', 'agents', 'dev-helper.md'),
+			join('.claude', 'settings.json'),
+			join('.claude', 'settings.local.json'),
+		];
+		const results: (ToolCallConfirmationReason | undefined)[] = [];
+		for (const file of files) {
+			results.push(await permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri));
+		}
+		assert.deepStrictEqual(results, files.map(() => undefined));
+	});
+
 	test('requires confirmation for paths containing null bytes', async () => {
 		const result = await permissions.getAutoApproval(writeEvent(join(workDir, 'a\u0000b.txt')), sessionUri);
 		assert.strictEqual(result, undefined);

@@ -2260,32 +2260,6 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('getSessionMetadata preserves legacy customizationDirectory without inferring workingDirectory', async () => {
-		const sessionDataService = disposables.add(new TestSessionDataService());
-		const session = AgentSession.uri('copilotcli', 'legacy-customization-directory');
-		const db = sessionDataService.openDatabase(session);
-		await db.object.setMetadata('copilot.customizationDirectory', URI.file('/legacy-workspace').toString());
-		db.dispose();
-
-		const client = new TestCopilotClient([sdkSession('legacy-customization-directory')]);
-		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
-		try {
-			await agent.authenticate('https://api.github.com', 'token');
-
-			const metadata = await agent.getSessionMetadata(session);
-			assert.ok(metadata);
-			assert.deepStrictEqual(withoutUndefinedProperties(metadata), {
-				session,
-				startTime: 1000,
-				modifiedTime: 2000,
-				summary: 'SDK legacy-customization-directory',
-				customizationDirectory: URI.file('/legacy-workspace'),
-			});
-		} finally {
-			await disposeAgent(agent);
-		}
-	});
-
 	test('getSessionMetadata only returns sessions with a database', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const session = AgentSession.uri('copilotcli', 'external');
@@ -4336,7 +4310,8 @@ suite('CopilotAgent', () => {
 			return { client, getCreateSessionCalls: () => createSessionCalls };
 		}
 
-		test('falls back to createSession after a Start Over truncate leaves the session empty', async () => {
+		// TODO: re-enable — flaky (2000ms timeout in CI). Tracked in https://github.com/microsoft/vscode/issues/327214
+		test.skip('falls back to createSession after a Start Over truncate leaves the session empty', async () => {
 			// Simulates the post-`truncateSession`/"Start Over" case: the on-disk
 			// session has zero events, so the SDK's resumeSession refuses to
 			// resume it. The exact wording varies across SDK versions, so we

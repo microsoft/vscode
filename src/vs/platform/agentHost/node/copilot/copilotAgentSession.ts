@@ -3398,6 +3398,7 @@ export class CopilotAgentSession extends Disposable {
 			// the terminal block (skip if any terminal block was already added
 			// while the tool was running).
 			const ptyTerminalUri = isShellTool(tracked.toolName) ? this._shellManager?.getTerminalUriForToolCall(e.data.toolCallId) : undefined;
+			let retireNonPtyShellTracking = !!ptyTerminalUri;
 			if (ptyTerminalUri && !content.some(c => c.type === ToolResultContentType.Terminal)) {
 				content.push({
 					type: ToolResultContentType.Terminal,
@@ -3410,6 +3411,7 @@ export class CopilotAgentSession extends Disposable {
 			if (isShellTool(tracked.toolName) && !ptyTerminalUri) {
 				const completion = this._nonPtyShellTerminals.completeToolCall(e.data.toolCallId, toolOutput, shellExit);
 				if (completion) {
+					retireNonPtyShellTracking = completion.shouldRetire;
 					const terminalIndex = content.findIndex(c => c.type === ToolResultContentType.Terminal);
 					if (terminalIndex === -1) {
 						content.push({
@@ -3451,6 +3453,11 @@ export class CopilotAgentSession extends Disposable {
 				},
 				_meta: tracked.meta ? toToolCallMeta(tracked.meta) : undefined,
 			}, parentToolCallId);
+			if (retireNonPtyShellTracking) {
+				// Preserve the terminal result in chat state before removing its
+				// now-redundant live output resource from the host.
+				this._nonPtyShellTerminals.retire(e.data.toolCallId);
+			}
 		}));
 
 		this._register(wrapper.onIdle(e => {

@@ -18,6 +18,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED } from '../../../agentsVoice/common/agentsVoice.js';
+import { SegmentedVoiceInputModePillInactive } from '../voiceInputMode/voiceInputModeContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatExecuteActionContext } from './chatExecuteActions.js';
@@ -31,7 +32,6 @@ import { cancelDictation, isDictating, startDictation, stopDictation } from '../
 export const ChatSpeechToTextConfigured = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(ChatContextKeys.speechToTextConfigured.key));
 /** True while the on-device model is downloading/loading (the mic shows a spinner instead). */
 export const ChatSpeechToTextPreparing = ContextKeyExpr.has(ChatContextKeys.speechToTextPreparing.key);
-
 
 /** Releases shorter than this are treated as an accidental tap and discarded. */
 const HOLD_TO_TALK_THRESHOLD_MS = 500;
@@ -111,7 +111,7 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				order: -11,
-				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing.negate(), AGENTS_VOICE_CONNECTED.negate()),
+				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing.negate(), AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
 				group: 'navigation',
 			}],
 			keybinding: {
@@ -165,7 +165,7 @@ export class ChatSpeechToTextPreparingAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				order: -11,
-				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing, AGENTS_VOICE_CONNECTED.negate()),
+				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextPreparing, AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
 				group: 'navigation',
 			}],
 		});

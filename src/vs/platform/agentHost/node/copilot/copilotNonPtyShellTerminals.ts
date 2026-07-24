@@ -47,6 +47,7 @@ function parseCompletedShell(text: string | undefined): TerminalCommandResult | 
 export interface INonPtyShellToolCompletion {
 	readonly uri: string;
 	readonly result?: TerminalCommandResult;
+	readonly shouldRetire: boolean;
 }
 
 /**
@@ -138,7 +139,11 @@ export class NonPtyShellTerminalStreams extends Disposable {
 
 		const result = shellExit?.result ?? parseCompletedShell(toolOutput);
 		if (!result) {
-			return stream.created ? { uri: stream.uri } : undefined;
+			if (!stream.created) {
+				this._streams.delete(toolCallId);
+				return undefined;
+			}
+			return { uri: stream.uri, shouldRetire: false };
 		}
 		if (!stream.created) {
 			this._createTerminal(toolCallId, stream);
@@ -149,7 +154,26 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		if (result.exitCode !== undefined) {
 			this._finalize(stream, result.exitCode);
 		}
-		return { uri: stream.uri, result };
+		return {
+			uri: stream.uri,
+			result,
+			shouldRetire: stream.finalized && result.preview !== undefined,
+		};
+	}
+
+	/**
+	 * Releases the live output resource after its static completion has been
+	 * published. Repeated calls are safe and do not dispose the resource twice.
+	 */
+	retire(toolCallId: string): void {
+		const stream = this._streams.get(toolCallId);
+		if (!stream) {
+			return;
+		}
+		this._streams.delete(toolCallId);
+		if (stream.created) {
+			this._terminalManager.disposeTerminal(stream.uri);
+		}
 	}
 
 	private _finalize(stream: INonPtyShellStream, exitCode: number): void {
