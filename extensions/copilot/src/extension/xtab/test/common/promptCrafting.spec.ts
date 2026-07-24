@@ -613,6 +613,7 @@ describe('getUserPrompt', () => {
 		strategy: PromptingStrategy | undefined;
 		includeLineNumbers?: IncludeLineNumbersOption;
 		includePostScript?: boolean;
+		eagernessPrompt?: 'aggressionHighLow';
 		aggressivenessLevel?: AggressivenessLevel;
 	}): PromptPieces {
 		const currentDocLines = ['function foo() {', '  const x = 1;', '  return x;', '}', ''];
@@ -633,6 +634,7 @@ describe('getUserPrompt', () => {
 		const promptOptions: PromptOptions = {
 			...DEFAULT_OPTIONS,
 			promptingStrategy: opts.strategy,
+			eagernessPrompt: opts.eagernessPrompt,
 			...(opts.includePostScript !== undefined ? { includePostScript: opts.includePostScript } : {}),
 			currentFile: {
 				...DEFAULT_OPTIONS.currentFile,
@@ -766,11 +768,12 @@ describe('getUserPrompt', () => {
 		[AggressivenessLevel.Medium, ''],
 		[AggressivenessLevel.High, '<|aggression|>high<|/aggression|>'],
 		[AggressivenessLevel.Low, '<|aggression|>low<|/aggression|>'],
-	])('PatchBased02AggressionHighLow places the %s tag before the postscript', (aggressivenessLevel, aggressionTag) => {
+	])('PatchBased02 aggression prompt places the %s tag before the postscript', (aggressivenessLevel, aggressionTag) => {
 		const pieces = createTestPromptPieces({
 			cursorLine: 2,
 			cursorColumn: 9,
-			strategy: PromptingStrategy.PatchBased02AggressionHighLow,
+			strategy: PromptingStrategy.PatchBased02,
+			eagernessPrompt: 'aggressionHighLow',
 			aggressivenessLevel,
 		});
 		const { prompt } = getUserPrompt(pieces);

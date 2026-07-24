@@ -478,6 +478,8 @@ export namespace EditIntent {
 	}
 }
 
+export type EagernessPrompt = 'aggressionHighLow';
+
 export type PromptOptions = {
 	readonly promptingStrategy: PromptingStrategy | undefined /* default */;
 	readonly currentFile: CurrentFileOptions;
@@ -488,6 +490,7 @@ export type PromptOptions = {
 	readonly diffHistory: DiffHistoryOptions;
 	readonly includePostScript: boolean;
 	readonly lintOptions: LintOptions | undefined;
+	readonly eagernessPrompt: EagernessPrompt | undefined;
 	/**
 	 * When set, parts share a single pool of `totalTokens` and unused budget from
 	 * earlier parts in `order` cascades to later parts. When `undefined`, each
@@ -526,8 +529,6 @@ export enum PromptingStrategy {
 	PatchBased02WithRecentLineNumbers = 'patchBased02WithRecentLineNumbers',
 	/** PatchBased02 variant: no line numbers on recent docs. */
 	PatchBased02WithoutRecentLineNumbers = 'patchBased02WithoutRecentLineNumbers',
-	/** PatchBased02 variant: aggression tag only for high/low levels. */
-	PatchBased02AggressionHighLow = 'patchBased02AggressionHighLow',
 	/**
 	 * Xtab275-based strategy with edit intent tag parsing.
 	 * Response format: <|edit_intent|>low|medium|high|no_edit<|/edit_intent|>
@@ -546,13 +547,13 @@ export function isPromptingStrategy(value: string): value is PromptingStrategy {
 	return (Object.values(PromptingStrategy) as string[]).includes(value);
 }
 
-export function isAggressivenessStrategy(strategy: PromptingStrategy | undefined): boolean {
-	return strategy === PromptingStrategy.XtabAggressiveness
-		|| strategy === PromptingStrategy.Xtab275Aggressiveness
-		|| strategy === PromptingStrategy.Xtab275AggressivenessHighLow
-		|| strategy === PromptingStrategy.PatchBased02AggressionHighLow
-		|| strategy === PromptingStrategy.Xtab275EditIntent
-		|| strategy === PromptingStrategy.Xtab275EditIntentShort;
+export function isAggressionPromptingStrategy(options: PromptOptions): boolean {
+	return options.eagernessPrompt !== undefined
+		|| options.promptingStrategy === PromptingStrategy.XtabAggressiveness
+		|| options.promptingStrategy === PromptingStrategy.Xtab275Aggressiveness
+		|| options.promptingStrategy === PromptingStrategy.Xtab275AggressivenessHighLow
+		|| options.promptingStrategy === PromptingStrategy.Xtab275EditIntent
+		|| options.promptingStrategy === PromptingStrategy.Xtab275EditIntentShort;
 }
 
 export enum ResponseFormat {
@@ -581,7 +582,6 @@ export namespace ResponseFormat {
 			case PromptingStrategy.PatchBased02:
 			case PromptingStrategy.PatchBased02WithRecentLineNumbers:
 			case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
-			case PromptingStrategy.PatchBased02AggressionHighLow:
 				return ResponseFormat.CustomDiffPatch;
 			case PromptingStrategy.Xtab275EditIntent:
 				return ResponseFormat.EditWindowWithEditIntent;
@@ -599,6 +599,7 @@ export namespace ResponseFormat {
 
 export const DEFAULT_OPTIONS: PromptOptions = {
 	promptingStrategy: undefined,
+	eagernessPrompt: undefined,
 	currentFile: {
 		maxTokens: 1500,
 		includeTags: true,
@@ -657,6 +658,7 @@ export const LANGUAGE_CONTEXT_ENABLED_LANGUAGES: LanguageContextLanguages = {
 export interface ModelConfiguration {
 	modelName: string;
 	promptingStrategy: PromptingStrategy | undefined /* default */;
+	eagernessPrompt?: EagernessPrompt;
 	includeTagsInCurrentFile: boolean;
 	includePostScript?: boolean;
 	currentFile?: Partial<CurrentFileOptions>;
@@ -725,6 +727,7 @@ export const LINT_OPTIONS_VALIDATOR: IValidator<Partial<LintOptions>> = vObj({
 export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vObj({
 	'modelName': vRequired(vString()),
 	'promptingStrategy': vUnion(vEnum(...Object.values(PromptingStrategy)), vUndefined()),
+	'eagernessPrompt': vUnion(vEnum<EagernessPrompt[]>('aggressionHighLow'), vUndefined()),
 	'includeTagsInCurrentFile': vRequired(vBoolean()),
 	'includePostScript': vUnion(vBoolean(), vUndefined()),
 	'currentFile': vUnion(CurrentFileOptions.VALIDATOR, vUndefined()),

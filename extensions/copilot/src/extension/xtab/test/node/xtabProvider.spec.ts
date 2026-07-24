@@ -167,7 +167,6 @@ describe('pickSystemPrompt', () => {
 		PromptingStrategy.PatchBased01,
 		PromptingStrategy.PatchBased02,
 		PromptingStrategy.PatchBased02WithRecentLineNumbers,
-		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
 		PromptingStrategy.Xtab275,
 		PromptingStrategy.XtabAggressiveness,
 		PromptingStrategy.Xtab275Aggressiveness,

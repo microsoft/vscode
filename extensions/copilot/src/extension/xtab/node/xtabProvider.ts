@@ -19,7 +19,7 @@ import { LanguageContextEntry, LanguageContextResponse } from '../../../platform
 import { LanguageId } from '../../../platform/inlineEdits/common/dataTypes/languageId';
 import { NextCursorLinePrediction } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
-import { AggressivenessSetting, EarlyDivergenceCancellationMode, isAggressivenessStrategy, LanguageContextLanguages, LanguageContextOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessSetting, EarlyDivergenceCancellationMode, isAggressionPromptingStrategy as isEagernessPrompt, LanguageContextLanguages, LanguageContextOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ResponseProcessor } from '../../../platform/inlineEdits/common/responseProcessor';
@@ -613,7 +613,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		}
 
 		// Adjust debounce based on user aggressiveness setting for non-aggressiveness models
-		if (!isAggressivenessStrategy(promptOptions.promptingStrategy)) {
+		if (!isEagernessPrompt(promptOptions)) {
 			this._applyAggressivenessSettings(delaySession, tracer);
 		}
 	}
@@ -1567,6 +1567,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				useRelativePaths: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffUseRelativePaths, this.expService),
 			},
 			lintOptions: undefined,
+			eagernessPrompt: undefined,
 			includePostScript: true,
 			globalBudget: this.getGlobalBudget(),
 		};
@@ -1774,6 +1775,7 @@ export function overrideModelConfig(modelConfig: ModelConfig, overridingConfig: 
 		...modelConfig,
 		modelName: overridingConfig.modelName,
 		promptingStrategy: overridingConfig.promptingStrategy,
+		eagernessPrompt: overridingConfig.eagernessPrompt ?? modelConfig.eagernessPrompt,
 		includePostScript: overridingConfig.includePostScript ?? modelConfig.includePostScript,
 		currentFile: {
 			...modelConfig.currentFile,
@@ -1809,7 +1811,6 @@ export function pickSystemPrompt(promptingStrategy: xtabPromptOptions.PromptingS
 		case xtabPromptOptions.PromptingStrategy.PatchBased02:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02WithRecentLineNumbers:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
-		case xtabPromptOptions.PromptingStrategy.PatchBased02AggressionHighLow:
 		case xtabPromptOptions.PromptingStrategy.Xtab275:
 		case xtabPromptOptions.PromptingStrategy.XtabAggressiveness:
 		case xtabPromptOptions.PromptingStrategy.Xtab275Aggressiveness:
