@@ -16,7 +16,7 @@ import { stripComments } from '../../../../../base/common/jsonc.js';
 
 const exec = util.promisify(cp.exec);
 
-// skiped for https://github.com/microsoft/vscode/issues/327263
+// skipped for https://github.com/microsoft/vscode/issues/327263
 suite.skip('PolicyExport Integration Tests', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
