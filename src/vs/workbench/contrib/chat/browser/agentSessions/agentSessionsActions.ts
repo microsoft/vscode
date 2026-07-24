@@ -410,7 +410,10 @@ abstract class BaseAgentSessionAction extends Action2 {
 			if (selected.length > 0) {
 				sessions = selected;
 			} else {
-				sessions = chatView?.getFocusedSessions() ?? [];
+				const focused = chatView?.getFocusedSessions().at(0);
+				if (focused) {
+					sessions = [focused];
+				}
 			}
 		}
 
