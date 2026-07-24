@@ -1,9 +1,26 @@
-# Visual Studio Code - Open Source ("Code - OSS")
-[![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-[![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
-[![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
+# Repoctx IDE
 
-## The Repository
+**Repository context before change. Deterministic evidence before merge.**
+
+Repoctx IDE is a native Code OSS evidence workbench for AI-assisted software teams, created by [Oluwasegun Olumbe](https://github.com/nugehs). It keeps the familiar editor workflow while making repository context, change impact, review readiness, merge gates, and durable audit evidence visible beside the work.
+
+## Trust Rail
+
+The Repoctx Trust Rail lives in the right secondary sidebar so it can sit beside Chat without displacing Explorer or Source Control. Its native Context → Impact → Review → Gate → Audit path reads real `.dev-context` artifacts and keeps missing evidence explicit.
+
+When Context evidence is available, Repoctx automatically provides every IDE agent request with a concise repository map and exact evidence paths. Agents can open deeper evidence on demand, without copying full reports into every prompt or coupling the workflow to a particular model provider. This is enabled by default and can be disabled with `repoctx.agentContext.enabled`.
+
+See the [Repoctx IDE trust workflow](docs/repoctx-ide/trust-workflow.md) for the interaction contract and evidence states.
+
+## Development
+
+```bash
+./scripts/code.sh
+```
+
+The Repoctx integration is part of the workbench source under `src/vs/workbench/contrib/repoctx`; it is not an extension.
+
+## Code OSS lineage
 
 This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Studio Code](https://code.visualstudio.com) product together with the community. Not only do we work on code and issues here, but we also publish our [roadmap](https://github.com/microsoft/vscode/wiki/Roadmap), [monthly iteration plans](https://github.com/microsoft/vscode/wiki/Iteration-Plans), and our [endgame plans](https://github.com/microsoft/vscode/wiki/Running-the-Endgame). This source code is available to everyone under the standard [MIT license](https://github.com/microsoft/vscode/blob/main/LICENSE.txt).
 

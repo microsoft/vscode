@@ -14,3 +14,9 @@ updates:
       interval: "daily"
     allow:
       - dependency-name: "@vscode/markdown-editor"
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    allow:
+      - dependency-name: "@nugehs/repoctx"

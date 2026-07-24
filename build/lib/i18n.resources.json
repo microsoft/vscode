@@ -195,6 +195,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/repoctx",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/relauncher",
 			"project": "vscode-workbench"
 		},

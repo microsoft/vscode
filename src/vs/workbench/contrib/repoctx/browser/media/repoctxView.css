@@ -1,0 +1,446 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.repoctx-trust-view {
+	overflow: hidden;
+}
+
+.repoctx-trust-body {
+	box-sizing: border-box;
+	height: 100%;
+	overflow-y: auto;
+	padding: 16px 12px 20px;
+}
+
+.repoctx-summary {
+	margin-bottom: 18px;
+}
+
+.repoctx-agent-context {
+	align-items: flex-start;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	display: grid;
+	gap: 8px;
+	grid-template-columns: 16px minmax(0, 1fr);
+	margin: -5px 0 14px;
+	padding: 0 0 12px;
+}
+
+.repoctx-agent-context.is-active > span {
+	color: var(--vscode-testing-iconPassed);
+	margin-top: 1px;
+}
+
+.repoctx-agent-context.is-waiting > span {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+	margin-top: 1px;
+}
+
+.repoctx-agent-context.is-off > span {
+	color: var(--vscode-descriptionForeground);
+	margin-top: 1px;
+}
+
+.repoctx-agent-context div {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.repoctx-agent-context strong {
+	font-weight: 600;
+}
+
+.repoctx-agent-context div span {
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
+.repoctx-change-request {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-bottom: 14px;
+}
+
+.repoctx-change-request label {
+	font-weight: 600;
+}
+
+.repoctx-change-request textarea {
+	background: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, transparent);
+	box-sizing: border-box;
+	color: var(--vscode-input-foreground);
+	font: inherit;
+	line-height: 1.4;
+	min-height: 58px;
+	padding: 7px 8px;
+	resize: vertical;
+	width: 100%;
+}
+
+.repoctx-change-request textarea:focus {
+	border-color: var(--vscode-focusBorder);
+	outline: none;
+}
+
+.repoctx-change-request p {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	line-height: 1.4;
+	margin: 0;
+}
+
+.repoctx-workflow {
+	border-bottom: 1px solid var(--vscode-panel-border);
+	border-top: 1px solid var(--vscode-panel-border);
+	margin: 16px 0;
+	padding: 12px 0 13px;
+}
+
+.repoctx-workflow-heading {
+	display: grid;
+	gap: 2px;
+	grid-template-columns: minmax(0, 1fr) auto;
+	margin-bottom: 11px;
+}
+
+.repoctx-workflow-heading span:first-child {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.repoctx-workflow-heading strong {
+	font-size: 14px;
+	grid-column: 1;
+}
+
+.repoctx-workflow-heading span:last-child {
+	align-self: end;
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	grid-column: 2;
+	grid-row: 1 / span 2;
+}
+
+.repoctx-workflow-route {
+	display: flex;
+	gap: 0;
+	list-style: none;
+	margin: 0 0 12px;
+	padding: 0;
+}
+
+.repoctx-workflow-step {
+	align-items: center;
+	color: var(--vscode-descriptionForeground);
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	font-size: 10px;
+	gap: 5px;
+	min-width: 0;
+	position: relative;
+	text-align: center;
+}
+
+.repoctx-workflow-step:not(:last-child)::after {
+	background: var(--vscode-tree-inactiveIndentGuidesStroke);
+	content: '';
+	height: 1px;
+	left: calc(50% + 11px);
+	position: absolute;
+	top: 10px;
+	width: calc(100% - 22px);
+}
+
+.repoctx-workflow-marker {
+	align-items: center;
+	background: var(--vscode-sideBar-background);
+	border: 1px solid var(--vscode-tree-inactiveIndentGuidesStroke);
+	border-radius: 50%;
+	display: flex;
+	height: 20px;
+	justify-content: center;
+	width: 20px;
+	z-index: 1;
+}
+
+.repoctx-workflow-step.is-available .repoctx-workflow-marker {
+	border-color: var(--vscode-testing-iconPassed);
+	color: var(--vscode-testing-iconPassed);
+}
+
+.repoctx-workflow-step.is-ready .repoctx-workflow-marker {
+	border-color: var(--vscode-focusBorder);
+	color: var(--vscode-focusBorder);
+}
+
+.repoctx-workflow-step.is-blocked .repoctx-workflow-marker {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.repoctx-workflow-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	width: 100%;
+}
+
+.repoctx-next-action {
+	align-items: flex-start;
+	background: var(--vscode-list-inactiveSelectionBackground);
+	display: grid;
+	gap: 8px;
+	grid-template-columns: 16px minmax(0, 1fr);
+	line-height: 1.4;
+	padding: 8px;
+}
+
+.repoctx-next-action > span {
+	color: var(--vscode-focusBorder);
+	margin-top: 1px;
+}
+
+.repoctx-next-action div {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.repoctx-next-action span {
+	color: var(--vscode-descriptionForeground);
+}
+
+.repoctx-run-notice {
+	align-items: start;
+	border: 1px solid var(--vscode-panel-border);
+	display: grid;
+	grid-template-columns: 16px minmax(0, 1fr);
+	gap: 6px;
+	line-height: 1.4;
+	margin-bottom: 10px;
+	padding: 6px 7px;
+}
+
+.repoctx-run-notice.error {
+	border-color: var(--vscode-inputValidation-errorBorder);
+	color: var(--vscode-errorForeground);
+}
+
+.repoctx-summary .repoctx-eyebrow {
+	color: var(--vscode-descriptionForeground);
+	display: block;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	margin-bottom: 5px;
+	text-transform: uppercase;
+}
+
+.repoctx-summary h2 {
+	font-size: 18px;
+	font-weight: 600;
+	line-height: 1.25;
+	margin: 0 0 5px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.repoctx-summary p {
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.45;
+	margin: 0;
+}
+
+.repoctx-stage-list {
+	position: relative;
+}
+
+.repoctx-stage-list::before {
+	background: var(--vscode-tree-inactiveIndentGuidesStroke);
+	content: '';
+	height: calc(100% - 34px);
+	left: 13px;
+	position: absolute;
+	top: 17px;
+	width: 1px;
+}
+
+.repoctx-stage {
+	background: none;
+	border: 1px solid transparent;
+	box-sizing: border-box;
+	color: var(--vscode-foreground);
+	display: grid;
+	font: inherit;
+	grid-template-columns: 28px minmax(0, 1fr);
+	margin: 0 0 4px;
+	padding: 8px 7px 9px 0;
+	position: relative;
+	text-align: left;
+	width: 100%;
+}
+
+.repoctx-stage-node {
+	align-items: center;
+	background: var(--vscode-sideBar-background);
+	border: 1px solid var(--vscode-tree-inactiveIndentGuidesStroke);
+	border-radius: 50%;
+	box-sizing: border-box;
+	display: flex;
+	height: 22px;
+	justify-content: center;
+	position: relative;
+	width: 22px;
+	z-index: 1;
+}
+
+.repoctx-stage.is-available .repoctx-stage-node {
+	border-color: var(--vscode-testing-iconPassed);
+	color: var(--vscode-testing-iconPassed);
+}
+
+.repoctx-stage.is-running .repoctx-stage-node,
+.repoctx-stage.is-running .repoctx-stage-state {
+	color: var(--vscode-progressBar-background);
+}
+
+.repoctx-stage.is-blocked .repoctx-stage-node,
+.repoctx-stage.is-blocked .repoctx-stage-state {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.repoctx-stage.is-failed .repoctx-stage-node,
+.repoctx-stage.is-failed .repoctx-stage-state {
+	border-color: var(--vscode-testing-iconFailed);
+	color: var(--vscode-testing-iconFailed);
+}
+
+.repoctx-stage-content {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+}
+
+.repoctx-stage-title-row {
+	align-items: baseline;
+	display: flex;
+	gap: 8px;
+	justify-content: space-between;
+}
+
+.repoctx-stage-title {
+	font-weight: 600;
+}
+
+.repoctx-stage-state {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	white-space: nowrap;
+}
+
+.repoctx-stage.is-available .repoctx-stage-state {
+	color: var(--vscode-testing-iconPassed);
+}
+
+.repoctx-stage-description {
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.35;
+}
+
+.repoctx-stage-tools {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 3px 8px;
+	margin: 1px 0;
+}
+
+.repoctx-stage-tool {
+	color: var(--vscode-descriptionForeground);
+	display: inline-flex;
+	font-size: 11px;
+	gap: 4px;
+}
+
+.repoctx-stage-tool strong {
+	color: var(--vscode-foreground);
+	font-weight: 600;
+}
+
+.repoctx-stage-evidence {
+	color: var(--vscode-textPreformat-foreground);
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.repoctx-stage-action {
+	align-self: flex-start;
+	background: transparent;
+	border: 0;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	font: inherit;
+	margin: 2px 0 0;
+	padding: 2px 0;
+	text-align: left;
+}
+
+.repoctx-stage-action:hover:not(:disabled) {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.repoctx-stage-action:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.repoctx-stage-action:disabled {
+	color: var(--vscode-disabledForeground);
+	cursor: default;
+}
+
+.repoctx-evidence-note {
+	border-top: 1px solid var(--vscode-panel-border);
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	line-height: 1.45;
+	margin-top: 12px;
+	padding-top: 12px;
+}
+
+.repoctx-loading,
+.repoctx-empty {
+	align-items: center;
+	color: var(--vscode-descriptionForeground);
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 22px 8px;
+	text-align: center;
+}
+
+.repoctx-loading {
+	flex-direction: row;
+	justify-content: center;
+}
+
+.repoctx-empty p {
+	margin: 0;
+}
+
+.repoctx-empty-icon {
+	font-size: 28px;
+}
