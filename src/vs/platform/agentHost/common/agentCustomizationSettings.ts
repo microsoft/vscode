@@ -33,10 +33,39 @@ export interface IAgentCustomizationSettingsRegistration extends IAgentCustomiza
 	readonly properties: Readonly<Record<string, ConfigPropertySchema>>;
 }
 
+function isAgentCustomizationSettingDescriptor(value: unknown): value is IAgentCustomizationSettingDescriptor {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const setting = value as Partial<IAgentCustomizationSettingDescriptor>;
+	return typeof setting.key === 'string'
+		&& typeof setting.group === 'string'
+		&& (setting.kind === undefined || setting.kind === 'multiline')
+		&& (setting.saveLabel === undefined || typeof setting.saveLabel === 'string');
+}
+
+function isAgentCustomizationSettingsDescriptor(value: unknown): value is IAgentCustomizationSettingsDescriptor {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const entry = value as Partial<IAgentCustomizationSettingsDescriptor>;
+	if (typeof entry.provider !== 'string' || typeof entry.title !== 'string' || typeof entry.description !== 'string' || !Array.isArray(entry.settings) || !entry.settings.every(isAgentCustomizationSettingDescriptor)) {
+		return false;
+	}
+	const file = entry.configurationFile;
+	return file === undefined || (!!file
+		&& typeof file.resource === 'string'
+		&& typeof file.title === 'string'
+		&& typeof file.description === 'string'
+		&& typeof file.openLabel === 'string'
+		&& (file.documentationUrl === undefined || typeof file.documentationUrl === 'string')
+		&& (file.documentationLabel === undefined || typeof file.documentationLabel === 'string'));
+}
+
 export function getAgentCustomizationSettingsEntries(state: RootState | undefined): readonly IAgentCustomizationSettingsDescriptor[] {
 	const meta = state?._meta;
 	const value = meta?.[AGENT_CUSTOMIZATION_SETTINGS_META_KEY];
-	return Array.isArray(value) ? value.filter((entry): entry is IAgentCustomizationSettingsDescriptor => !!entry && typeof entry === 'object' && typeof (entry as Partial<IAgentCustomizationSettingsDescriptor>).provider === 'string') : [];
+	return Array.isArray(value) ? value.filter(isAgentCustomizationSettingsDescriptor) : [];
 }
 
 export function withAgentCustomizationSettings(state: RootState | undefined, entries: readonly IAgentCustomizationSettingsDescriptor[]): Record<string, unknown> {
@@ -44,7 +73,7 @@ export function withAgentCustomizationSettings(state: RootState | undefined, ent
 }
 
 export function readAgentCustomizationSettings(state: RootState | undefined, provider: string): IAgentCustomizationSettingsDescriptor | undefined {
-	return getAgentCustomizationSettingsEntries(state).find(entry => entry.provider === provider && typeof entry.title === 'string' && typeof entry.description === 'string' && Array.isArray(entry.settings));
+	return getAgentCustomizationSettingsEntries(state).find(entry => entry.provider === provider);
 }
 
 export function getProviderBackedRootConfigKeys(state: RootState | undefined): ReadonlySet<string> {

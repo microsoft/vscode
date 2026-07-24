@@ -668,7 +668,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			// actually changed to avoid flicker on harness registration events.
 			if (this._previousActiveHarnessId !== undefined && this._previousActiveHarnessId !== activeId) {
 				for (const [section, widget] of this.contributedSectionWidgets) {
-					widget.dispose();
+					this.editorDisposables.delete(widget);
 					this.contributedSectionContainers.get(section)?.replaceChildren();
 				}
 				this.contributedSectionWidgets.clear();

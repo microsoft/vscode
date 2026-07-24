@@ -164,6 +164,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		private readonly _stateManager: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
 		private readonly _rootConfigResource?: URI,
+		providerConfigurations: readonly IAgentCustomizationSettingsRegistration[] = [],
 	) {
 		super();
 		// Merge our customization schema/values into the existing root config
@@ -180,6 +181,9 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			},
 			values: { ...existing?.values, ...this._loadPersistedRootConfig() },
 		};
+		for (const registration of providerConfigurations) {
+			this.registerProviderConfiguration(registration);
+		}
 
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.RootConfigChanged) {

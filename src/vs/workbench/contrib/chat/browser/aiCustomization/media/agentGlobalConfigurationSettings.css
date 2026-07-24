@@ -130,6 +130,7 @@
 }
 
 .agent-global-configuration-settings-text-row {
+	display: block;
 	padding: var(--vscode-spacing-size120);
 }
 

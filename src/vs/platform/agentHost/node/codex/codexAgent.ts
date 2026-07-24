@@ -783,28 +783,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		const configFile = URI.file(join(this._environmentService.userHome.fsPath, '.codex', 'config.toml')).toString();
-		this._configurationService.registerProviderConfiguration?.({
-			provider: CODEX_AGENT_PROVIDER_ID,
-			title: localize('codex.configuration.title', "Codex Settings"),
-			description: localize('codex.configuration.description', "Configure Codex defaults stored in config.toml. Project and managed configuration can override these user values."),
-			properties: {
-				'codex.personality': { type: 'string', title: localize('codex.configuration.personality', "Personality"), description: localize('codex.configuration.personality.description', "Controls the default communication style for Codex. Default leaves personality unset in config.toml."), default: 'default', enum: ['default', 'friendly', 'pragmatic'], enumLabels: [localize('codex.configuration.personality.default', "Default"), localize('codex.configuration.personality.friendly', "Friendly"), localize('codex.configuration.personality.pragmatic', "Pragmatic")] },
-				'codex.autoReviewPolicy': { type: 'string', title: localize('codex.configuration.autoReviewPolicy', "Auto-review policy"), description: localize('codex.configuration.autoReviewPolicy.description', "Updates auto_review.policy in config.toml. Leave empty to remove the auto_review section."), default: '' },
-			},
-			settings: [
-				{ key: 'codex.personality', group: localize('codex.configuration.personalization', "Personalization") },
-				{ key: 'codex.autoReviewPolicy', group: localize('codex.configuration.review', "Review policy"), kind: 'multiline', saveLabel: localize('codex.configuration.review.save', "Save Policy") },
-			],
-			configurationFile: {
-				resource: configFile,
-				title: localize('codex.configuration.file.title', "Advanced configuration"),
-				description: localize('codex.configuration.file.description', "Open the Codex configuration file to customize additional agent behavior."),
-				openLabel: localize('codex.configuration.file.open', "Open config.toml"),
-				documentationUrl: 'https://learn.chatgpt.com/docs/config-file/config-basic',
-				documentationLabel: localize('codex.configuration.file.docs', "Codex configuration documentation"),
-			},
-		});
 		this._metadataStore = this._instantiationService.createInstance(CodexSessionMetadataStore);
 		this._usageSource = this._resolveUsageSource();
 		this._register(this._configurationService.onDidRootConfigChange(() => {
@@ -833,7 +811,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			const message = error instanceof Error ? error.message : String(error);
 			this._setOpenAIAccountState({ usageSource: 'openai', status: 'error', error: message }, false);
-			this._applyUsageSourceChange('copilot');
 			return;
 		}
 		if (this._usageSource !== 'openai') {
@@ -847,9 +824,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		if (account.status === 'signedIn') {
 			this._queueModelRefresh();
-			return;
 		}
-		this._applyUsageSourceChange('copilot');
 	}
 
 	private _setOpenAIAccountState(state: ICodexAccountState, _publish = true): void {
@@ -914,6 +889,13 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _hasActiveTurns(): boolean {
 		return [...this._sessions.values()].some(session => session.currentTurnId !== undefined)
 			|| [...this._subagentsByThreadId.values()].some(subagent => subagent.session.currentTurnId !== undefined);
+	}
+
+	private _applyPendingUsageSourceIfIdle(): void {
+		const pendingUsageSource = this._pendingUsageSource;
+		if (pendingUsageSource && !this._hasActiveTurns()) {
+			this._applyUsageSourceChange(pendingUsageSource);
+		}
 	}
 
 	// #region Auth
@@ -1204,7 +1186,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _refreshModels(): Promise<void> {
-		if (this._usageSource === 'openai') {
+		const usageSource = this._usageSource;
+		if (usageSource === 'openai') {
 			await this._refreshOpenAIModels();
 			return;
 		}
@@ -1216,7 +1199,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		try {
 			const userAgent = `${USER_AGENT_PREFIX}/${this._productService.version}`;
 			const all = await this._copilotApiService.models(token, { headers: { 'User-Agent': userAgent }, suppressIntegrationId: true });
-			if (this._githubToken !== token) {
+			if (this._usageSource !== usageSource || this._githubToken !== token) {
 				return;
 			}
 			const configSchema = this._createReasoningEffortConfigSchema();
@@ -1251,7 +1234,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._models.set(models, undefined);
 		} catch (err) {
 			this._logService.warn(`[Codex] Failed to refresh models: ${err instanceof Error ? err.message : String(err)}`);
-			if (this._githubToken === token) {
+			if (this._usageSource === usageSource && this._githubToken === token) {
 				this._models.set([], undefined);
 			}
 		}
@@ -2023,8 +2006,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (values[key] === this._providerConfigurationValues[key]) { continue; }
 			const value = values[key];
 			if (value === undefined) { continue; }
-			this._providerConfigurationValues[key] = value;
-			this._providerConfigurationWrite = this._providerConfigurationWrite.then(() => this._writeProviderConfiguration(key, value)).catch(error => this._logService.error(`[Codex] Failed to update config.toml: ${error instanceof Error ? error.message : String(error)}`));
+			this._providerConfigurationWrite = this._providerConfigurationWrite.then(async () => {
+				if (this._providerConfigurationValues[key] === value) {
+					return;
+				}
+				await this._writeProviderConfiguration(key, value);
+				this._providerConfigurationValues[key] = value;
+			}).catch(error => this._logService.error(`[Codex] Failed to update config.toml: ${error instanceof Error ? error.message : String(error)}`));
 		}
 	}
 
@@ -2123,17 +2111,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				chat: URI.parse(buildDefaultChatUri(subagent.session.sessionUri)),
 				toolCallId: subagent.toolCallId,
 			});
-			const pendingUsageSource = this._pendingUsageSource;
-			if (pendingUsageSource && !this._hasActiveTurns()) {
-				this._applyUsageSourceChange(pendingUsageSource);
-			}
+			this._applyPendingUsageSourceIfIdle();
 			return;
 		}
 		this._dispatchByThread(params.threadId, s => this._handleTurnCompletedNotification(s, params));
-		const pendingUsageSource = this._pendingUsageSource;
-		if (pendingUsageSource && !this._hasActiveTurns()) {
-			this._applyUsageSourceChange(pendingUsageSource);
-		}
+		this._applyPendingUsageSourceIfIdle();
 	}
 
 	/**
@@ -2577,6 +2559,15 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._fire(session.sessionUri, { type: ActionType.ChatTurnComplete, turnId, duration });
 			}
 		}
+		for (const subagent of this._subagentsByThreadId.values()) {
+			subagent.session.pendingCommandApprovals.denyAll('decline');
+			subagent.session.pendingClientToolCalls.rejectAll(new CancellationError());
+			subagent.session.pendingUserInputs.rejectAll(new CancellationError());
+			subagent.session.currentTurnId = undefined;
+			subagent.session.currentAppTurnId = undefined;
+		}
+		this._subagentsByThreadId.clear();
+		this._applyPendingUsageSourceIfIdle();
 		// Release resources. The proxy handle is refcounted and drops
 		// the underlying server once everyone releases.
 		try {
