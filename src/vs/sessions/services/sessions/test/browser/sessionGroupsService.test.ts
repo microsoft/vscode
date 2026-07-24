@@ -16,7 +16,7 @@ import { IChat, ISession, SessionStatus } from '../../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { SessionGroupsService } from '../../browser/sessionGroupsService.js';
 
-function createSession(id: string): ISession {
+function createSession(id: string, isArchived = false): ISession {
 	return {
 		sessionId: id,
 		resource: URI.parse(`session://${id}`),
@@ -33,7 +33,7 @@ function createSession(id: string): ISession {
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
-		isArchived: observableValue(`isArchived-${id}`, false),
+		isArchived: observableValue(`isArchived-${id}`, isArchived),
 		isRead: observableValue(`isRead-${id}`, true),
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
@@ -206,8 +206,7 @@ suite('SessionGroupsService', () => {
 
 	test('membership is cleaned up when a provider reports an archived session', () => {
 		const a = service.createGroup('A', ['s1', 's2']);
-		const session = createSession('s1');
-		session.isArchived.set(true, undefined);
+		const session = createSession('s1', true);
 
 		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
 
