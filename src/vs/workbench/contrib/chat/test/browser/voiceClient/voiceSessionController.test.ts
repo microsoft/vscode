@@ -26,7 +26,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { IVoiceTranscriptStore, IVoiceTranscriptTurn } from '../../../../agentsVoice/common/voiceTranscriptStore.js';
 import { IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
-import { IChatWidgetService } from '../../../browser/chat.js';
+import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
@@ -247,6 +247,7 @@ function pendingConfirmationModel(resource: URI): IChatModel {
 class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override readonly onDidChangeFocusedSession = Event.None;
 	override readonly onDidAddWidget = Event.None;
+	override readonly onDidRemoveWidget = Event.None;
 	override getAllWidgets() { return []; }
 }
 
@@ -295,6 +296,7 @@ suite('VoiceSessionController', () => {
 		micCaptureService: IMicCaptureService = new TestMicCaptureService(),
 		configurationService: IConfigurationService = new TestConfigurationService({ 'agents.voice.handsFree': false }),
 		chatService: IChatService = new TestChatService(),
+		chatWidgetService: IChatWidgetService = new TestChatWidgetService(),
 	): IVoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
@@ -326,10 +328,38 @@ suite('VoiceSessionController', () => {
 				override async playSignal(): Promise<void> { }
 			}(),
 			new TestAccessibilityService(),
-			new TestChatWidgetService(),
+			chatWidgetService,
 			new class extends mock<INotificationService>() { }(),
 		));
 	}
+
+	test('stops tracking a removed chat widget', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const viewModelChanges = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		const widgetRemovals = store.add(new Emitter<IChatWidget>());
+		const widget = {
+			viewModel: undefined,
+			onDidChangeViewModel: viewModelChanges.event,
+		} as unknown as IChatWidget;
+		const chatWidgetService = {
+			lastFocusedWidget: undefined,
+			onDidAddWidget: Event.None,
+			onDidRemoveWidget: widgetRemovals.event,
+			onDidChangeFocusedSession: Event.None,
+			getAllWidgets: () => [widget],
+		} as unknown as IChatWidgetService;
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, undefined, chatWidgetService);
+		const sessionResource = URI.parse('agent-host-copilot:/session-1');
+
+		viewModelChanges.fire({ previousSessionResource: undefined, currentSessionResource: sessionResource });
+		assert.strictEqual(Reflect.get(controller, '_lastShownSessionId'), sessionResource.toString());
+
+		widgetRemovals.fire(widget);
+		Reflect.set(controller, '_lastShownSessionId', undefined);
+		viewModelChanges.fire({ previousSessionResource: undefined, currentSessionResource: sessionResource });
+
+		assert.strictEqual(Reflect.get(controller, '_lastShownSessionId'), undefined);
+	});
 
 	test('explicit disconnect clears routing target and pending confirmations and the tracker cannot repopulate them before reconnect', () => {
 		const voiceClientService = new TestVoiceClientService();
@@ -1135,6 +1165,7 @@ suite('VoiceSessionController live transcription', () => {
 		instantiationService.stub(IChatWidgetService, {
 			lastFocusedWidget: undefined,
 			onDidAddWidget: Event.None,
+			onDidRemoveWidget: Event.None,
 			onDidChangeFocusedSession: Event.None,
 			getAllWidgets: () => [],
 		});

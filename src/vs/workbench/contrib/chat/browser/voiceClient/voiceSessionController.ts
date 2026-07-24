@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, autorun, transaction, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { addDisposableListener, disposableWindowInterval } from '../../../../../base/browser/dom.js';
 import { alert as ariaAlert } from '../../../../../base/browser/ui/aria/aria.js';
@@ -383,6 +383,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * second click, once the widget finally takes focus). Tracking the last-shown
 	 * session across all widgets closes that gap. */
 	private _lastShownSessionId: string | undefined;
+	private readonly _widgetSessionListeners = this._register(new DisposableMap<IChatWidget>());
 	/**
 	 * Agents-window active-session override. Beats focus/last-shown heuristics,
 	 * which are unreliable with multiple rendered chat widgets.
@@ -704,6 +705,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._trackWidgetSession(widget);
 		}
 		this._register(this.chatWidgetService.onDidAddWidget(widget => this._trackWidgetSession(widget)));
+		this._register(this.chatWidgetService.onDidRemoveWidget(widget => this._widgetSessionListeners.deleteAndDispose(widget)));
 
 		// Set up the tool dispatch delegate — uses command bridge for widget ops
 		this.voiceToolDispatchService.setDelegate({
@@ -3301,7 +3303,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * chat view pane this way.
 	 */
 	private _trackWidgetSession(widget: IChatWidget): void {
-		this._register(widget.onDidChangeViewModel(e => this._onSessionShown(e.currentSessionResource)));
+		if (this._widgetSessionListeners.has(widget)) {
+			return;
+		}
+		this._widgetSessionListeners.set(widget, widget.onDidChangeViewModel(e => this._onSessionShown(e.currentSessionResource)));
 		// Seed from the widget's current view-model. When a session opens in a
 		// freshly-created widget, its view-model is often already set by the time
 		// we subscribe above, so the initial `onDidChangeViewModel` never fires
