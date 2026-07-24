@@ -13,7 +13,7 @@ import { Categories } from '../../../../../platform/action/common/actionCommonCa
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { IAgentHostService, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId, AGENT_HOST_LOG_OUTPUT_CHANNEL_ID } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
@@ -217,12 +217,19 @@ export async function collectAgentHostDebugLogs(
 	let debugArtifacts = activeSession?.debugArtifacts;
 	if (activeSession && debugArtifacts === undefined) {
 		// The local host and a remote connection both expose `listSessions()`; pick
-		// whichever owns this session and read its advertised `_meta` artifacts.
+		// whichever owns this session and read its advertised `_meta` artifacts,
+		// matched by the session's unique id (a summary's `session` URI may use the
+		// backend scheme, so compare ids, not the whole URI). Best-effort: a miss
+		// just omits the provider artifacts; the general logs still export.
 		const sessionLister = activeSession.isLocal
 			? agentHostService
 			: remoteConnection ? remoteAgentHostService.getConnection(remoteConnection.address) : undefined;
-		if (sessionLister) {
-			debugArtifacts = await resolveSessionDebugArtifacts(sessionLister, activeSession.resource);
+		try {
+			const rawId = activeSession.resource.path.substring(1);
+			const sessions = await sessionLister?.listSessions() ?? [];
+			debugArtifacts = readSessionDebugArtifacts(sessions.find(session => session.session.path.substring(1) === rawId)?._meta);
+		} catch {
+			// Ignore: provider artifacts are best-effort.
 		}
 	}
 	const artifactAuthority = remoteConnection ? agentHostAuthority(remoteConnection.address) : undefined;
@@ -354,25 +361,6 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 		// itself (it already holds the local + remote agent host services), so the
 		// accessor is used synchronously here with no `invokeFunction` re-entry.
 		await exportAgentHostDebugLogs(accessor, activeSession);
-	}
-}
-
-/**
- * Reads the host-advertised {@link IDebugArtifact}s for a session from the owning
- * agent host's session summaries, matched by the session's unique id (the
- * summary's `session` URI may use the backend scheme, so we compare ids, not the
- * whole URI). `sessionLister` is whichever host owns the session — the local
- * {@link IAgentHostService} or a remote {@link IAgentConnection}, both of which
- * expose `listSessions()` — so this serves both local and remote export.
- * Best-effort: any failure resolves to `undefined`.
- */
-async function resolveSessionDebugArtifacts(sessionLister: { listSessions(): Promise<IAgentSessionMetadata[]> }, resource: URI): Promise<readonly IDebugArtifact[] | undefined> {
-	try {
-		const rawId = resource.path.substring(1);
-		const sessions = await sessionLister.listSessions();
-		return readSessionDebugArtifacts(sessions.find(session => session.session.path.substring(1) === rawId)?._meta);
-	} catch {
-		return undefined;
 	}
 }
 
