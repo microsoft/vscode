@@ -363,10 +363,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		const { promptOptions, modelServiceConfig } = this.determineModelConfiguration(activeDocument);
 
 		telemetry.setModelConfig(JSON.stringify(modelServiceConfig));
-		telemetry.setRejectedEditMemoryEnabled(
-			promptOptions.promptingStrategy === xtabPromptOptions.PromptingStrategy.PatchBased02
-			&& promptOptions.memory?.rejectedEdits === true
-		);
 
 		const endpoint = this.getEndpointWithLogging(promptOptions.modelName, logContext, telemetry);
 

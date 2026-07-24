@@ -96,8 +96,7 @@ function getModelTelemetry(telemetry: IStatelessNextEditTelemetry): IStatelessNe
 	return {
 		modelName: telemetry.modelName,
 		modelConfig: telemetry.modelConfig,
-		rejectedEditMemoryEnabled: telemetry.rejectedEditMemoryEnabled,
-	};
+			};
 }
 
 interface DocState {

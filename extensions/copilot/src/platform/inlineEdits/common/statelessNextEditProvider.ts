@@ -356,8 +356,6 @@ export interface IStatelessNextEditModelTelemetry {
 	readonly modelName: string | undefined;
 	/** JSON-encoded model configuration from the model service. */
 	readonly modelConfig: string | undefined;
-	/** Whether the request's model configuration enabled rejected-edit prompt memory. */
-	readonly rejectedEditMemoryEnabled: boolean;
 }
 
 export interface IStatelessNextEditTelemetry extends IStatelessNextEditModelTelemetry {
@@ -537,7 +535,6 @@ export class StatelessNextEditTelemetryBuilder {
 			terminalOutput: this._terminalOutput,
 			similarFilesContext: this._similarFilesContext,
 			modelConfig: this._modelConfig,
-			rejectedEditMemoryEnabled: this._rejectedEditMemoryEnabled,
 		};
 	}
 
@@ -773,9 +770,4 @@ export class StatelessNextEditTelemetryBuilder {
 		return this;
 	}
 
-	private _rejectedEditMemoryEnabled = false;
-	public setRejectedEditMemoryEnabled(enabled: boolean): this {
-		this._rejectedEditMemoryEnabled = enabled;
-		return this;
-	}
 }
