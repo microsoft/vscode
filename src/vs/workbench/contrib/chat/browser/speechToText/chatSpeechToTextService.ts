@@ -70,14 +70,17 @@ const LLM_CLEANUP_TIMEOUT_MS = 10000;
 /** Minimum delay between incremental cleanup requests while dictation is active. */
 const LLM_INCREMENTAL_CLEANUP_INTERVAL_MS = 5000;
 
-/** Minimum amount of newly finalized text required before starting an incremental cleanup request. */
-const LLM_INCREMENTAL_CLEANUP_MIN_CHARS = 40;
+/** Minimum amount of new text required before starting an incremental cleanup request. */
+const LLM_INCREMENTAL_CLEANUP_MIN_CHARS = 20;
 
 /** Maximum trailing finalized text sent in one incremental cleanup request. */
 const LLM_INCREMENTAL_CLEANUP_MAX_CHARS = 800;
 
 /** Keep the actively changing end of the live transcript out of incremental cleanup requests. */
 const LLM_INCREMENTAL_UNSTABLE_TAIL_CHARS = 20;
+
+/** After this long without a transcript revision, the complete live tail is considered stable. */
+const LLM_INCREMENTAL_IDLE_MS = 1000;
 
 /** Utility model used for transcript cleanup — a small, fast model in the spirit of gpt-4o-mini. */
 const LLM_CLEANUP_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' };
@@ -371,6 +374,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _incrementalCleanedPrefix = '';
 	/** Raw finalized prefix used by the latest request, so revisions can invalidate and retry it. */
 	private _incrementalCleanupAttemptedRawPrefix = '';
+	private _lastTranscriptUpdateMs = 0;
 
 	// Per-session telemetry accumulators.
 	private _sessionStartMs = 0;
@@ -585,6 +589,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._incrementalCleanedRawPrefix = '';
 		this._incrementalCleanedPrefix = '';
 		this._incrementalCleanupAttemptedRawPrefix = '';
+		this._lastTranscriptUpdateMs = 0;
 
 		let stream: MediaStream;
 		try {
@@ -651,6 +656,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _emitTranscript(text: string, finalizedText: string, isFinal: boolean): void {
 		this._finalizedText = text;
 		this._deltaText = '';
+		this._lastTranscriptUpdateMs = Date.now();
 		this._backendFinalizedText = finalizedText.replace(/\s{2,}/g, ' ').trim();
 		const transcript = this._transcript;
 		if (
@@ -701,7 +707,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 		const processedRawLength = Math.max(this._incrementalCleanedRawPrefix.length, this._incrementalCleanupAttemptedRawPrefix.length);
 		const newTranscriptLength = this._transcript.length - processedRawLength;
-		if (newTranscriptLength >= LLM_INCREMENTAL_CLEANUP_MIN_CHARS + LLM_INCREMENTAL_UNSTABLE_TAIL_CHARS) {
+		if (newTranscriptLength >= LLM_INCREMENTAL_CLEANUP_MIN_CHARS) {
 			this._incrementalCleanupScheduler.schedule();
 		}
 	}
@@ -717,15 +723,21 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 		const transcript = this._transcript;
 		const previousRawPrefix = this._incrementalCleanedRawPrefix;
-		if (
-			transcript.length - previousRawPrefix.length < LLM_INCREMENTAL_CLEANUP_MIN_CHARS + LLM_INCREMENTAL_UNSTABLE_TAIL_CHARS ||
-			(previousRawPrefix && !transcript.startsWith(previousRawPrefix))
-		) {
+		const isTranscriptIdle = Date.now() - this._lastTranscriptUpdateMs >= LLM_INCREMENTAL_IDLE_MS;
+		const stableTranscriptEnd = isTranscriptIdle
+			? transcript.length
+			: Math.max(previousRawPrefix.length, transcript.length - LLM_INCREMENTAL_UNSTABLE_TAIL_CHARS);
+		if (previousRawPrefix && !transcript.startsWith(previousRawPrefix)) {
+			return;
+		}
+		if (stableTranscriptEnd - previousRawPrefix.length < LLM_INCREMENTAL_CLEANUP_MIN_CHARS) {
+			if (!isTranscriptIdle) {
+				this._incrementalCleanupScheduler.schedule(LLM_INCREMENTAL_IDLE_MS);
+			}
 			return;
 		}
 
 		const cleanupStart = previousRawPrefix.length;
-		const stableTranscriptEnd = transcript.length - LLM_INCREMENTAL_UNSTABLE_TAIL_CHARS;
 		let cleanupEnd = Math.min(stableTranscriptEnd, cleanupStart + LLM_INCREMENTAL_CLEANUP_MAX_CHARS);
 		if (cleanupEnd < stableTranscriptEnd) {
 			const previousWhitespace = transcript.lastIndexOf(' ', cleanupEnd);
