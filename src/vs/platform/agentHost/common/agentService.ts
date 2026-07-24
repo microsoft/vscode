@@ -682,7 +682,6 @@ export interface IAgentSessionMetadata {
 	/** Human-readable description of what the session is currently doing. */
 	readonly activity?: string;
 	readonly workingDirectory?: URI;
-	readonly customizationDirectory?: URI;
 	readonly isRead?: boolean;
 	readonly isArchived?: boolean;
 	/**

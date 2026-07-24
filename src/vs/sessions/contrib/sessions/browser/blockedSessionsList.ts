@@ -23,6 +23,12 @@ import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/br
 export const IGNORE_INPUT_NEEDED_COMMAND_ID = 'sessions.blockedSessions.ignoreInputNeeded';
 export const IGNORE_CI_FAILURE_COMMAND_ID = 'sessions.blockedSessions.ignoreCIFailure';
 
+export interface IBlockedSessionsHeaderActionContext {
+	readonly showAllSessions: () => void;
+	readonly ignoreAllSessions: () => void;
+	readonly close: () => void;
+}
+
 /** Register the actions shown in blocked-session row toolbars. */
 export function registerBlockedSessionsItemActions(): IDisposable {
 	return combinedDisposable(
@@ -67,6 +73,12 @@ export interface IBlockedSessionsListOptions {
 	readonly ciFixModel?: ISessionCIFixModel;
 	/** Ignores the session's current blocked occurrence. */
 	readonly onIgnoreSession: (session: ISession) => void;
+	/** Opens the full sessions picker. */
+	readonly onShowAllSessions: () => void;
+	/** Ignores every blocked occurrence currently shown. */
+	readonly onIgnoreAllSessions: () => void;
+	/** Closes the surrounding blocked-sessions overlay. */
+	readonly onClose: () => void;
 }
 
 /**
@@ -111,6 +123,16 @@ export class BlockedSessionsList extends Disposable {
 		const headerActions = append(header, $('.agent-sessions-blocked-list-header-actions'));
 		this._register(instantiationService.createInstance(MenuWorkbenchToolBar, headerActions, Menus.BlockedSessionsHeader, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			menuOptions: {
+				arg: {
+					showAllSessions: options.onShowAllSessions,
+					ignoreAllSessions: () => {
+						options.onIgnoreAllSessions();
+						status(localize('allInputNeededIgnored', "All current blocked sessions were ignored."));
+					},
+					close: options.onClose,
+				} satisfies IBlockedSessionsHeaderActionContext,
+			},
 			toolbarOptions: { primaryGroup: () => true },
 			telemetrySource: 'blockedSessionsList.header',
 		}));

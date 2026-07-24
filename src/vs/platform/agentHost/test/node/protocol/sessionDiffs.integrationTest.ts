@@ -81,7 +81,7 @@ const hasGit = (() => {
 		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-git-diffs' });
 
 		const workingDirectory = URI.file(tmpRoot).toString();
-		await client.call('createSession', { channel: nextSessionUri(), provider: 'mock', workingDirectory });
+		await client.call('createSession', { channel: nextSessionUri(), provider: 'mock', workingDirectories: [workingDirectory] });
 
 		const addedNotif = await client.waitForNotification(n =>
 			n.method === 'root/sessionAdded'

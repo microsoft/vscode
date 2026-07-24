@@ -175,7 +175,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	}
 
 	private _makeItemFromSummary(rawId: string, summary: SessionSummary): IChatSessionItem {
-		const workingDir = typeof summary.workingDirectory === 'string' ? URI.parse(summary.workingDirectory) : summary.workingDirectory;
+		const workingDir = typeof summary.workingDirectories?.[0] === 'string' ? URI.parse(summary.workingDirectories?.[0]) : summary.workingDirectories?.[0];
 		return this._makeItem(rawId, {
 			title: summary.title,
 			status: summary.status,

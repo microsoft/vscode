@@ -92,7 +92,7 @@
 .style-override .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message {
 	margin: 2px 0 12px 0;
 	font-size: var(--vscode-fontSize-heading3);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .style-override .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {

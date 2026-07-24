@@ -15,4 +15,17 @@ export interface IAgentHostE2ETestContext {
 	readonly stableNewScenarioResponse: boolean;
 	readonly isWindows: boolean;
 	readonly runRecordOnlyTests: boolean;
+	readonly registerNoModelTrafficTest: (title: string) => void;
+	readonly observedModelRequestBodies: readonly string[];
+}
+
+/**
+ * Registers a provider E2E test that must not contact the model boundary.
+ */
+export function hostOnlyTest(context: IAgentHostE2ETestContext, title: string, run: Mocha.AsyncFunc, enabled = true): void {
+	context.registerNoModelTrafficTest(title);
+	(enabled ? test : test.skip)(title, function () {
+		this.timeout(60_000);
+		return run.call(this);
+	});
 }

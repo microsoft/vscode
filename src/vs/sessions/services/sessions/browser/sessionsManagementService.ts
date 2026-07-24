@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -66,6 +66,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _onDidDiscardNewSession = this._register(new Emitter<ISession>());
 	readonly onDidDiscardNewSession: Event<ISession> = this._onDidDiscardNewSession.event;
+	private readonly _onDidReplaceNewDraftSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+	readonly onDidReplaceNewDraftSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceNewDraftSession.event;
 
 	private _sessionTypes: readonly ISessionType[] = [];
 
@@ -74,6 +76,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly newSession: IObservable<ISession | undefined> = this._newSession;
 
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
+	private readonly _disposeCts = this._register(new CancellationTokenSource());
 
 	/**
 	 * Chat resources for which this service has just kicked off a
@@ -239,7 +242,29 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return result;
 	}
 
-	resolveWorkspace(folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined {
+	isNewSessionTargetAvailable(folderUri: URI, options?: ICreateNewSessionOptions): boolean {
+		return this._isTargetAvailable(this.getSessionTypesForFolder(folderUri), options);
+	}
+
+	isQuickChatTargetAvailable(options?: ICreateNewSessionOptions): boolean {
+		return this._isTargetAvailable(this.getQuickChatSessionTypes(), options);
+	}
+
+	private _isTargetAvailable(sessionTypes: readonly IProviderSessionType[], options?: ICreateNewSessionOptions): boolean {
+		return sessionTypes.some(candidate =>
+			(!options?.providerId || candidate.providerId === options.providerId)
+			&& (!options?.sessionTypeId || candidate.sessionType.id === options.sessionTypeId)
+		);
+	}
+
+	resolveWorkspace(folderUri: URI, preferredProviderId?: string): { providerId: string; workspace: ISessionWorkspace } | undefined {
+		if (preferredProviderId) {
+			const preferred = this.sessionsProvidersService.getProvider(preferredProviderId);
+			const workspace = preferred?.resolveWorkspace(folderUri);
+			if (workspace) {
+				return { providerId: preferredProviderId, workspace };
+			}
+		}
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			const workspace = provider.resolveWorkspace(folderUri);
 			if (workspace) {
@@ -306,6 +331,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (!provider.resolveWorkspace(folderUri)) {
 				throw new Error(`Sessions provider '${options.providerId}' cannot resolve folder '${folderUri.toString()}'`);
 			}
+			if (options.sessionTypeId && !provider.getSessionTypes(folderUri).some(type => type.id === options.sessionTypeId)) {
+				throw new Error(`Sessions provider '${options.providerId}' does not advertise session type '${options.sessionTypeId}'`);
+			}
 		} else {
 			// Iterate providers and pick the first one that can resolve the folder.
 			// When a specific session type was requested, also require the provider to
@@ -339,7 +367,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		const previousNewSession = this._newSession.get();
 		const session = provider.createNewSession(folderUri, sessionTypeId);
-		this._newSession.set(session, undefined);
 
 		// Providers no longer dispose the previous new session implicitly, so
 		// dispose the one this composer just replaced. Use its own provider
@@ -347,7 +374,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// successful create so a throw above leaves the previous one intact.
 		if (previousNewSession && previousNewSession.sessionId !== session.sessionId) {
 			this._getProvider(previousNewSession)?.deleteNewSession(previousNewSession.sessionId);
+			// Terminal ownership must move before the replacement is published:
+			// publishing eagerly ensures a terminal for the new draft.
+			this._onDidReplaceNewDraftSession.fire({ from: previousNewSession, to: session });
 		}
+		this._newSession.set(session, undefined);
 		return session;
 	}
 
@@ -580,7 +611,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const session = provider.createNewSession(folderUri, sessionTypeId);
 		const supportsWorktreeConfiguration = provider.getSessionTypes(folderUri)
 			.find(sessionType => sessionType.id === sessionTypeId)?.supportsWorktreeConfiguration === true;
-		return this._configureAndSendNewSession(provider, session, options, createOptions, supportsWorktreeConfiguration, token);
+		return this._configureAndSendNewSession(provider, session, options, createOptions, supportsWorktreeConfiguration, token, folderUri);
 	}
 
 	async createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
@@ -596,13 +627,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		createOptions: ICreateNewSessionOptions | undefined,
 		supportsWorktreeConfiguration: boolean,
 		token: CancellationToken,
+		folderUri?: URI,
 	): Promise<ISession | undefined> {
 		try {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
 			if (createOptions?.modelId) {
-				provider.setModel(session.sessionId, createOptions.modelId);
+				const resolvedModelId = await this._waitForRequestedModel(provider, session, createOptions.modelId, token, folderUri);
+				provider.setModel(session.sessionId, resolvedModelId);
 			}
 			if (createOptions?.modeId) {
 				provider.setMode?.(session.sessionId, createOptions.modeId);
@@ -630,6 +663,70 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			provider.deleteNewSession(session.sessionId);
 			throw e;
 		}
+	}
+
+	private async _waitForRequestedModel(provider: ISessionsProvider, session: ISession, modelId: string, token: CancellationToken, folderUri?: URI): Promise<string> {
+		const resolveCurrent = () => provider.getModelsSnapshot(session.sessionId, modelId).desiredModelResolution;
+		const initial = resolveCurrent();
+		if (initial.kind === 'available') {
+			return initial.model.identifier;
+		}
+		if (initial.kind === 'notRequested') {
+			return modelId;
+		}
+		if (initial.kind === 'unavailable') {
+			throw new Error(`Model '${modelId}' is unavailable for sessions provider '${provider.id}'`);
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		return new Promise<string>((resolve, reject) => {
+			const disposables = new DisposableStore();
+			let settled = false;
+			const finish = (result: string | Error) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				disposables.dispose();
+				if (result instanceof Error) {
+					reject(result);
+				} else {
+					resolve(result);
+				}
+			};
+			const check = () => {
+				const resolution = resolveCurrent();
+				if (resolution.kind === 'available') {
+					finish(resolution.model.identifier);
+				} else if (resolution.kind === 'notRequested') {
+					finish(modelId);
+				} else if (resolution.kind === 'unavailable') {
+					finish(new Error(`Model '${modelId}' is unavailable for sessions provider '${provider.id}'`));
+				}
+			};
+			disposables.add(provider.onDidChangeModels(check));
+			disposables.add(provider.onDidChangeSessionTypes(() => {
+				const sessionTypes = folderUri ? provider.getSessionTypes(folderUri) : provider.sessionTypes;
+				if (!sessionTypes.some(type => type.id === session.sessionType)) {
+					finish(new Error(`Session type '${session.sessionType}' is no longer available for sessions provider '${provider.id}'`));
+				}
+			}));
+			disposables.add(this.sessionsProvidersService.onDidChangeProviders(event => {
+				if (event.removed.includes(provider)) {
+					finish(new Error(`Sessions provider '${provider.id}' is no longer available`));
+				}
+			}));
+			disposables.add(token.onCancellationRequested(() => finish(new CancellationError())));
+			disposables.add(this._disposeCts.token.onCancellationRequested(() => finish(new CancellationError())));
+			check();
+		});
+	}
+
+	override dispose(): void {
+		this._disposeCts.cancel();
+		super.dispose();
 	}
 
 	/**

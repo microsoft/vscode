@@ -40,6 +40,8 @@ export interface IAgentHostInternalTelemetryContext {
 export interface IAgentHostRestrictedTelemetryContext extends IAgentHostInternalTelemetryContext {
 	readonly restrictedTelemetryEnabled: boolean;
 	readonly telemetryEndpoint: string | undefined;
+	/** Whether content exclusion is enabled; undefined when account discovery could not determine it. */
+	readonly copilotIgnoreEnabled?: boolean;
 }
 
 export interface IAgentHostInternalTelemetrySink {

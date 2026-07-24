@@ -26,7 +26,7 @@
 
 import assert from 'assert';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
-import { homedir, tmpdir } from 'os';
+import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { MessageAttachmentKind, ToolCallConfirmationReason, buildDefaultChatUri, type MessageAttachment } from '../../../../common/state/sessionState.js';
@@ -53,6 +53,9 @@ const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsHostTerminalTool: true,
 	supportsSubagents: true,
 	supportsPlanMode: true,
+	supportsMultipleChats: true,
+	supportsChatFork: true,
+	supportsChatForkE2E: true,
 };
 
 defineAgentHostE2ETests(COPILOT_CONFIG);
@@ -60,22 +63,32 @@ defineAgentHostE2ETests(COPILOT_CONFIG);
 suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 	let client: TestProtocolClient;
+	let lease: AgentHostE2EServerLease | undefined;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
-	const lease = new AgentHostE2EServerLease(COPILOT_CONFIG, { homeDir: homedir() });
 
 	// The lease fronts the server with the record/replay proxy: these tests
 	// replay committed fixtures by default (tokenless) and record against real
 	// CAPI with `AGENT_HOST_REPLAY_RECORD=1`, mirroring the shared suite. In
 	// replay the lease reuses one server across the suite and swaps the fixture
 	// per test; while recording it starts a fresh server per test.
+	suiteSetup(function () {
+		lease = new AgentHostE2EServerLease(COPILOT_CONFIG);
+	});
+
 	setup(async function () {
 		this.timeout(60_000);
+		if (!lease) {
+			throw new Error('Agent Host E2E server lease was not initialized.');
+		}
 		({ client } = await lease.acquire(this.currentTest?.title ?? 'unknown'));
 	});
 
 	teardown(async function () {
 		this.timeout(60_000);
+		if (!lease) {
+			throw new Error('Agent Host E2E server lease was not initialized.');
+		}
 		await lease.release(createdSessions);
 
 		for (const dir of tempDirs) {
@@ -150,8 +163,8 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	});
 
 	suiteTeardown(async function () {
-		this.timeout(60_000);
-		await lease.dispose();
+		this.timeout(90_000);
+		await lease?.dispose();
 	});
 
 	test('usage reports include Copilot cost metadata', async function () {

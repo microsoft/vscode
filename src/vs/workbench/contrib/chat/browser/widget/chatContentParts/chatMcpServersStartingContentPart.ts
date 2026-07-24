@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
-import { createPixelSpinner } from '../../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
+import { createPixelSpinner, IPixelSpinner } from '../../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
@@ -28,6 +28,7 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 	public readonly domNode: HTMLElement;
 
 	private readonly rendered = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly spinner = this._register(new MutableDisposable<IPixelSpinner>());
 	private hadStartingServers = false;
 	private didNotifyFinished = false;
 
@@ -49,6 +50,7 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 	private render(servers: readonly IChatMcpStartingServer[]): void {
 		dom.clearNode(this.domNode);
 		this.rendered.clear();
+		this.spinner.clear();
 
 		if (!servers.length) {
 			this.domNode.style.display = 'none';
@@ -73,7 +75,7 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 		const container = dom.$('.chat-mcp-servers-interaction-hint');
 		const messageContainer = dom.$('.chat-mcp-servers-message');
 		const iconElement = dom.$('.chat-mcp-servers-icon');
-		(this.options?.createSpinner ?? createPixelSpinner)(iconElement);
+		this.spinner.value = (this.options?.createSpinner ?? createPixelSpinner)(iconElement);
 
 		const rendered = this.rendered.value = this.markdownRendererService.render(new MarkdownString(content));
 		messageContainer.appendChild(iconElement);

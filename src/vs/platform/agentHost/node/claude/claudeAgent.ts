@@ -1654,17 +1654,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		// Plan section 3.3.2: SDK is the source of truth; the per-session DB
-		// is a pure overlay/cache for Claude-namespaced fields like
-		// `customizationDirectory`. We deliberately do NOT filter
-		// entries that lack a DB — external Claude Code CLI sessions
-		// have no DB and must still surface (Phase-5 exit criterion).
-		//
-		// Each per-session overlay read is independently try/caught so a
-		// single corrupt DB cannot poison the wider listing. CopilotAgent's
-		// `Promise.all`-with-throwing-mapper pattern at copilotAgent.ts:519
-		// has a latent bug; we follow AgentService.listSessions's resilient
-		// pattern (`agentService.ts:188-204`) instead.
+		// Plan section 3.3.2: SDK is the source of truth; we deliberately do
+		// NOT filter entries that lack a per-session DB — external Claude Code
+		// CLI sessions have no DB and must still surface (Phase-5 exit
+		// criterion). The projected metadata is derived purely from the SDK
+		// entry, so no per-session overlay read is needed here.
 		//
 		// `AgentService.listSessions` fans out across all providers via
 		// `Promise.all` (agentService.ts:202-204). If our SDK dynamic
@@ -1687,17 +1681,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.warn('[Claude] SDK listSessions failed; surfacing empty list', err);
 			return [];
 		}
-		return Promise.all(sdkEntries.map(async entry => {
-			try {
-				const sessionUri = AgentSession.uri(this.id, entry.sessionId);
-				const overlay = await this._metadataStore.read(sessionUri);
-				return this._metadataStore.project(entry, overlay);
-			} catch (err) {
-				this._logService.warn(`[Claude] Overlay read failed for session ${entry.sessionId}`, err);
-			}
-			// External session, or DB read failed: surface what the SDK gave us.
-			return this._metadataStore.project(entry, {});
-		}));
+		return sdkEntries.map(entry => this._metadataStore.project(entry));
 	}
 
 	/**
@@ -1706,12 +1690,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * external-CLI case: a session that exists on disk via the raw
 	 * Anthropic CLI has no per-session DB, so we MUST NOT gate on the
 	 * sidecar (the way Copilot's variant does). The SDK is the source
-	 * of truth for existence; the overlay merely decorates.
+	 * of truth for existence.
 	 *
-	 * Failures in the overlay read are swallowed — a corrupt DB on one
-	 * session must not lose the SDK-supplied summary/cwd. Failures in
-	 * the SDK lookup propagate (the caller is doing a single targeted
-	 * fetch and should learn that the SDK module is broken).
+	 * The projected metadata is derived purely from the SDK entry, so no
+	 * per-session overlay read is needed. Failures in the SDK lookup
+	 * propagate (the caller is doing a single targeted fetch and should
+	 * learn that the SDK module is broken).
 	 */
 	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
 		// Don't trigger a cold SDK download just to hydrate session metadata
@@ -1729,13 +1713,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (!sdkInfo) {
 			return undefined;
 		}
-		let overlay: IClaudeSessionOverlay = {};
-		try {
-			overlay = await this._metadataStore.read(session);
-		} catch (err) {
-			this._logService.warn(`[Claude] Overlay read failed for session ${sessionId}`, err);
-		}
-		return this._metadataStore.project(sdkInfo, overlay);
+		return this._metadataStore.project(sdkInfo);
 	}
 
 	resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {

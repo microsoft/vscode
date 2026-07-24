@@ -177,6 +177,24 @@ interface IRenderFormHandle {
 	readonly getFocusableElements: () => readonly HTMLElement[];
 }
 
+export function resolveAutomationModelIdentifier(
+	languageModelsService: Pick<ILanguageModelsService, 'getLanguageModelIds' | 'lookupLanguageModel'>,
+	identifier: string,
+	logicalSessionType: string | undefined,
+	modelTarget: string | undefined,
+): string {
+	if (!logicalSessionType || !modelTarget) {
+		return identifier;
+	}
+	const sourceModel = languageModelsService.lookupLanguageModel(identifier);
+	if (sourceModel?.targetChatSessionType !== logicalSessionType) {
+		return identifier;
+	}
+	return languageModelsService.getLanguageModelIds().find(candidateIdentifier => {
+		const candidate = languageModelsService.lookupLanguageModel(candidateIdentifier);
+		return candidate?.targetChatSessionType === modelTarget && candidate.id === sourceModel.id;
+	}) ?? identifier;
+}
 
 const AUTOMATIONS_HARNESS_CHIP_ACTION_ID = 'workbench.action.chat.renderAutomationsHarnessChip';
 const AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID = 'workbench.action.chat.renderAutomationsWorkspacePicker';
@@ -644,6 +662,7 @@ export function renderForm(
 	contextKeyService: IContextKeyService,
 	contextViewService: IContextViewService,
 	configurationService: IConfigurationService,
+	languageModelsService: ILanguageModelsService,
 	layoutService: IWorkbenchLayoutService,
 	logService: ILogService,
 	productService: IProductService,
@@ -747,18 +766,21 @@ export function renderForm(
 	const onDidChangeSessionType = disposables.add(new Emitter<AgentSessionTarget>());
 	const onDidChangeSessionTarget = disposables.add(new Emitter<void>());
 	const sessionTypeDelegate: ISessionTypePickerDelegate = {
-		getActiveSessionProvider: () => sessionTypePicker.selectedPick?.sessionTypeId as AgentSessionTarget | undefined,
+		getActiveSessionProvider: () => sessionTypePicker.modelTargetChatSessionType.get(),
 		onDidChangeActiveSessionProvider: onDidChangeSessionType.event,
 	};
 	const syncStateFromPicker = () => {
 		const pick = sessionTypePicker.selectedPick;
 		state.providerId = pick?.providerId;
 		state.sessionTypeId = pick?.sessionTypeId;
-		if (pick?.sessionTypeId) {
-			onDidChangeSessionType.fire(pick.sessionTypeId as AgentSessionTarget);
-		}
 		onDidChangeSessionTarget.fire();
 	};
+	disposables.add(autorun(reader => {
+		const modelTarget = sessionTypePicker.modelTargetChatSessionType.read(reader);
+		if (modelTarget) {
+			onDidChangeSessionType.fire(modelTarget);
+		}
+	}));
 	// Seed state from the picker's initial default (edit: saved type; create: folder default).
 	syncStateFromPicker();
 	// Covers both explicit user picks and recomputes (e.g. an agent host
@@ -923,18 +945,28 @@ export function renderForm(
 		chatInput.setPermissionLevel(initialPermissionLevel);
 	}
 	// On edit, apply the saved model with late-arrival retry if needed.
-	chatInput.resetLanguageModelToDefault(/* storeSelection */ false);
+	chatInput.resetLanguageModelToDefault();
 
-	if (initialModelId && !chatInput.switchModelByIdentifier(initialModelId, /* storeSelection */ false)) {
-		const languageModelsService = instantiationService.invokeFunction(accessor => accessor.get(ILanguageModelsService));
+	const resolveInitialModelId = () => initialModelId ? resolveAutomationModelIdentifier(
+		languageModelsService,
+		initialModelId,
+		state.sessionTypeId,
+		sessionTypePicker.modelTargetChatSessionType.get(),
+	) : undefined;
+	const resolvedInitialModelId = resolveInitialModelId();
+	if (resolvedInitialModelId && !chatInput.switchModelByIdentifier(resolvedInitialModelId, /* storeSelection */ false)) {
 		const baseline = chatInput.selectedLanguageModel.get()?.identifier;
 		const retry = disposables.add(new MutableDisposable<IDisposable>());
-		retry.value = languageModelsService.onDidChangeLanguageModels(() => {
+		retry.value = Event.any(
+			languageModelsService.onDidChangeLanguageModels,
+			Event.fromObservableLight(sessionTypePicker.modelTargetChatSessionType),
+		)(() => {
 			if (chatInput.selectedLanguageModel.get()?.identifier !== baseline) {
 				retry.clear();
 				return;
 			}
-			if (chatInput.switchModelByIdentifier(initialModelId, /* storeSelection */ false)) {
+			const modelIdentifier = resolveInitialModelId();
+			if (modelIdentifier && chatInput.switchModelByIdentifier(modelIdentifier, /* storeSelection */ false)) {
 				retry.clear();
 			}
 		});

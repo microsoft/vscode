@@ -22,7 +22,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, SubagentChatSignal, type IAgent, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionResult, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, SubagentChatSignal, type IAgent, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -424,6 +424,84 @@ suite('AgentService (node dispatcher)', () => {
 			providerCreateConfigs: [{}, {}],
 			pendingAfterCreate: true,
 			pendingAfterFailure: false,
+		});
+	});
+
+	test('reconciles pending worktree isolation when creating session config changes', async () => {
+		const gitService = createNoopGitService();
+		const sessionDataService = createSessionDataService(new TestSessionDatabase());
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+		const isolation = disposables.add(new WorktreeIsolation(
+			{ generateBranchName: async () => 'agents/test' },
+			gitService,
+			new TestCopilotApiService(),
+			sessionDataService,
+			new NullLogService(),
+		));
+		localService.setWorktreeIsolation(isolation);
+
+		class ProvisionalAgent extends MockAgent {
+			override async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+				return { ...await super.createSession(config), provisional: true };
+			}
+		}
+
+		const provisionalAgent = new ProvisionalAgent('codex');
+		const readyAgent = new MockAgent('copilot');
+		disposables.add(toDisposable(() => provisionalAgent.dispose()));
+		disposables.add(toDisposable(() => readyAgent.dispose()));
+		localService.registerProvider(provisionalAgent);
+		localService.registerProvider(readyAgent);
+
+		const creatingSession = await localService.createSession({
+			provider: 'codex',
+			workingDirectory: URI.file('/workspace/repo'),
+			config: { [SessionConfigKey.Isolation]: 'folder' },
+		});
+		const readySession = await localService.createSession({
+			provider: 'copilot',
+			workingDirectory: URI.file('/workspace/repo'),
+			config: { [SessionConfigKey.Isolation]: 'folder' },
+		});
+		const creatingInitially = localService.configurationService.isWorkingDirectoryPending(creatingSession.toString());
+		const readyInitially = localService.configurationService.isWorkingDirectoryPending(readySession.toString());
+		const creatingLifecycle = localService.stateManager.getSessionState(creatingSession.toString())?.lifecycle;
+		const readyLifecycle = localService.stateManager.getSessionState(readySession.toString())?.lifecycle;
+
+		localService.dispatchAction(creatingSession.toString(), {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.Isolation]: 'worktree' },
+		}, 'test-client', 1);
+		const creatingAfterWorktree = localService.configurationService.isWorkingDirectoryPending(creatingSession.toString());
+
+		localService.dispatchAction(creatingSession.toString(), {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.Isolation]: 'folder' },
+		}, 'test-client', 2);
+		const creatingAfterFolder = localService.configurationService.isWorkingDirectoryPending(creatingSession.toString());
+
+		localService.dispatchAction(readySession.toString(), {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.Isolation]: 'worktree' },
+		}, 'test-client', 3);
+		const readyAfterWorktree = localService.configurationService.isWorkingDirectoryPending(readySession.toString());
+
+		assert.deepStrictEqual({
+			creatingInitially,
+			readyInitially,
+			creatingLifecycle,
+			readyLifecycle,
+			creatingAfterWorktree,
+			creatingAfterFolder,
+			readyAfterWorktree,
+		}, {
+			creatingInitially: false,
+			readyInitially: false,
+			creatingLifecycle: SessionLifecycle.Creating,
+			readyLifecycle: SessionLifecycle.Ready,
+			creatingAfterWorktree: true,
+			creatingAfterFolder: false,
+			readyAfterWorktree: false,
 		});
 	});
 
@@ -1245,7 +1323,7 @@ suite('AgentService (node dispatcher)', () => {
 				createdAt: new Date(1000).toISOString(),
 				modifiedAt: new Date(2000).toISOString(),
 				project: { uri: URI.file('/project').toString(), displayName: 'project' },
-				workingDirectory: URI.file('/worktree').toString(),
+				workingDirectories: [URI.file('/worktree').toString()],
 			}, []);
 			agent.releaseList.complete();
 
@@ -1625,6 +1703,10 @@ suite('AgentService (node dispatcher)', () => {
 				overlayPathIntoTree: async () => undefined,
 				diffTreePaths: async () => undefined,
 				computeFileDiffsBetweenRefs: async () => undefined,
+				getFetchRemoteUrls: async () => undefined,
+				getUntrackedPaths: async () => [],
+				getBranchDiffSafetyInfo: async () => undefined,
+				getDiffPatchBetweenRefs: async () => undefined,
 			};
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const agent = new MockAgent('copilot');
@@ -1725,6 +1807,10 @@ suite('AgentService (node dispatcher)', () => {
 				overlayPathIntoTree: async () => undefined,
 				diffTreePaths: async () => undefined,
 				computeFileDiffsBetweenRefs: async () => undefined,
+				getFetchRemoteUrls: async () => undefined,
+				getUntrackedPaths: async () => [],
+				getBranchDiffSafetyInfo: async () => undefined,
+				getDiffPatchBetweenRefs: async () => undefined,
 			};
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			const agent = new MockAgent('copilot');
@@ -4713,7 +4799,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			// The state manager should have the worktree path, not the source path
 			const state = service.stateManager.getSessionState(session.toString());
-			assert.strictEqual(state?.workingDirectory, worktreeDir.toString());
+			assert.strictEqual(state?.workingDirectories?.[0], worktreeDir.toString());
 		});
 
 		test('createSession falls back to config working directory when agent does not resolve', async () => {
@@ -4725,7 +4811,7 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ provider: 'copilot', workingDirectory: sourceDir });
 
 			const state = service.stateManager.getSessionState(session.toString());
-			assert.strictEqual(state?.workingDirectory, sourceDir.toString());
+			assert.strictEqual(state?.workingDirectories?.[0], sourceDir.toString());
 		});
 
 		test('restoreSession uses agent working directory in state', async () => {
@@ -4744,8 +4830,71 @@ suite('AgentService (node dispatcher)', () => {
 			await service.restoreSession(session);
 
 			const state = service.stateManager.getSessionState(session.toString());
-			assert.strictEqual(state?.workingDirectory, worktreeDir.toString());
+			assert.strictEqual(state?.workingDirectories?.[0], worktreeDir.toString());
 		});
+	});
+
+	test('provisional workspace session advertises Uncommitted Changes before materialization', async () => {
+		class ProvisionalMockAgent extends MockAgent {
+			override async createSession(config?: import('../../common/agentService.js').IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+				const result = await super.createSession(config);
+				return { ...result, provisional: true };
+			}
+		}
+
+		const workingDirectory = URI.file('/workspace');
+		const gitCalls: string[] = [];
+		const gitService = createNoopGitService();
+		gitService.getSessionGitState = async resource => {
+			gitCalls.push(resource.toString());
+			return {
+				hasGitHubRemote: false,
+				branchName: 'main',
+				baseBranchName: 'main',
+				upstreamBranchName: undefined,
+				incomingChanges: 0,
+				outgoingChanges: 0,
+				uncommittedChanges: 1,
+			};
+		};
+		gitService.computeSessionFileDiffs = async () => [];
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+		const provisionalAgent = new ProvisionalMockAgent('provisional');
+		disposables.add(toDisposable(() => provisionalAgent.dispose()));
+		localService.registerProvider(provisionalAgent);
+
+		const workspaceSession = await localService.createSession({
+			provider: provisionalAgent.id,
+			workingDirectory,
+		});
+		const uncommittedUri = buildUncommittedChangesetUri(workspaceSession.toString());
+		localService.addSubscriber(URI.parse(uncommittedUri), 'client-1');
+		for (let i = 0; i < 100; i++) {
+			if (localService.stateManager.getChangesetState(uncommittedUri)?.operations?.some(operation => operation.id === 'commit')) {
+				break;
+			}
+			await timeout(2);
+		}
+
+		const workspaceState = localService.stateManager.getSessionState(workspaceSession.toString());
+		assert.deepStrictEqual({
+			lifecycle: workspaceState?.lifecycle,
+			changesets: workspaceState?.changesets?.map(changeset => changeset.changeKind),
+			gitCalls,
+			hasCommit: localService.stateManager.getChangesetState(uncommittedUri)?.operations?.some(operation => operation.id === 'commit'),
+		}, {
+			lifecycle: SessionLifecycle.Creating,
+			changesets: ['uncommitted'],
+			gitCalls: [workingDirectory.toString()],
+			hasCommit: true,
+		});
+		localService.unsubscribe(URI.parse(uncommittedUri), 'client-1');
+
+		const workspaceLessSession = await localService.createSession({ provider: provisionalAgent.id });
+		assert.deepStrictEqual(
+			localService.stateManager.getSessionState(workspaceLessSession.toString())?.changesets ?? [],
+			[],
+		);
 	});
 
 	// ---- Item-2 regression: initial changeset seeding happens at create time --

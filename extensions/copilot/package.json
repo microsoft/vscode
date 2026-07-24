@@ -107,7 +107,6 @@
     "languageModelToolSupportsModel",
     "findFiles2",
     "textSearchProvider",
-    "telemetryExperimentProperty",
     "terminalDataWriteEvent",
     "terminalExecuteCommandEvent",
     "terminalSelection",
@@ -4188,6 +4187,15 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.gpt56Verbosity.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%github.copilot.config.gpt56Verbosity.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.gemini3GetChangedFilesTool.enabled": {
             "type": "boolean",
             "default": false,
@@ -4417,7 +4425,7 @@
           },
           "github.copilot.chat.tools.grepSearch.defaultMaxResults": {
             "type": "number",
-            "default": 20,
+            "default": 100,
             "markdownDescription": "%github.copilot.chat.tools.grepSearch.defaultMaxResults%",
             "tags": [
               "experimental",
@@ -7262,7 +7270,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.70-0",
+    "@github/copilot": "^1.0.73",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",

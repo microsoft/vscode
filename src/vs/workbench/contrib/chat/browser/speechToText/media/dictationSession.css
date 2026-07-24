@@ -18,6 +18,13 @@
 	}
 }
 
+/* While a dictation session is active the caret is parked at the start of the
+ * dictated region, so a blinking cursor there is distracting as transcript text
+ * streams in. Hide it for the duration of the session. */
+.monaco-editor.dictation-hide-cursor .cursors-layer > .cursor {
+	display: none !important;
+}
+
 .monaco-editor .dictation-interim-settled {
 	color: var(--vscode-input-placeholderForeground);
 }
