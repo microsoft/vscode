@@ -10,7 +10,7 @@ import { InMemoryConfigurationService } from '../../../../platform/configuration
 import { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
 import { NullGitExtensionService } from '../../../../platform/git/common/nullGitExtensionService';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
-import { ModelConfiguration, PromptingStrategy } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { ModelConfiguration, PromptingStrategy, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { ObservableGit } from '../../../../platform/inlineEdits/common/observableGit';
@@ -48,7 +48,7 @@ function createModelService(rejectedEditMemoryEnabled = false): IInlineEditsMode
 		modelName: testModelName,
 		promptingStrategy: PromptingStrategy.PatchBased02,
 		includeTagsInCurrentFile: false,
-		memory: { rejectedEdits: rejectedEditMemoryEnabled },
+		memory: { rejectedEdits: rejectedEditMemoryEnabled ? RejectedEditsMemoryMode.DiffWithTags : undefined },
 		lintOptions: undefined,
 	};
 	return {

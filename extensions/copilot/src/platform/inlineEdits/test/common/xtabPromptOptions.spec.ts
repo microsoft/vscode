@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { ImportChanges } from '../../common/dataTypes/importFilteringOptions';
-import { applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy } from '../../common/dataTypes/xtabPromptOptions';
+import { applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy, RejectedEditsMemoryMode } from '../../common/dataTypes/xtabPromptOptions';
 
 function baseConfig(overrides: Partial<ModelConfiguration> = {}): ModelConfiguration {
 	return {
@@ -90,10 +90,10 @@ describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 		expect(MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig()).content?.memory).toBeUndefined();
 	});
 
-	it('accepts rejected-edit memory in the model configuration', () => {
-		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ memory: { rejectedEdits: true } }));
+	it('accepts default rejected-edit memory in the model configuration', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ memory: { rejectedEdits: RejectedEditsMemoryMode.DiffWithTags } }));
 		expect(result.error).toBeUndefined();
-		expect(result.content?.memory?.rejectedEdits).toBe(true);
+		expect(result.content?.memory?.rejectedEdits).toBe(RejectedEditsMemoryMode.DiffWithTags);
 	});
 
 	it('accepts a config with allowImportChanges', () => {

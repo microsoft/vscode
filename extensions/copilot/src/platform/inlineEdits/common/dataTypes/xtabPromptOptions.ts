@@ -90,13 +90,17 @@ export type DiffHistoryOptions = {
 	readonly useRelativePaths: boolean;
 };
 
+export enum RejectedEditsMemoryMode {
+	DiffWithTags = 'diffWithTags',
+}
+
 export type PromptMemoryOptions = {
-	readonly rejectedEdits?: boolean;
+	readonly rejectedEdits?: RejectedEditsMemoryMode;
 };
 
 export namespace PromptMemoryOptions {
 	export const VALIDATOR: IValidator<PromptMemoryOptions> = vObj({
-		'rejectedEdits': vUnion(vBoolean(), vUndefined()),
+		'rejectedEdits': vUnion(vEnum(RejectedEditsMemoryMode.DiffWithTags), vUndefined()),
 	});
 }
 
@@ -564,7 +568,7 @@ export function isAggressivenessStrategy(strategy: PromptingStrategy | undefined
 }
 
 export function isRejectedEditMemoryEnabled(options: { readonly promptingStrategy: PromptingStrategy | undefined; readonly memory?: PromptMemoryOptions }): boolean {
-	return options.promptingStrategy === PromptingStrategy.PatchBased02 && options.memory?.rejectedEdits === true;
+	return options.promptingStrategy === PromptingStrategy.PatchBased02 && options.memory?.rejectedEdits === RejectedEditsMemoryMode.DiffWithTags;
 }
 
 export enum ResponseFormat {

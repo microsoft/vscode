@@ -7,7 +7,7 @@ import { assert, describe, expect, it, suite, test } from 'vitest';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { LanguageContextResponse } from '../../../../platform/inlineEdits/common/dataTypes/languageContext';
 import { PromptSectionTokenCounts } from '../../../../platform/inlineEdits/common/dataTypes/promptSectionTokens';
 import { ContextKind } from '../../../../platform/languageServer/common/languageContextService';
@@ -615,7 +615,7 @@ describe('getUserPrompt', () => {
 		includeLineNumbers?: IncludeLineNumbersOption;
 		includePostScript?: boolean;
 		aggressivenessLevel?: AggressivenessLevel;
-		rejectedEditMemory?: boolean;
+		rejectedEditsMemory?: RejectedEditsMemoryMode;
 	}): PromptPieces {
 		const currentDocLines = ['function foo() {', '  const x = 1;', '  return x;', '}', ''];
 		const docText = new StringText(currentDocLines.join('\n'));
@@ -636,7 +636,7 @@ describe('getUserPrompt', () => {
 			...DEFAULT_OPTIONS,
 			promptingStrategy: opts.strategy,
 			...(opts.includePostScript !== undefined ? { includePostScript: opts.includePostScript } : {}),
-			...(opts.rejectedEditMemory !== undefined ? { memory: { rejectedEdits: opts.rejectedEditMemory } } : {}),
+			...(opts.rejectedEditsMemory !== undefined ? { memory: { rejectedEdits: opts.rejectedEditsMemory } } : {}),
 			currentFile: {
 				...DEFAULT_OPTIONS.currentFile,
 				maxTokens: 10000,
@@ -698,7 +698,7 @@ describe('getUserPrompt', () => {
 			cursorLine: 2,
 			cursorColumn: 9,
 			strategy: PromptingStrategy.PatchBased02,
-			rejectedEditMemory: true,
+			rejectedEditsMemory: RejectedEditsMemoryMode.DiffWithTags,
 		});
 		const { prompt } = getUserPrompt(pieces);
 
@@ -711,7 +711,7 @@ describe('getUserPrompt', () => {
 			cursorLine: 2,
 			cursorColumn: 9,
 			strategy: PromptingStrategy.PatchBased02WithRecentLineNumbers,
-			rejectedEditMemory: true,
+			rejectedEditsMemory: RejectedEditsMemoryMode.DiffWithTags,
 		});
 		const { prompt } = getUserPrompt(pieces);
 
@@ -724,7 +724,7 @@ describe('getUserPrompt', () => {
 			cursorLine: 2,
 			cursorColumn: 9,
 			strategy: PromptingStrategy.PatchBased02,
-			rejectedEditMemory: true,
+			rejectedEditsMemory: RejectedEditsMemoryMode.DiffWithTags,
 			includePostScript: false,
 		});
 		const { prompt } = getUserPrompt(pieces);
