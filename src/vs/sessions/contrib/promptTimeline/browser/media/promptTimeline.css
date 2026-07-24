@@ -83,34 +83,41 @@
 }
 
 /* High-contrast themes rely on the explicit contrast border and suppress decorative shadows. */
-.hc-black .prompt-timeline-sticky-content,
-.hc-light .prompt-timeline-sticky-content {
+.hc-black .prompt-timeline-sticky-band,
+.hc-light .prompt-timeline-sticky-band {
 	box-shadow: none;
 }
 
-/* The visible band: matches the transcript's centered message column (chatView.css: max-width 950,
- * margin auto, 32px inset) so it lines up with the title and prompts rather than spanning the whole
- * width. It overlays scrolling transcript rows, so it must stay opaque: composite the (translucent)
- * chat request-bubble tint over the opaque panel base so it reads as a chat bubble without bleed-through. */
+/* The centered host mirrors the session header: a 950px centered block (sessionView.css:
+ * .session-view-centered-content) with the header bar's 10px side padding (chatCompositeBar.css:
+ * .chat-composite-bar.session-header-bar). The band inside fills the padded area. */
 .prompt-timeline-sticky-content {
+	display: flex;
+	max-width: 950px;
+	margin: 0 auto;
+	padding: 0 10px;
+	box-sizing: border-box;
+}
+
+/* The visible band mirrors .chat-composite-bar-header: it fills the padded host and carries the
+ * background, hairline bottom border, and soft shadow, so it lines up with the header above. The left
+ * inset matches the header's status-icon column (codicon size + 6px gap) so the prompt text aligns with
+ * the title and the prompts below. It overlays scrolling transcript rows, so it stays opaque by
+ * compositing the (translucent) chat request-bubble tint over the opaque panel base. */
+.prompt-timeline-sticky-band {
 	display: flex;
 	align-items: center;
 	gap: 6px;
+	flex: 1 1 auto;
+	min-width: 0;
 	height: 30px;
 	box-sizing: border-box;
-	max-width: 950px;
-	margin: 0 auto;
-	padding-left: 32px;
-	padding-right: 32px;
+	padding-left: calc(var(--vscode-codiconFontSize, 16px) + 6px);
 	border-bottom: 1px solid var(--vscode-agentsPanel-border, transparent);
 	background-color: var(--vscode-agentsPanel-background);
 	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
 	box-shadow: 0 6px 6px -6px var(--vscode-widget-shadow, transparent);
 	color: var(--vscode-foreground);
-}
-
-.prompt-timeline-host.prompt-timeline-with-rail .prompt-timeline-sticky-content {
-	padding-right: calc(var(--prompt-timeline-rail-width) + var(--prompt-timeline-content-gap) + var(--prompt-timeline-scrollbar-gutter));
 }
 
 /* The label area names the pinned prompt and reveals it when activated. The horizontal padding gives

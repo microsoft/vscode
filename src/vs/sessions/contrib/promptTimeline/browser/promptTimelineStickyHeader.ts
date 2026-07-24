@@ -56,11 +56,12 @@ export class PromptTimelineStickyHeader extends Disposable {
 	) {
 		super();
 		this._domNode = append(container, $('.prompt-timeline-sticky'));
-		// The inner content is constrained to the transcript's message column (see promptTimeline.css)
-		// so the pinned prompt text lines up with the prompts scrolling underneath.
+		// The content mirrors the session header's box model (see promptTimeline.css): a centered 950 host
+		// with 10px side padding, and an inner band that carries the background so it lines up with the header.
 		const content = append(this._domNode, $('.prompt-timeline-sticky-content'));
+		const band = append(content, $('.prompt-timeline-sticky-band'));
 
-		this._labelButton = append(content, $<HTMLButtonElement>('button.prompt-timeline-sticky-label-button'));
+		this._labelButton = append(band, $<HTMLButtonElement>('button.prompt-timeline-sticky-label-button'));
 		this._label = append(this._labelButton, $('span.prompt-timeline-sticky-label'));
 		this._labelLine = this._createLine('');
 		this._label.appendChild(this._labelLine);
@@ -72,7 +73,7 @@ export class PromptTimelineStickyHeader extends Disposable {
 		// action lifecycle instead of a bespoke button implementation.
 		this._previousAction = this._register(new Action(PREVIOUS_ACTION_ID, localize('promptTimeline.previousPrompt', "Go to Previous Prompt"), ThemeIcon.asClassName(Codicon.chevronUp), true, async () => this._onDidNavigate.fire(-1)));
 		this._nextAction = this._register(new Action(NEXT_ACTION_ID, localize('promptTimeline.nextPrompt', "Go to Next Prompt"), ThemeIcon.asClassName(Codicon.chevronDown), true, async () => this._onDidNavigate.fire(1)));
-		const toolbarContainer = append(content, $('.prompt-timeline-sticky-nav'));
+		const toolbarContainer = append(band, $('.prompt-timeline-sticky-nav'));
 		const toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, toolbarContainer, {
 			ariaLabel: localize('promptTimeline.stickyNavAriaLabel', "Prompt navigation"),
 		}));
