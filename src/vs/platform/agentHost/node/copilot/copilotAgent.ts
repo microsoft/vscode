@@ -6,6 +6,7 @@
 import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHubTelemetryNotification } from '@github/copilot-sdk';
 import * as fs from 'fs/promises';
 import * as os from 'os';
+import { pathToFileURL } from 'url';
 import { CancelablePromise, createCancelablePromise, Delayer, disposableTimeout, Limiter, SequencerByKey } from '../../../../base/common/async.js';
 import { type CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -38,7 +39,7 @@ import { CopilotCliConfigKey, copilotCliConfigSchema, type CopilotSdkLogLevelSet
 import { AgentHostMcpServersConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSessionEntry, decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentPeerChats.js';
-import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../../common/agentService.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -58,6 +59,15 @@ import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { applyMcpServerEnablement, findMcpChildId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
+
+interface ICopilotRuntimeManagedSettingsSdk {
+	getManagedSettings(input?: { token?: string; host?: string }): Promise<{ account?: string; resolved: IAgentHostManagedSettingsSnapshot }>;
+}
+
+function isCopilotRuntimeManagedSettingsSdk(value: unknown): value is ICopilotRuntimeManagedSettingsSdk {
+	return typeof value === 'object' && value !== null && 'getManagedSettings' in value
+		&& typeof (value as { getManagedSettings?: unknown }).getManagedSettings === 'function';
+}
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
@@ -581,6 +591,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async getNetworkDiagnosticsAccount(): Promise<string | undefined> {
 		return this._githubToken ? this._copilotApiService.resolveUserLogin?.(this._githubToken) : undefined;
+	}
+
+	async getManagedSettingsDiagnostics(): Promise<IAgentHostManagedSettingsSnapshot> {
+		const nodeModulesUri = FileAccess.asFileUri(getAppNodeModulesPath());
+		const cliPath = await resolveCopilotCliPath(nodeModulesUri);
+		const runtimeSdkPath = join(dirname(cliPath), 'sdk', 'index.js');
+		if (!await fileExists(runtimeSdkPath)) {
+			throw new Error(`Copilot runtime SDK not found at ${runtimeSdkPath}`);
+		}
+		const runtimeSdk: unknown = await import(pathToFileURL(runtimeSdkPath).href);
+		if (!isCopilotRuntimeManagedSettingsSdk(runtimeSdk)) {
+			throw new Error('Copilot runtime SDK does not expose getManagedSettings()');
+		}
+
+		const enterpriseHost = this._getEnterpriseHost();
+		const result = await runtimeSdk.getManagedSettings({
+			...(this._githubToken ? { token: this._githubToken } : {}),
+			...(enterpriseHost ? { host: enterpriseHost } : {}),
+		});
+		return {
+			...result.resolved,
+			...(result.account ? { account: result.account } : {}),
+		};
 	}
 
 	getCustomizations(): readonly Customization[] {

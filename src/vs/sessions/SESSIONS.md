@@ -114,6 +114,8 @@ The sessions-layer `AgentHostCustomizationService` adapts the workbench customiz
 - [Agent Host Provider](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md) — shared base + local agent host, dynamic session config, draft/graduate send flow
 - [Remote Agent Host Provider](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md) — remote connections, per-host provider instances
 
+During a CLI-managed remote-host upgrade, a passive transport transition to `disconnected` still causes an explicit reconnect when no reconnect has reached `connecting` or `connected`.
+
 ### Related Specifications
 
 - [Sessions List](SESSIONS_LIST.md) — UI surface for browsing sessions: tree widget, grouping, filtering, pinning, read/unread state, mobile adaptations

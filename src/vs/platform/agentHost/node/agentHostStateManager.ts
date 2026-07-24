@@ -21,6 +21,7 @@ import { buildAnnotationsUri, isAnnotationsUri } from '../common/annotationsUri.
 import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOptions } from './agentHostChangesetStateCache.js';
 import { ChangesSummary, ChatInteractivity, type ChatOrigin } from '../common/state/protocol/state.js';
 import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
+import { preserveProviderBackedRootConfigValues } from '../common/agentCustomizationSettings.js';
 
 export interface IAgentHostStateManagerOptions {
 	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
@@ -1155,6 +1156,12 @@ export class AgentHostStateManager extends Disposable {
 
 	private _applyAndEmit(channel: URI, action: StateAction, origin: ActionOrigin | undefined): unknown {
 		let resultingState: unknown = undefined;
+		if (action.type === ActionType.RootConfigChanged && action.replace) {
+			action = {
+				...action,
+				config: preserveProviderBackedRootConfigValues(this._rootState, action.config),
+			};
+		}
 		// Apply to state
 		if (isRootAction(action)) {
 			// `RootConfigChanged` can be a true no-op: the reducer merges/replaces

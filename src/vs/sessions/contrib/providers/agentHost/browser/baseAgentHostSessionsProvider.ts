@@ -1798,7 +1798,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	protected readonly _onDidChangeCustomizations = this._register(new Emitter<void>());
 	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
-
 	/** Last-known root config state (schema + values), seeded from `RootState.config`. */
 	protected _rootConfig: RootConfigState | undefined;
 
@@ -2821,6 +2820,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getRootConfig(): RootConfigState | undefined {
 		return this._rootConfig;
+	}
+
+	getRootState(): RootState | undefined {
+		const value = this.connection?.rootState.value;
+		return value instanceof Error ? undefined : value;
+	}
+
+	mapAgentHostResource(uri: URI): URI {
+		return this.mapWorkingDirectoryUri(uri);
 	}
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
