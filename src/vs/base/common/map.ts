@@ -770,8 +770,6 @@ export class BidirectionalMap<K, V> {
 	}
 
 	set(key: K, value: V): void {
-		// Drop the reverse mapping of the previous value when updating an existing key,
-		// otherwise a lookup by the old value would still resolve to this key.
 		if (this._m1.has(key)) {
 			this._m2.delete(this._m1.get(key)!);
 		}
