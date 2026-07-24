@@ -54,7 +54,6 @@ import { SettingsEditor2, SettingsFocusContext } from './settingsEditor2.js';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
-const SETTINGS_EDITOR_COMMAND_FOCUS_FILE = 'settings.action.focusSettingsFile';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH = 'settings.action.focusSettingsFromSearch';
 const SETTINGS_EDITOR_COMMAND_SHOW_PREVIOUS_SEARCH = 'settings.action.showPreviousSearch';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH_ON_ENTER = 'settings.action.focusSettingsFromSearchOnEnter';
@@ -644,32 +643,12 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: SETTINGS_EDITOR_COMMAND_FOCUS_FILE,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
-					keybinding: {
-						primary: KeyCode.DownArrow,
-						weight: KeybindingWeight.EditorContrib,
-						when: null
-					},
-					title: nls.localize('settings.focusFile', "Focus settings file")
-				});
-			}
-
-			run(accessor: ServicesAccessor): void {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				preferencesEditor?.navigateSearchHistoryNextOrFocusSettings();
-			}
-		}));
-
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH,
 					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
 					keybinding: {
 						primary: KeyCode.DownArrow,
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: null
+						weight: KeybindingWeight.WorkbenchContrib + 1,
+						when: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated())
 					},
 					title: nls.localize('settings.focusFile', "Focus settings file")
 				});
@@ -688,8 +667,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
 					keybinding: {
 						primary: KeyCode.UpArrow,
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: null
+						weight: KeybindingWeight.WorkbenchContrib + 1,
+						when: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated())
 					},
 					title: nls.localize('settings.showPreviousSearch', "Show Previous Search in Settings")
 				});
@@ -709,7 +688,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					keybinding: {
 						primary: KeyCode.Enter,
 						weight: KeybindingWeight.WorkbenchContrib,
-						when: null
+						when: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated())
 					},
 					title: nls.localize('settings.focusSettingsFromSearchOnEnter', "Focus First Setting from Search")
 				});
