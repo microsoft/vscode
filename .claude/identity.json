@@ -1,0 +1,14 @@
+{
+  "version": "2.0",
+  "technicalLevel": "technical",
+  "preferredStyle": {
+    "verbosity": "detailed",
+    "codeComments": true,
+    "explanations": true
+  },
+  "domains": [
+    "typescript"
+  ],
+  "suggestedBy": "ecc-tools-repo-analysis",
+  "createdAt": "2026-07-14T20:20:51.806Z"
+}
