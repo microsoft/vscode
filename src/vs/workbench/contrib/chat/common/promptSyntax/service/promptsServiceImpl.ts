@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { autorun, IReader } from '../../../../../../base/common/observable.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
+import { basename, dirname, isEqual, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
@@ -29,7 +29,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
-import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, COPILOT_CONFIG_FOLDER, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getCleanPromptName, getSkillFolderName, GITHUB_CONFIG_FOLDER, IResolvedPromptSourceFolder, isInClaudeRulesFolder } from '../config/promptFileLocations.js';
+import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, COPILOT_CONFIG_FOLDER, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getCleanPromptName, getSkillFolderName, GITHUB_CONFIG_FOLDER, IResolvedPromptSourceFolder, isInClaudeRulesFolder, VOICE_INSTRUCTIONS_FILENAME } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IWorkspaceInstructionFile, PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { evaluateApplyToPattern, PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
@@ -820,6 +820,33 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 		return result.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
+	}
+
+	public async getVoiceInstructions(token: CancellationToken): Promise<string | undefined> {
+		const userHome = await this.pathService.userHome();
+		const candidates = [joinPath(userHome, COPILOT_CONFIG_FOLDER, VOICE_INSTRUCTIONS_FILENAME)];
+		if (this.workspaceTrustService.isWorkspaceTrusted()) {
+			const workspaceRoots = await this.fileLocator.getWorkspaceFolderRoots(false);
+			candidates.push(...workspaceRoots.map(root => joinPath(root, GITHUB_CONFIG_FOLDER, VOICE_INSTRUCTIONS_FILENAME)));
+		}
+
+		const contents: string[] = [];
+		for (const candidate of candidates) {
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			try {
+				const content = (await this.fileService.readFile(candidate)).value.toString().trim();
+				if (content) {
+					contents.push(content);
+				}
+			} catch (error) {
+				if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
+					this.logger.warn(`[PromptsService] Failed to read voice instructions from ${candidate.toString()}: ${error}`);
+				}
+			}
+		}
+		return contents.length > 0 ? contents.join('\n\n') : undefined;
 	}
 
 	public getAgentFileURIFromModeFile(oldURI: URI): URI | undefined {

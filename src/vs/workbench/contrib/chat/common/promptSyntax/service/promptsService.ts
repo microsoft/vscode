@@ -713,6 +713,12 @@ export interface IPromptsService extends IDisposable {
 	listAgentInstructions(token: CancellationToken, logger?: Logger): Promise<IAgentInstructionFile[]>;
 
 	/**
+	 * Gets the combined voice customization from `~/.copilot/voice.md` and each
+	 * trusted workspace's `.github/voice.md`.
+	 */
+	getVoiceInstructions(token: CancellationToken): Promise<string | undefined>;
+
+	/**
 	 * For a chat mode file URI, return the name of the agent file that it should use.
 	 * @param oldURI
 	 */

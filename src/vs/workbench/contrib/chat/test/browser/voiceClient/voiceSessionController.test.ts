@@ -32,6 +32,7 @@ import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackSer
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
@@ -343,6 +344,9 @@ suite('VoiceSessionController', () => {
 			new TestAccessibilityService(),
 			new TestChatWidgetService(),
 			new class extends mock<INotificationService>() { }(),
+			new class extends mock<IPromptsService>() {
+				override async getVoiceInstructions(): Promise<undefined> { return undefined; }
+			}(),
 		));
 	}
 

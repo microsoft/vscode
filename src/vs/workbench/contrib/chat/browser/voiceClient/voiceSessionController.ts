@@ -9,7 +9,7 @@ import { addDisposableListener, disposableWindowInterval } from '../../../../../
 import { alert as ariaAlert } from '../../../../../base/browser/ui/aria/aria.js';
 import { localize } from '../../../../../nls.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -37,6 +37,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
 	VoiceSessionStartedClassification, VoiceSessionStartedEvent,
@@ -685,6 +686,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 
@@ -1112,12 +1114,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this.telemetryService.publicLog2<VoiceSessionStartedEvent, VoiceSessionStartedClassification>('voiceSessionStarted', { sessionIndex: this._telemetrySessionIndex });
 				}
 				this._telemetryLastConnectMs = now;
+				const voiceInstructions = await this.promptsService.getVoiceInstructions(CancellationToken.None);
 				if (isResuming) {
-					this.voiceClientService.sendResumeSession(this._buildSessionContext(), this._getMachineId());
+					this.voiceClientService.sendResumeSession(this._buildSessionContext(), this._getMachineId(), voiceInstructions);
 				} else {
 					const priorTimeline = this._pendingPriorTimeline;
 					this._pendingPriorTimeline = [];
-					this.voiceClientService.sendStartSession(this._buildSessionContext(), this._getMachineId(), priorTimeline);
+					this.voiceClientService.sendStartSession(this._buildSessionContext(), this._getMachineId(), priorTimeline, undefined, voiceInstructions);
 				}
 
 				// On a reconnect cycle, refresh the mic stream: the old MediaStream

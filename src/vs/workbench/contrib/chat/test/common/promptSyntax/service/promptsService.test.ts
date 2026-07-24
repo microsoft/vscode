@@ -238,6 +238,35 @@ suite('PromptsService', () => {
 		});
 	});
 
+	suite('voice instructions', () => {
+		test('combines user and trusted workspace voice.md files', async () => {
+			const rootFolderUri = URI.file('/workspace');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [
+				{ path: '/home/user/.copilot/voice.md', contents: ['Use short paragraphs.'] },
+				{ path: '/workspace/.github/voice.md', contents: ['Spell the product name as Contoso DB.'] },
+			]);
+
+			const instructions = await service.getVoiceInstructions(CancellationToken.None);
+
+			assert.strictEqual(instructions, 'Use short paragraphs.\n\nSpell the product name as Contoso DB.');
+		});
+
+		test('excludes workspace voice.md when the workspace is untrusted', async () => {
+			const rootFolderUri = URI.file('/workspace');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await workspaceTrustService.setWorkspaceTrust(false);
+			await mockFiles(fileService, [
+				{ path: '/home/user/.copilot/voice.md', contents: ['Use short paragraphs.'] },
+				{ path: '/workspace/.github/voice.md', contents: ['Untrusted workspace guidance.'] },
+			]);
+
+			const instructions = await service.getVoiceInstructions(CancellationToken.None);
+
+			assert.strictEqual(instructions, 'Use short paragraphs.');
+		});
+	});
+
 	suite('parse', () => {
 		test('explicit', async function () {
 			const rootFolderName = 'resolves-nested-file-references';
