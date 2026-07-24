@@ -5,12 +5,15 @@
 
 import './media/chatPet.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { GlobalPointerMoveMonitor } from '../../../../../base/browser/globalPointerMoveMonitor.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -25,6 +28,8 @@ export type ChatPetState = 'idle' | 'sleep' | 'processing' | 'complete' | 'love'
 
 const IDLE_SLEEP_DELAY = 60_000;
 const TRANSIENT_STATE_DURATION = 2_000;
+const DRAG_THRESHOLD = 2;
+const KEYBOARD_MOVE_DISTANCE = 8;
 
 export function getChatPetBuddyName(quality: string | undefined): 'buddy-idle-stable' | 'buddy-idle-insiders' {
 	return quality === 'stable' ? 'buddy-idle-stable' : 'buddy-idle-insiders';
@@ -73,6 +78,10 @@ export function getChatPetGazeDirection(cursorX: number, cursorY: number, petCen
 	];
 }
 
+export function getChatPetHorizontalPosition(left: number, minimumLeft: number, maximumLeft: number): number {
+	return Math.max(minimumLeft, Math.min(Math.max(minimumLeft, maximumLeft), left));
+}
+
 export class ChatPetWidget extends Disposable {
 
 	private readonly _button: Button;
@@ -80,18 +89,23 @@ export class ChatPetWidget extends Disposable {
 	private readonly _eyes: HTMLElement;
 	private readonly _pupils: HTMLElement[] = [];
 	private readonly _gazeScheduler: dom.AnimationFrameScheduler;
+	private readonly _dragMonitor = this._register(new GlobalPointerMoveMonitor());
 	private readonly _idleExpired = observableValue(this, false);
 	private readonly _transientState = observableValue<ChatPetState | undefined>(this, undefined);
 	private readonly _idleScheduler = this._register(new RunOnceScheduler(() => this._idleExpired.set(true, undefined), IDLE_SLEEP_DELAY));
 	private readonly _transientScheduler = this._register(new RunOnceScheduler(() => this._transientState.set(undefined, undefined), TRANSIENT_STATE_DURATION));
+	private readonly _clickSuppressionScheduler = this._register(new RunOnceScheduler(() => this._suppressNextPointerClick = false, 0));
 	private _cursorPosition: readonly [number, number] | undefined;
 	private _currentState: ChatPetState = 'idle';
 	private _motionReduced = false;
 	private _enabled = false;
 	private _enablementInitialized = false;
+	private _hasCustomPosition = false;
+	private _suppressNextPointerClick = false;
 
 	constructor(
-		parent: HTMLElement,
+		private readonly parent: HTMLElement,
+		private readonly dragBounds: HTMLElement,
 		model: IObservable<IChatModel | undefined>,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
@@ -99,11 +113,17 @@ export class ChatPetWidget extends Disposable {
 	) {
 		super();
 
-		parent.classList.add('chat-pet-host');
-		this._button = this._register(new Button(parent, {
+		this.parent.classList.add('chat-pet-host');
+		this._button = this._register(new Button(this.parent, {
 			ariaLabel: localize('chatPet.love', "Show the VS Code pet some love!"),
 		}));
 		this._button.element.classList.add('chat-pet-button');
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatPetWidget.dragBounds', () => {
+			if (this._hasCustomPosition) {
+				this._setHorizontalPosition(this._getCurrentLeft());
+			}
+		}, dom.getWindow(this._button.element)));
+		this._register(resizeObserver.observe(this.dragBounds));
 		this._image = dom.append(this._button.element, dom.$('img.chat-pet-sprite')) as HTMLImageElement;
 		this._image.alt = '';
 		this._image.setAttribute('aria-hidden', 'true');
@@ -126,6 +146,8 @@ export class ChatPetWidget extends Disposable {
 				this._finishDisable();
 			}
 		}));
+		this._register(dom.addDisposableListener(this._button.element, dom.EventType.POINTER_DOWN, event => this._startDrag(event)));
+		this._register(dom.addDisposableListener(this._button.element, dom.EventType.KEY_DOWN, event => this._onKeyDown(event)));
 
 		const defaultHoverDelegate = getDefaultHoverDelegate('element');
 		const hoverDelegate: IHoverDelegate = {
@@ -146,6 +168,11 @@ export class ChatPetWidget extends Disposable {
 
 		this._register(this._button.onDidClick(e => {
 			dom.EventHelper.stop(e, true);
+			if (this._suppressNextPointerClick && e.type !== dom.EventType.KEY_DOWN) {
+				this._suppressNextPointerClick = false;
+				this._clickSuppressionScheduler.cancel();
+				return;
+			}
 			this._showTransientState('love');
 			managedHover.show();
 			status(localize('chatPet.loved', "The VS Code pet feels loved"));
@@ -211,6 +238,74 @@ export class ChatPetWidget extends Disposable {
 				}
 			}));
 		}));
+	}
+
+	private _startDrag(event: PointerEvent): void {
+		if (!this._enabled || event.button !== 0) {
+			return;
+		}
+
+		dom.EventHelper.stop(event);
+		this._button.element.focus();
+		const startX = event.clientX;
+		const startLeft = this._getCurrentLeft();
+		let didDrag = false;
+
+		this._dragMonitor.startMonitoring(this._button.element, event.pointerId, event.buttons, moveEvent => {
+			const delta = moveEvent.clientX - startX;
+			if (!didDrag && Math.abs(delta) < DRAG_THRESHOLD) {
+				return;
+			}
+
+			if (!didDrag) {
+				didDrag = true;
+				this._button.element.classList.add('dragging');
+			}
+			dom.EventHelper.stop(moveEvent, true);
+			this._button.element.classList.toggle('resisting', this._setHorizontalPosition(startLeft + delta));
+		}, () => {
+			this._button.element.classList.remove('dragging', 'resisting');
+			if (didDrag) {
+				this._suppressNextPointerClick = true;
+				this._clickSuppressionScheduler.schedule();
+			}
+		});
+	}
+
+	private _onKeyDown(event: KeyboardEvent): void {
+		const keyboardEvent = new StandardKeyboardEvent(event);
+		let delta: number;
+		let announcement: string;
+		if (keyboardEvent.equals(KeyCode.LeftArrow)) {
+			delta = -KEYBOARD_MOVE_DISTANCE;
+			announcement = localize('chatPet.movedLeft', "VS Code pet moved left");
+		} else if (keyboardEvent.equals(KeyCode.RightArrow)) {
+			delta = KEYBOARD_MOVE_DISTANCE;
+			announcement = localize('chatPet.movedRight', "VS Code pet moved right");
+		} else {
+			return;
+		}
+
+		keyboardEvent.preventDefault();
+		keyboardEvent.stopPropagation();
+		this._setHorizontalPosition(this._getCurrentLeft() + delta);
+		status(announcement);
+	}
+
+	private _getCurrentLeft(): number {
+		return this._button.element.offsetLeft;
+	}
+
+	private _setHorizontalPosition(left: number): boolean {
+		const parentBounds = this.parent.getBoundingClientRect();
+		const bounds = this.dragBounds.getBoundingClientRect();
+		const minimumLeft = bounds.left - parentBounds.left;
+		const maximumLeft = bounds.right - parentBounds.left - this._button.element.offsetWidth;
+		const clampedLeft = getChatPetHorizontalPosition(left, minimumLeft, maximumLeft);
+		this._button.element.style.left = `${clampedLeft}px`;
+		this._button.element.style.right = 'auto';
+		this._hasCustomPosition = true;
+		return clampedLeft !== left;
 	}
 
 	private _updateGaze(): void {

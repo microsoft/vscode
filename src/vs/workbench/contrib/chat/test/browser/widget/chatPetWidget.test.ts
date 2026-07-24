@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { getChatPetBaseState, getChatPetBuddyName, getChatPetGazeDirection } from '../../../browser/widget/chatPetWidget.js';
+import { getChatPetBaseState, getChatPetBuddyName, getChatPetGazeDirection, getChatPetHorizontalPosition } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -58,6 +58,20 @@ suite('ChatPetWidget', () => {
 			[0, -1],
 			[1, -1],
 			[0, 0],
+		]);
+	});
+
+	test('clamps horizontal movement to the input bounds', () => {
+		assert.deepStrictEqual([
+			getChatPetHorizontalPosition(-20, 10, 100),
+			getChatPetHorizontalPosition(50, 10, 100),
+			getChatPetHorizontalPosition(120, 10, 100),
+			getChatPetHorizontalPosition(20, 40, 20),
+		], [
+			10,
+			50,
+			100,
+			40,
 		]);
 	});
 });

@@ -803,8 +803,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (this.location === ChatAgentLocation.Chat && !isInlineChat(this)) {
-			const petHost = this.inputPart.inputContainerElement?.parentElement ?? this.inputPart.element;
-			this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, this._viewModelObs.map(viewModel => viewModel?.model)));
+			const inputContainer = this.inputPart.inputContainerElement;
+			const petHost = inputContainer?.parentElement ?? this.inputPart.element;
+			this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, this._viewModelObs.map(viewModel => viewModel?.model)));
 		}
 
 		this.renderWelcomeViewContentIfNeeded();
