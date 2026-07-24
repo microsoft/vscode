@@ -100,7 +100,7 @@ import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } fr
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
-import { IChatModelInputState, IChatRequestModeInfo, IInputModel, logChangesToStateModel } from '../../../common/model/chatModel.js';
+import { IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IInputModel, logChangesToStateModel } from '../../../common/model/chatModel.js';
 import { filterModelsForSession, hasModelsTargetingSession, isModelHiddenInPicker, mergeModelsWithCache, shouldResetOnModelListChange } from './chatInputModelUtils.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -721,7 +721,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._modelSelectionRuntime = {
 			location: this.location,
 			getCurrentModeKind: () => this.currentModeKind,
-			getCurrentSessionType: () => this.getCurrentSessionType(),
+			getCurrentSessionType: () => this._currentSessionType ?? this.getCurrentSessionType(),
 			isEmpty: () => this._chatSessionIsEmpty,
 			getModels: sessionType => this.getModelsForSessionType(sessionType),
 			getAllModels: () => this.getAllMergedModels(),
@@ -792,8 +792,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Listen for session type changes from the welcome page delegate
 		if (this.options.sessionTypePickerDelegate?.onDidChangeActiveSessionProvider) {
 			this._register(this.options.sessionTypePickerDelegate.onDidChangeActiveSessionProvider(async (newSessionType) => {
-				// In the welcome view there is no view model yet, so `onDidChangeViewModel` won't fire; seed `_currentSessionType` so storage
-				// lookups key off the new type.
+				// Seed the destination type before the welcome widget asynchronously replaces its outgoing view model.
 				this._currentSessionType = newSessionType;
 				this.getVisibleOptionGroupsModeAndUpdateContextKeys(this.getCurrentSessionResource());
 				this.agentSessionTypeKey.set(newSessionType);
@@ -1804,6 +1803,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
+	 * If the current model is absent from the destination session's filtered pool,
+	 * re-initialize from storage to restore the user's previous selection for this
+	 * pool, then validate. Uses the filtered pool (same as `revalidateForSessionType`)
+	 * so models that are catalogued but not valid for the destination are caught even
+	 * before targeted models load.
+	 */
+	private reinitializeIfModelInvalidForPool(): void {
+		const currentModel = this._currentLanguageModel.get();
+		if (!currentModel) {
+			return;
+		}
+		const pool = this.getModelsForSessionType(this.getCurrentSessionType());
+		if (!pool.some(m => m.identifier === currentModel.identifier)) {
+			this.initSelectedModel();
+			this.checkModelInSessionPool();
+		}
+	}
+
+	/**
 	 * Reconcile the current model after an explicit session-type pick: restore persisted → best-match previous → default.
 	 */
 	private revalidateModelForSessionType(): void {
@@ -2699,10 +2717,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const store = new DisposableStore();
 		this._contextUsageDisposables.value = store;
+		let lastRequest = model.lastRequest;
+		const observePreviousResponse = (request: IChatRequestModel | undefined) => {
+			if (request?.response) {
+				store.add(request.response.onDidChange(() => this.contextUsageWidget?.updateSessionCost(model.sessionCost)));
+			}
+		};
+		for (const request of model.getRequests().slice(0, -1)) {
+			observePreviousResponse(request);
+		}
 
 		store.add(model.onDidChange(e => {
-			if (e.kind === 'addRequest' || e.kind === 'completedRequest') {
-				this.contextUsageWidget?.update(model.lastRequest, model.sessionCost);
+			if (e.kind === 'addRequest') {
+				observePreviousResponse(lastRequest);
+				lastRequest = e.request;
+				this.contextUsageWidget?.update(model.lastRequest);
+			} else if (e.kind === 'completedRequest') {
+				this.contextUsageWidget?.update(model.lastRequest);
 			}
 		}));
 
@@ -2711,12 +2742,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		store.add(this.languageModelsService.onDidChangeLanguageModels(() => {
 			const lastRequest = model.lastRequest;
 			if (lastRequest?.modelId) {
-				this.contextUsageWidget?.update(lastRequest, model.sessionCost);
+				this.contextUsageWidget?.update(lastRequest);
 			}
 		}));
 
 		// Initial update
-		this.contextUsageWidget.update(model.lastRequest, model.sessionCost);
+		this.contextUsageWidget.update(model.lastRequest);
 	}
 
 	private handleViewModelChange(e: IChatWidgetViewModelChangeEvent): void {
@@ -2802,6 +2833,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			logChangesToStateModel(this._inputModel, `[CVVM].2 onDidChangeViewModel -> session change: ${this._currentSessionType} -> ${newSessionType} in ${this._currentSessionKey}, ${e.currentSessionResource.toString()}`, undefined, this._inputModel?.state.get(), this.logService);
 			this._currentSessionTypeObservable.set(newSessionType, transaction);
 			this.restorePerTypeModelAfterViewModelAssignment();
+			// Re-initialize from storage first so the user's previous selection for
+			// this pool is restored
+			this.reinitializeIfModelInvalidForPool();
 		}
 	}
 

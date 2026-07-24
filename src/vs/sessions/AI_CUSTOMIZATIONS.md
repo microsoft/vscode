@@ -81,6 +81,8 @@ Manual automation runs announce that they started once session dispatch commits,
 
 Automations use a discriminated target that is either workspace-backed or a workspace-less quick chat. The workspace dropdown owns both choices: selecting **No workspace** switches to the existing quick-chat provider/session-type catalog, while selecting a folder restores repository configuration. Workspace-less targets display and announce as `without a workspace` in the list and cannot carry folder, isolation, or branch configuration; workspace-backed targets require a folder, with Worktree isolation requiring its base branch. Ledger schema v3 persists this target union and migrates schema-v1/v2 flat records while preserving valid workspace-backed targets.
 
+Automation rows use dynamic heights. The management editor propagates both editor-pane and section visibility to the Automations widget; while hidden, the widget updates its view model but defers list splices and layout. Revealing the section commits the latest entries and forces a fresh row measurement so `display:none` cannot cache zero-height rows.
+
 ### IAICustomizationWorkspaceService
 
 The `IAICustomizationWorkspaceService` interface controls per-window behavior:

@@ -209,6 +209,7 @@ import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.
 import { ChatWidgetService } from './widget/chatWidgetService.js';
 import { ILanguageModelsConfigurationService } from '../common/languageModelsConfiguration.js';
 import { ChatWindowNotifier } from './chatWindowNotifier.js';
+import { ChatPetService, IChatPetService } from './chatPetService.js';
 import { ChatRepoInfoContribution } from './chatRepoInfo.js';
 import { VALID_PROMPT_FOLDER_PATTERN } from '../common/promptSyntax/utils/promptFilesLocator.js';
 import { ChatTipService, IChatTipService } from './chatTipService.js';
@@ -282,7 +283,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'dictation.experimental.llmCleanup': {
 			type: 'boolean',
-			markdownDescription: nls.localize('dictation.experimental.llmCleanup', "Experimental: pass the final dictation transcript through a small language model to restore punctuation, capitalization, and paragraph breaks. Requires Copilot to be enabled; the transcript is sent to the language model for cleanup. Falls back to the raw transcript when no model is available."),
+			markdownDescription: nls.localize('dictation.experimental.llmCleanup', "Experimental: periodically refine finalized text while dictating, then pass the final transcript through a small language model to restore punctuation, capitalization, paragraphs, and lists. Requires Copilot to be enabled; the transcript is sent to the language model for cleanup. Falls back to the raw transcript when no model is available."),
 			default: true,
 			tags: ['experimental']
 		},
@@ -2866,6 +2867,7 @@ registerSingleton(IChatSpeechToTextService, ChatSpeechToTextService, Instantiati
 registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
+registerSingleton(IChatPetService, ChatPetService, InstantiationType.Delayed);
 registerSingleton(IQuickChatService, QuickChatService, InstantiationType.Delayed);
 registerSingleton(IChatAccessibilityService, ChatAccessibilityService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetHistoryService, ChatWidgetHistoryService, InstantiationType.Delayed);

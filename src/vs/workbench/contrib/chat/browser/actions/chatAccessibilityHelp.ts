@@ -79,6 +79,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			content.push(localize('chat.agentHostApprovalsPicker', 'When an agent session exposes approval presets, use Tab to reach the Approvals picker and choose how it handles workspace access, commands, and the internet.'));
 		}
 		content.push(localize('chat.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use enter or the submit button to run a new request.'));
+		content.push(localize('chat.vscodePet', 'Type /vscode-pet to show or hide the VS Code pet above the input. Drag it horizontally to reposition it, or use Tab to focus it and the left and right arrow keys to move it. Press Enter or Space to show it some love.'));
 		if (supportsFileReferences) {
 			content.push(localize('chat.attachments.inlineReferences', 'To mention an attached context item at a specific position without removing it from the attached context, type # or @ and select the attachment from the suggestions.'));
 			content.push(localize('chat.attachments.inlineReferenceHover', 'To inspect an inline attachment reference, place the cursor on it and invoke Show or Focus Hover{0}. Image references include a preview, while file and folder references include their path.', '<keybinding:editor.action.showHover>'));

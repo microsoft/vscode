@@ -168,7 +168,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async deleteSession(): Promise<void> { }
 	override async deleteSessions(_sessionIds: readonly string[]): Promise<void> { }
 	override async deleteChat(): Promise<boolean> { return true; }
-	override deleteNewSession(): void { }
+	override deleteNewSession(_sessionId: string): void { }
 	override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return this._session; }
 	override async createNewChat(): Promise<IChat> { return this._session.mainChat.get(); }
 	override async forkChat(_sessionId: string, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
@@ -1433,6 +1433,71 @@ suite('SessionsManagementService', () => {
 		service.discardNewSession();
 
 		assert.deepStrictEqual(discarded, ['s1']);
+	});
+
+	test('createNewSession fires replacement before publishing the new draft', () => {
+		const drafts = [
+			stubSession({ sessionId: 's1', providerId: 'test' }),
+			stubSession({ sessionId: 's2', providerId: 'test' }),
+		];
+		const deleted: string[] = [];
+		let createIndex = 0;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override createNewSession(): ISession { return drafts[createIndex++]; }
+			override deleteNewSession(sessionId: string): void { deleted.push(sessionId); }
+		}(drafts[0]);
+		const { service } = createSessionsManagementService(drafts[0], disposables, provider);
+
+		const replacements: { from: string; to: string; currentDraft: string | undefined }[] = [];
+		disposables.add(service.onDidReplaceNewDraftSession(({ from, to }) => {
+			replacements.push({ from: from.sessionId, to: to.sessionId, currentDraft: service.newSession.get()?.sessionId });
+		}));
+
+		service.createNewSession(URI.parse('test:///folder'));
+		service.createNewSession(URI.parse('test:///folder'));
+
+		assert.deepStrictEqual({
+			replacements,
+			deleted,
+			currentDraft: service.newSession.get()?.sessionId,
+		}, {
+			replacements: [{ from: 's1', to: 's2', currentDraft: 's1' }],
+			deleted: ['s1'],
+			currentDraft: 's2',
+		});
+	});
+
+	test('createNewSession keeps the previous draft when replacement creation fails', () => {
+		const draft = stubSession({ sessionId: 's1', providerId: 'test' });
+		let createCount = 0;
+		const deleted: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override createNewSession(): ISession {
+				if (createCount++ > 0) {
+					throw new Error('create failed');
+				}
+				return draft;
+			}
+			override deleteNewSession(sessionId: string): void { deleted.push(sessionId); }
+		}(draft);
+		const { service } = createSessionsManagementService(draft, disposables, provider);
+		const replacements: string[] = [];
+		disposables.add(service.onDidReplaceNewDraftSession(({ from, to }) => replacements.push(`${from.sessionId}->${to.sessionId}`)));
+
+		service.createNewSession(URI.parse('test:///folder'));
+		assert.throws(() => service.createNewSession(URI.parse('test:///folder')), /create failed/);
+
+		assert.deepStrictEqual({
+			currentDraft: service.newSession.get()?.sessionId,
+			replacements,
+			deleted,
+		}, {
+			currentDraft: 's1',
+			replacements: [],
+			deleted: [],
+		});
 	});
 
 	test('sendNewChatRequest clears the draft without firing onDidDiscardNewSession', async () => {

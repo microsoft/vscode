@@ -1237,7 +1237,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				project,
 				summary: s.summary,
 				workingDirectory,
-				customizationDirectory: metadata.customizationDirectory,
 			};
 			return result;
 		}));
@@ -1274,7 +1273,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			project,
 			summary: sessionMetadata?.summary,
 			workingDirectory,
-			customizationDirectory: storedMetadata?.customizationDirectory,
 		};
 	}
 

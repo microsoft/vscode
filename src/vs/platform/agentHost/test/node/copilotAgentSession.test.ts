@@ -28,7 +28,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, mergeSessionWithDefaultChat, readUsageInfoMeta, SessionStatus, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, mergeSessionWithDefaultChat, readUsageInfoMeta, SessionStatus, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
@@ -2975,6 +2975,56 @@ suite('CopilotAgentSession', () => {
 			]);
 		});
 
+		test('completed non-pty shell calls retire their distinct live output resources', async () => {
+			const { session, mockSession, signals, terminalManager } = await createAgentSession(disposables);
+			const terminalUris = ['tc-retire-1', 'tc-retire-2', 'tc-retire-3']
+				.map(toolCallId => buildNonPtyShellTerminalUri(session.sessionUri, toolCallId));
+
+			for (let i = 0; i < terminalUris.length; i++) {
+				const toolCallId = `tc-retire-${i + 1}`;
+				const output = `output ${i + 1}\n`;
+				mockSession.fire('tool.execution_start', {
+					toolCallId,
+					toolName: 'bash',
+					arguments: { command: `command-${i + 1}` },
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+				mockSession.fire('tool.execution_partial_result', {
+					toolCallId,
+					partialOutput: output,
+				} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+				mockSession.fire('tool.execution_complete', {
+					toolCallId,
+					success: true,
+					result: {
+						content: output,
+						contents: [{ type: 'shell_exit', shellId: `${i + 1}`, exitCode: 0, outputPreview: output }],
+					},
+				} as SessionEventPayload<'tool.execution_complete'>['data']);
+			}
+
+			const completions = getActions(signals)
+				.filter((action): action is ChatToolCallCompleteAction => action.type === ActionType.ChatToolCallComplete);
+			assert.deepStrictEqual({
+				terminalResults: completions.map(action => {
+					const terminal = action.result.content?.find(content => content.type === ToolResultContentType.Terminal) as ToolResultTerminalContent | undefined;
+					return {
+						resource: terminal?.resource,
+						preview: terminal?.result?.preview,
+					};
+				}),
+				disposed: terminalManager.disposedTerminals,
+			}, {
+				terminalResults: terminalUris.map((resource, i) => ({
+					resource,
+					preview: `output ${i + 1}\n`,
+				})),
+				disposed: terminalUris,
+			});
+
+			session.dispose();
+			assert.deepStrictEqual(terminalManager.disposedTerminals, terminalUris);
+		});
+
 		test('tool partial results stream into an output-only terminal channel', async () => {
 			const { session, mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
 			session.resetTurnState('turn-stream');
@@ -3028,6 +3078,7 @@ suite('CopilotAgentSession', () => {
 				{ uri: terminalUri, data: 'tick 2\n' },
 			]);
 			assert.deepStrictEqual(terminalManager.outputTerminalsFinalized, [{ uri: terminalUri, exitCode: 0 }]);
+			assert.deepStrictEqual(terminalManager.disposedTerminals, [terminalUri]);
 
 			// shell_exit completion data lands on the streamed terminal block.
 			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction;
@@ -3096,24 +3147,52 @@ suite('CopilotAgentSession', () => {
 				},
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 
-			// The channel advertised by the completed tool call exists, carries
-			// the preview, and is terminated even though no partial result ever
-			// streamed into it.
+			// Completion creates, seeds, and finalizes the channel before the
+			// static result is published and the live resource is retired.
 			assert.deepStrictEqual({
 				created: terminalManager.outputTerminalsCreated.map(t => t.uri),
 				data: terminalManager.outputTerminalData,
 				finalized: terminalManager.outputTerminalsFinalized,
+				disposed: terminalManager.disposedTerminals,
 			}, {
 				created: [terminalUri],
 				data: [{ uri: terminalUri, data: 'ok\n' }],
 				finalized: [{ uri: terminalUri, exitCode: 0 }],
+				disposed: [terminalUri],
 			});
 			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction;
 			assert.ok(completed.result.content?.some(c => c.type === ToolResultContentType.Terminal && c.resource === terminalUri));
 		});
 
-		test('tool success without shell_exit does not fabricate a process exit', async () => {
+		test('empty shell preview still retires the completed output channel', async () => {
 			const { mockSession, terminalManager } = await createAgentSession(disposables);
+			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-empty-preview';
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-empty-preview',
+				toolName: 'bash',
+				arguments: { command: 'true' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-empty-preview',
+				success: true,
+				result: {
+					content: '',
+					contents: [{ type: 'shell_exit', shellId: '0', exitCode: 0, outputPreview: '' }],
+				},
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			assert.deepStrictEqual({
+				finalized: terminalManager.outputTerminalsFinalized,
+				disposed: terminalManager.disposedTerminals,
+			}, {
+				finalized: [{ uri: terminalUri, exitCode: 0 }],
+				disposed: [terminalUri],
+			});
+		});
+
+		test('tool success without shell_exit does not fabricate a process exit', async () => {
+			const { session, mockSession, terminalManager } = await createAgentSession(disposables);
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-err',
@@ -3148,13 +3227,20 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({
 				data: terminalManager.outputTerminalData,
 				finalized: terminalManager.outputTerminalsFinalized,
+				disposed: terminalManager.disposedTerminals,
 			}, {
 				data: [
 					{ uri: 'agenthost-terminal://shell/test-session-1/tc-err', data: 'boom\n' },
 					{ uri: 'agenthost-terminal://shell/test-session-1/tc-ok', data: 'fine\n' },
 				],
 				finalized: [],
+				disposed: [],
 			});
+			session.dispose();
+			assert.deepStrictEqual(terminalManager.disposedTerminals, [
+				'agenthost-terminal://shell/test-session-1/tc-err',
+				'agenthost-terminal://shell/test-session-1/tc-ok',
+			]);
 		});
 
 		test('stable shell completion fallback finalizes when the SDK strips shell_exit', async () => {
@@ -3179,7 +3265,13 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
 
-			assert.deepStrictEqual(terminalManager.outputTerminalsFinalized, [{ uri: terminalUri, exitCode: 127 }]);
+			assert.deepStrictEqual({
+				finalized: terminalManager.outputTerminalsFinalized,
+				disposed: terminalManager.disposedTerminals,
+			}, {
+				finalized: [{ uri: terminalUri, exitCode: 127 }],
+				disposed: [terminalUri],
+			});
 			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction;
 			assert.ok(completed.result.content?.some(content =>
 				content.type === ToolResultContentType.Terminal
@@ -3222,6 +3314,34 @@ suite('CopilotAgentSession', () => {
 				data: terminalManager.outputTerminalData,
 				finalized: terminalManager.outputTerminalsFinalized,
 			}, { created: [], data: [], finalized: [] });
+		});
+
+		test('background shell output remains live until its session is disposed', async () => {
+			const { session, mockSession, terminalManager } = await createAgentSession(disposables);
+			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-background-stream';
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-background-stream',
+				toolName: 'bash',
+				arguments: { command: 'long-running-command' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_partial_result', {
+				toolCallId: 'tc-background-stream',
+				partialOutput: 'started\n',
+			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-background-stream',
+				success: true,
+				result: { content: '<command started in background with shellId: shell-bg>' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			mockSession.fire('system.notification', {
+				content: '<system_notification>Shell command completed</system_notification>',
+				kind: { type: 'shell_completed', shellId: 'shell-bg', exitCode: 0, description: 'long-running-command' },
+			} as SessionEventPayload<'system.notification'>['data']);
+
+			assert.deepStrictEqual(terminalManager.disposedTerminals, []);
+			session.dispose();
+			assert.deepStrictEqual(terminalManager.disposedTerminals, [terminalUri]);
 		});
 
 		test('completions without partials or shell_exit never create output channels', async () => {
@@ -3339,7 +3459,7 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('live tool_complete maps SDK shell_exit content to terminal completion', async () => {
-			const { mockSession, signals, terminalManager } = await createAgentSession(disposables);
+			const { session, mockSession, signals, terminalManager } = await createAgentSession(disposables);
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-shell-exit',
@@ -3378,11 +3498,15 @@ suite('CopilotAgentSession', () => {
 				created: terminalManager.outputTerminalsCreated.map(t => t.uri),
 				data: terminalManager.outputTerminalData,
 				finalized: terminalManager.outputTerminalsFinalized,
+				disposed: terminalManager.disposedTerminals,
 			}, {
 				created: ['agenthost-terminal://shell/test-session-1/tc-shell-exit'],
 				data: [],
 				finalized: [{ uri: 'agenthost-terminal://shell/test-session-1/tc-shell-exit', exitCode: 127 }],
+				disposed: [],
 			});
+			session.dispose();
+			assert.deepStrictEqual(terminalManager.disposedTerminals, ['agenthost-terminal://shell/test-session-1/tc-shell-exit']);
 		});
 
 		test('live task_complete emits root markdown instead of a tool call', async () => {

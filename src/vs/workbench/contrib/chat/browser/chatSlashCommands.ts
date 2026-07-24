@@ -41,6 +41,7 @@ import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatConte
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from './aiCustomization/aiCustomizationManagement.js';
+import { IChatPetService } from './chatPetService.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
 
@@ -59,10 +60,21 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IAgentHostUntitledProvisionalSessionService agentHostProvisionalService: IAgentHostUntitledProvisionalSessionService,
 		@IAgentHostSessionWorkingDirectoryResolver agentHostWorkingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IChatPetService chatPetService: IChatPetService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'vscode-pet',
+			detail: nls.localize('vscodePet', "Toggle the VS Code pet"),
+			sortText: 'z3_vscodePet',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			chatPetService.toggle();
+		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'clear',
 			detail: nls.localize('clear', "Start a new chat and archive the current one"),

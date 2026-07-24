@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, observableValueOpts, transaction, waitForState, autorun } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableValueOpts, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -1328,6 +1328,8 @@ class NewSession extends Disposable {
 	private readonly _title: ISettableObservable<string>;
 	private readonly _modelId: ISettableObservable<string | undefined>;
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
+	private readonly _changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
+	private readonly _isActiveSessionObs: IObservable<boolean>;
 	private readonly _loading: ISettableObservable<boolean>;
 	private readonly _mainChat: ISettableObservable<IChat>;
 	private _selectedModelId: string | undefined;
@@ -1379,7 +1381,11 @@ class NewSession extends Disposable {
 	private readonly _logService: ILogService;
 	private readonly _providerId: string;
 
-	constructor(ctx: INewSessionConstructionContext) {
+	constructor(
+		ctx: INewSessionConstructionContext,
+		private readonly _options: IAgentHostAdapterOptions,
+		@ISessionsService sessionsService: ISessionsService,
+	) {
 		super();
 		const workspaceUri = ctx.workspace?.folders[0]?.root;
 		this._kind = sessionKind(!!ctx.quickChat);
@@ -1396,6 +1402,7 @@ class NewSession extends Disposable {
 		this._initialActiveClient = ctx.activeClient;
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
+		this._isActiveSessionObs = derived(this, reader => isEqual(sessionsService.activeSession.read(reader)?.resource, resource));
 		this._status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
 		this._title = observableValue<string>(this, '');
 		const title = this._title;
@@ -1430,7 +1437,6 @@ class NewSession extends Disposable {
 		const authPending = ctx.authenticationPending;
 		const loading = this._loading;
 		const chats = this._mainChat.map(c => [c]);
-		const changesets = constObservable([]);
 		this.session = {
 			sessionId: `${ctx.providerId}:${resource.toString()}`,
 			resource,
@@ -1443,7 +1449,7 @@ class NewSession extends Disposable {
 			title,
 			updatedAt,
 			status: this._status,
-			changesets,
+			changesets: this._changesets,
 			changes,
 			modelId: this._modelId,
 			mode,
@@ -1664,13 +1670,27 @@ class NewSession extends Disposable {
 			if (onSessionState) {
 				const initial = ref.object.value;
 				if (initial && !(initial instanceof Error)) {
+					this.updateChangesets(initial.changesets);
 					onSessionState(this.sessionId, initial);
 				}
 				this._stateListener.value = ref.object.onDidChange(state => {
+					this.updateChangesets(state.changesets);
 					onSessionState(this.sessionId, state);
 				});
 			}
 		})();
+	}
+
+	private updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
+		if (!changesetsMetadata) {
+			return;
+		}
+
+		const rawId = AgentSession.id(this.session.resource);
+		const sessionUri = AgentSession.uri(this.session.sessionType, rawId);
+		const changesets = createChangesets(sessionUri, this._options, this._isActiveSessionObs, changesetsMetadata);
+
+		this._changesets.set(changesets, undefined);
 	}
 
 	/**
@@ -2309,7 +2329,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// composer re-seeds a fresh draft).
 		const connection = this.connection;
 		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
-		const newSession = new NewSession({
+		const newSession = this._instantiationService.createInstance(NewSession, {
 			workspace,
 			quickChat,
 			sessionType,
@@ -2327,7 +2347,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			activeClient: connection
 				? this._activeClientService.getActiveClient(resourceScheme, connection.clientId)
 				: undefined,
-		});
+		}, {
+			icon: this.iconForAgentProvider(sessionType.id) ?? this.icon,
+			loading: this.authenticationPending,
+			mapDiffUri: this._diffUriMapper(),
+			gitHubService: this._gitHubService,
+			instantiationService: this._instantiationService,
+			getConnection: () => this.connection,
+			...this._adapterOptions(),
+		} satisfies IAgentHostAdapterOptions);
 		this._newSessions.set(newSession.sessionId, newSession);
 		this._onDidChangeSessionConfig.fire(newSession.sessionId);
 

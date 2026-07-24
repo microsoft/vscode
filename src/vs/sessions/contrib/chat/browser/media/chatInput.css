@@ -32,6 +32,11 @@
 	border-color: var(--vscode-agentsChatInput-border);
 }
 
+.new-chat-input-area-wrapper {
+	position: relative;
+	width: 100%;
+}
+
 .new-chat-input-area {
 	position: relative;
 	width: 100%;

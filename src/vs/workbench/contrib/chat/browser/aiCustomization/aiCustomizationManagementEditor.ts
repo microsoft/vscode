@@ -1713,9 +1713,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.pluginContentContainer) {
 			this.pluginContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isPluginsSection ? '' : 'none';
 		}
-		if (this.automationsContentContainer) {
-			this.automationsContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isAutomationsSection ? '' : 'none';
-		}
+		this.updateAutomationsContentVisibility(!isEditorMode && !isMigrationMode && !isDetailMode && isAutomationsSection);
 		if (this.pluginDetailContainer) {
 			this.pluginDetailContainer.style.display = isPluginDetailMode ? '' : 'none';
 		}
@@ -1735,6 +1733,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.dimension) {
 				this.layout(this.dimension);
 			}
+		}
+	}
+
+	private updateAutomationsContentVisibility(sectionVisible: boolean): void {
+		if (!this.automationsContentContainer) {
+			return;
+		}
+
+		if (sectionVisible) {
+			this.automationsContentContainer.style.display = '';
+			this.automationsListWidget?.setVisible(this.isVisible());
+		} else {
+			this.automationsListWidget?.setVisible(false);
+			this.automationsContentContainer.style.display = 'none';
 		}
 	}
 
@@ -1908,6 +1920,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.workspaceService.clearOverrideProjectRoot();
 		this.disposeBuiltinEditingSessions();
 		super.clearInput();
+	}
+
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
+		this.updateAutomationsContentVisibility(this.viewMode === 'list' && this.selectedSection === AICustomizationManagementSection.Automations);
+		if (visible && this.dimension) {
+			this.layout(this.dimension);
+		}
 	}
 
 	override layout(dimension: DOM.Dimension): void {

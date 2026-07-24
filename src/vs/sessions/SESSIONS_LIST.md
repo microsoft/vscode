@@ -37,7 +37,7 @@ Each session row displays:
 
 Quick-chat rows (`.session-item.quick-chat`, driven by the reactive `ISession.isQuickChat` observable) are single-line entries: the details (second) row is hidden entirely and its content is never built — smaller icon, one line of title only, tighter row height (see `SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT`). Regular sessions keep the standard two-line row (title + details row).
 
-Continuous row animations preserve their existing appearance while limiting rendering work: the title shimmer follows the same three-second path with at most 60 visual updates per second, and both it and the shared pixel spinner pause outside the viewport and whenever their document is hidden.
+Continuous row animations preserve their existing appearance while limiting rendering work: the title shimmer follows the same three-second path with at most 60 visual updates per second, and both it and the shared pixel spinner pause outside the viewport and whenever their document is hidden. Status icons cross-fade only for state changes within the same session; when virtualization rebinds a row template to another session, the new icon renders immediately so stale status is never shown.
 
 `SessionsFlatList` reuses the same session row renderer for sectionless surfaces, including the approval row and dynamic row height updates. Consumers that size their own container listen for content-height changes and relayout the list. When embedded inside another hover, consumers disable row hovers so moving over the list does not replace the parent hover.
 
@@ -62,9 +62,9 @@ Two grouping modes (user-switchable):
 - **By Workspace** (default) — user groups and one section per workspace label share a single, freely-reorderable user-managed order below Pinned. By default groups come first and workspaces are alphabetical ("Unknown" workspace last) until the user drags them.
 - **By Date** — user groups form a contiguous, user-ordered block directly below Pinned; the non-grouped sessions follow in the fixed date sections (Recent, Older), where Recent holds up to 10 sessions from the last 7 days and Older holds the rest. Groups never mix into the date sections.
 
-User groups are **fully user-managed**: their order is owned by `ISessionSectionOrderService`, defaults to newest-first, and is shared across both grouping modes (it no longer derives from the recency of a group's member sessions). Groups remain visible and persisted until explicitly deleted. A group with no currently-visible member rows renders a muted **"No session" placeholder row** like the empty Chats section; this includes genuinely empty groups and groups whose members currently render in Pinned/Done or are hidden by a filter.
+User groups are **fully user-managed**: their order is owned by `ISessionSectionOrderService`, defaults to newest-first, and is shared across both grouping modes (it no longer derives from the recency of a group's member sessions). Groups remain visible and persisted until explicitly deleted. A group with no currently-visible member rows renders a muted **"No session" placeholder row** like the empty Chats section; its hover briefly explains that sessions can be added through the session context menu or drag and drop. This includes genuinely empty groups and groups whose members currently render in Pinned or are hidden by a filter. Archiving a session removes its group membership, so a group whose last member is marked done becomes empty and can be deleted.
 
-Archived sessions always go to the "Done" section regardless of grouping mode. Archive wins over pin — an archived session is never shown in Pinned.
+Archived sessions always go to the "Done" section regardless of grouping mode. Archive wins over pin — an archived session is never shown in Pinned — and archiving removes the session from any user-created group. This cleanup also applies when an archived session is added by a provider and when persisted group state loads. Restoring the session does not restore its former group membership.
 
 ### Sorting
 
@@ -185,7 +185,7 @@ The sessions list defines menu IDs that contributions can target to add actions.
 
 | Menu | Constant | Where it appears | Use for |
 |------|----------|------------------|---------|
-| `SessionGroupToolbar` | `SessionGroupToolbarMenuId` | Toolbar on user-created group headers | Group-scoped actions: "Mark All as Done" when the group has visible sessions, "Delete Group" when it has no members, and "New Session" (opens the new-session composer and joins the started session to the group). A group whose members are all pinned, archived, or filtered out shows neither destructive action. The "New Session" intent is recorded via `ISessionGroupsService.setPendingNewSessionGroup` and bound to the committed session when it is started; abandoning the new session clears it. |
+| `SessionGroupToolbar` | `SessionGroupToolbarMenuId` | Toolbar on user-created group headers | Group-scoped actions: "Mark All as Done" when the group has visible sessions, "Delete Group" when it has no members, and "New Session" (opens the new-session composer and joins the started session to the group). A group whose members are all pinned or filtered out shows neither destructive action; archived sessions are removed from the group. The "New Session" intent is recorded via `ISessionGroupsService.setPendingNewSessionGroup` and bound to the committed session when it is started; abandoning the new session clears it. |
 
 ### View Title Menus
 

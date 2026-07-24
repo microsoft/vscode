@@ -265,6 +265,7 @@ suite('AutomationsListWidget', () => {
 		instantiation.stub(IConfigurationService, configService);
 
 		const widget = teardown.add(instantiation.createInstance(AutomationsListWidget));
+		widget.setVisible(true);
 		return { widget, service, runner, dialog, workspace, configService, automationDialogService };
 	}
 
@@ -293,6 +294,27 @@ suite('AutomationsListWidget', () => {
 		assert.strictEqual(entries.length, 2);
 		const names = entries.map(e => e.automation.name).sort();
 		assert.deepStrictEqual(names, ['First', 'Second']);
+	});
+
+	test('defers list updates while hidden and commits the latest entries when shown', async () => {
+		const { widget, service } = setup();
+		await service.createAutomation({ name: 'First', prompt: 'p1', schedule: hourly(), target: workspaceTarget() });
+
+		widget.setVisible(false);
+		await service.createAutomation({ name: 'Second', prompt: 'p2', schedule: hourly(), target: workspaceTarget() });
+		const committedItemCountWhileHidden = widget.itemCount;
+
+		widget.setVisible(true);
+
+		assert.deepStrictEqual({
+			committedItemCountWhileHidden,
+			visibleItemCount: widget.itemCount,
+			names: widget.getDisplayEntriesForTest().map(entry => entry.automation.name),
+		}, {
+			committedItemCountWhileHidden: 1,
+			visibleItemCount: 2,
+			names: ['Second', 'First'],
+		});
 	});
 
 	test('disabled automations surface in the view-model as not enabled', async () => {

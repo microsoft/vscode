@@ -1127,11 +1127,11 @@ export class AgentService extends Disposable implements IAgentService {
 			// don't see `Ready` until the agent actually has an SDK
 			// session, working directory, etc.
 			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
-
-			// Refresh the git state for the session.
-			const workingDirectory = created.workingDirectory ?? config?.workingDirectory;
-			void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
 		}
+
+		// Refresh the git state for the session.
+		const workingDirectory = created.workingDirectory ?? config?.workingDirectory;
+		void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
 
 		return session;
 	}

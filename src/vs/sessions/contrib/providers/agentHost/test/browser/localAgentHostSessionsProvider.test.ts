@@ -1797,6 +1797,41 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.ok(fired > after, 'expected onDidChangeCustomAgents to fire again on a second update');
 	});
 
+	test('NewSession releases observed changeset subscriptions when inactive', async () => {
+		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/proj'), sessionTypeId);
+		await timeout(0);
+
+		activeSession.set(new class extends mock<IActiveSession>() {
+			override readonly resource = session.resource;
+		}(), undefined);
+		disposables.add(autorun(reader => {
+			for (const changeset of session.changesets?.read(reader) ?? []) {
+				changeset.changes.read(reader);
+			}
+		}));
+
+		const backendUri = agentHost.createdSessionUris.at(-1)!;
+		const changesetUri = `${backendUri}/changeset/uncommitted`;
+		agentHost.setSessionState(AgentSession.id(backendUri), sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			changesets: [
+				{ label: 'Uncommitted Changes', uriTemplate: changesetUri, changeKind: 'uncommitted' },
+			],
+		});
+		assert.strictEqual(agentHost.sessionSubscribeCounts.get(changesetUri), 1);
+
+		activeSession.set(undefined, undefined);
+		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(changesetUri), 1);
+	});
+
 	test('NewSession dispose clears _lastSessionStates entry and fires onDidChangeCustomAgents', async () => {
 		const provider = createProvider(disposables, agentHost);
 		const sessionTypeId = provider.sessionTypes[0].id;

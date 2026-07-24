@@ -8,7 +8,7 @@ import * as cssValue from '../../../../base/browser/cssValue.js';
 import { DeferredPromise, timeout, type MaybePromise } from '../../../../base/common/async.js';
 import { debounce, memoize } from '../../../../base/common/decorators.js';
 import { DynamicListEventMultiplexer, Emitter, Event, IDynamicListEventMultiplexer } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -74,7 +74,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	private _isShuttingDown: boolean = false;
 	private _backgroundedTerminalInstances: IBackgroundTerminal[] = [];
-	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
+	private readonly _backgroundedTerminalDisposables = this._register(new DisposableMap<number>());
 	private _processSupportContextKey: IContextKey<boolean>;
 
 	private _primaryBackend?: ITerminalBackend;
@@ -1075,15 +1075,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		if (shellLaunchConfig.hideFromUser) {
 			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, location);
 			this._backgroundedTerminalInstances.push({ instance, terminalLocationOptions: options?.location });
-			this._backgroundedTerminalDisposables.set(instance.instanceId, [
-				instance.onDisposed(instance => {
-					const idx = this._backgroundedTerminalInstances.findIndex(bg => bg.instance === instance);
-					if (idx !== -1) {
-						this._backgroundedTerminalInstances.splice(idx, 1);
-					}
-					this._onDidDisposeInstance.fire(instance);
-				})
-			]);
+			this._backgroundedTerminalDisposables.set(instance.instanceId, instance.onDisposed(instance => this._onBackgroundTerminalDisposed(instance)));
 			this._onDidChangeInstances.fire();
 			return instance;
 		}
@@ -1322,22 +1314,18 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 		// Track in background
 		this._backgroundedTerminalInstances.push({ instance, terminalLocationOptions: instance.target === TerminalLocation.Editor ? { viewColumn: ACTIVE_GROUP } : undefined });
-		this._backgroundedTerminalDisposables.set(instance.instanceId, [
-			instance.onDisposed(instance => {
-				const idx = this._backgroundedTerminalInstances.findIndex(bg => bg.instance === instance);
-				if (idx !== -1) {
-					this._backgroundedTerminalInstances.splice(idx, 1);
-				}
-				const disposables = this._backgroundedTerminalDisposables.get(instance.instanceId);
-				if (disposables) {
-					dispose(disposables);
-				}
-				this._backgroundedTerminalDisposables.delete(instance.instanceId);
-				this._onDidDisposeInstance.fire(instance);
-			})
-		]);
+		this._backgroundedTerminalDisposables.set(instance.instanceId, instance.onDisposed(instance => this._onBackgroundTerminalDisposed(instance)));
 
 		this._onDidChangeInstances.fire();
+	}
+
+	private _onBackgroundTerminalDisposed(instance: ITerminalInstance): void {
+		const index = this._backgroundedTerminalInstances.findIndex(backgrounded => backgrounded.instance === instance);
+		if (index !== -1) {
+			this._backgroundedTerminalInstances.splice(index, 1);
+		}
+		this._backgroundedTerminalDisposables.deleteAndDispose(instance.instanceId);
+		this._onDidDisposeInstance.fire(instance);
 	}
 
 	public async showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): Promise<void> {
@@ -1347,11 +1335,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 		const backgroundTerminal = this._backgroundedTerminalInstances[index];
 		this._backgroundedTerminalInstances.splice(index, 1);
-		const disposables = this._backgroundedTerminalDisposables.get(instance.instanceId);
-		if (disposables) {
-			dispose(disposables);
-		}
-		this._backgroundedTerminalDisposables.delete(instance.instanceId);
+		this._backgroundedTerminalDisposables.deleteAndDispose(instance.instanceId);
 		if (instance.target === TerminalLocation.Panel) {
 			this._terminalGroupService.createGroup(instance);
 

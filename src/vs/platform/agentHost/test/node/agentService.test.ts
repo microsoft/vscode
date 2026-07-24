@@ -4834,6 +4834,69 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	test('provisional workspace session advertises Uncommitted Changes before materialization', async () => {
+		class ProvisionalMockAgent extends MockAgent {
+			override async createSession(config?: import('../../common/agentService.js').IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+				const result = await super.createSession(config);
+				return { ...result, provisional: true };
+			}
+		}
+
+		const workingDirectory = URI.file('/workspace');
+		const gitCalls: string[] = [];
+		const gitService = createNoopGitService();
+		gitService.getSessionGitState = async resource => {
+			gitCalls.push(resource.toString());
+			return {
+				hasGitHubRemote: false,
+				branchName: 'main',
+				baseBranchName: 'main',
+				upstreamBranchName: undefined,
+				incomingChanges: 0,
+				outgoingChanges: 0,
+				uncommittedChanges: 1,
+			};
+		};
+		gitService.computeSessionFileDiffs = async () => [];
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+		const provisionalAgent = new ProvisionalMockAgent('provisional');
+		disposables.add(toDisposable(() => provisionalAgent.dispose()));
+		localService.registerProvider(provisionalAgent);
+
+		const workspaceSession = await localService.createSession({
+			provider: provisionalAgent.id,
+			workingDirectory,
+		});
+		const uncommittedUri = buildUncommittedChangesetUri(workspaceSession.toString());
+		localService.addSubscriber(URI.parse(uncommittedUri), 'client-1');
+		for (let i = 0; i < 100; i++) {
+			if (localService.stateManager.getChangesetState(uncommittedUri)?.operations?.some(operation => operation.id === 'commit')) {
+				break;
+			}
+			await timeout(2);
+		}
+
+		const workspaceState = localService.stateManager.getSessionState(workspaceSession.toString());
+		assert.deepStrictEqual({
+			lifecycle: workspaceState?.lifecycle,
+			changesets: workspaceState?.changesets?.map(changeset => changeset.changeKind),
+			gitCalls,
+			hasCommit: localService.stateManager.getChangesetState(uncommittedUri)?.operations?.some(operation => operation.id === 'commit'),
+		}, {
+			lifecycle: SessionLifecycle.Creating,
+			changesets: ['uncommitted'],
+			gitCalls: [workingDirectory.toString()],
+			hasCommit: true,
+		});
+		localService.unsubscribe(URI.parse(uncommittedUri), 'client-1');
+
+		const workspaceLessSession = await localService.createSession({ provider: provisionalAgent.id });
+		assert.deepStrictEqual(
+			localService.stateManager.getSessionState(workspaceLessSession.toString())?.changesets ?? [],
+			[],
+		);
+	});
+
 	// ---- Item-2 regression: initial changeset seeding happens at create time --
 
 	/**

@@ -72,7 +72,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
-import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
@@ -93,6 +93,7 @@ import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/vo
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { DictationDownloadRing, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { ChatPetWidget } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -442,7 +443,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		notificationContainer.appendChild(notificationWidget.domNode);
 
 		// Input area inside the input slot
-		const inputArea = dom.append(chatInputContainer, dom.$('.new-chat-input-area'));
+		const inputAreaWrapper = dom.append(chatInputContainer, dom.$('.new-chat-input-area-wrapper'));
+		const inputArea = dom.append(inputAreaWrapper, dom.$('.new-chat-input-area'));
+		this._register(this.instantiationService.createInstance(ChatPetWidget, inputAreaWrapper, inputArea, constObservable(undefined)));
 
 		// Attachments row (pills only) inside input area, above editor
 		const attachRow = dom.append(inputArea, dom.$('.sessions-chat-attach-row'));
