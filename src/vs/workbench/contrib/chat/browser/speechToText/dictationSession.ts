@@ -13,6 +13,7 @@ import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
+import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatDictationSurface, ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
@@ -77,6 +78,8 @@ class LiveTranscriptInserter {
 	private _shimmerDecorations: IEditorDecorationsCollection | undefined;
 	private _prevInterimText = '';
 	private _finalized = false;
+	private _isApplyingEdit = false;
+	private _userModified = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -96,7 +99,11 @@ class LiveTranscriptInserter {
 	 * overwrite the final text and re-apply the shimmer.
 	 */
 	update(fullText: string, interim: boolean = true, finalizedText: string = ''): void {
-		this._logService.trace(`${LOG_PREFIX} inserter.update interim=${interim} finalized=${this._finalized} len=${fullText.length}`);
+		this._logService.trace(`${LOG_PREFIX} inserter.update interim=${interim} finalized=${this._finalized} userModified=${this._userModified} len=${fullText.length}`);
+		if (this._userModified) {
+			this._logService.trace(`${LOG_PREFIX} inserter.update ignored (user modified transcript)`);
+			return;
+		}
 		if (this._finalized && interim) {
 			this._logService.trace(`${LOG_PREFIX} inserter.update ignored (already finalized)`);
 			return;
@@ -138,14 +145,35 @@ class LiveTranscriptInserter {
 		// is passed as executeEdits' endCursorState so the editor never briefly
 		// places it at the end of the applied edit first.
 		const caret = interim ? this._anchor : this._end;
-		this._editor.executeEdits(
-			'chatSpeechToText',
-			[{ range: replaceRange, text, forceMoveMarkers: true }],
-			[Selection.fromPositions(caret)],
-		);
+		this._isApplyingEdit = true;
+		try {
+			this._editor.executeEdits(
+				'chatSpeechToText',
+				[{ range: replaceRange, text, forceMoveMarkers: true }],
+				[Selection.fromPositions(caret)],
+			);
+		} finally {
+			this._isApplyingEdit = false;
+		}
 
 		this._updateInterimDecorations(text, fullText, interim, finalizedText);
 		this._prevInterimText = interim ? fullText : '';
+	}
+
+	onDidChangeModelContent(event: IModelContentChangedEvent): void {
+		if (this._isApplyingEdit || !this._anchor || !this._end) {
+			return;
+		}
+		const affectsTranscript = event.changes.some(change => Position.isBeforeOrEqual(
+			new Position(change.range.startLineNumber, change.range.startColumn),
+			this._end!,
+		));
+		if (!affectsTranscript) {
+			return;
+		}
+		this._logService.trace(`${LOG_PREFIX} transcript invalidated by user edit`);
+		this._userModified = true;
+		this.clearShimmer();
 	}
 
 	/** Position of the given character offset within the inserted `text`. */
@@ -256,7 +284,7 @@ class LiveTranscriptInserter {
 	 * the dictated span for accuracy telemetry after the session ends.
 	 */
 	finalizedRange(): Range | undefined {
-		if (!this._anchor || !this._end) {
+		if (this._userModified || !this._anchor || !this._end) {
 			return undefined;
 		}
 		const start = this._needsLeadingSpace
@@ -378,6 +406,7 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 		// paused, so stop shimmering the trailing (still-interim) words.
 		idleSettle.value = disposableTimeout(() => inserter.settleShimmer(), IDLE_SETTLE_MS);
 	}));
+	disposables.add(editor.onDidChangeModelContent(event => inserter.onDidChangeModelContent(event)));
 	disposables.add(service.onDidChangePreparingModel(() => applyPlaceholder()));
 	// Refresh the "Downloading… X%" placeholder as the download progresses.
 	disposables.add(service.onDidChangeModelDownloadProgress(() => applyPlaceholder()));
