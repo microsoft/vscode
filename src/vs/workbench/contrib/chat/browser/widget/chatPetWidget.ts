@@ -36,15 +36,7 @@ export function getChatPetBuddyName(quality: string | undefined): 'buddy-idle-st
 }
 
 const buddyName = getChatPetBuddyName(product.quality);
-const buddySources = createSpriteSources(buddyName);
-const spriteSources: Record<ChatPetState, { animated: string; reducedMotion: string }> = {
-	idle: buddySources,
-	sleep: buddySources,
-	processing: buddySources,
-	complete: buddySources,
-	love: buddySources,
-	clapping: buddySources,
-};
+let spriteSources: Record<ChatPetState, { animated: string; reducedMotion: string }> | undefined;
 
 function createSpriteSources(name: string): { animated: string; reducedMotion: string } {
 	const root = 'vs/workbench/contrib/chat/browser/widget/media/chatPet';
@@ -52,6 +44,22 @@ function createSpriteSources(name: string): { animated: string; reducedMotion: s
 		animated: FileAccess.asBrowserUri(`${root}/${name}-tracking-96.gif`).toString(true),
 		reducedMotion: FileAccess.asBrowserUri(`${root}/${name}-tracking-96.png`).toString(true),
 	};
+}
+
+function getSpriteSources(): Record<ChatPetState, { animated: string; reducedMotion: string }> {
+	if (!spriteSources) {
+		const buddySources = createSpriteSources(buddyName);
+		spriteSources = {
+			idle: buddySources,
+			sleep: buddySources,
+			processing: buddySources,
+			complete: buddySources,
+			love: buddySources,
+			clapping: buddySources,
+		};
+	}
+
+	return spriteSources;
 }
 
 export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boolean, idleExpired: boolean): ChatPetState {
@@ -364,7 +372,8 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _renderState(state: ChatPetState, restart = false): void {
-		const source = this._motionReduced ? spriteSources[state].reducedMotion : spriteSources[state].animated;
+		const sources = getSpriteSources()[state];
+		const source = this._motionReduced ? sources.reducedMotion : sources.animated;
 		if (restart || this._currentState !== state || this._image.src !== source) {
 			if (restart) {
 				this._image.removeAttribute('src');
