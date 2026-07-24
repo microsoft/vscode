@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isFaithfulDictationCleanup } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { createIncrementalDictationTranscript, getIncrementalDictationCleanupRange, isFaithfulDictationCleanup } from '../../browser/speechToText/chatSpeechToTextService.js';
 
 suite('ChatSpeechToTextService', () => {
 
@@ -87,6 +87,71 @@ suite('ChatSpeechToTextService', () => {
 				isFaithfulDictationCleanup('twenty five dollars', '25 dollars.'),
 			],
 			[false, false, false, false, false]
+		);
+	});
+
+	test('shows each cleaned prefix with the remaining raw transcript', () => {
+		assert.deepStrictEqual(
+			[
+				createIncrementalDictationTranscript(
+					'hello world this remains raw',
+					'hello world this',
+					'hello world',
+					'Hello, world.'
+				),
+				createIncrementalDictationTranscript(
+					'hello world this remains raw',
+					'hello world this',
+					'',
+					''
+				),
+				createIncrementalDictationTranscript(
+					'hello world.this remains raw',
+					'hello world.this',
+					'hello world',
+					'Hello world.'
+				),
+				createIncrementalDictationTranscript(
+					'hello worldthis remains raw',
+					'hello worldthis',
+					'hello world',
+					'Hello world'
+				),
+				createIncrementalDictationTranscript(
+					'um hello uh world',
+					'um hello uh',
+					'',
+					''
+				),
+			],
+			[
+				{ text: 'Hello, world. this remains raw', finalizedText: 'Hello, world. this' },
+				{ text: 'hello world this remains raw', finalizedText: 'hello world this' },
+				{ text: 'Hello world. this remains raw', finalizedText: 'Hello world. this' },
+				{ text: 'Hello world this remains raw', finalizedText: 'Hello world this' },
+				{ text: 'hello world', finalizedText: 'hello' },
+			]
+		);
+	});
+
+	test('cleans stable whole words while active and the complete transcript when idle', () => {
+		const transcript = 'one two three four five six seven eight nine ten eleven twelve';
+		const activeRange = getIncrementalDictationCleanupRange(transcript, 0, false);
+		assert.deepStrictEqual(
+			{
+				activeRange,
+				activeText: activeRange ? transcript.slice(activeRange.start, activeRange.end) : undefined,
+				idleRange: getIncrementalDictationCleanupRange(transcript, 0, true),
+				idleReevaluationRange: getIncrementalDictationCleanupRange('one two three four five six', 'one two '.length, true),
+				shortRange: getIncrementalDictationCleanupRange('one two three', 0, true),
+			},
+			{
+				activeRange: { start: 0, end: 39 },
+				activeText: 'one two three four five six seven eight',
+				idleRange: { start: 0, end: transcript.length },
+				idleReevaluationRange: { start: 0, end: 'one two three four five six'.length },
+				shortRange: undefined,
+			}
 		);
 	});
 });
