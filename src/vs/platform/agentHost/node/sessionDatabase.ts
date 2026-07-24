@@ -289,7 +289,10 @@ export class SessionDatabase implements ISessionDatabase {
 					throw new Error('SessionDatabase has been disposed');
 				}
 				return db;
-			})();
+			})().catch(err => {
+				this._dbPromise = undefined;
+				throw err;
+			});
 		}
 		return this._dbPromise;
 	}
