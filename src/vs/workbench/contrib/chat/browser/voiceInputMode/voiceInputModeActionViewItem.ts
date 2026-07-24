@@ -507,7 +507,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._dictationCell!.classList.toggle('preparing', dictationBusy);
 			this._dictationCell!.setAttribute('aria-pressed', String(isDictating));
 			this._dictationCell!.setAttribute('aria-label', dictationBusy
-				? localize('voiceInputMode.dictationPreparing', "Cancel Dictation. Preparing Speech to Text Model…")
+				? localize('voiceInputMode.dictationPreparingCancelable', "Cancel Dictation. Preparing Speech to Text Model…")
 				: localize('voiceInputMode.dictation', "Dictation"));
 			this._dictationIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(dictationBusy ? Codicon.micDownload : (isDictating ? Codicon.micFilled : Codicon.mic))}`;
 
