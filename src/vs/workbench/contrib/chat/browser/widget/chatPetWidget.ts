@@ -77,6 +77,7 @@ export class ChatPetWidget extends Disposable {
 
 	private readonly _button: Button;
 	private readonly _image: HTMLImageElement;
+	private readonly _eyes: HTMLElement;
 	private readonly _pupils: HTMLElement[] = [];
 	private readonly _gazeScheduler: dom.AnimationFrameScheduler;
 	private readonly _idleExpired = observableValue(this, false);
@@ -106,10 +107,11 @@ export class ChatPetWidget extends Disposable {
 		this._image = dom.append(this._button.element, dom.$('img.chat-pet-sprite')) as HTMLImageElement;
 		this._image.alt = '';
 		this._image.setAttribute('aria-hidden', 'true');
-		const eyes = dom.append(this._button.element, dom.$('.chat-pet-eyes'));
-		eyes.setAttribute('aria-hidden', 'true');
+		this._register(dom.addDisposableListener(this._image, 'load', () => this._restartEyeAnimation()));
+		this._eyes = dom.append(this._button.element, dom.$('.chat-pet-eyes'));
+		this._eyes.setAttribute('aria-hidden', 'true');
 		for (const side of ['left', 'right']) {
-			const eye = dom.append(eyes, dom.$(`.chat-pet-eye.${side}`));
+			const eye = dom.append(this._eyes, dom.$(`.chat-pet-eye.${side}`));
 			this._pupils.push(dom.append(eye, dom.$('.chat-pet-pupil')));
 		}
 		this._gazeScheduler = this._register(new dom.AnimationFrameScheduler(this._button.element, () => this._updateGaze()));
@@ -272,9 +274,18 @@ export class ChatPetWidget extends Disposable {
 			if (restart) {
 				this._image.removeAttribute('src');
 			}
+			this._eyes.classList.remove('animated');
 			this._image.src = source;
 		}
 		this._currentState = state;
 		this._button.element.dataset.state = state;
+	}
+
+	private _restartEyeAnimation(): void {
+		this._eyes.classList.remove('animated');
+		this._eyes.getBoundingClientRect();
+		if (!this._motionReduced) {
+			this._eyes.classList.add('animated');
+		}
 	}
 }

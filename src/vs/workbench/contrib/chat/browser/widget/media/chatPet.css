@@ -84,6 +84,9 @@
 	position: absolute;
 	inset: 0;
 	pointer-events: none;
+}
+
+.chat-pet-eyes.animated {
 	animation: chat-pet-eye-bob 2s steps(1, end) infinite;
 }
 
@@ -110,6 +113,9 @@
 	width: 4px;
 	height: 4px;
 	background: #191a1b;
+}
+
+.chat-pet-eyes.animated .chat-pet-pupil {
 	animation: chat-pet-eye-blink 2s steps(1, end) infinite;
 }
 
