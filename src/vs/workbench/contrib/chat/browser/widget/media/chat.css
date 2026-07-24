@@ -1183,12 +1183,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	order: 2;
 }
 
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .actions-container {
+	gap: var(--vscode-spacing-size40);
+}
+
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button {
 	position: relative;
 	border-radius: var(--vscode-cornerRadius-small);
-	/* Separate the primary send button from the preceding mic / voice-mode
-		toggle icons so it doesn't visually crowd them (see #326932). */
-	margin-left: 4px;
 }
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label {

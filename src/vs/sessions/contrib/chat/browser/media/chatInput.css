@@ -132,6 +132,7 @@
 .sessions-chat-toolbar {
 	display: flex;
 	align-items: center;
+	gap: var(--vscode-spacing-size40);
 	padding: 4px 6px 6px 6px;
 	color: var(--vscode-icon-foreground);
 }
@@ -264,7 +265,6 @@
 	align-items: center;
 	justify-content: center;
 	flex-shrink: 0;
-	margin-left: var(--vscode-spacing-size40);
 	position: relative;
 	width: 22px;
 	height: 22px;
