@@ -244,6 +244,21 @@ function pendingConfirmationModel(resource: URI): IChatModel {
 	} as unknown as IChatModel;
 }
 
+function completedResponseModel(markdown: string, errorMessage?: string): IChatModel {
+	const response = {
+		isPendingConfirmation: observableValue('pending', undefined),
+		isIncomplete: observableValue('incomplete', false),
+		response: {
+			value: [],
+			getMarkdown: () => markdown,
+		},
+		result: errorMessage ? { errorDetails: { message: errorMessage } } : undefined,
+	};
+	return {
+		getRequests: () => [{ response }],
+	} as unknown as IChatModel;
+}
+
 class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override readonly onDidChangeFocusedSession = Event.None;
 	override readonly onDidAddWidget = Event.None;
@@ -330,6 +345,21 @@ suite('VoiceSessionController', () => {
 			new class extends mock<INotificationService>() { }(),
 		));
 	}
+
+	test('includes response errors in the summary sent to the voice backend', () => {
+		const controller = createController(new TestVoiceClientService());
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => { state: string; last_response_summary?: string };
+
+		assert.deepStrictEqual([
+			getAgentStateInfo.call(controller, completedResponseModel('', 'The branch main was not found.')),
+			getAgentStateInfo.call(controller, completedResponseModel('I could not rebase the branch.', 'The branch main was not found.')),
+			getAgentStateInfo.call(controller, completedResponseModel('The rebase completed.')),
+		], [
+			{ state: 'idle', last_response_summary: 'The branch main was not found.' },
+			{ state: 'idle', last_response_summary: 'I could not rebase the branch.\n\nThe branch main was not found.' },
+			{ state: 'idle', last_response_summary: 'The rebase completed.' },
+		]);
+	});
 
 	test('explicit disconnect clears routing target and pending confirmations and the tracker cannot repopulate them before reconnect', () => {
 		const voiceClientService = new TestVoiceClientService();
