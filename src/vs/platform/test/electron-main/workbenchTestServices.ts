@@ -9,7 +9,8 @@ import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryW
 import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { ILifecycleMainService, IRelaunchHandler, LifecycleMainPhase, ShutdownEvent, ShutdownReason } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { IStateService } from '../../state/node/state.js';
-import { ICodeWindow, UnloadReason } from '../../window/electron-main/window.js';
+import { ICodeWindow, LoadReason, UnloadReason } from '../../window/electron-main/window.js';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 export class TestLifecycleMainService implements ILifecycleMainService {
 
@@ -33,7 +34,13 @@ export class TestLifecycleMainService implements ILifecycleMainService {
 		await Promises.settled(joiners);
 	}
 
-	onWillLoadWindow = Event.None;
+	private readonly _onWillLoadWindow = new Emitter<{ readonly window: ICodeWindow; readonly workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined; readonly reason: LoadReason }>();
+	readonly onWillLoadWindow = this._onWillLoadWindow.event;
+
+	fireOnWillLoadWindow(window: ICodeWindow, workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): void {
+		this._onWillLoadWindow.fire({ window, workspace, reason: LoadReason.INITIAL });
+	}
+
 	onBeforeCloseWindow = Event.None;
 
 	wasRestarted = false;

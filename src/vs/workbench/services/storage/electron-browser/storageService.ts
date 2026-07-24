@@ -11,7 +11,7 @@ import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
-import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
 
 export class NativeWorkbenchStorageService extends RemoteStorageService {
 
@@ -20,9 +20,9 @@ export class NativeWorkbenchStorageService extends RemoteStorageService {
 		private readonly userDataProfileService: IUserDataProfileService,
 		userDataProfilesService: IUserDataProfilesService,
 		mainProcessService: IMainProcessService,
-		private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		private readonly workbenchEnvironmentService: INativeWorkbenchEnvironmentService,
 	) {
-		super(workspace, { currentProfile: userDataProfileService.currentProfile, defaultProfile: userDataProfilesService.defaultProfile }, mainProcessService, workbenchEnvironmentService);
+		super(workspace, { currentProfile: userDataProfileService.currentProfile, defaultProfile: userDataProfilesService.defaultProfile }, mainProcessService, workbenchEnvironmentService, workbenchEnvironmentService.window.id);
 
 		this.registerListeners();
 	}
@@ -60,4 +60,3 @@ export class NativeWorkbenchStorageService extends RemoteStorageService {
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.switchToProfile(e.profile))));
 	}
 }
-

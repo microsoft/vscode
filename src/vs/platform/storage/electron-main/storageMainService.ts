@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { join } from '../../../base/common/path.js';
 import { IStorage } from '../../../base/parts/storage/common/storage.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
@@ -17,6 +17,7 @@ import { AbstractStorageService, isProfileUsingDefaultStorage, IStorageService, 
 import { ApplicationStorageMain, ApplicationSharedStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain, IStorageChangeEvent } from './storageMain.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
+import { ICodeWindow } from '../../window/electron-main/window.js';
 import { IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -61,7 +62,7 @@ export interface IStorageMainService {
 	 * Note: DO NOT use this for reading/writing from the main process!
 	 *       This is currently not supported.
 	 */
-	profileStorage(profile: IUserDataProfile): IStorageMain;
+	profileStorage(profile: IUserDataProfile, ownerWindowId?: number): IStorageMain;
 
 	/**
 	 * Provides access to the workspace storage specific to a single window.
@@ -69,7 +70,7 @@ export interface IStorageMainService {
 	 * Note: DO NOT use this for reading/writing from the main process!
 	 *       This is currently not supported.
 	 */
-	workspaceStorage(workspace: IAnyWorkspaceIdentifier): IStorageMain;
+	workspaceStorage(workspace: IAnyWorkspaceIdentifier, ownerWindowId?: number): IStorageMain;
 
 	/**
 	 * Checks if the provided path is currently in use for a storage database.
@@ -84,6 +85,9 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	declare readonly _serviceBrand: undefined;
 
 	private shutdownReason: ShutdownReason | undefined = undefined;
+	private readonly profileStorageMap: StorageMap;
+	private readonly workspaceStorageMap: StorageMap;
+	private readonly mapWindowIdToStorageReleaseListener = new Map<number /* window ID */, IDisposable>();
 
 	private readonly _onDidChangeProfileStorage = this._register(new Emitter<IProfileStorageChangeEvent>());
 	readonly onDidChangeProfileStorage = this._onDidChangeProfileStorage.event;
@@ -97,6 +101,9 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
+
+		this.profileStorageMap = this._register(new StorageMap());
+		this.workspaceStorageMap = this._register(new StorageMap());
 
 		this.applicationStorage = this._register(this.createApplicationStorage());
 		this.applicationSharedStorage = this._register(this.createApplicationSharedStorage());
@@ -121,16 +128,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		})();
 
 		this._register(this.lifecycleMainService.onWillLoadWindow(e => {
-
-			// Profile Storage: Warmup when related window with profile loads
-			if (e.window.profile) {
-				this.profileStorage(e.window.profile).init();
-			}
-
-			// Workspace Storage: Warmup when related window with workspace loads
-			if (e.workspace) {
-				this.workspaceStorage(e.workspace).init();
-			}
+			this.registerWindowStorageWarmup(e.window);
 		}));
 
 		// All Storage: Close when shutting down
@@ -147,13 +145,13 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			e.join('applicationSharedStorage', this.applicationSharedStorage.close());
 
 			// Profile Storage(s)
-			for (const [, profileStorage] of this.mapProfileToStorage) {
-				e.join('profileStorage', profileStorage.close());
+			for (const profileStorageClosePromise of this.profileStorageMap.closeAll()) {
+				e.join('profileStorage', profileStorageClosePromise);
 			}
 
 			// Workspace Storage(s)
-			for (const [, workspaceStorage] of this.mapWorkspaceToStorage) {
-				e.join('workspaceStorage', workspaceStorage.close());
+			for (const workspaceStorageClosePromise of this.workspaceStorageMap.closeAll()) {
+				e.join('workspaceStorage', workspaceStorageClosePromise);
 			}
 		}));
 
@@ -168,11 +166,28 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		// Close the storage of the profile that is being removed
 		this._register(this.userDataProfilesService.onWillRemoveProfile(e => {
-			const storage = this.mapProfileToStorage.get(e.profile.id);
-			if (storage) {
-				e.join(storage.close());
+			const storageClosePromise = this.profileStorageMap.close(e.profile.id);
+			if (storageClosePromise) {
+				e.join(storageClosePromise);
 			}
 		}));
+	}
+
+	private registerWindowStorageWarmup(window: ICodeWindow): void {
+		if (this.mapWindowIdToStorageReleaseListener.has(window.id)) {
+			return;
+		}
+
+		const listener = Event.once(Event.any(window.onDidClose, window.onDidDestroy))(() => {
+			this.mapWindowIdToStorageReleaseListener.delete(window.id);
+			listener.dispose();
+
+			void Promise.all([
+				this.profileStorageMap.releaseWindowStorage(window.id),
+				this.workspaceStorageMap.releaseWindowStorage(window.id)
+			]).catch(error => this.logService.error(error));
+		});
+		this.mapWindowIdToStorageReleaseListener.set(window.id, listener);
 	}
 
 	//#region Application Storage
@@ -219,37 +234,33 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	//#region Profile Storage
 
-	private readonly mapProfileToStorage = new Map<string /* profile ID */, IStorageMain>();
-
-	profileStorage(profile: IUserDataProfile): IStorageMain {
+	profileStorage(profile: IUserDataProfile, ownerWindowId?: number): IStorageMain {
 		if (isProfileUsingDefaultStorage(profile)) {
 			return this.applicationStorage; // for profiles using default storage, use application storage
 		}
 
-		let profileStorage = this.mapProfileToStorage.get(profile.id);
-		if (!profileStorage) {
+		return this.profileStorageMap.getOrCreate(profile.id, ownerWindowId, () => {
 			this.logService.trace(`StorageMainService: creating profile storage (${profile.name})`);
 
-			profileStorage = this._register(this.createProfileStorage(profile));
-			this.mapProfileToStorage.set(profile.id, profileStorage);
+			const profileStorage = this.createProfileStorage(profile);
 
 			// Don't use this._register() for listeners that are disposed early
 			// as it causes entries to accumulate in _store when storage is closed/reopened
 			const listener = profileStorage.onDidChangeStorage(e => this._onDidChangeProfileStorage.fire({
 				...e,
-				storage: profileStorage!,
+				storage: profileStorage,
 				profile
 			}));
 
-			Event.once(profileStorage.onDidCloseStorage)(() => {
-				this.logService.trace(`StorageMainService: closed profile storage (${profile.name})`);
+			return {
+				storage: profileStorage,
+				onDidClose: () => {
+					this.logService.trace(`StorageMainService: closed profile storage (${profile.name})`);
 
-				this.mapProfileToStorage.delete(profile.id);
-				listener.dispose();
-			});
-		}
-
-		return profileStorage;
+					listener.dispose();
+				}
+			};
+		});
 	}
 
 	private createProfileStorage(profile: IUserDataProfile): IStorageMain {
@@ -270,25 +281,17 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	//#region Workspace Storage
 
-	private readonly mapWorkspaceToStorage = new Map<string /* workspace ID */, IStorageMain>();
-
-	workspaceStorage(workspace: IAnyWorkspaceIdentifier): IStorageMain {
-		let workspaceStorage = this.mapWorkspaceToStorage.get(workspace.id);
-		if (!workspaceStorage) {
+	workspaceStorage(workspace: IAnyWorkspaceIdentifier, ownerWindowId?: number): IStorageMain {
+		return this.workspaceStorageMap.getOrCreate(workspace.id, ownerWindowId, () => {
 			this.logService.trace(`StorageMainService: creating workspace storage (${workspace.id})`);
 
-			workspaceStorage = this._register(this.createWorkspaceStorage(workspace));
-			this.mapWorkspaceToStorage.set(workspace.id, workspaceStorage);
+			const storage = this.createWorkspaceStorage(workspace);
 
-			// Don't use this._register() for Event.once as it auto-disposes
-			Event.once(workspaceStorage.onDidCloseStorage)(() => {
-				this.logService.trace(`StorageMainService: closed workspace storage (${workspace.id})`);
-
-				this.mapWorkspaceToStorage.delete(workspace.id);
-			});
-		}
-
-		return workspaceStorage;
+			return {
+				storage,
+				onDidClose: () => this.logService.trace(`StorageMainService: closed workspace storage (${workspace.id})`)
+			};
+		});
 	}
 
 	private createWorkspaceStorage(workspace: IAnyWorkspaceIdentifier): IStorageMain {
@@ -309,7 +312,14 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	isUsed(path: string): boolean {
 		const pathUri = URI.file(path);
 
-		for (const storage of [this.applicationStorage, this.applicationSharedStorage, ...this.mapProfileToStorage.values(), ...this.mapWorkspaceToStorage.values()]) {
+		const storages = [
+			this.applicationStorage,
+			this.applicationSharedStorage,
+			...this.profileStorageMap.storages,
+			...this.workspaceStorageMap.storages
+		];
+
+		for (const storage of storages) {
 			if (!storage.path) {
 				continue;
 			}
@@ -321,9 +331,205 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		return false;
 	}
+
+	override dispose(): void {
+		for (const listener of this.mapWindowIdToStorageReleaseListener.values()) {
+			listener.dispose();
+		}
+		this.mapWindowIdToStorageReleaseListener.clear();
+
+		super.dispose();
+	}
+
 }
 
 //#endregion
+
+class StorageMap extends Disposable {
+
+	private readonly mapStorage = new Map<string /* storage ID */, RefCountedStorage>();
+	private readonly mapWindowIdToStorageIds = new Map<number /* window ID */, Set<string /* storage ID */>>();
+
+	get storages(): IStorageMain[] {
+		return Array.from(this.mapStorage.values(), storage => storage.storage);
+	}
+
+	getOrCreate(storageId: string, ownerWindowId: number | undefined, create: () => { storage: IStorageMain; onDidClose: () => void }): IStorageMain {
+		let storage = this.mapStorage.get(storageId);
+		if (storage?.isClosing) {
+			this.mapStorage.delete(storageId);
+			this.clearStorageReferences(storageId);
+			storage = undefined;
+		}
+
+		if (!storage) {
+			const result = create();
+			const refCountedStorage = new RefCountedStorage(result.storage, result.onDidClose, () => {
+				if (this.mapStorage.get(storageId) === refCountedStorage) {
+					this.mapStorage.delete(storageId);
+					this.clearStorageReferences(storageId);
+				}
+			});
+			storage = refCountedStorage;
+			this.mapStorage.set(storageId, storage);
+		}
+
+		this.addWindowReference(storageId, storage, ownerWindowId);
+
+		return storage.storage;
+	}
+
+	close(storageId: string): Promise<void> | undefined {
+		return this.closeStorage(storageId);
+	}
+
+	closeAll(): Promise<void>[] {
+		this.clearWindowReferences();
+
+		return Array.from(this.mapStorage.keys()).map(storageId => this.closeStorage(storageId)!);
+	}
+
+	private addWindowReference(storageId: string, storage: RefCountedStorage, ownerWindowId: number | undefined): void {
+		if (typeof ownerWindowId !== 'number') {
+			return;
+		}
+
+		let storageIds = this.mapWindowIdToStorageIds.get(ownerWindowId);
+		if (!storageIds) {
+			storageIds = new Set();
+			this.mapWindowIdToStorageIds.set(ownerWindowId, storageIds);
+		}
+
+		storageIds.add(storageId);
+		storage.increment(ownerWindowId);
+	}
+
+	async releaseWindowStorage(ownerWindowId: number): Promise<void> {
+		const storageIds = this.mapWindowIdToStorageIds.get(ownerWindowId);
+		this.mapWindowIdToStorageIds.delete(ownerWindowId);
+		if (!storageIds) {
+			return;
+		}
+
+		for (const storageId of storageIds) {
+			if (this.mapStorage.get(storageId)?.decrement(ownerWindowId)) {
+				await this.closeStorage(storageId);
+			}
+		}
+	}
+
+	private closeStorage(storageId: string): Promise<void> | undefined {
+		const storage = this.mapStorage.get(storageId);
+		if (!storage) {
+			return undefined;
+		}
+
+		this.mapStorage.delete(storageId);
+		this.clearStorageReferences(storageId);
+
+		return storage.close();
+	}
+
+	private clearWindowReferences(): void {
+		this.mapWindowIdToStorageIds.clear();
+	}
+
+	private clearStorageReferences(storageId: string): void {
+		for (const [ownerWindowId, storageIds] of this.mapWindowIdToStorageIds) {
+			storageIds.delete(storageId);
+			if (storageIds.size === 0) {
+				this.mapWindowIdToStorageIds.delete(ownerWindowId);
+			}
+		}
+	}
+
+	override dispose(): void {
+		this.clearWindowReferences();
+		for (const storage of this.mapStorage.values()) {
+			storage.dispose();
+		}
+		this.mapStorage.clear();
+
+		super.dispose();
+	}
+}
+
+class RefCountedStorage extends Disposable {
+
+	private readonly ownerWindowIds = new Set<number>();
+	private readonly closeListener: IDisposable;
+	private readonly doClose: () => Promise<void>;
+	private closePromise: Promise<void> | undefined;
+	private didClose = false;
+	private didCleanup = false;
+
+	get isClosing(): boolean {
+		return !!this.closePromise;
+	}
+
+	constructor(
+		readonly storage: IStorageMain,
+		private readonly onDidClose: () => void,
+		private readonly onDidCloseStorage: () => void
+	) {
+		super();
+
+		this.doClose = storage.close.bind(storage);
+		storage.close = () => this.close();
+
+		this.closeListener = Event.once(storage.onDidCloseStorage)(() => this.handleDidClose());
+	}
+
+	increment(ownerWindowId: number): void {
+		this.ownerWindowIds.add(ownerWindowId);
+	}
+
+	decrement(ownerWindowId: number): boolean {
+		if (!this.ownerWindowIds.delete(ownerWindowId)) {
+			return false;
+		}
+
+		return this.ownerWindowIds.size === 0;
+	}
+
+	async close(): Promise<void> {
+		if (!this.closePromise) {
+			this.ownerWindowIds.clear();
+			this.closePromise = this.doClose();
+		}
+
+		await this.closePromise;
+	}
+
+	private handleDidClose(): void {
+		if (this.didClose) {
+			return;
+		}
+
+		this.didClose = true;
+		this.onDidCloseStorage();
+		queueMicrotask(() => this.dispose());
+	}
+
+	override dispose(): void {
+		this.ownerWindowIds.clear();
+		this.closeListener.dispose();
+		this.cleanup();
+		this.storage.close = this.doClose;
+		this.storage.dispose();
+
+		super.dispose();
+	}
+
+	private cleanup(): void {
+		if (this.didCleanup) {
+			return;
+		}
+
+		this.didCleanup = true;
+		this.onDidClose();
+	}
+}
 
 
 //#region Application Main Storage Service (intent: use application storage from main process)
