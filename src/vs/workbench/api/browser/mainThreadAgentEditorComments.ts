@@ -11,12 +11,8 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { ExtHostAgentEditorCommentsShape, ExtHostContext, IAgentEditorCommentDto, MainContext, MainThreadAgentEditorCommentsShape } from '../common/extHost.protocol.js';
 
 /**
- * Bridges the {@link IAgentEditorCommentsBridge} (backed, in the Agents window,
- * by the same store the code editor renders its session comments from) to the
- * extension host, so custom editors (e.g. the Markdown editor) can render and
- * contribute the same comments. Registered in every extension host; when no
- * provider is installed (e.g. the regular workbench window) the bridge is a
- * no-op and this customer simply reports no comments.
+ * Bridges {@link IAgentEditorCommentsBridge} to the extension host so custom editors
+ * can render and contribute the same comments as code editors.
  */
 @extHostNamedCustomer(MainContext.MainThreadAgentEditorComments)
 export class MainThreadAgentEditorComments implements MainThreadAgentEditorCommentsShape {

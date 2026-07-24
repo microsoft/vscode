@@ -22,6 +22,7 @@ import sinon from 'sinon';
 import { IResourceEditorInput } from '../../../../../../../platform/editor/common/editor.js';
 import { ITextFileService } from '../../../../../../services/textfile/common/textfiles.js';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { AgentEditorCommentsBridge } from '../../../../../../services/agentEditorComments/common/agentEditorComments.js';
 
 function createMockReview(overrides?: Partial<IChatPlanReview>): IChatPlanReview {
 	return {
@@ -82,7 +83,7 @@ suite('ChatPlanReviewPart', () => {
 
 	function createWidget(review: IChatPlanReview, dialogService?: TestDialogService): ChatPlanReviewPart {
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		const feedbackService = store.add(new PlanReviewFeedbackService());
+		const feedbackService = store.add(new PlanReviewFeedbackService(store.add(new AgentEditorCommentsBridge())));
 		instantiationService.stub(IPlanReviewFeedbackService, feedbackService); instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
 
 		lastFeedbackService = feedbackService;

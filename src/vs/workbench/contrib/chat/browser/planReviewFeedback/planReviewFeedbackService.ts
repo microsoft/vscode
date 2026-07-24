@@ -9,11 +9,15 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatPlanApprovalAction } from '../../common/chatService/chatService.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { IAgentEditorComment, IAgentEditorCommentsBridge, IAgentEditorCommentsProvider } from '../../../../services/agentEditorComments/common/agentEditorComments.js';
 
 export interface IPlanReviewFeedbackItem {
 	readonly id: string;
 	readonly line: number;
 	readonly column: number;
+	readonly endLine: number;
+	readonly endColumn: number;
 	readonly text: string;
 }
 
@@ -39,6 +43,7 @@ export interface IPlanReviewFeedbackService {
 	getPlanReview(uri: URI): IPlanReviewFeedbackRegistration | undefined;
 	notifyFeedbackChanged(planUri: URI): void;
 	addFeedback(planUri: URI, line: number, column: number, text: string): string;
+	addFeedbackForRange(planUri: URI, range: IRange, text: string): string;
 	removeFeedback(planUri: URI, feedbackId: string): void;
 	updateFeedback(planUri: URI, feedbackId: string, newText: string): void;
 	getFeedback(planUri: URI): readonly IPlanReviewFeedbackItem[];
@@ -57,7 +62,7 @@ interface IPlanReviewRegistration {
 	navigationAnchor: string | undefined;
 }
 
-export class PlanReviewFeedbackService extends Disposable implements IPlanReviewFeedbackService {
+export class PlanReviewFeedbackService extends Disposable implements IPlanReviewFeedbackService, IAgentEditorCommentsProvider {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -71,6 +76,15 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 
 	private readonly _onDidChangeRegistrations = this._register(new Emitter<void>());
 	readonly onDidChangeRegistrations: Event<void> = this._onDidChangeRegistrations.event;
+
+	readonly onDidChangeComments = Event.any(Event.signal(this.onDidChangeFeedback), this.onDidChangeRegistrations);
+
+	constructor(
+		@IAgentEditorCommentsBridge bridge: IAgentEditorCommentsBridge,
+	) {
+		super();
+		this._register(bridge.registerProvider(this));
+	}
 
 	registerPlanReview(planUri: URI, review: IPlanReviewFeedbackRegistration): IDisposable {
 		const key = planUri.toString();
@@ -97,6 +111,15 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	}
 
 	addFeedback(planUri: URI, line: number, column: number, text: string): string {
+		return this.addFeedbackForRange(planUri, {
+			startLineNumber: line,
+			startColumn: column,
+			endLineNumber: line,
+			endColumn: column,
+		}, text);
+	}
+
+	addFeedbackForRange(planUri: URI, range: IRange, text: string): string {
 		const key = planUri.toString();
 		const registration = this._registrations.get(key);
 		if (!registration) {
@@ -104,7 +127,14 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 		}
 
 		const id = generateUuid();
-		registration.items.push({ id, line, column, text });
+		registration.items.push({
+			id,
+			line: range.startLineNumber,
+			column: range.startColumn,
+			endLine: range.endLineNumber,
+			endColumn: range.endColumn,
+			text,
+		});
 		// Keep items sorted by line number
 		registration.items.sort((a, b) => a.line - b.line || a.column - b.column);
 		this._onDidChangeFeedback.fire(planUri);
@@ -135,7 +165,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 		const idx = registration.items.findIndex(item => item.id === feedbackId);
 		if (idx >= 0) {
 			const old = registration.items[idx];
-			registration.items[idx] = { id: old.id, line: old.line, column: old.column, text: newText };
+			registration.items[idx] = { ...old, text: newText };
 			this._onDidChangeFeedback.fire(planUri);
 		}
 	}
@@ -223,5 +253,30 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 
 	rejectPlan(planUri: URI): Promise<void> {
 		return this._registrations.get(planUri.toString())?.review.reject() ?? Promise.resolve();
+	}
+
+	acceptsComments(resource: URI): boolean {
+		return this.isActivePlanReview(resource);
+	}
+
+	getComments(resource: URI): readonly IAgentEditorComment[] {
+		return this.getFeedback(resource).map(item => ({
+			id: item.id,
+			range: {
+				startLineNumber: item.line,
+				startColumn: item.column,
+				endLineNumber: item.endLine,
+				endColumn: item.endColumn,
+			},
+			body: item.text,
+		}));
+	}
+
+	addComment(resource: URI, range: IRange, body: string): void {
+		this.addFeedbackForRange(resource, range, body);
+	}
+
+	deleteComment(resource: URI, id: string): void {
+		this.removeFeedback(resource, id);
 	}
 }

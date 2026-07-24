@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -20,8 +20,7 @@ export interface IAgentEditorComment {
 }
 
 /**
- * Supplies the session comments for a resource. Implemented by the sessions
- * layer (backed by the agent feedback store) and registered into the bridge.
+ * Supplies agent comments for a resource, such as session feedback or plan review comments.
  */
 export interface IAgentEditorCommentsProvider {
 	readonly onDidChangeComments: Event<void>;
@@ -33,11 +32,8 @@ export interface IAgentEditorCommentsProvider {
 }
 
 /**
- * Workbench-layer seam that lets the (globally registered) main-thread
- * extension host customer read and contribute session editor comments without
- * depending on the sessions layer directly. When no provider is registered
- * (e.g. the regular workbench window) the bridge is a no-op, so the customer
- * degrades gracefully.
+ * Workbench-layer seam that lets the extension host read and contribute agent comments
+ * without depending on their feature-specific stores.
  */
 export interface IAgentEditorCommentsBridge {
 	readonly _serviceBrand: undefined;
@@ -45,13 +41,13 @@ export interface IAgentEditorCommentsBridge {
 	/** Fired when comments change, or when a provider is registered/unregistered. */
 	readonly onDidChangeComments: Event<void>;
 
-	/** Whether new comments can be added for the resource. `false` when no provider is registered. */
+	/** Whether new comments can be added for the resource. */
 	acceptsComments(resource: URI): boolean;
 	getComments(resource: URI): readonly IAgentEditorComment[];
 	addComment(resource: URI, range: IRange, body: string): void;
 	deleteComment(resource: URI, id: string): void;
 
-	/** Install the provider that backs this bridge. Only one provider is active at a time. */
+	/** Register a provider. The most recently registered provider that accepts a resource handles it. */
 	registerProvider(provider: IAgentEditorCommentsProvider): IDisposable;
 }
 
@@ -62,36 +58,57 @@ export class AgentEditorCommentsBridge extends Disposable implements IAgentEdito
 	private readonly _onDidChangeComments = this._register(new Emitter<void>());
 	readonly onDidChangeComments = this._onDidChangeComments.event;
 
-	private _provider: IAgentEditorCommentsProvider | undefined;
-	private readonly _providerListener = this._register(new MutableDisposable());
+	private readonly _providers: { provider: IAgentEditorCommentsProvider; listener: IDisposable }[] = [];
 
 	registerProvider(provider: IAgentEditorCommentsProvider): IDisposable {
-		this._provider = provider;
-		this._providerListener.value = provider.onDidChangeComments(() => this._onDidChangeComments.fire());
+		const entry = {
+			provider,
+			listener: provider.onDidChangeComments(() => this._onDidChangeComments.fire()),
+		};
+		this._providers.push(entry);
 		this._onDidChangeComments.fire();
 		return toDisposable(() => {
-			if (this._provider === provider) {
-				this._provider = undefined;
-				this._providerListener.clear();
+			const index = this._providers.indexOf(entry);
+			if (index !== -1) {
+				this._providers.splice(index, 1);
+				entry.listener.dispose();
 				this._onDidChangeComments.fire();
 			}
 		});
 	}
 
 	acceptsComments(resource: URI): boolean {
-		return this._provider?.acceptsComments(resource) ?? false;
+		return !!this._getProvider(resource);
 	}
 
 	getComments(resource: URI): readonly IAgentEditorComment[] {
-		return this._provider?.getComments(resource) ?? [];
+		return this._getProvider(resource)?.getComments(resource) ?? [];
 	}
 
 	addComment(resource: URI, range: IRange, body: string): void {
-		this._provider?.addComment(resource, range, body);
+		this._getProvider(resource)?.addComment(resource, range, body);
 	}
 
 	deleteComment(resource: URI, id: string): void {
-		this._provider?.deleteComment(resource, id);
+		this._getProvider(resource)?.deleteComment(resource, id);
+	}
+
+	private _getProvider(resource: URI): IAgentEditorCommentsProvider | undefined {
+		for (let index = this._providers.length - 1; index >= 0; index--) {
+			const provider = this._providers[index].provider;
+			if (provider.acceptsComments(resource)) {
+				return provider;
+			}
+		}
+		return undefined;
+	}
+
+	override dispose(): void {
+		for (const entry of this._providers) {
+			entry.listener.dispose();
+		}
+		this._providers.length = 0;
+		super.dispose();
 	}
 }
 

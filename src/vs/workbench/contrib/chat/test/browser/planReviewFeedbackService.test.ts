@@ -8,6 +8,8 @@ import { IPlanReviewFeedbackRegistration, IPlanReviewFeedbackService, PlanReview
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AgentEditorCommentsBridge } from '../../../../services/agentEditorComments/common/agentEditorComments.js';
+import { Event } from '../../../../../base/common/event.js';
 
 function feedbackSummary(items: readonly { line: number; column: number }[]): string[] {
 	return items.map(f => `${f.line}:${f.column}`);
@@ -31,7 +33,7 @@ suite('PlanReviewFeedbackService - Ordering', () => {
 	let planUri: URI;
 
 	setup(() => {
-		service = store.add(new PlanReviewFeedbackService());
+		service = store.add(new PlanReviewFeedbackService(store.add(new AgentEditorCommentsBridge())));
 		planUri = URI.parse('file:///plan.md');
 		store.add(service.registerPlanReview(planUri, createRegistration()));
 	});
@@ -121,7 +123,7 @@ suite('PlanReviewFeedbackService - Navigation', () => {
 	let planUri: URI;
 
 	setup(() => {
-		service = store.add(new PlanReviewFeedbackService());
+		service = store.add(new PlanReviewFeedbackService(store.add(new AgentEditorCommentsBridge())));
 		planUri = URI.parse('file:///plan.md');
 		store.add(service.registerPlanReview(planUri, createRegistration()));
 	});
@@ -219,7 +221,7 @@ suite('PlanReviewFeedbackService - Registration', () => {
 	let service: IPlanReviewFeedbackService;
 
 	setup(() => {
-		service = store.add(new PlanReviewFeedbackService());
+		service = store.add(new PlanReviewFeedbackService(store.add(new AgentEditorCommentsBridge())));
 	});
 
 	teardown(() => {
@@ -296,7 +298,7 @@ suite('PlanReviewFeedbackService - Submit', () => {
 	let service: IPlanReviewFeedbackService;
 
 	setup(() => {
-		service = store.add(new PlanReviewFeedbackService());
+		service = store.add(new PlanReviewFeedbackService(store.add(new AgentEditorCommentsBridge())));
 	});
 
 	teardown(() => {
@@ -368,5 +370,70 @@ suite('PlanReviewFeedbackService - Submit', () => {
 		await service.rejectPlan(planUri);
 
 		assert.strictEqual(rejected, true);
+	});
+});
+
+suite('PlanReviewFeedbackService - Custom Editor Comments', () => {
+
+	const store = new DisposableStore();
+
+	teardown(() => {
+		store.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('bridges selected Markdown ranges into plan feedback', () => {
+		const bridge = store.add(new AgentEditorCommentsBridge());
+		const service = store.add(new PlanReviewFeedbackService(bridge));
+		const planUri = URI.parse('file:///plan.md');
+		store.add(service.registerPlanReview(planUri, createRegistration()));
+
+		bridge.addComment(planUri, {
+			startLineNumber: 3,
+			startColumn: 4,
+			endLineNumber: 5,
+			endColumn: 8,
+		}, 'Clarify this section');
+
+		assert.deepStrictEqual(service.getFeedback(planUri), [{
+			id: service.getFeedback(planUri)[0].id,
+			line: 3,
+			column: 4,
+			endLine: 5,
+			endColumn: 8,
+			text: 'Clarify this section',
+		}]);
+	});
+
+	test('falls back to an earlier provider outside an active plan review', () => {
+		const bridge = store.add(new AgentEditorCommentsBridge());
+		let fallbackAddCount = 0;
+		store.add(bridge.registerProvider({
+			onDidChangeComments: Event.None,
+			acceptsComments: () => true,
+			getComments: () => [],
+			addComment: () => { fallbackAddCount++; },
+			deleteComment: () => { },
+		}));
+		const service = store.add(new PlanReviewFeedbackService(bridge));
+		const planUri = URI.parse('file:///plan.md');
+		const registration = service.registerPlanReview(planUri, createRegistration());
+
+		bridge.addComment(planUri, {
+			startLineNumber: 1,
+			startColumn: 1,
+			endLineNumber: 1,
+			endColumn: 1,
+		}, 'Plan comment');
+		registration.dispose();
+		bridge.addComment(planUri, {
+			startLineNumber: 1,
+			startColumn: 1,
+			endLineNumber: 1,
+			endColumn: 1,
+		}, 'Session comment');
+
+		assert.strictEqual(fallbackAddCount, 1);
 	});
 });
