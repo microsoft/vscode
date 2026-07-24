@@ -147,6 +147,21 @@ describe('CopilotCLI permissionHelpers', () => {
 			// Bash regex doesn't recognize Set-Location, so full command is kept
 			expect(result.input.command).toBe(fullCommandText);
 		});
+
+		it('shell: passes sandboxBypass and reason when the command opts out of the sandbox', () => {
+			const req = { kind: 'shell', intention: 'Read secret', fullCommandText: 'cat ~/secret', requestSandboxBypass: true, requestSandboxBypassReason: 'Needs access outside the workspace' } as any;
+			const result = buildShellConfirmationParams(req, undefined);
+			expect(result.input.command).toBe('cat ~/secret');
+			expect(result.input.sandboxBypass).toBe(true);
+			expect(result.input.sandboxBypassReason).toBe('Needs access outside the workspace');
+		});
+
+		it('shell: omits sandboxBypass for ordinary commands', () => {
+			const req = { kind: 'shell', intention: 'List workspace files', fullCommandText: 'ls -la' } as any;
+			const result = buildShellConfirmationParams(req, undefined);
+			expect(result.input.sandboxBypass).toBeUndefined();
+			expect(result.input.sandboxBypassReason).toBeUndefined();
+		});
 	});
 
 	describe('buildMcpConfirmationParams', () => {

@@ -306,7 +306,8 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 						{
 							// toolReferenceName: value.referenceName,
 							icon: value.icon ? ThemeIcon.fromId(value.icon) : undefined,
-							description: value.description
+							description: value.description,
+							deprecated: true,
 						}
 					);
 

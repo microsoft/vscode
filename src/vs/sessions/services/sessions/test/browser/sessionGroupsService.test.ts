@@ -14,9 +14,9 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { groupSortKey, SessionGroupsService } from '../../browser/sessionGroupsService.js';
+import { SessionGroupsService } from '../../browser/sessionGroupsService.js';
 
-function createSession(id: string): ISession {
+function createSession(id: string, isArchived = false): ISession {
 	return {
 		sessionId: id,
 		resource: URI.parse(`session://${id}`),
@@ -33,13 +33,13 @@ function createSession(id: string): ISession {
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
-		isArchived: observableValue(`isArchived-${id}`, false),
+		isArchived: observableValue(`isArchived-${id}`, isArchived),
 		isRead: observableValue(`isRead-${id}`, true),
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
 		mainChat: constObservable<IChat>(undefined!),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
 
@@ -49,16 +49,46 @@ suite('SessionGroupsService', () => {
 	let service: SessionGroupsService;
 	let storageService: InMemoryStorageService;
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
+	let willSendRequestEmitter: Emitter<ISession>;
+	let sessionStartedEmitter: Emitter<ISession>;
+	let sessionArchivedEmitter: Emitter<ISession>;
+	let sessionUnarchivedEmitter: Emitter<ISession>;
+	let sessionReplacedEmitter: Emitter<{ readonly from: ISession; readonly to: ISession }>;
+	let newSessionDiscardedEmitter: Emitter<ISession>;
 	let instantiationService: TestInstantiationService;
+	let sessions: ISession[];
+
+	/** Simulate a new-session send: dispatch (`onWillSendRequest`) then start. */
+	function sendNewSession(draftId: string, committedId: string = draftId): void {
+		willSendRequestEmitter.fire(createSession(draftId));
+		if (committedId !== draftId) {
+			sessionReplacedEmitter.fire({ from: createSession(draftId), to: createSession(committedId) });
+		}
+		sessionStartedEmitter.fire(createSession(committedId));
+	}
 
 	setup(() => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		storageService = disposables.add(new InMemoryStorageService());
 		instantiationService.stub(IStorageService, storageService);
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
+		willSendRequestEmitter = disposables.add(new Emitter<ISession>());
+		sessionStartedEmitter = disposables.add(new Emitter<ISession>());
+		sessionArchivedEmitter = disposables.add(new Emitter<ISession>());
+		sessionUnarchivedEmitter = disposables.add(new Emitter<ISession>());
+		sessionReplacedEmitter = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+		newSessionDiscardedEmitter = disposables.add(new Emitter<ISession>());
+		sessions = [];
 		instantiationService.stub(ISessionsManagementService, {
 			...mock<ISessionsManagementService>(),
+			getSessions: () => sessions,
 			onDidChangeSessions: sessionsChangedEmitter.event,
+			onWillSendRequest: willSendRequestEmitter.event,
+			onDidStartSession: sessionStartedEmitter.event,
+			onDidArchiveSession: sessionArchivedEmitter.event,
+			onDidUnarchiveSession: sessionUnarchivedEmitter.event,
+			onDidReplaceSession: sessionReplacedEmitter.event,
+			onDidDiscardNewSession: newSessionDiscardedEmitter.event,
 		});
 		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
 	});
@@ -81,6 +111,29 @@ suite('SessionGroupsService', () => {
 		assert.strictEqual(service.getGroupOfSession('s1'), b.id);
 		assert.deepStrictEqual(service.getSessionIdsInGroup(a.id), []);
 		assert.deepStrictEqual(service.getSessionIdsInGroup(b.id), ['s1']);
+	});
+
+	test('addToGroup adds multiple sessions in a single change event', () => {
+		const a = service.createGroup('A');
+		let changeCount = 0;
+		disposables.add(service.onDidChange(() => changeCount++));
+
+		service.addToGroup(['s1', 's2', 's3'], a.id);
+
+		assert.deepStrictEqual(
+			[service.getSessionIdsInGroup(a.id), changeCount],
+			[['s1', 's2', 's3'], 1]
+		);
+	});
+
+	test('addToGroup with multiple sessions does not fire when none change', () => {
+		const a = service.createGroup('A', ['s1', 's2']);
+		let changeCount = 0;
+		disposables.add(service.onDidChange(() => changeCount++));
+
+		service.addToGroup(['s1', 's2'], a.id);
+
+		assert.strictEqual(changeCount, 0);
 	});
 
 	test('remove from group clears membership', () => {
@@ -111,40 +164,101 @@ suite('SessionGroupsService', () => {
 		const session = createSession('s1');
 		sessionsChangedEmitter.fire({ added: [], removed: [session], changed: [] });
 
-		assert.strictEqual(service.getGroupOfSession('s1'), undefined);
-		assert.deepStrictEqual(service.getSessionIdsInGroup(a.id), ['s2']);
+		assert.deepStrictEqual({
+			groupName: service.getGroup(a.id)?.name,
+			removedMembership: service.getGroupOfSession('s1'),
+			remainingMembers: service.getSessionIdsInGroup(a.id),
+		}, {
+			groupName: 'A',
+			removedMembership: undefined,
+			remainingMembers: ['s2'],
+		});
 	});
 
-	test('empty groups are capped at 3, evicting the oldest', () => {
-		// Four empty groups created in order; the oldest (g1) should be evicted.
-		const g1 = service.createGroup('1');
-		const g2 = service.createGroup('2');
-		const g3 = service.createGroup('3');
-		const g4 = service.createGroup('4');
-
-		const ids = service.getGroups().map(g => g.id);
-		assert.strictEqual(ids.includes(g1.id), false);
-		assert.deepStrictEqual([g2, g3, g4].map(g => ids.includes(g.id)), [true, true, true]);
-	});
-
-	test('non-empty groups are never evicted by the empty cap', () => {
-		const kept = service.createGroup('kept', ['s1']);
-		service.createGroup('e1');
-		service.createGroup('e2');
-		service.createGroup('e3');
-		service.createGroup('e4');
-
-		assert.strictEqual(service.getGroup(kept.id)?.name, 'kept');
-		assert.strictEqual(service.getGroups().filter(g => service.getSessionIdsInGroup(g.id).length === 0).length, 3);
-	});
-
-	test('setGroupSortKey overrides placement and persists', () => {
+	test('archiving the last member leaves an empty group', () => {
 		const a = service.createGroup('A', ['s1']);
-		service.setGroupSortKey(a.id, 12345);
-		assert.strictEqual(service.getGroup(a.id)?.sortKeyOverride, 12345);
+
+		sessionArchivedEmitter.fire(createSession('s1'));
+
+		assert.deepStrictEqual({
+			archivedMembership: service.getGroupOfSession('s1'),
+			groupName: service.getGroup(a.id)?.name,
+			remainingMembers: service.getSessionIdsInGroup(a.id),
+		}, {
+			archivedMembership: undefined,
+			groupName: 'A',
+			remainingMembers: [],
+		});
+	});
+
+	test('restoring an archived session does not restore its group membership', () => {
+		const a = service.createGroup('A', ['s1']);
+		const session = createSession('s1');
+
+		sessionArchivedEmitter.fire(session);
+		sessionUnarchivedEmitter.fire(session);
+
+		assert.deepStrictEqual({
+			membership: service.getGroupOfSession('s1'),
+			remainingMembers: service.getSessionIdsInGroup(a.id),
+		}, {
+			membership: undefined,
+			remainingMembers: [],
+		});
+	});
+
+	test('membership is cleaned up when a provider reports an archived session', () => {
+		const a = service.createGroup('A', ['s1', 's2']);
+		const session = createSession('s1', true);
+
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
+
+		assert.deepStrictEqual({
+			archivedMembership: service.getGroupOfSession('s1'),
+			remainingMembers: service.getSessionIdsInGroup(a.id),
+		}, {
+			archivedMembership: undefined,
+			remainingMembers: ['s2'],
+		});
+	});
+
+	test('membership is cleaned up when a provider adds an archived session', () => {
+		const a = service.createGroup('A', ['s1', 's2']);
+		const session = createSession('s1', true);
+
+		sessionsChangedEmitter.fire({ added: [session], removed: [], changed: [] });
+
+		assert.deepStrictEqual({
+			archivedMembership: service.getGroupOfSession('s1'),
+			remainingMembers: service.getSessionIdsInGroup(a.id),
+		}, {
+			archivedMembership: undefined,
+			remainingMembers: ['s2'],
+		});
+	});
+
+	test('persisted archived membership is cleaned up when the service loads', () => {
+		const a = service.createGroup('A', ['s1', 's2']);
+		sessions = [createSession('s1', true), createSession('s2')];
 
 		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
-		assert.strictEqual(reloaded.getGroup(a.id)?.sortKeyOverride, 12345);
+
+		assert.deepStrictEqual({
+			archivedMembership: reloaded.getGroupOfSession('s1'),
+			remainingMembers: reloaded.getSessionIdsInGroup(a.id),
+		}, {
+			archivedMembership: undefined,
+			remainingMembers: ['s2'],
+		});
+	});
+
+	test('empty groups persist until explicitly deleted', () => {
+		for (const name of ['1', '2', '3', '4']) {
+			service.createGroup(name);
+		}
+
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		assert.deepStrictEqual(reloaded.getGroups().map(group => group.name).sort(), ['1', '2', '3', '4']);
 	});
 
 	test('state persists across reload', () => {
@@ -156,8 +270,78 @@ suite('SessionGroupsService', () => {
 		assert.strictEqual(reloaded.getGroupOfSession('s2'), a.id);
 	});
 
-	test('groupSortKey returns the highest member key', () => {
-		assert.strictEqual(groupSortKey([10, 50, 30]), 50);
-		assert.strictEqual(groupSortKey([]), undefined);
+	test('pending new session group binds the next started session', () => {
+		const a = service.createGroup('A');
+		service.setPendingNewSessionGroup(a.id);
+
+		sendNewSession('started');
+
+		assert.strictEqual(service.getGroupOfSession('started'), a.id);
+		assert.deepStrictEqual(service.getSessionIdsInGroup(a.id), ['started']);
+	});
+
+	test('pending group follows the draft as it graduates to a committed id', () => {
+		const a = service.createGroup('A');
+		service.setPendingNewSessionGroup(a.id);
+
+		sendNewSession('draft', 'committed');
+
+		assert.strictEqual(service.getGroupOfSession('committed'), a.id);
+		assert.strictEqual(service.getGroupOfSession('draft'), undefined);
+	});
+
+	test('pending new session group is consumed once', () => {
+		const a = service.createGroup('A');
+		service.setPendingNewSessionGroup(a.id);
+
+		sendNewSession('s1');
+		sendNewSession('s2');
+
+		assert.strictEqual(service.getGroupOfSession('s1'), a.id);
+		assert.strictEqual(service.getGroupOfSession('s2'), undefined);
+	});
+
+	test('a concurrent send for another group does not rebind an in-flight send', () => {
+		const a = service.createGroup('A');
+		const b = service.createGroup('B');
+
+		// Dispatch a send for A, then arm B before A's start commits.
+		service.setPendingNewSessionGroup(a.id);
+		willSendRequestEmitter.fire(createSession('a-draft'));
+		service.setPendingNewSessionGroup(b.id);
+
+		sessionStartedEmitter.fire(createSession('a-draft'));
+
+		assert.strictEqual(service.getGroupOfSession('a-draft'), a.id);
+		assert.strictEqual(service.getGroupOfSession('b-draft'), undefined);
+	});
+
+	test('discarding the new session clears the pending group', () => {
+		const a = service.createGroup('A');
+		service.setPendingNewSessionGroup(a.id);
+
+		newSessionDiscardedEmitter.fire(createSession('draft'));
+		sendNewSession('unrelated');
+
+		assert.strictEqual(service.getGroupOfSession('unrelated'), undefined);
+		assert.deepStrictEqual(service.getSessionIdsInGroup(a.id), []);
+	});
+
+	test('pending group for a non-existent group is ignored', () => {
+		service.setPendingNewSessionGroup('missing');
+		sendNewSession('s1');
+		assert.strictEqual(service.getGroupOfSession('s1'), undefined);
+	});
+
+	test('deleting the pending group clears the pending intent', () => {
+		const a = service.createGroup('A');
+		service.setPendingNewSessionGroup(a.id);
+		service.deleteGroup(a.id);
+
+		const b = service.createGroup('B');
+		sendNewSession('s1');
+
+		assert.strictEqual(service.getGroupOfSession('s1'), undefined);
+		assert.deepStrictEqual(service.getSessionIdsInGroup(b.id), []);
 	});
 });

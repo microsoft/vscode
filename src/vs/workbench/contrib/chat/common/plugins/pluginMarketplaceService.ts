@@ -28,6 +28,7 @@ import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js
 import { FileBackedInstalledPluginsStore, IStoredInstalledPlugin } from './fileBackedInstalledPluginsStore.js';
 import { IWorkspacePluginSettingsService } from './workspacePluginSettingsService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { readAgentPluginManifest } from '../../../../../platform/agentPlugins/common/agentPluginParser.js';
 import { type IMarketplaceReference, deduplicateMarketplaceReferences, MarketplaceReferenceKind, parseMarketplaceObjectEntry, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
 import { getStrictKnownMarketplaces, isMarketplaceReferenceAllowed } from './strictKnownMarketplaces.js';
 
@@ -199,6 +200,14 @@ export interface IPluginMarketplaceService {
 	 * root.
 	 */
 	readSinglePluginManifest(repoDir: URI, reference: IMarketplaceReference): Promise<IMarketplacePlugin | undefined>;
+	/**
+	 * Returns whether the given directory is a standalone plugin — i.e. it
+	 * contains a single-plugin manifest (e.g. `.plugin/plugin.json`,
+	 * `.claude-plugin/plugin.json`, or `plugin.json`) at its root but is not a
+	 * marketplace. Used by direct-install flows to route a local folder to the
+	 * appropriate configuration.
+	 */
+	isPluginDirectory(repoDir: URI): Promise<boolean>;
 }
 
 /**
@@ -229,6 +238,7 @@ const GITHUB_MARKETPLACE_CACHE_STORAGE_KEY = 'chat.plugins.marketplaces.githubCa
 
 /** Interval between periodic plugin update checks (24 hours). */
 const PLUGIN_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
 const PLUGIN_UPDATE_LAST_CHECK_STORAGE_KEY = 'chat.plugins.lastUpdateCheck.v1';
 
 interface IGitHubMarketplaceCacheEntry {
@@ -849,6 +859,23 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return undefined;
 		}
 
+		const sourceDescriptor: IPluginSourceDescriptor = reference.kind === MarketplaceReferenceKind.GitHubShorthand
+			? { kind: PluginSourceKind.GitHub, repo: reference.githubRepo! }
+			: { kind: PluginSourceKind.GitUrl, url: reference.cloneUrl };
+		const agentManifest = await readAgentPluginManifest(repoDir, this._fileService);
+		if (agentManifest) {
+			return {
+				name: agentManifest.name ?? reference.displayLabel,
+				description: agentManifest.description ?? '',
+				version: agentManifest.version ?? '',
+				source: '',
+				sourceDescriptor,
+				marketplace: reference.displayLabel,
+				marketplaceReference: reference,
+				marketplaceType: MarketplaceType.OpenPlugin,
+			};
+		}
+
 		for (const def of SINGLE_PLUGIN_MANIFEST_DEFINITIONS) {
 			const manifestUri = joinPath(repoDir, def.path);
 			let manifest: Record<string, unknown> | undefined;
@@ -864,10 +891,6 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			if (!manifest) {
 				continue;
 			}
-
-			const sourceDescriptor: IPluginSourceDescriptor = reference.kind === MarketplaceReferenceKind.GitHubShorthand
-				? { kind: PluginSourceKind.GitHub, repo: reference.githubRepo! }
-				: { kind: PluginSourceKind.GitUrl, url: reference.cloneUrl };
 
 			const manifestName = typeof manifest['name'] === 'string' && manifest['name'] ? manifest['name'] as string : reference.displayLabel;
 			const manifestDescription = typeof manifest['description'] === 'string' ? manifest['description'] as string : '';
@@ -887,6 +910,18 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 		this._logService.debug(`[PluginMarketplaceService] No single-plugin manifest found in ${reference.rawValue}`);
 		return undefined;
+	}
+
+	async isPluginDirectory(repoDir: URI): Promise<boolean> {
+		if (await readAgentPluginManifest(repoDir, this._fileService)) {
+			return true;
+		}
+		for (const def of SINGLE_PLUGIN_MANIFEST_DEFINITIONS) {
+			if (await this._fileService.exists(joinPath(repoDir, def.path))) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private async _readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference, token?: CancellationToken): Promise<IMarketplacePlugin[]> {

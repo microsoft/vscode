@@ -20,12 +20,12 @@ export async function resolveGitProject(workingDirectory: URI | undefined, gitSe
 		return undefined;
 	}
 
-	if (!await gitService.isInsideWorkTree(workingDirectory)) {
+	const repositoryRoot = await gitService.getRepositoryRoot(workingDirectory);
+	if (!repositoryRoot) {
 		return undefined;
 	}
 
-	const uri = (await gitService.getWorktreeRoots(workingDirectory))[0]
-		?? await gitService.getRepositoryRoot(workingDirectory);
+	const uri = (await gitService.getWorktreeRoots(workingDirectory))[0] ?? repositoryRoot;
 	if (!uri) {
 		return undefined;
 	}

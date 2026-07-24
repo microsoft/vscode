@@ -210,19 +210,22 @@ export class BrowserUrlBarWidget extends Disposable {
 		// Display interaction state machine:
 		//   - Keyboard focus (Tab) opens the picker immediately.
 		//   - Mouse focus defers the decision to `click` so drag-select can complete.
-		//   - Already-focused clicks open the picker through the same `click` handler
-		//     (carrying the click's caret position into the picker).
+		//   - Already-focused clicks keep editing in the display (no picker auto-open).
 		//   - Typing into the display promotes the edit into the picker via `input`.
 		let pendingMouseFocus = false;
-		this._register(addDisposableListener(this._urlDisplay, EventType.MOUSE_DOWN, () => {
+		this._register(addDisposableListener(this._urlDisplay, EventType.POINTER_DOWN, () => {
 			if (this._urlDisplay.ownerDocument.activeElement !== this._urlDisplay) {
 				pendingMouseFocus = true;
 			}
 		}));
-		this._register(addDisposableListener(this._urlDisplay, EventType.FOCUS, () => {
+		this._register(addDisposableListener(this._urlDisplay, EventType.FOCUS, (event: FocusEvent) => {
 			if (this._suppressFocusOpen) {
 				this._suppressFocusOpen = false;
 				pendingMouseFocus = false;
+				return;
+			}
+			// Only open the picker if focus is already within the workbench, and not being transferred from a quick input.
+			if (!(event.relatedTarget instanceof Element) || event.relatedTarget.closest('.quick-input-widget')) {
 				return;
 			}
 			if (pendingMouseFocus) {
@@ -259,13 +262,17 @@ export class BrowserUrlBarWidget extends Disposable {
 			}
 		}));
 		this._register(addDisposableListener(this._urlDisplay, EventType.CLICK, () => {
+			const isMouseFocusClick = pendingMouseFocus;
 			pendingMouseFocus = false;
+			if (!isMouseFocusClick) {
+				return;
+			}
 			// Preserve drag-selection so users can copy parts of the URL.
 			const selection = this._urlDisplay.ownerDocument.getSelection();
 			if (selection && !selection.isCollapsed && selection.anchorNode && this._urlDisplay.contains(selection.anchorNode)) {
 				return;
 			}
-			// Click without a drag opens the picker with the URL fully
+			// First click after mouse-focus (without a drag) opens the picker with the URL fully
 			// selected (matches browser URL-bar convention: click → ready to
 			// retype the whole thing).
 			const value = this._urlDisplay.textContent ?? '';
@@ -744,7 +751,6 @@ export class BrowserUrlBarWidget extends Disposable {
 			if (refocusDisplay) {
 				// Preserve the in-progress edit + caret/selection so the
 				// user can continue typing in the display.
-				this._suppressFocusOpen = true;
 				this._urlDisplay.focus();
 				if (selectionAtHide !== undefined) {
 					this._setSelection(selectionAtHide.start, selectionAtHide.end, selectionAtHide.direction);
@@ -758,14 +764,6 @@ export class BrowserUrlBarWidget extends Disposable {
 					// Move focus to the browser content so the user can
 					// interact with the page.
 					this._host.ensureBrowserFocus();
-				} else if (replaced) {
-					// When the replacement picker eventually hides, the
-					// QuickInputController restores focus to the element that
-					// was focused before our picker opened — usually the URL
-					// display. Suppress the next FOCUS-driven picker reopen
-					// so the URL picker doesn't auto-reopen on top of that
-					// restoration.
-					this._suppressFocusOpen = true;
 				}
 			}
 			disposables.dispose();

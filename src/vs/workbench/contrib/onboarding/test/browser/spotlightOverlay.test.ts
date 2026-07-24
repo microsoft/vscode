@@ -89,6 +89,30 @@ suite('SpotlightOverlay', () => {
 		});
 	});
 
+	test('vertical placement centers the callout over the target', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
+		const target = createTarget(container, 300, 200, 120, 30);
+
+		overlay.show(target, content(), { placement: 'above' });
+
+		const callout = container.getElementsByClassName('spotlight-callout')[0] as HTMLElement;
+		const pointer = container.getElementsByClassName('spotlight-callout-pointer')[0] as HTMLElement;
+		assert.deepStrictEqual({
+			calloutLeft: callout.style.left,
+			calloutBottom: callout.offsetTop + callout.offsetHeight,
+			pointerSide: pointer.classList.contains('bottom'),
+			pointerLeft: pointer.style.left,
+			pointerTop: pointer.style.top,
+		}, {
+			calloutLeft: `${300 + 60 - (callout.offsetWidth / 2)}px`,
+			calloutBottom: 184,
+			pointerSide: true,
+			pointerLeft: `${300 + 60 - 5}px`,
+			pointerTop: `${callout.offsetTop + callout.offsetHeight - 5}px`,
+		});
+	});
+
 	test('Next / Back / Skip buttons fire the corresponding events', () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
@@ -121,14 +145,25 @@ suite('SpotlightOverlay', () => {
 		overlay.show(target, content(), { advanceOnTargetClick: true });
 
 		const [, , next] = getButtons(container);
-		const blocker = container.getElementsByClassName('spotlight-blocker')[0] as HTMLElement;
+		const blockers = Array.from(container.getElementsByClassName('spotlight-blocker')) as HTMLElement[];
+		const viewportWidth = mainWindow.document.documentElement.clientWidth;
+		const viewportHeight = mainWindow.document.documentElement.clientHeight;
 		target.click();
 
 		assert.deepStrictEqual({
 			nextHidden: next.style.display === 'none',
-			interactive: blocker.style.clipPath.includes('evenodd'),
+			blockers: blockers.map(blocker => ({ left: blocker.style.left, top: blocker.style.top, width: blocker.style.width, height: blocker.style.height })),
 			advanced
-		}, { nextHidden: true, interactive: true, advanced: 1 });
+		}, {
+			nextHidden: true,
+			blockers: [
+				{ left: '0px', top: '0px', width: `${viewportWidth}px`, height: '94px' },
+				{ left: '186px', top: '94px', width: `${viewportWidth - 186}px`, height: '42px' },
+				{ left: '0px', top: '136px', width: `${viewportWidth}px`, height: `${viewportHeight - 136}px` },
+				{ left: '0px', top: '94px', width: '94px', height: '42px' },
+			],
+			advanced: 1
+		});
 	});
 
 	test('Back button is hidden when canGoBack is false and Next becomes Done on the last step', () => {
@@ -142,17 +177,63 @@ suite('SpotlightOverlay', () => {
 		assert.deepStrictEqual({ backHidden: back.style.display === 'none', nextLabel: next.textContent }, { backHidden: true, nextLabel: 'Done' });
 	});
 
-	test('allowTargetInteraction cuts a hole out of the click blocker', () => {
+	test('allowTargetInteraction arranges click blockers around the target', () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
 		const target = createTarget(container, 100, 100, 80, 30);
-		const blocker = () => container.getElementsByClassName('spotlight-blocker')[0] as HTMLElement;
+		const targetButton = $('button');
+		target.appendChild(targetButton);
+		const blockers = () => Array.from(container.getElementsByClassName('spotlight-blocker')) as HTMLElement[];
+		const callout = container.getElementsByClassName('spotlight-callout')[0] as HTMLElement;
 
 		overlay.show(target, content(), { allowTargetInteraction: false });
-		assert.strictEqual(blocker().style.clipPath, '');
+		assert.deepStrictEqual({ blockers: blockers().map(blocker => blocker.style.display), ariaModal: callout.getAttribute('aria-modal') }, {
+			blockers: ['', 'none', 'none', 'none'],
+			ariaModal: 'true',
+		});
 
 		overlay.show(target, content(), { allowTargetInteraction: true });
-		assert.ok(blocker().style.clipPath.includes('evenodd'), 'expected an evenodd clip-path');
+		const [, , next] = getButtons(container);
+		const root = container.getElementsByClassName('spotlight-overlay')[0] as HTMLElement;
+		next.focus();
+		const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true });
+		Object.defineProperty(event, 'keyCode', { get: () => 9 /* Tab */ });
+		next.dispatchEvent(event);
+
+		assert.deepStrictEqual({
+			blockers: blockers().map(blocker => blocker.style.display),
+			targetOverlayVisible: root.classList.contains('target-overlay-visible'),
+			ariaModal: callout.getAttribute('aria-modal'),
+			activeElement: mainWindow.document.activeElement,
+		}, {
+			blockers: ['', '', '', ''],
+			targetOverlayVisible: true,
+			ariaModal: 'false',
+			activeElement: targetButton,
+		});
+	});
+
+	test('hideNext routes target keyboard events through the focus trap', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
+		const target = createTarget(container, 100, 100, 80, 30);
+		target.tabIndex = 0;
+
+		overlay.show(target, content(), { hideNext: true });
+		const [skip, , next] = getButtons(container);
+		const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true });
+		Object.defineProperty(event, 'keyCode', { get: () => 9 /* Tab */ });
+		target.dispatchEvent(event);
+
+		assert.deepStrictEqual({
+			nextHidden: next.style.display === 'none',
+			ariaModal: container.getElementsByClassName('spotlight-callout')[0].getAttribute('aria-modal'),
+			activeElement: mainWindow.document.activeElement,
+		}, {
+			nextHidden: true,
+			ariaModal: 'false',
+			activeElement: skip,
+		});
 	});
 
 	test('observes the target and container for re-layout', () => {

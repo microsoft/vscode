@@ -13,6 +13,7 @@ import type { IAgentToolPendingConfirmationSignal } from '../../common/agentServ
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { basename } from '../../../../base/common/resources.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 
 // =============================================================================
 // Copilot CLI built-in tool interfaces
@@ -190,6 +191,26 @@ interface ICopilotSqlToolArgs {
 /** Parameters for the `web_fetch` tool. */
 interface ICopilotWebFetchToolArgs {
 	url: string;
+}
+
+/**
+ * Parameters shared by the agent-coordination tools (`read_agent`,
+ * `write_agent`). The Copilot CLI identifies the target agent by its
+ * human-readable `agent_id` (e.g. `math-helper`).
+ */
+interface ICopilotAgentToolArgs {
+	agent_id?: string;
+}
+
+/**
+ * Reads a well-formed `agent_id` from untrusted tool parameters. Since these are
+ * parsed from JSON they may not match the expected shape, so the id is returned
+ * only when it is a non-empty string and is therefore safe to render as inline
+ * markdown code.
+ */
+function getAgentId(parameters: Record<string, unknown> | undefined): string | undefined {
+	const agentId = (parameters as ICopilotAgentToolArgs | undefined)?.agent_id;
+	return typeof agentId === 'string' && agentId.length > 0 ? agentId : undefined;
 }
 
 /**
@@ -380,6 +401,18 @@ export function isHiddenTool(toolName: string): boolean {
 }
 
 /**
+ * Returns true for the auto-approved agent-coordination tools (list/read/write
+ * agents). These are client-contributed tools that never go through the
+ * permission flow, so the agent host auto-readies them at start to surface a
+ * tailored invocation message instead of the generic fallback.
+ */
+export function isAgentCoordinationTool(toolName: string): boolean {
+	return toolName === CopilotToolName.ListAgents
+		|| toolName === CopilotToolName.ReadAgent
+		|| toolName === CopilotToolName.WriteAgent;
+}
+
+/**
  * Returns true when the tool is Copilot's internal Autopilot completion signal.
  */
 export function isTaskCompleteTool(toolName: string): boolean {
@@ -440,6 +473,20 @@ export function isShellTool(toolName: string): boolean {
 	return SHELL_TOOL_NAMES.has(toolName);
 }
 
+/**
+ * Extracts the intention for a shell tool call from its `description`
+ * argument. The Copilot shell tools (`bash`/`powershell`) carry a short
+ * human-readable description of what the command does, which matches the
+ * model's intention summary. Non-shell tools have no such argument, so this
+ * returns `undefined` for them.
+ */
+export function getShellIntention(toolName: string, parameters: Record<string, unknown> | undefined): string | undefined {
+	if (isShellTool(toolName) && typeof parameters?.description === 'string' && parameters.description.length > 0) {
+		return parameters.description;
+	}
+	return undefined;
+}
+
 // =============================================================================
 // Display helpers
 //
@@ -475,6 +522,10 @@ function md(value: string): StringOrMarkdown {
 }
 
 export function getToolDisplayName(toolName: string): string {
+	const serverDisplay = getServerToolDisplay(toolName, undefined)?.displayName;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
+	}
 	switch (toolName) {
 		case CopilotToolName.StrReplaceEditor:
 		case CopilotToolName.Edit:
@@ -534,6 +585,11 @@ export function getToolDisplayName(toolName: string): string {
 }
 
 export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined): StringOrMarkdown {
+	const serverDisplay = getServerToolDisplay(toolName, parameters)?.invocationMessage;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
+	}
+
 	if (SHELL_TOOL_NAMES.has(toolName)) {
 		const args = parameters as ICopilotShellToolArgs | undefined;
 		if (args?.command) {
@@ -634,14 +690,28 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolInvoke.exitPlanMode', "Presenting plan");
+		case CopilotToolName.Task:
+			return localize('toolInvoke.task', "Delegating task");
+		// The agent-coordination tools (list/read/write agents) are fast, so
+		// they use a single message for both the running and completed states:
+		// the past-tense phrasing. See getPastTenseMessage.
+		case CopilotToolName.ListAgents:
+		case CopilotToolName.ReadAgent:
+		case CopilotToolName.WriteAgent:
+			return getPastTenseMessage(toolName, displayName, parameters, true);
 		default:
-			return localize('toolInvoke.generic', "Using \"{0}\"", displayName);
+			return displayName;
 	}
 }
 
-export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean): StringOrMarkdown {
+export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string): StringOrMarkdown {
 	if (!success) {
 		return localize('toolComplete.failed', "\"{0}\" failed", displayName);
+	}
+
+	const serverDisplay = getServerToolDisplay(toolName, parameters, { text: resultText, success })?.pastTenseMessage;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
 	}
 
 	if (SHELL_TOOL_NAMES.has(toolName)) {
@@ -744,8 +814,26 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolComplete.exitPlanMode', "Exited plan mode");
+		case CopilotToolName.Task:
+			return localize('toolComplete.task', "Delegated task");
+		case CopilotToolName.ListAgents:
+			return localize('toolComplete.listAgents', "Listed agents");
+		case CopilotToolName.ReadAgent: {
+			const agentId = getAgentId(parameters);
+			if (agentId) {
+				return md(localize('toolComplete.readAgent', "Read agent {0}", appendEscapedMarkdownInlineCode(agentId)));
+			}
+			return localize('toolComplete.readAgentGeneric', "Read agent");
+		}
+		case CopilotToolName.WriteAgent: {
+			const agentId = getAgentId(parameters);
+			if (agentId) {
+				return md(localize('toolComplete.writeAgent', "Wrote to agent {0}", appendEscapedMarkdownInlineCode(agentId)));
+			}
+			return localize('toolComplete.writeAgentGeneric', "Wrote to agent");
+		}
 		default:
-			return localize('toolComplete.generic', "Used \"{0}\"", displayName);
+			return displayName;
 	}
 }
 
@@ -971,6 +1059,12 @@ export interface ITypedPermissionRequest {
 	fileName?: string;
 	/** Full shell command text — set for `shell` permission requests. */
 	fullCommandText?: string;
+	/**
+	 * True when the model requested this `shell` command run outside the
+	 * sandbox (via `requestSandboxBypass`) and the host opted in via
+	 * `sandbox.allowBypass`.
+	 */
+	requestSandboxBypass?: boolean;
 	/** Human-readable intention describing the operation. */
 	intention?: string;
 	/** MCP server name — set for `mcp` permission requests. */
@@ -995,7 +1089,7 @@ function str(value: unknown): string | undefined {
 /**
  * Derives display fields from a permission request for the tool confirmation UI.
  */
-export function getPermissionDisplay(request: ITypedPermissionRequest, workingDirectory?: URI): {
+export function getPermissionDisplay(request: ITypedPermissionRequest, workingDirectory?: URI, isNewFile?: boolean): {
 	confirmationTitle: string;
 	invocationMessage: StringOrMarkdown;
 	toolInput?: string;
@@ -1010,6 +1104,10 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 	const serverName = str(request.serverName);
 	const toolName = str(request.toolName);
 
+	const shellConfirmationTitle = request.requestSandboxBypass
+		? localize('copilot.permission.shell.bypass.title', "Run in terminal outside the sandbox?")
+		: localize('copilot.permission.shell.title', "Run in terminal?");
+
 	switch (request.kind) {
 		case 'shell': {
 			// Strip a redundant `cd <workingDirectory> && …` prefix so the
@@ -1018,7 +1116,7 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 			stripRedundantCdPrefix(CopilotToolName.Bash, shellParams, workingDirectory);
 			const cleanedCommand = typeof shellParams?.command === 'string' ? shellParams.command : fullCommandText;
 			return {
-				confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal?"),
+				confirmationTitle: shellConfirmationTitle,
 				invocationMessage: intention ?? getInvocationMessage(CopilotToolName.Bash, getToolDisplayName(CopilotToolName.Bash), cleanedCommand ? { command: cleanedCommand } : undefined),
 				toolInput: cleanedCommand,
 				permissionKind: 'shell',
@@ -1034,7 +1132,7 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 				stripRedundantCdPrefix(sdkToolName, args, workingDirectory);
 				const command = args.command as string;
 				return {
-					confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal?"),
+					confirmationTitle: shellConfirmationTitle,
 					invocationMessage: getInvocationMessage(sdkToolName, getToolDisplayName(sdkToolName), { command }),
 					toolInput: command,
 					permissionKind: 'shell',
@@ -1049,14 +1147,18 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 				permissionPath: path,
 			};
 		}
-		case 'write':
+		case 'write': {
+			const toolName = isNewFile ? CopilotToolName.Create : CopilotToolName.Edit;
 			return {
-				confirmationTitle: localize('copilot.permission.write.title', "Write file?"),
-				invocationMessage: getInvocationMessage(CopilotToolName.Edit, getToolDisplayName(CopilotToolName.Edit), path ? { path } : undefined),
+				confirmationTitle: isNewFile
+					? localize('copilot.permission.create.title', "Create file?")
+					: localize('copilot.permission.write.title', "Write file?"),
+				invocationMessage: getInvocationMessage(toolName, getToolDisplayName(toolName), path ? { path } : undefined),
 				toolInput: tryStringify(path ? { path } : request) ?? undefined,
 				permissionKind: 'write',
 				permissionPath: path,
 			};
+		}
 		case 'mcp': {
 			const title = toolName ?? localize('copilot.permission.mcp.defaultTool', "MCP Tool");
 			return {

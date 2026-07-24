@@ -15,10 +15,21 @@ import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js'
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { localize } from '../../../../../nls.js';
 import { SpotlightPlacement } from './spotlightTypes.js';
+import { OnboardingDismissReason } from '../../common/onboardingScenario.js';
 import '../media/spotlight.css';
+
+/** How the user advanced to the next step. */
+export type SpotlightAdvanceSource = 'button' | 'target';
+
+/** Why a step ended in a skip: the Skip button or the Escape key. */
+export type SpotlightSkipReason = OnboardingDismissReason.SkipButton | OnboardingDismissReason.EscapeKey;
 
 /** Default padding (px) added around the target when cutting the highlight hole. */
 const DEFAULT_HOLE_PADDING = 6;
+const POINTER_SIZE = 10;
+const POINTER_GAP = POINTER_SIZE;
+const POINTER_EDGE_MARGIN = 16;
+type PointerSide = 'top' | 'right' | 'bottom' | 'left';
 
 /** Content rendered inside the spotlight callout for a single step. */
 export interface ISpotlightContent {
@@ -39,6 +50,8 @@ export interface ISpotlightShowOptions {
 	readonly placement?: SpotlightPlacement;
 	readonly allowTargetInteraction?: boolean;
 	readonly padding?: number;
+	readonly hideNext?: boolean;
+	readonly targetOverlayVisible?: boolean;
 	/**
 	 * When set, the step advances (fires `onDidClickNext`) when the user clicks
 	 * the spotlighted target itself. The "Next" button is hidden and the target
@@ -56,8 +69,9 @@ export interface ISpotlightShowOptions {
 export class SpotlightOverlay extends Disposable {
 
 	private readonly _root: HTMLElement;
-	private readonly _blocker: HTMLElement;
+	private readonly _blockers: readonly HTMLElement[];
 	private readonly _hole: HTMLElement;
+	private readonly _pointer: HTMLElement;
 	private readonly _callout: HTMLElement;
 
 	private readonly _title: HTMLElement;
@@ -72,17 +86,18 @@ export class SpotlightOverlay extends Disposable {
 	/** Listeners scoped to the currently shown step (re-layout sources). */
 	private readonly _stepListeners = this._register(new DisposableStore());
 
-	private readonly _onDidClickNext = this._register(new Emitter<void>());
-	readonly onDidClickNext: Event<void> = this._onDidClickNext.event;
+	private readonly _onDidClickNext = this._register(new Emitter<SpotlightAdvanceSource>());
+	readonly onDidClickNext: Event<SpotlightAdvanceSource> = this._onDidClickNext.event;
 
 	private readonly _onDidClickPrevious = this._register(new Emitter<void>());
 	readonly onDidClickPrevious: Event<void> = this._onDidClickPrevious.event;
 
-	private readonly _onDidSkip = this._register(new Emitter<void>());
-	readonly onDidSkip: Event<void> = this._onDidSkip.event;
+	private readonly _onDidSkip = this._register(new Emitter<SpotlightSkipReason>());
+	readonly onDidSkip: Event<SpotlightSkipReason> = this._onDidSkip.event;
 
 	private _target: HTMLElement | undefined;
 	private _options: ISpotlightShowOptions = {};
+	private _hasShown = false;
 	private _previousFocus: HTMLElement | undefined;
 	private _scheduledLayout: IDisposable | undefined;
 
@@ -95,8 +110,16 @@ export class SpotlightOverlay extends Disposable {
 		this._root = append(this._container, $('.spotlight-overlay'));
 		this._root.style.display = 'none';
 
-		this._blocker = append(this._root, $('.spotlight-blocker'));
+		this._blockers = [
+			append(this._root, $('.spotlight-blocker')),
+			append(this._root, $('.spotlight-blocker')),
+			append(this._root, $('.spotlight-blocker')),
+			append(this._root, $('.spotlight-blocker')),
+		];
 		this._hole = append(this._root, $('.spotlight-hole'));
+		this._hole.setAttribute('aria-hidden', 'true');
+		this._pointer = append(this._root, $('.spotlight-callout-pointer'));
+		this._pointer.setAttribute('aria-hidden', 'true');
 
 		this._callout = append(this._root, $('.spotlight-callout'));
 		this._callout.setAttribute('role', 'dialog');
@@ -117,8 +140,9 @@ export class SpotlightOverlay extends Disposable {
 		const actions = append(footer, $('.spotlight-callout-actions'));
 
 		this._skipButton = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
-		this._skipButton.label = localize('spotlight.skip', "Skip");
-		this._register(this._skipButton.onDidClick(() => this._onDidSkip.fire()));
+		this._skipButton.label = localize('spotlight.endTour', "End Tour");
+		this._skipButton.setTitle(localize('spotlight.endTour.tooltip', "End Tour (Esc)"));
+		this._register(this._skipButton.onDidClick(() => this._onDidSkip.fire(OnboardingDismissReason.SkipButton)));
 
 		this._backButton = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
 		this._backButton.label = localize('spotlight.back', "Back");
@@ -126,9 +150,14 @@ export class SpotlightOverlay extends Disposable {
 
 		this._nextButton = this._register(new Button(actions, { ...defaultButtonStyles }));
 		this._nextButton.label = localize('spotlight.next', "Next");
-		this._register(this._nextButton.onDidClick(() => this._onDidClickNext.fire()));
+		this._register(this._nextButton.onDidClick(() => this._onDidClickNext.fire('button')));
 
-		// Keyboard handling on the callout: Esc skips, focus is trapped within.
+		// Buttons swallow Escape internally, so route their escape events to end the tour too.
+		for (const button of [this._skipButton, this._backButton, this._nextButton]) {
+			this._register(button.onDidEscape(() => this._onDidSkip.fire(OnboardingDismissReason.EscapeKey)));
+		}
+
+		// Keyboard handling on the callout: Esc ends the tour, focus is trapped within.
 		this._register(addDisposableListener(this._callout, EventType.KEY_DOWN, e => this._onKeyDown(e)));
 
 		this._register({ dispose: () => this._restoreFocus() });
@@ -136,14 +165,17 @@ export class SpotlightOverlay extends Disposable {
 
 	/** Show `content` spotlighting `target`. */
 	show(target: HTMLElement, content: ISpotlightContent, options: ISpotlightShowOptions = {}): void {
-		const isFirstShow = this._root.style.display === 'none';
-		if (isFirstShow) {
+		if (!this._hasShown) {
+			this._hasShown = true;
 			this._previousFocus = isHTMLElement(getActiveElement()) ? getActiveElement() as HTMLElement : undefined;
 		}
 
 		this._target = target;
 		this._options = options;
 		this._renderContent(content);
+		const externalUiParticipates = !!options.targetOverlayVisible || !!options.allowTargetInteraction || !!options.advanceOnTargetClick || !!options.hideNext;
+		this._root.classList.toggle('target-overlay-visible', externalUiParticipates);
+		this._callout.setAttribute('aria-modal', externalUiParticipates ? 'false' : 'true');
 
 		this._root.style.display = '';
 
@@ -151,13 +183,13 @@ export class SpotlightOverlay extends Disposable {
 		this._stepListeners.clear();
 		const targetWindow = getWindow(this._container);
 
-		const observer = new this._resizeObserverCtor(() => this._scheduleLayout());
+		const observer = new this._resizeObserverCtor(() => this.scheduleLayout());
 		observer.observe(target);
 		observer.observe(this._container);
 		this._stepListeners.add({ dispose: () => observer.disconnect() });
 
-		this._stepListeners.add(addDisposableListener(targetWindow, EventType.RESIZE, () => this._scheduleLayout()));
-		this._stepListeners.add(addDisposableListener(targetWindow, EventType.SCROLL, () => this._scheduleLayout(), true));
+		this._stepListeners.add(addDisposableListener(targetWindow, EventType.RESIZE, () => this.scheduleLayout()));
+		this._stepListeners.add(addDisposableListener(targetWindow, EventType.SCROLL, () => this.scheduleLayout(), true));
 
 		// Cancel any pending scheduled frame when the step changes. Registered
 		// once here (not per schedule) so high-frequency scroll/resize events
@@ -173,9 +205,12 @@ export class SpotlightOverlay extends Disposable {
 		// and we route Tab/Esc from it through the same handler, so keyboard-only
 		// users can focus the spotlighted control and activate it to advance.
 		const advanceOnTargetClick = !!options.advanceOnTargetClick;
-		this._nextButton.element.style.display = advanceOnTargetClick ? 'none' : '';
+		const hideNext = advanceOnTargetClick || !!options.hideNext;
+		this._nextButton.element.style.display = hideNext ? 'none' : '';
 		if (advanceOnTargetClick) {
-			this._stepListeners.add(addDisposableListener(target, EventType.CLICK, () => this._onDidClickNext.fire()));
+			this._stepListeners.add(addDisposableListener(target, EventType.CLICK, () => this._onDidClickNext.fire('target')));
+		}
+		if (options.allowTargetInteraction || advanceOnTargetClick || options.hideNext) {
 			this._stepListeners.add(addDisposableListener(target, EventType.KEY_DOWN, e => this._onKeyDown(e)));
 		}
 
@@ -183,7 +218,16 @@ export class SpotlightOverlay extends Disposable {
 
 		// Move focus to the spotlighted control (so keyboard users can activate it
 		// to advance) or, otherwise, into the callout's primary action.
-		(advanceOnTargetClick ? target : this._nextButton.element).focus();
+		(hideNext ? target : this._nextButton.element).focus();
+	}
+
+	/** Hide the current step while another target is being resolved. */
+	hide(): void {
+		this._stepListeners.clear();
+		this._root.style.display = 'none';
+		this._root.classList.remove('target-overlay-visible');
+		this._target = undefined;
+		this._options = {};
 	}
 
 	/** Recompute the hole and callout positions for the current target. */
@@ -210,17 +254,33 @@ export class SpotlightOverlay extends Disposable {
 		this._hole.style.height = `${holeHeight}px`;
 
 		// When the target is interactive (explicitly, or because the step advances
-		// on a target click), cut the hole out of the click blocker so events
+		// on a target click), arrange the click blockers around the hole so events
 		// inside it reach the underlying element.
 		if (this._options.allowTargetInteraction || this._options.advanceOnTargetClick) {
 			const right = holeLeft + holeWidth;
 			const bottom = holeTop + holeHeight;
-			this._blocker.style.clipPath = `path(evenodd, 'M0 0 H${viewportWidth} V${viewportHeight} H0 Z M${holeLeft} ${holeTop} H${right} V${bottom} H${holeLeft} Z')`;
+			this._layoutBlocker(this._blockers[0], 0, 0, viewportWidth, holeTop);
+			this._layoutBlocker(this._blockers[1], right, holeTop, viewportWidth - right, holeHeight);
+			this._layoutBlocker(this._blockers[2], 0, bottom, viewportWidth, viewportHeight - bottom);
+			this._layoutBlocker(this._blockers[3], 0, holeTop, holeLeft, holeHeight);
 		} else {
-			this._blocker.style.clipPath = '';
+			this._layoutBlocker(this._blockers[0], 0, 0, viewportWidth, viewportHeight);
+			for (let i = 1; i < this._blockers.length; i++) {
+				this._blockers[i].style.display = 'none';
+			}
 		}
 
 		this._layoutCallout({ top: holeTop, left: holeLeft, width: holeWidth, height: holeHeight }, viewportWidth, viewportHeight);
+	}
+
+	private _layoutBlocker(blocker: HTMLElement, left: number, top: number, width: number, height: number): void {
+		blocker.style.display = '';
+		blocker.style.left = `${left}px`;
+		blocker.style.top = `${top}px`;
+		blocker.style.right = 'auto';
+		blocker.style.bottom = 'auto';
+		blocker.style.width = `${Math.max(0, width)}px`;
+		blocker.style.height = `${Math.max(0, height)}px`;
 	}
 
 	private _layoutCallout(anchor: IRect, viewportWidth: number, viewportHeight: number): void {
@@ -230,8 +290,66 @@ export class SpotlightOverlay extends Disposable {
 		const { anchorAxisAlignment, anchorPosition, anchorAlignment } = this._resolvePlacement(this._options.placement ?? 'auto');
 		const result = layout2d(viewport, view, anchor, { anchorAxisAlignment, anchorPosition, anchorAlignment });
 
-		this._callout.style.top = `${result.top}px`;
-		this._callout.style.left = `${result.left}px`;
+		const left = anchorAxisAlignment === AnchorAxisAlignment.VERTICAL ? this._centerCallout(anchor, view.width, viewportWidth) : result.left;
+		const callout = { top: result.top, left, width: view.width, height: view.height };
+		const pointerSide = this._getPointerSide(anchor, callout, anchorAxisAlignment);
+		const offsetCallout = this._offsetCalloutForPointer(callout, pointerSide, viewportWidth, viewportHeight);
+
+		this._callout.style.top = `${offsetCallout.top}px`;
+		this._callout.style.left = `${offsetCallout.left}px`;
+		this._layoutPointer(anchor, offsetCallout, pointerSide);
+	}
+
+	private _centerCallout(anchor: IRect, calloutWidth: number, viewportWidth: number): number {
+		const centered = anchor.left + (anchor.width / 2) - (calloutWidth / 2);
+		return Math.max(0, Math.min(centered, viewportWidth - calloutWidth));
+	}
+
+	private _getPointerSide(anchor: IRect, callout: IRect, anchorAxisAlignment: AnchorAxisAlignment): PointerSide {
+		const targetCenterX = anchor.left + (anchor.width / 2);
+		const targetCenterY = anchor.top + (anchor.height / 2);
+		const calloutCenterX = callout.left + (callout.width / 2);
+		const calloutCenterY = callout.top + (callout.height / 2);
+		return anchorAxisAlignment === AnchorAxisAlignment.VERTICAL
+			? calloutCenterY < targetCenterY ? 'bottom' : 'top'
+			: calloutCenterX < targetCenterX ? 'right' : 'left';
+	}
+
+	private _offsetCalloutForPointer(callout: IRect, side: PointerSide, viewportWidth: number, viewportHeight: number): IRect {
+		switch (side) {
+			case 'bottom':
+				return { ...callout, top: Math.max(0, callout.top - POINTER_GAP) };
+			case 'top':
+				return { ...callout, top: Math.min(viewportHeight - callout.height, callout.top + POINTER_GAP) };
+			case 'right':
+				return { ...callout, left: Math.max(0, callout.left - POINTER_GAP) };
+			case 'left':
+				return { ...callout, left: Math.min(viewportWidth - callout.width, callout.left + POINTER_GAP) };
+		}
+	}
+
+	private _layoutPointer(anchor: IRect, callout: IRect, side: PointerSide): void {
+		const targetCenterX = anchor.left + (anchor.width / 2);
+		const targetCenterY = anchor.top + (anchor.height / 2);
+		const pointerOffset = POINTER_SIZE / 2;
+
+		this._pointer.classList.remove('top', 'right', 'bottom', 'left');
+		this._pointer.classList.add(side);
+
+		if (side === 'top' || side === 'bottom') {
+			const pointerCenterX = this._clamp(targetCenterX, callout.left + POINTER_EDGE_MARGIN, callout.left + callout.width - POINTER_EDGE_MARGIN);
+			this._pointer.style.left = `${pointerCenterX - pointerOffset}px`;
+			this._pointer.style.top = `${side === 'bottom' ? callout.top + callout.height - pointerOffset : callout.top - pointerOffset}px`;
+			return;
+		}
+
+		const pointerCenterY = this._clamp(targetCenterY, callout.top + POINTER_EDGE_MARGIN, callout.top + callout.height - POINTER_EDGE_MARGIN);
+		this._pointer.style.left = `${side === 'right' ? callout.left + callout.width - pointerOffset : callout.left - pointerOffset}px`;
+		this._pointer.style.top = `${pointerCenterY - pointerOffset}px`;
+	}
+
+	private _clamp(value: number, min: number, max: number): number {
+		return Math.max(min, Math.min(value, max));
 	}
 
 	private _resolvePlacement(placement: SpotlightPlacement): { anchorAxisAlignment: AnchorAxisAlignment; anchorPosition: AnchorPosition; anchorAlignment: AnchorAlignment } {
@@ -274,7 +392,7 @@ export class SpotlightOverlay extends Disposable {
 		if (event.equals(KeyCode.Escape)) {
 			event.stopPropagation();
 			event.preventDefault();
-			this._onDidSkip.fire();
+			this._onDidSkip.fire(OnboardingDismissReason.EscapeKey);
 			return;
 		}
 
@@ -310,14 +428,17 @@ export class SpotlightOverlay extends Disposable {
 
 	/**
 	 * The focusable elements participating in the focus trap, in DOM order: the
-	 * spotlighted target (when the step advances by pressing it), then any
+	 * spotlighted target (when it is interactive or the Next button is hidden), then any
 	 * interactive content in the (possibly markdown) description, then the visible
 	 * action buttons. Including the target keeps the spotlighted control
 	 * keyboard-reachable, and querying the description keeps markdown links
 	 * reachable despite `aria-modal`.
 	 */
 	private _collectFocusable(): HTMLElement[] {
-		const target = (this._options.advanceOnTargetClick && this._target) ? [this._target] : [];
+		const targetFocusables = (this._options.allowTargetInteraction || this._options.advanceOnTargetClick || this._options.hideNext) && this._target
+			// eslint-disable-next-line no-restricted-syntax -- querying the spotlight target subtree for focusable controls
+			? [this._target, ...this._target.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+			: [];
 		const descriptionFocusables = Array.from(
 			// eslint-disable-next-line no-restricted-syntax -- querying our own callout description subtree for focusable markdown content (e.g. links)
 			this._description.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
@@ -325,10 +446,18 @@ export class SpotlightOverlay extends Disposable {
 		const buttons = [this._skipButton, this._backButton, this._nextButton]
 			.filter(button => button.element.style.display !== 'none')
 			.map(button => button.element);
-		return [...target, ...descriptionFocusables, ...buttons];
+		return [...targetFocusables, ...descriptionFocusables, ...buttons].filter(element => this._isTabbable(element));
 	}
 
-	private _scheduleLayout(): void {
+	private _isTabbable(element: HTMLElement): boolean {
+		if (!element.isConnected || element.getAttribute('aria-hidden') === 'true' || element.tabIndex === -1 || element.hasAttribute('disabled')) {
+			return false;
+		}
+		const style = getWindow(this._container).getComputedStyle(element);
+		return style.display !== 'none' && style.visibility !== 'hidden';
+	}
+
+	scheduleLayout(): void {
 		if (this._scheduledLayout) {
 			return;
 		}

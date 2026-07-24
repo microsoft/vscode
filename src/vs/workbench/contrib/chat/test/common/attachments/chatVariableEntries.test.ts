@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isChatContextIconPath, isExplicitFileOrImageVariableEntry, resolveChatContextIcon } from '../../../common/attachments/chatVariableEntries.js';
 
 suite('Chat variable entries', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,5 +39,48 @@ suite('Chat variable entries', () => {
 		const promptEntry: IChatRequestVariableEntry = { kind: 'promptText', id: 'prompt', name: 'prompt', value: 'instructions', modelDescription: 'instructions', automaticallyAdded: true };
 
 		assert.strictEqual(getExplicitFileOrImageAttachmentSummary([workspaceEntry, implicitEntry, promptEntry]), undefined);
+	});
+
+	suite('resolveChatContextIcon', () => {
+		const light = URI.file('/icons/light.svg');
+		const dark = URI.file('/icons/dark.svg');
+
+		test('returns the theme icon unchanged', () => {
+			assert.strictEqual(resolveChatContextIcon(Codicon.gitPullRequest, false), Codicon.gitPullRequest);
+			assert.strictEqual(resolveChatContextIcon(Codicon.gitPullRequest, true), Codicon.gitPullRequest);
+		});
+
+		test('returns a single uri unchanged for both themes', () => {
+			const uri = URI.file('/icons/icon.svg');
+			assert.strictEqual(resolveChatContextIcon(uri, false), uri);
+			assert.strictEqual(resolveChatContextIcon(uri, true), uri);
+		});
+
+		test('picks the light uri in a light theme', () => {
+			assert.strictEqual(resolveChatContextIcon({ light, dark }, false), light);
+		});
+
+		test('picks the dark uri in a dark theme', () => {
+			assert.strictEqual(resolveChatContextIcon({ light, dark }, true), dark);
+		});
+	});
+
+	suite('isChatContextIconPath', () => {
+		const light = URI.file('/icons/light.svg');
+		const dark = URI.file('/icons/dark.svg');
+
+		test('accepts theme icons, single uris and complete light/dark objects', () => {
+			assert.strictEqual(isChatContextIconPath(Codicon.gitPullRequest), true);
+			assert.strictEqual(isChatContextIconPath(URI.file('/icons/icon.svg')), true);
+			assert.strictEqual(isChatContextIconPath({ light, dark }), true);
+		});
+
+		test('rejects null, undefined and partial light/dark objects', () => {
+			assert.strictEqual(isChatContextIconPath(null), false);
+			assert.strictEqual(isChatContextIconPath(undefined), false);
+			assert.strictEqual(isChatContextIconPath({ dark }), false);
+			assert.strictEqual(isChatContextIconPath({ light }), false);
+			assert.strictEqual(isChatContextIconPath({}), false);
+		});
 	});
 });

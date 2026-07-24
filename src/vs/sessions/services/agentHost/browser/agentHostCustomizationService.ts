@@ -4,38 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
-import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { IAgentHostMcpServer, IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { IAgentHostCustomizationService, AbstractAgentHostCustomizationService, type IAgentHostCustomizationTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../sessions/common/sessionsProvider.js';
-import { AgentCustomization, Customization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCustomization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ISession } from '../../sessions/common/session.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
-export class AgentHostCustomizationService extends Disposable implements IAgentHostCustomizationService {
-	declare readonly _serviceBrand: undefined;
-	private readonly _onDidChangeCustomAgents = this._register(new Emitter<void>());
-	readonly onDidChangeCustomAgents: Event<void> = this._onDidChangeCustomAgents.event;
-	private readonly _onDidChangeCustomizations = this._register(new Emitter<void>());
-	readonly onDidChangeCustomizations: Event<void> = this._onDidChangeCustomizations.event;
+export class AgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 	private readonly _providerListeners = this._register(new DisposableMap<ISessionsProvider>());
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService logService: ILogService,
+		@IStorageService storageService: IStorageService,
 	) {
-		super();
-		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
-			this._onDidChangeCustomAgents.fire();
-			this._onDidChangeCustomizations.fire();
+		super(instantiationService, logService, storageService);
+		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
+			for (const session of e.removed) {
+				this._clearMcpServerTracking(session.resource);
+				this._disposeMcpDiagnostics(session.resource);
+			}
+			this._fireCustomAgentsChanged();
+			this._fireCustomizationsChanged();
 		}));
 	}
 
@@ -56,7 +58,37 @@ export class AgentHostCustomizationService extends Disposable implements IAgentH
 		return undefined;
 	}
 
-	getCustomAgents(sessionResource: URI): readonly AgentCustomization[] {
+	protected _resolveTarget(sessionResource: URI): IAgentHostCustomizationTarget | undefined {
+		const session = this._getSession(sessionResource);
+		if (!session) {
+			return undefined;
+		}
+		const provider = this._getAHSProvider(session);
+		if (!provider) {
+			return undefined;
+		}
+		const servers = provider.getMcpServers(session.sessionId);
+		return {
+			customizations: provider.getCustomizations(session.sessionId),
+			workingDirectory: provider.getWorkingDirectory(session.sessionId),
+			rootConfig: provider.getRootConfig(),
+			authenticate: request => provider.authenticate(request),
+			setCustomizationEnabled: (rawId, enabled) => {
+				servers.find(server => this._serverIdMatchesRawId(server.id, rawId))?.setEnabled(enabled);
+			},
+			startMcpServer: rawId => {
+				return servers.find(server => this._serverIdMatchesRawId(server.id, rawId))?.start() ?? Promise.resolve();
+			},
+			stopMcpServer: rawId => {
+				return servers.find(server => this._serverIdMatchesRawId(server.id, rawId))?.stop() ?? Promise.resolve();
+			},
+			setRootConfigValue: (property, value) => {
+				void provider.setRootConfigValue(property, value);
+			},
+		};
+	}
+
+	override getCustomAgents(sessionResource: URI): readonly AgentCustomization[] {
 		const session = this._getSession(sessionResource);
 		if (session) {
 			const provider = this._getAHSProvider(session);
@@ -69,62 +101,6 @@ export class AgentHostCustomizationService extends Disposable implements IAgentH
 		return [];
 	}
 
-	getCustomizations(sessionResource: URI): readonly Customization[] {
-		const session = this._getSession(sessionResource);
-		if (session) {
-			const provider = this._getAHSProvider(session);
-			if (provider) {
-				return provider.getCustomizations(session.sessionId);
-			}
-		}
-		return [];
-	}
-
-	getWorkingDirectory(sessionResource: URI): string | undefined {
-		const session = this._getSession(sessionResource);
-		if (session) {
-			const provider = this._getAHSProvider(session);
-			if (provider) {
-				return provider.getWorkingDirectory(session.sessionId);
-			}
-		}
-		return undefined;
-	}
-
-	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[] {
-		const session = this._getSession(sessionResource);
-		if (session) {
-			const provider = this._getAHSProvider(session);
-			if (provider) {
-				return provider.getMcpServers(session.sessionId);
-			}
-		}
-		return [];
-	}
-
-	addMcpServer(sessionResource: URI, name: string, config: IMcpServerConfiguration): void {
-		const session = this._getSession(sessionResource);
-		if (!session) {
-			return;
-		}
-
-		const provider = this._getAHSProvider(session);
-		if (!provider) {
-			return;
-		}
-
-		const existingServers = provider.getRootConfig()?.values?.[AgentHostMcpServersConfigKey];
-		const servers: AgentHostMcpServers = existingServers && typeof existingServers === 'object' && !Array.isArray(existingServers)
-			? existingServers as AgentHostMcpServers
-			: {};
-
-		void provider.setRootConfigValue(AgentHostMcpServersConfigKey, {
-			...servers,
-			[name]: config,
-		});
-	}
-
-
 	private _ensureProviderListener(provider: IAgentHostSessionsProvider): void {
 		if (this._providerListeners.has(provider)) {
 			return;
@@ -133,12 +109,17 @@ export class AgentHostCustomizationService extends Disposable implements IAgentH
 		// Keep both subscriptions alive under one map key so replacing the provider entry disposes both together.
 		this._providerListeners.set(provider, combinedDisposable(
 			provider.onDidChangeCustomAgents(() => {
-				this._onDidChangeCustomAgents.fire();
+				this._fireCustomAgentsChanged();
 			}),
 			provider.onDidChangeCustomizations(() => {
-				this._onDidChangeCustomizations.fire();
+				this._fireCustomizationsChanged();
 			})
 		));
+	}
+
+	private _serverIdMatchesRawId(serverId: string, rawId: string): boolean {
+		const separator = serverId.indexOf('/');
+		return serverId === rawId || (separator >= 0 && serverId.slice(separator + 1) === rawId);
 	}
 
 	private _agentFromMode(uri: string): AgentCustomization {

@@ -9,11 +9,13 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { AICustomizationManagementEditor } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
-import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 
 suite('aiCustomizationManagementEditor', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,18 +24,27 @@ suite('aiCustomizationManagementEditor', () => {
 		currentEditingPromptType: PromptsType | undefined;
 		currentEditingSource: string | undefined;
 		currentEditingReadOnly: boolean;
+		promptFilesToMigrate: readonly IPromptPath[];
 		editorDisplayMode: 'preview' | 'raw';
 		editorPreviewFrontMatterContainer: HTMLElement | undefined;
 		editorPreviewDisposables: { add<T>(value: T): T; clear(): void; dispose(): void };
 		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
-		viewMode: 'list' | 'editor' | 'mcpDetail' | 'pluginDetail';
+		viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail';
 		dimension: undefined;
 		hoverService: IHoverService;
 		configurationService: IConfigurationService;
+		welcomePage: { setPromptMigrationInfo(info: unknown): void } | undefined;
+		selectedSection: AICustomizationManagementSection | undefined;
+		contributedSectionContainers: Map<AICustomizationManagementSection, HTMLElement>;
+		automationsContentContainer: HTMLElement | undefined;
+		automationsListWidget: { setVisible(visible: boolean): void } | undefined;
 		getEditorModeButtonLabel(): string;
 		getEditorModeButtonTooltip(): string;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 		onStructuredPreviewSettingChanged(): void;
+		refreshPromptMigrationUi(): void;
+		updateContentVisibility(): void;
+		setVisible(visible: boolean): void;
 	};
 
 	function createConfigurationServiceStub(values: Record<string, unknown> = {}): IConfigurationService {
@@ -53,6 +64,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.currentEditingPromptType = undefined;
 		editor.currentEditingSource = undefined;
 		editor.currentEditingReadOnly = false;
+		editor.promptFilesToMigrate = [];
 		editor.editorDisplayMode = 'preview';
 		editor.editorPreviewFrontMatterContainer = document.createElement('div');
 		editor.editorPreviewDisposables = {
@@ -71,12 +83,18 @@ suite('aiCustomizationManagementEditor', () => {
 			}),
 		} as unknown as IHoverService;
 		editor.configurationService = configurationService ?? createConfigurationServiceStub();
+		editor.welcomePage = undefined;
+		editor.contributedSectionContainers = new Map();
 		editor.editorPreviewRenderScheduler = {
 			cancel(): void { },
 			schedule(): void { },
 		};
 		editor.viewMode = 'list';
 		editor.dimension = undefined;
+		editor.selectedSection = undefined;
+		editor.automationsContentContainer = undefined;
+		editor.automationsListWidget = undefined;
+		editor.setVisible(false);
 		return editor;
 	}
 
@@ -182,6 +200,50 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.strictEqual(editor.editorDisplayMode, 'raw');
 		assert.strictEqual(editor.getEditorModeButtonLabel(), '');
 
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('hides prompt migration UI when the experimental setting is disabled', () => {
+		const welcomePageCalls: unknown[] = [];
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: false,
+		}));
+		editor.promptFilesToMigrate = [{
+			uri: URI.file('/workspace/.github/prompts/prompt.prompt.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+		} as IPromptPath];
+		editor.welcomePage = {
+			setPromptMigrationInfo: info => welcomePageCalls.push(info),
+		};
+
+		editor.refreshPromptMigrationUi();
+
+		assert.deepStrictEqual(welcomePageCalls, [undefined]);
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('propagates editor and section visibility to the Automations widget', () => {
+		const visibility: boolean[] = [];
+		const editor = createTestEditor();
+		editor.selectedSection = AICustomizationManagementSection.Automations;
+		editor.automationsContentContainer = document.createElement('div');
+		editor.automationsListWidget = {
+			setVisible: visible => visibility.push(visible),
+		};
+
+		editor.updateContentVisibility();
+		editor.setVisible(true);
+		editor.selectedSection = AICustomizationManagementSection.Agents;
+		editor.updateContentVisibility();
+
+		assert.deepStrictEqual({
+			visibility,
+			display: editor.automationsContentContainer.style.display,
+		}, {
+			visibility: [false, true, false],
+			display: 'none',
+		});
 		editor.editorPreviewDisposables.dispose();
 	});
 });

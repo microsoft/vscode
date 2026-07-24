@@ -7,6 +7,7 @@ import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKUserMessage,
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -68,6 +69,19 @@ export interface ISdkResolvedCustomizations {
 	readonly commands: readonly SlashCommand[];
 	readonly agents: readonly AgentInfo[];
 	readonly mcpServers: readonly McpServerStatus[];
+	/**
+	 * Native plugins the live session actually loaded, as reported by the
+	 * SDK `system/init` message. Used to filter the disk-discovered native
+	 * plugins post-materialize: a plugin declared in `enabledPlugins` but
+	 * absent here (bad path, manifest error, untrusted workspace) is hidden.
+	 *
+	 * `source` is the plugin id (`<plugin>@<marketplace>`) and is the
+	 * authoritative match key — the SDK's `path` is unreliable for
+	 * workspace-`local`-scoped plugins (it can report a non-cache path). The
+	 * SDK `.d.ts` types the element as `{ name, path }` but the runtime adds
+	 * `source`, so it is captured as optional.
+	 */
+	readonly plugins: readonly { readonly name: string; readonly path: string; readonly source?: string }[];
 }
 
 export class ClaudeSdkPipeline extends Disposable {
@@ -99,23 +113,80 @@ export class ClaudeSdkPipeline extends Disposable {
 			query.supportedAgents(),
 			query.mcpServerStatus(),
 		]);
-		return { commands, agents, mcpServers };
+		return { commands, agents, mcpServers, plugins: this._initPlugins };
+	}
+
+	async startMcpServer(serverName: string): Promise<boolean> {
+		const query = await this._ensureQueryBound();
+		return this._applyMcpServerEnablement(query, serverName, true);
+	}
+
+	async stopMcpServer(serverName: string): Promise<boolean> {
+		const query = await this._ensureQueryBound();
+		return this._applyMcpServerEnablement(query, serverName, false);
+	}
+
+	async reconcileMcpServerEnablement(desired: ReadonlyMap<string, boolean>): Promise<boolean> {
+		const query = await this._ensureQueryBound();
+		const observed = new Map((await query.mcpServerStatus()).map(server => [server.name, server.status !== 'disabled']));
+		for (const [serverName, enabled] of desired) {
+			if (observed.get(serverName) === enabled) {
+				continue;
+			}
+			if (!await this._applyMcpServerEnablement(query, serverName, enabled)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private async _applyMcpServerEnablement(query: Query, serverName: string, enabled: boolean): Promise<boolean> {
+		if (!query.toggleMcpServer || (enabled && !query.reconnectMcpServer)) {
+			return false;
+		}
+		await query.toggleMcpServer(serverName, enabled);
+		if (enabled) {
+			await query.reconnectMcpServer!(serverName);
+		}
+		return true;
 	}
 
 	/**
-	 * Bind the SDK Query if the previous one has unwound (e.g. after a
-	 * terminal result message). Mirrors the lazy bind in {@link send}
-	 * so pre-flight helpers can call into the SDK without first having
-	 * to issue a user prompt.
+	 * Bind the SDK Query if needed, recovering a dead one first. Mirrors the
+	 * gate in {@link send}: if the pipeline is marked for rebind (after an
+	 * abort/crash the `_query` handle is retained for teardown but its stream
+	 * is dead), rebuild via the rematerializer so pre-flight helpers never
+	 * operate on a disposed stream. Then lazily bind if nothing is bound yet.
 	 */
 	private async _ensureQueryBound(): Promise<Query> {
+		if (this._needsRebind) {
+			await this._rebindQuery('recover');
+		}
 		if (!this._query) {
-			this._query = this._warm.query(this._queue.iterable);
+			this._bindWarmQuery();
 			await this._replayCurrentConfig();
 		}
-		return this._query;
+		return this._query!;
 	}
 
+	/**
+	 * Bind a fresh SDK stream off the current warm subprocess. The stream is
+	 * long-lived: it spans every turn until a rebind swaps the subprocess (the
+	 * prompt iterable parks between turns rather than ending), so {@link _query}
+	 * tracks the lifetime of {@link _warm} and is only swapped here.
+	 */
+	private _bindWarmQuery(): Query {
+		const query = this._warm.query(this._queue.iterable);
+		this._query = query;
+		return query;
+	}
+
+	/**
+	 * The SDK stream bound to the current {@link _warm} subprocess, or
+	 * `undefined` before the first bind. Health is tracked separately by
+	 * {@link _needsRebind}: a non-`undefined` `_query` with `_needsRebind`
+	 * set is a *dead* stream awaiting rebuild. Cleared only on dispose.
+	 */
 	private _query: Query | undefined;
 	private _warm: WarmQuery;
 	private _abortController: AbortController;
@@ -124,6 +195,14 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	/** Flips to `true` on the first `system:init` SDK message. Drives `Options.resume` decisions for downstream phases. */
 	private _isResumed = false;
+
+	/**
+	 * Native plugins reported by the most recent `system:init` message.
+	 * Captured on *every* init (including resume) so the post-materialize
+	 * native-plugin filter always reflects the live set. `source` is the
+	 * plugin id and is the reliable match key (see {@link ISdkResolvedCustomizations}).
+	 */
+	private _initPlugins: readonly { readonly name: string; readonly path: string; readonly source?: string }[] = [];
 
 	/** Last model / effort / permission mode applied to the SDK via the runtime setters. Reset on rebind. */
 	private _appliedModel: string | undefined;
@@ -161,11 +240,12 @@ export class ClaudeSdkPipeline extends Disposable {
 	constructor(
 		readonly sessionId: string,
 		readonly sessionUri: URI,
+		readonly chatChannelUri: URI,
 		warm: WarmQuery,
 		abortController: AbortController,
 		dbRef: IReference<ISessionDatabase>,
 		subagents: SubagentRegistry,
-		clientId: string | undefined = undefined,
+		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -179,12 +259,12 @@ export class ClaudeSdkPipeline extends Disposable {
 			() => this._abortController.signal,
 			(pendingId: string) => this._onDidProduceSignal.fire({
 				kind: 'steering_consumed',
-				session: this.sessionUri,
+				chat: this.chatChannelUri,
 				id: pendingId,
 			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, sessionUri, dbRef, subagents, clientId,
+			ClaudeSdkMessageRouter, sessionUri, chatChannelUri, dbRef, subagents, clientToolOwner,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
@@ -201,6 +281,35 @@ export class ClaudeSdkPipeline extends Disposable {
 	get isAborted(): boolean { return this._abortController.signal.aborted; }
 
 	/**
+	 * Whether a turn is currently in flight or queued. False between turns (the
+	 * warm query parks with a drained queue). Used by non-destructive idle
+	 * release to avoid tearing the pipeline down mid-turn.
+	 */
+	get hasActiveTurn(): boolean { return !this._queue.isEmpty; }
+
+	/**
+	 * Abort the live SDK subprocess and **await its actual exit**.
+	 *
+	 * `WarmQuery[Symbol.asyncDispose]()` calls the query's `close()`, which
+	 * *fires* the SDK cleanup but does not await it — so it returns while the
+	 * subprocess is still shutting down (and still re-flushing its transcript).
+	 * `Query.return()` awaits the same (memoized) cleanup, which in turn awaits
+	 * `transport.waitForExit()` — the OS process actually exiting after its
+	 * final transcript flush. Awaiting that is what lets a caller safely reuse
+	 * the `--session-id` (the CLI rejects a fresh spawn while `<id>.jsonl`
+	 * still exists, and the dying process would otherwise recreate it).
+	 */
+	async shutdownAndWait(): Promise<void> {
+		this._abortController.abort();
+		try {
+			await this._warm[Symbol.asyncDispose]();
+			await this._query?.return(undefined);
+		} catch (err) {
+			this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] shutdownAndWait: teardown failed`, err);
+		}
+	}
+
+	/**
 	 * Phase 10 \u2014 narrow public wrapper around the internal
 	 * {@link _rebindQuery} so {@link ClaudeAgentSession.rebindForClientTools}
 	 * can drive a yield-restart without exposing the private rebind
@@ -211,13 +320,11 @@ export class ClaudeSdkPipeline extends Disposable {
 	}
 
 	/**
-	 * Phase 10 — update the workbench `clientId` that the stream mapper
-	 * stamps onto subsequent `ChatToolCallStart` events. Called by the
-	 * session whenever {@link SessionClientToolsModel} receives a new
-	 * clientId via `setClientTools`.
+	 * Phase 10 — update the resolver the stream mapper uses to stamp the
+	 * owning workbench `clientId` onto subsequent `ChatToolCallStart` events.
 	 */
-	setClientId(clientId: string | undefined): void {
-		this._router.setClientId(clientId);
+	setClientToolOwner(clientToolOwner: ((toolName: string) => string | undefined) | undefined): void {
+		this._router.setClientToolOwner(clientToolOwner);
 	}
 
 	/** Attach the rematerializer hook for abort / crash recovery. Optional — tests that exercise only the dispose path skip this. */
@@ -248,7 +355,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	 */
 	async setModel(model: string): Promise<void> {
 		this._currentModel = model;
-		if (this._query && model !== this._appliedModel) {
+		if (this._query && !this._needsRebind && model !== this._appliedModel) {
 			try {
 				await this._query.setModel(model);
 				this._appliedModel = model;
@@ -272,7 +379,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	 */
 	async setEffort(effort: ClaudeRuntimeEffortLevel | undefined): Promise<void> {
 		this._currentEffort = effort;
-		if (this._query && effort !== this._appliedEffort) {
+		if (this._query && !this._needsRebind && effort !== this._appliedEffort) {
 			try {
 				await this._query.applyFlagSettings({ effortLevel: effort ?? null });
 				this._appliedEffort = effort;
@@ -297,7 +404,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			throw new CancellationError();
 		}
 		if (!this._query) {
-			this._query = this._warm.query(this._queue.iterable);
+			this._bindWarmQuery();
 			await this._replayCurrentConfig();
 		}
 		this._ensureConsumerLoop();
@@ -305,6 +412,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			sdkMessage: prompt,
 			sdkUuid: typeof prompt.uuid === 'string' ? prompt.uuid : turnId,
 			turnId,
+			stopWatch: StopWatch.create(false),
 			deferred: new DeferredPromise<void>(),
 		};
 		return this._queue.push(entry);
@@ -340,6 +448,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			sdkMessage: prompt,
 			sdkUuid,
 			turnId: parent.turnId,
+			stopWatch: parent.stopWatch,
 			deferred: new DeferredPromise<void>(),
 			steeringPendingId: pendingMessageId,
 		}).catch(() => { /* expected on abort/crash */ });
@@ -364,7 +473,8 @@ export class ClaudeSdkPipeline extends Disposable {
 		}
 		this._abortController.abort();
 		this._queue.failAll(new CancellationError());
-		this._query = undefined;
+		// Mark unhealthy but keep the `_query` handle: the next `send` rebinds,
+		// and `shutdownAndWait` still needs it to await the subprocess exit.
 		this._needsRebind = true;
 	}
 
@@ -375,7 +485,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	 */
 	async setPermissionMode(mode: PermissionMode): Promise<void> {
 		this._currentPermissionMode = mode;
-		if (this._query && mode !== this._appliedPermissionMode) {
+		if (this._query && !this._needsRebind && mode !== this._appliedPermissionMode) {
 			await this._query.setPermissionMode(mode);
 			this._appliedPermissionMode = mode;
 		}
@@ -392,9 +502,34 @@ export class ClaudeSdkPipeline extends Disposable {
 			return;
 		}
 		this._consumerLoopRunning = true;
+		this._runConsumerLoop();
+	}
+
+	/**
+	 * Runs one {@link _processMessages} pass over the live {@link _query} and,
+	 * when it ends, decides whether to hand off to a fresh pass.
+	 *
+	 * A rebind ({@link _rebindQuery}) swaps in a new `_query` while the loop is
+	 * still draining the OLD (now-disposed) one; that old pass then ends with
+	 * the "stream ended without a result" guard. Because `_consumerLoopRunning`
+	 * stays `true` for the whole handoff, the {@link send} that queued the
+	 * post-rebind prompt already saw {@link _ensureConsumerLoop} no-op — so if
+	 * this pass just stopped, nothing would ever read the new query and `send`
+	 * would hang. Detect the swap (current `_query` differs from the one this
+	 * pass bound) and re-arm for it instead. Abort / crash / dispose leave
+	 * `_query` cleared (or the store disposed), so they fall through to stop.
+	 */
+	private _runConsumerLoop(): void {
+		const boundQuery = this._query;
 		void this._processMessages()
 			.catch(err => this._logService.error(`[ClaudeSdkPipeline:${this.sessionId}] _processMessages crashed: ${err}`))
-			.finally(() => { this._consumerLoopRunning = false; });
+			.finally(() => {
+				if (!this._store.isDisposed && this._query && this._query !== boundQuery) {
+					this._runConsumerLoop();
+				} else {
+					this._consumerLoopRunning = false;
+				}
+			});
 	}
 
 	/**
@@ -458,7 +593,6 @@ export class ClaudeSdkPipeline extends Disposable {
 			void Promise.resolve(oldWarm[Symbol.asyncDispose]()).catch((err: unknown) =>
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] previous WarmQuery dispose failed during aborted rebind: ${err}`));
 			this._queue.failAll(new CancellationError());
-			this._query = undefined;
 			this._needsRebind = true;
 			throw new CancellationError();
 		}
@@ -476,7 +610,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		this._appliedModel = undefined;
 		this._appliedEffort = undefined;
 		this._appliedPermissionMode = undefined;
-		this._query = this._warm.query(this._queue.iterable);
+		this._bindWarmQuery();
 		await this._replayCurrentConfig();
 	}
 
@@ -504,12 +638,18 @@ export class ClaudeSdkPipeline extends Disposable {
 				if (this._abortController.signal.aborted) {
 					throw new CancellationError();
 				}
-				if (message.type === 'system' && message.subtype === 'init' && !this._isResumed) {
-					this._isResumed = true;
+				if (message.type === 'system' && message.subtype === 'init') {
+					// Capture the loaded native-plugin list on every init (incl.
+					// resume / post-rebind) so the post-materialize filter is fresh.
+					this._initPlugins = message.plugins ?? [];
+					if (!this._isResumed) {
+						this._isResumed = true;
+					}
 				}
 				const turnId = this._queue.peekParent()?.turnId;
+				const turnDuration = this._queue.peekParent()?.stopWatch.elapsed();
 				try {
-					await this._router.handle(message, turnId);
+					await this._router.handle(message, turnId, turnDuration);
 				} catch (handlerErr) {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}
@@ -522,10 +662,11 @@ export class ClaudeSdkPipeline extends Disposable {
 					if (completed && this._queue.isEmpty) {
 						this._onDidProduceSignal.fire({
 							kind: 'action',
-							session: this.sessionUri,
+							resource: this.chatChannelUri,
 							action: {
 								type: ActionType.ChatTurnComplete,
 								turnId: completed.turnId,
+								duration: Math.max(0, completed.stopWatch.elapsed()),
 							},
 						});
 					}
@@ -534,15 +675,24 @@ export class ClaudeSdkPipeline extends Disposable {
 			if (this._abortController.signal.aborted) {
 				throw new CancellationError();
 			}
+			// A rebind ({@link _rebindQuery}) swaps in a fresh `_query` and
+			// disposes the old one, ending THIS pass's stream cleanly. That is
+			// expected — return quietly and let {@link _runConsumerLoop} hand
+			// off to the new query. Only an unexpected end of the *current*
+			// query (no swap) is the real "stream ended without a result"
+			// failure that should mark the pipeline for recovery.
+			if (this._query !== query) {
+				return;
+			}
 			throw new Error('Claude SDK stream ended without a result message');
 		} catch (err) {
 			const fatal = err instanceof Error ? err : new Error(String(err));
-			// A previous unwinding loop must NOT clobber a freshly
-			// rebound query. Identity-check against the local capture so
-			// only the loop that owns the live query nulls it.
+			// Only the loop that still owns the live query reacts: a later
+			// unwinding pass whose query was already swapped by a rebind must
+			// not clobber the fresh one. Mark unhealthy (keep the handle for
+			// teardown); the next `send` rebinds.
 			if (this._query === query) {
 				this._queue.failAll(fatal);
-				this._query = undefined;
 				this._needsRebind = true;
 			}
 			if (!isCancellationError(fatal)) {

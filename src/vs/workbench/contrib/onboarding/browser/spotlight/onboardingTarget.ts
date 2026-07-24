@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import '../media/onboardingTarget.css';
 
 /**
  * Attribute used to mark a DOM element as an onboarding spotlight target.
@@ -14,18 +15,50 @@ import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.
  */
 export const ONBOARDING_TARGET_ATTR = 'data-onboarding-id';
 
+export const ONBOARDING_TARGET_PULSE_CLASS = 'onboarding-target-pulse';
+
+export interface IOnboardingTargetOptions {
+	/** Opens or expands the target before its spotlight step is shown. */
+	readonly open?: () => Promise<void> | void;
+}
+
+interface IOnboardingTargetRegistration {
+	readonly id: string;
+	readonly options: IOnboardingTargetOptions;
+}
+
+const onboardingTargetRegistrations = new WeakMap<HTMLElement, IOnboardingTargetRegistration>();
+
 /**
  * Marks `element` as the onboarding target identified by `id`.
  *
  * @returns A disposable that removes the attribute again.
  */
-export function markOnboardingTarget(element: HTMLElement, id: string): IDisposable {
+export function markOnboardingTarget(element: HTMLElement, id: string, options: IOnboardingTargetOptions = {}): IDisposable {
+	const registration = { id, options };
 	element.setAttribute(ONBOARDING_TARGET_ATTR, id);
+	onboardingTargetRegistrations.set(element, registration);
 	return toDisposable(() => {
-		if (element.getAttribute(ONBOARDING_TARGET_ATTR) === id) {
+		if (onboardingTargetRegistrations.get(element) === registration) {
+			onboardingTargetRegistrations.delete(element);
 			element.removeAttribute(ONBOARDING_TARGET_ATTR);
 		}
 	});
+}
+
+/** Opens or expands a target through the behavior registered by its owner. */
+export function openOnboardingTarget(element: HTMLElement): Promise<void> | void {
+	return onboardingTargetRegistrations.get(element)?.options.open?.();
+}
+
+/**
+ * Applies the standard onboarding pulse treatment to `element`.
+ *
+ * @returns A disposable that removes the pulse again.
+ */
+export function pulseOnboardingTarget(element: HTMLElement): IDisposable {
+	element.classList.add(ONBOARDING_TARGET_PULSE_CLASS);
+	return toDisposable(() => element.classList.remove(ONBOARDING_TARGET_PULSE_CLASS));
 }
 
 /**
@@ -39,5 +72,18 @@ export function markOnboardingTarget(element: HTMLElement, id: string): IDisposa
 export function findOnboardingTarget(targetWindow: Window, id: string): HTMLElement | undefined {
 	const selector = `[${ONBOARDING_TARGET_ATTR}="${CSS.escape(id)}"]`;
 	// eslint-disable-next-line no-restricted-syntax -- matching only our own onboarding attribute (never foreign classes/structure) is the whole point of this helper
-	return targetWindow.document.querySelector<HTMLElement>(selector) ?? undefined;
+	const targets = Array.from(targetWindow.document.querySelectorAll<HTMLElement>(selector));
+	return targets.find(target => isVisibleOnboardingTarget(targetWindow, target));
+}
+
+function isVisibleOnboardingTarget(targetWindow: Window, target: HTMLElement): boolean {
+	if (!target.isConnected) {
+		return false;
+	}
+	const style = targetWindow.getComputedStyle(target);
+	if (style.display === 'none' || style.visibility === 'hidden') {
+		return false;
+	}
+	const rect = target.getBoundingClientRect();
+	return rect.width > 0 && rect.height > 0;
 }

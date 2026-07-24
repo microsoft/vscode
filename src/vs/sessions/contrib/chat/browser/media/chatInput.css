@@ -32,6 +32,11 @@
 	border-color: var(--vscode-agentsChatInput-border);
 }
 
+.new-chat-input-area-wrapper {
+	position: relative;
+	width: 100%;
+}
+
 .new-chat-input-area {
 	position: relative;
 	width: 100%;
@@ -128,7 +133,6 @@
 	display: flex;
 	align-items: center;
 	padding: 4px 6px 6px 6px;
-	gap: 4px;
 	color: var(--vscode-icon-foreground);
 }
 
@@ -136,8 +140,28 @@
 	flex: 1;
 }
 
+/* Voice mode controls (mic / stop / settings / disconnect) */
+.sessions-chat-voice-toolbar {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-voice-toolbar .monaco-toolbar {
+	position: relative;
+}
+
+/* Segmented voice/dictation pill (experimental) */
+.sessions-chat-voice-input-mode {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-voice-input-mode.hidden {
+	display: none;
+}
+
 /* Model picker - uses workbench ModelPickerActionItem */
-/* Session config toolbar (mode, model pickers via MenuWorkbenchToolBar) */
+/* Session config toolbar (model picker via MenuWorkbenchToolBar) */
 .sessions-chat-config-toolbar {
 	display: flex;
 	align-items: center;
@@ -174,7 +198,6 @@
 	display: flex;
 	align-items: center;
 	height: 16px;
-	padding: 3px 7px;
 	background-color: transparent;
 	border: none;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -198,7 +221,7 @@
 
 /* Allow long labels (e.g. the model picker name) to ellipsize when space is tight */
 .sessions-chat-config-toolbar .action-label .chat-input-picker-label {
-	margin-left: 6px;
+	margin-left: 4px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -230,9 +253,9 @@
 	height: 12px;
 }
 
-/* Spacing between action items inside the chat input config toolbar (mode + model picker) */
+/* Spacing between action items inside the chat input config toolbar */
 .sessions-chat-config-toolbar .monaco-action-bar .actions-container {
-	gap: 4px;
+	gap: 2px;
 }
 
 /* Send button - wraps a Button widget */
@@ -241,10 +264,11 @@
 	align-items: center;
 	justify-content: center;
 	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size40);
 	position: relative;
 	width: 22px;
 	height: 22px;
-	border-radius: 50%;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .sessions-chat-send-button .monaco-button {
@@ -255,7 +279,7 @@
 	height: 22px;
 	min-width: 22px;
 	padding: 0;
-	border-radius: 50%;
+	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-icon-foreground);
 	background: transparent;
 	border: none;
@@ -287,9 +311,8 @@
 
 .monaco-workbench .sessions-chat-send-button .monaco-button.codicon[class*='codicon-']::before,
 .monaco-workbench .sessions-chat-send-button .monaco-button .codicon[class*='codicon-']::before {
-	/* Optical alignment: nudge arrow glyph 1px left to visually center it. */
 	display: inline-block;
-	transform: translateX(-0.5px);
+	transform: translateY(0.5px);
 }
 
 /* Ensure no underline / link decoration ever shows under the codicon glyph
@@ -373,6 +396,92 @@
 
 .monaco-workbench .sessions-chat-attach-button .codicon[class*='codicon-'] {
 	font-size: 14px;
+}
+
+/* Dictation (speech-to-text) mic button */
+.sessions-chat-stt-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+	width: 22px;
+	height: 22px;
+	flex-shrink: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+	border: none;
+	outline: none;
+}
+
+.sessions-chat-stt-button.hidden {
+	display: none;
+}
+
+.sessions-chat-stt-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.sessions-chat-stt-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.sessions-chat-stt-button.recording {
+	color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+}
+
+.monaco-workbench .sessions-chat-stt-button .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize, 16px);
+}
+
+/* Determinate download ring shown over the mic while the on-device dictation
+	model downloads on first use (see DictationDownloadRing). */
+.sessions-chat-stt-button > .dictation-download-ring {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 22px;
+	height: 22px;
+	transform: translate(-50%, -50%) rotate(-90deg);
+	pointer-events: none;
+}
+
+.sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-track {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	opacity: 0.25;
+}
+
+.hc-black .sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-track,
+.hc-light .sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-track {
+	opacity: 1;
+}
+
+.sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-progress {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	stroke-linecap: round;
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-progress {
+	transition: stroke-dashoffset 120ms ease;
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button > .dictation-download-ring.indeterminate {
+	animation: dictation-download-ring-spin 1.2s linear infinite;
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button > .dictation-download-ring.indeterminate .dictation-download-ring-progress {
+	transition: none;
+}
+
+@keyframes dictation-download-ring-spin {
+	from { transform: translate(-50%, -50%) rotate(-90deg); }
+	to { transform: translate(-50%, -50%) rotate(270deg); }
 }
 
 /* Attached context container */

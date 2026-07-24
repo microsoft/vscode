@@ -18,7 +18,7 @@ import { ILogService } from '../../log/common/log.js';
 import { matchesDomainPattern, normalizeDomain } from '../../networkFilter/common/domainMatcher.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
 import { ISandboxDependencyStatus, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from './sandboxHelperService.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId } from './settings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue, normalizeAgentSandboxEnabledValue, type AgentSandboxEnabledSettingValue } from './settings.js';
 import { IWindowsMxcTerminalSandboxRuntime } from './terminalSandboxMxcRuntime.js';
 import { getTerminalSandboxReadAllowListForCommands } from './terminalSandboxReadAllowList.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from './terminalSandboxRuntimeConfigurationPerOperation.js';
@@ -42,6 +42,16 @@ interface ITerminalSandboxFileSystemAccessPaths {
 export interface ITerminalSandboxRuntimeInfo {
 	/** Directory that contains `node_modules/@vscode/sandbox-runtime` and `node_modules/@vscode/ripgrep`. */
 	appRoot: string;
+	/**
+	 * Name of the directory (relative to {@link appRoot}) that holds the native
+	 * binaries `ripgrep-universal` and `@microsoft/mxc-sdk`. In a packaged desktop
+	 * build these are unpacked from the archive into `node_modules.asar.unpacked`;
+	 * in dev and on remote they live in plain `node_modules`. Defaults to
+	 * `node_modules`. Note the sandbox-runtime CLI itself is always resolved from
+	 * plain `node_modules` (it is duplicated out of the archive) because it is
+	 * spawned as a standalone Node subprocess without the ASAR resolution hook.
+	 */
+	nativeModulesDir?: string;
 	/** Path of the node/electron executable used to run sandbox-runtime. */
 	execPath?: string;
 	/**
@@ -335,6 +345,7 @@ export class TerminalSandboxEngine extends Disposable {
 				sandboxConfigPath,
 				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
 				missingDependencies,
+				canInstallMissingDependencies: !!this._sandboxDependencyStatus?.dependencyInstallCommand,
 			};
 		}
 
@@ -583,10 +594,11 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 		await this.getOS();
 		if (this._os === OperatingSystem.Windows) {
-			return this._getSandboxConfiguredWindowsEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;
+			const value = this._getSandboxConfiguredWindowsEnabledValue();
+			return isAgentSandboxEnabledValue(value);
 		}
 		const value = this._getSandboxConfiguredEnabledValue();
-		return value === AgentSandboxEnabledValue.On || value === AgentSandboxEnabledValue.AllowNetwork;
+		return isAgentSandboxEnabledValue(value);
 	}
 
 	private async _resolveRuntimeInfo(): Promise<void> {
@@ -600,10 +612,11 @@ export class TerminalSandboxEngine extends Disposable {
 		this._runAsNode = runtimeInfo.runAsNode ?? false;
 		this._userHome = await this._host.getUserHome();
 		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'sandbox-runtime', 'dist', 'cli.js');
+		const nativeModulesDir = runtimeInfo.nativeModulesDir ?? 'node_modules';
 		const rgPlatform = this._os === OperatingSystem.Windows ? 'win32' : this._os === OperatingSystem.Macintosh ? 'darwin' : 'linux';
 		const rgBinary = this._os === OperatingSystem.Windows ? 'rg.exe' : 'rg';
-		this._rgPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin', `${rgPlatform}-${arch}`, rgBinary);
-		this._mxcPath = this._windowsMxcRuntime.getExecutablePath(this._appRoot, runtimeInfo.arch);
+		this._rgPath = this._pathJoin(this._appRoot, nativeModulesDir, '@vscode', 'ripgrep-universal', 'bin', `${rgPlatform}-${arch}`, rgBinary);
+		this._mxcPath = this._windowsMxcRuntime.getExecutablePath(this._appRoot, nativeModulesDir, runtimeInfo.arch);
 	}
 
 	private async _createSandboxConfig(): Promise<string | undefined> {
@@ -665,7 +678,6 @@ export class TerminalSandboxEngine extends Disposable {
 			tempDir: this._tempDir,
 			schemaVersion: windowsSchemaVersion,
 			allowNetwork,
-			networkDomains: this.getResolvedNetworkDomains(),
 			allowReadPaths,
 			allowWritePaths,
 			denyReadPaths,
@@ -681,7 +693,7 @@ export class TerminalSandboxEngine extends Disposable {
 		};
 		if (this._os !== OperatingSystem.Windows) {
 			const sandboxRuntimeSettings = sandboxSettings as Record<string, unknown>;
-			this._mergeAdditionalSandboxConfigProperties(sandboxRuntimeSettings, allowNetwork ? this._withoutNetworkRuntimeSetting(runtimeSetting) : runtimeSetting);
+			this._mergeAdditionalSandboxConfigProperties(sandboxRuntimeSettings, runtimeSetting);
 			this._mergeAdditionalSandboxConfigProperties(sandboxRuntimeSettings, commandRuntimeSetting);
 			if (this._os === OperatingSystem.Macintosh) {
 				sandboxRuntimeSettings.allowPty ??= true;
@@ -843,12 +855,6 @@ export class TerminalSandboxEngine extends Disposable {
 		return paths.filter((path): path is string => typeof path === 'string');
 	}
 
-	private _withoutNetworkRuntimeSetting(runtimeSetting: Record<string, unknown>): Record<string, unknown> {
-		const sanitizedRuntimeSetting = { ...runtimeSetting };
-		delete sanitizedRuntimeSetting.network;
-		return sanitizedRuntimeSetting;
-	}
-
 	private _mergeAdditionalSandboxConfigProperties(target: Record<string, unknown>, additional: Record<string, unknown>): void {
 		for (const [key, value] of Object.entries(additional)) {
 			if (!Object.prototype.hasOwnProperty.call(target, key)) {
@@ -928,7 +934,19 @@ export class TerminalSandboxEngine extends Disposable {
 
 	private async _resolveFileSystemPaths(paths: string[] | undefined): Promise<string[]> {
 		const resolvedPaths = await Promise.all((paths ?? []).map(path => this._resolveFileSystemPath(path)));
-		return [...new Set(resolvedPaths.flat())];
+		const seenPaths = new Set<string>();
+		return resolvedPaths.flat().filter(path => {
+			const comparisonKey = this._getFileSystemPathComparisonKey(path);
+			if (seenPaths.has(comparisonKey)) {
+				return false;
+			}
+			seenPaths.add(comparisonKey);
+			return true;
+		});
+	}
+
+	private _getFileSystemPathComparisonKey(path: string): string {
+		return this._os === OperatingSystem.Windows ? path.replace(/\//g, '\\').toLowerCase() : path;
 	}
 
 	private async _resolveFileSystemPath(path: string): Promise<string[]> {
@@ -1030,14 +1048,21 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	private _getSandboxConfiguredEnabledValue(): AgentSandboxEnabledValue {
-		return this._getSettingValue<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxEnabled) ?? AgentSandboxEnabledValue.Off;
+		return this._normalizeSandboxEnabledValue(this._getSettingValue<AgentSandboxEnabledSettingValue>(AgentSandboxSettingId.AgentSandboxEnabled));
 	}
 
 	private _getSandboxConfiguredWindowsEnabledValue(): AgentSandboxEnabledValue {
-		return this._getSettingValue<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxWindowsEnabled) ?? AgentSandboxEnabledValue.Off;
+		return this._normalizeSandboxEnabledValue(this._getSettingValue<AgentSandboxEnabledSettingValue>(AgentSandboxSettingId.AgentSandboxWindowsEnabled));
+	}
+
+	private _normalizeSandboxEnabledValue(value: AgentSandboxEnabledSettingValue | undefined): AgentSandboxEnabledValue {
+		return value === undefined ? AgentSandboxEnabledValue.Off : normalizeAgentSandboxEnabledValue(value);
 	}
 
 	private _isSandboxAllowNetworkConfigured(): boolean {
+		if (this._getSettingValue<boolean>(AgentSandboxSettingId.AgentSandboxAllowNetwork) === true) {
+			return true;
+		}
 		if (this._os === OperatingSystem.Windows) {
 			return this._getSandboxConfiguredWindowsEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;
 		}

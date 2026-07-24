@@ -8,6 +8,7 @@ import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { Toggle } from '../../../base/browser/ui/toggle/toggle.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
 import { IAction, SubmenuAction, toAction } from '../../../base/common/actions.js';
@@ -26,6 +27,7 @@ import { localize } from '../../../nls.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { IOpenerService } from '../../opener/common/opener.js';
+import { Link } from '../../opener/browser/link.js';
 import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
@@ -56,6 +58,22 @@ export interface IActionListItemHover {
 	readonly disposable?: IDisposable;
 }
 
+/**
+ * Optional inline toggle switch rendered inside an action list item, shown on its
+ * own row below the label/detail. Useful for an always-visible boolean sub-control
+ * (e.g. a sandbox toggle) that is independent from selecting the item itself.
+ */
+export interface IActionListItemInlineToggle {
+	/** Label shown to the left of the switch. */
+	readonly label: string;
+	/** Current checked state of the switch. */
+	readonly checked: boolean;
+	/** Invoked when the user flips the switch. */
+	readonly onChange: (checked: boolean) => void;
+	/** Optional accessible/hover title for the switch. Defaults to {@link label}. */
+	readonly title?: string;
+}
+
 export interface IActionListItem<T> {
 	readonly item?: T;
 	readonly kind: ActionListItemKind;
@@ -66,6 +84,10 @@ export interface IActionListItem<T> {
 	 * Optional detail text displayed as a second line below the label.
 	 */
 	readonly detail?: string;
+	/**
+	 * Optional inline toggle switch rendered on its own row inside the item.
+	 */
+	readonly inlineToggle?: IActionListItemInlineToggle;
 	readonly description?: string | IMarkdownString;
 	/**
 	 * Optional accessible description used in place of {@link description} for
@@ -132,6 +154,7 @@ interface IActionMenuTemplateData {
 	readonly keybinding: KeybindingLabel;
 	readonly toolbar: HTMLElement;
 	readonly submenuIndicator: HTMLElement;
+	readonly inlineToggleContainer: HTMLElement;
 	readonly elementDisposables: DisposableStore;
 	previousClassName?: string;
 }
@@ -249,9 +272,13 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		submenuIndicator.className = 'action-list-submenu-indicator';
 		container.append(submenuIndicator);
 
+		const inlineToggleContainer = document.createElement('div');
+		inlineToggleContainer.className = 'action-list-item-inline-toggle';
+		container.append(inlineToggleContainer);
+
 		const elementDisposables = new DisposableStore();
 
-		return { container, icon, text, detail, badge, description, groupTitle, keybinding, toolbar, submenuIndicator, elementDisposables };
+		return { container, icon, text, detail, badge, description, groupTitle, keybinding, toolbar, submenuIndicator, inlineToggleContainer, elementDisposables };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
@@ -351,6 +378,34 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.detail.style.display = 'none';
 		}
 
+		// Render optional inline toggle (shown as its own row below the detail)
+		dom.clearNode(data.inlineToggleContainer);
+		if (element.inlineToggle) {
+			const inlineToggle = element.inlineToggle;
+			const toggleLabel = document.createElement('span');
+			toggleLabel.className = 'action-list-item-inline-toggle-label';
+			toggleLabel.textContent = stripNewlines(inlineToggle.label);
+			data.inlineToggleContainer.append(toggleLabel);
+			data.inlineToggleContainer.style.display = '';
+			data.container.classList.add('has-inline-toggle');
+			const toggle = data.elementDisposables.add(new Toggle({
+				title: inlineToggle.title ?? inlineToggle.label,
+				isChecked: inlineToggle.checked,
+				actionClassName: 'action-list-inline-switch',
+				notFocusable: false,
+				inputActiveOptionBorder: undefined,
+				inputActiveOptionForeground: undefined,
+				inputActiveOptionBackground: undefined,
+			}));
+			data.inlineToggleContainer.append(toggle.domNode);
+			data.elementDisposables.add(toggle.onChange(() => inlineToggle.onChange(toggle.checked)));
+			// Keep clicks on the toggle row from selecting the item.
+			data.elementDisposables.add(dom.addDisposableListener(data.inlineToggleContainer, dom.EventType.CLICK, e => e.stopPropagation()));
+		} else {
+			data.inlineToggleContainer.style.display = 'none';
+			data.container.classList.remove('has-inline-toggle');
+		}
+
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();
 		data.container.classList.toggle('option-disabled', !!element.disabled);
@@ -438,6 +493,22 @@ function getKeyboardNavigationLabel<T>(item: IActionListItem<T>): string | undef
 }
 
 /**
+ * A "Learn more" style link rendered inline in the action list header banner.
+ */
+export interface IActionListHeaderLink {
+	/** Visible link text (e.g. "Learn more"). Should be localized. */
+	readonly label: string;
+	/** Target opened via the opener service when the link is activated. */
+	readonly uri: URI;
+}
+
+export interface IActionListCloseAnimation {
+	readonly className: string;
+	readonly duration: number;
+	readonly requiredAncestorClasses?: readonly string[];
+}
+
+/**
  * Options for configuring the action list.
  */
 export interface IActionListOptions {
@@ -496,6 +567,12 @@ export interface IActionListOptions {
 	readonly detailItemHeight?: number;
 
 	/**
+	 * Height (in px) used for action items that have an `inlineToggle`.
+	 * Defaults to 70.
+	 */
+	readonly inlineToggleItemHeight?: number;
+
+	/**
 	 * When true, the group title is shown on the first item of each group
 	 * in the description area (aligned to the right).
 	 */
@@ -540,10 +617,27 @@ export interface IActionListOptions {
 	 */
 	readonly headerIcon?: ThemeIcon;
 
+	/** Optional "Learn more" link rendered inline after {@link headerText}, opened via the opener service. */
+	readonly headerLink?: IActionListHeaderLink;
+
+	/** Optional dismiss ("x") button on the header banner; invoked on click, and the banner is removed. */
+	readonly headerDismiss?: () => void;
+
 	/**
 	 * Optional CSS class name added to the action list container, for scoped styling.
 	 */
 	readonly className?: string;
+
+	/**
+	 * Optional CSS class and duration used to animate the containing action widget
+	 * before the context view is hidden.
+	 */
+	readonly closeAnimation?: IActionListCloseAnimation;
+
+	/**
+	 * Optional fixed side of the anchor where the action list should render.
+	 */
+	readonly anchorPosition?: AnchorPosition;
 }
 
 /**
@@ -579,7 +673,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
 	private readonly _footerContainer: HTMLElement | undefined;
-	private readonly _headerContainer: HTMLElement | undefined;
+	private _headerContainer: HTMLElement | undefined;
 	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _groupTitleByIndex = new Map<number, string>();
 
@@ -686,6 +780,11 @@ export class ActionListWidget<T> extends Disposable {
 						if (element.group?.title) {
 							label = label + ', ' + element.group.title;
 						}
+						if (element.inlineToggle) {
+							label = label + ', ' + (element.inlineToggle.checked
+								? localize('actionList.inlineToggle.on', "{0}, on", element.inlineToggle.label)
+								: localize('actionList.inlineToggle.off', "{0}, off", element.inlineToggle.label));
+						}
 						if (element.disabled) {
 							label = localize({ key: 'customQuickFixWidget.labels', comment: [`Action widget labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
 						}
@@ -773,6 +872,41 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			const text = dom.append(this._headerContainer, dom.$('span.action-list-header-text'));
 			text.textContent = this._options.headerText;
+
+			if (this._options.headerLink) {
+				const { label, uri } = this._options.headerLink;
+				// Trailing space so the link reads as a continuation of the banner text.
+				text.textContent += ' ';
+				this._register(this._instantiationService.createInstance(Link, text, { label, href: uri.toString(true) }, {}));
+			}
+
+			if (this._options.headerDismiss) {
+				const onDismiss = this._options.headerDismiss;
+				const dismissButton = dom.append(this._headerContainer, dom.$('span.action-list-header-dismiss'));
+				dismissButton.appendChild(dom.$(ThemeIcon.asCSSSelector(Codicon.close)));
+				dismissButton.tabIndex = 0;
+				dismissButton.setAttribute('role', 'button');
+				dismissButton.setAttribute('aria-label', localize('actionList.header.dismiss', "Dismiss"));
+				const dismiss = () => {
+					onDismiss();
+					// Refocus the widget first so removing the focused button doesn't trip close-on-blur.
+					this.focus();
+					this._headerContainer?.remove();
+					// Drop the reference so the banner no longer reserves header height, then
+					// request a re-layout so the popup shrinks to fit the remaining content.
+					this._headerContainer = undefined;
+					this._onDidRequestLayout.fire();
+				};
+				// Generic mouse-up maps to pointer events on iOS, so tap/pen activation
+				// works without extra gesture plumbing (raw 'click' is unreliable there).
+				this._register(dom.addDisposableGenericMouseUpListener(dismissButton, () => dismiss()));
+				this._register(dom.addDisposableListener(dismissButton, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						dismiss();
+					}
+				}));
+			}
 		}
 
 		this._applyFilter();
@@ -1038,6 +1172,10 @@ export class ActionListWidget<T> extends Disposable {
 		return this._filterInput;
 	}
 
+	get closeAnimation(): IActionListCloseAnimation | undefined {
+		return this._options?.closeAnimation;
+	}
+
 	private focusCondition(element: IActionListItem<unknown>): boolean {
 		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}
@@ -1179,6 +1317,9 @@ export class ActionListWidget<T> extends Disposable {
 			case ActionListItemKind.Separator:
 				return item.label ? this._actionLineHeight : this._separatorLineHeight;
 			default:
+				if (item.inlineToggle) {
+					return this._options?.inlineToggleItemHeight ?? 70;
+				}
 				return item.detail ? (this._options?.detailItemHeight ?? 48) : this._actionLineHeight;
 		}
 	}
@@ -1250,16 +1391,7 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			this._list.layout(allItemsHeight);
 
-			const itemWidths: number[] = [];
-			for (let i = 0; i < allItems.length; i++) {
-				const element = this._getRowElement(i);
-				if (element) {
-					element.style.width = 'auto';
-					const width = element.getBoundingClientRect().width;
-					element.style.width = '';
-					itemWidths.push(width + this._computeToolbarWidth(allItems[i]));
-				}
-			}
+			const itemWidths = this._measureItemWidths(allItems);
 
 			maxWidth = clamp(Math.max(...itemWidths));
 
@@ -1269,16 +1401,11 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		// All items are visible, measure them directly
-		const itemWidths: number[] = [];
+		const visibleItems: IActionListItem<T>[] = [];
 		for (let i = 0; i < visibleCount; i++) {
-			const element = this._getRowElement(i);
-			if (element) {
-				element.style.width = 'auto';
-				const width = element.getBoundingClientRect().width;
-				element.style.width = '';
-				itemWidths.push(width + this._computeToolbarWidth(this._list.element(i)));
-			}
+			visibleItems.push(this._list.element(i));
 		}
+		const itemWidths = this._measureItemWidths(visibleItems);
 		return clamp(Math.max(...itemWidths));
 	}
 
@@ -1422,10 +1549,10 @@ export class ActionListWidget<T> extends Disposable {
 			});
 			return;
 		}
-		// Don't select when clicking the toolbar or submenu indicator
+		// Don't select when clicking the toolbar, submenu indicator, or inline toggle
 		if (dom.isMouseEvent(e.browserEvent)) {
 			const target = e.browserEvent.target;
-			if (dom.isHTMLElement(target) && (target.closest('.action-list-item-toolbar') || target.closest('.action-list-submenu-indicator'))) {
+			if (dom.isHTMLElement(target) && (target.closest('.action-list-item-toolbar') || target.closest('.action-list-submenu-indicator') || target.closest('.action-list-item-inline-toggle'))) {
 				this._list.setSelection([]);
 				return;
 			}
@@ -1469,6 +1596,25 @@ export class ActionListWidget<T> extends Disposable {
 			if (item.kind === ActionListItemKind.Action && item.group?.title && !seenTitles.has(item.group.title)) {
 				seenTitles.add(item.group.title);
 				this._groupTitleByIndex.set(i, item.group.title);
+			}
+		}
+	}
+
+	private _measureItemWidths(items: readonly IActionListItem<T>[]): number[] {
+		const rows: { element: HTMLElement; item: IActionListItem<T> }[] = [];
+		for (let i = 0; i < items.length; i++) {
+			const element = this._getRowElement(i);
+			if (element) {
+				element.style.width = 'auto';
+				rows.push({ element, item: items[i] });
+			}
+		}
+
+		try {
+			return rows.map(({ element, item }) => element.getBoundingClientRect().width + this._computeToolbarWidth(item));
+		} finally {
+			for (const { element } of rows) {
+				element.style.width = '';
 			}
 		}
 	}
@@ -1871,6 +2017,7 @@ export class ActionList<T> extends Disposable {
 	private _cachedMaxWidth: number | undefined;
 	private _hasLaidOut = false;
 	private _showAbove: boolean | undefined;
+	private readonly _preferredAnchorPosition: AnchorPosition | undefined;
 
 	get domNode(): HTMLElement {
 		return this._widget.domNode;
@@ -1892,11 +2039,18 @@ export class ActionList<T> extends Disposable {
 		return this._widget.filterInput;
 	}
 
+	get closeAnimation(): IActionListCloseAnimation | undefined {
+		return this._widget.closeAnimation;
+	}
+
 	/**
 	 * Returns the resolved anchor position after the first layout.
 	 * Used by the context view delegate to lock the dropdown direction.
 	 */
 	get anchorPosition(): AnchorPosition | undefined {
+		if (this._preferredAnchorPosition !== undefined) {
+			return this._preferredAnchorPosition;
+		}
 		if (this._showAbove === undefined) {
 			return undefined;
 		}
@@ -1917,6 +2071,7 @@ export class ActionList<T> extends Disposable {
 	) {
 		super();
 		this._anchor = anchor;
+		this._preferredAnchorPosition = options?.anchorPosition;
 
 		this._widget = this._register(instantiationService.createInstance(
 			ActionListWidget<T>,
@@ -1940,9 +2095,11 @@ export class ActionList<T> extends Disposable {
 		this._widget.focus();
 	}
 
-	hide(didCancel?: boolean): void {
+	hide(didCancel?: boolean, hideContextView = true): void {
 		this._widget.hide(didCancel);
-		this._contextViewService.hideContextView();
+		if (hideContextView) {
+			this._contextViewService.hideContextView();
+		}
 	}
 
 	clearFilter(): boolean {
@@ -2006,7 +2163,7 @@ export class ActionList<T> extends Disposable {
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 
-		if (this.hasDynamicHeight()) {
+		if (this.hasDynamicHeight() || this._preferredAnchorPosition !== undefined) {
 			const viewportHeight = targetWindow.innerHeight;
 			const anchorRect = getAnchorRect(this._anchor);
 			const anchorTopInViewport = anchorRect.top - targetWindow.pageYOffset;
@@ -2018,8 +2175,9 @@ export class ActionList<T> extends Disposable {
 			// unconstrained list fits below. Once decided, the dropdown stays
 			// in the same position even when the visible item count changes.
 			if (this._showAbove === undefined) {
-				const fullHeight = chromeHeight + this._widget.computeFullHeight();
-				this._showAbove = fullHeight > spaceBelow && spaceAbove > spaceBelow;
+				this._showAbove = this._preferredAnchorPosition !== undefined
+					? this._preferredAnchorPosition === AnchorPosition.ABOVE
+					: (chromeHeight + this._widget.computeFullHeight() > spaceBelow && spaceAbove > spaceBelow);
 			}
 			availableHeight = Math.max(0, (this._showAbove ? spaceAbove : spaceBelow) - this.computeActionWidgetVerticalChromeHeight());
 		} else {
@@ -2031,6 +2189,11 @@ export class ActionList<T> extends Disposable {
 
 		const viewportMaxHeight = Math.floor(targetWindow.innerHeight * 0.6);
 		const actionLineHeight = this._widget.lineHeight;
+		if (this._preferredAnchorPosition !== undefined) {
+			const maxHeight = Math.min(availableHeight, viewportMaxHeight);
+			const height = Math.min(listHeight + chromeHeight, Math.max(0, maxHeight));
+			return Math.max(0, height - chromeHeight);
+		}
 		const maxHeight = Math.min(Math.max(availableHeight, actionLineHeight * 3 + chromeHeight), viewportMaxHeight);
 		const height = Math.min(listHeight + chromeHeight, maxHeight);
 		return height - chromeHeight;

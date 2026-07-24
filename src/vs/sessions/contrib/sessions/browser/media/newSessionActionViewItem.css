@@ -16,7 +16,7 @@ unscoped so the widget renders identically wherever it is mounted. */
 	font-size: var(--vscode-agents-fontSize-label1, 12px);
 	line-height: 18px;
 	border-radius: var(--vscode-cornerRadius-small);
-	border: var(--vscode-strokeThickness) solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent)));
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, transparent));
 	background-color: var(--vscode-agentsNewSessionButton-background, transparent);
 	color: var(--vscode-agentsNewSessionButton-foreground, var(--vscode-foreground));
 	width: auto;
@@ -27,14 +27,6 @@ unscoped so the widget renders identically wherever it is mounted. */
 
 .agent-sessions-compact-new-button.monaco-button:not(.disabled) {
 	cursor: pointer;
-}
-
-/* When mounted in the titlebar, add breathing room from the adjacent
-sidebar toggle and the surrounding titlebar edges. */
-.sessions-titlebar-new-session-item {
-	display: inline-flex;
-	align-items: center;
-	margin: 0 4px;
 }
 
 .agent-sessions-compact-new-button.monaco-button.default-colors:hover {
