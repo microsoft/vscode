@@ -8,6 +8,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationOverrides, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { EditorResolverService } from '../../browser/editorResolverService.js';
@@ -29,6 +30,9 @@ suite('EditorResolverService', () => {
 
 
 	const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorResolverService';
+	const TEST_MARKDOWN_EDITOR_INPUT_ID = 'testMarkdownEditorInputForEditorResolverService';
+	const TEST_MARKDOWN_EDITOR_ID = 'testMarkdownEditorForEditorResolverService';
+	const TEST_MARKDOWN_PATTERN = '*.test-md';
 	const disposables = new DisposableStore();
 
 	teardown(() => disposables.clear());
@@ -60,6 +64,81 @@ suite('EditorResolverService', () => {
 			constructDisposableFileEditorInput(original.resource ?? URI.from({ scheme: Schemas.untitled }), typeId, disposables),
 			constructDisposableFileEditorInput(modified.resource ?? URI.from({ scheme: Schemas.untitled }), typeId, disposables),
 			undefined);
+	}
+
+	class ScopedEditorAssociationsConfigurationService extends TestConfigurationService {
+		constructor(private readonly editorAssociations: Partial<IConfigurationValue<Record<string, string>>>) {
+			super();
+		}
+
+		override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+			if (key === editorsAssociationsSettingId) {
+				return {
+					defaultValue: undefined,
+					applicationValue: undefined,
+					userValue: undefined,
+					userLocalValue: undefined,
+					userRemoteValue: undefined,
+					workspaceValue: undefined,
+					workspaceFolderValue: undefined,
+					memoryValue: undefined,
+					policyValue: undefined,
+					value: undefined,
+					overrideIdentifiers: undefined,
+					...this.editorAssociations
+				} as IConfigurationValue<T>;
+			}
+			return super.inspect(key, overrides);
+		}
+	}
+
+	async function assertScopedUserEditorAssociationResolves(editorAssociations: Partial<IConfigurationValue<Record<string, string>>>): Promise<void> {
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => new ScopedEditorAssociationsConfigurationService(editorAssociations)
+		}, disposables);
+		const [part, service] = await createEditorResolverService(instantiationService);
+
+		const defaultEditor = service.registerEditor('*',
+			{
+				id: 'default',
+				label: 'Default Editor',
+				detail: 'Default',
+				priority: RegisteredEditorPriority.default
+			},
+			{},
+			{
+				createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(resource, TEST_EDITOR_INPUT_ID, disposables) })
+			}
+		);
+
+		const markdownEditor = service.registerEditor(TEST_MARKDOWN_PATTERN,
+			{
+				id: TEST_MARKDOWN_EDITOR_ID,
+				label: 'Markdown Editor',
+				detail: 'Markdown Editor Details',
+				priority: RegisteredEditorPriority.option
+			},
+			{},
+			{
+				createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(resource, TEST_MARKDOWN_EDITOR_INPUT_ID, disposables) })
+			}
+		);
+
+		const resultingResolution = await service.resolveEditor(
+			{ resource: URI.file(`resource${TEST_MARKDOWN_PATTERN.slice(1)}`) },
+			part.activeGroup
+		);
+		assert.ok(resultingResolution);
+		assert.notStrictEqual(typeof resultingResolution, 'number');
+		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
+			assert.strictEqual(resultingResolution.editor.typeId, TEST_MARKDOWN_EDITOR_INPUT_ID);
+			resultingResolution.editor.dispose();
+		} else {
+			assert.fail('Expected editor to resolve successfully');
+		}
+
+		defaultEditor.dispose();
+		markdownEditor.dispose();
 	}
 
 	test('Simple Resolve', async () => {
@@ -1087,6 +1166,22 @@ suite('EditorResolverService', () => {
 
 		defaultEditor.dispose();
 		customEditor.dispose();
+	});
+
+	test('User-local editor association resolves #244597', async () => {
+		await assertScopedUserEditorAssociationResolves({
+			userLocalValue: {
+				[TEST_MARKDOWN_PATTERN]: TEST_MARKDOWN_EDITOR_ID
+			}
+		});
+	});
+
+	test('User-remote editor association resolves #244597', async () => {
+		await assertScopedUserEditorAssociationResolves({
+			userRemoteValue: {
+				[TEST_MARKDOWN_PATTERN]: TEST_MARKDOWN_EDITOR_ID
+			}
+		});
 	});
 
 	test('Diff editor Resolve - priority.diff overrides priority.editor for diffs', async () => {

@@ -343,11 +343,15 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	private getAllUserAssociationsForSetting(settingId: string): EditorAssociations {
 		const inspectedEditorAssociations = this.configurationService.inspect<{ [fileNamePattern: string]: string }>(settingId) || {};
 		const defaultAssociations = inspectedEditorAssociations.defaultValue ?? {};
+		const applicationAssociations = inspectedEditorAssociations.applicationValue ?? {};
+		const userLocalAssociations = inspectedEditorAssociations.userLocalValue ?? {};
+		const userRemoteAssociations = inspectedEditorAssociations.userRemoteValue ?? {};
 		const workspaceAssociations = inspectedEditorAssociations.workspaceValue ?? {};
+		const workspaceFolderAssociations = inspectedEditorAssociations.workspaceFolderValue ?? {};
 		const userAssociations = inspectedEditorAssociations.userValue ?? {};
-		const rawAssociations: { [fileNamePattern: string]: string } = { ...workspaceAssociations };
-		// We want to apply the default associations and user associations on top of the workspace associations but ignore duplicate keys.
-		for (const [key, value] of Object.entries({ ...defaultAssociations, ...userAssociations })) {
+		const rawAssociations: { [fileNamePattern: string]: string } = { ...workspaceAssociations, ...workspaceFolderAssociations };
+		// We want to apply lower priority associations after higher priority associations but ignore duplicate keys.
+		for (const [key, value] of Object.entries({ ...defaultAssociations, ...applicationAssociations, ...userLocalAssociations, ...userRemoteAssociations, ...userAssociations })) {
 			if (rawAssociations[key] === undefined) {
 				rawAssociations[key] = value;
 			}
