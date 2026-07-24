@@ -2075,6 +2075,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
+	/**
+	 * Moves focus to a specific automation in the Automations section.
+	 */
+	public focusAutomation(automationId: string): void {
+		this.automationsListWidget?.focusAutomation(automationId);
+	}
+
 	public showPromptMigrationPage(): void {
 		if (!this.isPromptMigrationEnabled()) {
 			return;
