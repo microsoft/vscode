@@ -193,12 +193,10 @@
 	background-color: color-mix(in srgb, var(--vscode-statusBar-debuggingBackground) 30%, transparent) !important;
 }
 
-/* Inset and vertically center the status bar items within its floating gutter. */
+/* Inset the compact status bar items horizontally within the shell. */
 .monaco-workbench.floating-panels .part.statusbar {
 	padding-left: var(--vscode-spacing-size60);
 	padding-right: var(--vscode-spacing-size60);
-	padding-top: calc(var(--vscode-spacing-size40) - var(--vscode-strokeThickness)); /* offset for the border-top of the status bar */
-	padding-bottom: calc(var(--vscode-spacing-size40) + var(--vscode-strokeThickness)); /* offset for the border-bottom of the status bar */
 }
 
 /* With a compact activity bar the horizontal inset is tightened to match. The
