@@ -32,8 +32,14 @@
 	color: var(--vscode-charts-purple, #a371f7);
 }
 
+.chat-voice-input-mode {
+	--segmented-icon-toggle-width: 50px;
+	--segmented-icon-toggle-cell-width: 24px;
+	--segmented-icon-toggle-single-width: 48px;
+}
+
 .chat-voice-input-mode-icon {
-	font-size: 16px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 /* The Device EQ waveform lives in the voice cell and transforms per state. Thin bars = default (disconnected); thick bars = filled (connected). */
@@ -41,7 +47,7 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 2px;
-	height: 16px;
+	height: 12px;
 }
 
 .chat-voice-input-mode-bar {
@@ -54,9 +60,9 @@
 
 /* Device EQ silhouette: symmetric center-peak (matches Device EQ.svg). Bars stay thin in every state — connected reads via a darker color, not thicker bars. */
 .chat-voice-input-mode-bar:nth-child(1) { height: 4px; }
-.chat-voice-input-mode-bar:nth-child(2) { height: 8px; }
-.chat-voice-input-mode-bar:nth-child(3) { height: 12px; }
-.chat-voice-input-mode-bar:nth-child(4) { height: 8px; }
+.chat-voice-input-mode-bar:nth-child(2) { height: 6px; }
+.chat-voice-input-mode-bar:nth-child(3) { height: 10px; }
+.chat-voice-input-mode-bar:nth-child(4) { height: 6px; }
 .chat-voice-input-mode-bar:nth-child(5) { height: 4px; }
 
 /* Hover while connected → preview disconnect: collapse to a short, even, "silent" row (no waveform, no motion). The height transition makes leaving the hover grow the bars smoothly back into the active waveform. */
@@ -100,5 +106,5 @@
 
 @keyframes chat-voice-input-mode-eq {
 	0%, 100% { height: 3px; }
-	50% { height: 13px; }
+	50% { height: 11px; }
 }

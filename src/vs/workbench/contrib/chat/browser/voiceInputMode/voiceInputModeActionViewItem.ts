@@ -589,7 +589,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 					sum += this._barData[Math.min(bins - 1, i * step + j)];
 				}
 				const intensity = Math.min(1, (sum / step) / 180);
-				const heightPx = 3 + intensity * 11;
+				const heightPx = 3 + intensity * 8;
 				// Disable the CSS keyframe fallback while we drive heights from live audio.
 				this._voiceBarEls[i].style.animation = 'none';
 				this._voiceBarEls[i].style.height = `${heightPx}px`;

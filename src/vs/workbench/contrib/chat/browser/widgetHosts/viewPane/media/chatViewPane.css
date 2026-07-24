@@ -68,10 +68,14 @@
 	color: var(--vscode-foreground);
 }
 
-.voice-transcript-overlay .partial {
+.voice-transcript-overlay .partial,
+.voice-transcript-overlay .hint {
 	color: var(--vscode-foreground);
 	opacity: 0.6;
 	font-style: italic;
+}
+
+.voice-transcript-overlay .partial {
 	animation: voiceTextPulse 1.5s ease-in-out infinite;
 }
 

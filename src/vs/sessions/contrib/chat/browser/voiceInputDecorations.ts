@@ -149,7 +149,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				transcriptOverlayNode.style.display = '';
 				transcriptOverlayNode.classList.remove('has-transcript');
 				transcriptOverlay.replaceChildren();
-				const hint = dom.$('span.partial');
+				const hint = dom.$('span.hint');
 				const kb = keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
 				const kbLabel = kb?.getLabel();
 				hint.textContent = kbLabel
@@ -161,7 +161,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				transcriptOverlayNode.style.display = '';
 				transcriptOverlayNode.classList.remove('has-transcript');
 				transcriptOverlay.replaceChildren();
-				const hint = dom.$('span.partial');
+				const hint = dom.$('span.hint');
 				const kb = keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
 				const kbLabel = kb?.getLabel();
 				hint.textContent = kbLabel

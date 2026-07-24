@@ -1085,8 +1085,8 @@ export class AgentsVoiceWidget extends Disposable {
 			if (this._inputBoxMicBtn) {
 				const iconGlowActive = voiceState === 'listening' || voiceState === 'speaking';
 				if (iconGlowActive) {
-					const shadowSpread = 3 + intensity * 8;
-					const shadowAlpha = 0.2 + intensity * 0.45;
+					const shadowSpread = 2 + intensity * 4;
+					const shadowAlpha = 0.06 + intensity * 0.12;
 					const glowColor = `rgba(${voiceState === 'speaking' ? '163,113,247' : '88,166,255'},${shadowAlpha})`;
 					this._inputBoxMicBtn.style.boxShadow = `0 0 ${shadowSpread}px ${glowColor}`;
 				} else {
@@ -1096,9 +1096,9 @@ export class AgentsVoiceWidget extends Disposable {
 
 			// Classic layout glow div
 			this._glowDiv.style.display = '';
-			const baseOpacity = 0.15 + intensity * 0.4;
+			const baseOpacity = 0.06 + intensity * 0.12;
 			const r = (onboarding || voiceState === 'speaking') ? '163,113,247' : '88,166,255';
-			this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${r},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${r},${baseOpacity * 0.4}) 0%, transparent 100%)`;
+			this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${r},${baseOpacity}) 0%, transparent 100%)`;
 		};
 		this._animationFrameId = getWindow(this.container).requestAnimationFrame(animate);
 	}

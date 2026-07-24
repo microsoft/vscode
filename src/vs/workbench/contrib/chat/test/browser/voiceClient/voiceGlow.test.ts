@@ -18,8 +18,8 @@ suite('VoiceGlow', () => {
 				boxShadow: listeningStyle.boxShadow,
 			},
 			{
-				borderColor: 'rgba(88,166,255,0.65)',
-				boxShadow: '0 0 10px rgba(88,166,255,0.32499999999999996), inset 0 0 4px rgba(88,166,255,0.09749999999999999)'
+				borderColor: 'rgba(88,166,255,0.4)',
+				boxShadow: '0 0 4px rgba(88,166,255,0.12)'
 			}
 		);
 	});

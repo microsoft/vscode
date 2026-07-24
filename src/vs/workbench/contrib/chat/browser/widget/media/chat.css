@@ -4520,37 +4520,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline: none !important;
 }
 
-@keyframes chat-voice-icon-glow {
-	0%,
-	100% {
-		box-shadow: 0 0 4px var(--chat-voice-icon-glow-color);
-	}
-
-	50% {
-		box-shadow: 0 0 9px var(--chat-voice-icon-glow-color);
-	}
-}
-
 /* Voice mode: blue when listening */
 .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode {
-	--chat-voice-icon-glow-color: rgba(88, 166, 255, 0.65);
 	color: var(--vscode-charts-blue, #58a6ff) !important;
 	border-radius: 50%;
-}
-
-.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode {
-	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
+	box-shadow: 0 0 3px rgba(88, 166, 255, 0.25);
 }
 
 /* Voice mode: purple when speaking */
 .chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode {
-	--chat-voice-icon-glow-color: rgba(163, 113, 247, 0.65);
 	color: var(--vscode-charts-purple, #a371f7) !important;
 	border-radius: 50%;
-}
-
-.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode {
-	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
+	box-shadow: 0 0 3px rgba(163, 113, 247, 0.25);
 }
 
 /* Voice mode: green disconnect button */
