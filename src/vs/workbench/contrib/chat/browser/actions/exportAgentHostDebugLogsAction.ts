@@ -216,13 +216,13 @@ export async function collectAgentHostDebugLogs(
 	// the provider artifacts; the general logs still export.
 	let debugArtifacts = activeSession?.debugArtifacts;
 	if (activeSession && debugArtifacts === undefined) {
-		if (activeSession.isLocal) {
-			debugArtifacts = await resolveSessionDebugArtifacts(() => agentHostService.listSessions(), activeSession.resource);
-		} else {
-			const connection = remoteConnection && remoteAgentHostService.getConnection(remoteConnection.address);
-			if (connection) {
-				debugArtifacts = await resolveSessionDebugArtifacts(() => connection.listSessions(), activeSession.resource);
-			}
+		// The local host and a remote connection both expose `listSessions()`; pick
+		// whichever owns this session and read its advertised `_meta` artifacts.
+		const sessionLister = activeSession.isLocal
+			? agentHostService
+			: remoteConnection ? remoteAgentHostService.getConnection(remoteConnection.address) : undefined;
+		if (sessionLister) {
+			debugArtifacts = await resolveSessionDebugArtifacts(sessionLister, activeSession.resource);
 		}
 	}
 	const artifactAuthority = remoteConnection ? agentHostAuthority(remoteConnection.address) : undefined;
@@ -361,14 +361,15 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
  * Reads the host-advertised {@link IDebugArtifact}s for a session from the owning
  * agent host's session summaries, matched by the session's unique id (the
  * summary's `session` URI may use the backend scheme, so we compare ids, not the
- * whole URI). The caller supplies the matching `listSessions` — the local host or
- * a specific remote connection — so this serves both local and remote export.
+ * whole URI). `sessionLister` is whichever host owns the session — the local
+ * {@link IAgentHostService} or a remote {@link IAgentConnection}, both of which
+ * expose `listSessions()` — so this serves both local and remote export.
  * Best-effort: any failure resolves to `undefined`.
  */
-async function resolveSessionDebugArtifacts(listSessions: () => Promise<IAgentSessionMetadata[]>, resource: URI): Promise<readonly IDebugArtifact[] | undefined> {
+async function resolveSessionDebugArtifacts(sessionLister: { listSessions(): Promise<IAgentSessionMetadata[]> }, resource: URI): Promise<readonly IDebugArtifact[] | undefined> {
 	try {
 		const rawId = resource.path.substring(1);
-		const sessions = await listSessions();
+		const sessions = await sessionLister.listSessions();
 		return readSessionDebugArtifacts(sessions.find(session => session.session.path.substring(1) === rawId)?._meta);
 	} catch {
 		return undefined;
