@@ -361,9 +361,7 @@ export class ListView<T> implements IListView<T> {
 		this.domNode.classList.toggle('horizontal-scrolling', this._horizontalScrolling);
 
 		if (this._horizontalScrolling) {
-			for (const item of this.items) {
-				this.measureItemWidth(item);
-			}
+			this.measureItemWidths(this.items);
 
 			this.updateScrollWidth();
 			this.scrollableElement.setScrollDimensions({ width: getContentWidth(this.domNode) });
@@ -718,6 +716,7 @@ export class ListView<T> implements IListView<T> {
 		const unrenderedRestRanges = previousUnrenderedRestRanges.map(r => shift(r, delta));
 		const elementsRange = { start, end: start + elements.length };
 		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => Range.intersect(renderRange, r)).reverse();
+		const insertedItems: IItem<T>[] = [];
 
 		for (const range of insertRanges) {
 			for (let i = range.end - 1; i >= range.start; i--) {
@@ -725,6 +724,7 @@ export class ListView<T> implements IListView<T> {
 				const rows = rowsToDispose.get(item.templateId);
 				const row = rows?.pop();
 				this.insertItemInDOM(i, row);
+				insertedItems.push(item);
 			}
 		}
 
@@ -732,6 +732,11 @@ export class ListView<T> implements IListView<T> {
 			for (const row of rows) {
 				this.cache.release(row);
 			}
+		}
+
+		if (this.horizontalScrolling && insertedItems.length > 0) {
+			this.measureItemWidths(insertedItems);
+			this.eventuallyUpdateScrollWidth();
 		}
 
 		this.eventuallyUpdateScrollDimensions();
@@ -789,7 +794,7 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		const item = this.items[index];
-		this.measureItemWidth(item);
+		this.measureItemWidths([item]);
 
 		if (typeof item.width !== 'undefined' && item.width > this.scrollWidth) {
 			this.scrollWidth = item.width;
@@ -921,6 +926,8 @@ export class ListView<T> implements IListView<T> {
 			}
 		}
 
+		const insertedItems: IItem<T>[] = [];
+
 		this.cache.transact(() => {
 			for (const range of rangesToRemove) {
 				for (let i = range.start; i < range.end; i++) {
@@ -931,9 +938,15 @@ export class ListView<T> implements IListView<T> {
 			for (const range of rangesToInsert) {
 				for (let i = range.end - 1; i >= range.start; i--) {
 					this.insertItemInDOM(i);
+					insertedItems.push(this.items[i]);
 				}
 			}
 		});
+
+		if (this.horizontalScrolling && insertedItems.length > 0) {
+			this.measureItemWidths(insertedItems);
+			this.eventuallyUpdateScrollWidth();
+		}
 
 		if (renderLeft !== undefined) {
 			this.rowsContainer.style.left = `-${renderLeft}px`;
@@ -1007,30 +1020,37 @@ export class ListView<T> implements IListView<T> {
 			item.dragStartDisposable = addDisposableListener(item.row.domNode, 'dragstart', event => this.onDragStart(item.element, uri, event));
 		}
 
-		if (this.horizontalScrolling) {
-			this.measureItemWidth(item);
-			this.eventuallyUpdateScrollWidth();
-		}
 	}
 
-	private measureItemWidth(item: IItem<T>): void {
-		if (!item.row || !item.row.domNode) {
-			return;
+	private measureItemWidths(items: readonly IItem<T>[]): void {
+		const itemsWithRows: { item: IItem<T>; domNode: HTMLElement }[] = [];
+
+		for (const item of items) {
+			if (item.row) {
+				itemsWithRows.push({ item, domNode: item.row.domNode });
+			}
 		}
 
-		item.row.domNode.style.width = 'fit-content';
-		item.width = getContentWidth(item.row.domNode);
-		const style = getWindow(item.row.domNode).getComputedStyle(item.row.domNode);
-
-		if (style.paddingLeft) {
-			item.width += parseFloat(style.paddingLeft);
+		for (const { domNode } of itemsWithRows) {
+			domNode.style.width = 'fit-content';
 		}
 
-		if (style.paddingRight) {
-			item.width += parseFloat(style.paddingRight);
+		for (const { item, domNode } of itemsWithRows) {
+			item.width = getContentWidth(domNode);
+			const style = getWindow(domNode).getComputedStyle(domNode);
+
+			if (style.paddingLeft) {
+				item.width += parseFloat(style.paddingLeft);
+			}
+
+			if (style.paddingRight) {
+				item.width += parseFloat(style.paddingRight);
+			}
 		}
 
-		item.row.domNode.style.width = '';
+		for (const { domNode } of itemsWithRows) {
+			domNode.style.width = '';
+		}
 	}
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
@@ -1590,11 +1610,18 @@ export class ListView<T> implements IListView<T> {
 				}
 
 				const renderRanges = Range.relativeComplement(renderRange, previousRenderRange).reverse();
+				const insertedItems: IItem<T>[] = [];
 
 				for (const range of renderRanges) {
 					for (let i = range.end - 1; i >= range.start; i--) {
 						this.insertItemInDOM(i);
+						insertedItems.push(this.items[i]);
 					}
+				}
+
+				if (this.horizontalScrolling && insertedItems.length > 0) {
+					this.measureItemWidths(insertedItems);
+					this.eventuallyUpdateScrollWidth();
 				}
 
 				for (let i = renderRange.start; i < renderRange.end; i++) {

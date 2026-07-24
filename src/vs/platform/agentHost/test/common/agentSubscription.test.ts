@@ -536,6 +536,39 @@ suite('TerminalStateSubscription', () => {
 		]);
 	});
 
+	test('data between command executed and finished is attributed to the command', () => {
+		const sub = disposables.add(new TerminalStateSubscription(terminalUri, 'c1', noop));
+		sub.handleSnapshot(makeTerminalState(), 0);
+
+		// The server dispatches data in stream order relative to command
+		// events, so a command's output arrives between the executed and
+		// finished actions and must land in the command part, not in a
+		// trailing unclassified part.
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.TerminalCommandExecuted, commandId: 'cmd-1', commandLine: 'echo hi', timestamp: 1000 },
+			1,
+		));
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.TerminalData, data: 'hi\r\n' },
+			2,
+		));
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.TerminalCommandFinished, commandId: 'cmd-1', exitCode: 0, durationMs: 5 },
+			3,
+		));
+
+		assert.deepStrictEqual((sub.value as TerminalState).content, [{
+			type: 'command',
+			commandId: 'cmd-1',
+			commandLine: 'echo hi',
+			output: 'hi\r\n',
+			timestamp: 1000,
+			isComplete: true,
+			exitCode: 0,
+			durationMs: 5,
+		}]);
+	});
+
 	test('ignores terminal actions for other URIs', () => {
 		const sub = disposables.add(new TerminalStateSubscription(terminalUri, 'c1', noop));
 		sub.handleSnapshot(makeTerminalState(), 0);

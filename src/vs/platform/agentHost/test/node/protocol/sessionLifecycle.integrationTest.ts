@@ -22,7 +22,7 @@ import {
 	nextSessionUri,
 	startServer,
 	TestProtocolClient
-} from './testHelpers.js';
+} from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket — Session Lifecycle', function () {
 

@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { disposableWindowInterval } from '../../../../base/browser/dom.js';
+import { disposableWindowInterval, getWindow } from '../../../../base/browser/dom.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -27,13 +27,15 @@ import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { inputBackground, inputBorder } from '../../../../platform/theme/common/colors/inputColors.js';
 import { AgentsVoiceWidget } from './agentsVoiceWidget.js';
 import { bindWidgetToController } from './agentsVoiceWidgetBinding.js';
 import { AgentsVoiceSessionsPicker } from './agentsVoiceSessionsPicker.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { getVoiceModeContextMenuActions } from '../../chat/browser/speechToText/micButtonMenuActions.js';
 
 export class AgentsVoiceWindowService extends Disposable implements IAgentsVoiceWindowService {
 
@@ -73,8 +75,8 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 
@@ -206,9 +208,15 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 					?? (state === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
 			},
-			isMotionReduced: () => this.accessibilityService.isMotionReduced(),
 			onResize: () => this._resizeWindow(auxiliaryWindow),
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.pushToTalk'),
+			showVoiceContextMenu: (e: MouseEvent) => {
+				const anchor = new StandardMouseEvent(getWindow(e.target as Node ?? auxiliaryWindow.container), e);
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, 'agentsVoice.pushToTalk'),
+				});
+			},
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
 			showSessionsPicker: () => {
 				const picker = this.instantiationService.createInstance(

@@ -51,6 +51,7 @@ export interface InstructionsCollectionEvent {
 	claudeAgentsCount: number;
 }
 
+
 export interface IAutomaticInstructionsCollectorContext {
 	readonly tools: Map<vscode.LanguageModelToolInformation, boolean>;
 	readonly modeInstructions2?: vscode.ChatRequestModeInstructions;
@@ -550,7 +551,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 				lines.push('<agents>');
 				lines.push('Here is a list of agents that can be used when running a subagent.');
 				lines.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
-				lines.push(`Use the ${getToolReferencePromptContent(runSubagentTool)} tool with an agent name from this list to run that agent, or omit agentName to use the current agent.`);
+				lines.push(`Use the ${getToolReferencePromptContent(runSubagentTool)} tool with the agent name to run the subagent.`);
 
 				for (const agent of customAgents) {
 					if (!canInvokeAgent(agent)) {
@@ -970,4 +971,3 @@ namespace ICustomInstructionsDebugInfo {
 		return result.join('\n');
 	}
 }
-

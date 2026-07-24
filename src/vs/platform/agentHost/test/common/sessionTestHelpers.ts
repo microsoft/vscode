@@ -22,6 +22,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	getFileEditsByTurnCalls = 0;
 	deleteTurnsAfterCalls: string[] = [];
 	deleteAllTurnsCalls = 0;
+	setTurnEventIdCalls: Array<{ turnId: string; eventId: string }> = [];
 
 	addEdit(edit: IFileEditRecord & IFileEditContent): void {
 		this._edits.push(edit);
@@ -96,7 +97,9 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	dispose(): void { }
 
-	async setTurnEventId(_turnId: string, _eventId: string): Promise<void> { }
+	async setTurnEventId(turnId: string, eventId: string): Promise<void> {
+		this.setTurnEventIdCalls.push({ turnId, eventId });
+	}
 
 	async getTurnEventId(_turnId: string): Promise<string | undefined> { return undefined; }
 
@@ -238,6 +241,8 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		_serviceBrand: undefined,
 		getCurrentBranch: async () => undefined,
 		getDefaultBranch: async () => undefined,
+		getBranch: async () => undefined,
+		getRefs: async () => [],
 		getBranches: async () => [],
 		getRepositoryRoot: async () => undefined,
 		getWorktreeRoots: async () => [],
@@ -264,6 +269,10 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		overlayPathIntoTree: async () => undefined,
 		diffTreePaths: async () => undefined,
 		computeFileDiffsBetweenRefs: async () => undefined,
+		getFetchRemoteUrls: async () => undefined,
+		getUntrackedPaths: async () => [],
+		getBranchDiffSafetyInfo: async () => undefined,
+		getDiffPatchBetweenRefs: async () => undefined,
 	};
 }
 

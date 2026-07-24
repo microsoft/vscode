@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/openSubagentChat.css';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, WindowIntervalTimer } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IReader } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -20,6 +21,8 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { parseChatUri, parseSubagentSessionUri } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { formatElapsedTime } from '../../../../../workbench/contrib/chat/common/chatProgressFormatting.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -35,8 +38,6 @@ import { IChat, SessionStatus } from '../../../../services/sessions/common/sessi
 // format (see `parseChatUri`/`parseSubagentSessionUri`) — so parsing those URIs
 // and mapping them to a surfaced peer chat is a natural provider concern. It is
 // rendered as a pill and activates the matching tab in the active session.
-
-const OPEN_SUBAGENT_CHAT_ACTION_ID = 'workbench.action.chat.openAgentHostChat';
 
 /**
  * Recovers the surfaced peer chat's chatId (e.g. `subagent/<toolCallId>`) from a
@@ -113,7 +114,10 @@ function findSubagentChat(sessionsService: ISessionsService, resource: string, r
  */
 interface IOpenSubagentChatContext {
 	readonly chatResource: string;
-	readonly agentName?: string;
+	readonly confirmationCount?: number;
+	readonly confirmationActive?: boolean;
+	readonly startedAt?: number;
+	readonly duration?: number;
 }
 
 function contextChatResource(context: unknown): string | undefined {
@@ -126,10 +130,29 @@ function contextChatResource(context: unknown): string | undefined {
 	return undefined;
 }
 
+function contextSubagentTiming(context: unknown): { startedAt: number | undefined; duration: number | undefined } {
+	if (!context || typeof context !== 'object') {
+		return { startedAt: undefined, duration: undefined };
+	}
+	const value = context as IOpenSubagentChatContext;
+	return {
+		startedAt: typeof value.startedAt === 'number' && Number.isFinite(value.startedAt) ? value.startedAt : undefined,
+		duration: typeof value.duration === 'number' && Number.isFinite(value.duration) ? Math.max(0, value.duration) : undefined,
+	};
+}
+
+function contextConfirmationCount(context: unknown): number {
+	if (!context || typeof context !== 'object') {
+		return 0;
+	}
+	const count = (context as IOpenSubagentChatContext).confirmationCount;
+	return typeof count === 'number' && count > 0 ? count : 0;
+}
+
 class OpenSubagentChatAction extends Action2 {
 	constructor() {
 		super({
-			id: OPEN_SUBAGENT_CHAT_ACTION_ID,
+			id: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID,
 			title: localize2('chat.subagent.openChat', "Open Subagent"),
 			icon: Codicon.commentDiscussion,
 			// Contextual: invoked from a specific subagent's header toolbar, which
@@ -171,8 +194,18 @@ registerAction2(OpenSubagentChatAction);
 class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 
 	private _resolvedTitle: string | undefined;
+	private _confirmationCount = 0;
+	private _confirmationActive = false;
+	private _status: SessionStatus | undefined;
 	private readonly _titleTracker = this._register(new MutableDisposable());
+	private readonly _spinner = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _durationTimer = this._register(new WindowIntervalTimer());
 	private _labelElement: HTMLElement | undefined;
+	private _confirmationCountElement: HTMLElement | undefined;
+	private _iconElement: HTMLElement | undefined;
+	private _durationElement: HTMLElement | undefined;
+	private _startedAt: number | undefined;
+	private _endedAt: number | undefined;
 
 	constructor(
 		context: unknown,
@@ -192,13 +225,18 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		// actionable control for screen readers.
 		container.setAttribute('role', 'button');
 
-		const icon = $('span.chat-subagent-pill-icon');
-		icon.appendChild($('span.chat-subagent-pill-spinner.codicon.codicon-loading.codicon-modifier-spin'));
-		icon.appendChild($(`span.chat-subagent-pill-open-icon${ThemeIcon.asCSSSelector(Codicon.commentDiscussion)}`));
+		this._iconElement = $('span.chat-subagent-pill-icon');
+		this._iconElement.appendChild($(`span.chat-subagent-pill-open-icon${ThemeIcon.asCSSSelector(Codicon.commentDiscussion)}`));
 		this._labelElement = $('span.chat-subagent-pill-label');
-		container.append(icon, this._labelElement);
+		this._confirmationCountElement = $('span.chat-subagent-pill-confirmation-count');
+		const pillContent = $('span.chat-subagent-pill-content');
+		this._durationElement = $('span.chat-subagent-pill-duration');
+		pillContent.append(this._iconElement, this._labelElement, this._confirmationCountElement);
+		container.append(pillContent, this._durationElement);
 		this._labelElement.textContent = this._labelText();
 
+		this._updateConfirmationCount();
+		this._updateDuration();
 		this._updateTitleTracker();
 		this.updateTooltip();
 		this.updateEnabled();
@@ -206,33 +244,89 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 
 	override setActionContext(newContext: unknown): void {
 		super.setActionContext(newContext);
+		this._updateConfirmationCount();
+		this._updateDuration();
 		this._updateTitleTracker();
 	}
 
-	/**
-	 * Tracks the resolved subagent chat's title and running state. The pill's
-	 * spinner reflects the subagent chat's **own** {@link SessionStatus.InProgress}
-	 * status rather than the parent `.chat-subagent-part`'s `chat-thinking-active`
-	 * class: the spawning tool call completes as soon as the subagent is
-	 * dispatched, so that class stops early while the worker keeps running.
-	 */
+	private _updateConfirmationCount(): void {
+		const count = contextConfirmationCount(this._context);
+		const confirmationActive = !!(this._context && typeof this._context === 'object' && (this._context as IOpenSubagentChatContext).confirmationActive);
+		if (count === this._confirmationCount && confirmationActive === this._confirmationActive) {
+			return;
+		}
+		this._confirmationCount = count;
+		this._confirmationActive = confirmationActive;
+		this.element?.classList.toggle('chat-subagent-needs-confirmation', count > 0);
+		this.element?.classList.toggle('chat-subagent-has-multiple-confirmations', count > 1);
+		this.element?.classList.toggle('chat-subagent-confirmation-active', count > 0 && confirmationActive);
+		this.element?.classList.toggle('chat-subagent-confirmation-pending', count > 0 && !confirmationActive);
+		if (this._confirmationCountElement) {
+			this._confirmationCountElement.textContent = String(count);
+		}
+		this.updateTooltip();
+		this.updateAriaLabel();
+	}
+
+	/** Tracks the resolved subagent chat's title and active state. */
 	private _updateTitleTracker(): void {
 		const resource = contextChatResource(this._context);
 		if (!resource) {
 			this._titleTracker.clear();
 			this._setResolvedTitle(undefined);
-			this._setRunning(false);
+			this._setStatus(undefined);
 			return;
 		}
 		this._titleTracker.value = autorun(reader => {
 			const chat = findSubagentChat(this.sessionsService, resource, reader)?.chat;
 			this._setResolvedTitle(chat?.title.read(reader) || undefined);
-			this._setRunning(chat?.status.read(reader) === SessionStatus.InProgress);
+			this._setStatus(chat?.status.read(reader));
 		});
 	}
 
-	private _setRunning(running: boolean): void {
+	private _updateDuration(): void {
+		this._durationTimer.cancel();
+		const timing = contextSubagentTiming(this._context);
+		this._startedAt = timing.startedAt;
+		this._endedAt = timing.startedAt !== undefined && timing.duration !== undefined ? timing.startedAt + timing.duration : undefined;
+		this._updateDurationLabel();
+		if (this._startedAt !== undefined && this._endedAt === undefined) {
+			this._durationTimer.cancelAndSet(() => this._updateDurationLabel(), 1000);
+		}
+	}
+
+	private _updateDurationLabel(): void {
+		if (!this._durationElement || this._startedAt === undefined) {
+			this._durationElement?.classList.add('hidden');
+			this.updateAriaLabel();
+			return;
+		}
+		const end = this._endedAt ?? Date.now();
+		const duration = formatElapsedTime(Math.max(0, end - this._startedAt));
+		this._durationElement.textContent = this._endedAt === undefined
+			? localize('chat.subagent.workingDuration', "Working for {0}", duration)
+			: localize('chat.subagent.workedDuration', "Worked for {0}", duration);
+		this._durationElement.classList.remove('hidden');
+		this.updateAriaLabel();
+	}
+
+	private _setStatus(status: SessionStatus | undefined): void {
+		if (status === this._status) {
+			return;
+		}
+		this._status = status;
+		const running = status === SessionStatus.InProgress;
+		const waiting = status === SessionStatus.NeedsInput;
 		this.element?.classList.toggle('chat-subagent-running', running);
+		this.element?.classList.toggle('chat-subagent-waiting', waiting);
+		this._spinner.clear();
+		if ((running || waiting) && this._iconElement) {
+			const store = new DisposableStore();
+			const spinner = store.add(createPixelSpinner(this._iconElement, { variant: waiting ? 'ring' : 'grid' }));
+			store.add(toDisposable(() => spinner.element.remove()));
+			this._spinner.value = store;
+		}
+		this.updateAriaLabel();
 	}
 
 	private _setResolvedTitle(title: string | undefined): void {
@@ -242,6 +336,7 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 				this._labelElement.textContent = this._labelText();
 			}
 			this.updateTooltip();
+			this.updateAriaLabel();
 		}
 	}
 
@@ -250,6 +345,11 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	}
 
 	protected override getTooltip(): string | undefined {
+		if (this._confirmationCount > 0) {
+			return this._confirmationCount === 1
+				? localize('chat.subagent.openChat.confirmationTooltip', "Open subagent chat (1 confirmation needed)")
+				: localize('chat.subagent.openChat.confirmationsTooltip', "Open subagent chat ({0} confirmations needed)", this._confirmationCount);
+		}
 		return this._action.tooltip || this._action.label || undefined;
 	}
 
@@ -266,9 +366,22 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		if (!this.element) {
 			return;
 		}
-		const ariaLabel = this._resolvedTitle
+		const openLabel = this._resolvedTitle
 			? localize('chat.subagent.openChat.aria', "Open subagent chat: {0}", this._resolvedTitle)
-			: this.getTooltip();
+			: this._action.label;
+		const statusLabel = this._status === SessionStatus.InProgress
+			? localize('chat.subagent.status.working', "Subagent is working")
+			: this._status === SessionStatus.NeedsInput
+				? localize('chat.subagent.status.waiting', "Subagent is waiting for input")
+				: this._status === SessionStatus.Completed
+					? localize('chat.subagent.status.completed', "Subagent completed")
+					: undefined;
+		const confirmationLabel = this._confirmationCount > 0
+			? this._confirmationCount === 1
+				? localize('chat.subagent.confirmationAria', "1 confirmation needed")
+				: localize('chat.subagent.confirmationsAria', "{0} confirmations needed", this._confirmationCount)
+			: undefined;
+		const ariaLabel = [openLabel, statusLabel, confirmationLabel, this._durationElement?.textContent || undefined].filter(value => !!value).join('. ');
 		if (ariaLabel) {
 			this.element.setAttribute('aria-label', ariaLabel);
 		} else {
@@ -299,7 +412,7 @@ class OpenSubagentChatActionViewItemContribution extends Disposable implements I
 		// the factory once right after registering so any subagent header toolbar
 		// created earlier re-renders and picks up the pill.
 		const onDidRegister = this._register(new Emitter<void>());
-		this._register(actionViewItemService.register(MenuId.ChatSubagentContent, OPEN_SUBAGENT_CHAT_ACTION_ID, (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}

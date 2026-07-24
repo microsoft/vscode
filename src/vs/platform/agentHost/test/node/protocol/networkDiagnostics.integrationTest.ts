@@ -9,7 +9,7 @@ import type { AddressInfo } from 'net';
 import type { IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from '../../../common/agentService.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { ROOT_STATE_URI } from '../../../common/state/sessionState.js';
-import { getAgentHostE2ETestTimeout, IServerHandle, startServer, TestProtocolClient } from './testHelpers.js';
+import { getAgentHostE2ETestTimeout, IServerHandle, startServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket - quiet network diagnostics', function () {
 

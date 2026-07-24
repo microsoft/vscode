@@ -55,7 +55,7 @@ function ciBanner(failed: number, completed: number, pending: number): ISessionI
 		dismissTooltip: 'Hide for this session',
 		actions: [
 			{ label: 'Fix Checks', primary: true, run: () => console.log('Fix Checks') },
-			{ label: 'Reveal Checks', run: () => console.log('Reveal Checks') },
+			{ label: 'Reveal', run: () => console.log('Reveal Checks') },
 		],
 		dismiss: () => console.log('Dismiss CI banner'),
 	};
@@ -72,7 +72,7 @@ function commentsBanner(count: number, kind: 'pr' | 'agent' | 'mixed'): ISession
 		dismissTooltip: 'Hide for this session',
 		actions: [
 			{ label: 'Address Comments', primary: true, run: () => console.log('Address Comments') },
-			{ label: 'Reveal Comments', run: () => console.log('Reveal Comments') },
+			{ label: 'Reveal', run: () => console.log('Reveal Comments') },
 		],
 		dismiss: () => console.log('Dismiss comments banner'),
 	};
