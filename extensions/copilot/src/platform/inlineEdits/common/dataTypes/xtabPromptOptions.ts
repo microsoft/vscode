@@ -526,6 +526,8 @@ export enum PromptingStrategy {
 	PatchBased02WithRecentLineNumbers = 'patchBased02WithRecentLineNumbers',
 	/** PatchBased02 variant: no line numbers on recent docs. */
 	PatchBased02WithoutRecentLineNumbers = 'patchBased02WithoutRecentLineNumbers',
+	/** PatchBased02 variant: aggression tag only for high/low levels. */
+	PatchBased02AggressionHighLow = 'patchBased02AggressionHighLow',
 	/**
 	 * Xtab275-based strategy with edit intent tag parsing.
 	 * Response format: <|edit_intent|>low|medium|high|no_edit<|/edit_intent|>
@@ -548,6 +550,7 @@ export function isAggressivenessStrategy(strategy: PromptingStrategy | undefined
 	return strategy === PromptingStrategy.XtabAggressiveness
 		|| strategy === PromptingStrategy.Xtab275Aggressiveness
 		|| strategy === PromptingStrategy.Xtab275AggressivenessHighLow
+		|| strategy === PromptingStrategy.PatchBased02AggressionHighLow
 		|| strategy === PromptingStrategy.Xtab275EditIntent
 		|| strategy === PromptingStrategy.Xtab275EditIntentShort;
 }
@@ -578,6 +581,7 @@ export namespace ResponseFormat {
 			case PromptingStrategy.PatchBased02:
 			case PromptingStrategy.PatchBased02WithRecentLineNumbers:
 			case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
+			case PromptingStrategy.PatchBased02AggressionHighLow:
 				return ResponseFormat.CustomDiffPatch;
 			case PromptingStrategy.Xtab275EditIntent:
 				return ResponseFormat.EditWindowWithEditIntent;
