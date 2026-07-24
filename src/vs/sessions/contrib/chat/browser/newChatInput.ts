@@ -84,10 +84,14 @@ import { IChatStatusItemService } from '../../../../workbench/contrib/chat/brows
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
+import { IVoiceInputModeService } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
+import { notifyDictationSubmitted } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { DictationDownloadRing } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
+import { DictationDownloadRing, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 
 
@@ -365,6 +369,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
+		@IVoiceInputModeService private readonly voiceInputModeService: IVoiceInputModeService,
 	) {
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
@@ -752,8 +757,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
 
-		// Dictation (speech-to-text) mic button. Shares the STT service, mic
-		// device, and gating (on-device support + `chat.speechToText.enabled`)
+		// Dictation mic button. Shares the STT service, mic
+		// device, and gating (backend support + `dictation.enabled`)
 		// with the main chat input; inserts the transcript into this composer's
 		// editor. Placed before the voice controls so dictation leads the
 		// mic-related group.
@@ -766,6 +771,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Voice controls (mic/stop/settings/disconnect). The hand-built toolbar
 		// can't use the shared `MenuId.ChatExecute`, so a dedicated menu is used.
 		// Keep the session picker usable when optional voice initialization fails.
+		// The controller also handles voice target routing + input glow, which the
+		// segmented pill relies on, so it is created regardless of the pill; its
+		// toolbar items hide (via `when`) when the pill is active.
 		const voiceContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-toolbar'));
 		try {
 			this._register(this.instantiationService.createInstance(NewChatVoiceController, {
@@ -775,6 +783,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			}));
 		} catch (error) {
 			this.logService.error('Failed to create new-session voice controls:', error);
+		}
+
+		// Segmented voice/dictation pill (experimental). When enabled it replaces the
+		// standalone dictation button and voice controls above with a single control.
+		try {
+			this._createVoiceInputModePill(toolbar, container);
+		} catch (error) {
+			this.logService.error('Failed to create new-session voice input mode pill:', error);
 		}
 
 		this._loadingSpinner = dom.append(toolbar, dom.$('.sessions-chat-loading-spinner'));
@@ -796,6 +812,43 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
 	}
 
+	private _createVoiceInputModePill(toolbar: HTMLElement, inputContainer: HTMLElement): void {
+		const pillContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-input-mode'));
+
+		const action = toAction({
+			id: ChatVoiceInputModeAction.ID,
+			label: localize('voiceInputMode', "Voice Input Mode"),
+			run: () => { /* interaction handled by the view item */ },
+		});
+		const pill = this._register(this._scopedInstantiationService.createInstance(VoiceInputModeActionViewItem, action, {
+			// Dictation must target this composer's editor, not the last focused
+			// chat widget (this composer isn't an `IChatWidget`).
+			toggleDictation: () => { void this.toggleDictation(); },
+		}));
+		pill.render(pillContainer);
+
+		// The pill only earns its place when it would host at least two cells:
+		//   - both dictation and Voice Mode are available, or
+		//   - only Voice Mode is available in manual (non-hands-free) mode AND a
+		//     session is active, so listen + voice-connection cells both render.
+		// Otherwise the standalone dictation + voice controls show instead.
+		this._register(autorun(reader => {
+			const dict = this.voiceInputModeService.dictationAvailable.read(reader);
+			const voice = this.voiceInputModeService.voiceAvailable.read(reader);
+			const handsFree = this.voiceInputModeService.handsFree.read(reader);
+			// The voice-only branch's "session active" must match the main-window
+			// `AGENTS_VOICE_CONNECTED` context key, which tracks `isConnected` only.
+			// Counting `isConnecting` here would show the pill while the scoped
+			// standalone toolbar still shows its Connecting item (duplicate controls).
+			const connected = this.voiceSessionController.isConnected.read(reader);
+			const pillActive = (dict && voice) || (voice && !dict && !handsFree && connected);
+			pillContainer.classList.toggle('hidden', !pillActive);
+			// Mirror the pill's active state onto the input container so voice glow
+			// styling (driven by the voice controller) stays consistent.
+			inputContainer.classList.toggle('voice-input-mode-pill', pillActive);
+		}));
+	}
+
 	private _createSpeechToTextButton(container: HTMLElement): void {
 		const sttService = this.chatSpeechToTextService;
 
@@ -813,23 +866,33 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const downloadRing = this._register(new MutableDisposable<DictationDownloadRing>());
 		const renderState = () => {
 			const preparing = sttService.isPreparingModel;
-			const recording = sttService.state !== ChatSpeechToTextState.Idle;
+			// Only the active Recording state should read as "recording" (filled
+			// mic). Once the user stops, the service enters Transcribing while it
+			// waits for the final transcript (up to a few seconds on the cloud
+			// backend); during that the mic must already read as idle, matching
+			// the chat toolbar which flips as soon as recording stops.
+			const recording = sttService.state === ChatSpeechToTextState.Recording;
+			const active = sttService.state !== ChatSpeechToTextState.Idle;
 			dom.clearNode(button);
 			downloadRing.clear();
 			if (preparing) {
-				// First-use only: render a download icon wrapped by a determinate
-				// progress ring instead of a plain spinner, matching the chat
-				// toolbar, so the model download reads as progress rather than a hang.
-				dom.append(button, renderIcon(Codicon.cloudDownload));
-				downloadRing.value = new DictationDownloadRing(button, sttService);
+				// First-use only. The on-device backend downloads a model, so
+				// render a download icon wrapped by a progress ring; the cloud
+				// backend just connects, so render a plain spinner instead.
+				if (sttService.currentBackend === 'mai') {
+					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
+				} else {
+					dom.append(button, renderIcon(Codicon.micDownload));
+					downloadRing.value = new DictationDownloadRing(button, sttService);
+				}
 			} else {
-				dom.append(button, renderIcon(recording ? Codicon.stopCircle : Codicon.mic));
+				dom.append(button, renderIcon(recording ? Codicon.micFilled : Codicon.mic));
 			}
 			button.classList.toggle('recording', recording && !preparing);
 			button.classList.toggle('preparing', preparing);
 			button.ariaLabel = preparing
-				? localize('sessionsStt.preparing', "Preparing Speech to Text Model…")
-				: (recording ? stopLabel : micLabel);
+				? getDictationPreparingLabel(sttService)
+				: (active ? stopLabel : micLabel);
 		};
 		renderState();
 		this._register(sttService.onDidChangeState(renderState));
@@ -838,18 +901,33 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const updateVisibility = () => {
 			// Mirror the `MenuId.ChatExecute` dictation gate: hide while
 			// unconfigured, and while Voice Mode is connected so the dictation and
-			// voice mic affordances never compete on this composer.
+			// voice mic affordances never compete on this composer. Also hide when
+			// the segmented voice/dictation pill applies (both modes available, so
+			// the pill hosts its own dictation cell), which supersedes this button.
 			const voiceActive = this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get();
-			button.classList.toggle('hidden', !sttService.isConfigured || voiceActive);
+			const dict = this.voiceInputModeService.dictationAvailable.get();
+			const voice = this.voiceInputModeService.voiceAvailable.get();
+			const handsFree = this.voiceInputModeService.handsFree.get();
+			// Match the pill autorun / `AGENTS_VOICE_CONNECTED`: the voice-only branch
+			// keys off `isConnected` only, not the connecting phase.
+			const sessionActive = this.voiceSessionController.isConnected.get();
+			const pillActive = (dict && voice) || (voice && !dict && !handsFree && sessionActive);
+			button.classList.toggle('hidden', !sttService.isConfigured || voiceActive || pillActive);
 		};
 		updateVisibility();
 		this._register(autorun(reader => {
 			this.voiceSessionController.isConnected.read(reader);
 			this.voiceSessionController.isConnecting.read(reader);
+			this.voiceInputModeService.dictationAvailable.read(reader);
+			this.voiceInputModeService.voiceAvailable.read(reader);
+			this.voiceInputModeService.handsFree.read(reader);
 			updateVisibility();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.speechToText.enabled')) {
+			// Both the enable kill-switch and the model selection can change
+			// availability (e.g. an unsupported on-device platform becomes
+			// configured when switching to the cloud backend).
+			if (e.affectsConfiguration('dictation.enabled') || e.affectsConfiguration('dictation.model')) {
 				updateVisibility();
 			}
 		}));
@@ -883,8 +961,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	/**
-	 * Toggle on-device dictation into this composer's editor, honoring the
-	 * tap-vs-hold `chat.speechToText.mode` setting. Shared by the mic button and
+	 * Toggle dictation into this composer's editor. Shared by the mic button and
 	 * the Cmd/Ctrl+I chord ({@link TOGGLE_DICTATION_COMMAND_ID}); the shared
 	 * Dictate action can't target this composer since it isn't an `IChatWidget`.
 	 */
@@ -895,7 +972,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		await runDictationShortcut({
 			speechService: this.chatSpeechToTextService,
 			keybindingService: this.keybindingService,
-			configurationService: this.configurationService,
 			logService: this.logService,
 		}, TOGGLE_DICTATION_COMMAND_ID, this._editor);
 	}
@@ -976,6 +1052,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (!this._canSendRequest.get()) {
 			return;
 		}
+
+		// Measure any pending dictation accuracy against the text being sent,
+		// before the editor is cleared below.
+		notifyDictationSubmitted(this._editor);
 
 		const session = this.options.session.get();
 		if (session && await this.chatSubmitRequestHandlerService.tryHandle({

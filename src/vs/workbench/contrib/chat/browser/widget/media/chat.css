@@ -1183,15 +1183,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	order: 2;
 }
 
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) {
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button {
 	position: relative;
-	border-radius: var(--vscode-cornerRadius-circle);
-	/* Separate the round primary send button from the preceding mic / voice-mode
+	border-radius: var(--vscode-cornerRadius-small);
+	/* Separate the primary send button from the preceding mic / voice-mode
 		toggle icons so it doesn't visually crowd them (see #326932). */
 	margin-left: 4px;
 }
 
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up {
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label {
 	box-sizing: border-box;
 	width: 22px;
 	height: 22px;
@@ -1199,39 +1199,34 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Nudge icon position to ensure it looks optically aligned within the button */
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up::before {
-	display: inline-block;
-	transform: translateX(-0.5px);
-}
-
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-newline::before {
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label.codicon-newline::before {
 	display: inline-block;
 	transform: translateY(0.5px);
 }
 
 /* Focus indicator drawn on the action-item wrapper so it sits cleanly around
 	the button surface with a small offset. */
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:focus-visible) {
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled):has(> .action-label:focus-visible) {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
-	border-radius: var(--vscode-cornerRadius-circle);
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up:focus,
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) > .action-label.codicon-arrow-up:focus-visible {
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label:focus,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label:focus-visible {
 	outline: none;
 }
 
 /* Idle: solid primary button background. */
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up {
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled) > .action-label {
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground) !important;
-	border-radius: var(--vscode-cornerRadius-circle);
+	border-radius: var(--vscode-cornerRadius-small);
 	transition: background-color 120ms ease;
 }
 
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:hover,
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:focus-visible {
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled) > .action-label:hover,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled) > .action-label:focus-visible {
 	background: var(--vscode-button-hoverBackground);
 }
 
@@ -2215,11 +2210,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: contents;
 }
 
-.interactive-session .interactive-input-part.chat-input-hidden > :not(.chat-input-persistent-content) {
+.interactive-session .interactive-input-part.chat-input-hidden > :not(.chat-input-persistent-content, .chat-tool-confirmation-carousel-container) {
 	display: none;
 }
 
-.interactive-session .interactive-input-part.chat-input-hidden:not(:has(> .chat-input-persistent-content > :not(.hidden))) {
+.interactive-session .interactive-input-part.chat-input-hidden:not(:has(> .chat-input-persistent-content > :not(.hidden), > .chat-tool-confirmation-carousel-container:not(.hidden))) {
 	display: none;
 }
 
@@ -4592,6 +4587,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: relative;
 }
 
+/* Cloud dictation connect: the cloud backend has no model download, so its
+	preparing affordance swaps the glyph for a loading spinner (see
+	DictationDownloadActionViewItem._applyMaiSpinner). Spin only the glyph
+	(::before), not the whole button, and independently of the surrounding
+	toolbar so it reads as a clean spinner rather than a rotating mic/button. */
+.monaco-action-bar .action-item.dictation-download-item .action-label.dictation-connecting-spinner {
+	animation: none;
+}
+
+.monaco-action-bar .action-item.dictation-download-item .action-label.dictation-connecting-spinner::before {
+	display: inline-block;
+	transform-origin: center center;
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
 .monaco-action-bar .action-item.dictation-download-item > .dictation-download-ring {
 	position: absolute;
 	top: 50%;
@@ -4639,6 +4649,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 @keyframes dictation-download-ring-spin {
-	from { transform: translate(-50%, -50%) rotate(-90deg); }
-	to { transform: translate(-50%, -50%) rotate(270deg); }
+	from {
+		transform: translate(-50%, -50%) rotate(-90deg);
+	}
+	to {
+		transform: translate(-50%, -50%) rotate(270deg);
+	}
 }

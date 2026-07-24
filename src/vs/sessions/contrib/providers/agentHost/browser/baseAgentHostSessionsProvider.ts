@@ -2878,9 +2878,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const allModels = getRegisteredLanguageModels(this._languageModelsService);
 		const models = allModels.filter(model => model.metadata.targetChatSessionType === resourceScheme);
+		const desiredModel = desiredModelId ? this._languageModelsService.lookupLanguageModel(desiredModelId) : undefined;
+		const resolvedDesiredModelId = desiredModel?.targetChatSessionType && this.resourceSchemeForProvider(desiredModel.targetChatSessionType) === resourceScheme
+			? `${resourceScheme}:${desiredModel.id}`
+			: desiredModelId;
 		return {
 			models,
-			desiredModelResolution: resolveModelIdentifierFromLanguageModels(models, desiredModelId, this._languageModelsService, allModels),
+			desiredModelResolution: resolveModelIdentifierFromLanguageModels(models, resolvedDesiredModelId, this._languageModelsService, allModels),
 			modelTarget: resourceScheme,
 		};
 	}

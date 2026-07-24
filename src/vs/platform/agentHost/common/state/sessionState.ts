@@ -14,7 +14,11 @@ import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/bu
 import { hasKey, type Mutable } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import type { IProductService } from '../../../product/common/productService.js';
+import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
 import {
+	ResponsePartKind,
+	SessionStatus,
+	ToolCallStatus,
 	SessionLifecycle,
 	TerminalState,
 	ToolResultContentType,
@@ -671,6 +675,59 @@ export function createDefaultChatSummary(session: SessionSummary, chatUri: Proto
 	return summary;
 }
 
+/** Activity bits (0-4) of {@link SessionStatus}; the high bits carry orthogonal flags (IsRead / IsArchived). */
+const STATUS_ACTIVITY_MASK = (1 << 5) - 1;
+
+/** Whether the active turn has a `PendingConfirmation` tool call auto-approved by the session's bypass setting. */
+function hasAutoApprovedPendingConfirmation(state: ChatState): boolean {
+	return !!state.activeTurn?.responseParts.some(part =>
+		part.kind === ResponsePartKind.ToolCall
+		&& part.toolCall.status === ToolCallStatus.PendingConfirmation
+		&& readToolCallMeta(part.toolCall).autoApproveBySetting === true,
+	);
+}
+
+/** Whether the chat is genuinely blocked on user input (an open input request, an auth-required tool, or a non-auto-approved confirmation gate). */
+function chatAwaitsUserInput(state: ChatState): boolean {
+	return !!state.activeTurn?.responseParts.some(part => {
+		// An open elicitation always awaits the user until it is answered.
+		if (part.kind === ResponsePartKind.InputRequest) {
+			return part.response === undefined;
+		}
+		if (part.kind !== ResponsePartKind.ToolCall) {
+			return false;
+		}
+		const status = part.toolCall.status;
+		// Result-confirmation and auth-required gates always require the user; a
+		// parameter-confirmation gate only when it was not auto-approved.
+		if (status === ToolCallStatus.PendingResultConfirmation || status === ToolCallStatus.AuthRequired) {
+			return true;
+		}
+		return status === ToolCallStatus.PendingConfirmation
+			&& readToolCallMeta(part.toolCall).autoApproveBySetting !== true;
+	});
+}
+
+/**
+ * Projects a chat's status for session-summary aggregation, demoting an
+ * `InputNeeded` back to `InProgress` only when it is caused solely by an
+ * auto-approved confirmation — otherwise a session with bypass approvals flashes
+ * "input needed" in the sessions list while an auto-approved tool runs.
+ */
+function chatSummaryStatus(state: ChatState): SessionStatus {
+	const status = state.status;
+	if ((status & SessionStatus.InputNeeded) !== SessionStatus.InputNeeded) {
+		return status;
+	}
+	// Only demote when we can positively attribute the InputNeeded to an
+	// auto-approved confirmation with no genuine blocker present; otherwise (e.g.
+	// a restored summary whose activeTurn is not loaded) preserve the status.
+	if (hasAutoApprovedPendingConfirmation(state) && !chatAwaitsUserInput(state)) {
+		return (status & ~STATUS_ACTIVITY_MASK) | SessionStatus.InProgress;
+	}
+	return status;
+}
+
 /**
  * Derives a {@link ChatSummary} from a fully-populated {@link ChatState} by
  * projecting out the denormalized summary fields. Used to keep the parent
@@ -680,7 +737,7 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	const summary: ChatSummary = {
 		resource: state.resource,
 		title: state.title,
-		status: state.status,
+		status: chatSummaryStatus(state),
 		modifiedAt: state.modifiedAt,
 	};
 	if (state.activity !== undefined) { summary.activity = state.activity; }
