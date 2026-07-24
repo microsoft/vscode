@@ -1900,11 +1900,11 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
 			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].steeringMessage, { id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
 			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].queuedMessages, []);
-			// Default chat: no `chat` arg, so the agent routes to the session's default chat.
-			assert.strictEqual(agent.setPendingMessagesCalls[0].chat, undefined);
+			// Steering is always addressed by a concrete chat channel URI.
+			assert.strictEqual(agent.setPendingMessagesCalls[0].chat.toString(), defaultChatUri);
 		});
 
-		test('syncs a peer chat steering message with the peer chat URI as the `chat` arg', () => {
+		test('syncs a peer chat steering message addressed by the peer chat URI', () => {
 			setupSession();
 			const peerChatUri = URI.parse(buildChatUri(sessionUri.toString(), 'peer-steer'));
 			stateManager.addChat(sessionUri.toString(), peerChatUri.toString());
@@ -1920,11 +1920,9 @@ suite('AgentSideEffects', () => {
 
 			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
 			assert.deepStrictEqual({
-				session: agent.setPendingMessagesCalls[0].session.toString(),
-				chat: agent.setPendingMessagesCalls[0].chat?.toString(),
+				chat: agent.setPendingMessagesCalls[0].chat.toString(),
 				steeringId: agent.setPendingMessagesCalls[0].steeringMessage?.id,
 			}, {
-				session: sessionUri.toString(),
 				chat: peerChatUri.toString(),
 				steeringId: 'steer-peer',
 			});

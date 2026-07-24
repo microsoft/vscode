@@ -1975,23 +1975,22 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		sess.abort();
 	}
 
-	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[], chat?: URI): void {
+	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
 		// Phase 9 D5: queued messages are intentionally a no-op. CONTEXT.md
 		// M10 + AgentSideEffects confirm queued messages are consumed
 		// server-side; the agent boundary always receives an empty queue.
 		//
-		// Steering targets the chat that owns the in-flight turn: an additional
-		// peer chat is addressed by its `chat` channel URI, the default chat by
-		// the session URI.
-		const isPeerChat = !!chat && !isDefaultChatUri(chat);
-		const target = this._findChat(session, chat);
-		this._logService.info(`[Claude] setPendingMessages for ${(chat ?? session).toString()}: steering=${steeringMessage?.id ?? 'none'} queued=${_queuedMessages.length}`);
-		if (!target) {
-			this._logService.warn(`[Claude] setPendingMessages: ${isPeerChat ? 'chat' : 'session'} not found for ${(chat ?? session).toString()}`);
+		// Steering targets the chat that owns the in-flight turn — the caller
+		// always addresses a concrete chat channel (the session's default chat
+		// or an additional peer chat).
+		const context = this._getChatContext(chat);
+		this._logService.info(`[Claude] setPendingMessages for ${chat.toString()}: steering=${steeringMessage?.id ?? 'none'} queued=${_queuedMessages.length}`);
+		if (!context.target) {
+			this._logService.warn(`[Claude] setPendingMessages: chat not found for ${chat.toString()}`);
 			return;
 		}
 		if (steeringMessage) {
-			target.injectSteering(steeringMessage);
+			context.target.injectSteering(steeringMessage);
 		}
 	}
 
