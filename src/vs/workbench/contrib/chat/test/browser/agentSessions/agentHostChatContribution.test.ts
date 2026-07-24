@@ -5388,7 +5388,8 @@ suite('AgentHostChatContribution', () => {
 				content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/output', title: 'Terminal', isPty: false }],
 			} as ChatAction);
 
-			const terminalData = (collected[0][0] as ChatToolInvocation).toolSpecificData as IChatTerminalToolInvocationData;
+			const invocation = collected[0][0] as ChatToolInvocation;
+			const terminalData = invocation.toolSpecificData as IChatTerminalToolInvocationData;
 			assert.strictEqual(reviveCalls, 0);
 			assert.strictEqual(terminalData.isPty, false);
 			assert.deepStrictEqual(attached, {
@@ -5396,7 +5397,118 @@ suite('AgentHostChatContribution', () => {
 				terminalToolSessionId: JSON.stringify({ terminal: 'agenthost-terminal://shell/output', session: 'copilot:/new-turntest' }),
 			});
 
-			fire({ type: 'chat/toolCallComplete', session, turnId, toolCallId: 'tc-output', result: { success: true, pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/output', title: 'Terminal', isPty: false }] } } as ChatAction);
+			fire({
+				type: 'chat/toolCallComplete',
+				session,
+				turnId,
+				toolCallId: 'tc-output',
+				result: {
+					success: true,
+					pastTenseMessage: 'Ran command',
+					content: [{
+						type: ToolResultContentType.Terminal,
+						resource: 'agenthost-terminal://shell/output',
+						title: 'Terminal',
+						isPty: false,
+						result: { exitCode: 0, preview: 'final output\n' },
+					}],
+				},
+			} as ChatAction);
+			const completedTerminalData = invocation.toolSpecificData?.kind === 'terminal' ? invocation.toolSpecificData : undefined;
+			assert.deepStrictEqual({
+				output: completedTerminalData?.terminalCommandOutput?.text,
+				attachmentDisposed,
+			}, {
+				output: 'final output\r\n',
+				attachmentDisposed: false,
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			assert.strictEqual(attachmentDisposed, true);
+		});
+
+		test('completed output-only terminal with static output never attaches to the live resource', async () => {
+			let attachCalls = 0;
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				agentHostTerminalServiceOverride: {
+					attachOutputTerminal: () => {
+						attachCalls++;
+						return toDisposable(() => { });
+					},
+				},
+			});
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-static-output', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ChatAction);
+			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-static-output', invocationMessage: 'Running command', toolInput: 'echo done', confirmed: 'not-needed' } as ChatAction);
+			fire({
+				type: 'chat/toolCallComplete',
+				session,
+				turnId,
+				toolCallId: 'tc-static-output',
+				result: {
+					success: true,
+					pastTenseMessage: 'Ran command',
+					content: [{
+						type: ToolResultContentType.Terminal,
+						resource: 'agenthost-terminal://shell/static-output',
+						title: 'Terminal',
+						isPty: false,
+						result: { exitCode: 0, preview: 'done\n' },
+					}],
+				},
+			} as ChatAction);
+
+			const invocation = collected[0][0] as ChatToolInvocation;
+			const terminalData = invocation.toolSpecificData as IChatTerminalToolInvocationData;
+			assert.deepStrictEqual({
+				attachCalls,
+				output: terminalData.terminalCommandOutput?.text,
+			}, {
+				attachCalls: 0,
+				output: 'done\r\n',
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+		});
+
+		test('output-only terminal without a static preview stays attached until the turn ends', async () => {
+			let attachmentDisposed = false;
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				agentHostTerminalServiceOverride: {
+					attachOutputTerminal: () => toDisposable(() => attachmentDisposed = true),
+				},
+			});
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-no-preview', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ChatAction);
+			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-no-preview', invocationMessage: 'Running command', toolInput: 'long-running-command', confirmed: 'not-needed' } as ChatAction);
+			fire({
+				type: 'chat/toolCallContentChanged',
+				session,
+				turnId,
+				toolCallId: 'tc-no-preview',
+				content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/no-preview', title: 'Terminal', isPty: false }],
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallComplete',
+				session,
+				turnId,
+				toolCallId: 'tc-no-preview',
+				result: {
+					success: true,
+					pastTenseMessage: 'Started command',
+					content: [{
+						type: ToolResultContentType.Terminal,
+						resource: 'agenthost-terminal://shell/no-preview',
+						title: 'Terminal',
+						isPty: false,
+						result: { exitCode: 0 },
+					}],
+				},
+			} as ChatAction);
+
+			assert.strictEqual(attachmentDisposed, false);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 			assert.strictEqual(attachmentDisposed, true);
