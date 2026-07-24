@@ -18,6 +18,46 @@
 	margin-bottom: 18px;
 }
 
+.repoctx-agent-context {
+	align-items: flex-start;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	display: grid;
+	gap: 8px;
+	grid-template-columns: 16px minmax(0, 1fr);
+	margin: -5px 0 14px;
+	padding: 0 0 12px;
+}
+
+.repoctx-agent-context.is-active > span {
+	color: var(--vscode-testing-iconPassed);
+	margin-top: 1px;
+}
+
+.repoctx-agent-context.is-waiting > span {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+	margin-top: 1px;
+}
+
+.repoctx-agent-context.is-off > span {
+	color: var(--vscode-descriptionForeground);
+	margin-top: 1px;
+}
+
+.repoctx-agent-context div {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.repoctx-agent-context strong {
+	font-weight: 600;
+}
+
+.repoctx-agent-context div span {
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
 .repoctx-change-request {
 	display: flex;
 	flex-direction: column;

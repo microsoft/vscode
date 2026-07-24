@@ -32,7 +32,7 @@ import { IViewDescriptorService } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { ITerminalService } from '../../terminal/browser/terminal.js';
-import { findRepoctxEvidence, getRepoctxStageInvocation, getRepoctxStageState, RepoctxEvidence, RepoctxEvidenceStageId, RepoctxStageState } from '../common/repoctx.js';
+import { findRepoctxEvidence, getRepoctxStageInvocation, getRepoctxStageState, RepoctxEvidence, RepoctxEvidenceStageId, RepoctxStageState, repoctxAgentContextEnabledSetting } from '../common/repoctx.js';
 
 import '../browser/media/repoctxView.css';
 
@@ -95,6 +95,11 @@ export class RepoctxTrustViewPane extends ViewPane {
 
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => void this.refresh()));
 		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => void this.refresh()));
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(repoctxAgentContextEnabledSetting)) {
+				void this.refresh();
+			}
+		}));
 		this._register(this.fileService.onDidFilesChange(event => {
 			const folder = this.workspaceContextService.getWorkspace().folders[0];
 			if (folder && event.affects(URI.joinPath(folder.uri, '.dev-context'))) {
@@ -184,6 +189,7 @@ export class RepoctxTrustViewPane extends ViewPane {
 			? localize('repoctxEvidenceReady', "All five evidence stages are available.")
 			: localize('repoctxEvidenceCount', "{0} of 5 evidence stages available.", availableCount);
 		this.renderSummary(repositoryName, summary);
+		this.renderAgentContextStatus(Boolean(evidence.context));
 		this.evidence = evidence;
 		this.renderChangeRequest();
 		this.renderWorkflow(evidence);
@@ -237,6 +243,25 @@ export class RepoctxTrustViewPane extends ViewPane {
 		DOM.append(header, DOM.$('span.repoctx-eyebrow', undefined, localize('repoctxTrustSummary', "Repository trust")));
 		DOM.append(header, DOM.$('h2', undefined, repositoryName));
 		DOM.append(header, DOM.$('p', undefined, summary));
+	}
+
+	private renderAgentContextStatus(hasContextEvidence: boolean): void {
+		if (!this.content) {
+			return;
+		}
+
+		const enabled = this.configurationService.getValue<boolean>(repoctxAgentContextEnabledSetting) !== false;
+		const state = enabled ? hasContextEvidence ? 'active' : 'waiting' : 'off';
+		const context = DOM.append(this.content, DOM.$(`.repoctx-agent-context.is-${state}`));
+		const icon = DOM.append(context, DOM.$('span'));
+		icon.classList.add(...ThemeIcon.asClassNameArray(enabled && hasContextEvidence ? Codicon.check : enabled ? Codicon.clock : Codicon.circleSlash));
+		const copy = DOM.append(context, DOM.$('div'));
+		DOM.append(copy, DOM.$('strong', undefined, localize('repoctxAgentContext', "Agent context")));
+		DOM.append(copy, DOM.$('span', undefined, enabled
+			? hasContextEvidence
+				? localize('repoctxAgentContextAutomatic', "Automatic. Chat receives a concise repository map and can open deeper evidence on demand.")
+				: localize('repoctxAgentContextWaiting', "Waiting for Context evidence before attaching repository knowledge to Chat.")
+			: localize('repoctxAgentContextOff', "Off in Repoctx settings.")));
 	}
 
 	private renderWorkflow(evidence: RepoctxEvidence): void {

@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
@@ -15,6 +16,9 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { Extensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { repoctxAgentContextEnabledSetting } from '../common/repoctx.js';
+import { RepoctxChatContextContribution } from './repoctxChatContext.js';
 import { RepoctxTrustViewPane } from './repoctxView.js';
 
 // Native Repoctx IDE view container.
@@ -25,6 +29,22 @@ const repoctxRefreshIcon = registerIcon('repoctx-refresh-icon', Codicon.refresh,
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'repoctx',
+	title: localize('repoctxConfigurationTitle', "Repoctx"),
+	type: 'object',
+	properties: {
+		[repoctxAgentContextEnabledSetting]: {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.WINDOW,
+			description: localize('repoctxAgentContextEnabledDescription', "Automatically provide concise Repoctx repository context and evidence paths to IDE agent sessions."),
+		},
+	},
+});
+
+registerWorkbenchContribution2(RepoctxChatContextContribution.ID, RepoctxChatContextContribution, WorkbenchPhase.AfterRestored);
 
 const viewContainer = viewContainersRegistry.registerViewContainer({
 	id: REPOCTX_VIEW_CONTAINER_ID,
