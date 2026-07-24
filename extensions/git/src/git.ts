@@ -20,7 +20,7 @@ import { StringDecoder } from 'string_decoder';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
-const WORKTREE_DOT_GIT_PATH_REGEX = /[\\/]\.git.*$/;
+const WORKTREE_DOT_GIT_PATH_REGEX = /[\\/]\.git$/;
 
 export interface IGit {
 	path: string;

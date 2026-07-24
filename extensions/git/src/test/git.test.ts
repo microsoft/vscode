@@ -21,6 +21,12 @@ suite('git', () => {
 		test('resolves relative gitdir content #257396', () => {
 			assert.strictEqual(getWorktreePathFromGitDir(WORKTREE_METADATA_PATH, path.join('..', '..', '..', 'repo', 'story', '.git')), WORKTREE_PATH);
 		});
+
+		test('keeps path components that start with .git', () => {
+			const nestedWorktreePath = path.join('/repo', '.github');
+
+			assert.strictEqual(getWorktreePathFromGitDir(WORKTREE_METADATA_PATH, path.join(nestedWorktreePath, '.git')), nestedWorktreePath);
+		});
 	});
 
 	suite('GitStatusParser', () => {
