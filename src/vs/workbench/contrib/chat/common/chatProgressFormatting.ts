@@ -4,6 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { fromNow, safeIntl } from '../../../../base/common/date.js';
+import { language } from '../../../../base/common/platform.js';
+
+const dayInMilliseconds = 24 * 60 * 60 * 1000;
+
+const chatRequestTimeFormatter = safeIntl.DateTimeFormat(language, {
+	hour: 'numeric',
+	minute: '2-digit',
+});
+
+const chatRequestFullDateTimeFormatter = safeIntl.DateTimeFormat(language, {
+	year: 'numeric',
+	month: 'numeric',
+	day: 'numeric',
+	hour: 'numeric',
+	minute: '2-digit',
+});
+
+export interface IFormattedChatRequestTimestamp {
+	readonly text: string;
+	readonly fullText: string;
+	readonly dateTime: string;
+	readonly isRelative: boolean;
+}
 
 /**
  * Format a millisecond duration as a human-readable elapsed time string.
@@ -19,23 +43,28 @@ export function formatElapsedTime(ms: number): string {
 	return localize('minutesSeconds', "{0}m {1}s", minutes, seconds);
 }
 
-/**
- * Format a token count as a human-readable string.
- * Examples: "500", "1.2k", "1.5m"
- */
-export function formatTokenCount(count: number): string {
-	if (count >= 1_000_000) {
-		return `${(count / 1_000_000).toFixed(1)}m`;
-	} else if (count >= 1000) {
-		const value = count / 1000;
-		if (value >= 10) {
-			const roundedValue = value.toFixed(0);
-			if (roundedValue === '1000') {
-				return `${(count / 1_000_000).toFixed(1)}m`;
-			}
-			return `${roundedValue}k`;
-		}
-		return `${value.toFixed(1)}k`;
+export function formatChatRequestTimestamp(timestamp: number | undefined): IFormattedChatRequestTimestamp | undefined {
+	if (timestamp === undefined || !Number.isFinite(timestamp) || timestamp <= 0) {
+		return undefined;
 	}
-	return count.toString();
+
+	const date = new Date(timestamp);
+	const age = Date.now() - timestamp;
+	const isRelative = age > dayInMilliseconds;
+	return {
+		text: isRelative
+			? fromNow(timestamp, false, true)
+			: chatRequestTimeFormatter.value.format(date),
+		fullText: chatRequestFullDateTimeFormatter.value.format(date),
+		dateTime: date.toISOString(),
+		isRelative,
+	};
+}
+
+export function formatChatResponseDetails(details: string | undefined, timing: string | undefined): string {
+	const parts: string[] = timing ? [timing] : [];
+	if (details) {
+		parts.push(details);
+	}
+	return parts.join(' \u2022 ');
 }

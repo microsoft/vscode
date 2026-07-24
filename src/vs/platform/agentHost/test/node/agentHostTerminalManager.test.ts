@@ -4,10 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { IPty, IPtyForkOptions, IWindowsPtyForkOptions } from 'node-pty';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { ActionType, StateAction } from '../../common/state/protocol/actions.js';
-import { TerminalContentPart } from '../../common/state/protocol/state.js';
+import { TerminalClaimKind, TerminalContentPart, type TerminalClaim } from '../../common/state/protocol/state.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostTerminalManager, formatTerminalText, removeServerHandledTerminalQueries, type ITerminalQueryFilterState } from '../../node/agentHostTerminalManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from '../../node/osc633Parser.js';
 
 /**
@@ -39,6 +47,7 @@ class TestTerminalDataHandler {
 	readonly dispatched: StateAction[] = [];
 	content: TerminalContentPart[] = [];
 	cwd = '/home/user';
+	private readonly _terminalQueryFilterState: ITerminalQueryFilterState = { pendingData: '' };
 
 	constructor(
 		readonly uri: string,
@@ -47,18 +56,42 @@ class TestTerminalDataHandler {
 
 	/** Simulates AgentHostTerminalManager._handlePtyData */
 	handlePtyData(rawData: string): string {
-		const parseResult = this.tracker.parser.parse(rawData);
-		const cleanedData = parseResult.cleanedData;
+		let cleanedForClient = '';
 
-		for (const event of parseResult.events) {
-			this._handleOsc633Event(event);
+		// Data is dispatched in stream order relative to command events: flush
+		// pending data before handling each event so subscribers observe
+		// CommandExecuted -> data -> CommandFinished exactly like the raw
+		// stream — see _handlePtyData.
+		let pendingClientData = '';
+		const flushClientData = (): void => {
+			if (pendingClientData.length === 0) {
+				return;
+			}
+			this.dispatched.push({
+				type: ActionType.TerminalData,
+				data: pendingClientData,
+			});
+			cleanedForClient += pendingClientData;
+			pendingClientData = '';
+		};
+
+		for (const segment of this.tracker.parser.parseSegments(rawData)) {
+			if (segment.kind === 'event') {
+				flushClientData();
+				this._handleOsc633Event(segment.event);
+				continue;
+			}
+
+			const cleanedData = removeServerHandledTerminalQueries(segment.data, this._terminalQueryFilterState);
+			if (cleanedData.length > 0) {
+				this._appendToContent(cleanedData);
+				pendingClientData += cleanedData;
+			}
 		}
 
-		if (cleanedData.length > 0) {
-			this._appendToContent(cleanedData);
-		}
+		flushClientData();
 
-		return cleanedData;
+		return cleanedForClient;
 	}
 
 	private _handleOsc633Event(event: Osc633Event): void {
@@ -66,7 +99,6 @@ class TestTerminalDataHandler {
 			this.tracker.detectionAvailableEmitted = true;
 			this.dispatched.push({
 				type: ActionType.TerminalCommandDetectionAvailable,
-				terminal: this.uri,
 			});
 		}
 
@@ -96,7 +128,6 @@ class TestTerminalDataHandler {
 
 				this.dispatched.push({
 					type: ActionType.TerminalCommandExecuted,
-					terminal: this.uri,
 					commandId,
 					commandLine,
 					timestamp,
@@ -126,7 +157,6 @@ class TestTerminalDataHandler {
 
 				this.dispatched.push({
 					type: ActionType.TerminalCommandFinished,
-					terminal: this.uri,
 					commandId: finishedCommandId,
 					exitCode: event.exitCode,
 					durationMs,
@@ -138,7 +168,6 @@ class TestTerminalDataHandler {
 					this.cwd = event.value;
 					this.dispatched.push({
 						type: ActionType.TerminalCwdChanged,
-						terminal: this.uri,
 						cwd: event.value,
 					});
 				}
@@ -159,6 +188,65 @@ class TestTerminalDataHandler {
 	}
 }
 
+class TestPty implements IPty {
+	readonly pid = 1;
+	cols = 80;
+	rows = 24;
+	process = 'test-shell';
+	handleFlowControl = false;
+	readonly writes: string[] = [];
+	readonly dataListenerRegistered = new DeferredPromise<void>();
+
+	private readonly _onData = new Emitter<string>();
+	readonly onData: IPty['onData'] = listener => {
+		this.dataListenerRegistered.complete();
+		return this._onData.event(data => listener(data));
+	};
+
+	private readonly _onExit = new Emitter<{ exitCode: number; signal?: number }>();
+	readonly onExit: IPty['onExit'] = listener => this._onExit.event(data => listener(data));
+
+	fireData(data: string): void {
+		this._onData.fire(data);
+	}
+
+	resize(columns: number, rows: number): void {
+		this.cols = columns;
+		this.rows = rows;
+	}
+
+	clear(): void { }
+
+	write(data: string | Buffer): void {
+		this.writes.push(typeof data === 'string' ? data : data.toString());
+	}
+
+	kill(): void { }
+	pause(): void { }
+	resume(): void { }
+}
+
+class TestAgentHostTerminalManager extends AgentHostTerminalManager {
+	spawnOptions: IPtyForkOptions | IWindowsPtyForkOptions | undefined;
+
+	constructor(
+		stateManager: AgentHostStateManager,
+		logService: NullLogService,
+		productService: IProductService,
+		configurationService: AgentConfigurationService,
+		private readonly _pty: TestPty,
+	) {
+		super(stateManager, logService, productService, configurationService);
+	}
+
+	protected override async _spawnPty(_file: string, _args: string[], options: IPtyForkOptions | IWindowsPtyForkOptions): Promise<IPty> {
+		this.spawnOptions = options;
+		this._pty.cols = options.cols ?? this._pty.cols;
+		this._pty.rows = options.rows ?? this._pty.rows;
+		return this._pty;
+	}
+}
+
 function osc633(payload: string): string {
 	return `\x1b]633;${payload}\x07`;
 }
@@ -172,11 +260,281 @@ function createHandler(nonce = 'test-nonce'): TestTerminalDataHandler {
 	});
 }
 
+async function waitForWrites(pty: TestPty, count: number): Promise<void> {
+	for (let i = 0; i < 20; i++) {
+		if (pty.writes.length >= count) {
+			return;
+		}
+		await timeout(10);
+	}
+}
+
 suite('AgentHostTerminalManager – command detection integration', () => {
 
 	const disposables = new DisposableStore();
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('formats command input with terminal enter semantics', () => {
+		assert.strictEqual(formatTerminalText('echo first\necho second', { shouldExecute: true }), 'echo first\recho second\r');
+		assert.strictEqual(formatTerminalText('echo first\r\necho second', { shouldExecute: true }), 'echo first\recho second\r');
+		assert.strictEqual(formatTerminalText('echo first\r', { shouldExecute: true }), 'echo first\r');
+		assert.strictEqual(formatTerminalText('answer\n', { shouldExecute: false }), 'answer\r');
+		assert.strictEqual(formatTerminalText('/tmp/foo\npwd', { shouldExecute: true }), '/tmp/foo\rpwd\r');
+		assert.strictEqual(formatTerminalText('echo first\necho second', { shouldExecute: true, forceBracketedPasteMode: true }), '\x1b[200~echo first\recho second\x1b[201~\r');
+		assert.strictEqual(formatTerminalText('answer\n', { shouldExecute: false, forceBracketedPasteMode: true }), '\x1b[200~answer\r\x1b[201~');
+	});
+
+	test('writes formatted command input to the PTY', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+
+		const createTerminal = manager.createTerminal({
+			channel: 'agenthost-terminal://test/command-input',
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+		await createTerminal;
+
+		await manager.sendText('agenthost-terminal://test/command-input', 'echo first\necho second', { shouldExecute: true });
+
+		assert.deepStrictEqual(pty.writes, ['echo first\recho second\r']);
+	});
+
+	test('writes bracketed paste command input when enabled by the terminal', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+
+		const createTerminal = manager.createTerminal({
+			channel: 'agenthost-terminal://test/bracketed-paste',
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData('\x1b[?2004h');
+		await createTerminal;
+
+		await manager.sendText('agenthost-terminal://test/bracketed-paste', 'echo first\necho second', { shouldExecute: true, bracketedPasteMode: true });
+
+		assert.deepStrictEqual(pty.writes, ['\x1b[200~echo first\recho second\x1b[201~\r']);
+	});
+
+	test('does not write bracketed paste command input when disabled by the terminal', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+
+		const createTerminal = manager.createTerminal({
+			channel: 'agenthost-terminal://test/bracketed-paste-disabled',
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+		await createTerminal;
+
+		await manager.sendText('agenthost-terminal://test/bracketed-paste-disabled', 'echo first\necho second', { shouldExecute: true, bracketedPasteMode: true });
+
+		assert.deepStrictEqual(pty.writes, ['echo first\recho second\r']);
+	});
+
+	test('sets zsh agent fixups only for session zsh terminals', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+
+		async function createTestTerminal(
+			id: string,
+			shell: string,
+			claim: TerminalClaim,
+			options?: { preventShellHistory?: boolean; nonInteractive?: boolean }
+		): Promise<TestAgentHostTerminalManager> {
+			const pty = new TestPty();
+			const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+			const createTerminal = manager.createTerminal({
+				channel: `agenthost-terminal://test/${id}`,
+				claim,
+				cwd: process.cwd(),
+				cols: 80,
+				rows: 24,
+			}, { shell, ...options });
+			await pty.dataListenerRegistered.p;
+			pty.fireData('prompt');
+			await createTerminal;
+			return manager;
+		}
+
+		const zshSessionManager = await createTestTerminal('zsh-session-fixups', '/bin/zsh', {
+			kind: TerminalClaimKind.Session,
+			session: 'copilot:/session-1',
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+		}, { preventShellHistory: true });
+		assert.strictEqual(zshSessionManager.spawnOptions?.env?.VSCODE_AGENT_ZSH_FIXUPS, '1');
+		assert.strictEqual(zshSessionManager.spawnOptions?.env?.VSCODE_PREVENT_SHELL_HISTORY, '1');
+
+		const zshClientManager = await createTestTerminal('zsh-client', '/bin/zsh', {
+			kind: TerminalClaimKind.Client,
+			clientId: 'test-client',
+		});
+		assert.strictEqual(zshClientManager.spawnOptions?.env?.VSCODE_AGENT_ZSH_FIXUPS, undefined);
+
+		const bashSessionManager = await createTestTerminal('bash-session-history', '/bin/bash', {
+			kind: TerminalClaimKind.Session,
+			session: 'copilot:/session-1',
+			turnId: 'turn-1',
+			toolCallId: 'tool-2',
+		}, { preventShellHistory: true, nonInteractive: true });
+		assert.strictEqual(bashSessionManager.spawnOptions?.env?.VSCODE_AGENT_ZSH_FIXUPS, undefined);
+		assert.strictEqual(bashSessionManager.spawnOptions?.env?.VSCODE_PREVENT_SHELL_HISTORY, '1');
+	});
+
+	test('writes headless DSR responses back to the PTY', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+
+		const createTerminal = manager.createTerminal({
+			channel: 'agenthost-terminal://test/dsr',
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData('abc\x1b[6n');
+		await createTerminal;
+		await waitForWrites(pty, 1);
+
+		assert.deepStrictEqual(pty.writes, ['\x1b[1;4R']);
+	});
+
+	test('resolves alt-buffer promise from headless terminal data', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+		const uri = 'agenthost-terminal://test/alt-buffer';
+
+		const createTerminal = manager.createTerminal({
+			channel: uri,
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+		await createTerminal;
+
+		const altBufferStore = disposables.add(new DisposableStore());
+		const altBufferPromise = manager.createAltBufferPromise(uri, altBufferStore);
+
+		pty.fireData('\x1b[?1049h');
+
+		await altBufferPromise;
+	});
+
+	test('disposed alt-buffer promise listener does not resolve', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+		const uri = 'agenthost-terminal://test/alt-buffer-disposed';
+
+		const createTerminal = manager.createTerminal({
+			channel: uri,
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+		await createTerminal;
+
+		const altBufferStore = new DisposableStore();
+		const altBufferPromise = manager.createAltBufferPromise(uri, altBufferStore);
+		let didEnterAltBuffer = false;
+		void altBufferPromise.then(() => didEnterAltBuffer = true);
+		altBufferStore.dispose();
+		pty.fireData('\x1b[?1049h');
+		await timeout(10);
+
+		assert.strictEqual(didEnterAltBuffer, false);
+	});
+
+	test('server-handled CPR queries are stripped from client-facing data', () => {
+		function filter(data: string): string {
+			return removeServerHandledTerminalQueries(data, { pendingData: '' });
+		}
+
+		assert.strictEqual(filter('before \x1b[6n after'), 'before  after');
+		assert.strictEqual(filter('before \x1b[?6n after'), 'before  after');
+		assert.strictEqual(filter('\x1b[5n\x1b[c\x1b[0c\x1b[>c\x1b[>0c'), '\x1b[5n\x1b[c\x1b[0c\x1b[>c\x1b[>0c');
+		assert.strictEqual(filter('normal output\r\n'), 'normal output\r\n');
+	});
+
+	test('server-handled CPR queries are stripped across data chunks', () => {
+		let state: ITerminalQueryFilterState = { pendingData: '' };
+		assert.strictEqual(removeServerHandledTerminalQueries('before \x1b[', state), 'before ');
+		assert.strictEqual(removeServerHandledTerminalQueries('6n after', state), ' after');
+
+		state = { pendingData: '' };
+		assert.strictEqual(removeServerHandledTerminalQueries('before \x1b[?', state), 'before ');
+		assert.strictEqual(removeServerHandledTerminalQueries('6n after', state), ' after');
+
+		state = { pendingData: '' };
+		assert.strictEqual(removeServerHandledTerminalQueries('before \x1b[', state), 'before ');
+		assert.strictEqual(removeServerHandledTerminalQueries('K after', state), '\x1b[K after');
+	});
+
+	test('manager data path strips CPR queries while preserving surrounding output', () => {
+		const handler = createHandler();
+
+		const cleaned = handler.handlePtyData(`before${osc633('A')}\x1b[6nmid\x1b[?6nafter`);
+
+		assert.strictEqual(cleaned, 'beforemidafter');
+		assert.deepStrictEqual(handler.content, [{ type: 'unclassified', value: 'beforemidafter' }]);
+		assert.deepStrictEqual(handler.dispatched, [
+			{ type: ActionType.TerminalData, data: 'before' },
+			{ type: ActionType.TerminalCommandDetectionAvailable },
+			{ type: ActionType.TerminalData, data: 'midafter' },
+		]);
+	});
 
 	test('TerminalCommandDetectionAvailable is dispatched on first OSC 633', () => {
 		const handler = createHandler();
@@ -350,7 +708,9 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.deepStrictEqual(handler.content, [
 			{ type: 'unclassified', value: data },
 		]);
-		assert.deepStrictEqual(handler.dispatched, []);
+		assert.deepStrictEqual(handler.dispatched, [
+			{ type: ActionType.TerminalData, data },
+		]);
 	});
 
 	test('CommandFinished without active command is ignored', () => {
@@ -376,5 +736,134 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const cmdParts = handler.content.filter(p => p.type === 'command');
 		assert.strictEqual(cmdParts.length, 1);
 		assert.strictEqual(cmdParts[0].type === 'command' && cmdParts[0].output, 'line1\r\nline2\r\nline3\r\n');
+	});
+
+	test('output and CommandFinished arriving in one PTY read are attributed to the command', async () => {
+		// A fast command (e.g. `echo`) frequently emits its output and the
+		// CommandExecuted/CommandFinished markers in a single PTY read. The
+		// output that precedes the CommandFinished marker must be attributed to
+		// the command before the finished event snapshots it, otherwise it is
+		// lost from the command result (regression for the flaky agent-host
+		// sandbox smoke test, where the shell tool returned an empty output).
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+		const uri = 'agenthost-terminal://test/coalesced-command-finished';
+
+		const createTerminal = manager.createTerminal({
+			channel: uri,
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: process.platform === 'win32' ? 'pwsh.exe' : '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData(osc633('A'));
+		await createTerminal;
+
+		const completions: { readonly exitCode: number | undefined; readonly output: string }[] = [];
+		disposables.add(manager.onCommandFinished(uri, event => completions.push({
+			exitCode: event.exitCode,
+			output: event.output,
+		})));
+
+		// Clients rebuild per-command output from the action stream, so the
+		// data must also be DISPATCHED between the executed and finished
+		// actions, not after the whole chunk.
+		const dispatched: { type: string; data?: string }[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			const action = envelope.action;
+			if (action.type === ActionType.TerminalCommandExecuted || action.type === ActionType.TerminalCommandFinished) {
+				dispatched.push({ type: action.type });
+			} else if (action.type === ActionType.TerminalData) {
+				dispatched.push({ type: action.type, data: action.data });
+			}
+		}));
+
+		pty.fireData(`${osc633('C')}hi\r\n${osc633('D;0')}`);
+
+		assert.deepStrictEqual(completions, [{ exitCode: 0, output: 'hi\r\n' }]);
+		assert.deepStrictEqual(dispatched, [
+			{ type: ActionType.TerminalCommandExecuted },
+			{ type: ActionType.TerminalData, data: 'hi\r\n' },
+			{ type: ActionType.TerminalCommandFinished },
+		]);
+	});
+});
+
+suite('AgentHostTerminalManager – output-only terminals', () => {
+
+	const disposables = new DisposableStore();
+	teardown(() => disposables.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createManager() {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const manager = disposables.add(new AgentHostTerminalManager(stateManager, logService, productService, configurationService));
+		return { manager, stateManager };
+	}
+
+	test('streams appended data, snapshots state with isPty false, and records the exit', () => {
+		const { manager, stateManager } = createManager();
+		const uri = 'agenthost-terminal://shell/copilotNonPtyShells/tc-1';
+		const claim: TerminalClaim = { kind: TerminalClaimKind.Session, session: 'agent-session://copilot/s1', toolCallId: 'tc-1' };
+		const dispatched: StateAction[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === uri) {
+				dispatched.push(envelope.action);
+			}
+		}));
+
+		manager.createOutputTerminal(uri, { title: 'Run Shell Command', claim });
+		manager.appendOutputTerminalData(uri, 'tick 1\n');
+		manager.appendOutputTerminalData(uri, 'tick 2\n');
+		manager.finalizeOutputTerminal(uri, 0);
+		manager.finalizeOutputTerminal(uri, 1); // recorded exit is immutable
+
+		assert.deepStrictEqual(manager.getTerminalState(uri), {
+			title: 'Run Shell Command',
+			content: [{ type: 'unclassified', value: 'tick 1\ntick 2\n' }],
+			exitCode: 0,
+			claim,
+			isPty: false,
+		});
+		assert.deepStrictEqual(dispatched, [
+			{ type: ActionType.TerminalData, data: 'tick 1\n' },
+			{ type: ActionType.TerminalData, data: 'tick 2\n' },
+			{ type: ActionType.TerminalExited, exitCode: 0 },
+		]);
+		// Output channels are discovered through tool result content, not generic PTY terminal APIs.
+		assert.strictEqual(manager.hasTerminal(uri), false);
+		assert.deepStrictEqual(manager.getTerminalInfos(), []);
+	});
+
+	test('reset clears content and dispose removes the channel', () => {
+		const { manager, stateManager } = createManager();
+		const uri = 'agenthost-terminal://shell/copilotNonPtyShells/tc-2';
+		const dispatched: StateAction[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === uri) {
+				dispatched.push(envelope.action);
+			}
+		}));
+
+		manager.createOutputTerminal(uri, { title: 'Bash', claim: { kind: TerminalClaimKind.Session, session: 'agent-session://copilot/s1' } });
+		manager.appendOutputTerminalData(uri, 'old output');
+		manager.resetOutputTerminal(uri);
+		manager.appendOutputTerminalData(uri, 'fresh output');
+
+		assert.deepStrictEqual(manager.getTerminalState(uri)?.content, [{ type: 'unclassified', value: 'fresh output' }]);
+		assert.deepStrictEqual(dispatched.map(action => action.type), [ActionType.TerminalData, ActionType.TerminalCleared, ActionType.TerminalData]);
+
+		manager.disposeTerminal(uri);
+		assert.strictEqual(manager.hasTerminal(uri), false);
+		assert.strictEqual(manager.getTerminalState(uri), undefined);
 	});
 });

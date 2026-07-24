@@ -13,6 +13,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { safeIntl } from '../../../../../base/common/date.js';
@@ -21,16 +22,22 @@ import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { isAgentHostSession } from './agentHostLogSources.js';
+import { isChatDebugLoggingEnabledForSession, renderChatDebugLoggingDisabledMessage } from './chatDebugEnablement.js';
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
 
 const $ = DOM.$;
 const numberFormatter = safeIntl.NumberFormat();
+const aicFormatter = safeIntl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const NANO_AIU_PER_AIC = 1_000_000_000;
 
 export const enum OverviewNavigation {
 	Home = 'home',
 	Logs = 'logs',
 	FlowChart = 'flowchart',
 	CacheExplorer = 'cache',
+	WireLog = 'wirelog',
 }
 
 export class ChatDebugOverviewView extends Disposable {
@@ -54,6 +61,8 @@ export class ChatDebugOverviewView extends Disposable {
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-overview'));
@@ -222,15 +231,24 @@ export class ChatDebugOverviewView extends Disposable {
 	}
 
 	private renderDerivedOverview(events: readonly IChatDebugEvent[], showShimmer: boolean): void {
-		const metricsSection = DOM.append(this.content, $('.chat-debug-overview-section'));
-		DOM.append(metricsSection, $('h3.chat-debug-overview-section-label', undefined, localize('chatDebug.summary', "Summary")));
-
-		this.metricsContainer = DOM.append(metricsSection, $('.chat-debug-overview-metrics'));
-
-		if (showShimmer) {
-			this.renderMetricsShimmer(this.metricsContainer);
+		// When agent debug logging is disabled for this session, no metrics are
+		// captured. Surface a hint to enable the setting instead of an empty
+		// summary, while still keeping the navigation buttons below.
+		if (!isChatDebugLoggingEnabledForSession(this.configurationService, this.currentSessionResource)) {
+			this.metricsContainer = undefined;
+			const disabledSection = DOM.append(this.content, $('.chat-debug-overview-section'));
+			renderChatDebugLoggingDisabledMessage(disabledSection, this.currentSessionResource, this.preferencesService, this.loadDisposables);
 		} else {
-			this.renderMetricsContent(this.metricsContainer, events);
+			const metricsSection = DOM.append(this.content, $('.chat-debug-overview-section'));
+			DOM.append(metricsSection, $('h3.chat-debug-overview-section-label', undefined, localize('chatDebug.summary', "Summary")));
+
+			this.metricsContainer = DOM.append(metricsSection, $('.chat-debug-overview-metrics'));
+
+			if (showShimmer) {
+				this.renderMetricsShimmer(this.metricsContainer);
+			} else {
+				this.renderMetricsContent(this.metricsContainer, events);
+			}
 		}
 
 		// Explore actions
@@ -259,6 +277,16 @@ export class ChatDebugOverviewView extends Disposable {
 		this.loadDisposables.add(cacheBtn.onDidClick(() => {
 			this._onNavigate.fire(OverviewNavigation.CacheExplorer);
 		}));
+
+		// The AHP log is only meaningful for Agent Host sessions.
+		if (isAgentHostSession(this.currentSessionResource)) {
+			const wireLogBtn = this.loadDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('chatDebug.ahpLog', "AHP Log") }));
+			wireLogBtn.element.classList.add('chat-debug-overview-action-button');
+			wireLogBtn.label = `$(arrow-swap) ${localize('chatDebug.ahpLog', "AHP Log")}`;
+			this.loadDisposables.add(wireLogBtn.onDidClick(() => {
+				this._onNavigate.fire(OverviewNavigation.WireLog);
+			}));
+		}
 
 	}
 
@@ -295,6 +323,7 @@ export class ChatDebugOverviewView extends Disposable {
 		const totalOutputTokens = modelTurns.reduce((sum, e) => sum + (e.outputTokens ?? 0), 0);
 		const totalCachedTokens = modelTurns.reduce((sum, e) => sum + (e.cachedTokens ?? 0), 0);
 		const totalTokens = modelTurns.reduce((sum, e) => sum + (e.totalTokens ?? 0), 0);
+		const totalCopilotUsageNanoAiu = modelTurns.reduce((sum, e) => sum + (e.copilotUsageNanoAiu ?? 0), 0);
 
 		interface OverviewMetric { label: string; value: string }
 		const metrics: OverviewMetric[] = [
@@ -306,6 +335,11 @@ export class ChatDebugOverviewView extends Disposable {
 			{ label: localize('chatDebug.metric.totalTokens', "Total Tokens"), value: fmt.format(totalTokens) },
 			{ label: localize('chatDebug.metric.errors', "Errors"), value: fmt.format(errors.length) },
 		];
+
+		if (totalCopilotUsageNanoAiu > 0) {
+			const aic = totalCopilotUsageNanoAiu / NANO_AIU_PER_AIC;
+			metrics.push({ label: localize('chatDebug.metric.copilotUsage', "Copilot Usage (AIC)"), value: aicFormatter.value.format(aic) });
+		}
 
 		for (const metric of metrics) {
 			const card = DOM.append(container, $('.chat-debug-overview-metric-card'));

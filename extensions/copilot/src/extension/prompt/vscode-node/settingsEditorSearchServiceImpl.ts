@@ -77,7 +77,7 @@ export class SettingsEditorSearchServiceImpl implements ISettingsEditorSearchSer
 			return;
 		}
 
-		const endpointName: ChatEndpointFamily = 'copilot-base';
+		const endpointName: ChatEndpointFamily = 'copilot-utility';
 		const endpoint = await this.endpointProvider.getChatEndpoint(endpointName);
 		const generator = this.instantiationService.createInstance(SettingsEditorSearchResultsSelector);
 		const llmSearchSuggestions = await generator.selectTopSearchResults(endpoint, query, embeddingSettings, token);

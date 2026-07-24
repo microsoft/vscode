@@ -12,14 +12,14 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { CommandLineSandboxRewriter } from '../../browser/tools/commandLineRewriter/commandLineSandboxRewriter.js';
 import type { ICommandLineRewriterOptions } from '../../browser/tools/commandLineRewriter/commandLineRewriter.js';
 import type { TreeSitterCommandParser } from '../../browser/treeSitterCommandParser.js';
-import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxCommand } from '../../common/terminalSandboxService.js';
 
 suite('CommandLineSandboxRewriter', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
-	const stubTreeSitterCommandParser = (keywords: string[] = []): TreeSitterCommandParser => ({
-		extractCommandKeywords: async () => keywords,
+	const stubTreeSitterCommandParser = (commands: ITerminalSandboxCommand[] = []): TreeSitterCommandParser => ({
+		extractCommands: async () => commands,
 	} as unknown as TreeSitterCommandParser);
 
 	const stubSandboxService = (overrides: Partial<ITerminalSandboxService> = {}) => {
@@ -27,6 +27,7 @@ suite('CommandLineSandboxRewriter', () => {
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: async () => false,
+			isSandboxAllowNetworkEnabled: async () => false,
 			wrapCommand: async (command, _requestUnsandboxedExecution) => {
 				return {
 					command,
@@ -89,8 +90,8 @@ suite('CommandLineSandboxRewriter', () => {
 	test('wraps command when sandbox is enabled and config exists', async () => {
 		const calls: string[] = [];
 		stubSandboxService({
-			wrapCommand: async (command, _requestUnsandboxedExecution, _shell, commandKeywords, cwd) => {
-				calls.push(`wrapCommand:${commandKeywords?.join(',') ?? ''}:${cwd?.path ?? ''}`);
+			wrapCommand: async (command, _requestUnsandboxedExecution, _shell, cwd, commandDetails) => {
+				calls.push(`wrapCommand:${commandDetails?.map(command => command.keyword).join(',') ?? ''}:${cwd?.path ?? ''}`);
 				return {
 					command: `wrapped:${command}`,
 					isSandboxWrapped: true,
@@ -102,7 +103,7 @@ suite('CommandLineSandboxRewriter', () => {
 			},
 		});
 
-		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter, stubTreeSitterCommandParser(['node'])));
+		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter, stubTreeSitterCommandParser([{ keyword: 'node', args: [] }])));
 		const result = await rewriter.rewrite({
 			...createRewriteOptions('echo hello'),
 			cwd: URI.file('/workspace')
@@ -115,9 +116,9 @@ suite('CommandLineSandboxRewriter', () => {
 	test('wraps command and forwards sandbox bypass flag when explicitly requested', async () => {
 		const calls: string[] = [];
 		stubSandboxService({
-			wrapCommand: async (command, requestUnsandboxedExecution, _shell, commandKeywords) => {
+			wrapCommand: async (command, requestUnsandboxedExecution, _shell, _cwd, commandDetails) => {
 				calls.push(`wrap:${command}:${String(requestUnsandboxedExecution)}`);
-				calls.push(`keywords:${commandKeywords?.join(',') ?? ''}`);
+				calls.push(`commands:${commandDetails?.map(command => command.keyword).join(',') ?? ''}`);
 				return {
 					command: `wrapped:${command}`,
 					isSandboxWrapped: !requestUnsandboxedExecution,
@@ -129,7 +130,7 @@ suite('CommandLineSandboxRewriter', () => {
 			},
 		});
 
-		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter, stubTreeSitterCommandParser(['git'])));
+		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter, stubTreeSitterCommandParser([{ keyword: 'git', args: [] }])));
 		const result = await rewriter.rewrite({
 			...createRewriteOptions('echo hello'),
 			requestUnsandboxedExecution: true,
@@ -137,6 +138,31 @@ suite('CommandLineSandboxRewriter', () => {
 
 		strictEqual(result?.rewritten, 'wrapped:echo hello');
 		strictEqual(result?.reasoning, 'Wrapped command for sandbox execution');
-		deepStrictEqual(calls, ['prereqs', 'wrap:echo hello:true', 'keywords:']);
+		deepStrictEqual(calls, ['prereqs', 'wrap:echo hello:true', 'commands:']);
+	});
+
+	test('forwards explicit sandboxed allow-network requests', async () => {
+		const calls: string[] = [];
+		stubSandboxService({
+			wrapCommand: async (command, _requestUnsandboxedExecution, _shell, _cwd, _commandDetails, requestAllowNetwork) => {
+				calls.push(`wrap:${command}:${String(requestAllowNetwork)}`);
+				return {
+					command: `network-sandbox:${command}`,
+					isSandboxWrapped: true,
+					requiresAllowNetworkConfirmation: true,
+				};
+			},
+			checkForSandboxingPrereqs: async () => ({ enabled: true, sandboxConfigPath: '/tmp/sandbox.json', failedCheck: undefined }),
+		});
+
+		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter, stubTreeSitterCommandParser()));
+		const result = await rewriter.rewrite({
+			...createRewriteOptions('curl https://example.com'),
+			requestAllowNetwork: true,
+		});
+
+		strictEqual(result?.rewritten, 'network-sandbox:curl https://example.com');
+		strictEqual(result?.requiresAllowNetworkConfirmation, true);
+		deepStrictEqual(calls, ['wrap:curl https://example.com:true']);
 	});
 });

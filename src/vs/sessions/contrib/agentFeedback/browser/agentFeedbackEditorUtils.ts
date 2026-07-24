@@ -10,36 +10,11 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { IRange } from '../../../../editor/common/core/range.js';
 import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
-import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
-
-/**
- * Find the session that contains the given resource by checking editing sessions,
- * sessions providers, and agent sessions.
- */
-export function getSessionForResource(
-	resourceUri: URI,
-	chatEditingService: IChatEditingService,
-	sessionsManagementService: ISessionsManagementService,
-): URI | undefined {
-	for (const editingSession of chatEditingService.editingSessionsObs.get()) {
-		if (editingEntriesContainResource(editingSession.entries.get(), resourceUri)) {
-			return editingSession.chatSessionResource;
-		}
-	}
-	for (const session of sessionsManagementService.getSessions()) {
-		const changes = session.changes.get();
-		if (changes.some(change => changeMatchesResource(change, resourceUri))) {
-			return session.resource;
-		}
-	}
-
-	return undefined;
-}
+import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 
 export interface IAgentFeedbackContext {
 	readonly codeSelection?: string;
@@ -316,8 +291,9 @@ function renderHunkGroup(
 export function getActiveResourceCandidates(input: Parameters<typeof EditorResourceAccessor.getOriginalUri>[0]): URI[] {
 	const result: URI[] = [];
 
-	if (input instanceof MultiDiffEditorInput) {
-		const items = input.resources.get();
+	const multiDiffInput = input instanceof SessionChangesEditorInput ? input.multiDiffInput : input;
+	if (multiDiffInput instanceof MultiDiffEditorInput) {
+		const items = multiDiffInput.resources.get();
 		if (items) {
 			for (const item of items) {
 				if (item.originalUri) { result.push(item.originalUri); }

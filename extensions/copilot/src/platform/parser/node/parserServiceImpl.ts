@@ -52,8 +52,6 @@ export class ParserServiceImpl implements IParserService {
 			getTypeReferences: (selection: TreeSitterOffsetRange) => parserProxy._getTypeReferences(wasmLanguage, source, selection),
 			getSymbols: (selection: TreeSitterOffsetRange) => parserProxy._getSymbols(wasmLanguage, source, selection),
 			getDocumentableNodeIfOnIdentifier: (range: TreeSitterOffsetRange) => parserProxy._getDocumentableNodeIfOnIdentifier(wasmLanguage, source, range),
-			getTestableNode: (range: TreeSitterOffsetRange) => parserProxy._getTestableNode(wasmLanguage, source, range),
-			getTestableNodes: () => parserProxy._getTestableNodes(wasmLanguage, source),
 			getNodeToExplain: (range: TreeSitterOffsetRange) => parserProxy._getNodeToExplain(wasmLanguage, source, range),
 			getNodeToDocument: (range: TreeSitterOffsetRange) => parserProxy._getNodeToDocument(wasmLanguage, source, range),
 			getFineScopes: (selection: TreeSitterOffsetRange) => parserProxy._getFineScopes(wasmLanguage, source, selection),

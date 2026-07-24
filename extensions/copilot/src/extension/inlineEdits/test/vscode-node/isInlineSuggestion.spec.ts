@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert, suite, test } from 'vitest';
-import { Position, Range, Uri } from 'vscode';
+import { Position, Range, type TextDocument, Uri } from 'vscode';
 import { createTextDocumentData } from '../../../../util/common/test/shims/textDocument';
-import { toInlineSuggestion } from '../../vscode-node/isInlineSuggestion';
+import { isSubword, toInlineSuggestion } from '../../vscode-node/isInlineSuggestion';
 
 suite('toInlineSuggestion', () => {
 
@@ -20,6 +20,42 @@ suite('toInlineSuggestion', () => {
 		const completionInsertionPoint = new Position(1, 12);
 		const replaceText = 'This is line 2,';
 		return { document, completionInsertionPoint, replaceRange, replaceText };
+	}
+
+	function applyEdit(document: TextDocument, range: Range, newText: string): string {
+		const documentText = document.getText();
+		return documentText.substring(0, document.offsetAt(range.start)) + newText + documentText.substring(document.offsetAt(range.end));
+	}
+
+	function canRepresentAsInlineSuggestion(document: TextDocument, cursorPosition: Position, range: Range, newText: string): boolean {
+		const documentText = document.getText();
+		const editedText = applyEdit(document, range, newText);
+		const lineLength = document.lineAt(cursorPosition.line).text.length;
+
+		for (let startCharacter = 0; startCharacter <= cursorPosition.character; startCharacter++) {
+			for (let endCharacter = cursorPosition.character; endCharacter <= lineLength; endCharacter++) {
+				const candidateRange = new Range(cursorPosition.line, startCharacter, cursorPosition.line, endCharacter);
+				const prefix = documentText.substring(0, document.offsetAt(candidateRange.start));
+				const suffix = documentText.substring(document.offsetAt(candidateRange.end));
+				const candidateNewTextEnd = editedText.length - suffix.length;
+				if (candidateNewTextEnd < prefix.length || !editedText.startsWith(prefix) || !editedText.endsWith(suffix)) {
+					continue;
+				}
+
+				const candidateNewText = editedText.substring(prefix.length, candidateNewTextEnd);
+				const replacedText = document.getText(candidateRange);
+				const cursorOffset = cursorPosition.character - startCharacter;
+				if (
+					applyEdit(document, candidateRange, candidateNewText) === editedText
+					&& replacedText.substring(0, cursorOffset) === candidateNewText.substring(0, cursorOffset)
+					&& isSubword(replacedText, candidateNewText)
+				) {
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 
 	test('line before completion', () => {
@@ -129,16 +165,16 @@ suite('toInlineSuggestion', () => {
 	// Tests probing the behavior change: multi-line next-line insertions
 	// where newText does not end with '\n'
 
-	test('multi-line insertion on next empty line without trailing newline', () => {
+	test('multi-line insertion on next empty line without trailing newline is not an inline suggestion', () => {
 		const document = createMockDocument(['function foo(', '', 'other']);
 		const cursorPosition = new Position(0, 13); // end of "function foo("
 		const replaceRange = new Range(1, 0, 1, 0); // empty line
 		const replaceText = '  a: string,\n  b: number\n)';
 
-		const result = toInlineSuggestion(cursorPosition, document, replaceRange, replaceText);
-		assert.isDefined(result);
-		assert.deepStrictEqual(result!.range, new Range(0, 13, 0, 13));
-		assert.strictEqual(result!.newText, '\n' + replaceText);
+		// newText does not end with '\n'. The original line terminator after the
+		// cursor cannot be consumed by ghost text, so pulling the insertion up to
+		// the cursor would leave a spurious blank line — not representable.
+		assert.isUndefined(toInlineSuggestion(cursorPosition, document, replaceRange, replaceText));
 	});
 
 	test('multi-line insertion on next non-empty line with trailing newline', () => {
@@ -174,7 +210,7 @@ suite('toInlineSuggestion', () => {
 		assert.isUndefined(toInlineSuggestion(cursorPosition, document, replaceRange, replaceText));
 	});
 
-	test('render ghost text for next line suggestion with massaged range', () => {
+	test('next-line suggestion onto empty last line without trailing newline is not an inline suggestion', () => {
 
 		const document = createMockDocument([`import * as vscode from 'vscode';
 import { NodeTypesIndex } from './nodeTypesIndex';
@@ -247,24 +283,25 @@ function createDocumentSymbol(
 	);
 }`;
 
-		const result = toInlineSuggestion(cursorPosition, document, replaceRange, replaceText);
-		assert.isDefined(result);
-		// Range is an empty range at cursor position
-		assert.deepStrictEqual(result!.range, new Range(45, 30, 45, 30));
-		// Text is prepended with newline
-		assert.strictEqual(result!.newText, '\n' + replaceText);
+		// The replacement lands on the empty last line and does not end with '\n',
+		// so it cannot be rendered as ghost text without a spurious trailing blank line.
+		assert.isUndefined(toInlineSuggestion(cursorPosition, document, replaceRange, replaceText));
 	});
 
 	// --- Branch 1 regression: next-line insertion edge cases ---
 
-	test('next-line: cursor mid-line rejects even with valid next-line edit', () => {
+	test('next-line: cursor mid-line extends through the unchanged line suffix', () => {
 		const document = createMockDocument(['function foo(bar', '', 'other']);
 		const cursorPosition = new Position(0, 8); // middle of "function foo(bar"
 		const replaceRange = new Range(1, 0, 1, 0);
 		const replaceText = '  param1,\n  param2\n';
 
-		// Cursor not at end of line → rejected
-		assert.isUndefined(toInlineSuggestion(cursorPosition, document, replaceRange, replaceText));
+		const result = toInlineSuggestion(cursorPosition, document, replaceRange, replaceText);
+		assert.deepStrictEqual(result, {
+			range: new Range(0, 8, 0, 16),
+			newText: ' foo(bar\n  param1,\n  param2',
+		});
+		assert.strictEqual(applyEdit(document, result!.range, result!.newText), applyEdit(document, replaceRange, replaceText));
 	});
 
 	test('next-line: non-empty range on next line falls through and is rejected', () => {
@@ -347,16 +384,148 @@ function createDocumentSymbol(
 		assert.isUndefined(toInlineSuggestion(cursorPosition, document, replaceRange, replaceText));
 	});
 
+	suite('equivalent edit rebasing', () => {
+
+		test('rebases a next-line replacement preserving the closing line', () => {
+			const document = createMockDocument([
+				'\tprivate gatherNeighborSnippets(',
+				'\t\tactiveDocument: StatelessNextEditDocument,',
+				'\t) {',
+				'\t\treturn undefined;',
+			]);
+			const cursorPosition = document.lineAt(1).range.end;
+			const replaceRange = new Range(2, 0, 2, 4);
+			const replaceText = [
+				'\t\tcurrentDocument: StatelessNextEditDocument,',
+				'\t\tpromptOptions: ModelConfig,',
+				'\t\tdelaySession: DelaySession,',
+				'\t\ttracer: RequestTracingContext,',
+				'\t\tcancellationToken: CancellationToken,',
+				'\t) {',
+			].join('\n');
+
+			const result = toInlineSuggestion(cursorPosition, document, replaceRange, replaceText);
+
+			assert.deepStrictEqual(result, {
+				range: new Range(cursorPosition, cursorPosition),
+				newText: [
+					'',
+					'\t\tcurrentDocument: StatelessNextEditDocument,',
+					'\t\tpromptOptions: ModelConfig,',
+					'\t\tdelaySession: DelaySession,',
+					'\t\ttracer: RequestTracingContext,',
+					'\t\tcancellationToken: CancellationToken,',
+				].join('\n'),
+			});
+			assert.strictEqual(applyEdit(document, result!.range, result!.newText), applyEdit(document, replaceRange, replaceText));
+
+			// With rebasing disabled the non-empty next-line range cannot be pulled
+			// up by the ungated fallback, so the edit must not be rebased.
+			assert.isUndefined(toInlineSuggestion(cursorPosition, document, replaceRange, replaceText, false));
+		});
+
+		test('rebases a replacement starting after indentation on the next line', () => {
+			const document = createMockDocument(['function foo(', '  close', 'other']);
+			const cursorPosition = new Position(0, 13);
+			const replaceRange = new Range(1, 2, 1, 7);
+			const replaceText = 'item\n  close';
+
+			const result = toInlineSuggestion(cursorPosition, document, replaceRange, replaceText);
+
+			assert.deepStrictEqual(result, {
+				range: new Range(cursorPosition, cursorPosition),
+				newText: '\n  item',
+			});
+			assert.strictEqual(applyEdit(document, result!.range, result!.newText), applyEdit(document, replaceRange, replaceText));
+		});
+
+		test('does not rebase when the replacement changes the closing line', () => {
+			const document = createMockDocument(['function foo(', '  close', 'other']);
+			const cursorPosition = new Position(0, 13);
+			const replaceRange = new Range(1, 2, 1, 7);
+			const replaceText = 'item\n  changed';
+
+			assert.isUndefined(toInlineSuggestion(cursorPosition, document, replaceRange, replaceText));
+		});
+
+		test('collapses a multi-line edit around the cursor using unchanged prefix and suffix', () => {
+			const document = createMockDocument(['header', 'abc', 'close']);
+			const cursorPosition = new Position(1, 1);
+			const replaceRange = new Range(0, 0, 2, 5);
+			const replaceText = 'header\naXbc\nclose';
+
+			const result = toInlineSuggestion(cursorPosition, document, replaceRange, replaceText);
+
+			assert.deepStrictEqual(result, {
+				range: new Range(1, 1, 1, 3),
+				newText: 'Xbc',
+			});
+			assert.strictEqual(applyEdit(document, result!.range, result!.newText), applyEdit(document, replaceRange, replaceText));
+		});
+
+		test('matches the representability oracle over a finite exhaustive corpus', () => {
+			const documents: readonly { text: string; eol: '\n' | '\r\n' }[] = [
+				{ text: '', eol: '\n' },
+				{ text: 'a', eol: '\n' },
+				{ text: 'ab', eol: '\n' },
+				{ text: 'a\n', eol: '\n' },
+				{ text: 'a\nb', eol: '\n' },
+				{ text: 'ab\nc', eol: '\n' },
+				{ text: 'a\nb\nc', eol: '\n' },
+				{ text: 'a\r\nb', eol: '\r\n' },
+				{ text: 'ab\r\nc', eol: '\r\n' },
+			];
+			const newTexts = ['', 'a', 'b', 'ab', '\n', '\r\n', 'a\n', 'a\r\n', '\nb', '\r\nb', 'a\nb', 'a\r\nb', 'b\na', 'a\nb\nc'];
+
+			for (const { text: documentText, eol } of documents) {
+				const document = createTextDocumentData(Uri.from({ scheme: 'test', path: '/test/file.ts' }), documentText, 'typescript', eol).document;
+				const positions: Position[] = [];
+				for (let line = 0; line < document.lineCount; line++) {
+					for (let character = 0; character <= document.lineAt(line).text.length; character++) {
+						positions.push(new Position(line, character));
+					}
+				}
+
+				for (const cursorPosition of positions) {
+					for (let startIndex = 0; startIndex < positions.length; startIndex++) {
+						for (let endIndex = startIndex; endIndex < positions.length; endIndex++) {
+							const range = new Range(positions[startIndex], positions[endIndex]);
+							for (const newText of newTexts) {
+								const representable = canRepresentAsInlineSuggestion(document, cursorPosition, range, newText);
+								const result = toInlineSuggestion(cursorPosition, document, range, newText);
+								const scenario = JSON.stringify({ documentText, cursorPosition, range, newText });
+
+								// Completeness: every representable edit is offered as a suggestion.
+								if (representable) {
+									assert.isDefined(result, scenario);
+								}
+								// Soundness: any offered suggestion must reproduce the edit
+								// exactly. This catches spurious-newline acceptances that the
+								// oracle classifies as non-representable.
+								if (result !== undefined) {
+									assert.strictEqual(applyEdit(document, result.range, result.newText), applyEdit(document, range, newText), scenario);
+								}
+							}
+						}
+					}
+				}
+			}
+		});
+	});
+
 	// --- Branch 2 regression: same-line edit edge cases ---
 
-	test('same-line: cursor before range start rejects', () => {
+	test('same-line: edit after cursor is extended back to cursor', () => {
 		const document = createMockDocument(['abcdef']);
 		const cursorPosition = new Position(0, 1);
 		const replaceRange = new Range(0, 3, 0, 6); // replaces "def"
 		const replaceText = 'defgh';
 
-		// cursorOffsetInReplacedText < 0
-		assert.isUndefined(toInlineSuggestion(cursorPosition, document, replaceRange, replaceText));
+		const result = toInlineSuggestion(cursorPosition, document, replaceRange, replaceText);
+		assert.deepStrictEqual(result, {
+			range: new Range(0, 1, 0, 6),
+			newText: 'bcdefgh',
+		});
 	});
 
 	test('same-line: text before cursor differs rejects', () => {
@@ -642,6 +811,36 @@ const fieldLabels: Record<keyof FormData, string> = {
 			assert.deepStrictEqual(result!.range, new Range(0, 6, 0, 6));
 			// Only the prepended CRLF between cursor and original range remains.
 			assert.strictEqual(result!.newText, '\r\n');
+		});
+
+		test('next-line insertion: bare LF newText in a CRLF document is not an inline suggestion', () => {
+			// The edit inserts a lone '\n' on the next line, producing a bare-LF
+			// blank line in a CRLF document. A cursor pull-up would re-use the
+			// document's '\r\n', which is a different edit, so this must be rejected.
+			const document = createCRLFDocument(['a', 'b']);
+			const cursorPosition = new Position(0, 1); // end of "a"
+			const replaceRange = new Range(1, 0, 1, 0);
+			const replaceText = '\n';
+
+			assert.isUndefined(toInlineSuggestion(cursorPosition, document, replaceRange, replaceText));
+			// Also exercise the ungated fallback (advanced disabled).
+			assert.isUndefined(toInlineSuggestion(cursorPosition, document, replaceRange, replaceText, false));
+		});
+
+		test('next-line insertion: ungated fallback pulls up a CRLF-terminated insertion (advanced disabled)', () => {
+			// With rebasing disabled, tryAdjustNextLineInsertion must still pull an
+			// empty-range next-line insertion up to the cursor when newText ends with
+			// the document's CRLF, dropping exactly that trailing break.
+			const document = createCRLFDocument(['function foo(', '', 'other']);
+			const cursorPosition = new Position(0, 13); // end of "function foo("
+			const replaceRange = new Range(1, 0, 1, 0);
+			const replaceText = '  a: string,\r\n  b: number\r\n';
+
+			const result = toInlineSuggestion(cursorPosition, document, replaceRange, replaceText, false);
+			assert.isDefined(result);
+			assert.deepStrictEqual(result!.range, new Range(0, 13, 0, 13));
+			assert.strictEqual(result!.newText, '\r\n  a: string,\r\n  b: number');
+			assert.strictEqual(applyEdit(document, result!.range, result!.newText), applyEdit(document, replaceRange, replaceText));
 		});
 	});
 

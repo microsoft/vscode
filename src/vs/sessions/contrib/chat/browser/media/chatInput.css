@@ -32,13 +32,18 @@
 	border-color: var(--vscode-agentsChatInput-border);
 }
 
+.new-chat-input-area-wrapper {
+	position: relative;
+	width: 100%;
+}
+
 .new-chat-input-area {
 	position: relative;
 	width: 100%;
 	max-width: 800px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-agentsChatInput-border);
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-agentsChatInput-background);
 	color: var(--vscode-agentsChatInput-foreground);
 	overflow: hidden;
@@ -54,10 +59,34 @@
 	color: var(--vscode-agentsChatInput-placeholderForeground);
 }
 
-.chat-input-picker-item .action-label.disabled {
+.chat-input-picker-item .action-label.disabled,
+.chat-input-picker-item.disabled .action-label {
 	opacity: 0.5;
 	cursor: default;
 	pointer-events: none;
+}
+
+.new-chat-input-status-hover {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	max-width: 360px;
+}
+
+.new-chat-input-status-hover-title {
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+.new-chat-input-status-hover-detail {
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 1.4;
+}
+
+.new-chat-input-status-hover-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: var(--vscode-spacing-size80);
 }
 
 /* Height constraints are driven by MIN_EDITOR_HEIGHT / MAX_EDITOR_HEIGHT in newChatViewPane.ts */
@@ -67,10 +96,36 @@
 }
 
 .sessions-chat-editor .monaco-editor,
-.sessions-chat-editor .monaco-editor .overflow-guard,
-.sessions-chat-editor .monaco-editor-background {
+.sessions-chat-editor .monaco-editor .overflow-guard {
 	background-color: transparent !important;
-	border-radius: 8px 8px 0 0;
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+}
+
+/* The `.monaco-editor-background` layer must use a *solid* color (not transparent):
+ * the editor reuses this class for the reverse-rounded selection corner pieces,
+ * which "carve" the rounded notches out of the selection highlight. With a
+ * transparent background those pieces stop covering the selection layer and the
+ * corners render as blocky squares. Paint it with the same color the input area
+ * uses so the editor still visually matches its surroundings. */
+.sessions-chat-editor .monaco-editor-background {
+	background-color: var(--vscode-agentsChatInput-background) !important;
+}
+
+/* Inline decoration highlights for the new-session input editor: slash commands,
+ * `#file:` variable references, and agent-host completion references. Applied via
+ * editor decoration `inlineClassName`s from slashCommands.ts / variableCompletions.ts /
+ * agentHostInputCompletions.ts. */
+.sessions-chat-editor .monaco-editor .sessions-slash-command,
+.sessions-chat-editor .monaco-editor .sessions-variable-reference,
+.sessions-chat-editor .monaco-editor .sessions-agent-host-reference {
+	color: var(--vscode-chat-slashCommandForeground);
+	background-color: var(--vscode-chat-slashCommandBackground);
+	border-radius: 3px;
+}
+
+/* Description shown as ghost text after a recognized slash command. */
+.sessions-chat-editor .monaco-editor .sessions-slash-placeholder {
+	color: var(--vscode-input-placeholderForeground);
 }
 
 /* Toolbar */
@@ -78,7 +133,6 @@
 	display: flex;
 	align-items: center;
 	padding: 4px 6px 6px 6px;
-	gap: 4px;
 	color: var(--vscode-icon-foreground);
 }
 
@@ -86,8 +140,28 @@
 	flex: 1;
 }
 
+/* Voice mode controls (mic / stop / settings / disconnect) */
+.sessions-chat-voice-toolbar {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-voice-toolbar .monaco-toolbar {
+	position: relative;
+}
+
+/* Segmented voice/dictation pill (experimental) */
+.sessions-chat-voice-input-mode {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-voice-input-mode.hidden {
+	display: none;
+}
+
 /* Model picker - uses workbench ModelPickerActionItem */
-/* Session config toolbar (mode, model pickers via MenuWorkbenchToolBar) */
+/* Session config toolbar (model picker via MenuWorkbenchToolBar) */
 .sessions-chat-config-toolbar {
 	display: flex;
 	align-items: center;
@@ -124,10 +198,9 @@
 	display: flex;
 	align-items: center;
 	height: 16px;
-	padding: 3px 1px 3px 7px;
 	background-color: transparent;
 	border: none;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	touch-action: manipulation;
 	color: var(--vscode-icon-foreground);
@@ -143,12 +216,12 @@
 
 .sessions-chat-config-toolbar .action-label,
 .sessions-chat-config-toolbar .action-label .chat-input-picker-label {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
 }
 
 /* Allow long labels (e.g. the model picker name) to ellipsize when space is tight */
 .sessions-chat-config-toolbar .action-label .chat-input-picker-label {
-	margin-left: 6px;
+	margin-left: 4px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -161,29 +234,12 @@
 }
 
 .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	flex-shrink: 0;
 	/* Override the base .monaco-action-bar .action-item .codicon { width:16px; height:16px }
 	 * so the leading icon sizes naturally to its font-size, matching the bottom-row pickers. */
 	width: auto;
 	height: auto;
-}
-
-/* Split model picker: undo the fixed height/overflow from .action-label above */
-.sessions-chat-config-toolbar .action-label.model-picker-split {
-	height: auto;
-	overflow: visible;
-	padding: 0 6px;
-	min-width: 0;
-}
-
-.sessions-chat-config-toolbar .action-item:has(.model-picker-split) {
-	overflow: visible;
-}
-
-/* Hide the right divider from the workbench base styles */
-.agent-sessions-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::after {
-	content: none;
 }
 
 .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
@@ -197,56 +253,9 @@
 	height: 12px;
 }
 
-/* Spacing between action items inside the chat input config toolbar (mode + model picker) */
+/* Spacing between action items inside the chat input config toolbar */
 .sessions-chat-config-toolbar .monaco-action-bar .actions-container {
-	gap: 4px;
-}
-
-/* Delightful gradient styling for the chat send (submit) button. The button
-	is filled at rest with a slowly rotating multi-color conic gradient using
-	the same palette as the working-state border, and emits a quick colorful
-	pulse on click. */
-@property --chat-send-button-anim-angle {
-	syntax: '<angle>';
-	inherits: false;
-	initial-value: 135deg;
-}
-
-@keyframes chat-send-button-spin {
-	from {
-		--chat-send-button-anim-angle: 135deg;
-	}
-
-	to {
-		--chat-send-button-anim-angle: 495deg;
-	}
-}
-
-@keyframes chat-send-button-color-cycle {
-	0%,
-	100% {
-		background-color: color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background));
-	}
-
-	33% {
-		background-color: color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 60%, var(--vscode-input-background));
-	}
-
-	66% {
-		background-color: color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 60%, var(--vscode-input-background));
-	}
-}
-
-@keyframes chat-send-button-pulse {
-	0% {
-		opacity: 0.7;
-		transform: scale(1);
-	}
-
-	100% {
-		opacity: 0;
-		transform: scale(1.3);
-	}
+	gap: 2px;
 }
 
 /* Send button - wraps a Button widget */
@@ -255,10 +264,11 @@
 	align-items: center;
 	justify-content: center;
 	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size40);
 	position: relative;
 	width: 22px;
 	height: 22px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .sessions-chat-send-button .monaco-button {
@@ -269,7 +279,7 @@
 	height: 22px;
 	min-width: 22px;
 	padding: 0;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-icon-foreground);
 	background: transparent;
 	border: none;
@@ -301,9 +311,8 @@
 
 .monaco-workbench .sessions-chat-send-button .monaco-button.codicon[class*='codicon-']::before,
 .monaco-workbench .sessions-chat-send-button .monaco-button .codicon[class*='codicon-']::before {
-	/* Optical alignment: nudge arrow glyph 1px left to visually center it. */
 	display: inline-block;
-	transform: translateX(-0.5px);
+	transform: translateY(0.5px);
 }
 
 /* Ensure no underline / link decoration ever shows under the codicon glyph
@@ -316,78 +325,35 @@
 	text-decoration: none !important;
 }
 
-/* Idle: fill the entire button with a slowly rotating conic gradient (no
-	border ring).
-
-	Colors are darkened (60% mixed with input background) so the gradient
-	reads as a calm fill rather than a saturated accent, and the conic stops
-	are asymmetric so the fill has a clear head and tail rather than
-	mirroring around the mid-point. */
+/* Idle: solid primary button background. */
 .sessions-chat-send-button .monaco-button:not(.disabled) {
-	background: conic-gradient(from var(--chat-send-button-anim-angle) at 0% 0%,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 0deg,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 60%, var(--vscode-input-background)) 90deg,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 60%, var(--vscode-input-background)) 200deg,
-			color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 360deg);
-	color: var(--vscode-button-foreground);
-	animation: chat-send-button-spin 8s linear infinite;
-	transition: box-shadow 120ms ease;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground) !important;
+	transition: background-color 120ms ease;
 }
 
-/* Hover/focus: subtle dark overlay to match standard toolbar button hover
-	feedback. Uses an inset box-shadow so the rotating gradient background is
-	preserved underneath. */
 .sessions-chat-send-button:has(.monaco-button:not(.disabled):hover) .monaco-button,
 .sessions-chat-send-button:has(.monaco-button:not(.disabled):focus-visible) .monaco-button {
-	box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.12);
-}
-
-/* Click: outward color pulse on the wrapper. */
-.sessions-chat-send-button:has(.monaco-button:not(.disabled):active)::after {
-	content: '';
-	position: absolute;
-	inset: -2px;
-	border-radius: 6px;
-	background: conic-gradient(from 135deg,
-			var(--vscode-chat-inputWorkingBorderColor1),
-			var(--vscode-chat-inputWorkingBorderColor2),
-			var(--vscode-chat-inputWorkingBorderColor3),
-			var(--vscode-chat-inputWorkingBorderColor2),
-			var(--vscode-chat-inputWorkingBorderColor1));
-	pointer-events: none;
-	animation: chat-send-button-pulse 400ms ease-out forwards;
-	z-index: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.sessions-chat-send-button .monaco-button:not(.disabled),
-	.sessions-chat-send-button:has(.monaco-button:not(.disabled):active)::after {
-		animation: none;
-	}
+	background: var(--vscode-button-hoverBackground);
 }
 
 /* Loading spinner in toolbar */
 .sessions-chat-loading-spinner {
 	display: none;
-	width: 12px;
-	height: 12px;
+	align-items: center;
+	justify-content: center;
 	margin-right: 4px;
-	border: 1.5px solid var(--vscode-icon-foreground);
-	border-top-color: transparent;
-	border-radius: 50%;
-	animation: sessions-chat-spin 0.8s linear infinite;
 	opacity: 0.6;
 	flex-shrink: 0;
+	color: var(--vscode-icon-foreground);
 }
 
 .sessions-chat-loading-spinner.visible {
-	display: block;
+	display: flex;
 }
 
-@keyframes sessions-chat-spin {
-	to {
-		transform: rotate(360deg);
-	}
+.sessions-chat-loading-spinner .codicon {
+	font-size: 14px;
 }
 
 /* Attach row (pills only, above editor, inside input area) */
@@ -411,7 +377,7 @@
 	width: 22px;
 	height: 22px;
 	flex-shrink: 0;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	color: var(--vscode-icon-foreground);
 	background: transparent;
@@ -432,6 +398,92 @@
 	font-size: 14px;
 }
 
+/* Dictation (speech-to-text) mic button */
+.sessions-chat-stt-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+	width: 22px;
+	height: 22px;
+	flex-shrink: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+	border: none;
+	outline: none;
+}
+
+.sessions-chat-stt-button.hidden {
+	display: none;
+}
+
+.sessions-chat-stt-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.sessions-chat-stt-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.sessions-chat-stt-button.recording {
+	color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+}
+
+.monaco-workbench .sessions-chat-stt-button .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize, 16px);
+}
+
+/* Determinate download ring shown over the mic while the on-device dictation
+	model downloads on first use (see DictationDownloadRing). */
+.sessions-chat-stt-button > .dictation-download-ring {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 22px;
+	height: 22px;
+	transform: translate(-50%, -50%) rotate(-90deg);
+	pointer-events: none;
+}
+
+.sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-track {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	opacity: 0.25;
+}
+
+.hc-black .sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-track,
+.hc-light .sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-track {
+	opacity: 1;
+}
+
+.sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-progress {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	stroke-linecap: round;
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-progress {
+	transition: stroke-dashoffset 120ms ease;
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button > .dictation-download-ring.indeterminate {
+	animation: dictation-download-ring-spin 1.2s linear infinite;
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button > .dictation-download-ring.indeterminate .dictation-download-ring-progress {
+	transition: none;
+}
+
+@keyframes dictation-download-ring-spin {
+	from { transform: translate(-50%, -50%) rotate(-90deg); }
+	to { transform: translate(-50%, -50%) rotate(270deg); }
+}
+
 /* Attached context container */
 .sessions-chat-attached-context {
 	display: flex;
@@ -450,10 +502,10 @@
 	display: inline-flex;
 	align-items: center;
 	overflow: hidden;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2, 11px);
 	padding: 0 4px 0 0;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	height: 18px;
 	max-width: 200px;
 	width: fit-content;
@@ -509,7 +561,7 @@
 }
 
 .sessions-chat-attachment-remove .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	padding: 0;
 }
 
@@ -549,7 +601,7 @@
 
 .sessions-chat-dnd-overlay .attach-context-overlay-text .codicon {
 	height: 12px;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	margin-right: 3px;
 }
 
@@ -561,7 +613,8 @@
 }
 
 .new-chat-input-container > .chat-input-notification-container .chat-input-notification {
-	padding: 12px 16px;
+	/* Padding needs to be -6px for top to account for -10px margin in parent container and 4px for half of chat border radius. */
+	padding: 10px 16px 16px 16px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-bottom: none;

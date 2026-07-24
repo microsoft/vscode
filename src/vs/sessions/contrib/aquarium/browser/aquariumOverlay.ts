@@ -15,15 +15,19 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsAquariumActiveContext } from '../../../common/contextkeys.js';
 import { disposeSharedFishDefs, Fish, pickRandomSpecies } from './fish.js';
+import { FishFeedingStreak } from './fishFeedingStreak.js';
 
 export const SESSIONS_DEVELOPER_JOY_ENABLED_SETTING = 'sessions.developerJoy.enabled';
 
 const FISH_COUNT = 50;
 const FISH_MIN_SIZE = 22;
 const FISH_MAX_SIZE = 48;
+/** Each eaten pellet multiplies the fish's size by this. Unbounded on purpose. */
+const FISH_GROWTH_FACTOR = 1.08;
 
 const SCATTER_RADIUS = 145;
 const SCATTER_RADIUS_SQ = SCATTER_RADIUS * SCATTER_RADIUS;
@@ -70,14 +74,37 @@ export interface IAquariumService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Mount a toggle button into `parent`. Returns a disposable that removes
-	 * the button and tears down the active aquarium if it was the last mount.
+	 * Mount a toggle button into `parent`. Returns a handle that exposes a
+	 * {@link IMountedToggleHandle.setHostVisible} hook so callers can keep the
+	 * aquarium tied to their own visibility (e.g. a view pane). Disposing the
+	 * handle removes the button and tears down the active aquarium if it was
+	 * the last mount.
 	 */
-	mountToggle(parent: HTMLElement): IDisposable;
+	mountToggle(parent: HTMLElement): IMountedToggleHandle;
+
+	/**
+	 * Development/demo hook: force the persisted feeding streak into a specific
+	 * state and refresh the toggle tooltip(s) live. When `alive` is false the
+	 * streak is parked as a died/revivable streak and the revival prompt is
+	 * offered (when an aquarium is active). A `count` of 0 clears the streak.
+	 */
+	simulateStreak(count: number, alive: boolean): void;
+}
+
+export interface IMountedToggleHandle extends IDisposable {
+	/**
+	 * Inform the service whether this mount's host is currently visible. The
+	 * aquarium is only considered active when at least one mount is visible;
+	 * when the last visible mount goes invisible the aquarium is disposed
+	 * synchronously (no fade-out) so it cannot flash behind a sibling view.
+	 * Hosts that don't care can leave this alone — mounts default to visible.
+	 */
+	setHostVisible(visible: boolean): void;
 }
 
 interface IMountedToggle {
 	readonly button: HTMLButtonElement;
+	hostVisible: boolean;
 }
 
 export class AquariumService extends Disposable implements IAquariumService {
@@ -90,6 +117,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 	private readonly activeRef = this._register(new MutableDisposable<IActiveAquarium>());
 	private readonly pendingExit = this._register(new MutableDisposable<IDisposable>());
 	private readonly activeContextKey: IContextKey<boolean>;
+	private readonly streak: FishFeedingStreak;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -98,11 +126,13 @@ export class AquariumService extends Disposable implements IAquariumService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
 		this.mainContainer = layoutService.mainContainer;
 		this.activeContextKey = SessionsAquariumActiveContext.bindTo(contextKeyService);
+		this.streak = new FishFeedingStreak(storageService);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SESSIONS_DEVELOPER_JOY_ENABLED_SETTING)) {
@@ -111,7 +141,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		}));
 	}
 
-	mountToggle(parent: HTMLElement): IDisposable {
+	mountToggle(parent: HTMLElement): IMountedToggleHandle {
 		const doc = parent.ownerDocument;
 		const button = doc.createElement('button');
 		button.className = 'agents-aquarium-toggle';
@@ -134,25 +164,60 @@ export class AquariumService extends Disposable implements IAquariumService {
 
 		parent.appendChild(button);
 
-		const mount: IMountedToggle = { button };
+		const mount: IMountedToggle = { button, hostVisible: true };
 		this.mounts.add(mount);
 		this.applyFeatureEnabledStateForButton(button);
+		this.reconcileActivation();
 
-		// First mount with the user's stored preference on — auto-restore.
-		if (this.isFeatureEnabled() && this.isStoredEnabled() && !this.activeRef.value) {
+		return {
+			setHostVisible: (visible: boolean) => {
+				if (mount.hostVisible === visible) {
+					return;
+				}
+				mount.hostVisible = visible;
+				this.reconcileActivation();
+			},
+			dispose: () => {
+				store.dispose();
+				button.remove();
+				this.mounts.delete(mount);
+				this.reconcileActivation();
+			},
+		};
+	}
+
+	simulateStreak(count: number, alive: boolean): void {
+		this.streak.simulate(count, alive);
+		this.updateAllToggleButtonsVisual(!!this.activeRef.value);
+	}
+
+	/**
+	 * Activate when at least one mount is host-visible and the user has it on;
+	 * otherwise deactivate synchronously (no fade) so the aquarium can't flash
+	 * behind a sibling view during a view swap.
+	 */
+	private reconcileActivation(): void {
+		const anyHostVisible = this.hasVisibleMount();
+		if (anyHostVisible && this.isFeatureEnabled() && this.isStoredEnabled() && !this.activeRef.value) {
 			this.activate(/* persist */ false);
-		}
-
-		return toDisposable(() => {
-			store.dispose();
-			button.remove();
-			this.mounts.delete(mount);
-			// Last host gone — tear down without persisting so the user's
-			// preference for next time stays as it was.
-			if (this.mounts.size === 0 && this.activeRef.value) {
-				this.deactivate(/* persist */ false);
+		} else if (!anyHostVisible) {
+			// Host hide: dispose any active aquarium synchronously AND cancel
+			// any in-flight animated exit (from a prior user toggle-off) so it
+			// can't keep painting fish behind whatever view took our place.
+			this.pendingExit.clear();
+			if (this.activeRef.value) {
+				this.deactivate(/* persist */ false, /* animate */ false);
 			}
-		});
+		}
+	}
+
+	private hasVisibleMount(): boolean {
+		for (const m of this.mounts) {
+			if (m.hostVisible) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private isFeatureEnabled(): boolean {
@@ -174,8 +239,8 @@ export class AquariumService extends Disposable implements IAquariumService {
 		if (!this.isFeatureEnabled() && this.activeRef.value) {
 			// Setting turned off — don't persist so the prior preference survives a re-enable.
 			this.deactivate(/* persist */ false);
-		} else if (this.isFeatureEnabled() && this.isStoredEnabled() && !this.activeRef.value && this.mounts.size > 0) {
-			this.activate(/* persist */ false);
+		} else if (this.isFeatureEnabled()) {
+			this.reconcileActivation();
 		}
 	}
 
@@ -188,28 +253,84 @@ export class AquariumService extends Disposable implements IAquariumService {
 		// Build the icon as a real DOM child instead of innerHTML to satisfy Trusted Types.
 		button.replaceChildren();
 		const iconSpan = button.ownerDocument.createElement('span');
+		// The icon is purely decorative; the button already has an aria-label.
+		iconSpan.setAttribute('aria-hidden', 'true');
 		if (active) {
 			const iconClasses = ThemeIcon.asClassName(Codicon.close).split(/\s+/).filter(Boolean);
 			for (const cls of iconClasses) {
 				iconSpan.classList.add(cls);
 			}
 		} else {
-			iconSpan.classList.add('agents-aquarium-toggle-logo');
+			const iconClasses = ThemeIcon.asClassName(Codicon.smiley).split(/\s+/).filter(Boolean);
+			for (const cls of iconClasses) {
+				iconSpan.classList.add(cls);
+			}
 		}
 		button.appendChild(iconSpan);
+
+		// Surface the feeding streak as a visible badge beside the icon (not a
+		// notification): a live streak shows the count, while a died streak
+		// shows a quiet hint that feeding a fish will revive it.
+		this.streak.collectExpired();
+		const streak = this.streak.count;
+		const revivable = streak > 0 ? 0 : this.streak.revivableCount;
+		button.classList.toggle('has-streak', streak > 0 || revivable > 0);
+		if (streak > 0 || revivable > 0) {
+			const streakSpan = button.ownerDocument.createElement('span');
+			streakSpan.className = 'agents-aquarium-toggle-streak';
+			streakSpan.setAttribute('aria-hidden', 'true');
+			if (streak > 0) {
+				// allow-any-unicode-next-line
+				streakSpan.textContent = `🔥 ${streak}`;
+			} else {
+				streakSpan.classList.add('revivable');
+				// allow-any-unicode-next-line
+				streakSpan.textContent = localize('aquarium.reviveBadge', "💔 {0} · Feed again to revive", revivable);
+			}
+			button.appendChild(streakSpan);
+		}
+
 		const label = this.getToggleLabel(active);
 		button.setAttribute('aria-pressed', String(active));
 		button.setAttribute('aria-label', label);
 	}
 
 	private getToggleLabel(active: boolean): string {
-		return active ? localize('aquarium.hide', "Hide Aquarium") : localize('aquarium.show', "Show Aquarium");
+		const base = active ? localize('aquarium.hide', "Hide Aquarium") : localize('aquarium.show', "Show Aquarium");
+		const streak = this.streak.count;
+		if (streak > 0) {
+			return streak === 1
+				// allow-any-unicode-next-line
+				? localize('aquarium.streakLabel.one', "{0} — 🔥 {1} day feeding streak", base, streak)
+				// allow-any-unicode-next-line
+				: localize('aquarium.streakLabel.other', "{0} — 🔥 {1} days feeding streak", base, streak);
+		}
+		const revivable = this.streak.revivableCount;
+		if (revivable > 0) {
+			// A died streak that comes back to life by feeding a fish again.
+			return revivable === 1
+				? localize('aquarium.reviveLabel.one', "{0} — feed a fish to revive your {1} day streak", base, revivable)
+				: localize('aquarium.reviveLabel.other', "{0} — feed a fish to revive your {1} day streak", base, revivable);
+		}
+		return base;
 	}
 
 	private toggle(): void {
+		const willActivate = !this.activeRef.value;
+		type AquariumToggleEvent = {
+			activated: boolean;
+		};
+		type AquariumToggleClassification = {
+			activated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the toggle activated (true) or deactivated (false) the aquarium.' };
+			owner: 'justschen';
+			comment: 'Tracks how often users click the Agents window aquarium easter-egg toggle.';
+		};
+		this.telemetryService.publicLog2<AquariumToggleEvent, AquariumToggleClassification>('vscodeAgents.aquarium/toggle', {
+			activated: willActivate,
+		});
 		if (this.activeRef.value) {
 			this.deactivate(/* persist */ true);
-		} else {
+		} else if (this.hasVisibleMount()) {
 			this.activate(/* persist */ true);
 		}
 	}
@@ -230,7 +351,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		this.pendingExit.clear();
 		let active: IActiveAquarium | undefined;
 		try {
-			active = createActiveAquarium(this.mainContainer, this.layoutService, this.accessibilityService);
+			active = createActiveAquarium(this.mainContainer, this.layoutService, this.accessibilityService, () => this.handleFishFed());
 		} catch (e) {
 			console.error('[aquarium] failed to activate', e);
 			return;
@@ -246,10 +367,39 @@ export class AquariumService extends Disposable implements IAquariumService {
 		if (persist) {
 			this.setStoredEnabled(true);
 		}
+		// Park a streak that aged out while the aquarium was closed so it shows
+		// up as a revivable badge on the toggle.
+		this.streak.collectExpired();
+		this.updateAllToggleButtonsVisual(true);
 	}
 
-	/** @param persist false when tearing down for non-user reasons. */
-	private deactivate(persist: boolean): void {
+	/** Called whenever a fish eats a pellet. */
+	private handleFishFed(): void {
+		const before = this.streak.count;
+		const result = this.streak.recordFeed();
+		// Refresh the toggle so the streak badge stays in sync (count change or
+		// a died streak revived back to life by this feed).
+		if (result.count !== before || result.revived) {
+			this.updateAllToggleButtonsVisual(!!this.activeRef.value);
+		}
+	}
+
+	/**
+	 * @param persist false when tearing down for non-user reasons.
+	 * @param animate false to dispose synchronously (no fade-out). Used for
+	 * host-driven teardown where running a 900ms fade would let fish stay
+	 * visible while the next view layers on top.
+	 */
+	private deactivate(persist: boolean, animate: boolean = true): void {
+		if (!animate) {
+			this.activeRef.clear();
+			this.activeContextKey.set(false);
+			this.updateAllToggleButtonsVisual(false);
+			if (persist) {
+				this.setStoredEnabled(false);
+			}
+			return;
+		}
 		// Detach from activeRef WITHOUT disposing (clearAndLeak) so the exit
 		// animation can run; the returned handle from active.exit() is parked
 		// in `pendingExit` and disposes the underlying store either when the
@@ -286,13 +436,13 @@ interface IActiveAquarium extends IDisposable {
  * Returns `undefined` if the chat bar isn't available so callers can bail
  * without leaving the toggle button stuck in an "active but invisible" state.
  */
-function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbenchLayoutService, accessibilityService: IAccessibilityService): IActiveAquarium | undefined {
+function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbenchLayoutService, accessibilityService: IAccessibilityService, onFishFed?: () => void): IActiveAquarium | undefined {
 	const targetWindow = getWindow(mainContainer);
 
 	// Host inside the chat bar so chat input UI naturally paints on top —
 	// no z-index gymnastics required.
-	const chatBar = layoutService.getContainer(targetWindow, Parts.CHATBAR_PART);
-	if (!chatBar || !layoutService.isVisible(Parts.CHATBAR_PART, targetWindow)) {
+	const sessionsContainer = layoutService.getContainer(targetWindow, Parts.SESSIONS_PART);
+	if (!sessionsContainer || !layoutService.isVisible(Parts.SESSIONS_PART, targetWindow)) {
 		return undefined;
 	}
 
@@ -303,8 +453,15 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	// Decorative: hide the entire subtree from a11y tree.
 	water.setAttribute('aria-hidden', 'true');
 	// First child so subsequent chat bar content paints over it.
-	chatBar.insertBefore(water, chatBar.firstChild);
-	store.add(toDisposable(() => water.remove()));
+	sessionsContainer.insertBefore(water, sessionsContainer.firstChild);
+	// Sessions Grid wraps the chat content in `.session-view` / `.session-view-content`
+	// with opaque backgrounds (see sessionsPart.css). Mark the part so a scoped
+	// CSS override can clear those backgrounds and let the water layer show through.
+	sessionsContainer.classList.add('aquarium-active');
+	store.add(toDisposable(() => {
+		water.remove();
+		sessionsContainer.classList.remove('aquarium-active');
+	}));
 
 	const fishLayer = doc.createElement('div');
 	fishLayer.className = 'agents-aquarium-fish-layer';
@@ -591,6 +748,8 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 				const nearestDist = Math.max(Math.sqrt(nearestDistSq), 1);
 				if (nearestDist < EAT_RADIUS) {
 					removeFood(nearestPellet);
+					f.grow(FISH_GROWTH_FACTOR);
+					onFishFed?.();
 				} else {
 					accelX += (nearestPellet.positionX - centerX) / nearestDist * 200;
 					accelY += (nearestPellet.positionY - centerY) / nearestDist * 200;

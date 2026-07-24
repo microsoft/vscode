@@ -9,6 +9,7 @@ import { Radio } from '../../../base/browser/ui/radio/radio.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ActionList, IActionListDelegate, IActionListItem, IActionListOptions } from './actionList.js';
@@ -25,6 +26,23 @@ export interface ITabbedActionListBuildResult<T> {
 }
 
 /**
+ * Describes one tab in a {@link TabbedActionListWidget}. The {@link id}
+ * is the stable identity used everywhere the widget reasons about a
+ * tab (initial selection, change events, `createActionList` callback);
+ * {@link label}, {@link tooltip}, and {@link icon} are presentation only.
+ */
+export interface ITabDescriptor {
+	/** Stable identifier used for tab identity and selection callbacks. */
+	readonly id: string;
+	/** Visible label. Defaults to {@link id}. Localize at the call site. */
+	readonly label?: string;
+	/** Hover tooltip. Defaults to {@link label} ?? {@link id}. */
+	readonly tooltip?: string;
+	/** Optional leading icon rendered before the label. */
+	readonly icon?: ThemeIcon;
+}
+
+/**
  * Options for {@link TabbedActionListWidget.show}. The widget renders a
  * tab bar above an `ActionList` inside a single popup. Consumers describe
  * how to compute items for each tab; the widget handles tab switching and
@@ -35,9 +53,9 @@ export interface ITabbedActionListShowOptions<T> {
 	readonly user: string;
 	/** Element the popup is anchored to. */
 	readonly anchor: HTMLElement;
-	/** Tab labels rendered in order. Localize at the call site. */
-	readonly tabs: readonly string[];
-	/** Initially active tab. Must be present in {@link tabs}. */
+	/** Tabs rendered in order. */
+	readonly tabs: readonly ITabDescriptor[];
+	/** Initially active tab id. Must match an entry in {@link tabs}. */
 	readonly initialTab: string;
 	/** Computes the list items and per-tab options shown when the given tab is active. */
 	createActionList(activeTab: string): ITabbedActionListBuildResult<T>;
@@ -118,7 +136,11 @@ export class TabbedActionListWidget extends Disposable {
 					tabBar.classList.add(options.tabBarClassName);
 				}
 				const radio = renderDisposables.add(new Radio({
-					items: options.tabs.map(t => ({ text: t, tooltip: t, isActive: t === activeTab })),
+					items: options.tabs.map(tab => {
+						const label = tab.label ?? tab.id;
+						const text = tab.icon ? `$(${tab.icon.id}) ${label}` : label;
+						return { text, tooltip: tab.tooltip ?? label, isActive: tab.id === activeTab };
+					}),
 				}));
 				tabBar.appendChild(radio.domNode);
 
@@ -134,7 +156,7 @@ export class TabbedActionListWidget extends Disposable {
 				renderDisposables.add(radio.onDidSelect(index => {
 					const next = options.tabs[index];
 					if (next) {
-						activateTab(next);
+						activateTab(next.id);
 					}
 				}));
 
@@ -193,7 +215,7 @@ export class TabbedActionListWidget extends Disposable {
 					if (onEditable && !onTabBar) {
 						return;
 					}
-					const currentIndex = options.tabs.indexOf(activeTab);
+					const currentIndex = options.tabs.findIndex(t => t.id === activeTab);
 					if (currentIndex < 0) {
 						return;
 					}
@@ -201,7 +223,7 @@ export class TabbedActionListWidget extends Disposable {
 					const nextIndex = (currentIndex + delta + options.tabs.length) % options.tabs.length;
 					e.preventDefault();
 					e.stopPropagation();
-					activateTab(options.tabs[nextIndex]);
+					activateTab(options.tabs[nextIndex].id);
 				}));
 
 				// Dismiss when focus leaves the popup. Suppressed during a

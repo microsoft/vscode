@@ -7,19 +7,22 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import type { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { dirname as dirnameUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
@@ -31,36 +34,44 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
+import { IOutputService } from '../../../../services/output/common/output.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots } from '../../../../contrib/chat/common/customizationHarnessService.js';
-import { IChatSessionsService, SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
-import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IResolvedPromptSourceFolder } from '../../../../contrib/chat/common/promptSyntax/config/promptFileLocations.js';
 import { ParsedPromptFile, PromptFileParser } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
+import { PromptFileSource, PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
-import { AICustomizationItemsModel, IAICustomizationItemsModel } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
+import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { EmbeddedMcpServerDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState } from '../../../../contrib/chat/common/enablement.js';
 import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpServerInstallState } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerInstallState } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
 import { PluginListWidget } from '../../../../contrib/chat/browser/aiCustomization/pluginListWidget.js';
 import { IIterativePager } from '../../../../../base/common/paging.js';
+import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -69,6 +80,7 @@ import { createMockCodeReviewService } from './mockCodeReviewService.js';
 import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 
 // Ensure theme colors & widget CSS are loaded
 import '../../../../../platform/theme/common/colors/inputColors.js';
@@ -97,6 +109,64 @@ function createMockEditorGroup(): IEditorGroup {
 	return new class extends mock<IEditorGroup>() {
 		override windowId = mainWindow.vscodeWindowId;
 	}();
+}
+
+function createMockAICustomizationItemsModel(): IAICustomizationItemsModel {
+	const itemSource = new class extends mock<IAICustomizationItemSource>() {
+		override readonly sessionResource = LocalChatSessionUri.getNewSessionUri();
+		override readonly onDidAICustomizationItemsChange = Event.None;
+		override async fetchProviderItems() { return []; }
+		override async fetchAICustomizationItems(_promptType: PromptsType) { return []; }
+		override async fetchSourceFolders(_promptType: PromptsType) { return []; }
+	}();
+
+	return new class extends mock<IAICustomizationItemsModel>() {
+		override getItems(_section: ItemsModelSection): IObservable<readonly IAICustomizationListItem[]> { return constObservable([]); }
+		override getActiveItemSource() { return itemSource; }
+		override getCount(_section: ItemsModelSection): IObservable<number> { return constObservable(0); }
+		override getPluginCount(): IObservable<number> { return constObservable(0); }
+		override async whenSectionLoaded(_section: ItemsModelSection): Promise<void> { }
+	}();
+}
+
+type FixtureAgentHostMcpServer = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
+
+function mcpLifecycleNoop(): Promise<void> {
+	return Promise.resolve();
+}
+
+function createMockAgentHostCustomizationService(mcpServers: readonly FixtureAgentHostMcpServer[] = []): IAgentHostCustomizationService {
+	return new class extends mock<IAgentHostCustomizationService>() {
+		override readonly onDidChangeCustomAgents = Event.None;
+		override readonly onDidChangeCustomizations = Event.None;
+		override getCustomAgents() { return []; }
+		override getCustomizations() { return []; }
+		override getWorkingDirectory() { return undefined; }
+		override getMcpServers() { return mcpServers; }
+		override addMcpServer() { }
+		override async authenticateMcpServer() { return true; }
+	}();
+}
+
+// Agent-host harnesses supply their customization items directly through an
+// item provider (bypassing the prompts-service discovery used by local
+// harnesses). Provide one backed by the fixture files so the agent-host
+// editor does not fall back to an empty source and log a warning.
+function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[]): ICustomizationItemProvider {
+	return {
+		onDidChange: Event.None,
+		async provideChatSessionCustomizations(): Promise<ICustomizationItem[]> {
+			return files.map(file => ({
+				uri: file.uri,
+				type: file.type,
+				name: file.name ?? '',
+				description: file.description,
+				source: file.storage as AICustomizationSource,
+				extensionId: file.extensionId,
+				pluginUri: undefined,
+			}));
+		},
+	};
 }
 
 function toExtensionInfo(file: IFixtureFile): { identifier: ExtensionIdentifier; displayName?: string } | undefined {
@@ -162,13 +232,55 @@ function createFixtureContentMap(files: IFixtureFile[], instructions: IAgentInst
 	return contents;
 }
 
-function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAgentInstructionFile[], contents: ResourceMap<string>): IPromptsService {
+function createFixtureFileContentStat(resource: URI, value: string): IFileContent {
+	return {
+		resource,
+		name: '',
+		mtime: 0,
+		ctime: 0,
+		etag: '',
+		size: value.length,
+		readonly: false,
+		locked: false,
+		executable: false,
+		value: VSBuffer.fromString(value),
+	};
+}
+
+function createFixtureFileStat(resource: URI, size: number, isDirectory: boolean): IFileStatWithMetadata {
+	return {
+		resource,
+		name: '',
+		mtime: 0,
+		ctime: 0,
+		etag: '',
+		size,
+		readonly: false,
+		locked: false,
+		executable: false,
+		isFile: !isDirectory,
+		isDirectory,
+		isSymbolicLink: false,
+		children: undefined,
+	};
+}
+
+function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAgentInstructionFile[], contents: ResourceMap<string>, onDidChangeFiles: Event<void>): IPromptsService {
 	const parser = new PromptFileParser();
+	const skillSourceFolders: IResolvedPromptSourceFolder[] = [
+		{ uri: URI.file('/workspace/.agents/skills'), searchRoot: URI.file('/workspace/.agents/skills'), filePattern: undefined, source: PromptFileSource.AgentsWorkspace, storage: PromptsStorage.local },
+		{ uri: URI.file('/workspace/.github/skills'), searchRoot: URI.file('/workspace/.github/skills'), filePattern: undefined, source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
+		{ uri: URI.file('/workspace/.claude/skills'), searchRoot: URI.file('/workspace/.claude/skills'), filePattern: undefined, source: PromptFileSource.ClaudeWorkspace, storage: PromptsStorage.local },
+		{ uri: URI.file('/home/dev/.agents/skills'), searchRoot: URI.file('/home/dev/.agents/skills'), filePattern: undefined, source: PromptFileSource.AgentsPersonal, storage: PromptsStorage.user },
+		{ uri: URI.file('/home/dev/.copilot/skills'), searchRoot: URI.file('/home/dev/.copilot/skills'), filePattern: undefined, source: PromptFileSource.CopilotPersonal, storage: PromptsStorage.user },
+		{ uri: URI.file('/home/dev/.claude/skills'), searchRoot: URI.file('/home/dev/.claude/skills'), filePattern: undefined, source: PromptFileSource.ClaudePersonal, storage: PromptsStorage.user },
+	];
 	return new class extends mock<IPromptsService>() {
 		override readonly onDidChangeCustomAgents = Event.None;
-		override readonly onDidChangeSlashCommands = Event.None;
-		override readonly onDidChangeSkills = Event.None;
+		override readonly onDidChangeSlashCommands = onDidChangeFiles;
+		override readonly onDidChangeSkills = onDidChangeFiles;
 		override readonly onDidChangeInstructions = Event.None;
+		override readonly onDidChangeAgentInstructions = Event.None;
 		override readonly onDidChangeHooks = Event.None;
 		override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
 		override getPromptLocationLabel() { return ''; }
@@ -183,6 +295,16 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 			}));
 		}
 		override async listAgentInstructions() { return agentInstructions; }
+		override async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, _token: CancellationToken) {
+			return files.filter(f => f.type === type && f.storage === storage).map(f => ({
+				uri: f.uri,
+				storage: f.storage as PromptsStorage.local,
+				type: f.type,
+				name: f.name,
+				description: f.description,
+				extension: toExtensionInfo(f) as never,
+			}));
+		}
 		override async getCustomAgents() {
 			return files.filter(f => f.type === PromptsType.agent).map(a => ({
 				uri: a.uri, name: a.name ?? 'agent', description: a.description, storage: a.storage,
@@ -200,6 +322,13 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 			return parser.parse(model.uri, model.getValue());
 		}
 		override async getSourceFolders() { return [] as never[]; }
+		override async getResolvedSourceFolders(type: PromptsType) {
+			if (type === PromptsType.skill) {
+				return skillSourceFolders;
+			}
+
+			return [];
+		}
 		override async getInstructionFiles() {
 			return files.filter(f => f.type === PromptsType.instructions).map(f => ({
 				uri: f.uri,
@@ -240,22 +369,22 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 	}();
 }
 
-function createMockHarnessService(activeHarnessId: string, descriptors: readonly IHarnessDescriptor[]): ICustomizationHarnessService {
-	const active = observableValue<string>('activeHarness', activeHarnessId);
+function createMockHarnessService(sessionResource: URI, descriptors: readonly IHarnessDescriptor[]): ICustomizationHarnessService {
+	const activeSessionResource = observableValue<URI>('activeSessionResource', sessionResource);
+	const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 	return new class extends mock<ICustomizationHarnessService>() {
-		override readonly activeHarness = active;
+		override readonly activeSessionResource = activeSessionResource;
+		override readonly activeHarness = activeHarness;
 		override readonly availableHarnesses = constObservable(descriptors);
 		override findHarnessById(id: string) {
 			return descriptors.find(h => h.id === id);
 		}
-		override getStorageSourceFilter(type: PromptsType) {
-			const d = descriptors.find(h => h.id === active.get()) ?? descriptors[0];
-			return d.getStorageSourceFilter(type);
-		}
 		override getActiveDescriptor() {
-			return descriptors.find(h => h.id === active.get()) ?? descriptors[0];
+			return descriptors.find(h => h.id === activeHarness.get()) ?? descriptors[0];
 		}
-		override setActiveHarness(id: string) { active.set(id, undefined); }
+		override setActiveSession(sessionResource: URI) {
+			activeSessionResource.set(sessionResource, undefined);
+		}
 		override registerExternalHarness() { return { dispose() { } }; }
 	}();
 }
@@ -279,6 +408,10 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
+		override readonly onDidAddFeedback = Event.None;
+		override readonly onDidConvertFeedback = Event.None;
+		override readonly onDidAddReply = Event.None;
+		override readonly onDidSubmitFeedback = Event.None;
 		override getFeedback() { return []; }
 		override getMostRecentSessionForResource() { return undefined; }
 		override async revealFeedback(): Promise<void> { }
@@ -414,11 +547,20 @@ const mcpUserServers = [
 	makeLocalMcpServer('mcp-puppeteer', 'Puppeteer', LocalMcpServerScope.User, 'Browser automation'),
 ];
 const mcpRuntimeServers = [
-	{ definition: { id: 'github-copilot-mcp', label: 'GitHub Copilot' }, collection: { id: 'ext.github.copilot/mcp', label: 'ext.github.copilot/mcp' }, enablement: constObservable(2), connectionState: constObservable({ state: 2 }) },
+	{ definition: { id: 'github-copilot-mcp', label: 'GitHub Copilot' }, collection: { id: 'ext.github.copilot/mcp', label: 'ext.github.copilot/mcp' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Starting }), showOutput() { } },
+	{ definition: { id: 'mcp-postgres', label: 'PostgreSQL' }, collection: { id: 'workspace-mcp', label: 'Workspace MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Error }), showOutput() { } },
+	{ definition: { id: 'mcp-web-search', label: 'Web Search' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.DisabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), showOutput() { } },
+	{ definition: { id: 'mcp-filesystem', label: 'Filesystem' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), showOutput() { } },
+];
+
+const activeSessionMcpServers: FixtureAgentHostMcpServer[] = [
+	{ id: 'mcp-top-level:fixture:session:component-explorer', name: 'component-explorer', enabled: true, status: McpServerStatus.Ready, state: { kind: McpServerStatus.Ready }, logOutputChannelId: 'fixture-agent-host', start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
+	{ id: 'mcp-top-level:fixture:session:Remote Browser', name: 'Remote Browser', enabled: true, status: McpServerStatus.AuthRequired, state: { kind: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com' } }, logOutputChannelId: 'fixture-agent-host', start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
+	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Fixture error' } }, logOutputChannelId: 'fixture-agent-host', start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
 ];
 
 interface IRenderEditorOptions {
-	readonly harnessId: string;
+	readonly sessionResource: URI;
 	readonly isSessionsWindow?: boolean;
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
@@ -427,67 +569,12 @@ interface IRenderEditorOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly skillUIIntegrations?: ReadonlyMap<string, string>;
+	readonly activeSessionMcpServers?: readonly FixtureAgentHostMcpServer[];
 	/** When true, simulates clicking the first list row to enter the embedded editor / detail view. */
 	readonly openFirstItem?: boolean;
 	readonly openItemLabel?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
-}
-
-async function waitForAnimationFrames(count: number): Promise<void> {
-	for (let i = 0; i < count; i++) {
-		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
-	}
-}
-
-function getVisibleEditorSignature(container: HTMLElement): string {
-	const sectionCounts = [...container.querySelectorAll('.section-list-item')].map(item => item.textContent?.replace(/\s+/g, ' ').trim() ?? '').join('|');
-	const visibleContent = [...container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
-		.find(node => node instanceof HTMLElement && node.style.display !== 'none');
-	const visibleRows = visibleContent
-		? [...visibleContent.querySelectorAll('.monaco-list-row')].map(row => row.textContent?.replace(/\s+/g, ' ').trim() ?? '').join('|')
-		: '';
-
-	return `${sectionCounts}@@${visibleRows}`;
-}
-
-async function waitForEditorToSettle(container: HTMLElement): Promise<void> {
-	let previousSignature = '';
-	let stableIterations = 0;
-
-	await new Promise(resolve => setTimeout(resolve, 150));
-
-	for (let i = 0; i < 20; i++) {
-		await waitForAnimationFrames(2);
-		await new Promise(resolve => setTimeout(resolve, 25));
-
-		const signature = getVisibleEditorSignature(container);
-		if (signature && signature === previousSignature) {
-			stableIterations++;
-			if (stableIterations >= 2) {
-				return;
-			}
-		} else {
-			stableIterations = 0;
-			previousSignature = signature;
-		}
-	}
-}
-
-async function waitForVisibleScrollbarsToFade(container: HTMLElement): Promise<void> {
-	const deadline = Date.now() + 4000;
-
-	while (Date.now() < deadline) {
-		const hasVisibleScrollbar = [...container.querySelectorAll<HTMLElement>('.scrollbar.vertical')].some(scrollbar => {
-			const style = mainWindow.getComputedStyle(scrollbar);
-			return scrollbar.classList.contains('visible') && style.opacity !== '0';
-		});
-
-		if (!hasVisibleScrollbar) {
-			return;
-		}
-
-		await new Promise(resolve => setTimeout(resolve, 100));
-	}
+	readonly showPromptMigrationPage?: boolean;
 }
 
 function renderFixtureMarkdown(markdown: string): HTMLElement {
@@ -561,12 +648,22 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		AICustomizationManagementSection.Plugins,
 	];
 	const availableHarnesses = options.availableHarnesses ?? [
-		createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]),
-		createCliHarnessDescriptor(getCliUserRoots(userHome), []),
+		createVSCodeHarnessDescriptor(),
+		{
+			id: 'agent-host-copilotcli',
+			label: 'Copilot [Agent Host]',
+			icon: ThemeIcon.fromId(Codicon.server.id),
+			hiddenSections: [AICustomizationManagementSection.Prompts],
+			hideGenerateButton: true,
+			itemProvider: createFixtureAgentHostItemProvider(allFiles),
+		},
 	];
 
 	const allMcpServers = [...mcpWorkspaceServers, ...mcpUserServers];
-	const fileContents = createFixtureContentMap(allFiles, agentInstructions);
+	const fixtureFiles = allFiles.map(file => ({ ...file }));
+	const fileContents = createFixtureContentMap(fixtureFiles, agentInstructions);
+	const promptFilesDidChangeEmitter = ctx.disposableStore.add(new Emitter<void>());
+	const createdFolders = new ResourceSet();
 
 	// Holds a lazy reference to the model service so the ITextModelService mock
 	// (registered below) can create real ITextModel instances on demand. The
@@ -580,10 +677,18 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
-			const harnessService = createMockHarnessService(options.harnessId, availableHarnesses);
+			const harnessService = createMockHarnessService(options.sessionResource, availableHarnesses);
 			const agentFeedbackService = createMockAgentFeedbackService();
 			const codeReviewService = createMockCodeReviewService();
 			registerWorkbenchServices(reg);
+			// Enable the structured customization preview setting so the
+			// editor exercises the preview-first behavior in fixtures.
+			// Also enable prompt migration so migration affordances render in
+			// screenshot fixtures that depend on agent-host harnesses.
+			reg.defineInstance(IConfigurationService, new TestConfigurationService({
+				[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
+				[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			}));
 			reg.define(IListService, ListService);
 			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
 				declare readonly _serviceBrand: undefined;
@@ -624,7 +729,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				}();
 				override getSession() { return undefined; }
 			}());
-			reg.defineInstance(IPromptsService, createMockPromptsService(allFiles, agentInstructions, fileContents));
+			reg.defineInstance(IPromptsService, createMockPromptsService(fixtureFiles, agentInstructions, fileContents, promptFilesDidChangeEmitter.event));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
 				override readonly welcomePageFeatures = {
@@ -633,7 +738,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
-				override getStorageSourceFilter(type: PromptsType) { return harnessService.getStorageSourceFilter(type); }
 				override clearOverrideProjectRoot() { }
 				override setOverrideProjectRoot() { }
 				override readonly managementSections = managementSections;
@@ -641,6 +745,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override getSkillUIIntegrations() { return skillUIIntegrations; }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, harnessService);
+			reg.defineInstance(IAgentHostCustomizationService, createMockAgentHostCustomizationService(options.activeSessionMcpServers));
 			// AICustomizationItemsModel is the single source of truth for items
 			// in the editor. Register the real implementation — it will resolve
 			// items via the mock prompts service / harness service above.
@@ -658,6 +763,41 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;
+				override async exists(resource: URI) {
+					return fileContents.has(resource) || createdFolders.has(resource);
+				}
+				override async readFile(resource: URI) {
+					const value = fileContents.get(resource) ?? '';
+					return createFixtureFileContentStat(resource, value);
+				}
+				override async createFolder(resource: URI) {
+					createdFolders.add(resource);
+					return createFixtureFileStat(resource, 0, true);
+				}
+				override async writeFile(resource: URI, buffer: VSBuffer) {
+					fileContents.set(resource, buffer.toString());
+					createdFolders.add(dirnameUri(resource));
+					if (resource.path.endsWith('/SKILL.md') && !fixtureFiles.some(file => file.uri.toString() === resource.toString())) {
+						const skillName = resource.path.split('/').at(-2) ?? 'migrated-skill';
+						fixtureFiles.push({
+							uri: resource,
+							storage: resource.path.startsWith('/workspace/') ? PromptsStorage.local : PromptsStorage.user,
+							type: PromptsType.skill,
+							name: skillName,
+							description: `Migrated from prompt ${skillName}`,
+						});
+					}
+					promptFilesDidChangeEmitter.fire();
+					return createFixtureFileStat(resource, buffer.byteLength, false);
+				}
+				override async del(resource: URI) {
+					fileContents.delete(resource);
+					const fileIndex = fixtureFiles.findIndex(file => file.uri.toString() === resource.toString());
+					if (fileIndex >= 0) {
+						fixtureFiles.splice(fileIndex, 1);
+					}
+					promptFilesDidChangeEmitter.fire();
+				}
 			}());
 			reg.defineInstance(IPathService, new class extends mock<IPathService>() {
 				override readonly defaultUriScheme = 'file';
@@ -702,6 +842,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
 			reg.defineInstance(IViewsService, new class extends mock<IViewsService>() {
 				override async openView<T extends {}>(_id: string, _focus?: boolean) { return null as T | null; }
+			}());
+			reg.defineInstance(IOutputService, new class extends mock<IOutputService>() {
+				override async showChannel() { }
 			}());
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 				override get lastFocusedWidget() { return undefined; }
@@ -754,7 +897,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	languageServiceRef.value = instantiationService.get(ILanguageService);
 	for (const [uri, content] of fileContents) {
 		if (!modelServiceRef.value.getModel(uri)) {
-			modelServiceRef.value.createModel(content, null, uri, false);
+			const model = modelServiceRef.value.createModel(content, null, uri, false);
+			ctx.disposableStore.add({ dispose: () => model.dispose() });
 		}
 	}
 
@@ -764,19 +908,19 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	editor.create(ctx.container);
 	editor.layout(new Dimension(width, height));
 
-	await editor.setInput(AICustomizationManagementEditorInput.getOrCreate(), undefined, {}, CancellationToken.None);
+	const editorInput = ctx.disposableStore.add(AICustomizationManagementEditorInput.getOrCreate());
+	await editor.setInput(editorInput, undefined, {}, CancellationToken.None);
 
 	if (options.selectedSection) {
 		editor.selectSectionById(options.selectedSection);
 	}
 
-	await waitForEditorToSettle(ctx.container);
-
 	if (options.scrollToBottom) {
 		editor.revealLastItem();
-		await waitForAnimationFrames(2);
-		await new Promise(resolve => setTimeout(resolve, 2400));
-		await waitForVisibleScrollbarsToFade(ctx.container);
+	}
+
+	if (options.showPromptMigrationPage) {
+		editor.showPromptMigrationPage();
 	}
 
 	if (options.openFirstItem) {
@@ -791,15 +935,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
 			rowToOpen.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
 			rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
-			// Allow any async setInput to settle.
-			await waitForAnimationFrames(2);
-			await new Promise(resolve => setTimeout(resolve, 250));
 
 			if (options.editorDisplayMode === 'raw') {
 				const modeButton = ctx.container.querySelector('.editor-mode-button') as HTMLButtonElement | undefined;
 				modeButton?.click();
-				await waitForAnimationFrames(2);
-				await new Promise(resolve => setTimeout(resolve, 100));
 			}
 		}
 	}
@@ -882,14 +1021,16 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
-				override getStorageSourceFilter() {
-					return { sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin] };
-				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
-				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
+				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
+				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
+				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
+			}());
+			reg.defineInstance(IAgentHostCustomizationService, createMockAgentHostCustomizationService());
+			reg.defineInstance(IOutputService, new class extends mock<IOutputService>() {
+				override async showChannel() { }
 			}());
 		},
 	});
@@ -915,6 +1056,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 function makeInstalledPlugin(name: string, uri: URI, enabled: boolean): IAgentPlugin {
 	return new class extends mock<IAgentPlugin>() {
 		override readonly uri = uri;
+		override readonly format = PluginFormat.Copilot;
 		override readonly label = name;
 		override readonly enablement = constObservable(enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile);
 		override readonly hooks = constObservable([]);
@@ -995,8 +1137,9 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
-				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
+				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
+				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
+				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
@@ -1014,6 +1157,7 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 					return repo ? (pluginInstallUris.get(repo) ?? URI.file('/dev/null')) : URI.file('/dev/null');
 				}
 			}());
+			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
 
@@ -1098,14 +1242,16 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
-				override getStorageSourceFilter() {
-					return { sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin] };
-				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
-				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
+				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
+				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
+				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
+			}());
+			reg.defineInstance(IAgentHostCustomizationService, createMockAgentHostCustomizationService());
+			reg.defineInstance(IOutputService, new class extends mock<IOutputService>() {
+				override async showChannel() { }
 			}());
 		},
 	});
@@ -1128,8 +1274,9 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 			reg.define(IListService, ListService);
 			reg.defineInstance(IConfigurationService, createDisabledConfigService(ChatConfiguration.PluginsEnabled, false, byPolicy));
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue<string>('activeHarness', SessionType.Local);
-				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
+				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
+				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
+				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
@@ -1142,6 +1289,7 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 				override async fetchMarketplacePlugins() { return []; }
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
+			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
 
@@ -1244,26 +1392,33 @@ function makeMarketplacePluginItem(name: string, description: string): IAgentPlu
 // Fixtures
 // ============================================================================
 
+const localSessionResource = LocalChatSessionUri.getNewSessionUri();
+const agentHostCopilotSessionResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/fixture-session' });
+
 export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
+
+
 
 	// Welcome page — default state with no section selected
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, { harnessId: SessionType.Local }),
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource }),
 	}),
 
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
 	// Generate buttons, AGENTS.md shortcut, all storage groups
 	LocalHarness: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, { harnessId: SessionType.Local, selectedSection: AICustomizationManagementSection.Agents }),
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, selectedSection: AICustomizationManagementSection.Agents }),
 	}),
 
-	// Full editor with Copilot CLI harness — no prompts section, CLI-specific
-	// root files and instruction filtering under .github/.copilot paths.
-	CliHarness: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, { harnessId: SessionType.CopilotCLI, selectedSection: AICustomizationManagementSection.Agents }),
+	// Agent-host welcome page variant that highlights local prompt files which
+	// need to be migrated because the active harness only consumes skills.
+	AgentHostPromptMigration: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+		}),
 	}),
 
 	// Sessions-window variant of the full editor with workspace override UX
@@ -1271,11 +1426,11 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	Sessions: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.CopilotCLI,
+			sessionResource: localSessionResource,
 			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.Agents,
 			availableHarnesses: [
-				createCliHarnessDescriptor(getCliUserRoots(userHome), [BUILTIN_STORAGE]),
+				createVSCodeHarnessDescriptor(),
 			],
 			managementSections: [
 				AICustomizationManagementSection.Agents,
@@ -1293,11 +1448,11 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	SessionsSkillsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.CopilotCLI,
+			sessionResource: localSessionResource,
 			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.Skills,
 			availableHarnesses: [
-				createCliHarnessDescriptor(getCliUserRoots(userHome), [BUILTIN_STORAGE]),
+				createVSCodeHarnessDescriptor(),
 			],
 			managementSections: [
 				AICustomizationManagementSection.Agents,
@@ -1319,8 +1474,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
+		}),
+	}),
+
+	McpServersTabActiveSession: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			activeSessionMcpServers,
 		}),
 	}),
 
@@ -1328,7 +1493,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	AgentsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
 		}),
 	}),
@@ -1337,7 +1502,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	SkillsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
 		}),
 	}),
@@ -1346,7 +1511,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	InstructionsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Instructions,
 		}),
 	}),
@@ -1355,7 +1520,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	HooksTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Hooks,
 		}),
 	}),
@@ -1364,8 +1529,16 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PromptsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,
+		}),
+	}),
+
+	PromptMigration: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			showPromptMigrationPage: true,
 		}),
 	}),
 
@@ -1373,7 +1546,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 		}),
 	}),
@@ -1419,7 +1592,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PromptsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,
 			scrollToBottom: true,
 		}),
@@ -1428,7 +1601,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			scrollToBottom: true,
 		}),
@@ -1437,7 +1610,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			scrollToBottom: true,
 		}),
@@ -1447,7 +1620,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			width: 550,
 			height: 400,
@@ -1457,7 +1630,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	AgentsTabNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
 			width: 550,
 			height: 400,
@@ -1469,7 +1642,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	AgentsItemPreview: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
 			openFirstItem: true,
 		}),
@@ -1479,7 +1652,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	AgentsItemRaw: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Agents,
 			openFirstItem: true,
 			editorDisplayMode: 'raw',
@@ -1491,7 +1664,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	BuiltinSkillItemPreview: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
 			openFirstItem: true,
 			openItemLabel: 'act-on-feedback',
@@ -1502,7 +1675,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	BuiltinSkillItemRaw: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
 			openFirstItem: true,
 			openItemLabel: 'act-on-feedback',
@@ -1514,7 +1687,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServerDetail: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			openFirstItem: true,
 		}),
@@ -1525,7 +1698,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServerDetailNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			openFirstItem: true,
 			width: 550,
@@ -1537,7 +1710,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginDetail: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			openFirstItem: true,
 		}),
@@ -1546,7 +1719,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginDetailNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
-			harnessId: SessionType.Local,
+			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			openFirstItem: true,
 			width: 550,

@@ -1,0 +1,46 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run the shell command: echo "hello from test"'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: Bash
+          input:
+            command: echo "hello from test"
+            description: Echo a test string
+      stopReason: tool_use
+      usage:
+        inputTokens: 2426
+        outputTokens: 104
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run the shell command: echo "hello from test"'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Bash
+              input:
+                command: echo "hello from test"
+                description: Echo a test string
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: hello from test
+    response:
+      content: 'Done. Output: `hello from test`'
+      stopReason: end_turn
+      usage:
+        inputTokens: 2
+        outputTokens: 14

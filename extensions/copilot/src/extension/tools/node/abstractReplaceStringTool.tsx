@@ -459,7 +459,7 @@ export abstract class AbstractReplaceStringTool<T extends { explanation: string 
 						newString,
 					},
 					eol,
-					await this.endpointProvider.getChatEndpoint('copilot-fast'),
+					await this.endpointProvider.getChatEndpoint('copilot-utility-small'),
 					token
 				);
 				if (healed.params.oldString === healed.params.newString) {
@@ -585,7 +585,9 @@ export abstract class AbstractReplaceStringTool<T extends { explanation: string 
 			allUris,
 			this._promptContext?.allowedEditUris,
 			(urisNeedingConfirmation) => this.generateConfirmationDetails(replaceInputs, urisNeedingConfirmation, options, token),
-			options.forceConfirmationReason
+			options.forceConfirmationReason,
+			undefined,
+			options.workingDirectory,
 		);
 	}
 

@@ -10,18 +10,18 @@ import { TokenizerType } from '../../../../util/common/tokenizer';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
-import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { ILogService } from '../../../log/common/logService';
 import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
-import { openAIContextManagementCompactionType, OpenAIContextManagementResponse } from '../../../networking/common/openai';
+import { ChatCompletion, FilterReason, FinishedCompletionReason, openAIContextManagementCompactionType, OpenAIContextManagementResponse } from '../../../networking/common/openai';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { IChatWebSocketManager, NullChatWebSocketManager } from '../../../networking/node/chatWebSocketManager';
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { createFakeStreamResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
-import { CustomDataPartMimeTypes } from '../../common/endpointTypes';
+import type { ThinkingData } from '../../../thinking/common/thinking';
+import { CacheType, CustomDataPartMimeTypes } from '../../common/endpointTypes';
 import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging } from '../responsesApi';
 
 const testEndpoint: IChatEndpoint = {
@@ -98,6 +98,17 @@ const createCompactionAssistantMessage = (compaction: OpenAIContextManagementRes
 			compaction,
 		}
 	}]
+});
+
+const createThinkingAssistantMessage = (thinking: ThinkingData): Raw.ChatMessage => ({
+	role: Raw.ChatRole.Assistant,
+	content: [
+		{
+			type: Raw.ChatCompletionContentPartKind.Opaque,
+			value: { type: CustomDataPartMimeTypes.ThinkingData, thinking },
+		},
+		{ type: Raw.ChatCompletionContentPartKind.Text, text: 'answer' },
+	],
 });
 
 type ResponseFunctionCallInputItem = OpenAI.Responses.ResponseInputItem & {
@@ -367,6 +378,102 @@ describe('createResponsesRequestBody', () => {
 		})).toBe(1234);
 	});
 
+	it('round-trips a genuine Responses reasoning item (id begins with "rs")', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages = [createThinkingAssistantMessage({ id: 'rs_abc123', text: 'reasoning', encrypted: 'enc_blob' })];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input).toContainEqual({ type: 'reasoning', id: 'rs_abc123', summary: [], encrypted_content: 'enc_blob' });
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('drops foreign thinking (Messages API "thinking_N" id) so it cannot 400 the Responses request', () => {
+		// Reproduces "400 invalid_request_body: Invalid 'input[N].id': 'thinking_0'. Expected an
+		// ID that begins with 'rs'." Anthropic Messages-API thinking leaks into a Responses
+		// request (e.g. via the vscode.lm path); its id and encrypted payload are foreign and
+		// must not be round-tripped.
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages = [createThinkingAssistantMessage({ id: 'thinking_0', text: '', encrypted: 'sig_from_anthropic' })];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input?.some(item => item.type === 'reasoning')).toBe(false);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('converts PDF document content parts to Responses input_file', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = { ...testEndpoint, family: 'gpt-5.4', supportsVision: true };
+		const base64Data = 'JVBERi0xLjQKMSAwIG9iago8PC9UeXBlIC9DYXRhbG9n';
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [{
+				type: Raw.ChatCompletionContentPartKind.Document,
+				documentData: { data: base64Data, mediaType: 'application/pdf' },
+			}],
+		}];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
+
+		expect(body.input?.[0]).toMatchObject({
+			type: 'message',
+			role: 'user',
+			content: [{
+				type: 'input_file',
+				filename: 'document.pdf',
+				file_data: `data:application/pdf;base64,${base64Data}`,
+			}],
+		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('preserves PDF document tool results as Responses input_file follow-up content', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const base64Data = 'JVBERi0xLjQK';
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_pdf', type: 'function', function: { name: 'read_file', arguments: '{"path":"doc.pdf"}' } }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_pdf',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Document, documentData: { data: base64Data, mediaType: 'application/pdf' } }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input?.[1]).toMatchObject({ type: 'function_call_output', call_id: 'call_pdf', output: '' });
+		expect(body.input?.[2]).toMatchObject({
+			type: 'message',
+			role: 'user',
+			content: [
+				{ type: 'input_text', text: 'PDF associated with the above tool call:' },
+				{ type: 'input_file', filename: 'document.pdf', file_data: `data:application/pdf;base64,${base64Data}` },
+			],
+		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+
 	it('still slices websocket requests by stateful marker index when compaction is disabled', () => {
 		const services = createPlatformServices();
 		const wsManager = new NullChatWebSocketManager();
@@ -430,6 +537,7 @@ describe('createResponsesRequestBody', () => {
 			encrypted_content: 'enc_ws',
 		});
 		expect(webSocketBody.input).toContainEqual({
+			type: 'message',
 			role: 'user',
 			content: [{ type: 'input_text', text: 'after marker' }],
 		});
@@ -654,6 +762,7 @@ describe('createResponsesRequestBody', () => {
 			encrypted_content: 'enc_http',
 		});
 		expect(body.input).toContainEqual({
+			type: 'message',
 			role: 'user',
 			content: [{ type: 'input_text', text: 'after marker' }],
 		});
@@ -773,9 +882,7 @@ describe('createResponsesRequestBody', () => {
 		services.define(IToolDeferralService, { _serviceBrand: undefined, isNonDeferredTool: (name: string) => name === 'read_file' || name === 'tool_search' });
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
-		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
-		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
-		const endpoint = { ...testEndpoint, model: 'gpt-5.4', family: 'gpt-5.4' };
+		const endpoint = { ...testEndpoint, model: 'gpt-5.4', family: 'gpt-5.4', supportsToolSearch: true };
 		const tools = [
 			{ type: 'function' as const, function: { name: 'tool_search', description: 'Search tools', parameters: {} } },
 			{ type: 'function' as const, function: { name: 'some_mcp_tool', description: 'MCP tool', parameters: {} } },
@@ -825,6 +932,225 @@ describe('createResponsesRequestBody', () => {
 
 		accessor.dispose();
 		services.dispose();
+	});
+});
+
+describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
+	const expectedPromptCacheBreakpoint = { mode: 'explicit' };
+	const cacheBreakpointEndpoint: IChatEndpoint = { ...testEndpoint, family: 'gpt-5.6-sol' };
+
+	const cacheBreakpoint = (): Raw.ChatCompletionContentPart => ({
+		type: Raw.ChatCompletionContentPartKind.CacheBreakpoint,
+		cacheType: CacheType,
+	});
+
+	const buildBody = (messages: Raw.ChatMessage[], endpoint = cacheBreakpointEndpoint, enablePromptCacheBreakpoint = true) => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		if (enablePromptCacheBreakpoint) {
+			accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, true);
+		}
+		const instantiationService = accessor.get(IInstantiationService);
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
+		accessor.dispose();
+		services.dispose();
+		return body;
+	};
+
+	it('does not attach prompt_cache_breakpoint by default when the experiment flag is disabled', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages, cacheBreakpointEndpoint, false);
+
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
+	});
+
+	it('attaches prompt_cache_breakpoint to the last content block of a user message', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'first' },
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'second' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.[0]).toMatchObject({
+			type: 'message',
+			role: 'user',
+			content: [
+				{ type: 'input_text', text: 'first' },
+				{ type: 'input_text', text: 'second', prompt_cache_breakpoint: expectedPromptCacheBreakpoint },
+			],
+		});
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
+	});
+
+	it('attaches prompt_cache_breakpoint to the last content block of a system message', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.System,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'be concise' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.[0]).toMatchObject({
+			type: 'message',
+			role: 'system',
+			content: [{ type: 'input_text', text: 'be concise', prompt_cache_breakpoint: expectedPromptCacheBreakpoint }],
+		});
+	});
+
+	it('attaches prompt_cache_breakpoint to the last output_text of a terminal assistant message', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.Assistant,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'final answer' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.[0]).toMatchObject({
+			role: 'assistant',
+			type: 'message',
+			content: [{ type: 'output_text', text: 'final answer', prompt_cache_breakpoint: expectedPromptCacheBreakpoint }],
+		});
+	});
+
+	it('attaches prompt_cache_breakpoint at item level to a tool result (function_call_output)', () => {
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{}' } }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_1',
+				content: [
+					{ type: Raw.ChatCompletionContentPartKind.Text, text: 'result' },
+					cacheBreakpoint(),
+				],
+			},
+		];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.[1]).toMatchObject({
+			type: 'function_call_output',
+			call_id: 'call_1',
+			output: 'result',
+			prompt_cache_breakpoint: expectedPromptCacheBreakpoint,
+		});
+	});
+
+	it('attaches prompt_cache_breakpoint at item level to the last function_call when the assistant has tool calls', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.Assistant,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'calling' },
+				cacheBreakpoint(),
+			],
+			toolCalls: [
+				{ id: 'call_a', type: 'function', function: { name: 'tool_a', arguments: '{}' } },
+				{ id: 'call_b', type: 'function', function: { name: 'tool_b', arguments: '{}' } },
+			],
+		}];
+
+		const body = buildBody(messages);
+		const input = body.input as OpenAI.Responses.ResponseInputItem[];
+
+		const lastCall = input.find(item => isFunctionCallInputItem(item, 'tool_b'));
+		expect(lastCall).toMatchObject({ prompt_cache_breakpoint: expectedPromptCacheBreakpoint });
+
+		const firstCall = input.find(item => isFunctionCallInputItem(item, 'tool_a'));
+		expect(firstCall).not.toHaveProperty('prompt_cache_breakpoint');
+
+		const messageItem = input.find(item => (item as { type?: string }).type === 'message');
+		expect((messageItem as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
+	});
+
+	it('attaches prompt_cache_breakpoint to the trailing image item of a tool result with images', () => {
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_img', type: 'function', function: { name: 'screenshot', arguments: '{}' } }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_img',
+				content: [
+					{ type: Raw.ChatCompletionContentPartKind.Text, text: 'see image' },
+					{ type: Raw.ChatCompletionContentPartKind.Image, imageUrl: { url: 'data:image/png;base64,abc', detail: 'auto' } },
+					cacheBreakpoint(),
+				],
+			},
+		];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.at(-1)).toMatchObject({
+			type: 'message',
+			role: 'user',
+			content: [
+				{ type: 'input_text', text: 'Image associated with the above tool call:' },
+				{ type: 'input_image', prompt_cache_breakpoint: expectedPromptCacheBreakpoint },
+			],
+		});
+		expect(body.input?.[1]).not.toHaveProperty('prompt_cache_breakpoint');
+	});
+
+	it('does not synthesize a whitespace text block when the marked message has no other content', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [cacheBreakpoint()],
+		}];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.[0]).toMatchObject({
+			role: 'user',
+			content: [],
+		});
+	});
+
+	it('does not attach prompt_cache_breakpoint when the message has no breakpoint', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }],
+		}];
+
+		const body = buildBody(messages);
+
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
+	});
+
+	it('does not attach prompt_cache_breakpoint when the model does not support cache breakpoints', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages, testEndpoint);
+
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 });
 
@@ -1492,5 +1818,133 @@ describe('phase commentary followed by phase final_answer', () => {
 
 		accessor.dispose();
 		services.dispose();
+	});
+});
+
+describe('processResponseFromChatEndpoint terminal events', () => {
+	async function runStream(sseBody: string) {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const logService = accessor.get(ILogService);
+		const telemetryService = new SpyingTelemetryService();
+		const telemetryData = TelemetryData.createAndMarkAsIssued({ modelCallId: 'model-call-terminal' }, {});
+		const response = createFakeStreamResponse(sseBody);
+		const stream = await processResponseFromChatEndpoint(
+			instantiationService,
+			telemetryService,
+			logService,
+			response,
+			1,
+			async () => undefined,
+			telemetryData
+		);
+		const completions: ChatCompletion[] = [];
+		for await (const completion of stream) {
+			completions.push(completion);
+		}
+		accessor.dispose();
+		services.dispose();
+		return completions;
+	}
+
+	it('maps response.incomplete with reason=content_filter to ContentFilter + Copyright', async () => {
+		const incompleteEvent = {
+			type: 'response.incomplete',
+			response: {
+				id: 'resp_blocked',
+				model: 'gpt-5-mini',
+				created_at: 123,
+				incomplete_details: { reason: 'content_filter' },
+				content_filters: [
+					{ source_type: 'prompt', blocked: false },
+					{
+						source_type: 'completion',
+						blocked: true,
+						content_filter_raw: [
+							{ action: 'ANNOTATE', label: 'MultiSeverity_Sexual', result: { '0': 1 } },
+							{ action: 'BLOCK', label: 'TextCopyright', result: true },
+						],
+					},
+				],
+				output: [
+					{ type: 'message', content: [{ type: 'output_text', text: 'Got it — I\'ll do that now.' }] },
+				],
+			},
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(incompleteEvent)}\n\n`);
+
+		expect(completion).toBeDefined();
+		expect(completion.finishReason).toBe(FinishedCompletionReason.ContentFilter);
+		expect(completion.filterReason).toBe(FilterReason.Copyright);
+	});
+
+	it('maps response.incomplete with reason=max_output_tokens to Length', async () => {
+		const incompleteEvent = {
+			type: 'response.incomplete',
+			response: {
+				id: 'resp_length',
+				model: 'gpt-5-mini',
+				created_at: 123,
+				incomplete_details: { reason: 'max_output_tokens' },
+				output: [
+					{ type: 'message', content: [{ type: 'output_text', text: 'partial output' }] },
+				],
+			},
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(incompleteEvent)}\n\n`);
+
+		expect(completion).toBeDefined();
+		expect(completion.finishReason).toBe(FinishedCompletionReason.Length);
+		expect(completion.filterReason).toBeUndefined();
+	});
+
+	it('maps response.failed to ServerError', async () => {
+		const failedEvent = {
+			type: 'response.failed',
+			response: {
+				id: 'resp_failed',
+				model: 'gpt-5-mini',
+				created_at: 123,
+				error: { code: 'internal_error', message: 'something broke' },
+				output: [],
+			},
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(failedEvent)}\n\n`);
+
+		expect(completion).toBeDefined();
+		expect(completion.finishReason).toBe(FinishedCompletionReason.ServerError);
+		expect(completion.error).toEqual({
+			code: 0,
+			message: 'something broke',
+			metadata: { code: 'internal_error' },
+		});
+	});
+
+	it('maps a raw error stream event to a terminal ServerError completion', async () => {
+		// Root cause of #322209: a raw Responses API `error` stream event is only
+		// surfaced as a `copilotErrors` progress delta and never yields a terminal
+		// completion. With no completion, the downstream chat fetcher falls through
+		// to the generic `RESPONSE_CONTAINED_NO_CHOICES` ("Response contained no
+		// choices") instead of a meaningful server-error message.
+		const errorEvent = {
+			type: 'error',
+			code: 'server_error',
+			message: 'The server had an error while processing your request.',
+			param: null,
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(errorEvent)}\n\n`);
+
+		expect(completion).toBeDefined();
+		expect(completion.finishReason).toBe(FinishedCompletionReason.ServerError);
+		expect(completion.error).toEqual({
+			code: 0,
+			message: 'The server had an error while processing your request.',
+			metadata: { code: 'server_error' },
+		});
 	});
 });

@@ -14,13 +14,12 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { AbstractStorageService, isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTarget } from '../common/storage.js';
-import { ApplicationStorageMain, ApplicationSharedStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain, IStorageChangeEvent, HostApplicationStorageMain } from './storageMain.js';
+import { ApplicationStorageMain, ApplicationSharedStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain, IStorageChangeEvent } from './storageMain.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
 import { IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { Schemas } from '../../../base/common/network.js';
-import { ICrossAppIPCService } from '../../crossAppIpc/electron-main/crossAppIpcService.js';
 
 //#region Storage Main Service (intent: make application, profile and workspace storage accessible to windows from main process)
 
@@ -96,7 +95,6 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ICrossAppIPCService private readonly crossAppIPCService: ICrossAppIPCService,
 	) {
 		super();
 
@@ -204,29 +202,11 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		const sharedStorageFolderPath = join(this.environmentService.appSharedDataHome.with({ scheme: Schemas.file }).fsPath, 'sharedStorage');
 
-		// Determine the fallback storage for transparent migration of keys
-		// from APPLICATION to APPLICATION_SHARED scope:
-		// In VS Code: reuse the own application storage (keys are local)
-		let fallbackStorage: IStorageMain = this.applicationStorage;
-		const hostUserRoamingDataHome = this.environmentService.parentAppUserRoamingDataHome;
-		if (hostUserRoamingDataHome) {
-			// - In the Agents App: create a storage backed by the host (VS Code)
-			//   app's application DB so keys are found even if VS Code hasn't
-			//   migrated them to the shared DB yet.
-			//   We use ProfileStorageMain (not ApplicationStorageMain) to avoid
-			//   writing telemetry state into the host app's DB — this is read-only.
-			const hostApplicationStoragePath = join(hostUserRoamingDataHome.with({ scheme: Schemas.file }).fsPath, 'globalStorage', 'state.vscdb');
-			this.logService.info(`StorageMainService: creating application shared storage with host app fallback at '${hostApplicationStoragePath}'`);
-			fallbackStorage = this._register(new HostApplicationStorageMain(
-				hostApplicationStoragePath,
-				this.logService,
-				this.fileService
-			));
-		} else {
-			this.logService.info(`StorageMainService: creating application shared storage with local application storage fallback`);
-		}
-
-		const applicationSharedStorage = new ApplicationSharedStorageMain(this.getStorageOptions(), sharedStorageFolderPath, fallbackStorage, this.logService, this.fileService, this.crossAppIPCService);
+		// Use the local application storage as fallback for transparent migration
+		// of keys from APPLICATION to APPLICATION_SHARED scope. The agents window is
+		// now part of the same VS Code app, so there is no separate "host" app DB to
+		// fall back to.
+		const applicationSharedStorage = new ApplicationSharedStorageMain(this.getStorageOptions(), sharedStorageFolderPath, this.applicationStorage, this.logService, this.fileService);
 
 		this._register(Event.once(applicationSharedStorage.onDidCloseStorage)(() => {
 			this.logService.trace(`StorageMainService: closed application shared storage`);

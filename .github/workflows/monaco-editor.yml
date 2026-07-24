@@ -83,9 +83,9 @@ jobs:
         working-directory: ./typings-test
         run: |
           npm init -yp
-          ../node_modules/.bin/tsc --init
+          ../node_modules/.bin/tsc6 --init
           echo "import '../out-monaco-editor-core';" > a.ts
-          ../node_modules/.bin/tsc --noEmit
+          ../node_modules/.bin/tsc6 --noEmit
 
       - name: Package Editor with Webpack
         working-directory: ./test/monaco

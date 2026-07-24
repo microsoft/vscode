@@ -32,10 +32,10 @@ Implement as a single atomic PR on top of the Phase 1 commit.
 
 ## Step 0 — `package.json`
 
-**File:** `/package.json` line ~92 (after `@anthropic-ai/sandbox-runtime`)
+**File:** `/package.json` line ~92 (after `@vscode/sandbox-runtime`)
 
 ```diff
-  "@anthropic-ai/sandbox-runtime": "0.0.49",
+  "@vscode/sandbox-runtime": "0.0.1",
 + "@anthropic-ai/sdk": "^0.82.0",
 ```
 
@@ -566,7 +566,7 @@ suite('countTokens', () => {
 
 ```bash
 # TypeScript — must be zero errors
-npm run compile-check-ts-native
+npm run typecheck-client
 
 # Unit tests — all 95+ must pass
 scripts/test.sh --grep copilotApiService

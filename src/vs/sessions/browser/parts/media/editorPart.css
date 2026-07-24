@@ -3,7 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.agent-sessions-workbench .part.editor:not(.modal-editor-part) {
+/* Border for editor part in aux window */
+.agent-sessions-workbench > .part.editor:not(.modal-editor-part) {
+	border-top: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+}
+
+.agent-sessions-workbench .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	margin: 0 0 0 0;
 	background: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
@@ -16,14 +21,27 @@
 	overflow: hidden;
 }
 
-.agent-sessions-workbench.nosidebar.nochatbar .part.editor:not(.modal-editor-part) {
-	margin-left: 10px;
-}
-
 /* Editor Layout Actions Toolbar */
 
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
 	padding-right: 0;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom > .monaco-scrollable-element {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom > .editor-actions:has(.changes-actions-bar > .monaco-button-dropdown) {
+	flex: 0 999 auto;
+	min-width: 70px;
+	overflow: hidden;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom > .editor-actions:has(.changes-actions-bar > .monaco-button) {
+	flex: 0 999 auto;
+	min-width: 32px;
+	overflow: hidden;
 }
 
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions-separator {

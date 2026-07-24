@@ -43,6 +43,7 @@ export class MockPromptsService implements IPromptsService {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	getResolvedSourceFolders(_type: any): Promise<readonly any[]> { throw new Error('Not implemented'); }
 	isValidSlashCommandName(_command: string): boolean { return false; }
+	hasPromptSlashCommand(_name: string): boolean { return false; }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	resolvePromptSlashCommand(command: string, _sessionType: string | undefined, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,6 +69,7 @@ export class MockPromptsService implements IPromptsService {
 	getDiscoveryInfo(_type: PromptsType, _token: CancellationToken): Promise<IPromptDiscoveryInfo> { throw new Error('Method not implemented.'); }
 	dispose(): void { }
 	onDidChangeInstructions: Event<void> = Event.None;
+	onDidChangeAgentInstructions: Event<void> = Event.None;
 	onDidChangePromptFiles: Event<void> = Event.None;
 	onDidChangeSkills: Event<void> = Event.None;
 	onDidChangeHooks: Event<void> = Event.None;

@@ -6,29 +6,25 @@
 import '../../../browser/media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
 import * as DOM from '../../../../base/browser/dom.js';
-import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { CUSTOMIZATION_ITEMS } from './customizationsToolbar.contribution.js';
 import { Menus } from '../../../browser/menus.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
-import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-
 const $ = DOM.$;
-
-const CUSTOMIZATIONS_COLLAPSED_KEY = 'agentSessions.customizationsCollapsed';
+const CUSTOMIZATIONS_VERTICAL_PADDING = 6;
+const CUSTOMIZATIONS_COLLAPSED_STORAGE_KEY = 'agentSessions.customizationsShortcuts.collapsed';
 
 export interface IAICustomizationShortcutsWidgetOptions {
 	readonly onDidChangeLayout?: () => void;
@@ -36,112 +32,85 @@ export interface IAICustomizationShortcutsWidgetOptions {
 
 export class AICustomizationShortcutsWidget extends Disposable {
 
-	private _headerButton: Button | undefined;
+	private _renderDisposables = this._register(new DisposableStore());
+	private _wrapper: HTMLElement | undefined;
+	private _options: IAICustomizationShortcutsWidgetOptions | undefined;
+	private _scrollableElement: DomScrollableElement | undefined;
+	private _toolbar: MenuWorkbenchToolBar | undefined;
+	private _headerElement: HTMLElement | undefined;
+	private _headerTotalCountElement: HTMLElement | undefined;
+	private _chevronElement: HTMLElement | undefined;
+	private _toolbarContentElement: HTMLElement | undefined;
+	private _scrollableDomNode: HTMLElement | undefined;
+	private _rootVerticalPadding = 0;
+	private _headerTotalCount = 0;
+	private _collapsed = false;
+
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	readonly onDidChangeHeight = this._onDidChangeHeight.event;
+
+	private readonly _onDidToggleCollapsed = this._register(new Emitter<boolean>());
+	readonly onDidToggleCollapsed = this._onDidToggleCollapsed.event;
+
+	get collapsed(): boolean {
+		return this._collapsed;
+	}
+
+	get collapsedHeight(): number {
+		const headerHeight = this._headerElement?.offsetHeight ?? 30;
+		return this._rootVerticalPadding + headerHeight;
+	}
 
 	constructor(
 		container: HTMLElement,
 		options: IAICustomizationShortcutsWidgetOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
-		@IEditorService private readonly editorService: IEditorService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
-		this._render(container, options);
+		this._collapsed = this.storageService.getBoolean(CUSTOMIZATIONS_COLLAPSED_STORAGE_KEY, StorageScope.PROFILE, false);
+
+		// Stable wrapper appended once to the parent. Re-renders replace the
+		// wrapper's children only, so the widget keeps its position relative
+		// to sibling parts (e.g. the agent-host-toolbar below it). Without
+		// this, removing+re-appending the rendered root would move it to the
+		// end of the parent on every re-render, stacking adjacent border-tops.
+		this._wrapper = DOM.append(container, $('.ai-customization-shortcuts-widget'));
+		this._options = options;
+		this._renderForCurrentMode();
 	}
 
-	private _render(parent: HTMLElement, options: IAICustomizationShortcutsWidgetOptions | undefined): void {
-		// Get initial collapsed state
-		const isCollapsed = this.storageService.getBoolean(CUSTOMIZATIONS_COLLAPSED_KEY, StorageScope.PROFILE, false);
-
-		const container = DOM.append(parent, $('.ai-customization-toolbar'));
-		if (isCollapsed) {
-			container.classList.add('collapsed');
+	private _renderForCurrentMode(): void {
+		if (!this._wrapper) {
+			return;
 		}
+		this._renderDisposables.clear();
+		this._scrollableElement = undefined;
+		this._toolbar = undefined;
+		this._headerElement = undefined;
+		this._headerTotalCountElement = undefined;
+		this._chevronElement = undefined;
+		this._toolbarContentElement = undefined;
+		this._scrollableDomNode = undefined;
+		this._rootVerticalPadding = 0;
+		this._headerTotalCount = 0;
+		DOM.clearNode(this._wrapper);
+		this._render(this._wrapper, this._options);
+		this._setCollapsed(this._collapsed);
+	}
 
-		// Header
-		const header = DOM.append(container, $('.ai-customization-header'));
-		header.classList.toggle('collapsed', isCollapsed);
-
-		const headerButtonContainer = DOM.append(header, $('.customization-link-button-container'));
-		const headerButton = this._register(new Button(headerButtonContainer, {
-			...defaultButtonStyles,
-			secondary: true,
-			title: false,
-			supportIcons: true,
-			buttonSecondaryBackground: 'transparent',
-			buttonSecondaryHoverBackground: undefined,
-			buttonSecondaryForeground: undefined,
-			buttonSecondaryBorder: undefined,
-		}));
-		headerButton.element.classList.add('customization-link-button', 'sidebar-action-button');
-		headerButton.element.setAttribute('aria-expanded', String(!isCollapsed));
-		headerButton.label = localize('customizations', "Customizations");
-		this._headerButton = headerButton;
-
-		const headerActions = DOM.append(header, $('.ai-customization-header-actions'));
-		const openOverviewLabel = localize('openCustomizationsOverview', "Open Customizations Overview");
-		const openOverviewButton = this._register(new Button(headerActions, {
-			...defaultButtonStyles,
-			secondary: true,
-			title: openOverviewLabel,
-			ariaLabel: openOverviewLabel,
-			supportIcons: true,
-			buttonSecondaryBackground: 'transparent',
-			buttonSecondaryHoverBackground: undefined,
-			buttonSecondaryForeground: undefined,
-			buttonSecondaryBorder: undefined,
-		}));
-		openOverviewButton.element.classList.add('ai-customization-overview-button');
-		openOverviewButton.label = `$(${Codicon.home.id})`;
-		this._register(openOverviewButton.onDidClick(e => {
-			e?.preventDefault();
-			this._openWelcomePage();
-		}));
-
-		// Chevron at far right (outside the link button so it sits to the
-		// right of the home overview action). Clicking the chevron toggles
-		// collapse — same as clicking the header label.
-		const toggleCollapseLabel = localize('toggleCustomizationsCollapse', "Toggle Customizations Section");
-		const chevronContainer = DOM.append(header, $<HTMLButtonElement>('button.ai-customization-collapse-toggle'));
-		chevronContainer.type = 'button';
-		chevronContainer.setAttribute('aria-label', toggleCollapseLabel);
-		chevronContainer.title = toggleCollapseLabel;
-		const headerTotalCount = DOM.append(chevronContainer, $('span.ai-customization-header-total.hidden'));
-		const chevron = DOM.append(chevronContainer, $('.ai-customization-chevron'));
-		chevron.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
-
-		// Toolbar container
-		const toolbarContainer = DOM.append(container, $('.ai-customization-toolbar-content.sidebar-action-list'));
-
-		const toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SidebarCustomizations, {
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			toolbarOptions: { primaryGroup: () => true },
-			telemetrySource: 'sidebarCustomizations',
-		}));
-
-		// Re-layout when toolbar items change (e.g., Plugins item appearing after extension activation)
-		this._register(toolbar.onDidChangeMenuItems(() => {
-			options?.onDidChangeLayout?.();
-		}));
-
-		// Header total = sum of the same counts shown by each visible sidebar
-		// link (CUSTOMIZATION_ITEMS). This guarantees the header value equals
-		// the sum of the per-link badges by construction — and excludes
-		// sections like Prompts that the editor exposes but the sidebar does
-		// not surface, plus any sections the active harness hides via
-		// `hiddenSections` (e.g. Claude doesn't show Prompts; AHP doesn't
-		// show MCP Servers).
-		const totalCount = derived(reader => {
+	private _totalCount() {
+		return derived(reader => {
 			this.harnessService.activeHarness.read(reader);
 			this.harnessService.availableHarnesses.read(reader);
 			const hidden = new Set(this.harnessService.getActiveDescriptor().hiddenSections ?? []);
 			let total = 0;
 			for (const config of CUSTOMIZATION_ITEMS) {
-				if (hidden.has(config.section)) {
+				if (config.section && hidden.has(config.section)) {
 					continue;
 				}
 				if (config.modelSection) {
@@ -154,48 +123,136 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			}
 			return total;
 		});
-		this._register(autorun(reader => {
-			const value = totalCount.read(reader);
-			headerTotalCount.classList.toggle('hidden', value === 0);
-			headerTotalCount.textContent = `${value}`;
-		}));
-
-		// Toggle collapse on header click
-		const transitionListener = this._register(new MutableDisposable());
-		const toggleCollapse = () => {
-			const collapsed = container.classList.toggle('collapsed');
-			header.classList.toggle('collapsed', collapsed);
-			this.storageService.store(CUSTOMIZATIONS_COLLAPSED_KEY, collapsed, StorageScope.PROFILE, StorageTarget.USER);
-			headerButton.element.setAttribute('aria-expanded', String(!collapsed));
-			chevron.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chevronRight), ...ThemeIcon.asClassNameArray(Codicon.chevronDown));
-			chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
-
-			// Re-layout after the transition
-			transitionListener.value = DOM.addDisposableListener(toolbarContainer, 'transitionend', () => {
-				transitionListener.clear();
-				options?.onDidChangeLayout?.();
-			});
-		};
-
-		this._register(headerButton.onDidClick(() => toggleCollapse()));
-		this._register(Gesture.addTarget(chevronContainer));
-		for (const eventType of [DOM.EventType.CLICK, TouchEventType.Tap]) {
-			this._register(DOM.addDisposableListener(chevronContainer, eventType, e => {
-				DOM.EventHelper.stop(e, true);
-				toggleCollapse();
-			}));
-		}
 	}
 
-	private async _openWelcomePage(): Promise<void> {
-		const input = AICustomizationManagementEditorInput.getOrCreate();
-		const editor = await this.editorService.openEditor(input, { pinned: true });
-		if (editor instanceof AICustomizationManagementEditor) {
-			editor.showWelcomePage();
+	private _render(parent: HTMLElement, options: IAICustomizationShortcutsWidgetOptions | undefined): void {
+		const container = DOM.append(parent, $('.ai-customization-toolbar'));
+		this._setRootPadding(container, CUSTOMIZATIONS_VERTICAL_PADDING, CUSTOMIZATIONS_VERTICAL_PADDING);
+
+		// Header
+		const header = DOM.append(container, $('.ai-customization-header'));
+		this._headerElement = header;
+		header.setAttribute('role', 'button');
+		header.setAttribute('aria-expanded', 'true');
+		header.tabIndex = 0;
+
+		const headerLabel = DOM.append(header, $('span.ai-customization-header-label'));
+		headerLabel.textContent = localize('customizations', "Customizations");
+		this._headerTotalCountElement = DOM.append(header, $('span.ai-customization-header-total-count.hidden'));
+
+		this._chevronElement = DOM.append(header, $('span.ai-customization-chevron'));
+		this._chevronElement.setAttribute('aria-hidden', 'true');
+		this._updateChevron();
+
+		const totalCount = this._totalCount();
+		this._renderDisposables.add(autorun(reader => {
+			this._headerTotalCount = totalCount.read(reader);
+			this._renderHeaderTotalCount();
+		}));
+
+		this._renderDisposables.add(DOM.addDisposableListener(header, DOM.EventType.CLICK, () => this._toggleCollapsed()));
+		this._renderDisposables.add(DOM.addDisposableListener(header, DOM.EventType.KEY_DOWN, e => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				this._toggleCollapsed();
+			}
+		}));
+
+		// Toolbar container
+		const scrollContent = $('.ai-customization-toolbar-content-scrollable');
+		const toolbarContainer = DOM.append(scrollContent, $('.ai-customization-toolbar-content.sidebar-action-list'));
+		this._toolbarContentElement = toolbarContainer;
+		const scrollableElement = this._renderDisposables.add(new DomScrollableElement(scrollContent, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			useShadows: false,
+		}));
+		this._scrollableElement = scrollableElement;
+		this._scrollableDomNode = DOM.append(container, scrollableElement.getDomNode());
+
+		const toolbar = this._renderDisposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SidebarCustomizations, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			toolbarOptions: { primaryGroup: () => true },
+			telemetrySource: 'sidebarCustomizations',
+		}));
+		this._toolbar = toolbar;
+
+		// Re-layout when toolbar items change (e.g., Plugins item appearing after extension activation)
+		this._renderDisposables.add(toolbar.onDidChangeMenuItems(() => {
+			this._scrollableElement?.scanDomNode();
+			this._onDidChangeHeight.fire();
+			options?.onDidChangeLayout?.();
+		}));
+	}
+
+	get desiredHeight(): number {
+		const content = this._toolbarContentElement;
+		if (!content) {
+			return 0;
 		}
+		if (this._collapsed) {
+			return this.collapsedHeight;
+		}
+
+		const headerHeight = this._headerElement?.offsetHeight ?? 0;
+		const height = Math.ceil(this._rootVerticalPadding + headerHeight + content.scrollHeight);
+		return Number.isFinite(height) ? height : 0;
+	}
+
+	private _setRootPadding(element: HTMLElement, top: number, bottom: number): void {
+		element.style.padding = `${top}px 0 ${bottom}px 0`;
+		this._rootVerticalPadding = top + bottom;
+	}
+
+	private _toggleCollapsed(): void {
+		this._setCollapsed(!this._collapsed);
+		this.storageService.store(CUSTOMIZATIONS_COLLAPSED_STORAGE_KEY, this._collapsed, StorageScope.PROFILE, StorageTarget.USER);
+		this._onDidToggleCollapsed.fire(this._collapsed);
+		this._onDidChangeHeight.fire();
+	}
+
+	private _setCollapsed(collapsed: boolean): void {
+		if (collapsed && this._scrollableDomNode?.contains(DOM.getActiveElement())) {
+			this._headerElement?.focus();
+		}
+		this._collapsed = collapsed;
+		this._headerElement?.classList.toggle('collapsed', collapsed);
+		this._headerElement?.setAttribute('aria-expanded', String(!collapsed));
+		if (this._scrollableDomNode) {
+			this._scrollableDomNode.style.display = collapsed ? 'none' : '';
+		}
+		this._updateChevron();
+		this._renderHeaderTotalCount();
+	}
+
+	private _updateChevron(): void {
+		if (!this._chevronElement) {
+			return;
+		}
+		this._chevronElement.className = 'ai-customization-chevron';
+		this._chevronElement.classList.add(...ThemeIcon.asClassNameArray(this._collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+	}
+
+	private _renderHeaderTotalCount(): void {
+		if (!this._headerTotalCountElement) {
+			return;
+		}
+		this._headerTotalCountElement.textContent = this._headerTotalCount > 0 ? `${this._headerTotalCount}` : '';
+		this._headerTotalCountElement.classList.toggle('hidden', !this._collapsed || this._headerTotalCount === 0);
+	}
+
+	layout(_height: number, _width: number): void {
+		if (this._collapsed) {
+			return;
+		}
+		this._scrollableElement?.scanDomNode();
 	}
 
 	focus(): void {
-		this._headerButton?.element.focus();
+		if (this._collapsed) {
+			this._headerElement?.focus();
+			return;
+		}
+		this._toolbar?.focus();
 	}
 }

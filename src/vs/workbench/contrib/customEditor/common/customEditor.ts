@@ -12,7 +12,7 @@ import * as nls from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IRevertOptions, ISaveOptions } from '../../../common/editor.js';
-import { globMatchesResource, priorityToRank, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { globMatchesResource, priorityToRank, RegisteredEditorPriority, RegisteredEditorPriorityInfo } from '../../../services/editor/common/editorResolverService.js';
 
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
 
@@ -25,6 +25,9 @@ export const CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE = new RawContextKey<boole
 
 export interface CustomEditorCapabilities {
 	readonly supportsMultipleEditorsPerDocument?: boolean;
+	readonly isTextEditor?: boolean;
+	readonly supportsInlineDiff?: boolean;
+	readonly supportsSideBySideDiff?: boolean;
 }
 
 export interface ICustomEditorService {
@@ -78,17 +81,25 @@ export const enum CustomEditorPriority {
 	default = 'default',
 	builtin = 'builtin',
 	option = 'option',
+	never = 'never',
+}
+
+export const enum CustomEditorDiffEditorLayout {
+	Inline = 'inline',
+	SideBySide = 'sideBySide',
 }
 
 export interface CustomEditorSelector {
 	readonly filenamePattern?: string;
 }
 
+export type CustomEditorPriorityInfo = RegisteredEditorPriorityInfo;
+
 export interface CustomEditorDescriptor {
 	readonly id: string;
 	readonly displayName: string;
 	readonly providerDisplayName: string;
-	readonly priority: RegisteredEditorPriority;
+	readonly priority: CustomEditorPriorityInfo;
 	readonly selector: readonly CustomEditorSelector[];
 }
 
@@ -97,7 +108,7 @@ export class CustomEditorInfo implements CustomEditorDescriptor {
 	public readonly id: string;
 	public readonly displayName: string;
 	public readonly providerDisplayName: string;
-	public readonly priority: RegisteredEditorPriority;
+	public readonly priority: CustomEditorPriorityInfo;
 	public readonly selector: readonly CustomEditorSelector[];
 
 	constructor(descriptor: CustomEditorDescriptor) {
@@ -131,7 +142,7 @@ export class CustomEditorInfoCollection {
 	 */
 	public get defaultEditor(): CustomEditorInfo | undefined {
 		return this.allEditors.find(editor => {
-			switch (editor.priority) {
+			switch (editor.priority.editor) {
 				case RegisteredEditorPriority.default:
 				case RegisteredEditorPriority.builtin:
 					// A default editor must have higher priority than all other contributed editors.
@@ -152,12 +163,12 @@ export class CustomEditorInfoCollection {
 	 */
 	public get bestAvailableEditor(): CustomEditorInfo | undefined {
 		const editors = Array.from(this.allEditors).sort((a, b) => {
-			return priorityToRank(a.priority) - priorityToRank(b.priority);
+			return priorityToRank(a.priority.editor) - priorityToRank(b.priority.editor);
 		});
 		return editors[0];
 	}
 }
 
 function isLowerPriority(otherEditor: CustomEditorInfo, editor: CustomEditorInfo): unknown {
-	return priorityToRank(otherEditor.priority) < priorityToRank(editor.priority);
+	return priorityToRank(otherEditor.priority.editor) < priorityToRank(editor.priority.editor);
 }

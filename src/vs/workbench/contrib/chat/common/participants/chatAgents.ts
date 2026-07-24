@@ -51,6 +51,12 @@ export interface IChatAgentAttachmentCapabilities {
 	supportsPromptAttachments?: boolean;
 	supportsHandOffs?: boolean;
 	supportsCheckpoints?: boolean;
+	/**
+	 * The prefix (e.g. `!`) that marks a message in this
+	 * session type as a terminal command rather than a message to the agent.
+	 * Undefined when the session type has no terminal command support.
+	 */
+	terminalCommandPrefix?: string;
 }
 
 export interface IChatAgentData {
@@ -154,6 +160,12 @@ export interface IChatAgentRequest {
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+	/**
+	 * The working directory URI for the session, if set.
+	 * In the agents window, each session can have its own working directory
+	 * that differs from the current workspace folders.
+	 */
+	workingDirectory?: URI;
 	/**
 	 * Collected hooks configuration for this request.
 	 * Contains all hooks defined in hooks .json files, organized by hook type.

@@ -113,6 +113,8 @@ interface IRawPart {
 	readonly id?: string;
 	readonly arguments?: unknown;
 	readonly response?: unknown;
+	readonly tools?: unknown;
+	readonly status?: string;
 }
 
 interface IRawMessage {
@@ -141,16 +143,33 @@ export function parseInputMessages(inputMessagesJson: string | undefined): reado
 		return [];
 	}
 
+	// First pass: map tool-call ids to tool names. Tool *result* parts only
+	// carry `{id, response}` on the wire — the name lives on the assistant
+	// turn's matching `tool_call` part — so results are named by correlation.
+	const toolNameByCallId = new Map<string, string>();
+	for (const m of raw as readonly IRawMessage[]) {
+		if (!m || typeof m !== 'object' || !Array.isArray(m.parts)) {
+			continue;
+		}
+		for (const p of m.parts) {
+			if (p && typeof p === 'object' && p.type === 'tool_call' && typeof p.id === 'string' && typeof p.name === 'string' && p.name) {
+				toolNameByCallId.set(p.id, p.name);
+			}
+		}
+	}
+
 	const out: INormalizedMessage[] = [];
 	for (const m of raw as readonly IRawMessage[]) {
 		if (!m || typeof m !== 'object') {
 			continue;
 		}
 		let role = typeof m.role === 'string' ? m.role : 'unknown';
-		const name = typeof m.name === 'string' ? m.name : undefined;
+		let name = typeof m.name === 'string' && m.name ? m.name : undefined;
 		let text = '';
+		let toolResponseName: string | undefined;
 		let hasToolResponse = false;
 		let hasToolCall = false;
+		let hasToolSearchOutput = false;
 		let hasText = false;
 		if (Array.isArray(m.parts)) {
 			for (const p of m.parts) {
@@ -177,6 +196,9 @@ export function parseInputMessages(inputMessagesJson: string | undefined): reado
 						} else if (p.content !== undefined) {
 							text += stableStringify(p.content);
 						}
+						if (toolResponseName === undefined && typeof p.id === 'string') {
+							toolResponseName = toolNameByCallId.get(p.id);
+						}
 						hasToolResponse = true;
 						break;
 					case 'tool_call':
@@ -187,16 +209,41 @@ export function parseInputMessages(inputMessagesJson: string | undefined): reado
 						if (p.arguments !== undefined) { text += stableStringify(p.arguments); }
 						hasToolCall = true;
 						break;
+					case 'tool_search_output':
+						text += stableStringify({
+							id: p.id,
+							status: p.status,
+							tools: p.tools,
+						});
+						hasToolSearchOutput = true;
+						break;
 				}
 			}
 		}
 		// If a message is dominated by tool I/O, label its role accordingly
 		// so the visualization labels it as `tool` rather than as a `user`
 		// or `assistant` message with mysterious empty content.
-		if (hasToolResponse && !hasText) {
+		if (hasToolSearchOutput && !hasText) {
+			role = 'tool_search';
+		} else if (hasToolResponse && !hasText) {
 			role = 'tool';
+			// Name the tool result after the tool that produced it (resolved
+			// via the matching tool_call id) so labels read `tool-read_file`
+			// instead of an anonymous `tool`.
+			name = name ?? toolResponseName;
 		} else if (hasToolCall && !hasText && role === 'assistant') {
 			role = 'assistant';
+		}
+		// Defensive fallback: if we recognized neither a role nor any
+		// content, dump the whole raw message as text so the diff still
+		// has *something* to compare. This catches provider-specific
+		// shapes that the upstream normalizer hasn't been taught about
+		// yet (e.g. a new `type: '...'` item type added to the OpenAI
+		// Responses API). Without this fallback the message reads as
+		// `unknown / 0 chars` and silently matches every other empty
+		// message, hiding real drift from the user.
+		if (text.length === 0 && role === 'unknown') {
+			text = stableStringify(m);
 		}
 		out.push({ role, name, text, charLength: text.length });
 	}
@@ -313,28 +360,105 @@ export function diffPromptSignature(a: readonly INormalizedMessage[], b: readonl
 }
 
 /**
- * Add a leading "system" drift entry to the report when the system
- * instructions differ between the two requests.
+ * Names of the synthetic "prefix" components that live alongside the message
+ * array in a request: the system instructions and the tool catalog. These
+ * are part of the cache key but not in `inputMessages`, so we surface them
+ * as named drift entries via {@link appendSystemDrift} / {@link appendToolsDrift}.
+ *
+ * Order matters: the helpers below preserve this order so the rendered
+ * Components accordion always reads `[system, tools, ...messages]`,
+ * regardless of which helper was called first or whether other entries
+ * were inserted in between.
+ */
+const PREFIX_COMPONENT_ORDER: readonly string[] = ['system', 'tools'];
+
+/**
+ * Insert a single prefix-component drift entry into a drift list while
+ * preserving the canonical order defined by {@link PREFIX_COMPONENT_ORDER}.
+ *
+ * Splits the input into "known-prefix entries" (those with a name in
+ * {@link PREFIX_COMPONENT_ORDER}) and "everything else", merges in the new
+ * entry, sorts the prefix bucket by its declared order, and concatenates.
+ * This means callers can append in any order and still get the same shape.
+ */
+function insertPrefixComponent(drift: readonly IComponentDrift[], entry: IComponentDrift): IComponentDrift[] {
+	const prefixEntries: IComponentDrift[] = [];
+	const rest: IComponentDrift[] = [];
+	for (const d of drift) {
+		if (PREFIX_COMPONENT_ORDER.includes(d.name)) {
+			// Defensive dedupe: if a caller already inserted an entry for the
+			// same prefix component (e.g. a refactor accidentally double-calls
+			// `appendToolsDrift`), keep only the latest one to avoid silently
+			// rendering two `tools` rows in the Components accordion.
+			if (d.name !== entry.name) {
+				prefixEntries.push(d);
+			}
+		} else {
+			rest.push(d);
+		}
+	}
+	prefixEntries.push(entry);
+	prefixEntries.sort((a, b) => PREFIX_COMPONENT_ORDER.indexOf(a.name) - PREFIX_COMPONENT_ORDER.indexOf(b.name));
+	return [...prefixEntries, ...rest];
+}
+
+/**
+ * Classify a string-pair drift. Returns `undefined` when both sides match
+ * (caller should skip emitting an entry).
+ */
+function classifyStringDrift(a: string | undefined, b: string | undefined): CacheDiffKind | undefined {
+	if (a === b) {
+		return undefined;
+	}
+	if (!a) {
+		return CacheDiffKind.OnlyInB;
+	}
+	if (!b) {
+		return CacheDiffKind.OnlyInA;
+	}
+	return a.length === b.length ? CacheDiffKind.ContentDrift : CacheDiffKind.LengthChange;
+}
+
+/**
+ * Add a "system" drift entry to the report when the system instructions
+ * differ between the two requests. Inserted at the canonical
+ * {@link PREFIX_COMPONENT_ORDER} position regardless of what's already in
+ * the drift list.
  */
 export function appendSystemDrift(
 	drift: IComponentDrift[],
 	aSystem: string | undefined,
 	bSystem: string | undefined,
 ): IComponentDrift[] {
-	if (aSystem === bSystem) {
+	const status = classifyStringDrift(aSystem, bSystem);
+	if (status === undefined) {
 		return drift;
 	}
-	const aSize = aSystem?.length ?? 0;
-	const bSize = bSystem?.length ?? 0;
-	let status: CacheDiffKind;
-	if (!aSystem) {
-		status = CacheDiffKind.OnlyInB;
-	} else if (!bSystem) {
-		status = CacheDiffKind.OnlyInA;
-	} else {
-		status = aSize === bSize ? CacheDiffKind.ContentDrift : CacheDiffKind.LengthChange;
+	return insertPrefixComponent(drift, { name: 'system', status, aSize: aSystem?.length ?? 0, bSize: bSystem?.length ?? 0 });
+}
+
+/**
+ * Add a "tools" drift entry to the report when the tool definitions catalog
+ * differs between the two requests. The catalog is part of the cache key on
+ * every model provider, so a change here \u2014 even a pure reorder \u2014 can break
+ * the prompt cache. We intentionally do not normalize (sort, hash, parse)
+ * the JSON: providers vary in how they hash the catalog, so the safest
+ * stance is to surface any byte-level change and let the user judge.
+ *
+ * Inserted at the canonical {@link PREFIX_COMPONENT_ORDER} position so the
+ * order is always `[system, tools, ...messages]` regardless of call order
+ * relative to {@link appendSystemDrift}.
+ */
+export function appendToolsDrift(
+	drift: IComponentDrift[],
+	aTools: string | undefined,
+	bTools: string | undefined,
+): IComponentDrift[] {
+	const status = classifyStringDrift(aTools, bTools);
+	if (status === undefined) {
+		return drift;
 	}
-	return [{ name: 'system', status, aSize, bSize }, ...drift];
+	return insertPrefixComponent(drift, { name: 'tools', status, aSize: aTools?.length ?? 0, bSize: bTools?.length ?? 0 });
 }
 
 /**

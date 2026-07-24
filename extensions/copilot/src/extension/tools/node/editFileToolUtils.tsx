@@ -21,6 +21,7 @@ import { IAlternativeNotebookContentService } from '../../../platform/notebook/c
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
+import { WorkingDirectory } from '../../../platform/workspace/common/workingDirectory';
 import { getLanguageId } from '../../../util/common/markdown';
 import { findNotebook } from '../../../util/common/notebooks';
 import * as glob from '../../../util/vs/base/common/glob';
@@ -710,6 +711,11 @@ export async function applyEdit(
 
 const ALWAYS_CHECKED_EDIT_PATTERNS: Readonly<Record<string, boolean>> = {
 	'**/.vscode/*.json': false,
+	// Markdown files in these folders are loaded as custom agents; their
+	// frontmatter can declare a `hooks:` block that runs shell commands during
+	// the agent lifecycle, so writing them must always be confirmed.
+	'**/.github/agents/**': false,
+	'**/.claude/agents/**': false,
 };
 
 const allPlatformPatterns: (glob.ParsedPattern | string)[] = [
@@ -795,6 +801,45 @@ export const enum ConfirmationCheckResult {
 	Sensitive,
 	SystemFile,
 	OutsideWorkspace,
+}
+
+/**
+ * Resolves the real path of `fsPath`, walking up the parent chain when the path
+ * (or its ancestors) does not yet exist on disk. This ensures that a symlink at
+ * any ancestor.
+ */
+async function resolveRealPathForNonexistent(fsPath: string): Promise<string> {
+	try {
+		return await realpath(fsPath);
+	} catch (e) {
+		if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+			throw e;
+		}
+	}
+
+	const tail: string[] = [path.basename(fsPath)];
+	let current = path.dirname(fsPath);
+	while (true) {
+		const parent = path.dirname(current);
+		if (parent === current) {
+			// Reached the filesystem root without finding an existing ancestor.
+			// Don't attempt to resolve the root itself — on Windows, realpath('\\')
+			// normalizes to a drive letter (e.g. 'C:\\'), which would otherwise look
+			// like a redirect even though no symlink was involved.
+			return fsPath;
+		}
+		try {
+			const resolved = await realpath(current);
+			return path.join(resolved, ...tail);
+		} catch (e) {
+			const code = (e as NodeJS.ErrnoException).code;
+			if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+				throw e;
+			}
+		}
+		tail.unshift(path.basename(current));
+		current = parent;
+	}
 }
 
 
@@ -894,29 +939,7 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 		const toCheck = [normalizePath(uri)];
 		if (uri.scheme === Schemas.file) {
 			try {
-				let linked: string;
-				try {
-					linked = await realpath(uri.fsPath);
-				} catch (e) {
-					if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
-						// File doesn't exist yet (e.g. CreateFileTool case) — resolve the
-						// parent directory so symlinked parents are still checked.
-						const parentDir = path.dirname(uri.fsPath);
-						try {
-							const resolvedParent = await realpath(parentDir);
-							linked = path.join(resolvedParent, path.basename(uri.fsPath));
-						} catch (parentError) {
-							const code = (parentError as NodeJS.ErrnoException).code;
-							if (code === 'ENOENT' || code === 'ENOTDIR') {
-								linked = uri.fsPath;
-							} else {
-								throw parentError;
-							}
-						}
-					} else {
-						throw e;
-					}
-				}
+				const linked = await resolveRealPathForNonexistent(uri.fsPath);
 				assertPathIsSafe(linked);
 
 				if (linked !== uri.fsPath) {
@@ -934,7 +957,7 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 	};
 }
 
-export async function createEditConfirmation(accessor: ServicesAccessor, uris: readonly URI[], allowedUris: ResourceSet | undefined, detailMessage?: (urisNeedingConfirmation: readonly URI[]) => Promise<string>, forceConfirmationReason?: string, getWorkspaceFolder?: (resource: URI) => URI | undefined): Promise<PreparedToolInvocation> {
+export async function createEditConfirmation(accessor: ServicesAccessor, uris: readonly URI[], allowedUris: ResourceSet | undefined, detailMessage?: (urisNeedingConfirmation: readonly URI[]) => Promise<string>, forceConfirmationReason?: string, getWorkspaceFolder?: (resource: URI) => URI | undefined, workingDirectory?: URI): Promise<PreparedToolInvocation> {
 	// If forceConfirmationReason is provided, require confirmation for all URIs
 	if (forceConfirmationReason) {
 		const details = detailMessage ? await detailMessage(uris) : undefined;
@@ -949,7 +972,10 @@ export async function createEditConfirmation(accessor: ServicesAccessor, uris: r
 	}
 
 	const workspaceService = accessor.get(IWorkspaceService);
-	getWorkspaceFolder = getWorkspaceFolder ?? workspaceService.getWorkspaceFolder.bind(workspaceService);
+	if (!getWorkspaceFolder) {
+		const wd = new WorkingDirectory(workingDirectory, workspaceService);
+		getWorkspaceFolder = (resource: URI) => wd.getFolder(resource);
+	}
 	const checker = makeUriConfirmationChecker(accessor.get(IConfigurationService), getWorkspaceFolder, accessor.get(ICustomInstructionsService));
 	const needsConfirmation = (await Promise.all(uris
 		.map(async uri => ({ uri, reason: await checker(uri) }))

@@ -27,8 +27,10 @@ import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
 import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
 import { ChatInputPart } from './widget/input/chatInputPart.js';
 import { ChatWidget, IChatWidgetContrib } from './widget/chatWidget.js';
-import { ICodeBlockActionContext } from './widget/chatContentParts/codeBlockPart.js';
+import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatContentParts/codeBlockPart.js';
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
+
+export { ChatOutline } from './chatOutline.js';
 
 /**
  * A workspace item that can be selected in the workspace picker.
@@ -121,6 +123,8 @@ export interface IChatWidgetService {
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
 	readonly onDidAddWidget: Event<IChatWidget>;
+
+	readonly onDidChangeWidgetVisibility: Event<IChatWidget>;
 
 	/**
 	 * Fires when a chat session is no longer open in any chat widget.
@@ -236,6 +240,12 @@ export interface IChatListItemRendererOptions {
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
+	readonly contentHorizontalPadding?: number;
+	/**
+	 * Render options applied to code blocks in response markdown (e.g. force word-wrap
+	 * so command/tool output pasted by the model wraps instead of overflowing).
+	 */
+	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
 }
 
 export interface IChatWidgetViewOptions {
@@ -246,8 +256,12 @@ export interface IChatWidgetViewOptions {
 	renderInputToolbarBelowInput?: boolean;
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
-	/** Action triggered when 'clear' is called on the widget. */
-	clear?: () => Promise<void>;
+	/**
+	 * Action triggered when 'clear' is called on the widget. The optional
+	 * `targetSessionType` carries the already-resolved new session type so the
+	 * host can open a session of that type instead of recomputing the default.
+	 */
+	clear?: (targetSessionType?: string) => Promise<void>;
 	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
 		/**
@@ -335,6 +349,11 @@ export interface IChatAcceptInputOptions {
 	 * If Steering, also sets yieldRequested on any active request to signal it should wrap up.
 	 */
 	queue?: ChatRequestQueueKind;
+	/**
+	 * Cancels the current request before sending this message instead of falling back to queueing.
+	 */
+	cancelCurrentRequest?: boolean;
+	preserveFocus?: boolean;
 }
 
 export interface IChatWidgetViewModelChangeEvent {
@@ -344,6 +363,7 @@ export interface IChatWidgetViewModelChangeEvent {
 
 export interface IChatWidget {
 	readonly domNode: HTMLElement;
+	readonly visible: boolean;
 	readonly onDidChangeViewModel: Event<IChatWidgetViewModelChangeEvent>;
 	readonly onDidAcceptInput: Event<void>;
 	readonly onDidHide: Event<void>;
@@ -382,6 +402,7 @@ export interface IChatWidget {
 	refreshParsedInput(): void;
 	logInputHistory(): void;
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
+	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>;
 	startEditing(requestId: string): void;
 	finishedEditing(completedEdit?: boolean): void;
 	rerunLastRequest(): Promise<void>;
@@ -440,14 +461,35 @@ export interface IChatWidget {
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
-	clear(): Promise<void>;
+	clear(targetSessionType?: string): Promise<void>;
 	getViewState(): IChatModelInputState | undefined;
-	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
+	lockToCodingAgent(name: string, displayName: string, agentId?: string, agentHostProviderId?: string): void;
 	unlockFromCodingAgent(): void;
 	handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void>;
 	executeHandoff(handoff: IHandOff, agentId?: string): Promise<void>;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
+}
+
+/**
+ * Binds a freshly loaded model to a chat widget, preserving any text the user
+ * typed into the input while the session was still loading (the input stays
+ * editable during the async load, and binding would otherwise reset it to the
+ * session's own draft). See #325323.
+ *
+ * @param inputBeforeLoad Input value captured when the load window started, used
+ * as a baseline so a previous session's leftover draft is not mistaken for newly
+ * typed text.
+ * @param setModel Callback that performs the actual `setModel` binding.
+ */
+export function setModelPreservingInputTypedWhileLoading(widget: IChatWidget, inputBeforeLoad: string, setModel: () => void): void {
+	const typedWhileLoading = widget.getInput();
+	setModel();
+	// Restore only genuinely new text onto a session that has no draft of its own,
+	// so we never clobber a persisted draft or carry over a leftover draft.
+	if (typedWhileLoading && typedWhileLoading !== inputBeforeLoad && !widget.getInput()) {
+		widget.setInput(typedWhileLoading);
+	}
 }
 
 

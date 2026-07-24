@@ -8,7 +8,7 @@ import './media/activityaction.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Part } from '../../part.js';
-import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position } from '../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_MARGIN } from '../../../services/layout/browser/layoutService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
@@ -43,13 +43,26 @@ import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 export class ActivitybarPart extends Part {
 
 	static readonly ACTION_HEIGHT = 48;
-	static readonly COMPACT_ACTION_HEIGHT = 32;
+	static readonly COMPACT_ACTION_HEIGHT = 28;
 
 	static readonly ACTIVITYBAR_WIDTH = 48;
 	static readonly COMPACT_ACTIVITYBAR_WIDTH = 36;
 
+	/** Narrower dimensions used when the floating panels (Modern UI) experiment is enabled. */
+	static readonly FLOATING_ACTION_HEIGHT = 36;
+	static readonly FLOATING_ACTIVITYBAR_WIDTH = 36;
+	static readonly FLOATING_COMPACT_ACTIVITYBAR_WIDTH = 28;
+
 	static readonly ICON_SIZE = 24;
 	static readonly COMPACT_ICON_SIZE = 16;
+
+	/**
+	 * Gutter reserved on the left and bottom edges under the floating panels
+	 * experiment so the activity bar aligns with the floating cards (it stays
+	 * flush with the title bar, so no top gutter). Must match the margins applied
+	 * in `part.css` under `.floating-panels`.
+	 */
+	static readonly FLOATING_MARGIN = FLOATING_PANEL_MARGIN;
 
 	static readonly pinnedViewContainersKey = 'workbench.activity.pinnedViewlets2';
 	static readonly placeholderViewContainersKey = 'workbench.activity.placeholderViewlets';
@@ -57,12 +70,31 @@ export class ActivitybarPart extends Part {
 
 	//#region IView
 
-	get minimumWidth(): number { return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH; }
-	get maximumWidth(): number { return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH; }
+	get minimumWidth(): number { return this.baseWidth + this.floatingGutter; }
+	get maximumWidth(): number { return this.baseWidth + this.floatingGutter; }
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
 	//#endregion
+
+	/** The intrinsic activity bar width (excludes any floating gutter). */
+	private get baseWidth(): number {
+		if (this.layoutService.isFloatingPanelsEnabled()) {
+			return this._isCompact ? ActivitybarPart.FLOATING_COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH;
+		}
+		return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH;
+	}
+
+	/** The action (item) height that drives visible item sizing and the composite bar overflow size. */
+	private get actionHeight(): number {
+		if (this._isCompact) {
+			return ActivitybarPart.COMPACT_ACTION_HEIGHT;
+		}
+		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT;
+	}
+
+	/** Extra space reserved around the part when the floating panels experiment is enabled. */
+	private get floatingGutter(): number { return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_MARGIN : 0; }
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private content: HTMLElement | undefined;
@@ -88,14 +120,22 @@ export class ActivitybarPart extends Part {
 				this.recreateCompositeBar();
 				this._onDidChange.fire(undefined); // Signal grid that size constraints changed
 			}
+
+			// Floating panels changes the reserved left/bottom gutter (and therefore
+			// the fixed part width): signal the grid that the size constraint changed.
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+				this.updateCompactStyle();
+				this.recreateCompositeBar();
+				this._onDidChange.fire(undefined);
+			}
 		}));
 	}
 
 	private updateCompactStyle(): void {
 		if (this.element) {
 			this.element.classList.toggle('compact', this._isCompact);
-			this.element.style.setProperty('--activity-bar-width', `${this.minimumWidth}px`);
-			this.element.style.setProperty('--activity-bar-action-height', `${this._isCompact ? ActivitybarPart.COMPACT_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT}px`);
+			this.element.style.setProperty('--activity-bar-width', `${this.baseWidth}px`);
+			this.element.style.setProperty('--activity-bar-action-height', `${this.actionHeight}px`);
 			this.element.style.setProperty('--activity-bar-icon-size', `${this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE}px`);
 		}
 	}
@@ -116,7 +156,7 @@ export class ActivitybarPart extends Part {
 	}
 
 	private createCompositeBar(): PaneCompositeBar {
-		const actionHeight = this._isCompact ? ActivitybarPart.COMPACT_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT;
+		const actionHeight = this.actionHeight;
 		const iconSize = this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE;
 
 		return this.instantiationService.createInstance(ActivityBarCompositeBar, this.location, {
@@ -227,11 +267,20 @@ export class ActivitybarPart extends Part {
 			return;
 		}
 
+		// When the floating panels experiment is enabled, reserve a gutter on the
+		// left and bottom so the activity bar lines up with the floating cards (it
+		// stays flush with the title bar, so no top gutter). The grid column is grown
+		// by the same amount (see minimum/maximumWidth) and the matching margins are
+		// applied in CSS (`.floating-panels .part.activitybar`).
+		const gutter = this.floatingGutter;
+		const contentWidth = Math.max(0, width - gutter);
+		const contentHeight = Math.max(0, height - gutter);
+
 		// Layout contents
-		const contentAreaSize = super.layoutContents(width, height).contentSize;
+		const contentAreaSize = super.layoutContents(contentWidth, contentHeight).contentSize;
 
 		// Layout composite bar
-		this.compositeBar.value.layout(width, contentAreaSize.height);
+		this.compositeBar.value.layout(contentWidth, contentAreaSize.height);
 	}
 
 	toJSON(): object {

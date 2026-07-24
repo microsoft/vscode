@@ -11,7 +11,7 @@ import { HookCommandResultKind, IHookCommandResult, IHookExecutor } from '../../
 import { IHooksOutputChannel } from '../../../platform/chat/common/hooksOutputChannel';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ILogService } from '../../../platform/log/common/logService';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, SpanKind, SpanStatusCode, truncateForOTel } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GitHubCopilotAttr, IOTelService, SpanKind, SpanStatusCode, truncateForOTel } from '../../../platform/otel/common/index';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { raceTimeout } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
@@ -153,13 +153,19 @@ export class ChatHookService implements IChatHookService {
 					const inputForLog = this._redactForLogging(commandInput as Record<string, unknown>);
 					this._log(requestId, hookType, `Input: ${JSON.stringify(inputForLog)}`);
 
+					const hookToolName = (commandInput as { tool_name?: unknown }).tool_name;
+					const hookToolNamesJson = typeof hookToolName === 'string' ? JSON.stringify([hookToolName]) : undefined;
+
 					const span = this._otelService.startSpan(`execute_hook ${hookType}`, {
 						kind: SpanKind.INTERNAL,
 						attributes: {
 							[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_HOOK,
 							[CopilotChatAttr.HOOK_TYPE]: hookType,
 							'copilot_chat.hook_command': hookCommand.command,
+							...(chatSessionId ? { [GenAiAttr.CONVERSATION_ID]: chatSessionId } : {}),
+							...(chatSessionId ? { [CopilotChatAttr.SESSION_ID]: chatSessionId } : {}),
 							...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
+							...(hookToolNamesJson ? { [GitHubCopilotAttr.HOOK_TOOL_NAMES]: hookToolNamesJson } : {}),
 						},
 					});
 
@@ -172,6 +178,7 @@ export class ChatHookService implements IChatHookService {
 						const sw = StopWatch.create();
 						const commandResult = await this._hookExecutor.executeCommand(hookCommand, commandInput, effectiveToken);
 						const elapsed = sw.elapsed();
+						span.setAttribute(GitHubCopilotAttr.HOOK_DURATION_SECONDS, elapsed / 1000);
 
 						this._logCommandResult(requestId, hookType, commandResult, elapsed);
 
@@ -180,6 +187,13 @@ export class ChatHookService implements IChatHookService {
 							: commandResult.kind === HookCommandResultKind.NonBlockingError ? 'non_blocking_error'
 								: 'error';
 						span.setAttribute(CopilotChatAttr.HOOK_RESULT_KIND, resultKind);
+
+						const hookDecision = commandResult.kind === HookCommandResultKind.Error
+							? 'block'
+							: commandResult.kind === HookCommandResultKind.NonBlockingError
+								? 'non_blocking_error'
+								: 'pass';
+						span.setAttribute(GitHubCopilotAttr.HOOK_DECISION, hookDecision);
 
 						if (commandResult.kind === HookCommandResultKind.Error || commandResult.kind === HookCommandResultKind.NonBlockingError) {
 							hasError = true;
@@ -205,6 +219,10 @@ export class ChatHookService implements IChatHookService {
 
 						// If stopReason is set (including empty string for "stop without message"), stop processing remaining hooks
 						if (result.stopReason !== undefined) {
+							// A stop signal from a successful hook still counts as a block.
+							if (hookDecision === 'pass') {
+								span.setAttribute(GitHubCopilotAttr.HOOK_DECISION, 'block');
+							}
 							this._log(requestId, hookType, `Stopping: ${result.stopReason}`);
 							this._logService.debug(`[ChatHookService] Stopping after hook: ${result.stopReason}`);
 							break;
@@ -347,10 +365,13 @@ export class ChatHookService implements IChatHookService {
 			return undefined;
 		}
 
-		// Collapse results: deny > ask > allow (most restrictive wins),
-		// collect all additionalContext, last updatedInput wins
+		// Collapse results: deny > ask > allow (most restrictive wins).
+		// All deny reasons are collected so the user/model see every blocker
+		// when multiple hooks reject. ask/allow keep the first non-deny reason.
 		let mostRestrictiveDecision: 'allow' | 'deny' | 'ask' | undefined;
-		let winningReason: string | undefined;
+		const denyReasons: string[] = [];
+		let askReason: string | undefined;
+		let allowReason: string | undefined;
 		let lastUpdatedInput: object | undefined;
 		const allAdditionalContext: string[] = [];
 
@@ -379,25 +400,66 @@ export class ChatHookService implements IChatHookService {
 				}
 
 				const decision = hookSpecificOutput.permissionDecision;
-				if (decision && !(decision in permissionPriority)) {
+				if (!decision) {
+					return;
+				}
+				if (!(decision in permissionPriority)) {
 					const message = `Invalid permissionDecision value '${String(decision)}'. Expected 'allow', 'deny', or 'ask'. Field was ignored.`;
 					this._logService.warn(`[ChatHookService] ${message}`);
 					this._outputChannel.appendLine(`[PreToolUse] ${message}`);
-				} else if (decision && (mostRestrictiveDecision === undefined || (permissionPriority[decision] ?? 0) > (permissionPriority[mostRestrictiveDecision] ?? 0))) {
+					return;
+				}
+
+				if (decision === 'deny') {
+					if (hookSpecificOutput.permissionDecisionReason) {
+						denyReasons.push(hookSpecificOutput.permissionDecisionReason);
+					}
+					if (mostRestrictiveDecision !== 'deny') {
+						mostRestrictiveDecision = 'deny';
+					}
+				} else if (mostRestrictiveDecision === undefined || (permissionPriority[decision] ?? 0) > (permissionPriority[mostRestrictiveDecision] ?? 0)) {
 					mostRestrictiveDecision = decision;
-					winningReason = hookSpecificOutput.permissionDecisionReason;
+					if (decision === 'ask') {
+						askReason = hookSpecificOutput.permissionDecisionReason;
+					} else {
+						allowReason = hookSpecificOutput.permissionDecisionReason;
+					}
 				}
 			},
 			// Exit code 2 (error) means deny the tool
 			onError: (errorMessage) => {
-				const messageWithTool = errorMessage
-					? l10n.t('Tried to use {0} - {1}', toolName, errorMessage)
-					: l10n.t('Tried to use {0} - an unexpected error occurred', toolName);
-				outputStream?.hookProgress('PreToolUse', formatHookErrorMessage(messageWithTool));
+				if (errorMessage) {
+					denyReasons.push(errorMessage);
+				}
 				mostRestrictiveDecision = 'deny';
-				winningReason = messageWithTool || winningReason;
 			},
 		});
+
+		// Resolve the final reason for the most restrictive decision.
+		// For deny, join all collected deny reasons so every blocker is surfaced.
+		let winningReason: string | undefined;
+		if (mostRestrictiveDecision === 'deny') {
+			winningReason = denyReasons.length > 0 ? denyReasons.join('\n') : undefined;
+		} else if (mostRestrictiveDecision === 'ask') {
+			winningReason = askReason;
+		} else if (mostRestrictiveDecision === 'allow') {
+			winningReason = allowReason;
+		}
+
+		// Render a visible block in chat for any deny — whether it came from
+		// exit code 2 or a successful hook with permissionDecision: 'deny'.
+		if (mostRestrictiveDecision === 'deny') {
+			let renderedReason: string;
+			if (denyReasons.length === 0) {
+				renderedReason = l10n.t('Tried to use {0} - denied by hook', toolName);
+			} else if (denyReasons.length === 1) {
+				renderedReason = l10n.t('Tried to use {0} - {1}', toolName, denyReasons[0]);
+			} else {
+				const numbered = denyReasons.map((r, i) => `${i + 1}. ${r}`).join('\n');
+				renderedReason = l10n.t('Tried to use {0} - {1}', toolName, '\n' + numbered);
+			}
+			outputStream?.hookProgress('PreToolUse', formatHookErrorMessage(renderedReason));
+		}
 
 		// Validate updatedInput against the tool's input schema before returning it
 		if (lastUpdatedInput) {
@@ -440,6 +502,16 @@ export class ChatHookService implements IChatHookService {
 			sessionId,
 			token
 		);
+
+		// Running the hook can take a long time because it spawns external, user-configured
+		// commands. If the request was cancelled while the hook ran, the response stream is
+		// already closed and writing hook progress to it throws "Response stream has been
+		// closed". The caller only checks cancellation before invoking the hook, so re-check
+		// here after the await and skip result processing - a cancelled turn never consumes
+		// the result anyway.
+		if (token?.isCancellationRequested) {
+			return undefined;
+		}
 
 		if (results.length === 0) {
 			return undefined;

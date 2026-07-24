@@ -1,0 +1,139 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	width: fit-content;
+	line-height: 1em;
+	font-size: var(--vscode-agents-fontSize-body2);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	color: var(--vscode-descriptionForeground);
+	background: none;
+	cursor: pointer;
+	white-space: nowrap;
+	text-decoration: none;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-content {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget:hover .chat-subagent-pill-content {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.focused .chat-subagent-pill-content {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-icon .codicon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: var(--vscode-codiconFontSize-compact);
+	width: var(--vscode-spacing-size120);
+	height: var(--vscode-spacing-size120);
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-confirmation-count {
+	display: none;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.chat-subagent-running {
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.chat-subagent-waiting {
+	color: var(--vscode-list-warningForeground);
+}
+
+@keyframes chat-subagent-confirmation-pending-pulse {
+	0%, 100% {
+		background-color: transparent;
+	}
+
+	50% {
+		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 12%, transparent);
+	}
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.chat-subagent-confirmation-pending .chat-subagent-pill-content {
+	animation: chat-subagent-confirmation-pending-pulse 3s ease-in-out infinite;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.chat-subagent-confirmation-active .chat-subagent-pill-content {
+	border-color: var(--vscode-list-warningForeground);
+	background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 12%, transparent);
+	color: var(--vscode-list-warningForeground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.chat-subagent-confirmation-pending .chat-subagent-pill-content {
+		animation: none;
+		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
+	}
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget:is(.chat-subagent-running, .chat-subagent-waiting) .chat-subagent-pill-icon .chat-subagent-pill-open-icon.codicon {
+	display: none;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-icon .monaco-pixel-spinner {
+	width: var(--vscode-spacing-size120);
+	height: var(--vscode-spacing-size120);
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-duration {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-label2);
+	font-style: italic;
+	opacity: 0.7;
+	pointer-events: none;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-duration.hidden {
+	display: none;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.chat-subagent-has-multiple-confirmations .chat-subagent-pill-confirmation-count {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: var(--vscode-spacing-size120);
+	height: var(--vscode-spacing-size120);
+	padding: 0 var(--vscode-spacing-size40);
+	box-sizing: border-box;
+	border-radius: var(--vscode-cornerRadius-circle);
+	color: var(--vscode-editor-background);
+	background: var(--vscode-list-warningForeground);
+	font-size: var(--vscode-agents-fontSize-label3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+.chat-subagent-part.chat-subagent-open-chat-only > .chat-used-context-label .monaco-button,
+.chat-subagent-part.chat-subagent-open-chat-only > .chat-collapsible-content-animation,
+.chat-subagent-part.chat-subagent-open-chat-only > .chat-used-context-list {
+	display: none;
+}
+
+.chat-subagent-part.chat-subagent-open-chat-only::after {
+	display: none;
+}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Session, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
+import type { SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
 import type { CancellationToken } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
@@ -15,6 +15,7 @@ import { hasKey } from '../../../../util/vs/base/common/types';
 import { URI } from '../../../../util/vs/base/common/uri';
 import type { LanguageModelToolInformation } from '../../../../vscodeTypes';
 import { GitHubMcpDefinitionProvider } from '../../../githubMcp/common/githubMcpDefinitionProvider';
+import { Session } from '../common/utils';
 
 const toolInvalidCharRe = /[^a-z0-9_-]/gi;
 
@@ -60,10 +61,8 @@ export class CopilotCLIMCPHandler implements ICopilotCLIMCPHandler {
 
 		// Standard path: use the CLIMCPServerEnabled setting
 		const enabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIMCPServerEnabled);
-		this.logService.info(`[CopilotCLIMCPHandler] loadMcpConfig called. CLIMCPServerEnabled=${enabled}`);
 
 		if (enabled) {
-			this.logService.info('[CopilotCLIMCPHandler] MCP server forwarding is enabled, using gateway configuration');
 			return this.loadMcpConfigWithGateway(sessionUri);
 		}
 
@@ -94,8 +93,6 @@ export class CopilotCLIMCPHandler implements ICopilotCLIMCPHandler {
 						displayName: server.label,
 					};
 				}
-				const serverIds = Object.keys(mcpConfig);
-				this.logService.trace(`[CopilotCLIMCPHandler]   gateway started, server(s): [${serverIds.join(', ')}]`);
 			} else {
 				this.logService.warn('[CopilotCLIMCPHandler]   gateway failed to start');
 				disposable.dispose();

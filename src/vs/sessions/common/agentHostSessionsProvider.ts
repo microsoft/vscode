@@ -6,10 +6,40 @@
 import { Event } from '../../base/common/event.js';
 import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
+import { URI } from '../../base/common/uri.js';
+import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type McpServerState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
+import { ISessionAgentRef } from '../services/sessions/common/session.js';
+
+/**
+ * Progress emitted while an agent-host provider is establishing a connection.
+ */
+export interface IAgentHostConnectProgress {
+	readonly connectionKey: string;
+	readonly message: string;
+}
+
+/**
+ * A rich view of a single MCP server exposed by an agent host session.
+ * Encapsulates the dispatch plumbing so consumers can present and toggle
+ * servers without depending on the low-level protocol action surface.
+ */
+export interface IAgentHostMcpServer {
+	readonly id: string;
+	readonly name: string;
+	readonly enabled: boolean;
+	readonly status: McpServerStatus;
+	readonly state: McpServerState;
+	readonly logOutputChannelId?: string;
+	/** Starts or restarts the server. Providers that cannot control lifecycle may no-op. */
+	start(): Promise<void>;
+	/** Stops the server. Providers that cannot control lifecycle may no-op. */
+	stop(): Promise<void>;
+	setEnabled(enabled: boolean): void;
+}
 
 /**
  * Extended sessions provider for agent host providers (local and remote).
@@ -19,10 +49,10 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
+	/** Progress messages during on-demand connect. */
+	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
-	/** Output channel ID for remote provider logs. */
-	outputChannelId?: string;
 	/**
 	 * Establish (or re-establish) the connection for this host on demand.
 	 * Tears down any existing connection first. Present on remote providers
@@ -38,12 +68,28 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 */
 	disconnect?(): Promise<void>;
 
+	/**
+	 * When `true`, the workspace picker keeps this provider's browse
+	 * action(s) enabled even while {@link connectionStatus} reports
+	 * `disconnected` — the assumption being that clicking the action
+	 * itself triggers a connect attempt (e.g. booting a stopped WSL
+	 * distro). The `incompatible` state is still treated as unavailable
+	 * because the user can't recover from it via a click.
+	 */
+	readonly canConnectOnDemand?: boolean;
+
 	// -- Dynamic Session Config --
 
 	/** Fires when dynamic configuration for a session changes. */
 	readonly onDidChangeSessionConfig: Event<string>;
 	/** Returns the last resolved dynamic configuration for a session. */
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	/**
+	 * Observable: `true` while a `resolveSessionConfig` round-trip is in
+	 * flight. Pickers gate on this rather than `session.loading` so they
+	 * stay interactive in the required-values-missing state.
+	 */
+	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
 	/** Sets one dynamic configuration property and re-resolves the schema. */
 	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
 	/**
@@ -88,9 +134,77 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * Unknown keys (no schema entry) are ignored.
 	 */
 	replaceRootConfig(values: Record<string, unknown>): Promise<void>;
+
+	/** Authenticate against the backing agent-host connection. */
+	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
+
+	// -- Custom Agents --
+
+	/**
+	 * Fires when the effective custom-agent set for any session may have
+	 * changed (root state customizations or per-session customizations
+	 * updated). The event has no payload — consumers re-read via
+	 * {@link getCustomAgents}.
+	 */
+	readonly onDidChangeCustomAgents: Event<void>;
+	/**
+	 * Returns the merged, de-duped custom-agent list a session should see,
+	 * computed from root, active-client, and session customizations. Returns
+	 * an empty array when the session is unknown or no agents have been
+	 * advertised.
+	 */
+	getCustomAgents(sessionId: string): readonly AgentCustomization[];
+
+	readonly onDidChangeCustomizations: Event<void>;
+
+	/**
+	 * Returns the full set of customizations.
+	 */
+	getCustomizations(sessionId: string): readonly Customization[];
+
+	/**
+	 * Returns the working directory for the session, if provided by the host.
+	 */
+	getWorkingDirectory(sessionId: string): string | undefined;
+
+	/**
+	 * Returns the MCP servers exposed by the session as rich objects whose
+	 * methods dispatch protocol-level toggle and lifecycle actions.
+	 * Returns an empty array when the session is unknown or exposes no MCP
+	 * servers.
+	 */
+	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[];
+
+	/**
+	 * Set (or clear) the selected custom agent for a session. Optional so
+	 * providers that don't expose custom agents can omit it.
+	 * @param sessionId The ID of the session.
+	 * @param agent The agent to select, or `undefined` to clear the selection
+	 *              and use the provider's default behavior.
+	 */
+	setAgent?(sessionId: string, agent: ISessionAgentRef | undefined): void;
+
+	/**
+	 * Returns the agent-host annotations channel for a session so that
+	 * sessions-layer features (e.g. agent feedback) can subscribe to and
+	 * dispatch annotation actions against the session's
+	 * `<sessionUri>/annotations` channel. Returns `undefined` when the
+	 * session is unknown or the host connection is unavailable.
+	 */
+	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined;
+
 }
 
 export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
+
+/**
+ * Experimental setting id controlling whether the local agent host acts as the
+ * default sessions provider. When enabled (and `chat.agentHost.enabled` is
+ * true), the local agent host's session types are surfaced before those of
+ * other providers. Defaults to `false`.
+ */
+export const LocalAgentHostDefaultProviderSettingId = 'chat.agentHost.defaultSessionsProvider';
+
 export const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
 export const REMOTE_AGENT_HOST_PROVIDER_RE = /^agenthost-/;
 export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;
@@ -100,7 +214,15 @@ export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;
  * reserved provider ID (`local-agent-host` or `agenthost-*` prefix).
  */
 export function isAgentHostProvider(provider: ISessionsProvider): provider is IAgentHostSessionsProvider {
-	return provider.id === LOCAL_AGENT_HOST_PROVIDER_ID || provider.id.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX);
+	return isAgentHostProviderId(provider.id);
+}
+
+/**
+ * Checks whether a provider ID is for an agent host provider
+ * (`local-agent-host` or any `agenthost-*` provider).
+ */
+export function isAgentHostProviderId(providerId: string): boolean {
+	return providerId === LOCAL_AGENT_HOST_PROVIDER_ID || providerId.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX);
 }
 
 /**

@@ -9,7 +9,6 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { Definition, DefinitionProvider } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IChatModeService } from '../../chatModes.js';
-import { localChatSessionType } from '../../chatSessionsService.js';
 import { PromptHeaderAttributes } from '../promptFileParser.js';
 import { getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
@@ -41,7 +40,7 @@ export class PromptHeaderDefinitionProvider implements DefinitionProvider {
 
 		const agentAttr = header.getAttribute(PromptHeaderAttributes.agent) ?? header.getAttribute(PromptHeaderAttributes.mode);
 		if (agentAttr && agentAttr.value.type === 'scalar' && agentAttr.range.containsPosition(position)) {
-			const agent = (await this.chatModeService.awaitModes(localChatSessionType)).findModeByName(agentAttr.value.value);
+			const agent = (await this.chatModeService.getLocalModes()).findModeByName(agentAttr.value.value);
 			if (agent && agent.uri) {
 				return {
 					uri: agent.uri.get(),

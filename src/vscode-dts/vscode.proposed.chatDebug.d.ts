@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 4
-
 declare module 'vscode' {
 	/**
 	 * The severity level of a chat debug log event.
@@ -185,6 +183,11 @@ declare module 'vscode' {
 		 * The outcome status of the model turn (e.g., "success", "failure", "canceled").
 		 */
 		status?: string;
+
+		/**
+		 * The per-request cost from `copilot_usage.total_nano_aiu`, in nano-AIUs.
+		 */
+		copilotUsageNanoAiu?: number;
 
 		/**
 		 * Create a new ChatDebugModelTurnEvent.

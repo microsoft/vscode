@@ -5,6 +5,7 @@
 
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGitHubChangedFile } from '../common/types.js';
 import { GitHubApiClient } from './githubApiClient.js';
 import { GitHubRepositoryModel, GitHubRepositoryModelReferenceCollection } from './models/githubRepositoryModel.js';
@@ -15,7 +16,14 @@ import { GitHubChangesFetcher } from './fetchers/githubChangesFetcher.js';
 import { getPullRequestKey } from '../common/utils.js';
 import { derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+
+/**
+ * Shared trace prefix for the pull-request polling/fetching pipeline that feeds
+ * the session PR status icons. Filter the logs on this token to follow the
+ * whole flow end-to-end (lookup -> fetch -> poll -> icon).
+ */
+const TRACE_PREFIX = '[PR-ICON-TRACE]';
 
 export interface IGitHubService {
 	readonly _serviceBrand: undefined;
@@ -48,6 +56,17 @@ export interface IGitHubService {
 	 * List files changed between two refs using the GitHub compare API.
 	 */
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]>;
+
+	/**
+	 * Find the most recently updated pull request whose head branch is
+	 * `branch` in `owner/repo`. Returns `undefined` if no PR exists.
+	 *
+	 * Successful numeric results are cached per `(owner, repo, branch)`
+	 * for the lifetime of the service (PR number is monotonic per
+	 * branch lifetime). Transient failures and `undefined` results are
+	 * not cached, so a later retry can succeed once a PR is created.
+	 */
+	findPullRequestNumberByHeadBranch(owner: string, repo: string, branch: string): Promise<number | undefined>;
 }
 
 export const IGitHubService = createDecorator<IGitHubService>('sessionsGitHubService');
@@ -65,14 +84,26 @@ export class GitHubService extends Disposable implements IGitHubService {
 	private readonly _pullRequestReferences: GitHubPullRequestModelReferenceCollection;
 	private readonly _pullRequestReviewThreadsReferences: GitHubPullRequestReviewThreadsModelReferenceCollection;
 	private readonly _pullRequestCIReferences: GitHubPullRequestCIModelReferenceCollection;
+	private readonly _apiClient: GitHubApiClient;
+
+	/**
+	 * Cache of in-flight / resolved `findPullRequestNumberByHeadBranch`
+	 * lookups, keyed by `${owner}/${repo}#${branch}`. Promises are kept
+	 * indefinitely — PR-number assignment is monotonic for the lifetime of
+	 * a branch, and live PR state (open/closed/draft, CI) is refreshed via
+	 * `createPullRequestModelReference` once we know the number.
+	 */
+	private readonly _findPRByBranchCache = new Map<string, Promise<number | undefined>>();
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
 		const apiClient = this._register(instantiationService.createInstance(GitHubApiClient));
+		this._apiClient = apiClient;
 
 		this._changesFetcher = new GitHubChangesFetcher(apiClient);
 
@@ -83,7 +114,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 		const gitHubInfoObs = derivedOpts<{ owner: string; repo: string; pullRequestNumber: number } | undefined>({ equalsFn: structuralEquals },
 			reader => {
-				const gitHubInfo = sessionManagementService.activeSession.read(reader)?.gitHubInfo.read(reader);
+				const gitHubInfo = sessionsService.activeSession.read(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 
 				if (!gitHubInfo?.pullRequest) {
 					return undefined;
@@ -168,5 +199,53 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]> {
 		return this._changesFetcher.getChangedFiles(owner, repo, base, head);
+	}
+
+	findPullRequestNumberByHeadBranch(owner: string, repo: string, branch: string): Promise<number | undefined> {
+		const key = `${owner}/${repo}#${branch}`;
+		let promise = this._findPRByBranchCache.get(key);
+		if (!promise) {
+			this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch cache MISS for ${key}; starting lookup`);
+			promise = this._fetchPullRequestNumberByHeadBranch(owner, repo, branch);
+			this._findPRByBranchCache.set(key, promise);
+			// Only cache successful, numeric results indefinitely; the PR number
+			// for a given (owner, repo, branch) is monotonic for that branch's
+			// lifetime so it's safe to cache forever. For transient failures and
+			// "no PR yet" results, drop the cache entry so the next call retries.
+			promise.then(
+				value => {
+					if (typeof value !== 'number') {
+						this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch for ${key} resolved with NO pr number; dropping cache entry so a later call retries`);
+						this._findPRByBranchCache.delete(key);
+					} else {
+						this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch for ${key} resolved PR #${value}; caching indefinitely`);
+					}
+				},
+				err => {
+					this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch for ${key} FAILED; dropping cache entry.`, err);
+					this._findPRByBranchCache.delete(key);
+				},
+			);
+		} else {
+			this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch cache HIT for ${key}`);
+		}
+		return promise.catch(() => undefined);
+	}
+
+	private async _fetchPullRequestNumberByHeadBranch(owner: string, repo: string, branch: string): Promise<number | undefined> {
+		// Use the REST `pulls` list API filtered by `head=${owner}:${branch}`.
+		// Default state is `open`; we include closed/merged so the button still
+		// surfaces the PR after the agent run finishes and the PR is merged.
+		// `per_page=1` + `sort=updated` gives us the most recent match.
+		const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?head=${encodeURIComponent(`${owner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=1`;
+		this._logService.trace(`${TRACE_PREFIX} [GitHubService] Fetching PR number for head ${owner}:${branch} via GET ${path}`);
+		const response = await this._apiClient.request<readonly { readonly number: number }[]>(
+			'GET',
+			path,
+			'githubApi.findPullRequestByHeadBranch',
+		);
+		const first = response.data?.[0];
+		this._logService.trace(`${TRACE_PREFIX} [GitHubService] PR number lookup for ${owner}:${branch} -> ${first ? `#${first.number}` : 'no match'} (status ${response.statusCode}, ${response.data?.length ?? 0} result(s))`);
+		return first ? first.number : undefined;
 	}
 }

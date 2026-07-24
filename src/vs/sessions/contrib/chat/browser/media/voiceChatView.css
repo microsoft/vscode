@@ -1,0 +1,142 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Voice transcript overlay inside the chat input, mirroring chatViewPane.css. */
+
+@keyframes sessionsVoiceTextPulse {
+	0%,
+	100% {
+		opacity: 0.9;
+	}
+
+	50% {
+		opacity: 0.4;
+	}
+}
+
+@keyframes sessionsVoiceListeningShimmer {
+	0% {
+		background-position: 120% 0;
+	}
+
+	100% {
+		background-position: -120% 0;
+	}
+}
+
+.voice-transcript-overlay-scrollable {
+	position: absolute !important;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 36px;
+	z-index: 10;
+	/* Let clicks pass through to the input editor unless transcript is scrollable */
+	pointer-events: none;
+	background: var(--vscode-input-background, transparent);
+	border-radius: inherit;
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.voice-transcript-overlay-scrollable.has-transcript {
+	pointer-events: auto;
+}
+
+.voice-transcript-overlay {
+	height: 100%;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.4;
+	word-break: break-word;
+	overflow: hidden;
+	overscroll-behavior: contain;
+}
+
+.voice-transcript-overlay .committed {
+	color: var(--vscode-foreground);
+}
+
+.voice-transcript-overlay .partial {
+	color: var(--vscode-foreground);
+	opacity: 0.6;
+	font-style: italic;
+	animation: sessionsVoiceTextPulse 1.5s ease-in-out infinite;
+}
+
+.voice-transcript-overlay .listening {
+	font-style: italic;
+	background: linear-gradient(90deg,
+			var(--vscode-descriptionForeground) 0%,
+			var(--vscode-descriptionForeground) 30%,
+			var(--vscode-chat-thinkingShimmer) 50%,
+			var(--vscode-descriptionForeground) 70%,
+			var(--vscode-descriptionForeground) 100%);
+	background-size: 400% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: sessionsVoiceListeningShimmer 2s linear infinite;
+	will-change: background-position;
+}
+
+/* Motion-sensitive users: keep the gradient text but stop the shimmer. */
+@media (prefers-reduced-motion: reduce) {
+	.voice-transcript-overlay .listening {
+		animation: none;
+	}
+}
+
+/* High-contrast / forced-colors: gradient-clipped transparent text is invisible, so fall back to a solid readable color and no animation. */
+@media (forced-colors: active) {
+	.voice-transcript-overlay .listening {
+		background: none;
+		-webkit-text-fill-color: currentColor;
+		animation: none;
+	}
+}
+
+.voice-transcript-overlay .assistant-text {
+	color: var(--vscode-descriptionForeground);
+	white-space: pre-wrap;
+}
+
+/* Voice icon glow on the new-session composer toolbar. chat.css only targets the
+chat widget's `.chat-input-container`; the composer uses `.new-chat-input-area`,
+so mirror the blue-listening / purple-speaking glow here. `voice-active` /
+`voice-listening` are toggled by setupVoiceInputDecorations. */
+@keyframes sessionsVoiceIconGlow {
+	0%,
+	100% {
+		box-shadow: 0 0 4px var(--sessions-voice-icon-glow-color);
+	}
+
+	50% {
+		box-shadow: 0 0 9px var(--sessions-voice-icon-glow-color);
+	}
+}
+
+/* Blue when listening */
+.new-chat-input-area.voice-active.voice-listening .action-label.codicon-voice-mode {
+	--sessions-voice-icon-glow-color: rgba(88, 166, 255, 0.65);
+	color: var(--vscode-charts-blue, #58a6ff) !important;
+	border-radius: 50%;
+}
+
+.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-listening .action-label.codicon-voice-mode {
+	animation: sessionsVoiceIconGlow 1.4s ease-in-out infinite;
+}
+
+/* Purple when speaking */
+.new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode {
+	--sessions-voice-icon-glow-color: rgba(163, 113, 247, 0.65);
+	color: var(--vscode-charts-purple, #a371f7) !important;
+	border-radius: 50%;
+}
+
+.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode {
+	animation: sessionsVoiceIconGlow 1.4s ease-in-out infinite;
+}
