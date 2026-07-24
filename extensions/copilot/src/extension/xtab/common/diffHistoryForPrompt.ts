@@ -29,13 +29,7 @@ export function getEditDiffHistory(
 ): EditDiffHistoryResult {
 	const workspacePath = useRelativePaths ? activeDoc.workspaceRoot?.path : undefined;
 
-	// Rejected edits are retained separately from normal workspace history, then
-	// merged by capture sequence only while constructing a memory-enabled prompt.
-	const reversedHistory = [...xtabHistory, ...rejectedEditHistory]
-		.map((entry, index) => ({ entry, sequence: entry.sequence ?? index }))
-		.sort((a, b) => a.sequence - b.sequence)
-		.map(({ entry }) => entry)
-		.reverse();
+	const reversedHistory = mergeRejectionsIntoHistory(xtabHistory, rejectedEditHistory).reverse();
 
 	let tokenBudget = maxTokens;
 	let totalTokensConsumed = 0;
@@ -65,18 +59,20 @@ export function getEditDiffHistory(
 
 		const tokenCount = computeTokens(docDiff);
 
-		if (tokenCount > tokenBudget) {
-			// A bounded rejected sample can still exceed a small experimental
-			// budget. Skip it rather than starving normal edit history.
-			if (entry.kind === 'rejectedEdit') {
-				continue;
-			}
-			break;
+		// Skip large rejection diffs rather than starving the diff history.
+		// TODO experiment: truncate the diff to fit within the token budget.
+		if (tokenCount > tokenBudget && entry.kind === 'rejectedEdit') {
+			continue;
 		}
 
 		tokenBudget -= tokenCount;
-		totalTokensConsumed += tokenCount;
-		allDiffs.push(docDiff);
+
+		if (tokenBudget < 0) {
+			break;
+		} else {
+			totalTokensConsumed += tokenCount;
+			allDiffs.push(docDiff);
+		}
 	}
 
 	const diffsFromOldestToNewest = allDiffs.reverse();
@@ -89,6 +85,19 @@ export function getEditDiffHistory(
 	}
 
 	return { promptPiece, nDiffs: allDiffs.length, totalTokens: totalTokensConsumed };
+}
+
+function mergeRejectionsIntoHistory(xtabHistory: readonly IXtabHistoryEntry[], rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[]): (IXtabHistoryEntry | IXtabHistoryRejectedEditEntry)[] {
+	if (rejectedEditHistory.length > 0) {
+		// Merge rejections in with edit history, assuming sequence number is always increasing and using the item index as a fallback (shouldn't really happen).
+		return [...xtabHistory, ...rejectedEditHistory]
+			.map((entry, index) => ({ entry, sequence: entry.sequence ?? index }))
+			.sort((a, b) => a.sequence - b.sequence)
+			.map(({ entry }) => entry);
+	}
+	else {
+		return xtabHistory.slice();
+	}
 }
 
 function generateRejectedDocDiff(entry: IXtabHistoryRejectedEditEntry, workspacePath: string | undefined): string {
