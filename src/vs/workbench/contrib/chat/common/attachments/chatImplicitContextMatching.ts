@@ -32,9 +32,7 @@ export function isImplicitContextAlreadyAttached(
 			return true;
 		}
 
-		// String/PR attachments store text in `value` and identity on `resourceUri`.
-		// Their `uri` is the editor/webview resource and is not attachment identity —
-		// matching on it would hide later suggestions from the same tab after refresh.
+		// Match string/PR attachment identity by resource URI, not its editor/webview URI.
 		if (isStringVariableEntry(a)) {
 			return !!(targetResourceUri && a.resourceUri && isEqual(targetResourceUri, a.resourceUri));
 		}
