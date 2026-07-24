@@ -38,6 +38,10 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEdit
 
 	static readonly ID = 'editor.contrib.emptyTextEditorHint';
 
+	static get(editor: ICodeEditor): EmptyTextEditorHintContribution | null {
+		return editor.getContribution<EmptyTextEditorHintContribution>(EmptyTextEditorHintContribution.ID);
+	}
+
 	private textHintContentWidget: EmptyTextEditorHintContentWidget | undefined;
 
 	constructor(
