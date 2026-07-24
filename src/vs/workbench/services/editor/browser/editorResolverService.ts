@@ -475,8 +475,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const inspectedEditorAssociations = this.configurationService.inspect<{ [fileNamePattern: string]: string }>(settingId) || {};
 		return this.mergeEditorAssociationSettings(
 			inspectedEditorAssociations.defaultValue ?? {},
-			inspectedEditorAssociations.workspaceValue ?? {},
-			inspectedEditorAssociations.userValue ?? {}
+			{ ...inspectedEditorAssociations.workspaceValue, ...inspectedEditorAssociations.workspaceFolderValue },
+			{
+				...inspectedEditorAssociations.applicationValue,
+				...inspectedEditorAssociations.userLocalValue,
+				...inspectedEditorAssociations.userRemoteValue,
+				...inspectedEditorAssociations.userValue
+			}
 		);
 	}
 
