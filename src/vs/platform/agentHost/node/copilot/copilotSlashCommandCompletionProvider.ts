@@ -10,7 +10,7 @@ import { Customization, CustomizationType, DirectoryCustomization, MessageAttach
 import { getCompletionAction, toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { getCopilotConfigSlashCommandItems, ICopilotConfigSlashCommandState, isCopilotConfigSlashCommand } from '../../common/copilotConfigSlashCommands.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from '../agentHostCompletions.js';
-import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken } from '../agentHostSlashCompletion.js';
+import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from '../agentHostSlashCompletion.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import type { CopilotSession } from '@github/copilot-sdk';
 
@@ -142,7 +142,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			if (!rubberDuckEnabled && command.name === 'rubber-duck') {
 				continue;
 			}
-			if (typed.length > 0 && !command.name.toLowerCase().startsWith(typedLower) && !command.aliases?.some(alias => alias.toLowerCase().startsWith(typedLower))) {
+			if (!matchesSlashCompletion(typedLower, command.name) && !command.aliases?.some(alias => matchesSlashCompletion(typedLower, alias))) {
 				continue;
 			}
 			// Use structured input choices as options; if there are none, emit a single item for the command and surface any free-text hint as a prompt.
