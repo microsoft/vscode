@@ -25,6 +25,8 @@ export const all = Object.freeze<string[]>([
 	'!cli/**/*',
 	'!out*/**',
 	'!extensions/**/out*/**',
+	'!extensions/markdown-language-features/markdown-editor-out/**',
+	'!extensions/markdown-language-features/notebook-out/**',
 	'!test/**/out/**',
 	'!**/node_modules/**',
 	'!**/*.js.map',
