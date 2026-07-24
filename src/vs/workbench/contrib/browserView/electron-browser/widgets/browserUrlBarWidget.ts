@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { $, addDisposableListener, EventType, isHTMLInputElement } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, AnimationFrameScheduler, EventType, isHTMLInputElement } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -85,6 +85,7 @@ export class BrowserUrlBarWidget extends Disposable {
 
 	private _suppressFocusOpen = false;
 	private _suppressBlurRevert = false;
+	private _pickerCanonicalUrl: string | undefined;
 
 	constructor(
 		private readonly _host: IBrowserUrlBarHost,
@@ -126,8 +127,9 @@ export class BrowserUrlBarWidget extends Disposable {
 		// Keep the placeholder in sync with host state (e.g. search enablement).
 		this._urlDisplay.setAttribute('data-placeholder', this._placeholder);
 		const picker = this._picker.value;
-		if (picker) {
-			picker.value = this._canonicalUrl;
+		if (picker && picker.value === this._pickerCanonicalUrl) {
+			this._pickerCanonicalUrl = this._canonicalUrl;
+			picker.value = this._pickerCanonicalUrl;
 		}
 	}
 
@@ -485,9 +487,7 @@ export class BrowserUrlBarWidget extends Disposable {
 	 * the display is hidden (visibility:hidden, to preserve layout) so only
 	 * the picker is visible.
 	 *
-	 * @param initial If provided, the picker opens with this value and caret
-	 * selection instead of the current URL (which is shown fully selected).
-	 * Used to carry an in-progress edit from the display into the picker.
+	 * @param initial Optional value and selection carried from the display.
 	 */
 	private _openPicker(initial?: { value: string; selection: [number, number] }): void {
 		if (this._picker.value) {
@@ -517,6 +517,7 @@ export class BrowserUrlBarWidget extends Disposable {
 			picker.value = this._canonicalUrl;
 			picker.valueSelection = [0, this._canonicalUrl.length];
 		}
+		this._pickerCanonicalUrl = this._canonicalUrl;
 		const disposables = new DisposableStore();
 
 		// Each provider keeps its own cached suggestions + cancellation so a
@@ -598,14 +599,13 @@ export class BrowserUrlBarWidget extends Disposable {
 				? items.find((i): i is IUrlPickerItem => i.type !== 'separator' && i.id === previousActiveId)
 				: undefined;
 			const active = restored ?? defaultActive;
-			picker.activeItems = active ? [active] : [];
+			if (picker.activeItems[0] !== active || picker.activeItems.length !== (active ? 1 : 0)) {
+				picker.activeItems = active ? [active] : [];
+			}
 		};
 
-		// Re-fetch a single provider against the current value, cancelling
-		// any in-flight request for it. On success, update its cached
-		// suggestions and re-render. Errors are swallowed (leave prior
-		// cached results in place) so one failing provider can't blank the
-		// picker.
+		const renderScheduler = disposables.add(new AnimationFrameScheduler(this.element, () => render(true)));
+
 		const refreshProvider = (provider: IBrowserUrlSuggestionProvider) => {
 			const state = providerStates.get(provider);
 			const input = this._host.input;
@@ -621,7 +621,7 @@ export class BrowserUrlBarWidget extends Disposable {
 						return;
 					}
 					state.suggestions = results;
-					render(true);
+					renderScheduler.schedule();
 				},
 				() => { /* keep prior cached suggestions on error */ }
 			);
@@ -659,6 +659,7 @@ export class BrowserUrlBarWidget extends Disposable {
 		}));
 		disposables.add(picker.onDidChangeValue(value => {
 			currentValue = value;
+			renderScheduler.cancel();
 			render(false);
 			refreshAllProviders();
 			// Mirror the picker's typed value into the display continuously,
@@ -767,6 +768,7 @@ export class BrowserUrlBarWidget extends Disposable {
 				}
 			}
 			disposables.dispose();
+			this._pickerCanonicalUrl = undefined;
 			this._picker.clear();
 		}));
 		disposables.add(picker);
