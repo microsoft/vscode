@@ -29,7 +29,7 @@ suite('aiCustomizationManagementEditor', () => {
 		promptFilesToMigrate: readonly IPromptPath[];
 		editorDisplayMode: 'preview' | 'raw';
 		editorPreviewFrontMatterContainer: HTMLElement | undefined;
-		editorPreviewDisposables: { add<T>(value: T): T; clear(): void; dispose(): void };
+		editorPreviewDisposables: DisposableStore;
 		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
 		viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail';
 		dimension: undefined;
