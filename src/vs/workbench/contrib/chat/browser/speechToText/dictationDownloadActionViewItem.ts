@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IManagedHoverContent } from '../../../../../base/browser/ui/hover/hover.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -46,6 +48,7 @@ export class DictationDownloadActionViewItem extends MenuEntryActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
+		this._applyBackendIcon();
 
 		container.classList.add('dictation-download-item');
 		// The on-device backend downloads a model, so show a determinate progress
@@ -63,6 +66,19 @@ export class DictationDownloadActionViewItem extends MenuEntryActionViewItem {
 			() => getDictationContextMenuActions(this._commandService, this._configurationService, this._keybindingService, TOGGLE_DICTATION_COMMAND_ID),
 			this._contextMenuService,
 		));
+	}
+
+	protected override updateClass(): void {
+		super.updateClass();
+		this._applyBackendIcon();
+	}
+
+	private _applyBackendIcon(): void {
+		if (this._speechToTextService.currentBackend !== 'mai' || !this.label) {
+			return;
+		}
+		this.label.classList.remove(...ThemeIcon.asClassNameArray(Codicon.cloudDownload));
+		this.label.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading));
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
