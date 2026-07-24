@@ -152,7 +152,6 @@ export class ClaudeSessionMetadataStore {
 			modifiedTime: entry.lastModified,
 			summary: entry.customTitle ?? entry.summary,
 			workingDirectory: entry.cwd ? URI.file(entry.cwd) : undefined,
-			customizationDirectory: overlay.customizationDirectory,
 		};
 	}
 }
