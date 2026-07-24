@@ -207,7 +207,10 @@ export interface IToolInvocation {
 	 * anyway.
 	 */
 	preApproved?: ConfirmedReason;
-	/** The confirmation decision resolved by the tools service before invoking the implementation. */
+	/**
+	 * The final approval decision after hooks, settings, session permission level, and user interaction.
+	 * Implementations can distinguish automatic approval from an explicit user action without re-evaluating policy.
+	 */
 	confirmationReason?: ConfirmedReason;
 	/**
 	 * Optional W3C trace context `traceparent` value identifying the parent distributed

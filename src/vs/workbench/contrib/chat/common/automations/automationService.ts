@@ -39,6 +39,10 @@ export interface IUpdateAutomationOptions {
 	readonly enabled?: boolean;
 }
 
+/**
+ * Result of an optimistic automation update.
+ * `current` is absent when the automation was deleted before the update committed.
+ */
 export type IGuardedAutomationUpdateResult =
 	| { readonly kind: 'updated'; readonly automation: IAutomation }
 	| { readonly kind: 'conflict'; readonly current: IAutomation | undefined };
@@ -71,9 +75,16 @@ export interface IAutomationService {
 	/** Runs for a single automation, newest first. */
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]>;
 
+	/** Creates and persists an automation after validating the complete definition. */
 	createAutomation(options: ICreateAutomationOptions): Promise<IAutomation>;
+	/** Applies a patch to the latest automation state; throws when `id` does not exist. */
 	updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation>;
+	/**
+	 * Applies `patch` only when the current editable fields still match `expected`.
+	 * Runtime timestamps may change without conflicting, so reviewed edits preserve scheduler progress.
+	 */
 	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation): Promise<IGuardedAutomationUpdateResult>;
+	/** Deletes an automation and its retained run history; missing IDs are ignored. */
 	deleteAutomation(id: string): Promise<void>;
 
 	/** Records a new run as `pending` and advances the schedule for scheduled/catch-up runs. Throws if the automation does not exist. */
