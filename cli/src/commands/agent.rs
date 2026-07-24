@@ -252,6 +252,7 @@ async fn authenticate_from_error(
 					channel: ROOT_RESOURCE_URI.to_string(),
 					resource: resource.resource.clone(),
 					token: credential.access_token().to_string(),
+					scopes: None,
 				},
 			)
 			.await

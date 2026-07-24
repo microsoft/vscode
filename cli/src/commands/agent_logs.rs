@@ -28,6 +28,8 @@ pub async fn agent_logs(ctx: CommandContext, args: AgentLogsArgs) -> Result<i32,
 			"subscribe",
 			SubscribeParams {
 				channel: args.session.clone(),
+				delivery: None,
+				view: None,
 			},
 		)
 		.await?;
@@ -90,12 +92,11 @@ fn print_initial_state(uri: &str, result: &SubscribeResult) {
 	};
 
 	if let SnapshotState::Session(ref session) = snapshot.state {
-		let s = &session.summary;
-		if !s.title.is_empty() {
-			println!("  {} {}", label.apply_to("title:"), s.title);
+		if !session.title.is_empty() {
+			println!("  {} {}", label.apply_to("title:"), session.title);
 		}
-		println!("  {} {}", label.apply_to("provider:"), s.provider);
-		if let Some(ref activity) = s.activity {
+		println!("  {} {}", label.apply_to("provider:"), session.provider);
+		if let Some(ref activity) = session.activity {
 			if !activity.is_empty() {
 				println!("  {} {}", label.apply_to("activity:"), activity);
 			}

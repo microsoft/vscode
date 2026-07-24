@@ -26,6 +26,8 @@ pub async fn agent_stop(ctx: CommandContext, args: AgentStopArgs) -> Result<i32,
 		"subscribe",
 		SubscribeParams {
 			channel: args.session.clone(),
+			delivery: None,
+			view: None,
 		},
 	)
 	.await?;
@@ -51,6 +53,8 @@ pub async fn agent_stop(ctx: CommandContext, args: AgentStopArgs) -> Result<i32,
 			"subscribe",
 			SubscribeParams {
 				channel: chat_uri.clone(),
+				delivery: None,
+				view: None,
 			},
 		)
 		.await?;
@@ -71,6 +75,7 @@ pub async fn agent_stop(ctx: CommandContext, args: AgentStopArgs) -> Result<i32,
 				chat_uri.clone(),
 				StateAction::ChatTurnCancelled(ChatTurnCancelledAction {
 					turn_id: turn_id.clone(),
+					duration: 0,
 					meta: None,
 				}),
 			)

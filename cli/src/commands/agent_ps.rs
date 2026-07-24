@@ -18,31 +18,45 @@ use super::CommandContext;
 pub async fn agent_ps(ctx: CommandContext, args: AgentPsArgs) -> Result<i32, AnyError> {
 	let client = agent::connect(&ctx, args.address.as_deref(), args.tunnel.as_deref()).await?;
 
-	let result: ListSessionsResult = agent::request_with_auth(
-		&ctx,
-		&client,
-		"listSessions",
-		ListSessionsParams {
-			channel: ROOT_RESOURCE_URI.to_string(),
-			filter: None,
-		},
-	)
-	.await?;
+	// Page through `listSessions` responses until the returned `cursor` is absent.
+	// Some servers may cap page size and require follow-up requests.
+	let mut cursor: Option<String> = None;
+	let mut all_sessions: Vec<SessionSummary> = Vec::new();
+	loop {
+		let res: ListSessionsResult = agent::request_with_auth(
+			&ctx,
+			&client,
+			"listSessions",
+			ListSessionsParams {
+				channel: ROOT_RESOURCE_URI.to_string(),
+				limit: None,
+				cursor: cursor.clone(),
+			},
+		)
+		.await?;
+
+		all_sessions.extend(res.items.into_iter());
+
+		if res.next_cursor.is_none() {
+			break;
+		}
+
+		cursor = res.next_cursor;
+	}
 
 	client.shutdown().await;
 
 	let mut items: Vec<&SessionSummary> = if args.all {
-		result.items.iter().collect()
+		all_sessions.iter().collect()
 	} else {
-		result
-			.items
+		all_sessions
 			.iter()
 			.filter(|s| is_active(s.status))
 			.collect()
 	};
 
 	// Most-recently-modified first.
-	items.sort_by_key(|b| std::cmp::Reverse(b.modified_at));
+	items.sort_by_key(|b| std::cmp::Reverse(b.modified_at.parse::<jiff::Timestamp>().ok()));
 
 	if args.json {
 		let json = serde_json::to_string_pretty(&items)
