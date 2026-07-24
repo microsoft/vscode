@@ -663,32 +663,45 @@ suite('SessionsTerminalContribution', () => {
 		});
 	});
 
-	test('leaves an existing terminal untouched when the replacement cwd differs', async () => {
+	test('rehomes terminals when replacement drafts use different cwd values', async () => {
 		const firstCwd = URI.file('/worktree-one');
 		const secondCwd = URI.file('/worktree-two');
+		const thirdSession = makeAgentSession({ sessionId: 'test:third-draft', worktree: firstCwd, providerType: AgentSessionProviders.Background });
 		const firstSession = makeAgentSession({ sessionId: 'test:first-draft', worktree: firstCwd, providerType: AgentSessionProviders.Background });
 		const secondSession = makeAgentSession({ sessionId: 'test:second-draft', worktree: secondCwd, providerType: AgentSessionProviders.Background });
 
 		const [firstTerminal] = await contribution.ensureTerminal(firstCwd, false, firstSession);
+		addCommandToInstance(firstTerminal, 100);
 		onDidReplaceNewDraftSession.fire({ from: firstSession, to: secondSession });
-		const [secondTerminal] = await contribution.ensureTerminal(secondCwd, false, secondSession);
+		activeSessionObs.set(secondSession, undefined);
+		await tick();
+		const secondTerminal = terminalInstances.get(activeInstanceId!);
+
+		onDidReplaceNewDraftSession.fire({ from: secondSession, to: thirdSession });
+		activeSessionObs.set(thirdSession, undefined);
+		await tick();
+		const thirdTerminal = terminalInstances.get(activeInstanceId!);
 
 		assert.deepStrictEqual({
 			createdCwds: createdTerminals.map(terminal => terminal.cwd.fsPath),
 			firstStillAlive: terminalInstances.has(firstTerminal.instanceId),
-			secondTerminalId: secondTerminal.instanceId,
+			secondStillAlive: secondTerminal ? terminalInstances.has(secondTerminal.instanceId) : false,
+			thirdTerminalId: thirdTerminal?.instanceId,
 			activeTerminalId: activeInstanceId,
+			backgrounded: moveToBackgroundCalls,
 			disposed: disposedInstances.map(instance => instance.instanceId),
 		}, {
-			createdCwds: [firstCwd.fsPath, secondCwd.fsPath],
+			createdCwds: [firstCwd.fsPath, secondCwd.fsPath, firstCwd.fsPath],
 			firstStillAlive: true,
-			secondTerminalId: 2,
-			activeTerminalId: 2,
+			secondStillAlive: true,
+			thirdTerminalId: 3,
+			activeTerminalId: 3,
+			backgrounded: [],
 			disposed: [],
 		});
 	});
 
-	test('does not transfer a same-cwd terminal to a different agent host backend', async () => {
+	test('rehomes a same-cwd terminal when the Agent Host backend changes', async () => {
 		const cwd = URI.file('/worktree');
 		sessionProviders.set('agenthost-one', new class extends mock<ISessionsProvider>() {
 			override readonly id = 'agenthost-one';
@@ -713,20 +726,43 @@ suite('SessionsTerminalContribution', () => {
 
 		const [firstTerminal] = await contribution.ensureTerminal(cwd, false, firstSession);
 		onDidReplaceNewDraftSession.fire({ from: firstSession, to: secondSession });
-		const [secondTerminal] = await contribution.ensureTerminal(cwd, false, secondSession);
+		activeSessionObs.set(secondSession, undefined);
+		await tick();
+		const secondTerminal = terminalInstances.get(activeInstanceId!);
 
 		assert.deepStrictEqual({
 			created: createdTerminals.length,
 			agentHostAddresses: agentHostTerminalAddresses,
 			firstStillAlive: terminalInstances.has(firstTerminal.instanceId),
-			secondTerminalId: secondTerminal.instanceId,
+			secondTerminalId: secondTerminal?.instanceId,
+			backgrounded: moveToBackgroundCalls,
 			disposed: disposedInstances.map(instance => instance.instanceId),
 		}, {
 			created: 2,
 			agentHostAddresses: ['ssh-remote+one', 'ssh-remote+two'],
 			firstStillAlive: true,
 			secondTerminalId: 2,
+			backgrounded: [],
 			disposed: [],
+		});
+	});
+
+	test('allows generic lookup to reuse a standalone terminal', async () => {
+		const firstCwd = URI.file('/worktree-one');
+		const secondCwd = URI.file('/worktree-two');
+		const firstSession = makeAgentSession({ sessionId: 'test:first-draft', worktree: firstCwd, providerType: AgentSessionProviders.Background });
+		const secondSession = makeAgentSession({ sessionId: 'test:second-draft', worktree: secondCwd, providerType: AgentSessionProviders.Background });
+
+		const [firstTerminal] = await contribution.ensureTerminal(firstCwd, false, firstSession);
+		onDidReplaceNewDraftSession.fire({ from: firstSession, to: secondSession });
+		const result = await contribution.ensureTerminal(firstCwd, false);
+
+		assert.deepStrictEqual({
+			result: result.map(instance => instance.instanceId),
+			created: createdTerminals.length,
+		}, {
+			result: [firstTerminal.instanceId],
+			created: 1,
 		});
 	});
 

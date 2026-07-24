@@ -89,6 +89,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private _activeKey: string | undefined;
 	private _activeSessionId: string | undefined;
 	private readonly _sessionTerminals = new Map<string, Set<number>>();
+	private readonly _standaloneTerminalIds = new Set<number>();
 	/** In-flight terminal work for drafts, retained only until each operation settles. */
 	private readonly _pendingTerminalOperations = new Map<string, IPendingTerminalOperation>();
 
@@ -199,6 +200,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// (e.g. user closes a terminal tab) so the map doesn't hold stale entries.
 		this._register(this._terminalService.onDidDisposeInstance(instance => {
 			this._removeTerminalFromTrackedSessions(instance.instanceId);
+			this._standaloneTerminalIds.delete(instance.instanceId);
 		}));
 
 		// Hide restored terminals from a previous window session that don't
@@ -421,7 +423,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (instance.shellLaunchConfig.hideFromUser) {
 				continue;
 			}
-			if (options?.excludeTracked && this._isTerminalTracked(instance.instanceId)) {
+			if (options?.excludeTracked && (this._isTerminalTracked(instance.instanceId) || this._standaloneTerminalIds.has(instance.instanceId))) {
 				continue;
 			}
 			try {
@@ -483,7 +485,20 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		const toAgentHostAddress = this._getSessionAgentHostAddress(to);
 		if (fromCwd === toCwd && fromAgentHostAddress === toAgentHostAddress) {
 			this._transferTerminals(from.sessionId, to.sessionId);
+		} else {
+			this._rehomeTerminals(from.sessionId);
 		}
+	}
+
+	private _rehomeTerminals(sessionId: string): void {
+		const terminals = this._getTrackedTerminalsForSession(sessionId);
+		for (const terminal of terminals) {
+			this._standaloneTerminalIds.add(terminal.instanceId);
+		}
+		if (terminals.length > 0) {
+			this._logService.trace(`[SessionsTerminal] Rehomed ${terminals.length} terminal(s) from session ${sessionId}`);
+		}
+		this._sessionTerminals.delete(sessionId);
 	}
 
 	private _transferTerminals(fromSessionId: string, toSessionId: string): void {
@@ -573,7 +588,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		for (const instance of [...this._terminalService.instances]) {
 			// Skip hidden tool terminals — managed by the chat tool lifecycle
-			if (instance.shellLaunchConfig.hideFromUser) {
+			if (instance.shellLaunchConfig.hideFromUser || this._standaloneTerminalIds.has(instance.instanceId)) {
 				continue;
 			}
 			let cwd: string | undefined;
@@ -622,6 +637,9 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		let mostRecent: ITerminalInstance | undefined;
 		let mostRecentTimestamp = -1;
 		for (const instance of foreground) {
+			if (this._standaloneTerminalIds.has(instance.instanceId)) {
+				continue;
+			}
 			const cmdDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 			const lastCmd = cmdDetection?.commands.at(-1);
 			if (lastCmd && lastCmd.timestamp > mostRecentTimestamp) {
@@ -696,6 +714,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	async dumpTracking(): Promise<void> {
 		console.log(`[SessionsTerminal] Active key: ${this._activeKey ?? '<none>'}`);
 		console.log(`[SessionsTerminal] Session terminals: ${JSON.stringify([...this._sessionTerminals.entries()].map(([sessionId, terminalIds]) => [sessionId, [...terminalIds]]))}`);
+		console.log(`[SessionsTerminal] Standalone terminals: ${JSON.stringify([...this._standaloneTerminalIds])}`);
 		console.log('[SessionsTerminal] === All Terminals ===');
 		for (const instance of this._terminalService.instances) {
 			let cwd = '<unknown>';
