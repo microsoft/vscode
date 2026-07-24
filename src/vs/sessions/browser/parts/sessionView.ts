@@ -11,6 +11,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../
 import { URI } from '../../../base/common/uri.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { localize } from '../../../nls.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -22,12 +23,13 @@ import { ChatCompositeBar } from './chatCompositeBar.js';
 import { SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
-import { autorun, observableValue } from '../../../base/common/observable.js';
+import { autorun, observableFromEvent, observableValue } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 import { ChatInteractivity, SessionStatus } from '../../services/sessions/common/session.js';
+import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 
 /**
  * Options passed to {@link SessionView.openSession}. Extends the chat view
@@ -90,6 +92,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -130,20 +133,23 @@ export class SessionView extends Disposable implements ISerializableView {
 		// place of the composer which is hidden for read-only chats.
 		this._readOnlyBanner = this._register(new SessionReadOnlyBanner());
 		this._centeredContentContainer.appendChild(this._readOnlyBanner.domNode);
+		const archiveActionWording = observableFromEvent(
+			this,
+			configurationService.onDidChangeConfiguration,
+			() => getChatSessionArchiveActionWording(configurationService),
+		);
 		this._register(autorun(reader => {
 			const session = this._sessionObs.read(reader);
 			const activeChat = session?.activeChat.read(reader);
 			const readOnly = !!activeChat && activeChat.interactivity.read(reader) !== ChatInteractivity.Full;
-			// Give an archived session an explanation specific to why it is
-			// read-only, plus an inline "Restore" action; other read-only chats
-			// (e.g. subagent transcripts) keep the generic message.
 			if (readOnly) {
 				const archived = !!session && session.isArchived.read(reader);
 				if (archived && session) {
+					const action = getChatSessionArchiveActionPresentation(archiveActionWording.read(reader)).unarchive;
 					this._readOnlyBanner.setContent({
 						message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
 						action: {
-							label: localize('sessionReadOnlyBanner.restore', "Restore"),
+							label: action.title.value,
 							run: () => this.commandService.executeCommand(UNARCHIVE_SESSION_COMMAND_ID, session),
 						},
 					});

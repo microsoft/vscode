@@ -1189,6 +1189,48 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
+	test('clears the previous model while the destination harness pool loads', () => {
+		const sessionType = 'agent-host-test';
+		const general = model('test/general');
+		const targeted = targetedModel('test/targeted', sessionType);
+		const modelChanges = disposables.add(new Emitter<string>());
+		const state: { sessionType: string | undefined; targetedModels: ILanguageModelChatMetadataAndIdentifier[] } = {
+			sessionType: undefined,
+			targetedModels: [],
+		};
+		const applied: string[] = [];
+		const runtime: IChatInputModelSelectionRuntime = {
+			location: ChatAgentLocation.Chat,
+			getCurrentModeKind: () => ChatModeKind.Ask,
+			getCurrentSessionType: () => state.sessionType,
+			isEmpty: () => true,
+			getModels: sessionType => sessionType ? state.targetedModels : [general],
+			getAllModels: () => [general, ...state.targetedModels],
+			requiresCustomModels: sessionType => sessionType === state.sessionType,
+			getConfiguredModelValue: () => undefined,
+			resolveModelIdentifier: identifier => resolveModelIdentifier([general, ...state.targetedModels], identifier, true),
+			subscribeToModelChanges: listener => modelChanges.event(listener),
+			getBoundConversationKey: () => 'chat:one',
+			getVisibleConversationKey: () => 'chat:one',
+			restoreModelConfiguration: () => { },
+			applyModel: selected => applied.push(selected.identifier),
+		};
+		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
+		controller.applyAutomaticSelection(general, () => { });
+
+		state.sessionType = sessionType;
+		controller.revalidateForSessionType(() => { });
+		const modelWhileLoading = controller.currentModel.get()?.identifier;
+		state.targetedModels = [targeted];
+		modelChanges.fire('loaded');
+
+		assert.deepStrictEqual({ modelWhileLoading, applied, current: controller.currentModel.get()?.identifier }, {
+			modelWhileLoading: undefined,
+			applied: [targeted.identifier],
+			current: targeted.identifier,
+		});
+	});
+
 	test('initialize restores a remembered model after a non-empty initial catalog', () => {
 		// The initial fallback remains provisional even when the catalog reports the remembered model unavailable.
 		const modelChanges = disposables.add(new Emitter<string>());

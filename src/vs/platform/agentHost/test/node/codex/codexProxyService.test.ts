@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { CCAModel } from '@vscode/copilot-api';
 import type * as http from 'http';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
@@ -28,6 +29,11 @@ class FakeCopilotApiService implements ICopilotApiService {
 	async resolveApiEndpoint() { return undefined; }
 
 	readonly responsesCalls: IResponsesCall[] = [];
+	readonly modelsCalls: { githubToken: string; options: ICopilotApiServiceRequestOptions | undefined }[] = [];
+	readonly modelsResult = [
+		{ id: 'gpt-5.5', name: 'GPT-5.5', supported_endpoints: ['/responses'] },
+		{ id: 'claude-sonnet', name: 'Claude Sonnet', supported_endpoints: ['/v1/messages'] },
+	] as CCAModel[];
 
 	messages(): never {
 		throw new Error('messages not used by Codex proxy tests');
@@ -37,8 +43,9 @@ class FakeCopilotApiService implements ICopilotApiService {
 		throw new Error('countTokens not used by Codex proxy tests');
 	}
 
-	async models(): Promise<never> {
-		throw new Error('models not used by Codex proxy tests');
+	async models(githubToken: string, options?: ICopilotApiServiceRequestOptions): Promise<CCAModel[]> {
+		this.modelsCalls.push({ githubToken, options });
+		return this.modelsResult;
 	}
 
 	async responses(githubToken: string, body: string, options?: ICopilotApiServiceRequestOptions): Promise<Response> {
@@ -92,6 +99,26 @@ function postResponses(url: string, init: { headers?: Record<string, string>; bo
 	}));
 }
 
+function get(url: string, headers?: Record<string, string>): Promise<{ status: number; body: string }> {
+	return getHttp().then(httpMod => new Promise((resolve, reject) => {
+		const u = new URL(url);
+		const req = httpMod.request({
+			hostname: u.hostname,
+			port: u.port,
+			path: u.pathname + u.search,
+			method: 'GET',
+			headers,
+		}, res => {
+			const chunks: Buffer[] = [];
+			res.on('data', c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+			res.on('end', () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') }));
+			res.on('error', reject);
+		});
+		req.on('error', reject);
+		req.end();
+	}));
+}
+
 // #endregion
 
 const TOKEN = 'gh-test-token';
@@ -119,6 +146,18 @@ suite('CodexProxyService', () => {
 				body: JSON.stringify({ model: 'gpt-5', stream: true, input: [] }),
 			});
 			assert.strictEqual(fake.responsesCalls.at(-1)?.options?.headers?.['User-Agent'], 'vscode_codex/1.2.3');
+		});
+	});
+
+	test('serves an empty Codex model catalog', async () => {
+		await withProxy(async (handle, fake) => {
+			const response = await get(`${handle.baseUrl}/v1/models?client_version=0.142.0`, {
+				'Authorization': `Bearer ${handle.nonce}`,
+				'User-Agent': 'codex/0.142.0',
+			});
+			assert.strictEqual(response.status, 200);
+			assert.deepStrictEqual(JSON.parse(response.body), { models: [] });
+			assert.deepStrictEqual(fake.modelsCalls, []);
 		});
 	});
 

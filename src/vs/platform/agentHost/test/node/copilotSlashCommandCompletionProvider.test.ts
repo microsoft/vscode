@@ -161,6 +161,11 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/compact ']);
 		});
 
+		test('fuzzy matches /compact when "/cc" typed', async () => {
+			const items = await run('/cc');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/compact ']);
+		});
+
 		test('filters to /env when "/e" typed and runtime command exists', async () => {
 			const items = await run('/e');
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/env ']);
