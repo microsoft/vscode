@@ -16,7 +16,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { EMPTY_TREE_OBJECT, getBranchCompletions, IAgentHostGitService, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions } from '../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { Limiter, SequencerByKey } from '../../../base/common/async.js';
 
@@ -67,16 +67,36 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return undefined;
 	}
 
-	async getBranches(workingDirectory: URI, options?: { readonly query?: string; readonly limit?: number }): Promise<string[]> {
-		const args = ['for-each-ref', '--format=%(refname:short)', '--sort=-committerdate'];
-		args.push('refs/heads');
+	async getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]> {
+		const args = ['for-each-ref', '--format=%(refname)%00%(upstream)'];
+
+		if (query?.sort && query.sort !== 'alphabetically') {
+			args.push('--sort', `-${query.sort}`);
+		}
+
+		if (query?.count) {
+			args.push(`--count=${query.count}`);
+		}
+
+		if (query?.pattern) {
+			const patterns = Array.isArray(query.pattern) ? query.pattern : [query.pattern];
+			for (const pattern of patterns) {
+				args.push(pattern.startsWith('refs/') ? pattern : `refs/${pattern}`);
+			}
+		}
 
 		const output = await this._runGit(workingDirectory, args);
-		if (!output) {
-			return [];
-		}
-		const branches = output.split(/\r?\n/g).map(line => line.trim()).filter(branch => branch.length > 0);
-		return getBranchCompletions(branches, options);
+		return parseGitRefs(output);
+	}
+
+	async getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]> {
+		const refs = await this.getRefs(workingDirectory, query);
+		return refs.filter(r => r.kind === GitRefType.Head || r.kind === GitRefType.RemoteHead);
+	}
+
+	async getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined> {
+		const refs = await this.getBranches(workingDirectory, { pattern: name });
+		return refs.length > 0 ? refs[0] : undefined;
 	}
 
 	async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> {
@@ -482,6 +502,23 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return this._computeSessionGitState(workingDirectory);
 	}
 
+	async getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
+			return undefined;
+		}
+		return parseFetchRemoteUrls(await this._runGit(repositoryRoot, ['remote', '-v']), preferredRemote);
+	}
+
+	async getUntrackedPaths(workingDirectory: URI): Promise<readonly string[] | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
+			return undefined;
+		}
+		const status = await this._runGit(repositoryRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+		return status === undefined ? undefined : parseUntrackedPaths(status);
+	}
+
 	async captureWorkingTreeAsTree(workingDirectory: URI): Promise<string | undefined> {
 		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
@@ -617,6 +654,50 @@ export class AgentHostGitService implements IAgentHostGitService {
 		} catch (err) {
 			this._logService.warn(`[AgentHostGitService][computeFileDiffsBetweenRefs] Failed to compute file diffs ${repositoryRoot.toString()}, ${options.fromRef}, ${options.toRef}: ${err}`);
 			return undefined;
+		}
+	}
+
+	async getBranchDiffSafetyInfo(workingDirectory: URI, baselineCommit: string): Promise<IBranchDiffSafetyInfo | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
+			return undefined;
+		}
+
+		const [virtualFileSystem, sparseCheckout, timestamp, commitCount, workspaceFiles] = await Promise.all([
+			this._runGit(repositoryRoot, ['config', '--get', 'core.virtualfilesystem']),
+			this._runGit(repositoryRoot, ['config', '--get', 'core.sparsecheckout']),
+			this._runGit(repositoryRoot, ['show', '-s', '--format=%ct', baselineCommit]),
+			this._runGit(repositoryRoot, ['rev-list', '--count', `${baselineCommit}..HEAD`]),
+			this._runGit(repositoryRoot, ['ls-files', '--cached', '--others', '--exclude-standard', '-z']),
+		]);
+		const sparseCheckoutEnabled = new Set(['true', 'yes', 'on', '1']).has(sparseCheckout?.trim().toLowerCase() ?? '');
+		const timestampSeconds = Number(timestamp?.trim());
+		const parsedCommitCount = Number(commitCount?.trim());
+		return {
+			hasVirtualFileSystem: Boolean(virtualFileSystem?.trim()) || sparseCheckoutEnabled,
+			baselineCommitTimestamp: Number.isFinite(timestampSeconds) ? timestampSeconds * 1000 : undefined,
+			commitCount: Number.isFinite(parsedCommitCount) ? parsedCommitCount : undefined,
+			workspaceFileCount: workspaceFiles?.split('\x00').filter(Boolean).length ?? 0,
+		};
+	}
+
+	async getDiffPatchBetweenRefs(workingDirectory: URI, options: { readonly fromRef: string; readonly toRef: string; readonly paths: readonly string[]; readonly maxBuffer: number }): Promise<{ readonly patch: string | undefined; readonly tooLarge: boolean } | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
+			return undefined;
+		}
+		const paths = [...new Set(options.paths)];
+		if (paths.length === 0) {
+			return { patch: '', tooLarge: false };
+		}
+		try {
+			const patch = await this._runGit(repositoryRoot, ['diff', '--patch', '--no-ext-diff', '--find-renames', '--diff-filter=ADMR', options.fromRef, options.toRef, '--', ...paths], { maxBuffer: options.maxBuffer, throwOnError: true });
+			return patch === undefined ? undefined : { patch, tooLarge: false };
+		} catch (error) {
+			if (isMaxBufferError(error)) {
+				return { patch: undefined, tooLarge: true };
+			}
+			throw error;
 		}
 	}
 
@@ -1044,6 +1125,27 @@ export function parseHasGitHubRemote(remotesOutput: string | undefined): boolean
 	return /github\.com[:\/]/i.test(remotesOutput);
 }
 
+/** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
+export function parseFetchRemoteUrls(remotesOutput: string | undefined, preferredRemote?: string): string[] | undefined {
+	if (remotesOutput === undefined) {
+		return undefined;
+	}
+	const candidates: { name: string; url: string }[] = [];
+	for (const rawLine of remotesOutput.split(/\r?\n/)) {
+		const match = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(rawLine.trim());
+		if (match) {
+			candidates.push({ name: match[1], url: match[2] });
+		}
+	}
+	const preferredNames = new Set([preferredRemote, 'origin'].filter((name): name is string => Boolean(name)));
+	const ordered = [
+		...candidates.filter(candidate => candidate.name === preferredRemote),
+		...candidates.filter(candidate => candidate.name === 'origin' && candidate.name !== preferredRemote),
+		...candidates.filter(candidate => !preferredNames.has(candidate.name)),
+	];
+	return [...new Set(ordered.map(candidate => candidate.url))];
+}
+
 /**
  * Parse `owner` and `repo` from `git remote -v` output. Prefers the `origin`
  * remote; falls back to the first GitHub remote so worktrees that renamed
@@ -1053,28 +1155,11 @@ export function parseHasGitHubRemote(remotesOutput: string | undefined): boolean
  * Exported for tests.
  */
 export function parseGitHubRepoFromRemote(remotesOutput: string | undefined): { owner: string; repo: string } | undefined {
-	if (!remotesOutput) {
+	const candidates = parseFetchRemoteUrls(remotesOutput);
+	if (!candidates) {
 		return undefined;
 	}
-	// Each line: `<name>\t<url> (<fetch|push>)`. Take fetch URLs only so we
-	// don't double-count the same remote.
-	const candidates: { name: string; url: string }[] = [];
-	for (const rawLine of remotesOutput.split(/\r?\n/)) {
-		const line = rawLine.trim();
-		if (!line) { continue; }
-		const m = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(line);
-		if (!m) { continue; }
-		candidates.push({ name: m[1], url: m[2] });
-	}
-	if (candidates.length === 0) {
-		return undefined;
-	}
-	// Prefer `origin`, otherwise first matching remote.
-	const ordered = [
-		...candidates.filter(c => c.name === 'origin'),
-		...candidates.filter(c => c.name !== 'origin'),
-	];
-	for (const { url } of ordered) {
+	for (const url of candidates) {
 		const parsed = parseGitHubOwnerRepoFromUrl(url);
 		if (parsed) {
 			return parsed;
@@ -1110,10 +1195,63 @@ export function parseDefaultBranchRef(symbolicRefOutput: string | undefined): st
 	return ref.startsWith(prefix) ? ref.substring(prefix.length) : ref;
 }
 
+export function parseRemoteBranchRef(ref: string): { ref: string; name: string; remote: string } | undefined {
+	if (!ref.startsWith('refs/remotes/')) {
+		return undefined;
+	}
+
+	const name = ref.substring(13);
+	const remote = name.split('/')[0];
+	return { ref, name, remote };
+}
+
+export function parseGitRefs(output: string | undefined): GitRef[] {
+	if (!output) {
+		return [];
+	}
+
+	const refs: GitRef[] = [];
+	for (const line of output.split(/\r?\n/g)) {
+		const [ref, upstream] = line.trim().split('\0');
+
+		if (ref.startsWith('refs/heads/')) {
+			refs.push({
+				ref,
+				name: ref.substring(11),
+				upstream: upstream
+					? parseRemoteBranchRef(upstream)
+					: undefined,
+				kind: GitRefType.Head
+			} satisfies IBranch);
+		} else if (ref.startsWith('refs/remotes/') && !/^refs\/remotes\/[^/]+\/HEAD$/.test(ref)) {
+			const parsedRemoteBranch = parseRemoteBranchRef(ref);
+			if (parsedRemoteBranch) {
+				refs.push({
+					...parsedRemoteBranch,
+					kind: GitRefType.RemoteHead
+				} satisfies IRemoteBranch);
+			}
+		} else if (ref.startsWith('refs/tags/')) {
+			refs.push({
+				ref,
+				name: ref.substring(10),
+				kind: GitRefType.Tag
+			} satisfies ITag);
+		}
+	}
+
+	return refs;
+}
+
 function stripUndefined<T extends object>(obj: T): T {
 	const out: Record<string, unknown> = {};
 	for (const [k, v] of Object.entries(obj)) {
 		if (v !== undefined) { out[k] = v; }
 	}
 	return out as T;
+}
+
+function isMaxBufferError(error: unknown): boolean {
+	const cause = error instanceof Error ? error.cause : undefined;
+	return cause instanceof Error && (cause as cp.ExecFileException).code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER';
 }

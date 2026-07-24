@@ -11,10 +11,11 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
-import { AgentSession, type IAgentService, type IMcpNotification } from '../common/agentService.js';
+import { AgentSession, type IAgentCreateChatOptions, type IAgentService, type IMcpNotification } from '../common/agentService.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
+import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
-import { ActionEnvelope, ActionType, INotification, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
+import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { negotiateProtocolVersion } from '../common/state/protocol/version/negotiation.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
@@ -37,6 +38,7 @@ import {
 	type ReconnectParams,
 	type IStateSnapshot,
 	type SubscribeResult,
+	type ListSessionsResult,
 } from '../common/state/sessionProtocol.js';
 import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -58,6 +60,21 @@ import { isFileResourceRead } from '../common/resourceReadLogging.js';
 const REPLAY_BUFFER_CAPACITY = 1000;
 
 const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
+
+/**
+ * Client-dispatchable actions that are declared in the protocol but not yet
+ * operational in this build. The multiroot working-directory mutations
+ * (`session|chat/workingDirectorySet|Removed`) would mutate the synchronized
+ * working-directory set without reconfiguring the agent's actual directory
+ * access, so they are rejected in the dispatch path until capability-backed
+ * multiroot support lands.
+ */
+const UNSUPPORTED_CLIENT_ACTION_TYPES: ReadonlySet<ActionType> = new Set([
+	ActionType.SessionWorkingDirectorySet,
+	ActionType.SessionWorkingDirectoryRemoved,
+	ActionType.ChatWorkingDirectorySet,
+	ActionType.ChatWorkingDirectoryRemoved,
+]);
 
 /** A client tool call in any of these statuses is still awaiting its result. */
 function isPendingToolCallStatus(status: ToolCallStatus): boolean {
@@ -276,6 +293,11 @@ export interface IProtocolServerConfig {
 	/** Default directory returned to clients during the initialize handshake. */
 	readonly defaultDirectory?: string;
 	/**
+	 * Whether to expose VS Code extension methods outside the Agent Host Protocol.
+	 * Defaults to `true` for existing remote listeners.
+	 */
+	readonly allowExtensionMethods?: boolean;
+	/**
 	 * Characters that, when typed in a {@link UserMessage} input, SHOULD
 	 * cause the client to issue a `completions` request. Announced to
 	 * clients in the `initialize` response.
@@ -440,9 +462,24 @@ export class ProtocolServerHandler extends Disposable {
 					case 'dispatchAction':
 						if (client) {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
-							const action = msg.params.action as SessionAction | ChatAction | TerminalAction | IRootConfigChangedAction;
+							const action = msg.params.action as SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction;
 							const channel = msg.params.channel;
-							if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || action.type === ActionType.RootConfigChanged) {
+							// Multiroot working-directory mutations are declared in the
+							// protocol but not yet supported: they would mutate the
+							// synchronized access set without reconfiguring the agent's
+							// actual directory access. Reject them through the normal
+							// reconciliation path (preserving the client's origin) so the
+							// client rolls back its optimistic action instead of leaving
+							// it pending, until capability-backed multiroot support lands.
+							if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
+								this._logService.warn(`[ProtocolServer] rejecting unsupported client action: ${action.type}`);
+								this._stateManager.rejectClientAction(
+									channel,
+									action,
+									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
+									`Unsupported action: ${action.type}`,
+								);
+							} else if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || action.type === ActionType.RootConfigChanged) {
 								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq);
 							}
 						}
@@ -1141,7 +1178,7 @@ export class ProtocolServerHandler extends Disposable {
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
-					workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
+					workingDirectory: params.workingDirectories?.[0] ? URI.parse(params.workingDirectories[0]) : undefined,
 					session: URI.parse(params.channel),
 					fork,
 					config: params.config,
@@ -1175,12 +1212,30 @@ export class ProtocolServerHandler extends Disposable {
 			if (URI.parse(params.chat).toString() === URI.parse(defaultChat).toString()) {
 				return null;
 			}
+			const source = params.source;
+			let options: IAgentCreateChatOptions | undefined;
+			if (source) {
+				switch (source.kind) {
+					case ChatSourceKind.Fork:
+						options = { fork: { source: URI.parse(source.chat), turnId: source.turnId } };
+						break;
+					case ChatSourceKind.SideChat:
+						options = {
+							sideChat: {
+								source: URI.parse(source.chat),
+								turnId: source.turnId,
+								...(source.selection ? { selection: source.selection } : {}),
+							},
+						};
+						break;
+					default:
+						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unsupported createChat source kind: ${String((source as { kind?: unknown }).kind)}`);
+				}
+			}
 			await this._agentService.createChat(
 				URI.parse(params.channel),
 				URI.parse(params.chat),
-				{
-					...(params.source ? { fork: { source: URI.parse(params.source.chat), turnId: params.source.turnId } } : {}),
-				},
+				options,
 			);
 			return null;
 		},
@@ -1220,9 +1275,9 @@ export class ProtocolServerHandler extends Disposable {
 					createdAt: new Date(s.startTime).toISOString(),
 					modifiedAt: new Date(s.modifiedTime).toISOString(),
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
-					workingDirectory: s.workingDirectory?.toString(),
+					workingDirectories: s.workingDirectory ? [s.workingDirectory.toString()] : undefined,
 					changes: s.changes,
-				};
+				} satisfies ListSessionsResult['items'][number];
 			});
 			return { items };
 		},
@@ -1403,11 +1458,17 @@ export class ProtocolServerHandler extends Disposable {
 	 * otherwise.
 	 */
 	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
+		if (this._config.allowExtensionMethods === false) {
+			return undefined;
+		}
+
 		switch (method) {
 			case 'shutdown':
 				return this._agentService.shutdown();
 			case 'getNetworkDiagnosticsInfo':
 				return this._agentService.getNetworkDiagnosticsInfo();
+			case 'getManagedSettingsDiagnostics':
+				return this._agentService.getManagedSettingsDiagnostics();
 			case 'diagnosticsFetch':
 				return this._agentService.diagnosticsFetch((params as { url: string }).url);
 			default:

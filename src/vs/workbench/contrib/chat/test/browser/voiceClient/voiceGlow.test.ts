@@ -5,36 +5,29 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { computeVoiceGlowStyle, readIdleVoiceGlowIntensity } from '../../../browser/voiceClient/voiceGlow.js';
+import { computeVoiceGlowStyle, isGlowingVoiceState } from '../../../browser/voiceClient/voiceGlow.js';
 
 suite('VoiceGlow', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('renders a themed subtle glow for connected idle voice mode', () => {
-		const idleStyle = computeVoiceGlowStyle('idle', 0.4, false);
+	test('renders a blue listening glow that intensifies with audio', () => {
+		const listeningStyle = computeVoiceGlowStyle('listening', 0.5, false);
 		assert.deepStrictEqual(
 			{
-				borderColor: idleStyle.borderColor,
-				boxShadow: idleStyle.boxShadow.replace('12.600000000000001', '12.6'),
+				borderColor: listeningStyle.borderColor,
+				boxShadow: listeningStyle.boxShadow,
 			},
 			{
-				borderColor: 'color-mix(in srgb, var(--vscode-foreground) 42%, transparent)',
-				boxShadow: '0 0 12.6px color-mix(in srgb, var(--vscode-foreground) 24.8%, transparent), inset 0 0 4.41px color-mix(in srgb, var(--vscode-foreground) 12.4%, transparent)'
+				borderColor: 'rgba(88,166,255,0.65)',
+				boxShadow: '0 0 10px rgba(88,166,255,0.32499999999999996), inset 0 0 4px rgba(88,166,255,0.09749999999999999)'
 			}
 		);
 	});
 
-	test('breathes the idle glow intensity over time', () => {
+	test('connected-idle voice mode does not render a glow', () => {
 		assert.deepStrictEqual(
-			[0, 300 * Math.PI, 900 * Math.PI].map(timestamp => Number(readIdleVoiceGlowIntensity(timestamp).toFixed(3))),
-			[0.4, 0.55, 0.25]
-		);
-	});
-
-	test('renders a static idle glow midpoint when motion is reduced', () => {
-		assert.deepStrictEqual(
-			[0, 300 * Math.PI, 900 * Math.PI].map(timestamp => readIdleVoiceGlowIntensity(timestamp, true)),
-			[0.4, 0.4, 0.4]
+			['idle', 'listening', 'speaking', 'processing', 'error'].map(isGlowingVoiceState as (s: string) => boolean),
+			[false, true, true, false, false]
 		);
 	});
 });

@@ -765,7 +765,11 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 
 				// Detect the active chat session type and switch the harness
 				// so the customization editor opens in the matching context.
-				const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+				const widget = chatWidgetService.lastFocusedWidget;
+				const pendingSessionType = widget?.input.pendingDelegationTarget;
+				const sessionResource = pendingSessionType
+					? harnessService.getSessionResourceForHarness(pendingSessionType)
+					: widget?.viewModel?.sessionResource;
 				if (sessionResource) {
 					harnessService.setActiveSession(sessionResource);
 				}

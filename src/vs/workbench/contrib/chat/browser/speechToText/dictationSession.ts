@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/dictationSession.css';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
+import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
+import { ChatDictationSurface, ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
+import { getDictationPreparingLabel } from './dictationDownloadRing.js';
 
 /**
  * Inline decoration class for the still-processing tail of not-yet-finalized
@@ -29,6 +32,14 @@ const INTERIM_SHIMMER_CLASS = 'dictation-interim-shimmer';
 const INTERIM_SETTLED_CLASS = 'dictation-interim-settled';
 
 const LOG_PREFIX = '[chat-stt-dictation]';
+
+/**
+ * How long transcription updates must pause before the still-shimmering tail is
+ * settled. Foundry keeps the last spoken segment as an interim result until more
+ * audio (or `stop`) arrives, so on a trailing silence it never sends a final for
+ * it; treat a gap this long as the user having paused and stop the shimmer.
+ */
+const IDLE_SETTLE_MS = 700;
 
 /** Number of leading characters `a` and `b` share. */
 function commonPrefixLength(a: string, b: string): number {
@@ -84,7 +95,7 @@ class LiveTranscriptInserter {
 	 * shuts down (after `stopAndTranscribe` resolves), which would otherwise
 	 * overwrite the final text and re-apply the shimmer.
 	 */
-	update(fullText: string, interim: boolean = true): void {
+	update(fullText: string, interim: boolean = true, finalizedText: string = ''): void {
 		this._logService.trace(`${LOG_PREFIX} inserter.update interim=${interim} finalized=${this._finalized} len=${fullText.length}`);
 		if (this._finalized && interim) {
 			this._logService.trace(`${LOG_PREFIX} inserter.update ignored (already finalized)`);
@@ -133,7 +144,7 @@ class LiveTranscriptInserter {
 			[Selection.fromPositions(caret)],
 		);
 
-		this._updateInterimDecorations(text, fullText, interim);
+		this._updateInterimDecorations(text, fullText, interim, finalizedText);
 		this._prevInterimText = interim ? fullText : '';
 	}
 
@@ -150,12 +161,13 @@ class LiveTranscriptInserter {
 
 	/**
 	 * Render the interim text in the placeholder color, shimmering only the
-	 * still-processing trailing portion. The settled prefix is the part of the
-	 * transcript that has not changed since the previous interim update, so words
-	 * stop shimmering once the recognizer stops revising them. Cleared entirely
-	 * once the text is finalized.
+	 * still-processing trailing portion. The settled prefix is the longer of two
+	 * measures: the part Foundry has actually finalized (`finalizedText`, which
+	 * stops shimmering as soon as a segment is endpointed — including the last
+	 * one after the user goes silent), and the part that has not changed since
+	 * the previous interim update. Cleared entirely once the text is finalized.
 	 */
-	private _updateInterimDecorations(text: string, fullText: string, interim: boolean): void {
+	private _updateInterimDecorations(text: string, fullText: string, interim: boolean, finalizedText: string): void {
 		if (!interim || !this._anchor || !this._end || Position.equals(this._anchor, this._end)) {
 			this._logService.trace(`${LOG_PREFIX} interim decorations clear (interim=${interim})`);
 			this._settledDecorations?.clear();
@@ -170,7 +182,12 @@ class LiveTranscriptInserter {
 		// in-progress word shimmers. But once the transcript stops changing (the
 		// common prefix already covers the entire current text) settle
 		// everything, otherwise the last word would shimmer forever.
-		const settledChars = common >= fullText.length ? fullText.length : wordBoundaryAtOrBefore(fullText, common);
+		const heuristicSettled = common >= fullText.length ? fullText.length : wordBoundaryAtOrBefore(fullText, common);
+		// Text Foundry has finalized never shimmers, regardless of the interim
+		// diff — this is what settles the final words during a trailing silence,
+		// where no later interim arrives to confirm they stopped changing.
+		const finalizedChars = finalizedText ? commonPrefixLength(fullText, finalizedText) : 0;
+		const settledChars = Math.min(fullText.length, Math.max(heuristicSettled, finalizedChars));
 		const splitPosition = this._positionAtOffset(text, leading + settledChars);
 
 		this._settledDecorations ??= this._editor.createDecorationsCollection();
@@ -197,6 +214,28 @@ class LiveTranscriptInserter {
 	}
 
 	/**
+	 * Settle the whole in-progress region, stopping the shimmer on the trailing
+	 * words while keeping the not-yet-committed (placeholder) styling. Called
+	 * after a pause in speech: Foundry holds the last spoken segment as an
+	 * interim result until more audio (or `stop`) arrives, so without this the
+	 * final words would shimmer indefinitely during a trailing silence. A later
+	 * interim/final update re-applies the shimmer to any new tail.
+	 */
+	settleShimmer(): void {
+		if (this._finalized || !this._anchor || !this._end || Position.equals(this._anchor, this._end)) {
+			return;
+		}
+		this._logService.trace(`${LOG_PREFIX} settleShimmer`);
+		this._settledDecorations ??= this._editor.createDecorationsCollection();
+		this._shimmerDecorations ??= this._editor.createDecorationsCollection();
+		this._settledDecorations.set([{
+			range: Range.fromPositions(this._anchor, this._end),
+			options: { description: 'chatSpeechToText-settled', inlineClassName: INTERIM_SETTLED_CLASS },
+		}]);
+		this._shimmerDecorations.clear();
+	}
+
+	/**
 	 * Lock out further interim updates and stop shimmering immediately. Called
 	 * when the user stops talking, before the (async) final transcription
 	 * resolves, so a trailing interim transcript can neither overwrite the text
@@ -208,6 +247,22 @@ class LiveTranscriptInserter {
 		this._finalized = true;
 		this._settledDecorations?.clear();
 		this._shimmerDecorations?.clear();
+	}
+
+	/**
+	 * Range covering the finalized transcript text this inserter wrote,
+	 * excluding any leading space it prepended, so its content equals the
+	 * transcript exactly. `undefined` before anything is inserted. Used to track
+	 * the dictated span for accuracy telemetry after the session ends.
+	 */
+	finalizedRange(): Range | undefined {
+		if (!this._anchor || !this._end) {
+			return undefined;
+		}
+		const start = this._needsLeadingSpace
+			? new Position(this._anchor.lineNumber, this._anchor.column + 1)
+			: this._anchor;
+		return Range.fromPositions(start, this._end);
 	}
 
 	/**
@@ -239,6 +294,7 @@ interface IActiveDictation {
 	readonly inserter: LiveTranscriptInserter;
 	readonly disposables: DisposableStore;
 	readonly logService: ILogService;
+	readonly surface: ChatDictationSurface;
 }
 
 /**
@@ -259,49 +315,72 @@ export function activeDictationEditor(): ICodeEditor | undefined {
 }
 
 /** Start dictating into `editor`, rendering the transcript live. */
-export async function startDictation(service: IChatSpeechToTextService, editor: ICodeEditor, window: Window & typeof globalThis, logService: ILogService): Promise<void> {
+export async function startDictation(service: IChatSpeechToTextService, editor: ICodeEditor, window: Window & typeof globalThis, logService: ILogService, surface: ChatDictationSurface = 'chat'): Promise<void> {
 	if (_active || service.state !== ChatSpeechToTextState.Idle) {
 		return;
 	}
 	const inserter = new LiveTranscriptInserter(editor, logService);
 	const disposables = new DisposableStore();
-	// Show a "Listening…" placeholder only once the session is actually
-	// connected and recording, i.e. the service is in the Recording state and
-	// the on-device model has finished preparing (downloading/loading). It must
-	// not appear during microphone acquisition or while the model is still being
-	// prepared, since transcription cannot happen yet. The placeholder remains
-	// visible until transcript text is inserted, and is restored to its previous
-	// value when the session ends.
+	// Hide the editor's blinking caret for the duration of the dictation
+	// session. During dictation the caret is parked at the start of the dictated
+	// region (see LiveTranscriptInserter.update), so a blinking cursor there is
+	// distracting as transcript text streams in.
+	const HIDE_CURSOR_CLASS = 'dictation-hide-cursor';
+	editor.getDomNode()?.classList.add(HIDE_CURSOR_CLASS);
+	disposables.add(toDisposable(() => editor.getDomNode()?.classList.remove(HIDE_CURSOR_CLASS)));
+	// Show a "Listening…" placeholder once the session is actually connected
+	// and recording, i.e. the service is in the Recording state and the
+	// on-device model has finished preparing. While the model is still being
+	// prepared on first use (downloading/loading, which can take a while), show
+	// a "Preparing…/Downloading… X%" placeholder instead so the user knows why
+	// dictation has not started yet rather than staring at an idle editor. The
+	// placeholder must not appear during microphone acquisition. It remains
+	// visible until transcript text is inserted, and is restored to its
+	// previous value when the session ends.
 	const previousPlaceholder = editor.getOption(EditorOption.placeholder);
 	const listeningPlaceholder = localize('chatStt.listening', "Listening…");
+	// The placeholder we last applied (listening or a preparing label), so we
+	// only ever restore the previous placeholder when it was ours to restore.
+	let appliedPlaceholder: string | undefined;
 	const applyPlaceholder = () => {
 		if (!editor.getModel()) {
 			return;
 		}
-		const shouldListen = service.state === ChatSpeechToTextState.Recording && !service.isPreparingModel;
-		const current = editor.getOption(EditorOption.placeholder);
-		if (shouldListen) {
-			if (current !== listeningPlaceholder) {
-				editor.updateOptions({ placeholder: listeningPlaceholder });
+		const recording = service.state === ChatSpeechToTextState.Recording;
+		const desired = recording
+			? (service.isPreparingModel ? getDictationPreparingLabel(service) : listeningPlaceholder)
+			: undefined;
+		if (desired !== undefined) {
+			if (appliedPlaceholder !== desired) {
+				editor.updateOptions({ placeholder: desired });
+				appliedPlaceholder = desired;
 			}
-		} else if (current === listeningPlaceholder) {
+		} else if (appliedPlaceholder !== undefined) {
 			editor.updateOptions({ placeholder: previousPlaceholder });
+			appliedPlaceholder = undefined;
 		}
 	};
 	disposables.add(toDisposable(() => {
 		// Ensure the interim shimmer never lingers, regardless of how the session
 		// ends (final transcript, cancel, editor disposal, or a service-side error).
 		inserter.clearShimmer();
-		if (!editor.getModel() || editor.getOption(EditorOption.placeholder) !== listeningPlaceholder) {
+		if (!editor.getModel() || appliedPlaceholder === undefined) {
 			return;
 		}
 		editor.updateOptions({ placeholder: previousPlaceholder });
+		appliedPlaceholder = undefined;
 	}));
-	disposables.add(service.onDidUpdateTranscript(text => {
-		logService.trace(`${LOG_PREFIX} onDidUpdateTranscript len=${text.length} state=${service.state}`);
-		inserter.update(text);
+	const idleSettle = disposables.add(new MutableDisposable());
+	disposables.add(service.onDidUpdateTranscript(update => {
+		logService.trace(`${LOG_PREFIX} onDidUpdateTranscript len=${update.text.length} finalized=${update.finalizedText.length} state=${service.state}`);
+		inserter.update(update.text, true, update.finalizedText);
+		// Restart the idle timer: if no further transcript arrives, the user has
+		// paused, so stop shimmering the trailing (still-interim) words.
+		idleSettle.value = disposableTimeout(() => inserter.settleShimmer(), IDLE_SETTLE_MS);
 	}));
 	disposables.add(service.onDidChangePreparingModel(() => applyPlaceholder()));
+	// Refresh the "Downloading… X%" placeholder as the download progresses.
+	disposables.add(service.onDidChangeModelDownloadProgress(() => applyPlaceholder()));
 	disposables.add(service.onDidChangeState(state => {
 		logService.trace(`${LOG_PREFIX} onDidChangeState ${state}`);
 		if (state === ChatSpeechToTextState.Idle && _active?.service === service) {
@@ -318,9 +397,9 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	// composer is closed); cancel dictation instead of leaving the microphone
 	// and local transcription running against a dead editor.
 	disposables.add(editor.onDidDispose(() => cancelDictation()));
-	_active = { service, editor, inserter, disposables, logService };
+	_active = { service, editor, inserter, disposables, logService, surface };
 	try {
-		await service.start(window);
+		await service.start(window, surface);
 	} catch {
 		// Acquisition/connection failure is surfaced by the service.
 		if (_active?.service === service) {
@@ -348,6 +427,9 @@ export async function stopDictation(): Promise<void> {
 		if (text !== undefined) {
 			// Final transcript: render it solid (no shimmer).
 			active.inserter.update(text, false);
+			// Track how much of this dictated text the user edits before sending,
+			// as an accuracy signal comparing the backends.
+			trackDictationAccuracy(active, text);
 		} else {
 			// No final transcript to apply; make sure the shimmer does not linger
 			// over the last interim text.
@@ -356,6 +438,10 @@ export async function stopDictation(): Promise<void> {
 	} finally {
 		active.logService.trace(`${LOG_PREFIX} stopDictation dispose`);
 		active.disposables.dispose();
+		// Return focus to the dictation editor so the caret (just un-hidden by
+		// disposing the hide-cursor class) reappears immediately at the end of the
+		// inserted transcript, ready for the user to continue typing.
+		active.editor.focus();
 	}
 }
 
@@ -371,4 +457,88 @@ export function cancelDictation(): void {
 	active.inserter.revert();
 	active.disposables.dispose();
 	active.service.cancel();
+}
+
+/**
+ * After a dictation finishes, watch the dictated span until its text leaves the
+ * input and then report how much it was edited in the meantime as an accuracy
+ * signal. Preferably triggered by an actual submit (see
+ * {@link notifyDictationSubmitted}); otherwise falls back to the input being
+ * cleared or the editor being torn down.
+ *
+ * The dictated region is followed with a tracked decoration so it stays aligned
+ * as the user edits around it; edits typed at its edges are excluded so
+ * unrelated text appended after the dictation is not counted. Only aggregate
+ * character metrics are logged — never the transcript text. Runs independently
+ * of the (already-disposed) dictation session and cleans itself up on measure.
+ */
+interface IDictationAccuracyTracker {
+	readonly editor: ICodeEditor;
+	measure(submitted: boolean): void;
+}
+
+/**
+ * Live accuracy trackers awaiting their dictated text to leave the input. Keyed
+ * at module scope (mirroring {@link _active}) so a submit handler can resolve
+ * the tracker(s) for its editor via {@link notifyDictationSubmitted}.
+ */
+const _accuracyTrackers = new Set<IDictationAccuracyTracker>();
+
+/**
+ * Called by an input's submit path to measure any pending dictation accuracy
+ * against the text actually being sent, before the input is cleared. This is
+ * the precise signal; without it a tracker falls back to the clear/teardown
+ * heuristic and reports `submitted: false`.
+ */
+export function notifyDictationSubmitted(editor: ICodeEditor): void {
+	for (const tracker of [..._accuracyTrackers]) {
+		if (tracker.editor === editor) {
+			tracker.measure(true);
+		}
+	}
+}
+
+function trackDictationAccuracy(active: IActiveDictation, dictatedText: string): void {
+	const { editor, inserter, service, surface } = active;
+	const model = editor.getModel();
+	const range = inserter.finalizedRange();
+	if (!model || !range || !dictatedText) {
+		return;
+	}
+	const backend = service.currentBackend;
+	const collection = editor.createDecorationsCollection([{
+		range,
+		options: {
+			description: 'chatSpeechToText-accuracy',
+			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		},
+	}]);
+	const store = new DisposableStore();
+	let measured = false;
+	const tracker: IDictationAccuracyTracker = {
+		editor,
+		measure(submitted: boolean) {
+			if (measured) {
+				return;
+			}
+			measured = true;
+			const current = collection.getRange(0);
+			const submittedText = current ? model.getValueInRange(current) : '';
+			service.logDictationAccuracy({ dictatedText, submittedText, backend, surface, submitted });
+			collection.clear();
+			store.dispose();
+			_accuracyTrackers.delete(tracker);
+		},
+	};
+	// Fallbacks when no submit signal arrives: submitting the chat input clears
+	// the editor to empty (also covers a manual clear-all), and the editor can
+	// be torn down with dictated text still in it.
+	store.add(model.onDidChangeContent(() => {
+		if (model.getValueLength() === 0) {
+			tracker.measure(false);
+		}
+	}));
+	store.add(model.onWillDispose(() => tracker.measure(false)));
+	store.add(editor.onDidDispose(() => tracker.measure(false)));
+	_accuracyTrackers.add(tracker);
 }

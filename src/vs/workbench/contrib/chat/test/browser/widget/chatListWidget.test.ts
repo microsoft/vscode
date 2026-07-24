@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { getAnchoredScrollTop, UserToggleResizeState } from '../../../browser/widget/chatListWidget.js';
+import { computeScrollDownState, getAnchoredScrollTop, UserToggleResizeState } from '../../../browser/widget/chatListWidget.js';
 
 suite('ChatListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -44,5 +44,23 @@ suite('ChatListWidget', () => {
 			titleMovedDown: 340,
 			titleUnchanged: 300,
 		});
+	});
+
+	// Regression test for https://github.com/microsoft/vscode/issues/326952: the scroll-down
+	// button must reflect the actual scroll position (shown whenever not at the bottom) even while
+	// the scroll lock is engaged during an agent turn, while the `chat-list-at-bottom` padding
+	// state stays coupled to the scroll lock.
+	test('scroll-down button is decoupled from the at-bottom padding state', () => {
+		assert.deepStrictEqual([
+			computeScrollDownState(/*isScrolledToBottom*/ true, /*scrollLock*/ true),
+			computeScrollDownState(/*isScrolledToBottom*/ true, /*scrollLock*/ false),
+			computeScrollDownState(/*isScrolledToBottom*/ false, /*scrollLock*/ true),
+			computeScrollDownState(/*isScrolledToBottom*/ false, /*scrollLock*/ false),
+		], [
+			{ showButton: false, atBottom: true },
+			{ showButton: false, atBottom: true },
+			{ showButton: true, atBottom: true },
+			{ showButton: true, atBottom: false },
+		]);
 	});
 });

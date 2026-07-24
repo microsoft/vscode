@@ -32,6 +32,11 @@
 	border-color: var(--vscode-agentsChatInput-border);
 }
 
+.new-chat-input-area-wrapper {
+	position: relative;
+	width: 100%;
+}
+
 .new-chat-input-area {
 	position: relative;
 	width: 100%;
@@ -127,6 +132,7 @@
 .sessions-chat-toolbar {
 	display: flex;
 	align-items: center;
+	gap: var(--vscode-spacing-size40);
 	padding: 4px 6px 6px 6px;
 	color: var(--vscode-icon-foreground);
 }
@@ -143,6 +149,16 @@
 
 .sessions-chat-voice-toolbar .monaco-toolbar {
 	position: relative;
+}
+
+/* Segmented voice/dictation pill (experimental) */
+.sessions-chat-voice-input-mode {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-voice-input-mode.hidden {
+	display: none;
 }
 
 /* Model picker - uses workbench ModelPickerActionItem */
@@ -252,7 +268,7 @@
 	position: relative;
 	width: 22px;
 	height: 22px;
-	border-radius: 50%;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .sessions-chat-send-button .monaco-button {
@@ -263,7 +279,7 @@
 	height: 22px;
 	min-width: 22px;
 	padding: 0;
-	border-radius: 50%;
+	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-icon-foreground);
 	background: transparent;
 	border: none;
@@ -295,9 +311,8 @@
 
 .monaco-workbench .sessions-chat-send-button .monaco-button.codicon[class*='codicon-']::before,
 .monaco-workbench .sessions-chat-send-button .monaco-button .codicon[class*='codicon-']::before {
-	/* Optical alignment: nudge arrow glyph 1px left to visually center it. */
 	display: inline-block;
-	transform: translateX(-0.5px);
+	transform: translateY(0.5px);
 }
 
 /* Ensure no underline / link decoration ever shows under the codicon glyph
@@ -388,6 +403,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	position: relative;
 	width: 22px;
 	height: 22px;
 	flex-shrink: 0;
@@ -418,6 +434,54 @@
 
 .monaco-workbench .sessions-chat-stt-button .codicon[class*='codicon-'] {
 	font-size: var(--vscode-codiconFontSize, 16px);
+}
+
+/* Determinate download ring shown over the mic while the on-device dictation
+	model downloads on first use (see DictationDownloadRing). */
+.sessions-chat-stt-button > .dictation-download-ring {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 22px;
+	height: 22px;
+	transform: translate(-50%, -50%) rotate(-90deg);
+	pointer-events: none;
+}
+
+.sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-track {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	opacity: 0.25;
+}
+
+.hc-black .sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-track,
+.hc-light .sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-track {
+	opacity: 1;
+}
+
+.sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-progress {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	stroke-linecap: round;
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-progress {
+	transition: stroke-dashoffset 120ms ease;
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button > .dictation-download-ring.indeterminate {
+	animation: dictation-download-ring-spin 1.2s linear infinite;
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button > .dictation-download-ring.indeterminate .dictation-download-ring-progress {
+	transition: none;
+}
+
+@keyframes dictation-download-ring-spin {
+	from { transform: translate(-50%, -50%) rotate(-90deg); }
+	to { transform: translate(-50%, -50%) rotate(270deg); }
 }
 
 /* Attached context container */

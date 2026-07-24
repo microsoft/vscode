@@ -4,15 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, fork } from 'child_process';
+import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
+import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
 import { mkdirSync } from 'fs';
 import { userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { CapiReplayProxy, type CapiReplayMode } from './e2e/harness/capiReplayProxy.js';
-import { resolve as resolvePath } from '../../../../base/common/path.js';
+import { dirname, join, resolve as resolvePath } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
-import { SubscribeResult, type DispatchActionParams } from '../../common/state/protocol/commands.js';
+import {
+	ContentEncoding,
+	type CreateResourceWatchParams,
+	type CreateResourceWatchResult,
+	ResourceType,
+	ResourceWriteMode,
+	SubscribeResult,
+	type DispatchActionParams,
+	type ResourceCopyParams,
+	type ResourceCopyResult,
+	type ResourceDeleteParams,
+	type ResourceDeleteResult,
+	type ResourceListParams,
+	type ResourceListResult,
+	type ResourceMkdirParams,
+	type ResourceMkdirResult,
+	type ResourceMoveParams,
+	type ResourceMoveResult,
+	type ResourceReadParams,
+	type ResourceReadResult,
+	type ResourceRequestParams,
+	type ResourceRequestResult,
+	type ResourceResolveParams,
+	type ResourceResolveResult,
+	type ResourceWriteParams,
+	type ResourceWriteResult,
+} from '../../common/state/protocol/commands.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, parseDefaultChatUri, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../common/state/sessionState.js';
@@ -20,6 +48,7 @@ import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.j
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentEnabledEnvVar } from '../../common/agentService.js';
 import {
 	isJsonRpcNotification,
+	isJsonRpcRequest,
 	isJsonRpcResponse,
 	type AhpNotification,
 	type JsonRpcNotification,
@@ -29,6 +58,7 @@ import {
 	type ProtocolMessage,
 } from '../../common/state/sessionProtocol.js';
 import { AhpSnapshotRecorder, type IAhpSnapshotNormalization, type IAhpSnapshotOptions } from './e2e/harness/ahpSnapshot.js';
+import { isWindows } from '../../../../base/common/platform.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -37,6 +67,44 @@ interface IPendingCall {
 	reject: (err: Error) => void;
 }
 
+type ReverseRequestMethod =
+	| 'createResourceWatch'
+	| 'resourceRequest'
+	| 'resourceRead'
+	| 'resourceList'
+	| 'resourceResolve'
+	| 'resourceWrite'
+	| 'resourceMkdir'
+	| 'resourceDelete'
+	| 'resourceMove'
+	| 'resourceCopy';
+
+type ReverseRequestParamsByMethod = {
+	createResourceWatch: CreateResourceWatchParams;
+	resourceRequest: ResourceRequestParams;
+	resourceRead: ResourceReadParams;
+	resourceList: ResourceListParams;
+	resourceResolve: ResourceResolveParams;
+	resourceWrite: ResourceWriteParams;
+	resourceMkdir: ResourceMkdirParams;
+	resourceDelete: ResourceDeleteParams;
+	resourceMove: ResourceMoveParams;
+	resourceCopy: ResourceCopyParams;
+};
+
+type ReverseRequestResultByMethod = {
+	createResourceWatch: CreateResourceWatchResult;
+	resourceRequest: ResourceRequestResult;
+	resourceRead: ResourceReadResult;
+	resourceList: ResourceListResult;
+	resourceResolve: ResourceResolveResult;
+	resourceWrite: ResourceWriteResult;
+	resourceMkdir: ResourceMkdirResult;
+	resourceDelete: ResourceDeleteResult;
+	resourceMove: ResourceMoveResult;
+	resourceCopy: ResourceCopyResult;
+};
+
 export class TestProtocolClient {
 	private readonly _ws: WebSocket;
 	private readonly _ahpSnapshot = new AhpSnapshotRecorder();
@@ -44,6 +112,7 @@ export class TestProtocolClient {
 	private readonly _pendingCalls = new Map<number, IPendingCall>();
 	private readonly _notifications: AhpNotification[] = [];
 	private readonly _notifWaiters: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void; dispose: () => void }[] = [];
+	private _nextWatchId = 1;
 
 	constructor(
 		port: number,
@@ -80,11 +149,245 @@ export class TestProtocolClient {
 					pending.resolve((msg as JsonRpcSuccessResponse).result);
 				}
 			}
+		} else if (isJsonRpcRequest(msg)) {
+			void this._handleServerRequest(msg);
 		} else if (isJsonRpcNotification(msg)) {
 			const notif = msg;
 			this._notifications.push(notif);
 			this._flushNotificationWaiters();
 		}
+	}
+
+	private async _handleServerRequest(msg: JsonRpcRequest): Promise<void> {
+		try {
+			if (!this._isReverseRequestMethod(msg.method)) {
+				throw new Error(`Unsupported reverse request method: ${msg.method}`);
+			}
+			const result = await this._handleServerRequestMethod(msg.method, msg.params as ReverseRequestParamsByMethod[ReverseRequestMethod]);
+			const response: JsonRpcSuccessResponse = { jsonrpc: '2.0', id: msg.id, result };
+			this._ahpSnapshot.record('c2s', response);
+			this._ws.send(JSON.stringify(response));
+		} catch (error) {
+			const response: JsonRpcErrorResponse = {
+				jsonrpc: '2.0',
+				id: msg.id,
+				error: {
+					code: -32603,
+					message: error instanceof Error ? error.message : String(error),
+				},
+			};
+			this._ahpSnapshot.record('c2s', response);
+			this._ws.send(JSON.stringify(response));
+		}
+	}
+
+	private _isReverseRequestMethod(method: string): method is ReverseRequestMethod {
+		switch (method) {
+			case 'createResourceWatch':
+			case 'resourceRequest':
+			case 'resourceRead':
+			case 'resourceList':
+			case 'resourceResolve':
+			case 'resourceWrite':
+			case 'resourceMkdir':
+			case 'resourceDelete':
+			case 'resourceMove':
+			case 'resourceCopy':
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	private _handleServerRequestMethod(method: 'resourceRequest', params: ResourceRequestParams): Promise<ResourceRequestResult>;
+	private _handleServerRequestMethod(method: 'createResourceWatch', params: CreateResourceWatchParams): Promise<CreateResourceWatchResult>;
+	private _handleServerRequestMethod(method: 'resourceRead', params: ResourceReadParams): Promise<ResourceReadResult>;
+	private _handleServerRequestMethod(method: 'resourceList', params: ResourceListParams): Promise<ResourceListResult>;
+	private _handleServerRequestMethod(method: 'resourceResolve', params: ResourceResolveParams): Promise<ResourceResolveResult>;
+	private _handleServerRequestMethod(method: 'resourceWrite', params: ResourceWriteParams): Promise<ResourceWriteResult>;
+	private _handleServerRequestMethod(method: 'resourceMkdir', params: ResourceMkdirParams): Promise<ResourceMkdirResult>;
+	private _handleServerRequestMethod(method: 'resourceDelete', params: ResourceDeleteParams): Promise<ResourceDeleteResult>;
+	private _handleServerRequestMethod(method: 'resourceMove', params: ResourceMoveParams): Promise<ResourceMoveResult>;
+	private _handleServerRequestMethod(method: 'resourceCopy', params: ResourceCopyParams): Promise<ResourceCopyResult>;
+	private _handleServerRequestMethod(
+		method: ReverseRequestMethod,
+		params: ReverseRequestParamsByMethod[ReverseRequestMethod],
+	): Promise<ReverseRequestResultByMethod[ReverseRequestMethod]>;
+	private async _handleServerRequestMethod(
+		method: ReverseRequestMethod,
+		params: ReverseRequestParamsByMethod[ReverseRequestMethod],
+	): Promise<ReverseRequestResultByMethod[ReverseRequestMethod]> {
+		switch (method) {
+			case 'createResourceWatch':
+				return this._createResourceWatch(params as CreateResourceWatchParams);
+			case 'resourceRequest':
+				return {};
+			case 'resourceRead':
+				return this._resourceRead(params as ResourceReadParams);
+			case 'resourceList':
+				return this._resourceList(params as ResourceListParams);
+			case 'resourceResolve':
+				return this._resourceResolve(params as ResourceResolveParams);
+			case 'resourceWrite':
+				return this._resourceWrite(params as ResourceWriteParams);
+			case 'resourceMkdir':
+				return this._resourceMkdir(params as ResourceMkdirParams);
+			case 'resourceDelete':
+				return this._resourceDelete(params as ResourceDeleteParams);
+			case 'resourceMove':
+				return this._resourceMove(params as ResourceMoveParams);
+			case 'resourceCopy':
+				return this._resourceCopy(params as ResourceCopyParams);
+		}
+	}
+
+	private _coerceUri(value: string): URI {
+		return URI.parse(value);
+	}
+
+	private _assertFileUri(uri: URI): string {
+		if (uri.scheme !== Schemas.file) {
+			throw new Error(`Unsupported URI scheme for test client filesystem: ${uri.toString()}`);
+		}
+		return uri.fsPath;
+	}
+
+	private async _pathExists(path: string): Promise<boolean> {
+		try {
+			await stat(path);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	private async _resourceRead(params: ResourceReadParams): Promise<ResourceReadResult> {
+		const uri = this._coerceUri(params.uri);
+		const filePath = this._assertFileUri(uri);
+		const encoding = params.encoding === ContentEncoding.Utf8 ? ContentEncoding.Utf8 : ContentEncoding.Base64;
+		const content = await readFile(filePath);
+		return {
+			data: encoding === ContentEncoding.Utf8 ? content.toString('utf-8') : content.toString('base64'),
+			encoding,
+		};
+	}
+
+	private async _resourceList(params: ResourceListParams): Promise<ResourceListResult> {
+		const uri = this._coerceUri(params.uri);
+		const dirPath = this._assertFileUri(uri);
+		const entries = await readdir(dirPath, { withFileTypes: true });
+		return {
+			entries: entries.map(entry => ({
+				name: entry.name,
+				type: entry.isDirectory() ? 'directory' : 'file',
+			})),
+		};
+	}
+
+	private async _resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+		const requested = this._coerceUri(params.uri);
+		const requestedPath = this._assertFileUri(requested);
+		const followSymlinks = params.followSymlinks ?? true;
+		const lst = await lstat(requestedPath);
+		if (lst.isSymbolicLink() && followSymlinks) {
+			const resolvedPath = await realpath(requestedPath);
+			const resolvedUri = URI.file(resolvedPath);
+			const resolvedStat = await stat(resolvedPath);
+			return {
+				uri: resolvedUri.toString(),
+				type: resolvedStat.isDirectory() ? ResourceType.Directory : ResourceType.File,
+				size: resolvedStat.isDirectory() ? undefined : resolvedStat.size,
+				mtime: resolvedStat.mtime.toISOString(),
+				ctime: resolvedStat.ctime.toISOString(),
+				etag: `W/"${resolvedStat.size}-${Math.trunc(resolvedStat.mtimeMs)}"`,
+			};
+		}
+		const st = followSymlinks ? await stat(requestedPath) : lst;
+		return {
+			uri: requested.toString(),
+			type: lst.isSymbolicLink() && !followSymlinks ? ResourceType.Symlink : (st.isDirectory() ? ResourceType.Directory : ResourceType.File),
+			size: st.isDirectory() ? undefined : st.size,
+			mtime: st.mtime.toISOString(),
+			ctime: st.ctime.toISOString(),
+			etag: `W/"${st.size}-${Math.trunc(st.mtimeMs)}"`,
+		};
+	}
+
+	private async _resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult> {
+		const uri = this._coerceUri(params.uri);
+		const filePath = this._assertFileUri(uri);
+		const dataEncoding = params.encoding === ContentEncoding.Utf8 ? ContentEncoding.Utf8 : ContentEncoding.Base64;
+		const incoming = Buffer.from(params.data, dataEncoding);
+		const mode = params.mode ?? ResourceWriteMode.Truncate;
+		const position = Math.max(0, params.position ?? 0);
+		const createOnly = params.createOnly ?? false;
+
+		await mkdir(dirname(filePath), { recursive: true });
+		const exists = await this._pathExists(filePath);
+		if (createOnly && exists) {
+			throw new Error(`File already exists: ${filePath}`);
+		}
+		const existing = exists ? await readFile(filePath) : Buffer.alloc(0);
+		const clampedStart = Math.min(position, existing.length);
+		let next: Buffer;
+		switch (mode) {
+			case ResourceWriteMode.Append: {
+				const insertAt = Math.max(0, existing.length - Math.min(position, existing.length));
+				next = Buffer.concat([existing.subarray(0, insertAt), incoming, existing.subarray(insertAt)]);
+				break;
+			}
+			case ResourceWriteMode.Insert:
+				next = Buffer.concat([existing.subarray(0, clampedStart), incoming, existing.subarray(clampedStart)]);
+				break;
+			case ResourceWriteMode.Truncate:
+			default:
+				next = Buffer.concat([existing.subarray(0, clampedStart), incoming]);
+				break;
+		}
+		await writeFile(filePath, next);
+		return {};
+	}
+
+	private async _resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
+		const uri = this._coerceUri(params.uri);
+		const dirPath = this._assertFileUri(uri);
+		await mkdir(dirPath, { recursive: true });
+		return {};
+	}
+
+	private async _resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult> {
+		const uri = this._coerceUri(params.uri);
+		const targetPath = this._assertFileUri(uri);
+		await rm(targetPath, { recursive: params.recursive ?? false, force: false });
+		return {};
+	}
+
+	private async _resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult> {
+		const source = this._assertFileUri(this._coerceUri(params.source));
+		const destination = this._assertFileUri(this._coerceUri(params.destination));
+		const failIfExists = params.failIfExists ?? false;
+		if (failIfExists && await this._pathExists(destination)) {
+			throw new Error(`Destination already exists: ${destination}`);
+		}
+		await mkdir(dirname(destination), { recursive: true });
+		await rename(source, destination);
+		return {};
+	}
+
+	private async _resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult> {
+		const source = this._assertFileUri(this._coerceUri(params.source));
+		const destination = this._assertFileUri(this._coerceUri(params.destination));
+		const failIfExists = params.failIfExists ?? false;
+		if (failIfExists && await this._pathExists(destination)) {
+			throw new Error(`Destination already exists: ${destination}`);
+		}
+		await mkdir(dirname(destination), { recursive: true });
+		await cp(source, destination, { recursive: true, force: !failIfExists, errorOnExist: failIfExists });
+		return {};
+	}
+
+	private async _createResourceWatch(_params: CreateResourceWatchParams): Promise<CreateResourceWatchResult> {
+		return { channel: `ahp-resource-watch:/mock-${this._nextWatchId++}` };
 	}
 
 	/** Send a JSON-RPC notification (fire-and-forget). */
@@ -425,6 +728,17 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			...(options?.homeDir ? {
 				HOME: options.homeDir,
 				USERPROFILE: options.homeDir,
+				APPDATA: join(options.homeDir, 'AppData', 'Roaming'),
+				LOCALAPPDATA: join(options.homeDir, 'AppData', 'Local'),
+				XDG_CONFIG_HOME: join(options.homeDir, '.config'),
+				COPILOT_HOME: join(options.homeDir, '.copilot'),
+				COPILOT_SKILLS_DIRS: undefined,
+				CLAUDE_CONFIG_DIR: undefined,
+				CODEX_HOME: undefined,
+				...(isWindows && options.homeDir.match(/^[A-Za-z]:[\\/]/) ? {
+					HOMEDRIVE: options.homeDir.slice(0, 2),
+					HOMEPATH: options.homeDir.slice(2).replace(/\//g, '\\'),
+				} : {}),
 			} : {}),
 			// Codex defaults to disabled; opt it in for the agent host e2e suite when a
 			// codex SDK root is supplied so the provider actually registers.
@@ -553,7 +867,7 @@ export function getActionEnvelope(n: AhpNotification): ActionEnvelope {
 export async function createAndSubscribeSession(c: TestProtocolClient, clientId: string, workingDirectory?: string): Promise<string> {
 	await c.call('initialize', { channel: 'ahp-root://', protocolVersions: [PROTOCOL_VERSION], clientId });
 
-	await c.call('createSession', { channel: nextSessionUri(), provider: 'mock', workingDirectory });
+	await c.call('createSession', { channel: nextSessionUri(), provider: 'mock', workingDirectories: workingDirectory ? [workingDirectory] : undefined });
 
 	const notif = await c.waitForNotification(n =>
 		n.method === 'root/sessionAdded'

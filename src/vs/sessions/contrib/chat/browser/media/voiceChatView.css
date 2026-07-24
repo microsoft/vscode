@@ -140,14 +140,3 @@ so mirror the blue-listening / purple-speaking glow here. `voice-active` /
 .monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode {
 	animation: sessionsVoiceIconGlow 1.4s ease-in-out infinite;
 }
-
-/* Themed breathing glow while connected-idle (armed) */
-.new-chat-input-area.voice-active.voice-idle .action-label.codicon-voice-mode {
-	--sessions-voice-icon-glow-color: color-mix(in srgb, var(--vscode-foreground) 70%, transparent);
-	color: var(--vscode-foreground) !important;
-	border-radius: 50%;
-}
-
-.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-idle .action-label.codicon-voice-mode {
-	animation: sessionsVoiceIconGlow 1.4s ease-in-out infinite;
-}

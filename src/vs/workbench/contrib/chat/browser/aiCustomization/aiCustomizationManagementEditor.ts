@@ -38,6 +38,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
+import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
 import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { McpListWidget } from './mcpListWidget.js';
@@ -85,7 +86,7 @@ import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditor
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -292,6 +293,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private automationsContentContainer: HTMLElement | undefined;
 	private modelsContentContainer: HTMLElement | undefined;
 	private toolsContentContainer: HTMLElement | undefined;
+	private readonly contributedSectionContainers = new Map<AICustomizationManagementSection, HTMLElement>();
+	private readonly contributedSectionWidgets = new Map<AICustomizationManagementSection, IAICustomizationManagementSectionWidget>();
 	private modelsFooterElement: HTMLElement | undefined;
 
 	// Embedded editor state
@@ -441,10 +444,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			[AICustomizationManagementSection.Models]: { label: localize('models', "Models"), icon: Codicon.vm, description: localize('modelsDesc', "Configure and manage language models available for use.") },
 			[AICustomizationManagementSection.Tools]: { label: localize('tools', "Tools"), icon: toolsIcon, description: localize('toolsDesc', "Enable or disable groups of language model tools available to chat.") },
 		};
+		const activeHarnessId = this.harnessService.activeHarness.get();
 		for (const id of this.workspaceService.managementSections) {
-			const info = sectionInfo[id];
+			const contribution = aiCustomizationManagementSectionRegistry.get(id, activeHarnessId) ?? aiCustomizationManagementSectionRegistry.getDefault(id);
+			const info = contribution ?? sectionInfo[id];
 			if (info) {
-				this.allSections.push({ id, ...info, count: 0 });
+				this.allSections.push({ id, label: info.label, icon: info.icon, description: info.description, count: 0 });
 			}
 		}
 		this.rebuildVisibleSections();
@@ -460,6 +465,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	protected override createEditor(parent: HTMLElement): void {
 		this.editorDisposables.clear();
+		this.contributedSectionContainers.clear();
+		this.contributedSectionWidgets.clear();
 		this.container = DOM.append(parent, $('.ai-customization-management-editor'));
 
 		this.createSplitView();
@@ -579,8 +586,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.sections.length = 0;
 		for (const s of this.allSections) {
-			if (!hidden.has(s.id)) {
-				this.sections.push(s);
+			const contribution = aiCustomizationManagementSectionRegistry.get(s.id, activeId);
+			const contributed = aiCustomizationManagementSectionRegistry.has(s.id);
+			if (!hidden.has(s.id) && (!contributed || !!contribution)) {
+				this.sections.push(contribution ? { ...s, label: contribution.label, icon: contribution.icon, description: contribution.description } : s);
 			}
 		}
 
@@ -658,6 +667,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 			// count refresh completes. Only reset when the active harness
 			// actually changed to avoid flicker on harness registration events.
 			if (this._previousActiveHarnessId !== undefined && this._previousActiveHarnessId !== activeId) {
+				for (const [section, widget] of this.contributedSectionWidgets) {
+					this.editorDisposables.delete(widget);
+					this.contributedSectionContainers.get(section)?.replaceChildren();
+				}
+				this.contributedSectionWidgets.clear();
 				for (const section of this.sections) {
 					this.updateSectionCount(section.id, 0);
 				}
@@ -942,6 +956,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (hasSections.has(AICustomizationManagementSection.McpServers)) {
 			this.mcpContentContainer = DOM.append(contentInner, $('.mcp-content-container'));
 			this.mcpListWidget = this.editorDisposables.add(this.instantiationService.createInstance(McpListWidget));
+			this.mcpListWidget.setCloseCustomizationEditor(async () => {
+				if (this.input) {
+					await this.group.closeEditor(this.input);
+				}
+			});
 			this.mcpContentContainer.appendChild(this.mcpListWidget.element);
 
 			// Embedded MCP server detail view
@@ -994,6 +1013,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.automationsContentContainer = DOM.append(contentInner, $('.automations-content-container'));
 			this.automationsListWidget = this.editorDisposables.add(this.instantiationService.createInstance(AutomationsListWidget));
 			this.automationsContentContainer.appendChild(this.automationsListWidget.element);
+		}
+
+		for (const section of this.workspaceService.managementSections) {
+			if (!aiCustomizationManagementSectionRegistry.has(section)) {
+				continue;
+			}
+			const container = DOM.append(contentInner, $('.contributed-section-container'));
+			this.contributedSectionContainers.set(section, container);
 		}
 
 		// Embedded editor container
@@ -1277,6 +1304,38 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return checkbox;
 		};
 
+		const renderItem = (container: HTMLElement, promptFile: IPromptPath): void => {
+			const row = DOM.append(container, $('div.ai-customization-list-item.prompt-migration-item'));
+			const checkbox = renderSelectionCheckbox(row, promptFile);
+			this.migrationPageDisposables.add(DOM.addDisposableListener(row, 'click', event => {
+				if (event.target instanceof Node && checkbox.domNode.contains(event.target)) {
+					return;
+				}
+				openPromptFileInEmbeddedEditor(promptFile);
+			}));
+
+			const itemLeft = DOM.append(row, $('span.item-left'));
+			const itemText = DOM.append(itemLeft, $('span.item-text'));
+			const nameRow = DOM.append(itemText, $('span.item-name-row'));
+			const nameLabel = DOM.append(nameRow, $('span.item-name.prompt-migration-item-name'));
+			nameLabel.textContent = promptFile.name ?? basename(promptFile.uri);
+
+			const pathLabel = DOM.append(itemText, $('span.item-description.is-filename.prompt-migration-item-path'));
+			pathLabel.textContent = this.labelService.getUriLabel(promptFile.uri, { relative: true });
+
+			const itemRight = DOM.append(row, $('span.item-right'));
+			const deleteButton = DOM.append(itemRight, $('button.icon-button', {
+				type: 'button',
+				'aria-label': localize('deletePromptFile', "Delete {0}", promptFile.name ?? basename(promptFile.uri)),
+			})) as HTMLButtonElement;
+			deleteButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.trash));
+			this.migrationPageDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), deleteButton, localize('deletePromptFileTooltip', "Delete")));
+			this.migrationPageDisposables.add(DOM.addDisposableListener(deleteButton, 'click', event => {
+				event.stopPropagation();
+				void this.deletePromptFile(promptFile);
+			}));
+		};
+
 		const renderGroup = (groupLabel: string, promptFiles: readonly IPromptPath[]): void => {
 			if (promptFiles.length === 0) {
 				return;
@@ -1306,23 +1365,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			count.textContent = String(promptFiles.length);
 
 			for (const promptFile of promptFiles) {
-				const row = DOM.append(group, $('div.ai-customization-list-item.prompt-migration-item'));
-				const checkbox = renderSelectionCheckbox(row, promptFile);
-				this.migrationPageDisposables.add(DOM.addDisposableListener(row, 'click', event => {
-					if (event.target instanceof Node && checkbox.domNode.contains(event.target)) {
-						return;
-					}
-					openPromptFileInEmbeddedEditor(promptFile);
-				}));
-
-				const itemLeft = DOM.append(row, $('span.item-left'));
-				const itemText = DOM.append(itemLeft, $('span.item-text'));
-				const nameRow = DOM.append(itemText, $('span.item-name-row'));
-				const nameLabel = DOM.append(nameRow, $('span.item-name.prompt-migration-item-name'));
-				nameLabel.textContent = promptFile.name ?? basename(promptFile.uri);
-
-				const pathLabel = DOM.append(itemText, $('span.item-description.is-filename.prompt-migration-item-path'));
-				pathLabel.textContent = this.labelService.getUriLabel(promptFile.uri, { relative: true });
+				renderItem(group, promptFile);
 			}
 		};
 
@@ -1330,23 +1373,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		renderGroup(localize('promptMigrationUserGroup', "User"), userPromptFiles);
 
 		for (const promptFile of filteredPromptFiles.filter(file => file.storage !== PromptsStorage.local && file.storage !== PromptsStorage.user)) {
-			const row = DOM.append(this.migrationListContainer, $('div.ai-customization-list-item.prompt-migration-item'));
-			const checkbox = renderSelectionCheckbox(row, promptFile);
-			this.migrationPageDisposables.add(DOM.addDisposableListener(row, 'click', event => {
-				if (event.target instanceof Node && checkbox.domNode.contains(event.target)) {
-					return;
-				}
-				openPromptFileInEmbeddedEditor(promptFile);
-			}));
-
-			const itemLeft = DOM.append(row, $('span.item-left'));
-			const itemText = DOM.append(itemLeft, $('span.item-text'));
-			const nameRow = DOM.append(itemText, $('span.item-name-row'));
-			const nameLabel = DOM.append(nameRow, $('span.item-name.prompt-migration-item-name'));
-			nameLabel.textContent = promptFile.name ?? basename(promptFile.uri);
-
-			const pathLabel = DOM.append(itemText, $('span.item-description.is-filename.prompt-migration-item-path'));
-			pathLabel.textContent = this.labelService.getUriLabel(promptFile.uri, { relative: true });
+			renderItem(this.migrationListContainer, promptFile);
 		}
 
 		this.updatePromptMigrationActionState();
@@ -1405,6 +1432,33 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.migrationMigrateButton.label = selectedCount > 0
 			? localize('promptMigrationPageButtonWithCount', "Migrate ({0})", selectedCount)
 			: localize('promptMigrationPageButton', "Migrate");
+	}
+
+	private async deletePromptFile(promptFile: IPromptPath): Promise<void> {
+		const fileName = promptFile.name ?? basename(promptFile.uri);
+		const confirmation = await this.dialogService.confirm({
+			message: localize('confirmDeletePromptFile', "Are you sure you want to delete '{0}'?", fileName),
+			detail: localize('confirmDeleteDetail', "This action cannot be undone."),
+			primaryButton: localize('delete', "Delete"),
+			type: 'warning',
+		});
+
+		if (!confirmation.confirmed) {
+			return;
+		}
+
+		const useTrash = this.fileService.hasCapability(promptFile.uri, FileSystemProviderCapabilities.Trash);
+		await this.fileService.del(promptFile.uri, { useTrash });
+		if (promptFile.storage === PromptsStorage.local) {
+			const projectRoot = this.workspaceService.getActiveProjectRoot();
+			if (projectRoot) {
+				await this.workspaceService.deleteFiles(projectRoot, [promptFile.uri]);
+			}
+		}
+
+		// Remove the deleted file from the list and re-render immediately
+		const updatedFiles = this.promptFilesToMigrate.filter(f => !isEqual(f.uri, promptFile.uri));
+		this.setPromptFilesToMigrate(updatedFiles);
 	}
 
 	private isPromptMigrationEnabled(): boolean {
@@ -1681,9 +1735,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.pluginContentContainer) {
 			this.pluginContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isPluginsSection ? '' : 'none';
 		}
-		if (this.automationsContentContainer) {
-			this.automationsContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isAutomationsSection ? '' : 'none';
-		}
+		this.updateAutomationsContentVisibility(!isEditorMode && !isMigrationMode && !isDetailMode && isAutomationsSection);
 		if (this.pluginDetailContainer) {
 			this.pluginDetailContainer.style.display = isPluginDetailMode ? '' : 'none';
 		}
@@ -1692,6 +1744,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		if (this.toolsDetailContainer) {
 			this.toolsDetailContainer.style.display = isToolsDetailMode ? '' : 'none';
+		}
+		for (const [section, container] of this.contributedSectionContainers) {
+			const visible = !isEditorMode && !isMigrationMode && !isDetailMode && this.selectedSection === section;
+			container.style.display = visible ? '' : 'none';
+			if (visible) {
+				this.ensureContributedSectionWidget(section);
+			}
 		}
 		if (this.editorContentContainer) {
 			this.editorContentContainer.style.display = isEditorMode ? '' : 'none';
@@ -1703,6 +1762,39 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.dimension) {
 				this.layout(this.dimension);
 			}
+		}
+	}
+
+	private ensureContributedSectionWidget(section: AICustomizationManagementSection): IAICustomizationManagementSectionWidget | undefined {
+		const existing = this.contributedSectionWidgets.get(section);
+		if (existing) {
+			return existing;
+		}
+		const contribution = aiCustomizationManagementSectionRegistry.get(section, this.harnessService.activeHarness.get());
+		const container = this.contributedSectionContainers.get(section);
+		if (!contribution || !container) {
+			return undefined;
+		}
+		const widget = contribution.create(this.instantiationService, container);
+		this.contributedSectionWidgets.set(section, widget);
+		this.editorDisposables.add(widget);
+		if (this.dimension) {
+			widget.layout?.(this.dimension);
+		}
+		return widget;
+	}
+
+	private updateAutomationsContentVisibility(sectionVisible: boolean): void {
+		if (!this.automationsContentContainer) {
+			return;
+		}
+
+		if (sectionVisible) {
+			this.automationsContentContainer.style.display = '';
+			this.automationsListWidget?.setVisible(this.isVisible());
+		} else {
+			this.automationsListWidget?.setVisible(false);
+			this.automationsContentContainer.style.display = 'none';
 		}
 	}
 
@@ -1878,12 +1970,23 @@ export class AICustomizationManagementEditor extends EditorPane {
 		super.clearInput();
 	}
 
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
+		this.updateAutomationsContentVisibility(this.viewMode === 'list' && this.selectedSection === AICustomizationManagementSection.Automations);
+		if (visible && this.dimension) {
+			this.layout(this.dimension);
+		}
+	}
+
 	override layout(dimension: DOM.Dimension): void {
 		this.dimension = dimension;
 
 		if (this.container && this.splitView) {
 			this.splitViewContainer.style.height = `${dimension.height}px`;
 			this.splitView.layout(dimension.width, dimension.height);
+		}
+		for (const widget of this.contributedSectionWidgets.values()) {
+			widget.layout?.(dimension);
 		}
 		this.migrationSearchInput?.layout();
 	}
@@ -1916,6 +2019,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.toolsListWidget?.focusSearch();
 		} else if (this.selectedSection === AICustomizationManagementSection.Automations) {
 			this.automationsListWidget?.focus();
+		} else if (this.selectedSection && this.contributedSectionContainers.has(this.selectedSection)) {
+			this.ensureContributedSectionWidget(this.selectedSection)?.focus?.();
 		} else {
 			this.listWidget?.focusSearch();
 		}

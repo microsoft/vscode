@@ -23,7 +23,7 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../../workbe
 import { IChatService, IChatSendRequestOptions } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints, ChatInteractivity } from '../../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, ISideChatSelection, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints, ChatInteractivity } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -105,6 +105,8 @@ export interface ICopilotChatSession {
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
+	/** Whether the session's repository supports worktree-backed operations. */
+	readonly hasGitRepository?: IObservable<boolean>;
 	/** Whether the session is archived. */
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
@@ -256,6 +258,8 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 
 	private readonly _loading = observableValue(this, true);
 	readonly loading: IObservable<boolean> = this._loading;
+	private readonly _hasGitRepository = observableValue(this, false);
+	readonly hasGitRepository: IObservable<boolean> = this._hasGitRepository;
 
 	private readonly _changes: ReturnType<typeof observableValue<readonly ISessionFileChange[]>>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
@@ -373,13 +377,17 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 				this.setIsolationMode('workspace');
 			}
 		}
-		if (this._gitRepository) {
-			this._loadBranches(this._gitRepository);
+		const gitRepository = this._gitRepository;
+		if (gitRepository) {
+			this._register(autorun(reader => {
+				this._hasGitRepository.set(!!gitRepository.state.read(reader).HEAD?.commit, undefined);
+			}));
+			this._loadBranches(gitRepository);
 
 			// Automatically update the selected branch when the repository
 			// state changes. This is done only for the Folder sessions.
 			const currentBranchName = derived(reader => {
-				const state = this._gitRepository?.state.read(reader);
+				const state = gitRepository.state.read(reader);
 				return state?.HEAD?.commit ? state.HEAD.name : undefined;
 			});
 
@@ -2104,6 +2112,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		throw new Error(`Session '${sessionId}' does not support forking into a chat`);
 	}
 
+	async createSideChat(sessionId: string, _sourceChat: URI, _turnId: string, _selection?: ISideChatSelection): Promise<IChat> {
+		throw new Error(`Session '${sessionId}' does not support side chats`);
+	}
+
 	async createNewChat(sessionId: string, prompt?: string): Promise<IChat> {
 		const currentNewSession = this._newSessions.get(sessionId);
 		if (currentNewSession) {
@@ -3094,7 +3106,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// Resolve the main (first) chat in the group — session-level properties come from it
 		const mainChatIds = this._getChatIdsInGroup(sessionId);
 		const firstChatId = mainChatIds[0];
-		const primaryChat = firstChatId
+		const primaryChat: ICopilotChatSession = firstChatId
 			? this._sessionCache.get(this._localIdFromchatId(firstChatId)) ?? chat
 			: chat;
 
@@ -3147,6 +3159,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			icon: primaryChat.icon,
 			createdAt: primaryChat.createdAt,
 			workspace: primaryChat.workspace,
+			hasGitRepository: primaryChat.hasGitRepository,
 			title: primaryChat.title,
 			updatedAt: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.updatedAt.read(reader))!),
 			status: chatsObs.map((chats, reader) => this._aggregateStatus(chats, reader)),
@@ -3188,6 +3201,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			icon: chat.icon,
 			createdAt: chat.createdAt,
 			workspace: chat.workspace,
+			hasGitRepository: chat.hasGitRepository,
 			title: chat.title,
 			updatedAt: chat.updatedAt,
 			status: chat.status,

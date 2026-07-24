@@ -625,6 +625,8 @@ export interface IChatTerminalToolInvocationData {
 	alternativeRecommendation?: string;
 	language: string;
 	terminalToolSessionId?: string;
+	/** False for output-only data that must not create a workbench terminal instance. */
+	isPty?: boolean;
 	/** The predefined command ID that will be used for this terminal command */
 	terminalCommandId?: string;
 	/** Whether the terminal command was started as a background execution */
@@ -1087,6 +1089,10 @@ export interface IChatSubagentToolInvocationData {
 	result?: string;
 	modelName?: string;
 	credits?: number;
+	/** Millisecond timestamp when the subagent's first turn started. */
+	startedAt?: number;
+	/** Final elapsed duration in milliseconds. Set when the subagent stops. */
+	duration?: number;
 	/**
 	 * Resource (URI string) of the subagent's own chat, when the subagent runs as
 	 * a distinct chat (e.g. an agent host worker chat). Used to offer an "Open

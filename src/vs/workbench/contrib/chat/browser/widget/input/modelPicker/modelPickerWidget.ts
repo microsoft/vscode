@@ -162,7 +162,7 @@ export class ModelPickerWidget extends Disposable {
 		// state while the chat extension comes up and loads them, rather than a
 		// misleading "Auto" fallback.
 		this._register(this._workspaceTrustManagementService.onDidChangeTrust(trusted => {
-			if (trusted && (this._delegate.showAutoModel?.() ?? false) && this._delegate.getModels().length === 0) {
+			if (trusted && this._delegate.getPresentationOptions().showAutoModel && this._delegate.getModels().length === 0) {
 				this._activatingAfterTrust = true;
 				this._activatingTimer.value = disposableTimeout(() => {
 					this._activatingAfterTrust = false;
@@ -390,7 +390,7 @@ export class ModelPickerWidget extends Disposable {
 		const reason = this._unavailableReason();
 		const empty = this._delegate.getModels().length === 0;
 		const activating = reason === undefined && empty && this._activatingAfterTrust;
-		const genericNoModels = reason === undefined && !activating && empty && !(this._delegate.showAutoModel?.() ?? false);
+		const genericNoModels = reason === undefined && !activating && empty && !this._delegate.getPresentationOptions().showAutoModel;
 		return { reason, activating, genericNoModels, noModels: reason !== undefined || activating || genericNoModels };
 	}
 
@@ -438,11 +438,12 @@ export class ModelPickerWidget extends Disposable {
 		};
 
 		const models = this._delegate.getModels();
+		const presentation = this._delegate.getPresentationOptions();
 		const isSignedOut = this._entitlementService.entitlement === ChatEntitlement.Unknown;
 		const manifest = this._languageModelsService.getModelsControlManifest();
 		// Signed-out users (e.g. offline-BYOK) should not see Copilot control-manifest entries
 		const controlModelsForTier: IStringDictionary<IModelControlEntry> = isSignedOut ? {} : getControlModelsForEntitlement(manifest, this._entitlementService.entitlement);
-		const canShowManageModelsAction = this._delegate.showManageModelsAction() && shouldShowManageModelsAction(this._entitlementService);
+		const canShowManageModelsAction = presentation.showManageModelsAction && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
@@ -459,32 +460,33 @@ export class ModelPickerWidget extends Disposable {
 			this.show(anchorElement);
 		};
 
-		const items = buildModelPickerItems(
+		const items = buildModelPickerItems({
 			models,
-			this._selectedModel?.identifier,
-			this._languageModelsService.getRecentlyUsedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
-			this._languageModelsService.getPinnedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
-			controlModelsForTier,
-			this._productService.version,
-			this._updateService.state.type,
-			onSelect,
-			onTogglePin,
+			selectedModelId: this._selectedModel?.identifier,
+			recentModelIds: this._languageModelsService.getRecentlyUsedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
+			pinnedModelIds: this._languageModelsService.getPinnedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
+			controlModels: controlModelsForTier,
+			currentVSCodeVersion: this._productService.version,
+			updateStateType: this._updateService.state.type,
 			manageSettingsUrl,
-			this._delegate.useGroupedModelPicker(),
 			manageModelsAction,
-			this._entitlementService,
-			this._delegate.showUnavailableFeatured(),
-			this._delegate.showFeatured(),
-			this._languageModelsService,
-			this._openerService,
-			this._delegate.showAutoModel?.() ?? false,
-			onConfigure,
-			this.isRestrictedMode(),
-			() => { void this._requestWorkspaceTrust(); },
-			this.isSetupRequired(),
-			() => { this._requestSetup(); },
-			!!this._entitlementService.quotas.usageBasedBilling,
-		);
+			chatEntitlementService: this._entitlementService,
+			languageModelsService: this._languageModelsService,
+			openerService: this._openerService,
+			presentation: {
+				...presentation,
+				restrictedMode: this.isRestrictedMode(),
+				setupRequired: this.isSetupRequired(),
+				isUBB: !!this._entitlementService.quotas.usageBasedBilling,
+			},
+			actions: {
+				onSelect,
+				onTogglePin,
+				onConfigure,
+				onRequestTrust: () => { void this._requestWorkspaceTrust(); },
+				onRequestSetup: () => { this._requestSetup(); },
+			},
+		});
 
 		// Collect all hover disposables so they are properly cleaned up when the
 		// picker is hidden. The ActionListWidget only tracks the disposable for the
@@ -587,7 +589,9 @@ export class ModelPickerWidget extends Disposable {
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
-		const modelIcon = this._selectedModel ? getModelPickerIcon(this._selectedModel, this._delegate.useGenericModelIcon?.()) : undefined;
+		const modelIcon = this._selectedModel
+			? (this._selectedModel.metadata.statusIcon ?? (this._delegate.getPresentationOptions().showModelIcon ? getModelPickerIcon(this._selectedModel) : undefined))
+			: undefined;
 		const compact = this._compact?.get() ?? false;
 		if (modelIcon && !noModelsAvailable) {
 			nameChildren.push(renderIcon(modelIcon));
