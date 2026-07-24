@@ -223,7 +223,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 	}
 
 	async start(): Promise<void> {
-		EmptyTextEditorHintContribution.get(this.editor)?.dispose();
+		EmptyTextEditorHintContribution.get(this.editor)?.disposeHint();
 
 		// Prefer the built-in on-device engine (private, in-box) when it is
 		// configured, falling back to the speech extension's provider otherwise.

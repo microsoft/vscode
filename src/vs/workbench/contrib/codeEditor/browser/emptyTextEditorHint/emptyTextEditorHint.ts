@@ -70,7 +70,7 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEdit
 		}));
 		this._register(inlineChatSessionService.onWillStartSession(editor => {
 			if (this.editor === editor) {
-				this.textHintContentWidget?.dispose();
+				this.disposeHint();
 			}
 		}));
 		this._register(inlineChatSessionService.onDidChangeSessions(() => {
@@ -122,15 +122,19 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEdit
 		if (shouldRenderHint && !this.textHintContentWidget) {
 			this.textHintContentWidget = this.instantiationService.createInstance(EmptyTextEditorHintContentWidget, this.editor);
 		} else if (!shouldRenderHint && this.textHintContentWidget) {
-			this.textHintContentWidget.dispose();
-			this.textHintContentWidget = undefined;
+			this.disposeHint();
 		}
+	}
+
+	disposeHint(): void {
+		this.textHintContentWidget?.dispose();
+		this.textHintContentWidget = undefined;
 	}
 
 	override dispose(): void {
 		super.dispose();
 
-		this.textHintContentWidget?.dispose();
+		this.disposeHint();
 	}
 }
 
