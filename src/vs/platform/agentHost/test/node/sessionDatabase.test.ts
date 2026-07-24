@@ -30,7 +30,7 @@ suite('SessionDatabase', () => {
 
 	suite('initialization', () => {
 
-		test('retries after a transient open failure', async () => {
+		test('retries after a transient initialization failure', async () => {
 			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-retry-' + generateUuid()));
 			try {
 				const databaseDir = join(tempRoot, 'blocked');
@@ -38,7 +38,7 @@ suite('SessionDatabase', () => {
 				await fs.writeFile(databaseDir, '');
 				const database = new SessionDatabase(databasePath);
 				try {
-					await assert.rejects(() => database.setMetadata('key', 'first'));
+					await assert.rejects(() => database.setMetadata('key', 'first'), { code: 'EEXIST' });
 					await fs.rm(databaseDir);
 
 					await database.setMetadata('key', 'second');
