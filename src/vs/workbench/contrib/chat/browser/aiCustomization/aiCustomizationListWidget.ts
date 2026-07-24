@@ -1550,11 +1550,7 @@ export class AICustomizationListWidget extends Disposable {
 	layout(height: number, width: number): void {
 		this.lastLayoutHeight = height;
 		this.lastLayoutWidth = width;
-		// Clear any previously set explicit height so the CSS-computed height
-		// (height: 100% within the padded parent container) is used. Reading
-		// clientHeight after clearing gives the actual available space inside
-		// the parent's padding box, preventing the list from being clipped by
-		// the parent's overflow:hidden edge.
+		// Use the CSS-computed height within the padded parent.
 		this.element.style.height = '';
 		this.searchInput.layout();
 
