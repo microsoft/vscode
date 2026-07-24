@@ -24,6 +24,7 @@ const DISABLE_PROMPT_CACHE_EXPIRATION_NOTIFICATION_COMMAND = 'workbench.action.c
 export class AgentHostPromptCacheNotification extends Disposable {
 	private readonly _trackedSessions = this._register(new DisposableMap<string>());
 	private readonly _cacheExpirations = new ResourceMap<string>();
+	private readonly _dismissedExpirations = new ResourceMap<string>();
 	private _experimentEnabled = false;
 
 	constructor(
@@ -38,6 +39,14 @@ export class AgentHostPromptCacheNotification extends Disposable {
 			this._storageService.store(PROMPT_CACHE_EXPIRATION_DISABLED_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 			for (const sessionResource of this._cacheExpirations.keys()) {
 				this._notificationService.deleteNotification(this._notificationId(sessionResource));
+			}
+		}));
+		this._register(this._notificationService.onDidDismiss(id => {
+			for (const [sessionResource, cacheExpiresAt] of this._cacheExpirations) {
+				if (id === this._notificationId(sessionResource)) {
+					this._dismissedExpirations.set(sessionResource, cacheExpiresAt);
+					break;
+				}
 			}
 		}));
 
@@ -58,16 +67,20 @@ export class AgentHostPromptCacheNotification extends Disposable {
 			expirationScheduler.cancel();
 			const promptCache = state && !(state instanceof Error) ? readSessionPromptCacheState(state._meta) : undefined;
 			if (promptCache) {
+				if (this._cacheExpirations.get(sessionResource) !== promptCache.cacheExpiresAt) {
+					this._dismissedExpirations.delete(sessionResource);
+				}
 				this._cacheExpirations.set(sessionResource, promptCache.cacheExpiresAt);
 				const expirationTime = Date.parse(promptCache.cacheExpiresAt);
 				if (Number.isFinite(expirationTime)) {
 					const remainingTime = expirationTime + PROMPT_CACHE_EXPIRATION_GRACE_PERIOD_MS - Date.now();
-					if (remainingTime > 0) {
-						expirationScheduler.schedule(remainingTime);
+					if (remainingTime >= 0) {
+						expirationScheduler.schedule(remainingTime + 1);
 					}
 				}
 			} else {
 				this._cacheExpirations.delete(sessionResource);
+				this._dismissedExpirations.delete(sessionResource);
 			}
 			this._updateNotification(sessionResource);
 		};
@@ -75,6 +88,7 @@ export class AgentHostPromptCacheNotification extends Disposable {
 		update(subscription.value);
 		store.add(toDisposable(() => {
 			this._cacheExpirations.delete(sessionResource);
+			this._dismissedExpirations.delete(sessionResource);
 			this._notificationService.deleteNotification(this._notificationId(sessionResource));
 		}));
 		return toDisposable(() => this._trackedSessions.deleteAndDispose(key));
@@ -86,6 +100,9 @@ export class AgentHostPromptCacheNotification extends Disposable {
 		const disabled = this._storageService.getBoolean(PROMPT_CACHE_EXPIRATION_DISABLED_STORAGE_KEY, StorageScope.PROFILE, false);
 		if (!this._experimentEnabled || disabled || !Number.isFinite(expirationTime) || Date.now() <= expirationTime + PROMPT_CACHE_EXPIRATION_GRACE_PERIOD_MS) {
 			this._notificationService.deleteNotification(this._notificationId(sessionResource));
+			return;
+		}
+		if (this._dismissedExpirations.get(sessionResource) === cacheExpiresAt) {
 			return;
 		}
 

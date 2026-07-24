@@ -70,17 +70,77 @@ suite('AgentHostPromptCacheNotification', () => {
 		assert.strictEqual(notificationService.notifications.size, 1);
 		clock.restore();
 	});
+
+	test('shows immediately after the ten-minute boundary', async () => {
+		const clock = sinon.useFakeTimers({ now: new Date('2026-07-24T12:00:00.000Z') });
+		const notificationService = new TestNotificationService();
+		const contribution = store.add(new AgentHostPromptCacheNotification(
+			notificationService,
+			createAssignmentService(true),
+			store.add(new InMemoryStorageService()),
+			new NullLogService(),
+		));
+		const sessionResource = URI.parse('vscode-chat-session://agent-host-copilotcli/session-1');
+		const subscription = new TestSessionSubscription(createState('2026-07-24T12:01:00.000Z'));
+		store.add(contribution.trackSession(sessionResource, subscription));
+		await Promise.resolve();
+
+		await clock.tickAsync(11 * 60 * 1000);
+		assert.strictEqual(notificationService.notifications.size, 0);
+		await clock.tickAsync(1);
+		assert.strictEqual(notificationService.notifications.size, 1);
+		clock.restore();
+	});
+
+	test('preserves dismissal until the cache expiration changes', async () => {
+		const clock = sinon.useFakeTimers({ now: new Date('2026-07-24T12:00:00.000Z') });
+		const notificationService = new TestNotificationService();
+		const contribution = store.add(new AgentHostPromptCacheNotification(
+			notificationService,
+			createAssignmentService(true),
+			store.add(new InMemoryStorageService()),
+			new NullLogService(),
+		));
+		const sessionResource = URI.parse('vscode-chat-session://agent-host-copilotcli/session-1');
+		const subscription = new TestSessionSubscription(createState('2026-07-24T11:49:59.999Z'));
+		store.add(contribution.trackSession(sessionResource, subscription));
+		await Promise.resolve();
+
+		const notificationId = notificationService.notifications.keys().next().value;
+		assert.ok(notificationId);
+		notificationService.dismissNotification(notificationId);
+		subscription.setValue(createState('2026-07-24T11:49:59.999Z'));
+		assert.strictEqual(notificationService.getActiveNotification(), undefined);
+		subscription.setValue(createState('2026-07-24T11:49:59.998Z'));
+		assert.ok(notificationService.getActiveNotification());
+		clock.restore();
+	});
 });
 
 class TestNotificationService implements IChatInputNotificationService {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidChange = Event.None;
-	readonly onDidDismiss = Event.None;
+	private readonly _onDidDismiss = new Emitter<string>();
+	readonly onDidDismiss = this._onDidDismiss.event;
 	readonly notifications = new Map<string, IChatInputNotification>();
-	setNotification(notification: IChatInputNotification): void { this.notifications.set(notification.id, notification); }
-	deleteNotification(id: string): void { this.notifications.delete(id); }
-	dismissNotification(id: string): void { this.notifications.delete(id); }
-	getActiveNotification(): IChatInputNotification | undefined { return this.notifications.values().next().value; }
+	private readonly dismissed = new Set<string>();
+	setNotification(notification: IChatInputNotification): void {
+		this.notifications.set(notification.id, notification);
+		this.dismissed.delete(notification.id);
+	}
+	deleteNotification(id: string): void {
+		this.notifications.delete(id);
+		this.dismissed.delete(id);
+	}
+	dismissNotification(id: string): void {
+		if (this.notifications.has(id)) {
+			this.dismissed.add(id);
+			this._onDidDismiss.fire(id);
+		}
+	}
+	getActiveNotification(): IChatInputNotification | undefined {
+		return [...this.notifications.values()].find(notification => !this.dismissed.has(notification.id));
+	}
 	handleMessageSent(): void { }
 	announceRendered(): void { }
 }

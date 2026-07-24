@@ -1399,31 +1399,6 @@ suite('CopilotAgentSession', () => {
 		]);
 	});
 
-	test('restores prompt cache expiration from current model metrics', async () => {
-		const { dispatchedActions } = await createAgentSession(disposables, {
-			configureMockSession: session => {
-				session.usageMetricsResult = {
-					...session.usageMetricsResult,
-					currentModel: 'claude-opus-4.8',
-					modelMetrics: {
-						'claude-opus-4.8': {
-							cacheExpiresAt: '2026-07-24T12:00:00.000Z',
-							requests: { count: 1, cost: 1 },
-							usage: { inputTokens: 100, outputTokens: 10, cacheReadTokens: 0, cacheWriteTokens: 100, reasoningTokens: 0 },
-						},
-					},
-				};
-			},
-		});
-		await timeout(0);
-
-		const metaAction = dispatchedActions.find(action => action.type === ActionType.SessionMetaChanged);
-		assert.deepStrictEqual(metaAction?.type === ActionType.SessionMetaChanged ? readSessionPromptCacheState(metaAction._meta) : undefined, {
-			modelId: 'claude-opus-4.8',
-			cacheExpiresAt: '2026-07-24T12:00:00.000Z',
-		});
-	});
-
 	test('updates prompt cache expiration from main-agent usage only', async () => {
 		const { mockSession, dispatchedActions } = await createAgentSession(disposables);
 		mockSession.fire('assistant.usage', {
@@ -1448,6 +1423,29 @@ suite('CopilotAgentSession', () => {
 			modelId: 'claude-opus-4.8',
 			cacheExpiresAt: '2026-07-24T12:00:00.000Z',
 		}]);
+	});
+
+	test('clears prompt cache expiration when the main agent model does not report one', async () => {
+		const { mockSession, dispatchedActions } = await createAgentSession(disposables);
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 100,
+			outputTokens: 10,
+			cacheExpiresAt: '2026-07-24T12:00:00.000Z',
+		});
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.4',
+			inputTokens: 50,
+			outputTokens: 5,
+		});
+
+		const promptCaches = dispatchedActions
+			.filter(action => action.type === ActionType.SessionMetaChanged)
+			.map(action => readSessionPromptCacheState(action._meta));
+		assert.deepStrictEqual(promptCaches, [{
+			modelId: 'claude-opus-4.8',
+			cacheExpiresAt: '2026-07-24T12:00:00.000Z',
+		}, undefined]);
 	});
 
 	test('forwards Auto model resolution on live usage metadata', async () => {
