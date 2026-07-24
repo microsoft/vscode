@@ -5,7 +5,6 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -22,6 +21,7 @@ import {
 	IAutomationService,
 	ICreateAutomationOptions,
 	IGuardedAutomationUpdateResult,
+	serializeAutomationEditableState,
 	IUpdateAutomationOptions,
 	IUpdateAutomationRunOptions,
 } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -218,7 +218,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 		let previous: IAutomation | undefined;
 		const result = await this.mutateLedger<IGuardedAutomationUpdateResult>(ledger => {
 			const current = ledger.automations.find(automation => automation.id === id);
-			if (!current || !hasSameEditableAutomationFields(current, expected)) {
+			if (!current || serializeAutomationEditableState(current) !== serializeAutomationEditableState(expected)) {
 				return {
 					kind: 'noChange',
 					result: { kind: 'conflict', current } as const,
@@ -549,36 +549,6 @@ function updateAutomation(current: IAutomation, patch: IUpdateAutomationOptions,
 			? computeNextRunAt(merged.schedule, now)?.toISOString()
 			: merged.nextRunAt,
 	});
-}
-
-function hasSameEditableAutomationFields(first: IAutomation, second: IAutomation): boolean {
-	return first.name === second.name
-		&& first.prompt === second.prompt
-		&& first.modelId === second.modelId
-		&& first.mode === second.mode
-		&& (first.permissionLevel ?? ChatPermissionLevel.Default) === (second.permissionLevel ?? ChatPermissionLevel.Default)
-		&& first.enabled === second.enabled
-		&& first.schedule.interval === second.schedule.interval
-		&& first.schedule.scheduleHour === second.schedule.scheduleHour
-		&& first.schedule.scheduleMinute === second.schedule.scheduleMinute
-		&& first.schedule.scheduleDay === second.schedule.scheduleDay
-		&& hasSameAutomationTarget(first.target, second.target);
-}
-
-function hasSameAutomationTarget(first: AutomationTarget, second: AutomationTarget): boolean {
-	if (first.kind === 'quickChat' || second.kind === 'quickChat') {
-		return first.kind === 'quickChat'
-			&& second.kind === 'quickChat'
-			&& first.providerId === second.providerId
-			&& first.sessionTypeId === second.sessionTypeId;
-	}
-
-	return isEqual(first.folderUri, second.folderUri)
-		&& first.providerId === second.providerId
-		&& first.sessionTypeId === second.sessionTypeId
-		&& first.isolation.kind === second.isolation.kind
-		&& (first.isolation.kind !== 'worktree'
-			|| second.isolation.kind === 'worktree' && first.isolation.branch === second.isolation.branch);
 }
 
 function mergeAutomation(current: IAutomation, patch: IUpdateAutomationOptions): IAutomation {

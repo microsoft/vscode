@@ -667,8 +667,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					};
 					return toolResult;
 				}
-				dto.confirmationReason = autoConfirmed;
-
 				if (preparedInvocation?.confirmationMessages?.title) {
 					if (!IChatToolInvocation.executionConfirmedOrDenied(toolInvocation) && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation], dto.context?.sessionResource);
@@ -687,8 +685,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 						};
 						return toolResult;
 					}
-					dto.confirmationReason = userConfirmed;
-
 					if (userConfirmed.type === ToolConfirmKind.UserAction && userConfirmed.selectedButton) {
 						dto.selectedCustomButton = userConfirmed.selectedButton;
 					}
@@ -707,13 +703,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				const { autoConfirmed: fallbackAutoConfirmed, preparedInvocation: updatedPreparedInvocation } = await this.resolveAutoConfirmFromHook(preToolUseHookResult, tool, dto, preparedInvocation, undefined);
 				preparedInvocation = updatedPreparedInvocation;
-				dto.confirmationReason = fallbackAutoConfirmed;
 				if (preparedInvocation?.confirmationMessages?.title && !fallbackAutoConfirmed) {
 					const result = await this._dialogService.confirm({ message: renderAsPlaintext(preparedInvocation.confirmationMessages.title), detail: renderAsPlaintext(preparedInvocation.confirmationMessages.message!) });
 					if (!result.confirmed) {
 						throw new CancellationError();
 					}
-					dto.confirmationReason = { type: ToolConfirmKind.UserAction };
 				}
 				dto.toolSpecificData = preparedInvocation?.toolSpecificData;
 			}

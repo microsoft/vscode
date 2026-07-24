@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -14,11 +13,9 @@ import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationTarget, IAutomation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { ConfirmedReason, ToolConfirmKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IToolImpl, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ConfigureAutomationTool, ConfigureAutomationToolId, DeleteAutomationTool, DeleteAutomationToolId, ListAutomationsTool, ListAutomationsToolId } from '../../browser/automationTools.js';
@@ -126,22 +123,8 @@ function editableAutomationKey(automation: IAutomation): string {
 	});
 }
 
-class RecordingAutomationDialogService extends mock<IAutomationDialogService>() {
-	result: IAutomationDialogResult | undefined;
-	resultPromise: Promise<IAutomationDialogResult | undefined> | undefined;
-	lastOptions: IShowAutomationDialogOptions | undefined;
-	callCount = 0;
-	beforeReturn: (() => void) | undefined;
-
-	override async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
-		this.callCount++;
-		this.lastOptions = options;
-		this.beforeReturn?.();
-		return this.resultPromise ?? this.result;
-	}
-}
-
 class FakeSessionsManagementService extends mock<ISessionsManagementService>() {
+	beforeGetFolderSessionTypes: (() => void) | undefined;
 
 	constructor(
 		private readonly session: ISession | undefined,
@@ -163,6 +146,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() {
 	}
 
 	override getSessionTypesForFolder(): IProviderSessionType[] {
+		this.beforeGetFolderSessionTypes?.();
 		return [...this.folderSessionTypes];
 	}
 
@@ -197,14 +181,14 @@ function providerSessionType(providerId: string, sessionTypeId: string, supports
 	};
 }
 
-async function invoke(tool: IToolImpl, parameters: Record<string, unknown>, sessionResource = SESSION_RESOURCE, token = CancellationToken.None, selectedCustomButton?: string, confirmationReason?: ConfirmedReason): Promise<IToolResult> {
+async function invoke(tool: IToolImpl, parameters: Record<string, unknown>, sessionResource = SESSION_RESOURCE, token = CancellationToken.None, selectedCustomButton?: string, toolSpecificData?: IToolInvocation['toolSpecificData']): Promise<IToolResult> {
 	return tool.invoke({
 		callId: 'call-1',
 		toolId: 'tool-1',
 		parameters,
 		context: { sessionResource },
 		selectedCustomButton,
-		confirmationReason,
+		toolSpecificData,
 	}, async () => 0, progress, token);
 }
 
@@ -226,7 +210,6 @@ suite('AutomationTools', () => {
 		const deleteData = new DeleteAutomationTool(automationService, configurationService).getToolData();
 		const configureData = new ConfigureAutomationTool(
 			automationService,
-			new RecordingAutomationDialogService(),
 			new FakeSessionsManagementService(undefined),
 			configurationService,
 		).getToolData();
@@ -378,7 +361,7 @@ suite('AutomationTools', () => {
 		});
 	});
 
-	test('deleteAutomation runs without a button when the approval policy auto-approves it', async () => {
+	test('deleteAutomation runs without a custom button after approval', async () => {
 		const automation = createAutomation();
 		const automationService = new FakeAutomationService([automation]);
 		const tool = new DeleteAutomationTool(automationService, createConfigurationService());
@@ -388,8 +371,6 @@ suite('AutomationTools', () => {
 			{ automationId: automation.id },
 			SESSION_RESOURCE,
 			CancellationToken.None,
-			undefined,
-			{ type: ToolConfirmKind.Setting, id: 'chat.permissions' },
 		);
 
 		assert.deepStrictEqual({
@@ -430,30 +411,70 @@ suite('AutomationTools', () => {
 		});
 	});
 
-	test('configureAutomation reviews a create proposal using the invoking chat session target', async () => {
+	test('configureAutomation prepares normal create and update confirmations', async () => {
+		const existing = createAutomation();
+		const tool = new ConfigureAutomationTool(
+			new FakeAutomationService([existing]),
+			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),
+			createConfigurationService(),
+		);
+		const createPrepared = await tool.prepareToolInvocation!({
+			parameters: {
+				name: 'Morning review',
+				prompt: 'Review open pull requests',
+				schedule: { interval: 'daily' },
+			},
+			toolCallId: 'create-call',
+			chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+		const updatePrepared = await tool.prepareToolInvocation!({
+			parameters: { automationId: existing.id, name: 'Updated review' },
+			toolCallId: 'update-call',
+			chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			create: {
+				title: createPrepared.confirmationMessages?.title,
+				message: typeof createPrepared.confirmationMessages?.message === 'string'
+					? createPrepared.confirmationMessages.message
+					: createPrepared.confirmationMessages?.message?.value,
+				toolSpecificData: createPrepared.toolSpecificData,
+			},
+			update: {
+				title: updatePrepared.confirmationMessages?.title,
+				message: typeof updatePrepared.confirmationMessages?.message === 'string'
+					? updatePrepared.confirmationMessages.message
+					: updatePrepared.confirmationMessages?.message?.value,
+				expectedId: updatePrepared.toolSpecificData?.kind === 'automationConfiguration'
+					? updatePrepared.toolSpecificData.expectedAutomationId
+					: undefined,
+			},
+		}, {
+			create: {
+				title: 'Create Automation?',
+				message: 'Create the automation **Morning review**?',
+				toolSpecificData: undefined,
+			},
+			update: {
+				title: 'Update Automation?',
+				message: 'Apply the proposed changes to **Daily review** (`automation-1`)?',
+				expectedId: existing.id,
+			},
+		});
+	});
+
+	test('configureAutomation creates from the invoking chat target and returns clickable result data', async () => {
 		const automationService = new FakeAutomationService();
-		const dialogService = new RecordingAutomationDialogService();
-		const session = createSession({ quickChat: true });
 		const target: AutomationTarget = {
 			kind: 'quickChat',
 			providerId: 'local-agent-host',
 			sessionTypeId: 'copilot',
 		};
 		const schedule: IAutomationSchedule = { interval: 'daily', scheduleHour: 8, scheduleMinute: 30, scheduleDay: 1 };
-		dialogService.result = {
-			kind: 'create',
-			value: {
-				name: 'Morning review',
-				prompt: 'Review open pull requests',
-				schedule,
-				target,
-				enabled: true,
-			},
-		};
 		const tool = new ConfigureAutomationTool(
 			automationService,
-			dialogService,
-			new FakeSessionsManagementService(session, true),
+			new FakeSessionsManagementService(createSession({ quickChat: true }), true),
 			createConfigurationService(),
 		);
 
@@ -461,31 +482,14 @@ suite('AutomationTools', () => {
 			name: 'Morning review',
 			prompt: 'Review open pull requests',
 			schedule: { interval: 'daily', scheduleHour: 8, scheduleMinute: 30 },
+			enabled: true,
 		}, CHAT_RESOURCE);
 
 		assert.deepStrictEqual({
-			dialog: {
-				existing: dialogService.lastOptions?.existing,
-				initialValues: dialogService.lastOptions?.initialValues,
-				isAgentProposal: dialogService.lastOptions?.isAgentProposal,
-				preserveUnavailableInitialTarget: dialogService.lastOptions?.preserveUnavailableInitialTarget,
-				hasCancellationToken: dialogService.lastOptions?.cancellationToken === CancellationToken.None,
-			},
 			created: automationService.created,
-			result: JSON.parse(getText(result)),
+			status: JSON.parse(getText(result)).status,
+			toolSpecificData: result.toolSpecificData,
 		}, {
-			dialog: {
-				existing: undefined,
-				initialValues: {
-					name: 'Morning review',
-					prompt: 'Review open pull requests',
-					schedule,
-					target,
-				},
-				isAgentProposal: true,
-				preserveUnavailableInitialTarget: true,
-				hasCancellationToken: true,
-			},
 			created: [{
 				name: 'Morning review',
 				prompt: 'Review open pull requests',
@@ -493,110 +497,130 @@ suite('AutomationTools', () => {
 				target,
 				enabled: true,
 			}],
-			result: {
-				status: 'created',
-				automation: {
-					id: 'created-automation',
-					name: 'Morning review',
-					prompt: 'Review open pull requests',
-					schedule,
-					target,
-					modelId: null,
-					mode: null,
-					permissionLevel: null,
-					enabled: true,
-					createdAt: NOW,
-					updatedAt: NOW,
-					lastRunAt: null,
-					nextRunAt: null,
-				},
-			},
-		});
-	});
-
-	test('configureAutomation directly creates when the approval policy auto-approves it', async () => {
-		const automationService = new FakeAutomationService();
-		const dialogService = new RecordingAutomationDialogService();
-		const session = createSession({ workspace: FOLDER });
-		const tool = new ConfigureAutomationTool(
-			automationService,
-			dialogService,
-			new FakeSessionsManagementService(session),
-			createConfigurationService(),
-		);
-
-		const result = await invoke(
-			tool,
-			{
-				name: 'Approved review',
-				prompt: 'Review the repository',
-				schedule: { interval: 'manual' },
-			},
-			SESSION_RESOURCE,
-			CancellationToken.None,
-			undefined,
-			{ type: ToolConfirmKind.Setting, id: 'chat.permissions' },
-		);
-
-		assert.deepStrictEqual({
-			dialogCalls: dialogService.callCount,
-			created: automationService.created,
-			status: JSON.parse(getText(result)).status,
-		}, {
-			dialogCalls: 0,
-			created: [{
-				name: 'Approved review',
-				prompt: 'Review the repository',
-				schedule: { interval: 'manual', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
-				target: {
-					kind: 'workspace',
-					folderUri: FOLDER,
-					providerId: 'local-agent-host',
-					sessionTypeId: 'copilot',
-					isolation: { kind: 'default' },
-				},
-			}],
 			status: 'created',
+			toolSpecificData: {
+				kind: 'automationConfigured',
+				automationId: 'created-automation',
+				automationName: 'Morning review',
+				operation: 'created',
+			},
 		});
 	});
 
-	test('configureAutomation directly applies guarded updates when auto-approved', async () => {
+	test('configureAutomation applies a partial guarded update and returns clickable result data', async () => {
 		const existing = createAutomation();
 		const automationService = new FakeAutomationService([existing]);
-		const dialogService = new RecordingAutomationDialogService();
 		const tool = new ConfigureAutomationTool(
 			automationService,
-			dialogService,
 			new FakeSessionsManagementService(undefined),
 			createConfigurationService(),
 		);
+		const parameters = {
+			automationId: existing.id,
+			name: 'Updated review',
+			schedule: { scheduleMinute: 45 },
+			modelId: null,
+			mode: null,
+			permissionLevel: null,
+		};
+		const prepared = await tool.prepareToolInvocation!({
+			parameters,
+			toolCallId: 'update-call',
+			chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
 
-		const result = await invoke(
-			tool,
-			{ automationId: existing.id, name: 'Auto-approved update' },
-			SESSION_RESOURCE,
-			CancellationToken.None,
-			undefined,
-			{ type: ToolConfirmKind.LmServicePerTool, scope: 'session' },
-		);
+		const result = await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, undefined, prepared.toolSpecificData);
 
 		assert.deepStrictEqual({
-			dialogCalls: dialogService.callCount,
 			updated: automationService.updated,
 			status: JSON.parse(getText(result)).status,
+			toolSpecificData: result.toolSpecificData,
 		}, {
-			dialogCalls: 0,
-			updated: [{ id: existing.id, patch: { name: 'Auto-approved update' } }],
+			updated: [{
+				id: existing.id,
+				patch: {
+					name: 'Updated review',
+					schedule: { ...existing.schedule, scheduleMinute: 45 },
+					modelId: null,
+					mode: null,
+					permissionLevel: null,
+				},
+			}],
 			status: 'updated',
+			toolSpecificData: {
+				kind: 'automationConfigured',
+				automationId: existing.id,
+				automationName: 'Updated review',
+				operation: 'updated',
+			},
 		});
 	});
 
-	test('configureAutomation validates explicit targets before an auto-approved write', async () => {
-		const automationService = new FakeAutomationService();
-		const dialogService = new RecordingAutomationDialogService();
+	test('configureAutomation rejects editable changes made while awaiting approval', async () => {
+		const existing = createAutomation();
+		const automationService = new FakeAutomationService([existing]);
 		const tool = new ConfigureAutomationTool(
 			automationService,
-			dialogService,
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		);
+		const parameters = { automationId: existing.id, name: 'Proposed name' };
+		const prepared = await tool.prepareToolInvocation!({
+			parameters,
+			toolCallId: 'update-call',
+			chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+		automationService.automations.set([
+			{ ...existing, prompt: 'Changed in another window', updatedAt: '2026-01-01T00:01:00.000Z' },
+		], undefined);
+
+		const result = await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, undefined, prepared.toolSpecificData);
+
+		assert.deepStrictEqual({
+			error: result.toolResultError,
+			updated: automationService.updated,
+		}, {
+			error: 'Automation "automation-1" changed before the update was applied. Call listAutomations to refresh it before proposing new changes. No changes were made.',
+			updated: [],
+		});
+	});
+
+	test('configureAutomation permits runtime metadata changes while awaiting approval', async () => {
+		const existing = createAutomation();
+		const automationService = new FakeAutomationService([existing]);
+		const tool = new ConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		);
+		const parameters = { automationId: existing.id, name: 'Proposed name' };
+		const prepared = await tool.prepareToolInvocation!({
+			parameters,
+			toolCallId: 'update-call',
+			chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+		automationService.automations.set([{
+			...existing,
+			updatedAt: '2026-01-01T00:01:00.000Z',
+			lastRunAt: '2026-01-01T00:01:00.000Z',
+			nextRunAt: '2026-01-02T09:00:00.000Z',
+		}], undefined);
+
+		const result = await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, undefined, prepared.toolSpecificData);
+
+		assert.deepStrictEqual({
+			status: JSON.parse(getText(result)).status,
+			updated: automationService.updated,
+		}, {
+			status: 'updated',
+			updated: [{ id: existing.id, patch: { name: 'Proposed name' } }],
+		});
+	});
+
+	test('configureAutomation validates explicit targets before writing', async () => {
+		const automationService = new FakeAutomationService();
+		const tool = new ConfigureAutomationTool(
+			automationService,
 			new FakeSessionsManagementService(
 				undefined,
 				false,
@@ -605,164 +629,35 @@ suite('AutomationTools', () => {
 			createConfigurationService(),
 		);
 
-		const result = await invoke(
-			tool,
-			{
-				name: 'Invalid worktree',
-				prompt: 'Do not save',
-				schedule: { interval: 'manual' },
-				target: {
-					kind: 'workspace',
-					folderUri: FOLDER.toString(),
-					providerId: 'local-agent-host',
-					sessionTypeId: 'copilot',
-					isolation: 'worktree',
-					branch: 'main',
-				},
+		const result = await invoke(tool, {
+			name: 'Invalid worktree',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+			target: {
+				kind: 'workspace',
+				folderUri: FOLDER.toString(),
+				providerId: 'local-agent-host',
+				sessionTypeId: 'copilot',
+				isolation: 'worktree',
+				branch: 'main',
 			},
-			SESSION_RESOURCE,
-			CancellationToken.None,
-			undefined,
-			{ type: ToolConfirmKind.Setting, id: 'chat.permissions' },
-		);
+		});
 
 		assert.deepStrictEqual({
 			error: result.toolResultError,
-			dialogCalls: dialogService.callCount,
 			created: automationService.created,
 		}, {
 			error: 'Session type "copilot" does not support worktree isolation.',
-			dialogCalls: 0,
 			created: [],
 		});
 	});
 
-	test('configureAutomation merges partial update schedule values and nullable defaults before review', async () => {
-		const existing = createAutomation();
-		const automationService = new FakeAutomationService([existing]);
-		const dialogService = new RecordingAutomationDialogService();
-		const reviewedPatch: IUpdateAutomationOptions = {
-			name: 'Updated review',
-			prompt: existing.prompt,
-			schedule: { ...existing.schedule, scheduleMinute: 45 },
-			target: existing.target,
-			modelId: null,
-			mode: null,
-			permissionLevel: null,
-			enabled: existing.enabled,
-		};
-		dialogService.result = { kind: 'update', id: existing.id, value: reviewedPatch };
-		const tool = new ConfigureAutomationTool(
-			automationService,
-			dialogService,
-			new FakeSessionsManagementService(undefined),
-			createConfigurationService(),
-		);
-
-		await invoke(tool, {
-			automationId: existing.id,
-			name: 'Updated review',
-			schedule: { scheduleMinute: 45 },
-			modelId: null,
-			mode: null,
-			permissionLevel: null,
-		});
-
-		assert.deepStrictEqual({
-			existing: dialogService.lastOptions?.existing,
-			initialValues: dialogService.lastOptions?.initialValues,
-			updated: automationService.updated,
-		}, {
-			existing,
-			initialValues: {
-				name: 'Updated review',
-				schedule: { ...existing.schedule, scheduleMinute: 45 },
-				modelId: null,
-				mode: null,
-				permissionLevel: null,
-			},
-			updated: [{ id: existing.id, patch: reviewedPatch }],
-		});
-	});
-
-	test('configureAutomation cancellation makes no changes', async () => {
+	test('configureAutomation rechecks cancellation immediately before writing', async () => {
 		const automationService = new FakeAutomationService();
-		const dialogService = new RecordingAutomationDialogService();
-		const tool = new ConfigureAutomationTool(
-			automationService,
-			dialogService,
-			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),
-			createConfigurationService(),
-		);
-
-		const result = await invoke(tool, {
-			name: 'Cancelled',
-			prompt: 'Do not save',
-			schedule: { interval: 'manual' },
-		});
-
-		assert.deepStrictEqual({
-			result: JSON.parse(getText(result)),
-			created: automationService.created,
-			updated: automationService.updated,
-		}, {
-			result: {
-				status: 'cancelled',
-				message: 'The user cancelled the automation review. No changes were made.',
-			},
-			created: [],
-			updated: [],
-		});
-	});
-
-	test('configureAutomation serializes concurrent proposal reviews', async () => {
-		const automationService = new FakeAutomationService();
-		const dialogService = new RecordingAutomationDialogService();
-		const firstDialog = new DeferredPromise<IAutomationDialogResult | undefined>();
-		dialogService.resultPromise = firstDialog.p;
-		const tool = new ConfigureAutomationTool(
-			automationService,
-			dialogService,
-			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),
-			createConfigurationService(),
-		);
-
-		const firstResult = invoke(tool, {
-			name: 'First',
-			prompt: 'First prompt',
-			schedule: { interval: 'manual' },
-		});
-		await timeout(0);
-		const secondResult = invoke(tool, {
-			name: 'Second',
-			prompt: 'Second prompt',
-			schedule: { interval: 'manual' },
-		});
-		await timeout(0);
-
-		assert.strictEqual(dialogService.callCount, 1);
-		await firstDialog.complete(undefined);
-		const results = await Promise.all([firstResult, secondResult]);
-
-		assert.deepStrictEqual({
-			dialogCalls: dialogService.callCount,
-			statuses: results.map(result => JSON.parse(getText(result)).status),
-			created: automationService.created,
-		}, {
-			dialogCalls: 2,
-			statuses: ['cancelled', 'cancelled'],
-			created: [],
-		});
-	});
-
-	test('configureAutomation does not open the dialog for an already cancelled invocation', async () => {
-		const automationService = new FakeAutomationService();
-		const dialogService = new RecordingAutomationDialogService();
 		const tokenSource = new CancellationTokenSource();
 		tokenSource.cancel();
 		const tool = new ConfigureAutomationTool(
 			automationService,
-			dialogService,
 			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),
 			createConfigurationService(),
 		);
@@ -776,249 +671,60 @@ suite('AutomationTools', () => {
 
 		assert.deepStrictEqual({
 			result: JSON.parse(getText(result)),
-			dialogCalls: dialogService.callCount,
 			created: automationService.created,
 		}, {
 			result: {
 				status: 'cancelled',
-				message: 'The user cancelled the automation review. No changes were made.',
+				message: 'The automation change was cancelled. No changes were made.',
 			},
-			dialogCalls: 0,
 			created: [],
 		});
 	});
 
-	test('configureAutomation does not save when cancelled while the dialog is open', async () => {
+	test('configureAutomation rechecks the feature setting immediately before writing', async () => {
 		const automationService = new FakeAutomationService();
-		const dialogService = new RecordingAutomationDialogService();
-		const tokenSource = new CancellationTokenSource();
-		const target: AutomationTarget = {
-			kind: 'workspace',
-			folderUri: FOLDER,
-			providerId: 'local-agent-host',
-			sessionTypeId: 'copilot',
-			isolation: { kind: 'folder' },
-		};
-		dialogService.result = {
-			kind: 'create',
-			value: {
-				name: 'Cancelled',
-				prompt: 'Do not save',
-				schedule: { interval: 'manual', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
-				target,
-			},
-		};
-		dialogService.beforeReturn = () => tokenSource.cancel();
-		const tool = new ConfigureAutomationTool(
-			automationService,
-			dialogService,
-			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),
-			createConfigurationService(),
-		);
-
-		const result = await invoke(tool, {
-			name: 'Cancelled',
-			prompt: 'Do not save',
-			schedule: { interval: 'manual' },
-		}, SESSION_RESOURCE, tokenSource.token);
-		tokenSource.dispose();
-
-		assert.deepStrictEqual({
-			result: JSON.parse(getText(result)),
-			dialogCalls: dialogService.callCount,
-			created: automationService.created,
-		}, {
-			result: {
-				status: 'cancelled',
-				message: 'The user cancelled the automation review. No changes were made.',
-			},
-			dialogCalls: 1,
-			created: [],
-		});
-	});
-
-	test('configureAutomation does not save when Automations are disabled during review', async () => {
-		const automationService = new FakeAutomationService();
-		const dialogService = new RecordingAutomationDialogService();
 		const configurationService = createConfigurationService();
-		const target: AutomationTarget = {
-			kind: 'workspace',
-			folderUri: FOLDER,
-			providerId: 'local-agent-host',
-			sessionTypeId: 'copilot',
-			isolation: { kind: 'folder' },
-		};
-		dialogService.result = {
-			kind: 'create',
-			value: {
-				name: 'Disabled',
-				prompt: 'Do not save',
-				schedule: { interval: 'manual', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
-				target,
-			},
-		};
-		dialogService.beforeReturn = () => configurationService.setUserConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING, false);
-		const tool = new ConfigureAutomationTool(
-			automationService,
-			dialogService,
-			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),
-			configurationService,
+		const sessionsManagementService = new FakeSessionsManagementService(
+			undefined,
+			false,
+			[providerSessionType('local-agent-host', 'copilot')],
 		);
+		sessionsManagementService.beforeGetFolderSessionTypes = () => configurationService.setUserConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING, false);
+		const tool = new ConfigureAutomationTool(automationService, sessionsManagementService, configurationService);
 
 		const result = await invoke(tool, {
 			name: 'Disabled',
 			prompt: 'Do not save',
 			schedule: { interval: 'manual' },
+			target: {
+				kind: 'workspace',
+				folderUri: FOLDER.toString(),
+				providerId: 'local-agent-host',
+				sessionTypeId: 'copilot',
+				isolation: 'default',
+			},
 		});
 
 		assert.deepStrictEqual({
 			error: result.toolResultError,
-			dialogCalls: dialogService.callCount,
 			created: automationService.created,
 		}, {
-			error: 'Automations were disabled before the proposal was saved. No changes were made.',
-			dialogCalls: 1,
+			error: 'Automations are disabled.',
 			created: [],
 		});
 	});
 
-	test('configureAutomation does not update an automation deleted during review', async () => {
-		const existing = createAutomation();
-		const automationService = new FakeAutomationService([existing]);
-		const dialogService = new RecordingAutomationDialogService();
-		const reviewedPatch: IUpdateAutomationOptions = {
-			name: 'Deleted automation',
-			prompt: existing.prompt,
-			schedule: existing.schedule,
-			target: existing.target,
-			enabled: existing.enabled,
-		};
-		dialogService.result = { kind: 'update', id: existing.id, value: reviewedPatch };
-		dialogService.beforeReturn = () => automationService.automations.set([], undefined);
-		const tool = new ConfigureAutomationTool(
-			automationService,
-			dialogService,
-			new FakeSessionsManagementService(undefined),
-			createConfigurationService(),
-		);
-
-		const result = await invoke(tool, { automationId: existing.id, name: 'Deleted automation' });
-
-		assert.deepStrictEqual({
-			error: result.toolResultError,
-			dialogCalls: dialogService.callCount,
-			updated: automationService.updated,
-		}, {
-			error: 'Automation "automation-1" was deleted during review. No changes were made.',
-			dialogCalls: 1,
-			updated: [],
-		});
-	});
-
-	test('configureAutomation does not overwrite an automation changed during review', async () => {
-		const existing = createAutomation();
-		const automationService = new FakeAutomationService([existing]);
-		const dialogService = new RecordingAutomationDialogService();
-		dialogService.result = {
-			kind: 'update',
-			id: existing.id,
-			value: {
-				name: 'Proposed name',
-				prompt: existing.prompt,
-				schedule: existing.schedule,
-				target: existing.target,
-				enabled: existing.enabled,
-			},
-		};
-		dialogService.beforeReturn = () => automationService.automations.set([
-			{ ...existing, prompt: 'Changed in another window', updatedAt: '2026-01-01T00:01:00.000Z' },
-		], undefined);
-		const tool = new ConfigureAutomationTool(
-			automationService,
-			dialogService,
-			new FakeSessionsManagementService(undefined),
-			createConfigurationService(),
-		);
-
-		const result = await invoke(tool, { automationId: existing.id, name: 'Proposed name' });
-
-		assert.deepStrictEqual({
-			error: result.toolResultError,
-			updated: automationService.updated,
-		}, {
-			error: 'Automation "automation-1" changed during review. Call listAutomations to refresh it before proposing new changes. No changes were made.',
-			updated: [],
-		});
-	});
-
-	test('configureAutomation permits runtime metadata changes during review', async () => {
-		const existing = createAutomation();
-		const automationService = new FakeAutomationService([existing]);
-		const dialogService = new RecordingAutomationDialogService();
-		const reviewedPatch: IUpdateAutomationOptions = {
-			name: 'Proposed name',
-			prompt: existing.prompt,
-			schedule: existing.schedule,
-			target: existing.target,
-			enabled: existing.enabled,
-		};
-		dialogService.result = { kind: 'update', id: existing.id, value: reviewedPatch };
-		dialogService.beforeReturn = () => automationService.automations.set([{
-			...existing,
-			updatedAt: '2026-01-01T00:01:00.000Z',
-			lastRunAt: '2026-01-01T00:01:00.000Z',
-			nextRunAt: '2026-01-02T09:00:00.000Z',
-		}], undefined);
-		const tool = new ConfigureAutomationTool(
-			automationService,
-			dialogService,
-			new FakeSessionsManagementService(undefined),
-			createConfigurationService(),
-		);
-
-		const result = await invoke(tool, { automationId: existing.id, name: 'Proposed name' });
-
-		assert.deepStrictEqual({
-			status: JSON.parse(getText(result)).status,
-			updated: automationService.updated,
-		}, {
-			status: 'updated',
-			updated: [{ id: existing.id, patch: reviewedPatch }],
-		});
-	});
-
-	test('configureAutomation rejects stale IDs before opening the dialog', async () => {
-		const dialogService = new RecordingAutomationDialogService();
+	test('configureAutomation rejects stale IDs and malformed targets', async () => {
 		const tool = new ConfigureAutomationTool(
 			new FakeAutomationService(),
-			dialogService,
 			new FakeSessionsManagementService(undefined),
 			createConfigurationService(),
 		);
 
-		const result = await invoke(tool, { automationId: 'missing', name: 'Updated' });
-
-		assert.deepStrictEqual({
-			error: result.toolResultError,
-			dialogCalls: dialogService.callCount,
-		}, {
-			error: 'Automation "missing" does not exist. Call listAutomations to refresh the available IDs.',
-			dialogCalls: 0,
-		});
-	});
-
-	test('configureAutomation rejects invalid targets before opening the dialog', async () => {
-		const dialogService = new RecordingAutomationDialogService();
-		const tool = new ConfigureAutomationTool(
-			new FakeAutomationService(),
-			dialogService,
-			new FakeSessionsManagementService(undefined),
-			createConfigurationService(),
-		);
-
-		const result = await invoke(tool, {
+		const staleResult = await invoke(tool, { automationId: 'missing', name: 'Updated' });
+		const malformedTargetResult = await invoke(tool, {
 			name: 'Invalid target',
-			prompt: 'Do not open',
+			prompt: 'Do not save',
 			schedule: { interval: 'weekly' },
 			target: {
 				kind: 'workspace',
@@ -1029,60 +735,20 @@ suite('AutomationTools', () => {
 		});
 
 		assert.deepStrictEqual({
-			error: result.toolResultError,
-			dialogCalls: dialogService.callCount,
+			staleError: staleResult.toolResultError,
+			targetError: malformedTargetResult.toolResultError,
 		}, {
-			error: '"target.folderUri" must be a valid absolute URI.',
-			dialogCalls: 0,
-		});
-	});
-
-	test('configureAutomation requires explicit targets to resolve through the dialog picker', async () => {
-		const dialogService = new RecordingAutomationDialogService();
-		const tool = new ConfigureAutomationTool(
-			new FakeAutomationService(),
-			dialogService,
-			new FakeSessionsManagementService(undefined),
-			createConfigurationService(),
-		);
-
-		const result = await invoke(tool, {
-			name: 'Explicit target',
-			prompt: 'Review the target',
-			schedule: { interval: 'manual' },
-			target: {
-				kind: 'quickChat',
-				providerId: 'proposed-provider',
-				sessionTypeId: 'proposed-session',
-			},
-		});
-
-		assert.deepStrictEqual({
-			result: JSON.parse(getText(result)),
-			target: dialogService.lastOptions?.initialValues?.target,
-			preserveUnavailableInitialTarget: dialogService.lastOptions?.preserveUnavailableInitialTarget,
-		}, {
-			result: {
-				status: 'cancelled',
-				message: 'The user cancelled the automation review. No changes were made.',
-			},
-			target: {
-				kind: 'quickChat',
-				providerId: 'proposed-provider',
-				sessionTypeId: 'proposed-session',
-			},
-			preserveUnavailableInitialTarget: false,
+			staleError: 'Automation "missing" does not exist. Call listAutomations to refresh the available IDs.',
+			targetError: '"target.folderUri" must be a valid absolute URI.',
 		});
 	});
 
 	test('disabled Automations cannot be listed, configured, or deleted', async () => {
 		const automationService = new FakeAutomationService([createAutomation()]);
-		const dialogService = new RecordingAutomationDialogService();
 		const configurationService = createConfigurationService(false);
 		const listResult = await invoke(new ListAutomationsTool(automationService, configurationService), {});
 		const configureResult = await invoke(new ConfigureAutomationTool(
 			automationService,
-			dialogService,
 			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),
 			configurationService,
 		), {
@@ -1102,13 +768,11 @@ suite('AutomationTools', () => {
 			listError: listResult.toolResultError,
 			configureError: configureResult.toolResultError,
 			deleteError: deleteResult.toolResultError,
-			dialogCalls: dialogService.callCount,
 			deleted: automationService.deleted,
 		}, {
 			listError: 'Automations are disabled.',
 			configureError: 'Automations are disabled.',
 			deleteError: 'Automations are disabled.',
-			dialogCalls: 0,
 			deleted: [],
 		});
 	});

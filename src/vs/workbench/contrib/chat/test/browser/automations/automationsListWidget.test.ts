@@ -535,6 +535,21 @@ suite('AutomationsListWidget', () => {
 		assert.strictEqual(widget.getDisplayEntriesForTest()[0].expanded, false);
 	});
 
+	test('focusAutomation reveals and expands the requested automation', async () => {
+		const { widget, service } = setup();
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+
+		assert.deepStrictEqual({
+			found: widget.focusAutomation(automation.id),
+			expanded: widget.getDisplayEntriesForTest()[0].expanded,
+			missing: widget.focusAutomation('missing'),
+		}, {
+			found: true,
+			expanded: true,
+			missing: false,
+		});
+	});
+
 	test('expanded row exposes no runs when there are none', async () => {
 		const { widget, service } = setup();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });

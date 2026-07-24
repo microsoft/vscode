@@ -21,10 +21,8 @@ import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
-import { IAutomation } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AutomationIsolationGroupActionViewItem, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, resolveAutomationPickerValue, shouldPreserveUnavailableAutomationTarget, updateSaveButtonState } from '../../browser/automationDialog.js';
-import { resolveAutomationDialogInitialValues } from '../../browser/automationDialogService.js';
+import { AutomationIsolationGroupActionViewItem, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
 const FOLDER = URI.file('/workspace');
@@ -107,103 +105,6 @@ function createFormState(overrides?: Partial<IFormState>): IFormState {
 		...overrides,
 	};
 }
-
-suite('Automation dialog initial values', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('layers an agent proposal over an existing automation without persisting it', () => {
-		const existing: IAutomation = {
-			id: 'automation-1',
-			name: 'Existing',
-			prompt: 'Existing prompt',
-			schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 2 },
-			target: {
-				kind: 'workspace',
-				folderUri: FOLDER,
-				providerId: 'provider-1',
-				sessionTypeId: 'session-1',
-				isolation: { kind: 'worktree', branch: 'main' },
-			},
-			modelId: 'model-1',
-			mode: 'agent',
-			permissionLevel: 'autopilot',
-			enabled: true,
-			createdAt: '2026-01-01T00:00:00.000Z',
-			updatedAt: '2026-01-01T00:00:00.000Z',
-		};
-
-		const initial = resolveAutomationDialogInitialValues({
-			existing,
-			initialValues: {
-				name: 'Proposed',
-				schedule: { interval: 'daily', scheduleHour: 8, scheduleMinute: 0, scheduleDay: 1 },
-				target: { kind: 'quickChat', providerId: 'provider-2', sessionTypeId: 'session-2' },
-				modelId: null,
-				mode: null,
-				permissionLevel: null,
-				enabled: false,
-			},
-			isAgentProposal: true,
-		});
-
-		assert.deepStrictEqual(initial, {
-			state: {
-				name: 'Proposed',
-				interval: 'daily',
-				hour: 8,
-				minute: 0,
-				day: 1,
-				isQuickChat: true,
-				folderUri: undefined,
-				providerId: 'provider-2',
-				sessionTypeId: 'session-2',
-				isolationMode: 'workspace',
-				branch: undefined,
-				enabled: false,
-			},
-			prompt: 'Existing prompt',
-			mode: undefined,
-			permissionLevel: undefined,
-			modelId: undefined,
-			branch: undefined,
-		});
-	});
-
-	test('keeps provider defaults dynamic for untouched agent proposals', () => {
-		assert.deepStrictEqual({
-			untouchedAgentDefault: resolveAutomationPickerValue('resolved-default', undefined, true, false),
-			untouchedExistingValue: resolveAutomationPickerValue('fallback', 'existing-choice', true, false),
-			changedAgentDefault: resolveAutomationPickerValue('explicit-choice', undefined, true, true),
-			explicitAgentValue: resolveAutomationPickerValue('explicit-choice', 'proposed-choice', false, false),
-			manualDefault: resolveAutomationPickerValue('resolved-default', undefined, false, false),
-		}, {
-			untouchedAgentDefault: undefined,
-			untouchedExistingValue: 'existing-choice',
-			changedAgentDefault: 'explicit-choice',
-			explicitAgentValue: 'explicit-choice',
-			manualDefault: 'resolved-default',
-		});
-	});
-
-	test('preserves only trusted or unchanged unavailable targets', () => {
-		const proposedTarget = {
-			target: { kind: 'quickChat' as const, providerId: 'provider', sessionTypeId: 'session' },
-		};
-		assert.deepStrictEqual({
-			noProposedTarget: shouldPreserveUnavailableAutomationTarget({}),
-			explicitAgentTarget: shouldPreserveUnavailableAutomationTarget({ initialValues: proposedTarget, isAgentProposal: true }),
-			trustedCurrentTarget: shouldPreserveUnavailableAutomationTarget({
-				initialValues: proposedTarget,
-				isAgentProposal: true,
-				preserveUnavailableInitialTarget: true,
-			}),
-		}, {
-			noProposedTarget: true,
-			explicitAgentTarget: false,
-			trustedCurrentTarget: true,
-		});
-	});
-});
 
 suite('Automation branch picker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

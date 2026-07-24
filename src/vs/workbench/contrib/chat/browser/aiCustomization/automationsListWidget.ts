@@ -721,6 +721,22 @@ export class AutomationsListWidget extends Disposable {
 		return this.displayEntries;
 	}
 
+	/**
+	 * Expands, reveals, and moves keyboard focus to an automation.
+	 */
+	focusAutomation(automationId: string): boolean {
+		const index = this.displayEntries.findIndex(entry => entry.automation.id === automationId);
+		if (index < 0) {
+			return false;
+		}
+		this.expandedRows.add(automationId);
+		this.updateList(this.automationService.automations.get());
+		this.list.reveal(index);
+		this.list.setFocus([index]);
+		this.list.domFocus();
+		return true;
+	}
+
 	focus(): void {
 		if (this.list.length > 0) {
 			this.list.domFocus();

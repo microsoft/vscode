@@ -40,7 +40,6 @@ import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobileP
 import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -176,15 +175,6 @@ interface IRenderFormHandle {
 	readonly getBranch: () => string | undefined;
 	readonly getFocusableElements: () => readonly HTMLElement[];
 }
-
-export function shouldPreserveUnavailableAutomationTarget(options: IShowAutomationDialogOptions): boolean {
-	return options.preserveUnavailableInitialTarget ?? options.initialValues?.target === undefined;
-}
-
-export function resolveAutomationPickerValue<T>(selectedValue: T | undefined, initialValue: T | undefined, preserveInitialValue: boolean, wasChangedByUser: boolean): T | undefined {
-	return preserveInitialValue && !wasChangedByUser ? initialValue : selectedValue;
-}
-
 
 const AUTOMATIONS_HARNESS_CHIP_ACTION_ID = 'workbench.action.chat.renderAutomationsHarnessChip';
 const AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID = 'workbench.action.chat.renderAutomationsWorkspacePicker';
@@ -644,7 +634,6 @@ registerAction2(class OpenAutomationsIsolationGroupAction extends Action2 {
 export function renderForm(
 	form: HTMLElement,
 	state: IFormState,
-	options: IShowAutomationDialogOptions,
 	disposables: DisposableStore,
 	validation: IValidationState,
 	revalidate: () => void,
@@ -749,7 +738,7 @@ export function renderForm(
 		initialPick: state.sessionTypeId
 			? { providerId: state.providerId, sessionTypeId: state.sessionTypeId }
 			: undefined,
-		preserveUnavailableInitialPick: shouldPreserveUnavailableAutomationTarget(options),
+		preserveUnavailableInitialPick: true,
 	});
 	// The dialog has no session, so the input part reads the active session type from the picker via this delegate.
 	const onDidChangeSessionType = disposables.add(new Emitter<AgentSessionTarget>());
@@ -887,27 +876,6 @@ export function renderForm(
 	);
 	chatInput.render(promptHost, initialPrompt, stubWidget as IChatWidget);
 	chatInput.inputEditor.updateOptions({ placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate") });
-	let modeWasChangedByUser = false;
-	let permissionLevelWasChangedByUser = false;
-	let modelWasChangedByUser = false;
-	const preserveInitialMode = options.isAgentProposal === true && (options.initialValues?.mode === undefined || options.initialValues.mode === null);
-	const preserveInitialPermissionLevel = options.isAgentProposal === true && (options.initialValues?.permissionLevel === undefined || options.initialValues.permissionLevel === null);
-	const preserveInitialModel = options.isAgentProposal === true && (options.initialValues?.modelId === undefined || options.initialValues.modelId === null);
-	const initialModeRetry = disposables.add(new MutableDisposable<IDisposable>());
-	const initialModelRetry = disposables.add(new MutableDisposable<IDisposable>());
-	disposables.add(chatInput.onDidChangeCurrentChatMode(event => {
-		if (event.isUserInitiated) {
-			modeWasChangedByUser = true;
-			initialModeRetry.clear();
-		}
-	}));
-	disposables.add(chatInput.onDidChangeCurrentPermissionLevel(event => permissionLevelWasChangedByUser ||= event.isUserInitiated));
-	disposables.add(chatInput.onDidChangeCurrentLanguageModel(event => {
-		if (event.isUserInitiated) {
-			modelWasChangedByUser = true;
-			initialModelRetry.clear();
-		}
-	}));
 
 	if (initialMode) {
 		const getUnfilteredInitialMode = () => {
@@ -926,21 +894,27 @@ export function renderForm(
 		}
 		// Retry on cold-start when extension-contributed modes arrive late.
 		if (chatInput.currentModeObs.get().id !== initialMode && !isHiddenCustomInitialMode()) {
+			const baseline = chatInput.currentModeObs.get().id;
+			const retry = disposables.add(new MutableDisposable<IDisposable>());
 			const tryApply = () => {
+				if (chatInput.currentModeObs.get().id !== baseline) {
+					retry.clear();
+					return;
+				}
 				if (isHiddenCustomInitialMode()) {
 					logService.trace(`[AutomationDialog] Skipping hidden custom initial mode "${initialMode}" after modes updated. Falling back to the default mode.`);
-					initialModeRetry.clear();
+					retry.clear();
 					return;
 				}
 				const modes = chatInput.currentChatModesObs.get();
 				if (modes.findModeById(initialMode) || modes.findModeByName(initialMode)) {
 					chatInput.setChatMode(initialMode, /* storeSelection */ false);
 					if (chatInput.currentModeObs.get().id === initialMode) {
-						initialModeRetry.clear();
+						retry.clear();
 					}
 				}
 			};
-			initialModeRetry.value = autorun(reader => {
+			retry.value = autorun(reader => {
 				const modes = chatInput.currentChatModesObs.read(reader);
 				reader.store.add(modes.onDidChange(tryApply));
 				tryApply();
@@ -956,13 +930,14 @@ export function renderForm(
 	if (initialModelId && !chatInput.switchModelByIdentifier(initialModelId, /* storeSelection */ false)) {
 		const languageModelsService = instantiationService.invokeFunction(accessor => accessor.get(ILanguageModelsService));
 		const baseline = chatInput.selectedLanguageModel.get()?.identifier;
-		initialModelRetry.value = languageModelsService.onDidChangeLanguageModels(() => {
+		const retry = disposables.add(new MutableDisposable<IDisposable>());
+		retry.value = languageModelsService.onDidChangeLanguageModels(() => {
 			if (chatInput.selectedLanguageModel.get()?.identifier !== baseline) {
-				initialModelRetry.clear();
+				retry.clear();
 				return;
 			}
 			if (chatInput.switchModelByIdentifier(initialModelId, /* storeSelection */ false)) {
-				initialModelRetry.clear();
+				retry.clear();
 			}
 		});
 	}
@@ -1008,9 +983,9 @@ export function renderForm(
 
 	return {
 		getPrompt: () => chatInput.inputEditor.getValue(),
-		getMode: () => resolveAutomationPickerValue(chatInput.currentModeObs.get().id, initialMode, preserveInitialMode, modeWasChangedByUser),
-		getPermissionLevel: () => resolveAutomationPickerValue(chatInput.currentPermissionLevelObs.get(), initialPermissionLevel, preserveInitialPermissionLevel, permissionLevelWasChangedByUser),
-		getModelId: () => resolveAutomationPickerValue(chatInput.selectedLanguageModel.get()?.identifier, initialModelId, preserveInitialModel, modelWasChangedByUser),
+		getMode: () => chatInput.currentModeObs.get().id,
+		getPermissionLevel: () => chatInput.currentPermissionLevelObs.get(),
+		getModelId: () => chatInput.selectedLanguageModel.get()?.identifier,
 		getBranch: () => isolationModel.persistedBranch,
 		getFocusableElements: () => {
 			// eslint-disable-next-line no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.

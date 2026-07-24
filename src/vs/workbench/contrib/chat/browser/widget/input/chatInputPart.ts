@@ -556,10 +556,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _onDidChangeCurrentChatMode: Emitter<IChatModeChangeEvent> = this._register(new Emitter<IChatModeChangeEvent>());
 	readonly onDidChangeCurrentChatMode: Event<IChatModeChangeEvent> = this._onDidChangeCurrentChatMode.event;
-	private readonly _onDidChangeCurrentLanguageModel = this._register(new Emitter<{ readonly isUserInitiated: boolean }>());
-	readonly onDidChangeCurrentLanguageModel = this._onDidChangeCurrentLanguageModel.event;
-	private readonly _onDidChangeCurrentPermissionLevel = this._register(new Emitter<{ readonly isUserInitiated: boolean }>());
-	readonly onDidChangeCurrentPermissionLevel = this._onDidChangeCurrentPermissionLevel.event;
 
 	private readonly _currentModeObservable: ISettableObservable<IChatMode>;
 	private readonly _currentChatModesObservable: ISettableObservable<IChatModes>;
@@ -1326,7 +1322,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// registering an `IChatWidget` (e.g. the automations dialog).
 			// The picker only calls this when `sessionResource()` is
 			// `undefined`; real chat widgets keep the command path.
-			setMode: (mode: IChatMode) => this.setChatMode2(mode, true, true),
+			setMode: (mode: IChatMode) => this.setChatMode2(mode, true),
 			customAgentTarget: () => {
 				const sessionResource = this._widget?.viewModel?.model.sessionResource;
 				return (sessionResource && this.chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource))) ?? Target.Undefined;
@@ -1338,10 +1334,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.permissionWidget?.show();
 	}
 
-	public setPermissionLevel(level: ChatPermissionLevel, isUserInitiated = false): void {
+	public setPermissionLevel(level: ChatPermissionLevel): void {
 		level = this.getPermittedPermissionLevel(level);
 		this._currentPermissionLevel.set(level, undefined);
-		this._onDidChangeCurrentPermissionLevel.fire({ isUserInitiated });
 		this.permissionLevelKey.set(level);
 		this.permissionWidget?.refresh();
 		const sessionResource = this.getCurrentSessionResource();
@@ -1829,7 +1824,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const selectedModelIsDefaultStorageKey = this.getSelectedModelIsDefaultStorageKey();
 		logChangesToStateModel(this._inputModel, `setCurrentLanguageModel to ${model.identifier} in ${this._currentSessionKey}, storageKey=${selectedModelStorageKey}, isDefaultKey=${selectedModelIsDefaultStorageKey}, currentSessionType=${this._currentSessionType}, getCurrentSessionType=${this.getCurrentSessionType()}, boundInputModelSession=${this._inputModelSessionResource?.toString()}, modelDetials = ${modelDetails}, storeSelection=${storeSelection}`, undefined, undefined, this.logService);
 		this._currentLanguageModel.set(model, undefined);
-		this._onDidChangeCurrentLanguageModel.fire({ isUserInitiated: isUserAction });
 
 		if (this.cachedWidth) {
 			// For quick chat and editor chat, relayout because the input may need to shrink to accomodate the model name
@@ -3659,7 +3653,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const delegate: IPermissionPickerDelegate = {
 						currentPermissionLevel: this._currentPermissionLevel,
 						setPermissionLevel: (level: ChatPermissionLevel) => {
-							this.setPermissionLevel(level, true);
+							this.setPermissionLevel(level);
 						},
 						getExtensionPermissions: () => {
 							const sessionResource = this.getCurrentSessionResource();

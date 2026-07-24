@@ -3,21 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAutomation } from './automation.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from './automationService.js';
 
 export interface IShowAutomationDialogOptions {
 	readonly existing?: IAutomation;
-	/** Values applied over the create defaults or existing automation before the dialog is shown. */
-	readonly initialValues?: IUpdateAutomationOptions;
-	/** Whether the dialog is reviewing values proposed by an agent. */
-	readonly isAgentProposal?: boolean;
-	/** Keep an initial target visible while its provider/session type is temporarily unavailable. */
-	readonly preserveUnavailableInitialTarget?: boolean;
-	/** Closes the dialog without saving when the originating operation is cancelled. */
-	readonly cancellationToken?: CancellationToken;
 }
 
 export type IAutomationDialogResult =

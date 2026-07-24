@@ -25,7 +25,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
 import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel, ToolRiskPromptKind } from '../../../browser/tools/chatToolRiskAssessmentService.js';
 import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
-import { ConfirmedReason, IChatService, IChatProgress, IChatInfoMessage, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatService, IChatProgress, IChatInfoMessage, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, IToolResultTextPart, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
@@ -655,14 +655,7 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(result.content[0].value, 'ok');
 	});
 
-	test('resolved automatic approval is passed to the tool implementation', async () => {
-		let confirmationReason: ConfirmedReason | undefined;
-		const toolData: IToolData = {
-			id: 'testToolCustomBtnNoAuto',
-			modelDescription: 'Test Tool',
-			displayName: 'Test Tool',
-			source: ToolDataSource.Internal,
-		};
+	test('confirmationMessages with customOptions disables allowAutoConfirm', async () => {
 		const tool = registerToolForTest(service, store, 'testToolCustomBtnNoAuto', {
 			prepareToolInvocation: async () => ({
 				confirmationMessages: {
@@ -675,22 +668,22 @@ suite('LanguageModelToolsService', () => {
 					allowAutoConfirm: false,
 				}
 			}),
-			invoke: async invocation => {
-				confirmationReason = invocation.confirmationReason;
-				return { content: [{ kind: 'text', value: 'done' }] };
-			},
-		}, toolData);
+			invoke: async () => ({ content: [{ kind: 'text', value: 'done' }] }),
+		});
 
 		const sessionId = 'sessionId-custom-noauto';
 		const capture: { invocation?: any } = {};
 		stubGetSession(chatService, sessionId, { requestId: 'requestId-custom-noauto', capture });
 
 		const dto = tool.makeDto({ x: 1 }, { sessionId });
-		dto.preApproved = { type: ToolConfirmKind.Setting, id: 'test-auto-approve' };
 
-		await service.invokeTool(dto, async () => 0, CancellationToken.None);
+		const promise = service.invokeTool(dto, async () => 0, CancellationToken.None);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published, 'expected ChatToolInvocation to be published');
+		assert.deepStrictEqual(published.confirmationMessages?.customOptions?.map(o => o.label), ['Yes', 'No']);
 
-		assert.deepStrictEqual(confirmationReason, { type: ToolConfirmKind.Setting, id: 'test-auto-approve' });
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction, selectedButton: 'Yes' });
+		await promise;
 	});
 
 	test('skipping modified-files confirmation returns the shared skip message and does not invoke the tool', async () => {
@@ -2132,7 +2125,6 @@ suite('LanguageModelToolsService', () => {
 		});
 
 		// Register a tool with the ID that cannot be auto-approved for CLI
-		let confirmationReason: ConfirmedReason | undefined;
 		const tool = registerToolForTest(testService, store, 'vscode_get_modified_files_confirmation', {
 			prepareToolInvocation: async () => ({
 				confirmationMessages: {
@@ -2140,10 +2132,7 @@ suite('LanguageModelToolsService', () => {
 					message: 'Should these changes be included?',
 				},
 			}),
-			invoke: async invocation => {
-				confirmationReason = invocation.confirmationReason;
-				return { content: [{ kind: 'text', value: 'auto approved for local' }] };
-			}
+			invoke: async () => ({ content: [{ kind: 'text', value: 'auto approved for local' }] })
 		});
 
 		const sessionId = 'test-bypass-local-auto-confirm';
@@ -2158,13 +2147,7 @@ suite('LanguageModelToolsService', () => {
 			async () => 0,
 			CancellationToken.None
 		);
-		assert.deepStrictEqual({
-			content: result.content[0].value,
-			confirmationReasonType: confirmationReason?.type,
-		}, {
-			content: 'auto approved for local',
-			confirmationReasonType: ToolConfirmKind.ConfirmationNotNeeded,
-		});
+		assert.strictEqual(result.content[0].value, 'auto approved for local');
 	});
 
 	test('shouldAutoConfirm with basic configuration', async () => {
@@ -4778,11 +4761,9 @@ suite('LanguageModelToolsService', () => {
 
 		test('when hook returns ask, tool is not auto-approved', async () => {
 			let invokeCompleted = false;
-			let confirmationReason: ConfirmedReason | undefined;
 			const tool = registerToolForTest(hookService, store, 'hookAskTool', {
-				invoke: async invocation => {
+				invoke: async () => {
 					invokeCompleted = true;
-					confirmationReason = invocation.confirmationReason;
 					return { content: [{ kind: 'text', value: 'success' }] };
 				},
 				prepareToolInvocation: async () => ({
@@ -4823,16 +4804,13 @@ suite('LanguageModelToolsService', () => {
 			await invokePromise;
 
 			assert.strictEqual(invokeCompleted, true, 'Tool should complete after confirmation');
-			assert.deepStrictEqual(confirmationReason, { type: ToolConfirmKind.UserAction });
 		});
 
 		test('when hook returns allow, tool is auto-approved', async () => {
 			let invokeCompleted = false;
-			let confirmationReason: ConfirmedReason | undefined;
 			const tool = registerToolForTest(hookService, store, 'hookAutoApproveTool', {
-				invoke: async invocation => {
+				invoke: async () => {
 					invokeCompleted = true;
-					confirmationReason = invocation.confirmationReason;
 					return { content: [{ kind: 'text', value: 'success' }] };
 				},
 				prepareToolInvocation: async () => ({
@@ -4863,7 +4841,6 @@ suite('LanguageModelToolsService', () => {
 			assert.strictEqual(invokeCompleted, true, 'Tool should complete immediately when hook allows');
 			assert.strictEqual(result.content[0].kind, 'text');
 			assert.strictEqual((result.content[0] as IToolResultTextPart).value, 'success');
-			assert.strictEqual(confirmationReason?.type, ToolConfirmKind.ConfirmationNotNeeded);
 		});
 
 		test('when hook returns updatedInput, tool is invoked with replaced parameters', async () => {

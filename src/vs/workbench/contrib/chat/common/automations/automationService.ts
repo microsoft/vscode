@@ -5,9 +5,11 @@
 
 import { IObservable } from '../../../../../base/common/observable.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ChatPermissionLevel } from '../constants.js';
 import { IAutomation, IAutomationRun, AutomationRunTrigger, IAutomationSchedule, AutomationTarget } from './automation.js';
 
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
+export const ConfigureAutomationToolReferenceName = 'configureAutomation';
 
 /**
  * Input for `createAutomation`. The service fills in `id`, timestamps, and
@@ -46,6 +48,44 @@ export interface IUpdateAutomationOptions {
 export type IGuardedAutomationUpdateResult =
 	| { readonly kind: 'updated'; readonly automation: IAutomation }
 	| { readonly kind: 'conflict'; readonly current: IAutomation | undefined };
+
+/**
+ * Returns the canonical editable state used by optimistic automation updates.
+ * Runtime-only timestamps are intentionally excluded. Workspace URIs use their
+ * canonical serialized form so any mismatch fails closed as a conflict.
+ */
+export function serializeAutomationEditableState(automation: IAutomation): string {
+	const target = automation.target.kind === 'quickChat'
+		? {
+			kind: automation.target.kind,
+			providerId: automation.target.providerId,
+			sessionTypeId: automation.target.sessionTypeId,
+		}
+		: {
+			kind: automation.target.kind,
+			folderUri: automation.target.folderUri.toString(),
+			providerId: automation.target.providerId,
+			sessionTypeId: automation.target.sessionTypeId,
+			isolation: automation.target.isolation.kind === 'worktree'
+				? { kind: automation.target.isolation.kind, branch: automation.target.isolation.branch }
+				: { kind: automation.target.isolation.kind },
+		};
+	return JSON.stringify({
+		name: automation.name,
+		prompt: automation.prompt,
+		schedule: {
+			interval: automation.schedule.interval,
+			scheduleHour: automation.schedule.scheduleHour,
+			scheduleMinute: automation.schedule.scheduleMinute,
+			scheduleDay: automation.schedule.scheduleDay,
+		},
+		target,
+		modelId: automation.modelId,
+		mode: automation.mode,
+		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,
+		enabled: automation.enabled,
+	});
+}
 
 /** Patch for `updateRun`. Absent fields are unchanged. */
 export interface IUpdateAutomationRunOptions {

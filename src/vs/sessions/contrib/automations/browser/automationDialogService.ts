@@ -6,7 +6,6 @@
 import * as DOM from '../../../../base/browser/dom.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
-import { raceCancellation, Sequencer } from '../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -52,54 +51,6 @@ const automationDialogAllowableCommands = new Set([
 	'quickInput.hide',
 ]);
 
-interface IResolvedAutomationDialogInitialValues {
-	readonly state: IFormState;
-	readonly prompt: string;
-	readonly mode: string | undefined;
-	readonly permissionLevel: string | undefined;
-	readonly modelId: string | undefined;
-	readonly branch: string | undefined;
-}
-
-/**
- * Resolves dialog defaults with an optional non-persistent proposal layered over them.
- */
-export function resolveAutomationDialogInitialValues(options: IShowAutomationDialogOptions): IResolvedAutomationDialogInitialValues {
-	const existing = options.existing;
-	const proposed = options.initialValues;
-	const schedule = proposed?.schedule ?? existing?.schedule;
-	const target = proposed?.target ?? existing?.target;
-	const workspaceTarget = target?.kind === 'workspace' ? target : undefined;
-
-	return {
-		state: {
-			name: proposed?.name ?? existing?.name ?? '',
-			interval: schedule?.interval ?? 'daily',
-			hour: schedule?.scheduleHour ?? 9,
-			minute: schedule?.scheduleMinute ?? 0,
-			day: schedule?.scheduleDay ?? 1,
-			isQuickChat: target?.kind === 'quickChat',
-			folderUri: workspaceTarget?.folderUri,
-			providerId: target?.providerId,
-			sessionTypeId: target?.sessionTypeId,
-			isolationMode: workspaceTarget?.isolation.kind === 'default'
-				? undefined
-				: workspaceTarget?.isolation.kind === 'worktree' ? 'worktree' : 'workspace',
-			branch: workspaceTarget?.isolation.kind === 'worktree' ? workspaceTarget.isolation.branch : undefined,
-			enabled: proposed?.enabled ?? existing?.enabled ?? true,
-		},
-		prompt: proposed?.prompt ?? existing?.prompt ?? '',
-		mode: resolveOptionalInitialValue(proposed?.mode, existing?.mode),
-		permissionLevel: resolveOptionalInitialValue(proposed?.permissionLevel, existing?.permissionLevel),
-		modelId: resolveOptionalInitialValue(proposed?.modelId, existing?.modelId),
-		branch: workspaceTarget?.isolation.kind === 'worktree' ? workspaceTarget.isolation.branch : undefined,
-	};
-}
-
-function resolveOptionalInitialValue(value: string | null | undefined, fallback: string | undefined): string | undefined {
-	return value === null ? undefined : value ?? fallback;
-}
-
 /**
  * Owns the Automations create/edit dialog in the sessions layer, where the
  * session-type provider it needs already lives. The workbench list widget
@@ -108,7 +59,6 @@ function resolveOptionalInitialValue(value: string | null | undefined, fallback:
 export class AutomationDialogService implements IAutomationDialogService {
 
 	declare readonly _serviceBrand: undefined;
-	private readonly dialogSequencer = new Sequencer();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -123,40 +73,46 @@ export class AutomationDialogService implements IAutomationDialogService {
 	) { }
 
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
-		const result = this.dialogSequencer.queue(() => options.cancellationToken?.isCancellationRequested
-			? Promise.resolve(undefined)
-			: this.showAutomationDialogNow(options));
-		return options.cancellationToken ? raceCancellation(result, options.cancellationToken) : result;
-	}
-
-	private async showAutomationDialogNow(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
 		const disposables = new DisposableStore();
 
-		const existing = options.existing;
-		const isEdit = !!existing;
-		const initial = resolveAutomationDialogInitialValues(options);
-		const state = initial.state;
+		const initial = options.existing;
+		const isEdit = !!initial;
+		const initialTarget = initial?.target;
+		const initialWorkspaceTarget = initialTarget?.kind === 'workspace' ? initialTarget : undefined;
+
+		const state: IFormState = {
+			name: initial?.name ?? '',
+			interval: initial?.schedule.interval ?? 'daily',
+			hour: initial?.schedule.scheduleHour ?? 9,
+			minute: initial?.schedule.scheduleMinute ?? 0,
+			day: initial?.schedule.scheduleDay ?? 1,
+			isQuickChat: initialTarget?.kind === 'quickChat',
+			folderUri: initialWorkspaceTarget?.folderUri,
+			providerId: initialTarget?.providerId,
+			sessionTypeId: initialTarget?.sessionTypeId,
+			isolationMode: initialWorkspaceTarget?.isolation.kind === 'default'
+				? undefined
+				: initialWorkspaceTarget?.isolation.kind === 'worktree' ? 'worktree' : 'workspace',
+			branch: initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined,
+			enabled: initial?.enabled ?? true,
+		};
 
 		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
 
 		let saveButton: IButton | undefined;
 		let cancelButton: IButton | undefined;
 		let revalidate: () => void = () => { };
-		let getPrompt: () => string = () => initial.prompt;
-		let getMode: () => string | undefined = () => initial.mode;
-		let getPermissionLevel: () => string | undefined = () => initial.permissionLevel;
-		let getModelId: () => string | undefined = () => initial.modelId;
-		let getBranch: () => string | undefined = () => initial.branch;
+		let getPrompt: () => string = () => initial?.prompt ?? '';
+		let getMode: () => string | undefined = () => initial?.mode;
+		let getPermissionLevel: () => string | undefined = () => initial?.permissionLevel;
+		let getModelId: () => string | undefined = () => initial?.modelId;
+		let getBranch: () => string | undefined = () => initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined;
 		let getFocusableElements: () => readonly HTMLElement[] = () => [];
 		let focusFirst: () => void = () => { };
 
-		const title = options.isAgentProposal
-			? isEdit
-				? localize('automation.dialog.reviewEditTitle', "Review automation changes")
-				: localize('automation.dialog.reviewCreateTitle', "Review new automation")
-			: isEdit
-				? localize('automation.dialog.editTitle', "Edit automation")
-				: localize('automation.dialog.createTitle', "New automation");
+		const title = isEdit
+			? localize('automation.dialog.editTitle', "Edit automation")
+			: localize('automation.dialog.createTitle', "New automation");
 
 		const buttonLabels = [
 			isEdit ? localize('automation.dialog.save', "Save") : localize('automation.dialog.create', "Create"),
@@ -196,17 +152,13 @@ export class AutomationDialogService implements IAutomationDialogService {
 					titlebar.textContent = title;
 
 					const description = DOM.append(container, $('.automation-description'));
-					description.textContent = options.isAgentProposal
-						? isEdit
-							? localize('automation.dialog.reviewEditDescription', "Review the changes proposed by the agent. Nothing changes until you save.")
-							: localize('automation.dialog.reviewCreateDescription', "Review the automation proposed by the agent. Nothing changes until you create it.")
-						: isEdit
-							? localize('automation.dialog.editDescription', "Update the schedule, prompt, or run target for this automation.")
-							: localize('automation.dialog.createDescription', "Define a prompt that Copilot will run on a schedule against the selected target.");
+					description.textContent = isEdit
+						? localize('automation.dialog.editDescription', "Update the schedule, prompt, or run target for this automation.")
+						: localize('automation.dialog.createDescription', "Define a prompt that Copilot will run on a schedule against the selected target.");
 
 					const formPane = DOM.append(container, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.productService, initial.prompt, initial.mode, initial.permissionLevel, initial.modelId);
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.productService, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId);
 					getPrompt = handle.getPrompt;
 					getMode = handle.getMode;
 					getPermissionLevel = handle.getPermissionLevel;
@@ -235,10 +187,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 		try {
 			const resultPromise = dialog.show();
 			focusFirst();
-			const result = options.cancellationToken
-				? await raceCancellation(resultPromise, options.cancellationToken)
-				: await resultPromise;
-			if (!result || result.button !== 0) {
+			const result = await resultPromise;
+			if (result.button !== 0) {
 				return undefined;
 			}
 			// Guard against submit-with-Enter bypassing live validation.
@@ -267,7 +217,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				return undefined;
 			}
 
-			if (isEdit && existing) {
+			if (isEdit && initial) {
 				const patch: IUpdateAutomationOptions = {
 					name: state.name,
 					prompt,
@@ -278,7 +228,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					permissionLevel: permissionLevel ?? null,
 					enabled: state.enabled,
 				};
-				return { kind: 'update', id: existing.id, value: patch };
+				return { kind: 'update', id: initial.id, value: patch };
 			}
 
 			const create: ICreateAutomationOptions = {
