@@ -9,6 +9,7 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { sanitizeFilePart } from '../../../../../platform/agentHost/common/agentHostLogNaming.js';
 import { AgentHostAhpJsonlLoggingSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_LOG_OUTPUT_CHANNEL_ID, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -20,6 +21,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../copilotCliEventsUri.js';
+import { findRemoteAgentHostSessionTypeAuthority } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 
 /** Output channel ID for the current window's renderer log. */
 const WINDOW_LOG_CHANNEL_ID = 'rendererLog';
@@ -116,16 +118,14 @@ export function isAgentHostSession(resource: URI | undefined): boolean {
 
 /**
  * Resolves the remote agent-host connection that backs a given remote session
- * URI, or `undefined` for local/unknown sessions.
+ * URI, or `undefined` for local/unknown sessions. Provider-agnostic: matches the
+ * `remote-<authority>-<provider>` scheme against the set of known connection
+ * authorities (an authority may itself contain `-`), so it resolves Claude,
+ * Copilot, and any other provider's remote sessions — not just `copilotcli`.
  */
 export function getRemoteConnectionForSession(sessionResource: URI, connections: readonly IRemoteAgentHostConnectionInfo[]): IRemoteAgentHostConnectionInfo | undefined {
-	const authority = parseRemoteAuthorityFromScheme(sessionResource.scheme);
+	const authority = findRemoteAgentHostSessionTypeAuthority(sessionResource.scheme, connections.map(connection => agentHostAuthority(connection.address)));
 	return authority ? connections.find(connection => agentHostAuthority(connection.address) === authority) : undefined;
-}
-
-/** Sanitizes a value for use as (part of) a file name. */
-export function sanitizeFilePart(value: string): string {
-	return value.replace(/[\\/:\*\?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '') || 'connection';
 }
 
 /**
@@ -485,28 +485,13 @@ async function logStreamContains(
 }
 
 /**
- * Reads the remote agent host's `agenthost.log` from the remote machine via the
- * `vscode-agent-host://` filesystem proxy. The CLI launches the server with its
- * default data dir at `<home>/<serverDataFolderName>/data/logs/<datestamp>/`,
- * so we list the logs directory and pick the most recent date-stamped folder.
+ * The remote server-data-folder name candidates to probe. The renderer's own
+ * `serverDataFolderName` (which the user is running) is the most likely match,
+ * but the remote agent host may have been launched by a different quality of
+ * CLI. Dev builds also append `-dev`, which won't exist on any real built
+ * remote, so we strip that suffix as well.
  */
-export async function readRemoteAgentHostLog(
-	connection: IRemoteAgentHostConnectionInfo,
-	serverDataFolderName: string | undefined,
-	fileService: IFileService,
-): Promise<string | undefined> {
-	const homePath = connection.defaultDirectory;
-	if (!homePath) {
-		return undefined;
-	}
-	const authority = agentHostAuthority(connection.address);
-	const homeUri = toAgentHostUri(URI.from({ scheme: 'file', path: homePath }), authority);
-
-	// Possible server data folder candidates. The renderer's own
-	// `serverDataFolderName` (which the user is running) is the most likely
-	// match, but the remote agent host may have been launched by a different
-	// quality of CLI. Dev builds also append `-dev`, which won't exist on
-	// any real built remote, so we strip that suffix as well.
+function remoteServerDataFolderCandidates(serverDataFolderName: string | undefined): string[] {
 	const candidates = new Set<string>();
 	if (serverDataFolderName) {
 		candidates.add(serverDataFolderName);
@@ -518,39 +503,68 @@ export async function readRemoteAgentHostLog(
 	candidates.add('.vscode-server-insiders');
 	candidates.add('.vscode-server-oss');
 	candidates.add('.vscode-server-exploration');
+	return [...candidates];
+}
 
-	// Enumerate every `<home>/<candidate>/data/logs/<datestamp>/agenthost.log`
-	// across all candidates and pick the one with the newest mtime. This avoids
-	// picking up a stale stable-quality folder when an insiders folder has a
-	// more recent log (or vice versa).
-	let best: { uri: URI; mtime: number } | undefined;
-	for (const folderName of candidates) {
+/**
+ * Enumerates the remote `<home>/<candidate>/data/logs/<datestamp>` directories
+ * across all server-data-folder quality candidates. Shared by the readers for
+ * `agenthost.log` and the Claude debug logs, both of which live under a
+ * date-stamped folder written by the remote agent host.
+ */
+async function enumerateRemoteLogDatestampDirs(
+	connection: IRemoteAgentHostConnectionInfo,
+	serverDataFolderName: string | undefined,
+	fileService: IFileService,
+): Promise<URI[]> {
+	const homePath = connection.defaultDirectory;
+	if (!homePath) {
+		return [];
+	}
+	const authority = agentHostAuthority(connection.address);
+	const homeUri = toAgentHostUri(URI.from({ scheme: 'file', path: homePath }), authority);
+	const dirs: URI[] = [];
+	for (const folderName of remoteServerDataFolderCandidates(serverDataFolderName)) {
 		const logsDirUri = joinPath(homeUri, folderName, 'data', 'logs');
-		let entries;
+		let entries: IFileStatWithMetadata[] | undefined;
 		try {
-			const stat = await fileService.resolve(logsDirUri, { resolveMetadata: true });
-			entries = stat.children;
+			entries = (await fileService.resolve(logsDirUri, { resolveMetadata: true })).children;
 		} catch {
 			continue;
 		}
-		if (!entries) {
+		for (const dir of entries ?? []) {
+			if (dir.isDirectory) {
+				dirs.push(dir.resource);
+			}
+		}
+	}
+	return dirs;
+}
+
+/**
+ * Reads the remote agent host's `agenthost.log` from the remote machine via the
+ * `vscode-agent-host://` filesystem proxy. The CLI launches the server with its
+ * default data dir at `<home>/<serverDataFolderName>/data/logs/<datestamp>/`, so
+ * we pick the `agenthost.log` with the newest mtime across all date-stamped
+ * folders (avoiding a stale folder of a different CLI quality).
+ */
+export async function readRemoteAgentHostLog(
+	connection: IRemoteAgentHostConnectionInfo,
+	serverDataFolderName: string | undefined,
+	fileService: IFileService,
+): Promise<string | undefined> {
+	let best: { uri: URI; mtime: number } | undefined;
+	for (const dir of await enumerateRemoteLogDatestampDirs(connection, serverDataFolderName, fileService)) {
+		const logUri = joinPath(dir, 'agenthost.log');
+		let logStat;
+		try {
+			logStat = await fileService.resolve(logUri, { resolveMetadata: true });
+		} catch {
 			continue;
 		}
-		for (const dir of entries) {
-			if (!dir.isDirectory) {
-				continue;
-			}
-			const logUri = joinPath(dir.resource, 'agenthost.log');
-			let logStat;
-			try {
-				logStat = await fileService.resolve(logUri, { resolveMetadata: true });
-			} catch {
-				continue;
-			}
-			const mtime = logStat.mtime ?? 0;
-			if (!best || mtime > best.mtime) {
-				best = { uri: logUri, mtime };
-			}
+		const mtime = logStat.mtime ?? 0;
+		if (!best || mtime > best.mtime) {
+			best = { uri: logUri, mtime };
 		}
 	}
 

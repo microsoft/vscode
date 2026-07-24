@@ -70,6 +70,15 @@ export interface IBuildOptionsInput {
 	 * Omit when no custom agent is selected (SDK default behavior).
 	 */
 	readonly agent?: string;
+	/**
+	 * Absolute filesystem path the SDK writes verbose debug logs to
+	 * (projected onto `Options.debugFile`, which implicitly enables `--debug`).
+	 * Always set by {@link ClaudeAgentSession} to a per-session file under
+	 * `<logsHome>/claude/`, so the "Export Agent Host Debug Logs" command can
+	 * collect it (see {@link buildClaudeDebugFilePath}). Omitted from the
+	 * returned options when unset so the SDK keeps its default (no debug file).
+	 */
+	readonly debugFile?: string;
 }
 
 /**
@@ -137,6 +146,7 @@ export async function buildOptions(
 			? { plugins: input.plugins.map(p => ({ type: 'local' as const, path: p.fsPath })) }
 			: {}),
 		...(input.agent ? { agent: input.agent } : {}),
+		...(input.debugFile ? { debugFile: input.debugFile } : {}),
 		settingSources: ['user', 'project', 'local'],
 		settings: { env: settingsEnv },
 		systemPrompt: { type: 'preset', preset: 'claude_code' },

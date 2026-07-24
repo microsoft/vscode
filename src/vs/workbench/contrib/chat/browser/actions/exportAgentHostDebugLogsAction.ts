@@ -5,13 +5,13 @@
 
 import { VSBuffer, streamToBuffer } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { joinPath } from '../../../../../base/common/resources.js';
+import { extname, joinPath } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
-import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId, AGENT_HOST_LOG_OUTPUT_CHANNEL_ID } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -20,7 +20,7 @@ import { IsWebContext } from '../../../../../platform/contextkey/common/contextk
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { createDecorator, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -30,8 +30,11 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../copilotCliEventsUri.js';
-import { findCopilotLogsForSession, getRemoteConnectionForSession, readRemoteAgentHostLog, sanitizeFilePart } from '../chatDebug/agentHostLogSources.js';
+import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../copilotCliEventsUri.js';
+import { findCopilotLogsForSession, getRemoteConnectionForSession, readRemoteAgentHostLog } from '../chatDebug/agentHostLogSources.js';
+import { sanitizeFilePart } from '../../../../../platform/agentHost/common/agentHostLogNaming.js';
+import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { readSessionDebugArtifacts, type IDebugArtifact } from '../../../../../platform/agentHost/common/state/sessionState.js';
 
 /** Output channel ID for the agent host process logger (forwarded via RemoteLoggerChannelClient). */
 const AGENT_HOST_LOGGER_CHANNEL_ID = AGENT_HOST_LOG_OUTPUT_CHANNEL_ID;
@@ -52,6 +55,14 @@ export interface IActiveAgentHostSessionForExport {
 	readonly title: string | undefined;
 	/** True for local agent-host sessions (`agent-host-*` scheme). */
 	readonly isLocal: boolean;
+	/**
+	 * Debug artifacts the host advertised for this session via session `_meta`
+	 * (`agentHost.debugArtifacts`) — host-local absolute paths to provider log /
+	 * transcript files. The export resolves each through the resource proxy
+	 * instead of re-deriving provider-specific on-disk layouts. Omitted when the
+	 * caller can't read the session's `_meta` (e.g. the workbench-side action).
+	 */
+	readonly debugArtifacts?: readonly IDebugArtifact[];
 }
 
 export type IAgentHostDebugLogFile =
@@ -192,6 +203,34 @@ export async function collectAgentHostDebugLogs(
 		// AHP log directory may not exist if no remote connection has been opened or if logging is disabled.
 	}
 
+	// 3b. Provider debug artifacts (e.g. Claude SDK debug logs + session transcript)
+	// advertised by the host via session `_meta`. The host reports concrete
+	// host-local absolute paths — no client-side knowledge of provider on-disk
+	// layout — which we resolve through the resource proxy: `file://` for a local
+	// session, `vscode-agent-host://` for a remote one.
+	const artifactAuthority = remoteConnection ? agentHostAuthority(remoteConnection.address) : undefined;
+	for (const artifact of activeSession?.debugArtifacts ?? []) {
+		// `artifact.path` is an absolute path on the agent-host machine. Locally
+		// that's this platform (`URI.file`); remotely it's the remote platform, so
+		// preserve it verbatim via `URI.from` rather than let `URI.file` apply the
+		// client's separator/drive rules to a foreign path.
+		const resource = activeSession?.isLocal
+			? URI.file(artifact.path)
+			: artifactAuthority ? toAgentHostUri(URI.from({ scheme: Schemas.file, path: artifact.path }), artifactAuthority) : undefined;
+		if (!resource) {
+			continue;
+		}
+		try {
+			// Capture the size so remote artifacts use the bounded read path (a large
+			// `--debug` log shouldn't be slurped whole over the proxy), and a missing
+			// file (e.g. one whose SDK subprocess hasn't written it yet) is skipped.
+			const { size } = await fileService.resolve(resource, { resolveMetadata: true });
+			files.push(await createDebugLogFile(`${sanitizeFilePart(artifact.label)}${extname(resource)}`, resource, fileService, size));
+		} catch (error) {
+			logService.warn(`[ExportAgentHostDebugLogs] Failed to read debug artifact '${artifact.label}': ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
 	// 4. For remote agent hosts, also download the agenthost.log file directly from
 	// the remote machine. The CLI launches the server with its default data dir,
 	// which lives at `<home>/<serverDataFolderName>/data/logs/<datestamp>/agenthost.log`.
@@ -291,22 +330,56 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
+		// Extract services synchronously up front — the accessor is only valid
+		// before the first `await` below.
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widget = chatWidgetService.lastFocusedWidget;
-		const model = widget?.viewModel?.model;
-		const activeSession = model ? toActiveAgentHostSession(model.sessionResource, model.title) : undefined;
-		await exportAgentHostDebugLogs(accessor, activeSession);
+		const agentHostService = accessor.get(IAgentHostService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const model = chatWidgetService.lastFocusedWidget?.viewModel?.model;
+		let activeSession = model ? toActiveAgentHostSession(model.sessionResource, model.title) : undefined;
+		// Unlike the Agents window, the workbench has no session adapter to read
+		// `_meta` off of, so resolve the host-advertised debug artifacts from the
+		// local agent host's session summaries (matched by the unique session id).
+		// Best-effort: a miss just omits provider artifacts — the general logs
+		// (channels, AHP, remote agenthost.log) still export.
+		if (activeSession?.isLocal) {
+			const debugArtifacts = await resolveLocalDebugArtifacts(agentHostService, activeSession.resource);
+			if (debugArtifacts?.length) {
+				activeSession = { ...activeSession, debugArtifacts };
+			}
+		}
+		// The original `accessor` is invalid after the await above, so re-enter with
+		// a fresh one for the (accessor-threading) export helper.
+		await instantiationService.invokeFunction(accessor => exportAgentHostDebugLogs(accessor, activeSession));
 	}
 }
 
 /**
- * Translates a chat session URI scheme into an agent-host session context,
- * or `undefined` if the scheme does not belong to a Copilot CLI agent-host
- * session (i.e. local AH or remote AH; the EH CLI extension's own
- * `copilotcli:` sessions are excluded).
+ * Reads the host-advertised {@link IDebugArtifact}s for a local session from the
+ * local agent host's session summaries, matched by the session's unique id (the
+ * summary's `session` URI may use the backend scheme, so we compare ids, not the
+ * whole URI). Best-effort: any failure resolves to `undefined`.
+ */
+async function resolveLocalDebugArtifacts(agentHostService: IAgentHostService, resource: URI): Promise<readonly IDebugArtifact[] | undefined> {
+	try {
+		const rawId = resource.path.substring(1);
+		const sessions = await agentHostService.listSessions();
+		return readSessionDebugArtifacts(sessions.find(session => session.session.path.substring(1) === rawId)?._meta);
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Translates a chat session URI scheme into an agent-host session context, or
+ * `undefined` if the scheme does not belong to an agent-host session. Covers any
+ * local agent host (`agent-host-<provider>`, e.g. Copilot CLI or Claude) and
+ * remote agent hosts; the EH CLI extension's own `copilotcli:` sessions are
+ * excluded. Provider-specific collection (events.jsonl, Copilot/Claude logs)
+ * self-selects downstream by scheme/session id.
  */
 export function toActiveAgentHostSession(resource: URI, title: string | undefined): IActiveAgentHostSessionForExport | undefined {
-	if (resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
+	if (resource.scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX)) {
 		return { resource, title, isLocal: true };
 	}
 	if (parseRemoteAuthorityFromScheme(resource.scheme)) {

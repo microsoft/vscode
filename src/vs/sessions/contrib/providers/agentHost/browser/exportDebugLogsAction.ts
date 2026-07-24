@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize2 } from '../../../../../nls.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -16,7 +17,7 @@ import { type ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
+import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 
 export class ExportAgentHostDebugLogsAction extends Action2 {
 
@@ -44,11 +45,21 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 		const activeAgentHostSession = isAgentHostSession(activeSession, sessionsProvidersService) ? activeSession : undefined;
 		const sessionForEvents = activeAgentHostSession ?? getMostRecentAgentHostSession(sessionsManagementService.getSessions(), sessionsProvidersService);
 
+		// `sessionForEvents` is either the active-slot VisibleSession (a view wrapper that
+		// delegates ISession members to the real session but is NOT the adapter and has no
+		// `debugArtifacts`) or, in the fallback, the adapter itself. Either way, resolve the
+		// AgentHostSessionAdapter from getSessions() by resource — that's the object the host
+		// populates with `_meta` debug artifacts.
+		const adapter = sessionForEvents
+			? sessionsManagementService.getSessions().find((s): s is AgentHostSessionAdapter => s instanceof AgentHostSessionAdapter && isEqual(s.resource, sessionForEvents.resource))
+			: undefined;
+
 		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = sessionForEvents
 			? {
 				resource: sessionForEvents.resource,
 				title: activeAgentHostSession?.title.get(),
 				isLocal: sessionForEvents.resource.scheme.startsWith('agent-host-'),
+				debugArtifacts: adapter?.debugArtifacts,
 			}
 			: undefined;
 
