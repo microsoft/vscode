@@ -155,7 +155,7 @@
     "open": "^10.1.2",
     "playwright-core": "1.61.0-alpha-2026-06-04",
     "ssh2": "^1.16.0",
-    "tar": "^7.5.20",
+    "tar": "^7.5.22",
     "tas-client": "0.3.1",
     "undici": "^7.28.0",
     "vscode-oniguruma": "1.7.0",
