@@ -27,7 +27,7 @@
 	box-sizing: border-box;
 	width: var(--segmented-icon-toggle-width, 56px);
 	height: var(--segmented-icon-toggle-height, 24px);
-	border: 1px solid var(--vscode-input-border, transparent);
+	border: 1px solid var(--vscode-input-border, var(--vscode-editorWidget-border));
 	border-radius: 8px;
 }
 

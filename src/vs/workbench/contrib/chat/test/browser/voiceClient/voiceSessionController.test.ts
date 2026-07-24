@@ -411,7 +411,14 @@ suite('VoiceSessionController', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
 		const commandService = new TestCommandService();
-		const controller = createController(voiceClientService, ttsPlaybackService, commandService);
+		const controller = createController(
+			voiceClientService,
+			ttsPlaybackService,
+			commandService,
+			NullTelemetryService,
+			undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }),
+		);
 		await controller.connect(mainWindow);
 
 		voiceClientService.fireAudioResponse({
@@ -860,6 +867,47 @@ suite('VoiceSessionController', () => {
 
 		assert.strictEqual(mic.pttDownCalls.length, 1);
 		assert.strictEqual(mic.pttDownCalls[0].passive, true);
+	});
+
+	test('connect only arms listening automatically in hands-free mode', () => {
+		const manualVoiceClientService = new TestVoiceClientService();
+		const manualController = createController(manualVoiceClientService, undefined, undefined, undefined, undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': false }));
+
+		const handsFreeVoiceClientService = new TestVoiceClientService();
+		const handsFreeController = createController(handsFreeVoiceClientService, undefined, undefined, undefined, undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }));
+		const manualShouldArm = Reflect.get(manualController, '_shouldEnterListenOnSessionInit') as (isResuming: boolean) => boolean;
+		const handsFreeShouldArm = Reflect.get(handsFreeController, '_shouldEnterListenOnSessionInit') as (isResuming: boolean) => boolean;
+
+		assert.deepStrictEqual({
+			manualFreshConnect: manualShouldArm.call(manualController, false),
+			handsFreeFreshConnect: handsFreeShouldArm.call(handsFreeController, false),
+			handsFreeResume: handsFreeShouldArm.call(handsFreeController, true),
+		}, {
+			manualFreshConnect: false,
+			handsFreeFreshConnect: true,
+			handsFreeResume: false,
+		});
+	});
+
+	test('stopping listening in manual mode submits the transcript', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const controller = createController(voiceClientService, undefined, commandService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		controller.pttDown();
+		controller.stopListening();
+		voiceClientService.fireToolCall({
+			callId: 'manual-transcription',
+			name: 'send_to_chat',
+			args: { text: 'send this when listening stops' },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual(commandService.acceptedInputs, ['send this when listening stops']);
 	});
 
 	test('auto-listen is skipped when window does not have focus (multi-window hands-free)', () => {
