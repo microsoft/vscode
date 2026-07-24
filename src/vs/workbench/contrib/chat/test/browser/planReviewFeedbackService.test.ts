@@ -4,13 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IPlanReviewFeedbackService, PlanReviewFeedbackService } from '../../browser/planReviewFeedback/planReviewFeedbackService.js';
+import { IPlanReviewFeedbackRegistration, IPlanReviewFeedbackService, PlanReviewFeedbackService } from '../../browser/planReviewFeedback/planReviewFeedbackService.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 function feedbackSummary(items: readonly { line: number; column: number }[]): string[] {
 	return items.map(f => `${f.line}:${f.column}`);
+}
+
+function createRegistration(overrides?: Partial<IPlanReviewFeedbackRegistration>): IPlanReviewFeedbackRegistration {
+	return {
+		actions: [{ id: 'approve', label: 'Approve', default: true }],
+		hasOverallFeedback: () => false,
+		submitFeedback: async () => { },
+		submitAction: async () => { },
+		reject: async () => { },
+		...overrides,
+	};
 }
 
 suite('PlanReviewFeedbackService - Ordering', () => {
@@ -22,7 +33,7 @@ suite('PlanReviewFeedbackService - Ordering', () => {
 	setup(() => {
 		service = store.add(new PlanReviewFeedbackService());
 		planUri = URI.parse('file:///plan.md');
-		store.add(service.registerPlanReview(planUri, () => { }));
+		store.add(service.registerPlanReview(planUri, createRegistration()));
 	});
 
 	teardown(() => {
@@ -112,7 +123,7 @@ suite('PlanReviewFeedbackService - Navigation', () => {
 	setup(() => {
 		service = store.add(new PlanReviewFeedbackService());
 		planUri = URI.parse('file:///plan.md');
-		store.add(service.registerPlanReview(planUri, () => { }));
+		store.add(service.registerPlanReview(planUri, createRegistration()));
 	});
 
 	teardown(() => {
@@ -224,13 +235,13 @@ suite('PlanReviewFeedbackService - Registration', () => {
 
 	test('isActivePlanReview returns true after registration', () => {
 		const planUri = URI.parse('file:///plan.md');
-		store.add(service.registerPlanReview(planUri, () => { }));
+		store.add(service.registerPlanReview(planUri, createRegistration()));
 		assert.strictEqual(service.isActivePlanReview(planUri), true);
 	});
 
 	test('isActivePlanReview returns false after dispose', () => {
 		const planUri = URI.parse('file:///plan.md');
-		const registration = service.registerPlanReview(planUri, () => { });
+		const registration = service.registerPlanReview(planUri, createRegistration());
 		assert.strictEqual(service.isActivePlanReview(planUri), true);
 		registration.dispose();
 		assert.strictEqual(service.isActivePlanReview(planUri), false);
@@ -245,7 +256,7 @@ suite('PlanReviewFeedbackService - Registration', () => {
 
 	test('dispose clears feedback items', () => {
 		const planUri = URI.parse('file:///plan.md');
-		const registration = service.registerPlanReview(planUri, () => { });
+		const registration = service.registerPlanReview(planUri, createRegistration());
 		service.addFeedback(planUri, 1, 1, 'text');
 		assert.strictEqual(service.getFeedback(planUri).length, 1);
 		registration.dispose();
@@ -257,7 +268,7 @@ suite('PlanReviewFeedbackService - Registration', () => {
 		let fireCount = 0;
 		store.add(service.onDidChangeRegistrations(() => fireCount++));
 
-		const registration = service.registerPlanReview(planUri, () => { });
+		const registration = service.registerPlanReview(planUri, createRegistration());
 		assert.strictEqual(fireCount, 1);
 
 		registration.dispose();
@@ -266,7 +277,7 @@ suite('PlanReviewFeedbackService - Registration', () => {
 
 	test('onDidChangeFeedback fires on add and remove', () => {
 		const planUri = URI.parse('file:///plan.md');
-		store.add(service.registerPlanReview(planUri, () => { }));
+		store.add(service.registerPlanReview(planUri, createRegistration()));
 
 		let fireCount = 0;
 		store.add(service.onDidChangeFeedback(() => fireCount++));
@@ -294,63 +305,68 @@ suite('PlanReviewFeedbackService - Submit', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('submitAllFeedback calls onSubmit with formatted feedback', () => {
+	test('submitAllFeedback delegates to the registered review', async () => {
 		const planUri = URI.parse('file:///plan.md');
-		let submittedResult: { rejected: boolean; feedback?: string } | undefined;
-		store.add(service.registerPlanReview(planUri, (result) => { submittedResult = result; }));
+		let submitCount = 0;
+		store.add(service.registerPlanReview(planUri, createRegistration({
+			submitFeedback: async () => { submitCount++; },
+		})));
 
 		service.addFeedback(planUri, 1, 1, 'fix this');
 		service.addFeedback(planUri, 45, 45, 'change that');
 
-		service.submitAllFeedback(planUri);
+		await service.submitAllFeedback(planUri);
 
-		assert.ok(submittedResult);
-		assert.strictEqual(submittedResult!.rejected, false);
-		assert.strictEqual(submittedResult!.feedback, [
-			'Here\'s the feedback:',
-			'Line 1: fix this',
-			'Line 45: Column 45: change that',
-		].join('\n'));
+		assert.strictEqual(submitCount, 1);
 	});
 
-	test('submitAllFeedback does nothing when no items', () => {
+	test('submitAllFeedback does nothing when no items', async () => {
 		const planUri = URI.parse('file:///plan.md');
 		let called = false;
-		store.add(service.registerPlanReview(planUri, () => { called = true; }));
+		store.add(service.registerPlanReview(planUri, createRegistration({
+			submitFeedback: async () => { called = true; },
+		})));
 
-		service.submitAllFeedback(planUri);
+		await service.submitAllFeedback(planUri);
 		assert.strictEqual(called, false);
 	});
 
-	test('feedback at column 1 omits column', () => {
+	test('submitAllFeedback delegates when only overall feedback exists', async () => {
 		const planUri = URI.parse('file:///plan.md');
-		let submittedResult: { feedback?: string } | undefined;
-		store.add(service.registerPlanReview(planUri, (result) => { submittedResult = result; }));
+		let called = false;
+		store.add(service.registerPlanReview(planUri, createRegistration({
+			hasOverallFeedback: () => true,
+			submitFeedback: async () => { called = true; },
+		})));
 
-		service.addFeedback(planUri, 10, 1, 'at start');
+		await service.submitAllFeedback(planUri);
 
-		service.submitAllFeedback(planUri);
-
-		assert.ok(submittedResult);
-		assert.strictEqual(submittedResult!.feedback, [
-			'Here\'s the feedback:',
-			'Line 10: at start',
-		].join('\n'));
+		assert.strictEqual(called, true);
 	});
 
-	test('feedback at column > 1 includes column', () => {
+	test('submitPlanAction delegates the selected action', async () => {
 		const planUri = URI.parse('file:///plan.md');
-		let submittedResult: { feedback?: string } | undefined;
-		store.add(service.registerPlanReview(planUri, (result) => { submittedResult = result; }));
+		const action = { id: 'autopilot', label: 'Implement with Autopilot' };
+		let submittedAction: string | undefined;
+		store.add(service.registerPlanReview(planUri, createRegistration({
+			actions: [action],
+			submitAction: async submitted => { submittedAction = submitted.id; },
+		})));
 
-		service.addFeedback(planUri, 10, 15, 'mid line');
+		await service.submitPlanAction(planUri, action);
 
-		service.submitAllFeedback(planUri);
+		assert.strictEqual(submittedAction, 'autopilot');
+	});
 
-		assert.ok(submittedResult);
-		assert.strictEqual(submittedResult!.feedback, [
-			'Here\'s the feedback:',
-			'Line 10: Column 15: mid line',
-		].join('\n'));
+	test('rejectPlan delegates rejection', async () => {
+		const planUri = URI.parse('file:///plan.md');
+		let rejected = false;
+		store.add(service.registerPlanReview(planUri, createRegistration({
+			reject: async () => { rejected = true; },
+		})));
+
+		await service.rejectPlan(planUri);
+
+		assert.strictEqual(rejected, true);
 	});
 });

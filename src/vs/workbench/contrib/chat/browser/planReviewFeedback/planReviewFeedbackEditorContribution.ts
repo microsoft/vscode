@@ -18,7 +18,7 @@ import { addStandardDisposableListener, getWindow } from '../../../../../base/br
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { Action } from '../../../../../base/common/actions.js';
+import { Action, Separator } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -29,6 +29,11 @@ import { IPlanReviewFeedbackService } from './planReviewFeedbackService.js';
 import { hasPlanReviewFeedback, navigationBearingFakeActionId, PlanReviewFeedbackMenuId } from './planReviewFeedbackEditorActions.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { Button, ButtonWithDropdown, IButton } from '../../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 
 class PlanReviewFeedbackInputWidget implements IOverlayWidget {
 
@@ -163,17 +168,26 @@ class PlanReviewFeedbackOverlayWidget implements IOverlayWidget {
 	private static readonly _ID = 'planReviewFeedback.overlayWidget';
 
 	private readonly _domNode: HTMLElement;
+	private readonly _decisionActionsNode: HTMLElement;
 	private readonly _toolbarNode: HTMLElement;
 	private readonly _showStore = new DisposableStore();
 	private readonly _navigationBearings = observableValue<{ activeIdx: number; totalCount: number }>('planReviewFeedbackBearings', { activeIdx: -1, totalCount: 0 });
+	private readonly _onDidRequestAddComment = new Emitter<void>();
+	readonly onDidRequestAddComment: Event<void> = this._onDidRequestAddComment.event;
 
 	constructor(
 		_codeEditor: ICodeEditor,
-		private readonly _instaService: IInstantiationService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@IPlanReviewFeedbackService private readonly _planReviewFeedbackService: IPlanReviewFeedbackService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('plan-review-feedback-overlay-widget');
 		this._domNode.style.display = 'none';
+
+		this._decisionActionsNode = document.createElement('div');
+		this._decisionActionsNode.classList.add('plan-review-feedback-decision-actions');
+		this._domNode.appendChild(this._decisionActionsNode);
 
 		this._toolbarNode = document.createElement('div');
 		this._toolbarNode.classList.add('plan-review-feedback-overlay-toolbar');
@@ -192,10 +206,11 @@ class PlanReviewFeedbackOverlayWidget implements IOverlayWidget {
 		return { preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER };
 	}
 
-	show(navigationBearings: { activeIdx: number; totalCount: number }): void {
+	show(planUri: URI, navigationBearings: { activeIdx: number; totalCount: number }): void {
 		this._showStore.clear();
 		this._navigationBearings.set(navigationBearings, undefined);
 		this._domNode.style.display = '';
+		this._renderDecisionActions(planUri, navigationBearings.totalCount);
 
 		this._showStore.add(this._instaService.createInstance(MenuWorkbenchToolBar, this._toolbarNode, PlanReviewFeedbackMenuId, {
 			telemetrySource: 'planReviewFeedback.overlayToolbar',
@@ -238,6 +253,62 @@ class PlanReviewFeedbackOverlayWidget implements IOverlayWidget {
 		}));
 	}
 
+	private _renderDecisionActions(planUri: URI, feedbackCount: number): void {
+		this._decisionActionsNode.replaceChildren();
+
+		const addCommentButton = this._showStore.add(new Button(this._decisionActionsNode, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		addCommentButton.label = `$(${Codicon.comment.id}) ${localize('planReviewFeedback.addComment', 'Add Comment')}`;
+		this._showStore.add(addCommentButton.onDidClick(() => this._onDidRequestAddComment.fire()));
+
+		const review = this._planReviewFeedbackService.getPlanReview(planUri);
+		if (feedbackCount > 0 || review?.hasOverallFeedback()) {
+			const submitButton = this._showStore.add(new Button(this._decisionActionsNode, { ...defaultButtonStyles, supportIcons: true }));
+			submitButton.label = feedbackCount > 0
+				? localize('planReviewFeedback.submitWithCount', 'Submit Feedback ({0})', feedbackCount)
+				: localize('planReviewFeedback.submit', 'Submit Feedback');
+			this._showStore.add(submitButton.onDidClick(() => void this._planReviewFeedbackService.submitAllFeedback(planUri)));
+		} else {
+			if (!review || review.actions.length === 0) {
+				return;
+			}
+
+			const primary = review.actions.find(action => action.default) ?? review.actions[0];
+			const moreActions = review.actions.filter(action => action !== primary);
+			let approveButton: IButton;
+			if (moreActions.length > 0) {
+				approveButton = new ButtonWithDropdown(this._decisionActionsNode, {
+					...defaultButtonStyles,
+					supportIcons: true,
+					contextMenuProvider: this._contextMenuService,
+					addPrimaryActionToDropdown: false,
+					actions: moreActions.map(action => {
+						const button = new Action(
+							action.id ?? action.label,
+							action.label,
+							undefined,
+							true,
+							() => this._planReviewFeedbackService.submitPlanAction(planUri, action),
+						);
+						button.tooltip = action.description ?? '';
+						return this._showStore.add(button);
+					}) as (Action | Separator)[],
+				});
+			} else {
+				approveButton = new Button(this._decisionActionsNode, { ...defaultButtonStyles, supportIcons: true });
+			}
+			this._showStore.add(approveButton);
+			approveButton.label = primary.label;
+			if (primary.description) {
+				approveButton.element.title = primary.description;
+			}
+			this._showStore.add(approveButton.onDidClick(() => void this._planReviewFeedbackService.submitPlanAction(planUri, primary)));
+		}
+
+		const rejectButton = this._showStore.add(new Button(this._decisionActionsNode, { ...defaultButtonStyles, secondary: true }));
+		rejectButton.label = localize('planReviewFeedback.reject', 'Reject');
+		this._showStore.add(rejectButton.onDidClick(() => void this._planReviewFeedbackService.rejectPlan(planUri)));
+	}
+
 	hide(): void {
 		this._showStore.clear();
 		this._domNode.style.display = 'none';
@@ -246,6 +317,7 @@ class PlanReviewFeedbackOverlayWidget implements IOverlayWidget {
 
 	dispose(): void {
 		this._showStore.dispose();
+		this._onDidRequestAddComment.dispose();
 	}
 }
 
@@ -528,6 +600,7 @@ export class PlanReviewFeedbackEditorContribution extends Disposable implements 
 		const line = selection.startLineNumber;
 		const column = selection.startColumn;
 		this._planReviewFeedbackService.addFeedback(model.uri, line, column, text);
+		status(localize('planReviewFeedback.commentAdded', 'Plan feedback comment added on line {0}.', line));
 		this._hideAndRefocusEditor();
 		return true;
 	}
@@ -591,12 +664,8 @@ export class PlanReviewFeedbackEditorContribution extends Disposable implements 
 		const items = this._planReviewFeedbackService.getFeedback(model.uri);
 		this._hasFeedbackContextKey.set(items.length > 0);
 
-		if (items.length > 0) {
-			const bearings = this._planReviewFeedbackService.getNavigationBearing(model.uri);
-			this._showOverlayToolbar(bearings);
-		} else {
-			this._hideOverlayToolbar();
-		}
+		const bearings = this._planReviewFeedbackService.getNavigationBearing(model.uri);
+		this._showOverlayToolbar(model.uri, bearings);
 
 		this._decorations.set(
 			items.map(item => ({
@@ -617,15 +686,20 @@ export class PlanReviewFeedbackEditorContribution extends Disposable implements 
 
 	private _ensureOverlayWidget(): PlanReviewFeedbackOverlayWidget {
 		if (!this._overlayWidget) {
-			this._overlayWidget = new PlanReviewFeedbackOverlayWidget(this._editor, this._instantiationService);
+			this._overlayWidget = this._instantiationService.createInstance(PlanReviewFeedbackOverlayWidget, this._editor);
+			this._register(this._overlayWidget.onDidRequestAddComment(() => {
+				this._editor.focus();
+				this._show();
+				this._widget?.inputElement.focus();
+			}));
 			this._editor.addOverlayWidget(this._overlayWidget);
 		}
 		return this._overlayWidget;
 	}
 
-	private _showOverlayToolbar(bearings: { activeIdx: number; totalCount: number }): void {
+	private _showOverlayToolbar(planUri: URI, bearings: { activeIdx: number; totalCount: number }): void {
 		const widget = this._ensureOverlayWidget();
-		widget.show(bearings);
+		widget.show(planUri, bearings);
 	}
 
 	private _hideOverlayToolbar(): void {

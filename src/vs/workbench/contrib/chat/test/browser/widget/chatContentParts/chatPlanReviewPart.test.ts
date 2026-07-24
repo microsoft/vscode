@@ -17,6 +17,11 @@ import { IChatPlanApprovalAction, IChatPlanReview, IChatPlanReviewResult } from 
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
 import { ChatPlanReviewData } from '../../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../../platform/userInteraction/browser/userInteractionService.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import sinon from 'sinon';
+import { IResourceEditorInput } from '../../../../../../../platform/editor/common/editor.js';
+import { ITextFileService } from '../../../../../../services/textfile/common/textfiles.js';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
 
 function createMockReview(overrides?: Partial<IChatPlanReview>): IChatPlanReview {
 	return {
@@ -70,7 +75,10 @@ suite('ChatPlanReviewPart', () => {
 
 	let widget: ChatPlanReviewPart;
 	let lastSubmitResult: IChatPlanReviewResult | undefined;
+	let submitCount = 0;
 	let lastFeedbackService: IPlanReviewFeedbackService | undefined;
+	let lastEditorService: IEditorService | undefined;
+	let lastTextFileService: ITextFileService | undefined;
 
 	function createWidget(review: IChatPlanReview, dialogService?: TestDialogService): ChatPlanReviewPart {
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -78,11 +86,16 @@ suite('ChatPlanReviewPart', () => {
 		instantiationService.stub(IPlanReviewFeedbackService, feedbackService); instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
 
 		lastFeedbackService = feedbackService;
+		lastEditorService = instantiationService.get(IEditorService);
+		lastTextFileService = instantiationService.get(ITextFileService);
 		if (dialogService) {
 			instantiationService.stub(IDialogService, dialogService);
 		}
 		const options: IChatPlanReviewPartOptions = {
-			onSubmit: (result) => { lastSubmitResult = result; }
+			onSubmit: result => {
+				lastSubmitResult = result;
+				submitCount++;
+			}
 		};
 		widget = store.add(instantiationService.createInstance(ChatPlanReviewPart, review, createMockContext(), options));
 		mainWindow.document.body.appendChild(widget.domNode);
@@ -94,7 +107,11 @@ suite('ChatPlanReviewPart', () => {
 			widget.domNode.parentNode.removeChild(widget.domNode);
 		}
 		lastSubmitResult = undefined;
+		submitCount = 0;
 		lastFeedbackService = undefined;
+		lastEditorService = undefined;
+		lastTextFileService = undefined;
+		sinon.restore();
 	});
 
 	suite('Basic rendering', () => {
@@ -222,12 +239,18 @@ suite('ChatPlanReviewPart', () => {
 	});
 
 	suite('Feedback mode', () => {
-		test('clicking Review button opens feedback section and shows Submit Feedback button', async () => {
+		test('clicking Review button opens the plan editor and shows Submit Feedback button', async () => {
 			createWidget(createMockReviewWithPlan());
+			const openEditorSpy = sinon.spy(lastEditorService!, 'openEditor');
 
 			const reviewButton = getReviewButton(widget)!;
 			reviewButton.click();
 			await tick();
+
+			assert.strictEqual(openEditorSpy.calledOnce, true, 'plan file should open in an editor');
+			const editorInput = openEditorSpy.firstCall.args[0] as IResourceEditorInput;
+			assert.strictEqual(editorInput.resource?.toString(), 'file:///plan.md');
+			assert.strictEqual(editorInput.options?.pinned, true);
 
 			// Feedback section should now be visible.
 			const feedbackSection = getFeedbackSection(widget);
@@ -306,26 +329,20 @@ suite('ChatPlanReviewPart', () => {
 			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'reject button should still be visible');
 		});
 
-		test('clicking Review while in feedback mode exits feedback mode', async () => {
+		test('clicking Review while in feedback mode reopens the plan editor', async () => {
 			createWidget(createMockReviewWithPlan());
+			const openEditorSpy = sinon.spy(lastEditorService!, 'openEditor');
 
 			const reviewButton = getReviewButton(widget)!;
 			reviewButton.click();
 			await tick();
 
-			// In feedback mode, the Review button label flips to "Cancel".
-			assert.ok(reviewButton.textContent?.includes('Cancel'), 'review button should read "Cancel" in feedback mode');
-
 			reviewButton.click();
 			await tick();
 
 			const feedbackSection = getFeedbackSection(widget);
-			assert.strictEqual(feedbackSection.style.display, 'none', 'feedback section should be hidden after Cancel');
-			assert.ok(!reviewButton.textContent?.includes('Cancel'), 'review button label should revert after exiting feedback mode');
-
-			const buttons = getFooterButtons(widget);
-			assert.ok(buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be back');
-			assert.ok(!buttons.some(b => b.textContent?.includes('Submit Feedback')), 'submit button should be gone');
+			assert.notStrictEqual(feedbackSection.style.display, 'none', 'feedback section should remain visible');
+			assert.strictEqual(openEditorSpy.callCount, 2, 'each click should reveal the plan editor');
 		});
 
 		test('approving with textarea content sends approval + feedback', () => {
@@ -417,6 +434,43 @@ suite('ChatPlanReviewPart', () => {
 			const submitButton = getFooterButtons(widget).find(b => b.textContent?.includes('Submit Feedback'));
 			assert.ok(submitButton);
 			assert.ok(!submitButton!.classList.contains('disabled'), 'Submit Feedback should be enabled with one inline comment');
+		});
+
+		test('editor toolbar feedback submission updates the original plan widget', async () => {
+			const review = createMockReviewWithPlan();
+			createWidget(review);
+
+			const service = lastFeedbackService!;
+			const planUri = URI.revive(review.planUri!);
+			service.addFeedback(planUri, 5, 1, 'Fix this step');
+
+			await service.submitAllFeedback(planUri);
+
+			assert.deepStrictEqual(lastSubmitResult, {
+				rejected: false,
+				feedback: 'Inline comments on `plan.md`:\n- **Line 5:** Fix this step',
+				feedbackOverall: undefined,
+				feedbackInlineMarkdown: 'Inline comments on `plan.md`:\n- **Line 5:** Fix this step',
+			});
+			assert.ok(widget.domNode.classList.contains('chat-plan-review-used'));
+		});
+
+		test('editor toolbar submits an overall comment without inline comments', async () => {
+			const review = createMockReviewWithPlan();
+			createWidget(review);
+
+			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
+			textarea.value = 'Please simplify the rollout';
+			textarea.dispatchEvent(new Event('input'));
+
+			await lastFeedbackService!.submitAllFeedback(URI.revive(review.planUri!));
+
+			assert.deepStrictEqual(lastSubmitResult, {
+				rejected: false,
+				feedback: 'Please simplify the rollout',
+				feedbackOverall: 'Please simplify the rollout',
+				feedbackInlineMarkdown: undefined,
+			});
 		});
 
 		test('inline comments auto-promote into review mode even before Review button is clicked', () => {
@@ -587,6 +641,20 @@ suite('ChatPlanReviewPart', () => {
 			assert.ok(!footerButtons.some(b => b.textContent?.includes('Autopilot')), 'approve should still be hidden in feedback mode');
 		});
 
+		test('a comment added while collapsed is reflected in the inline action', async () => {
+			const review = createMockReviewWithPlan();
+			createWidget(review);
+
+			const collapseButton = widget.domNode.querySelector('.chat-plan-review-title-icon-button:last-child') as HTMLElement;
+			collapseButton.click();
+
+			lastFeedbackService!.addFeedback(URI.revive(review.planUri!), 3, 1, 'Clarify this step');
+			await tick();
+
+			const submitButton = getInlineButtons(widget).find(button => button.textContent?.includes('Submit Feedback'));
+			assert.ok(submitButton?.textContent?.includes('(1)'), 'collapsed widget should show the pending comment count');
+		});
+
 		test('restores draft collapsed state from ChatPlanReviewData', () => {
 			const data = new ChatPlanReviewData('Title', 'Content', [{ label: 'Go', default: true }], false);
 			data.draftCollapsed = true;
@@ -597,6 +665,28 @@ suite('ChatPlanReviewPart', () => {
 	});
 
 	suite('Multiple actions', () => {
+		test('concurrent approval attempts submit only once', async () => {
+			const review = createMockReviewWithPlan({
+				actions: [{ id: 'approve', label: 'Approve', default: true }],
+			});
+			createWidget(review);
+
+			const saveDeferred = new DeferredPromise<URI | undefined>();
+			sinon.stub(lastTextFileService!, 'isDirty').returns(true);
+			const saveStub = sinon.stub(lastTextFileService!, 'save').returns(saveDeferred.p);
+			const approveButton = getFooterButtons(widget).find(button => button.textContent?.includes('Approve'))!;
+
+			approveButton.click();
+			approveButton.click();
+			assert.strictEqual(saveStub.callCount, 1);
+
+			saveDeferred.complete(URI.revive(review.planUri!));
+			await tick();
+
+			assert.deepStrictEqual(lastSubmitResult, { action: 'Approve', actionId: 'approve', rejected: false });
+			assert.strictEqual(submitCount, 1);
+		});
+
 		test('renders dropdown when multiple actions exist', () => {
 			const actions: IChatPlanApprovalAction[] = [
 				{ label: 'Autopilot', default: true },

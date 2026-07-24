@@ -7,10 +7,10 @@
 	position: absolute;
 	z-index: 10000;
 	background-color: var(--vscode-panel-background);
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
 	box-shadow: var(--vscode-shadow-lg);
-	border-radius: 8px;
-	padding: 4px;
+	border-radius: var(--vscode-cornerRadius-large);
+	padding: var(--vscode-spacing-size40);
 	display: flex;
 	flex-direction: row;
 	align-items: flex-end;
@@ -40,8 +40,8 @@
 	border: none;
 	color: var(--vscode-input-foreground);
 	font: inherit;
-	border-radius: 4px;
-	padding: 0 0 0 6px;
+	border-radius: var(--vscode-cornerRadius-small);
+	padding: 0 0 0 var(--vscode-spacing-size60);
 	outline: none;
 	min-width: 150px;
 	max-width: 400px;
@@ -70,13 +70,13 @@
 	overflow: hidden;
 	white-space: pre;
 	font: inherit;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1);
 }
 
 .plan-review-feedback-input-widget .plan-review-feedback-input-actions {
 	display: flex;
 	align-items: center;
-	margin-left: 2px;
+	margin-left: var(--vscode-spacing-size20);
 	flex-shrink: 0;
 }
 
@@ -87,29 +87,43 @@
 
 /* Overlay toolbar (submit / navigate / clear actions) */
 .plan-review-feedback-overlay-widget {
-	padding: 2px 4px;
+	padding: var(--vscode-spacing-size40);
 	color: var(--vscode-foreground);
 	background-color: var(--vscode-editorWidget-background);
-	border-radius: 6px;
-	border: 1px solid var(--vscode-editorHoverWidget-border);
+	border-radius: var(--vscode-cornerRadius-large);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
 	display: flex;
 	align-items: center;
-	justify-content: center;
-	gap: 4px;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40);
 	z-index: 10;
 	box-shadow: var(--vscode-shadow-lg);
 	overflow: hidden;
+	box-sizing: border-box;
+	max-width: calc(100% - var(--vscode-spacing-size80));
+}
+
+.plan-review-feedback-decision-actions {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40);
+}
+
+.plan-review-feedback-decision-actions .monaco-button {
+	white-space: nowrap;
 }
 
 .plan-review-feedback-overlay-widget .action-item > .action-label {
-	padding: 4px 6px;
-	font-size: 11px;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-body2);
 	line-height: 14px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .plan-review-feedback-overlay-widget .monaco-action-bar .actions-container {
-	gap: 4px;
+	gap: var(--vscode-spacing-size40);
 }
 
 .plan-review-feedback-overlay-widget .action-item.primary > .action-label {
