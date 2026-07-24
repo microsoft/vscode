@@ -332,7 +332,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> {
-		return this._requireClient().getManagedSettingsDiagnostics();
+		return this._management.getManagedSettingsDiagnostics();
 	}
 
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
