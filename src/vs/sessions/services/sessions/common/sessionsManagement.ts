@@ -8,7 +8,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
 import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
 
 /**
@@ -232,11 +232,15 @@ export interface ISessionsManagementService {
 	isQuickChatTargetAvailable(options?: ICreateNewSessionOptions): boolean;
 
 	/**
-	 * Resolve a workspace URI to a workspace using the first provider whose
-	 * {@link ISessionsProvider.resolveWorkspace} succeeds. Returns `undefined`
-	 * when no registered provider can resolve the URI.
+	 * Resolve a workspace URI to a workspace. When `preferredProviderId` is
+	 * given, that provider is tried first (matching the provider-selection
+	 * rules {@link createNewSession} applies for the same options) so the
+	 * resolution reflects the provider that would actually be used to create
+	 * a session; otherwise iterates registered providers and returns the
+	 * first whose {@link ISessionsProvider.resolveWorkspace} succeeds.
+	 * Returns `undefined` when no provider can resolve the URI.
 	 */
-	resolveWorkspace(workspaceUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined;
+	resolveWorkspace(workspaceUri: URI, preferredProviderId?: string): { providerId: string; workspace: ISessionWorkspace } | undefined;
 
 	/**
 	 * Fires when available session types change (providers added/removed).
@@ -288,6 +292,12 @@ export interface ISessionsManagementService {
 	 * {@link sendNewChatRequest} clears it without firing this event.
 	 */
 	readonly onDidDiscardNewSession: Event<ISession>;
+	/**
+	 * Fires when {@link createNewSession} replaces the current in-progress
+	 * draft with another new-session draft (New Session → New Session).
+	 * Draft graduation uses {@link onDidReplaceSession} instead.
+	 */
+	readonly onDidReplaceNewDraftSession: Event<{ readonly from: ISession; readonly to: ISession }>;
 
 	// -- New Session --
 
@@ -346,6 +356,18 @@ export interface ISessionsManagementService {
 	 * @param turnId The ID of the last turn (request) to include in the fork.
 	 */
 	forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat>;
+
+	/**
+	 * Create a side chat from an existing chat's turn, inheriting the source
+	 * chat's model/agent selection. Used by the `/btw` command. Throws if the
+	 * session's provider does not support side chats
+	 * ({@link ISessionCapabilities.supportsSideChat}).
+	 *
+	 * @param session The session containing the source chat.
+	 * @param sourceChat The resource URI of the chat to branch from.
+	 * @param turnId The ID of the turn to branch from.
+	 */
+	createSideChatInSession(session: ISession, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat>;
 
 	/**
 	 * Discard the in-progress new session, disposing it through its provider to

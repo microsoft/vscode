@@ -43,7 +43,7 @@ suite('SessionPermissionManager', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///project', displayName: 'Project' },
-			workingDirectory,
+			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 		};
 	}
 
@@ -101,6 +101,21 @@ suite('SessionPermissionManager', () => {
 
 	test('requires confirmation for protected files inside the working directory', async () => {
 		const files = ['.env', 'package.json', join('.git', 'config'), 'deps.lock', join('.vscode', 'settings.json')];
+		const results: (ToolCallConfirmationReason | undefined)[] = [];
+		for (const file of files) {
+			results.push(await permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri));
+		}
+		assert.deepStrictEqual(results, files.map(() => undefined));
+	});
+
+	test('requires confirmation for files that can register lifecycle hooks', async () => {
+		const files = [
+			join('.github', 'agents', 'dev-helper.md'),
+			join('.github', 'hooks', 'say-hi.json'),
+			join('.claude', 'agents', 'dev-helper.md'),
+			join('.claude', 'settings.json'),
+			join('.claude', 'settings.local.json'),
+		];
 		const results: (ToolCallConfirmationReason | undefined)[] = [];
 		for (const file of files) {
 			results.push(await permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri));

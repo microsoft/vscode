@@ -21,6 +21,7 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatToolInvocationPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
+import { ChatToolConfirmationCarouselPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { BaseChatToolInvocationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationSubPart.js';
 import { ChatToolProgressSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolProgressPart.js';
 import { isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
@@ -202,6 +203,49 @@ suite('ChatToolProgressSubPart', () => {
 		(invocation as { toolSpecificData: IChatToolInvocation['toolSpecificData'] }).toolSpecificData = { kind: 'subagent' };
 
 		assert.strictEqual(part.hasSameContent(invocation, [], {} as never), false);
+	});
+
+	test('confirmation carousel reports the active subagent and invokes its reference action', () => {
+		const createPendingInvocation = (toolCallId: string): IChatToolInvocation => ({
+			...createToolInvocation(),
+			toolCallId,
+			state: observableValue<IChatToolInvocation.State>(`state-${toolCallId}`, {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: undefined,
+				confirmationMessages: { title: 'Run command?', message: 'Run command?' },
+				confirm: () => { },
+			}),
+		});
+		const createExternalPart = () => {
+			const domNode = mainWindow.document.createElement('div');
+			domNode.className = 'chat-tool-invocation-part';
+			return {
+				domNode,
+				addDisposable: (disposable: { dispose(): void }) => disposables.add(disposable),
+			} as unknown as ChatToolInvocationPart;
+		};
+		const revealed: string[] = [];
+		const active: Array<string | undefined> = [];
+		const carousel = disposables.add(new ChatToolConfirmationCarouselPart(() => {
+			throw new Error('External tool parts should be reused');
+		}, []));
+		disposables.add(carousel.onDidChangeActiveSubagent(id => active.push(id)));
+		carousel.addToolInvocation(createPendingInvocation('first'), 'subagent-one', 'one', id => revealed.push(id), 'Open one Chat', createExternalPart());
+		carousel.addToolInvocation(createPendingInvocation('second'), 'subagent-two', 'two', id => revealed.push(id), 'Open two Chat', createExternalPart());
+
+		carousel.activateFirstToolForSubagent('subagent-two');
+		const agentLabel = carousel.domNode.querySelector<HTMLButtonElement>('.chat-tool-carousel-agent-label');
+		agentLabel?.click();
+
+		assert.deepStrictEqual({
+			active,
+			revealed,
+			label: agentLabel?.title,
+		}, {
+			active: ['subagent-one', 'subagent-two'],
+			revealed: ['subagent-two'],
+			label: 'Open two Chat',
+		});
 	});
 
 	test('detects MCP tool invocations for live and serialized rows', () => {

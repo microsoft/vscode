@@ -105,7 +105,10 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		// gate has already been opened (this session or persisted from a previous one).
 		this.assignmentService.addTelemetryAssignmentFilter({
 			id: 'onboarding',
-			exclude: assignment => assignment.startsWith(ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX) && !this._openedAssignmentContextIds.has(assignment),
+			exclude: assignment => {
+				const variant = getAssignmentContextVariant(assignment);
+				return variant.startsWith(ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX) && !this._openedAssignmentContextIds.has(variant);
+			},
 			onDidChange: this._onDidChangeOpenedIds.event
 		});
 
@@ -574,4 +577,9 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	}
 
 	//#endregion
+}
+
+function getAssignmentContextVariant(assignment: string): string {
+	const separatorIndex = assignment.lastIndexOf(':');
+	return separatorIndex === -1 ? assignment : assignment.slice(0, separatorIndex);
 }
