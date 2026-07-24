@@ -95,7 +95,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	}
 
 	private getRenderableAttachments(): readonly IChatRequestVariableEntry[] {
-		return this._variables.filter(attachment => !isAgentHostCompletionVariableEntry(attachment));
+		return this._variables.filter(attachment => !isAgentHostCompletionVariableEntry(attachment) && (!isWorkspaceVariableEntry(attachment) || attachment.displayInChat));
 	}
 
 	private getVisibleAttachments(visibleAttachments: readonly IChatRequestVariableEntry[]): readonly IChatRequestVariableEntry[] {
@@ -255,8 +255,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		} else if (isBrowserViewVariableEntry(attachment)) {
 			widget = this.instantiationService.createInstance(BrowserViewAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
 		} else if (isWorkspaceVariableEntry(attachment)) {
-			// skip workspace attachments
-			return;
+			widget = this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
 		} else {
 			widget = this.chatAttachmentWidgetRegistry.createWidget(attachment, { shouldFocusClearButton: false, supportsDeletion: false }, container)
 				?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);

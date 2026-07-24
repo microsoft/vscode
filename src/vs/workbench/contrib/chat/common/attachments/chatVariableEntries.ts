@@ -277,6 +277,9 @@ export interface IChatRequestWorkspaceVariableEntry extends IBaseChatRequestVari
 	readonly kind: 'workspace';
 	readonly value: string;
 	readonly modelDescription?: string;
+	readonly displayInChat?: boolean;
+	readonly iconPath?: ChatContextIconPath;
+	readonly tooltip?: IMarkdownString;
 }
 
 

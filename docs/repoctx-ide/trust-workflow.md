@@ -73,7 +73,7 @@ stateDiagram-v2
 ## Interaction rules
 
 - Repoctx lives beside agent chat in the right secondary sidebar, leaving Explorer and Source Control available on the left.
-- When Context evidence exists, Repoctx automatically attaches a concise repository summary to every IDE agent request. Full `.dev-context` artifacts stay on demand and are referenced by exact path instead of being copied into every prompt.
+- When Context evidence exists, Repoctx automatically attaches a concise repository summary to every IDE agent request. Chat shows this as a read-only `Repoctx · N evidence files` attachment before and after sending. Full `.dev-context` artifacts stay on demand and are referenced by exact path instead of being copied into every prompt.
 - `repoctx.agentContext.enabled` defaults to `true` and lets a user disable this automatic handoff without removing their evidence.
 - The current state is always expressed with text and an icon, never color alone.
 - Missing task text is shown as `Needs request`; typing a change request immediately unlocks the task-dependent stages.

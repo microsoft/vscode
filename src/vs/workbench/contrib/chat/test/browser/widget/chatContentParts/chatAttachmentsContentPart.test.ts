@@ -248,6 +248,36 @@ suite('ChatAttachmentsContentPart', () => {
 			assert.strictEqual(attachments.length, 1, 'Should only render the file attachment');
 		});
 
+		test('should only render workspace context that opts into Chat visibility', () => {
+			const variables: IChatRequestVariableEntry[] = [
+				{
+					kind: 'workspace',
+					id: 'hidden-workspace-context',
+					name: 'Hidden workspace context',
+					value: 'Hidden model context',
+				},
+				{
+					kind: 'workspace',
+					id: 'repoctx-workspace-context',
+					name: 'Repoctx · 4 evidence files',
+					value: 'Repoctx model context',
+					displayInChat: true,
+				},
+			];
+
+			const part = store.add(instantiationService.createInstance(
+				ChatAttachmentsContentPart,
+				{ variables }
+			));
+
+			mainWindow.document.body.appendChild(part.domNode!);
+			disposables.add(toDisposable(() => part.domNode?.remove()));
+
+			const attachments = part.domNode!.querySelectorAll('.chat-attached-context-attachment');
+			assert.strictEqual(attachments.length, 1, 'Should only render the visible workspace context');
+			assert.strictEqual(attachments[0].textContent?.trim(), 'Repoctx · 4 evidence files');
+		});
+
 		test('should not count agent host completion references in show more label', () => {
 			const variables: IChatRequestVariableEntry[] = [
 				createFileEntry('file1.ts'),
