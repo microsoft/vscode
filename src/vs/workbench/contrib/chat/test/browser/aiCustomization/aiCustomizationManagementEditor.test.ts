@@ -35,6 +35,7 @@ suite('aiCustomizationManagementEditor', () => {
 		configurationService: IConfigurationService;
 		welcomePage: { setPromptMigrationInfo(info: unknown): void } | undefined;
 		selectedSection: AICustomizationManagementSection | undefined;
+		contributedSectionContainers: Map<AICustomizationManagementSection, HTMLElement>;
 		automationsContentContainer: HTMLElement | undefined;
 		automationsListWidget: { setVisible(visible: boolean): void } | undefined;
 		getEditorModeButtonLabel(): string;
@@ -83,6 +84,7 @@ suite('aiCustomizationManagementEditor', () => {
 		} as unknown as IHoverService;
 		editor.configurationService = configurationService ?? createConfigurationServiceStub();
 		editor.welcomePage = undefined;
+		editor.contributedSectionContainers = new Map();
 		editor.editorPreviewRenderScheduler = {
 			cancel(): void { },
 			schedule(): void { },

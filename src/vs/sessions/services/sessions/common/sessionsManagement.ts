@@ -8,7 +8,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
 import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
 
 /**
@@ -356,6 +356,18 @@ export interface ISessionsManagementService {
 	 * @param turnId The ID of the last turn (request) to include in the fork.
 	 */
 	forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat>;
+
+	/**
+	 * Create a side chat from an existing chat's turn, inheriting the source
+	 * chat's model/agent selection. Used by the `/btw` command. Throws if the
+	 * session's provider does not support side chats
+	 * ({@link ISessionCapabilities.supportsSideChat}).
+	 *
+	 * @param session The session containing the source chat.
+	 * @param sourceChat The resource URI of the chat to branch from.
+	 * @param turnId The ID of the turn to branch from.
+	 */
+	createSideChatInSession(session: ISession, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat>;
 
 	/**
 	 * Discard the in-progress new session, disposing it through its provider to

@@ -26,7 +26,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, ChatOriginKind, CustomizationType, McpAuthRequiredReason, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -401,6 +401,169 @@ suite('AgentSideEffects', () => {
 				}],
 				chat: URI.parse(defaultChatUri),
 			}]);
+		});
+
+		test('rejects chat attachments that reference another session', async () => {
+			setupSession();
+			const otherSessionUri = AgentSession.uri('mock', 'session-2');
+			stateManager.createSession({
+				resource: otherSessionUri.toString(),
+				provider: 'mock',
+				title: 'Other',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+			stateManager.dispatchServerAction(otherSessionUri.toString(), { type: ActionType.SessionReady });
+
+			const error = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, (envelope): envelope is ActionEnvelope =>
+				envelope.action.type === ActionType.ChatError && envelope.channel === defaultChatUri));
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: {
+					text: 'read another session',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Chat,
+						resource: otherSessionUri.toString(),
+						endTurn: 'other-turn',
+						label: 'Other session',
+					}],
+				},
+			});
+
+			const envelope = await error;
+			assert.deepStrictEqual({
+				sendMessageCalls: agent.sendMessageCalls.length,
+				errorType: envelope.action.type === ActionType.ChatError ? envelope.action.error.errorType : undefined,
+			}, {
+				sendMessageCalls: 0,
+				errorType: 'sendFailed',
+			});
+		});
+
+		test('awaits hydrated turns when resolving a chat attachment', async () => {
+			setupSession();
+			const sourceTurn: Turn = {
+				id: 'source-turn',
+				state: TurnState.Complete,
+				message: { text: 'Remember X', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'Remembered' }],
+				usage: undefined,
+			};
+			const resolvingSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveChatAttachmentTurns: async () => [sourceTurn],
+				onTurnComplete: () => { },
+			});
+			resolvingSideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: {
+					text: 'What was remembered?',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Chat,
+						resource: sessionUri.toString(),
+						endTurn: sourceTurn.id,
+						label: 'Earlier chat',
+					}],
+				},
+			});
+
+			await waitForSendMessageCalls(1);
+			const attachment = agent.sendMessageCalls[0].attachments?.[0];
+			assert.deepStrictEqual({
+				type: attachment?.type,
+				hasUser: attachment?.type === MessageAttachmentKind.Simple && attachment.modelRepresentation?.includes('User: Remember X'),
+				hasAssistant: attachment?.type === MessageAttachmentKind.Simple && attachment.modelRepresentation?.includes('Assistant: Remembered'),
+			}, {
+				type: MessageAttachmentKind.Simple,
+				hasUser: true,
+				hasAssistant: true,
+			});
+		});
+
+		test('rejects chat attachments whose endTurn is missing from the retained transcript', async () => {
+			setupSession();
+			stateManager.seedDefaultChatTurns(sessionUri.toString(), [{
+				id: 'source-turn',
+				state: TurnState.Complete,
+				message: { text: 'Remember X', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'Remembered' }],
+				usage: undefined,
+			}]);
+
+			const error = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, (envelope): envelope is ActionEnvelope =>
+				envelope.action.type === ActionType.ChatError && envelope.channel === defaultChatUri));
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: {
+					text: 'What was remembered?',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Chat,
+						resource: sessionUri.toString(),
+						endTurn: 'missing-turn',
+						label: 'Earlier chat',
+					}],
+				},
+			});
+
+			const envelope = await error;
+			assert.deepStrictEqual({
+				sendMessageCalls: agent.sendMessageCalls.length,
+				errorType: envelope.action.type === ActionType.ChatError ? envelope.action.error.errorType : undefined,
+			}, {
+				sendMessageCalls: 0,
+				errorType: 'sendFailed',
+			});
+		});
+
+		test('rejects chat attachments whose endTurn is still active', async () => {
+			setupSession();
+			const peerChatUri = buildChatUri(sessionUri.toString(), 'peer-1');
+			stateManager.addChat(sessionUri.toString(), peerChatUri, { title: 'Peer' });
+			stateManager.dispatchClientAction(peerChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'active-turn',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Remember X', origin: { kind: MessageKind.User } },
+			}, { clientId: 'test', clientSeq: 1 });
+
+			const error = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, (envelope): envelope is ActionEnvelope =>
+				envelope.action.type === ActionType.ChatError && envelope.channel === defaultChatUri));
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: {
+					text: 'What was remembered?',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Chat,
+						resource: peerChatUri,
+						endTurn: 'active-turn',
+						label: 'Earlier chat',
+					}],
+				},
+			});
+
+			const envelope = await error;
+			assert.deepStrictEqual({
+				sendMessageCalls: agent.sendMessageCalls.length,
+				errorType: envelope.action.type === ActionType.ChatError ? envelope.action.error.errorType : undefined,
+			}, {
+				sendMessageCalls: 0,
+				errorType: 'sendFailed',
+			});
 		});
 
 		test('dispatches session/error when no agent is found', async () => {

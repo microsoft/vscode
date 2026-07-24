@@ -47,7 +47,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IAgentChatDataChange, IAgentMaterializeSessionEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, parseChatUri, parseDefaultChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, parseChatUri, parseDefaultChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -67,6 +67,7 @@ import { IClaudeProxyCreditsReport, IClaudeProxyHandle, IClaudeProxyService } fr
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { AgentService } from '../../node/agentService.js';
+import { injectSideChatContext } from '../../node/agentPeerChats.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 // #region Test fakes
@@ -6744,6 +6745,157 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			forkCall: { sessionId: parentId, options: { upToMessageId: 'a1' } },
 			chats: [chatUri.toString()],
 			startupResume: 'forked-1',
+		});
+	});
+
+	test('createChat({ sideChat }) forks hidden context and filters inherited turns', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const parentId = AgentSession.id(created.session);
+		sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
+		sdk.forkSessionResult = { sessionId: 'side-1' };
+		sdk.sessionList = [{ sessionId: 'side-1', summary: 'side', lastModified: 1, cwd: URI.file('/work').fsPath }];
+		const partialResponse = 'partial source answer';
+		const injectedPrompt = injectSideChatContext('side question', partialResponse);
+		sdk.sessionMessagesById.set('side-1', forkSourceMessages('side-1').slice(0, 2));
+
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-side'));
+		const internals = agent as unknown as {
+			_sessionSequencer: { queue<T>(key: string, task: () => Promise<T>): Promise<T> };
+		};
+		const sourceLockEntered = new DeferredPromise<void>();
+		const releaseSourceLock = new DeferredPromise<void>();
+		const sourceLock = internals._sessionSequencer.queue(parentId, async () => {
+			sourceLockEntered.complete();
+			await releaseSourceLock.p;
+		});
+		await sourceLockEntered.p;
+		let result;
+		const createTimeout = timeout(5_000);
+		try {
+			result = await Promise.race([
+				agent.chats.createChat(chatUri, { sideChat: { source: created.session, turnId: 'u1', partialResponse } }),
+				createTimeout.then(() => { throw new Error('Side chat creation waited for the source turn lock'); }),
+			]);
+		} finally {
+			createTimeout.cancel();
+			releaseSourceLock.complete();
+			await sourceLock;
+		}
+		sdk.nextQueryMessages = [makeSystemInitMessage('side-1'), makeResultSuccess('side-1')];
+		await agent.chats.sendMessage(chatUri, 'side question', undefined, undefined, 'turn-side');
+		const sentContent = sdk.warmQueries.at(-1)?.produced?.drainedPrompts[0]?.message.content;
+		const sentPrompt = typeof sentContent === 'string'
+			? sentContent
+			: sentContent?.filter(block => block.type === 'text').map(block => block.text).join('\n');
+		sdk.sessionMessagesById.set('side-1', [
+			...forkSourceMessages('side-1').slice(0, 2),
+			{ type: 'user', uuid: 'turn-side', session_id: 'side-1', parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'text', text: injectedPrompt }] } },
+			{ type: 'assistant', uuid: 'a3', session_id: 'side-1', parent_tool_use_id: null, message: { id: 'msg_a3', role: 'assistant', content: [{ type: 'text', text: 'side answer' }] } },
+		]);
+		await agent.chats.changeModel(chatUri, { id: 'claude-opus-4-6' });
+		const turns = await agent.chats.getMessages(chatUri);
+
+		assert.deepStrictEqual({
+			forkCall: sdk.forkSessionCalls[0],
+			sentPrompt,
+			turns: turns.map(turn => turn.message.text),
+			sideChat: result ? JSON.parse(result.providerData!).sideChat : undefined,
+		}, {
+			forkCall: { sessionId: parentId, options: { upToMessageId: 'a1' } },
+			sentPrompt: injectedPrompt,
+			turns: ['side question'],
+			sideChat: { source: created.session.toString(), turnId: 'u1', inheritedTurnCount: 1, partialResponse },
+		});
+	});
+
+	test('createChat({ sideChat }) falls back to injected source context when the source transcript is unavailable', async () => {
+		const { agent, sdk, stateManager } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		stateManager.restoreSession({
+			resource: created.session.toString(),
+			provider: 'claude',
+			title: 't',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+		}, [{
+			id: 'turn-source',
+			state: TurnState.Complete,
+			message: { text: 'remember', origin: { kind: MessageKind.User } },
+			responseParts: [{ kind: ResponsePartKind.Markdown, id: 'turn-source-md', content: 'ready' }],
+			usage: undefined,
+		} satisfies Turn]);
+
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-side-live'));
+		const result = await agent.chats.createChat(chatUri, { sideChat: { source: defaultChatUri(created.session), turnId: 'turn-source' } });
+
+		assert.deepStrictEqual({
+			forked: sdk.forkSessionCalls.length,
+			sideChat: result ? JSON.parse(result.providerData!).sideChat : undefined,
+		}, {
+			forked: 0,
+			sideChat: {
+				source: defaultChatUri(created.session).toString(),
+				turnId: 'turn-source',
+				inheritedTurnCount: 0,
+				context: 'User request:\nremember\n\nAgent response:\nready',
+			},
+		});
+	});
+
+	test('createChat({ sideChat }) preserves a local source turn id while forking from the concrete provider anchor', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const parentId = AgentSession.id(created.session);
+		sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
+		sdk.forkSessionResult = { sessionId: 'side-local-1' };
+		sdk.sessionList = [{ sessionId: 'side-local-1', summary: 'side local', lastModified: 1, cwd: URI.file('/work').fsPath }];
+		const sourceContext = 'User request:\nsource question\n\nAgent response:\nsource answer\n\n---\n\nUser request:\n!command';
+		const injectedPrompt = injectSideChatContext('side question', undefined, sourceContext);
+		sdk.sessionMessagesById.set('side-local-1', forkSourceMessages('side-local-1').slice(0, 2));
+
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-side-local'));
+		const result = await agent.chats.createChat(chatUri, {
+			sideChat: {
+				source: created.session,
+				turnId: 'local-1',
+				providerAnchorTurnId: 'u1',
+				sourceContext,
+			},
+		});
+		sdk.nextQueryMessages = [makeSystemInitMessage('side-local-1'), makeResultSuccess('side-local-1')];
+		await agent.chats.sendMessage(chatUri, 'side question', undefined, undefined, 'turn-side-local');
+		const sentContent = sdk.warmQueries.at(-1)?.produced?.drainedPrompts[0]?.message.content;
+		const sentPrompt = typeof sentContent === 'string'
+			? sentContent
+			: sentContent?.filter(block => block.type === 'text').map(block => block.text).join('\n');
+		sdk.sessionMessagesById.set('side-local-1', [
+			...forkSourceMessages('side-local-1').slice(0, 2),
+			{ type: 'user', uuid: 'turn-side-local', session_id: 'side-local-1', parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'text', text: injectedPrompt }] } },
+			{ type: 'assistant', uuid: 'a3', session_id: 'side-local-1', parent_tool_use_id: null, message: { id: 'msg_a3', role: 'assistant', content: [{ type: 'text', text: 'side answer' }] } },
+		]);
+		const turns = await agent.chats.getMessages(chatUri);
+
+		assert.deepStrictEqual({
+			forkCall: sdk.forkSessionCalls[0],
+			sentPrompt,
+			turns: turns.map(turn => turn.message.text),
+			sideChat: result ? JSON.parse(result.providerData!).sideChat : undefined,
+		}, {
+			forkCall: { sessionId: parentId, options: { upToMessageId: 'a1' } },
+			sentPrompt: injectedPrompt,
+			turns: ['side question'],
+			sideChat: {
+				source: created.session.toString(),
+				turnId: 'local-1',
+				providerAnchorTurnId: 'u1',
+				inheritedTurnCount: 1,
+				context: sourceContext,
+			},
 		});
 	});
 

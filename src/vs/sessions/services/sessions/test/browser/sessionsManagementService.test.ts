@@ -26,7 +26,7 @@ import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browse
 import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { nullExtensionDescription } from '../../../../../workbench/services/extensions/common/extensions.js';
-import { ChatInteractivity, IChat, ISession, ISessionType, ISessionWorkspace, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
@@ -172,6 +172,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return this._session; }
 	override async createNewChat(): Promise<IChat> { return this._session.mainChat.get(); }
 	override async forkChat(_sessionId: string, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
+	override async createSideChat(_sessionId: string, _sourceChat: URI, _turnId: string, _selection?: ISideChatSelection): Promise<IChat> { throw new Error('not implemented'); }
 }
 
 function createSessionsManagementService(session: ISession, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, provider: ISessionsProvider = new TestSessionsProvider(session)): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService } {
@@ -845,6 +846,46 @@ suite('SessionsManagementService', () => {
 		});
 
 		completeSendRequest?.();
+	});
+
+	test('send-follow activates only visible chat tabs', async () => {
+		const mainChat: IChat = { ...stubChat, resource: URI.parse('test:///chat/main'), title: constObservable('main') };
+		const sideChat: IChat = { ...stubChat, resource: URI.parse('test:///chat/side'), title: constObservable('side'), origin: { kind: ChatOriginKind.SideChat } };
+		const toolChat: IChat = { ...stubChat, resource: URI.parse('test:///chat/tool'), title: constObservable('tool'), origin: { kind: ChatOriginKind.Tool }, interactivity: constObservable(ChatInteractivity.ReadOnly) };
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			chats: constObservable([mainChat, sideChat, toolChat]),
+			mainChat: constObservable(mainChat),
+			capabilities: constObservable({ supportsMultipleChats: true }),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
+				return session;
+			}
+		}(session);
+		const { service, view } = createSessionsManagementService(session, disposables, provider);
+
+		await view.openSession(session.resource);
+		await view.openChat(session, sideChat.resource);
+		await service.sendRequest(session, toolChat, { query: 'hidden tool' });
+		await Promise.resolve();
+		const afterHiddenSend = view.activeSession.get()?.activeChat.get().resource.toString();
+
+		await view.openChat(session, toolChat.resource);
+		await service.sendRequest(session, toolChat, { query: 'visible tool' });
+		await Promise.resolve();
+		const afterVisibleSend = view.activeSession.get()?.activeChat.get().resource.toString();
+
+		assert.deepStrictEqual({
+			visibleTabs: view.activeSession.get()?.visibleChatTabs.get().map(chat => chat.title.get()),
+			afterHiddenSend,
+			afterVisibleSend,
+		}, {
+			visibleTabs: ['main', 'side', 'tool'],
+			afterHiddenSend: sideChat.resource.toString(),
+			afterVisibleSend: toolChat.resource.toString(),
+		});
 	});
 
 	test('createAndSendNewChatRequest sends without changing the active view', async () => {
@@ -1827,10 +1868,60 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	suite('createSideChatInSession', () => {
+
+		test('asks the provider to create the side chat when the session supports it', async () => {
+			const sourceChat = URI.parse('test:///source');
+			const sideChat: IChat = { ...stubChat, resource: URI.parse('test:///side') };
+			const session = stubSession({ sessionId: 'side', providerId: 'test', capabilities: constObservable({ supportsMultipleChats: true, supportsSideChat: true }) });
+			const selection = { text: '  selected text  ' };
+			let createSideChatArgs: readonly [string, URI, string, ISideChatSelection | undefined] | undefined;
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat> {
+					createSideChatArgs = [sessionId, sourceChat, turnId, selection];
+					return sideChat;
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const result = await service.createSideChatInSession(session, sourceChat, 'turn-1', selection);
+
+			assert.deepStrictEqual({
+				result: result.resource.toString(),
+				args: createSideChatArgs?.map(arg => URI.isUri(arg) ? arg.toString() : arg),
+			}, {
+				result: sideChat.resource.toString(),
+				args: ['side', sourceChat.toString(), 'turn-1', selection],
+			});
+		});
+
+		test('throws when the provider is not found', async () => {
+			const session = stubSession({ sessionId: 'orphan', providerId: 'missing-provider', capabilities: constObservable({ supportsMultipleChats: true, supportsSideChat: true }) });
+			const provider = new TestSessionsProvider(stubSession({ sessionId: 'other', providerId: 'test' }));
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			await assert.rejects(() => service.createSideChatInSession(session, URI.parse('test:///source'), 'turn-1'), /Provider 'missing-provider' not found/);
+		});
+
+		test('throws when the session does not support side chats', async () => {
+			const session = stubSession({ sessionId: 'no-side-chat', providerId: 'test', capabilities: constObservable({ supportsMultipleChats: true, supportsSideChat: false }) });
+			const { service } = createSessionsManagementService(session, disposables);
+
+			await assert.rejects(() => service.createSideChatInSession(session, URI.parse('test:///source'), 'turn-1'), /does not support side chats/);
+		});
+	});
+
 	suite('closed chats persistence', () => {
 
-		function chat(id: string, status: SessionStatus = SessionStatus.Completed): IChat {
-			return { ...stubChat, resource: URI.parse(`test:///chat/${id}`), title: constObservable(id), status: constObservable(status) };
+		function chat(id: string, status: SessionStatus = SessionStatus.Completed, origin?: ChatOriginKind): IChat {
+			return {
+				...stubChat,
+				resource: URI.parse(`test:///chat/${id}`),
+				title: constObservable(id),
+				status: constObservable(status),
+				origin: origin ? { kind: origin } : undefined,
+			};
 		}
 
 		function multiChatSession(id: string, chats: IChat[]): ISession {
@@ -1927,6 +2018,23 @@ suite('SessionsManagementService', () => {
 			await view.openSession(sessionA.resource);
 
 			assert.deepStrictEqual(closedTitles(view), []);
+		});
+
+		test('a closed side chat stays closed after switching away and back', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('side', SessionStatus.Completed, ChatOriginKind.SideChat)]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			const activeA = view.activeSession.get()!;
+			const sideChat = sessionA.chats.get().find(c => c.title.get() === 'side')!;
+			await view.closeChat(activeA, sideChat);
+			assert.deepStrictEqual(closedTitles(view), ['side']);
+
+			await view.openSession(sessionB.resource);
+			await view.openSession(sessionA.resource);
+
+			assert.deepStrictEqual(closedTitles(view), ['side']);
 		});
 
 		test('a closed chat stays closed across a restart', async () => {

@@ -34,6 +34,10 @@ export const enum AgentHostIpcChannels {
 	Logger = 'agentHostLogger',
 	/** Channel for WebSocket client connection count (server process management only) */
 	ConnectionTracker = 'agentHostConnectionTracker',
+	/** Channel carrying raw Agent Host Protocol frames over a MessagePort. */
+	Protocol = 'agentHostProtocol',
+	/** Narrow local management channel that remains outside of the AHP data plane. */
+	Management = 'agentHostManagement',
 	/**
 	 * Channel registered by the remote server that proxies AHP JSON-RPC
 	 * frames between a renderer and the agent host running on the server.
@@ -614,6 +618,24 @@ export interface IAgentHostNetworkDiagnosticsInfo {
 	readonly endpoints: readonly IAgentHostNetworkEndpoint[];
 }
 
+export interface IAgentHostManagedSettingsSnapshot {
+	readonly account?: string;
+	readonly source: 'server' | 'device' | 'none';
+	readonly serverManaged: boolean;
+	readonly deviceManaged: boolean;
+	readonly failClosed: boolean;
+	readonly bypassPermissionsDisabled: boolean;
+	readonly permissionsAllowIntersected?: boolean;
+	readonly managedKeys: readonly string[];
+	readonly settings?: Readonly<Record<string, unknown>>;
+}
+
+export interface IAgentHostManagedSettingsDiagnostics {
+	readonly provider: AgentProvider;
+	readonly snapshot?: IAgentHostManagedSettingsSnapshot;
+	readonly error?: string;
+}
+
 /** Result of a DNS lookup for a single address family, part of {@link IAgentHostNetworkFetchResult}. */
 export interface IAgentHostDnsResult {
 	/** The resolved address, when the lookup succeeded. */
@@ -667,6 +689,31 @@ export interface IConnectionTrackerService {
 	 * a random local port. Returns `undefined` if the inspector cannot be
 	 * enabled (e.g. running in an environment without `node:inspector`).
 	 */
+	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
+}
+
+/**
+ * Narrow renderer-to-local-agent-host control surface. All stateful agent
+ * operations travel over {@link AgentHostIpcChannels.Protocol}.
+ */
+export interface IAgentHostManagementService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Local-only compatibility path for session fields not yet represented by
+	 * AHP `createSession` (`model`, `agent`, and `importConversation`).
+	 */
+	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI>;
+	/**
+	 * Local-only compatibility path for chat fields not yet represented by AHP
+	 * `createChat` (`title` and `model`).
+	 */
+	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatOptions): Promise<void>;
+	shutdown(): Promise<void>;
+	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
+	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
+	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
+	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
 	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
 }
 
@@ -774,6 +821,7 @@ export interface IAgentDescriptor {
 	/** Static capability flags the agent advertises (see {@link IAgentCapabilities}). */
 	readonly capabilities?: IAgentCapabilities;
 }
+
 
 // ---- Auth types (RFC 9728 / RFC 6750 inspired) -----------------------------
 
@@ -917,6 +965,12 @@ export interface IAgentCreateChatOptions {
 	 * is forked from the source so it can continue independently.
 	 */
 	readonly fork?: IAgentCreateChatForkSource;
+	/**
+	 * Create this new chat as a side chat branching from a turn in an existing
+	 * chat (via `/btw`). Unlike {@link fork}, inherited context is provider-owned
+	 * and must not appear in the chat's visible history.
+	 */
+	readonly sideChat?: IAgentCreateChatSideChatSource;
 }
 
 /** Identifies a source chat and turn to fork a new chat from. */
@@ -931,6 +985,30 @@ export interface IAgentCreateChatForkSource {
 	 * ID mappings) in the forked chat's database.
 	 */
 	readonly turnIdMapping?: ReadonlyMap<string, string>;
+}
+
+/** Immutable selected-text snapshot captured when a side chat is created. */
+export interface IAgentCreateChatSideChatSelection {
+	/** Exact selected-text snapshot captured at side-chat creation time. */
+	readonly text: string;
+	/** Optional provenance for the response part that contained {@link text}. */
+	readonly responsePartId?: string;
+}
+
+/** Identifies a source chat and turn a side chat (`/btw`) branches from. */
+export interface IAgentCreateChatSideChatSource {
+	/** URI of the existing chat the side chat branches from. */
+	readonly source: URI;
+	/** Turn ID in the source chat the side chat records as its provenance. */
+	readonly turnId: string;
+	/** Optional selected-text snapshot captured from the source chat transcript. */
+	readonly selection?: IAgentCreateChatSideChatSelection;
+	/** Concrete provider turn ID to fork/resume from when `turnId` names a host-only local turn. */
+	readonly providerAnchorTurnId?: string;
+	/** Bounded source-chat context captured from host state when the provider transcript lags. */
+	readonly sourceContext?: string;
+	/** User-visible assistant text captured while the source turn was active. */
+	readonly partialResponse?: string;
 }
 
 /** Result of {@link IAgentChats.createChat}: the opaque blob to persist for restore. */
@@ -1567,6 +1645,9 @@ export interface IAgent {
 	/** Authenticated account name to display in network diagnostics, when known. */
 	getNetworkDiagnosticsAccount?(): Promise<string | undefined>;
 
+	/** Resolve the provider's own effective enterprise managed-settings snapshot. */
+	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
+
 	/**
 	 * Fires when the agent's host-owned customizations change
 	 * (loading state, resolution results, etc.), so infrastructure
@@ -1838,6 +1919,9 @@ export interface IAgentService {
 	 */
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 
+	/** Resolve managed settings through each provider's native SDK/runtime implementation. */
+	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
+
 	/**
 	 * Probe connectivity from the agent host process to a single `url`,
 	 * resolving the proxy and timing DNS + reachability. Used by the "Network
@@ -2062,8 +2146,7 @@ export interface IAgentConnection {
 	 * The host's `initialize` handshake result, exposed observably so callers
 	 * can derive advertised capabilities (e.g. {@link InitializeResult.terminalCommandPrefix},
 	 * {@link InitializeResult.completionTriggerCharacters}). `undefined` until
-	 * the handshake completes; local (in-process) connections synthesize a
-	 * minimal result carrying only the fields meaningful to that transport.
+	 * the handshake completes.
 	 */
 	readonly initializeResult: IObservable<InitializeResult | undefined>;
 	disposeSession(session: URI): Promise<void>;
@@ -2075,6 +2158,9 @@ export interface IAgentConnection {
 	 * runs in.
 	 */
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
+
+	/** Resolve managed settings through each provider's native SDK/runtime implementation. */
+	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 
 	/**
 	 * Probe connectivity from the agent host to a single `url`. Runs on the

@@ -36,7 +36,7 @@ import { AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabled
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, ResponsePartKind, ToolResultContentType, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -63,6 +63,7 @@ import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext } from '../../node/agentHostRestrictedTelemetry.js';
+import { injectSideChatContext } from '../../node/agentPeerChats.js';
 
 /**
  * Test helpers for the single `_sessions` container. All chats (default + peers)
@@ -861,7 +862,7 @@ suite('CopilotAgent', () => {
 				provider: 'copilotcli',
 				displayName: 'Copilot',
 				description: 'Copilot SDK agent running in the local agent host process',
-				capabilities: { multipleChats: { fork: true } },
+				capabilities: { multipleChats: { fork: true, sideChat: true } },
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -3290,7 +3291,8 @@ suite('CopilotAgent', () => {
 			_chatBackings: Map<string, { sdkSessionId: string; model?: ModelSelection }>;
 			_sessions: Map<string, CopilotSessionEntry>;
 			_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: unknown, identity?: { sessionUri: URI; chatChannelUri: URI }) => CopilotAgentSession;
-			_forkSdkChat: (client: unknown, sourceEntry: unknown, turnId: string, targetDbDir: URI) => Promise<string>;
+			_sessionSequencer: { queue<T>(key: string, task: () => Promise<T>): Promise<T> };
+			_forkSdkChat: (client: unknown, sourceEntry: unknown, turnId: string, targetDbDir: URI) => Promise<{ sessionId: string; inheritedTurnCount: number }>;
 			_resolveAgentName: (snapshot: IActiveClientSnapshot, agent: AgentSelection) => string | undefined;
 		};
 
@@ -3434,7 +3436,7 @@ suite('CopilotAgent', () => {
 				let forkArgs: { sourceEntry: unknown; turnId: string } | undefined;
 				internals._forkSdkChat = async (_client, sourceEntry, turnId) => {
 					forkArgs = { sourceEntry, turnId };
-					return 'forked-sdk-id';
+					return { sessionId: 'forked-sdk-id', inheritedTurnCount: 0 };
 				};
 				let captured: CopilotSessionLaunchPlan | undefined;
 				internals._createAgentSession = (launchPlan) => {
@@ -3465,6 +3467,167 @@ suite('CopilotAgent', () => {
 					backing: { sdkSessionId: 'forked-sdk-id' },
 					providerData: { sdkSessionId: 'forked-sdk-id' },
 					legacyCatalogWritten: false,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('createChat side chat forks hidden context and filters inherited turns', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'side-peer');
+				await agent.createSession({ session, workingDirectory: URI.file('/workspace') });
+				const sourceTurn: Turn = {
+					id: 't1',
+					state: TurnState.Complete,
+					message: { text: 'source', origin: { kind: MessageKind.User } },
+					responseParts: [],
+					usage: undefined,
+				};
+				const partialResponse = 'partial source answer';
+				const sourceContext = 'User request:\nsource\n\nAgent response:\nsource answer\n\n---\n\nUser request:\nactive source';
+				const injectedPrompt = injectSideChatContext('side', partialResponse, sourceContext);
+				const sideTurn: Turn = {
+					id: 't2',
+					state: TurnState.Complete,
+					message: { text: injectedPrompt, origin: { kind: MessageKind.User } },
+					responseParts: [],
+					usage: undefined,
+				};
+				const source = makeFakeChatSession(session, 'source-sdk', async () => [sourceTurn]);
+				setDefaultSessionStub(agent, AgentSession.id(session), source.fake);
+				const internals = agent as unknown as ChatInternals;
+				internals._forkSdkChat = async () => ({ sessionId: 'side-sdk-id', inheritedTurnCount: 1 });
+				let messageReadCount = 0;
+				let sideRecorder: IFakeChatRecorder | undefined;
+				internals._createAgentSession = launchPlan => {
+					const side = makeFakeChatSession(session, launchPlan.sessionId, async () => {
+						messageReadCount++;
+						return messageReadCount <= 2 ? [sourceTurn] : [sourceTurn, sideTurn];
+					}, launchPlan.shellManager);
+					sideRecorder = side.rec;
+					return side.fake;
+				};
+
+				const chatUri = URI.parse(buildChatUri(session, 'peer-side'));
+				const sourceLockEntered = new DeferredPromise<void>();
+				const releaseSourceLock = new DeferredPromise<void>();
+				const sourceLock = internals._sessionSequencer.queue(AgentSession.id(session), async () => {
+					sourceLockEntered.complete();
+					await releaseSourceLock.p;
+				});
+				await sourceLockEntered.p;
+				let result;
+				const createTimeout = timeout(5_000);
+				try {
+					result = await Promise.race([
+						agent.chats.createChat(chatUri, { sideChat: { source: URI.parse(buildDefaultChatUri(session)), turnId: 'active-turn', sourceContext, partialResponse } }),
+						createTimeout.then(() => { throw new Error('Side chat creation waited for the source turn lock'); }),
+					]);
+				} finally {
+					createTimeout.cancel();
+					releaseSourceLock.complete();
+					await sourceLock;
+				}
+				await agent.chats.sendMessage(chatUri, 'side', undefined, undefined, 't2');
+				await agent.chats.sendMessage(chatUri, 'follow-up', undefined, undefined, 't3');
+				await agent.chats.changeModel(chatUri, { id: 'gpt-y' });
+				const turns = await agent.chats.getMessages(chatUri);
+
+				assert.deepStrictEqual({
+					hasExplanationGuidance: sideRecorder?.sends[0]?.prompt.includes('Prefer explanation over action'),
+					sentPrompts: sideRecorder?.sends.map(send => send.prompt),
+					turns: turns.map(turn => turn.id),
+					visiblePrompt: turns[0]?.message.text,
+					sideChat: result ? JSON.parse(result.providerData!).sideChat : undefined,
+				}, {
+					hasExplanationGuidance: true,
+					sentPrompts: [injectedPrompt, 'follow-up'],
+					turns: ['t2'],
+					visiblePrompt: 'side',
+					sideChat: { source: buildDefaultChatUri(session), turnId: 'active-turn', inheritedTurnCount: 1, context: sourceContext, partialResponse },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('createChat side chat preserves a local source turn id while forking from the concrete provider anchor', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'side-local-peer');
+				await agent.createSession({ session, workingDirectory: URI.file('/workspace') });
+				const sourceTurn: Turn = {
+					id: 't1',
+					state: TurnState.Complete,
+					message: { text: 'source', origin: { kind: MessageKind.User } },
+					responseParts: [],
+					usage: undefined,
+				};
+				const sourceContext = 'User request:\nsource\n\nAgent response:\nsource answer\n\n---\n\nUser request:\n!command';
+				const injectedPrompt = injectSideChatContext('side', undefined, sourceContext);
+				const sideTurn: Turn = {
+					id: 't2',
+					state: TurnState.Complete,
+					message: { text: injectedPrompt, origin: { kind: MessageKind.User } },
+					responseParts: [],
+					usage: undefined,
+				};
+				const source = makeFakeChatSession(session, 'source-sdk', async () => [sourceTurn]);
+				setDefaultSessionStub(agent, AgentSession.id(session), source.fake);
+				const internals = agent as unknown as ChatInternals;
+				let forkTurnId: string | undefined;
+				internals._forkSdkChat = async (_client, _sourceEntry, turnId) => {
+					forkTurnId = turnId;
+					return { sessionId: 'side-sdk-id', inheritedTurnCount: 1 };
+				};
+				let messageReadCount = 0;
+				let sideRecorder: IFakeChatRecorder | undefined;
+				internals._createAgentSession = launchPlan => {
+					const side = makeFakeChatSession(session, launchPlan.sessionId, async () => {
+						messageReadCount++;
+						return messageReadCount <= 2 ? [sourceTurn] : [sourceTurn, sideTurn];
+					}, launchPlan.shellManager);
+					sideRecorder = side.rec;
+					return side.fake;
+				};
+
+				const chatUri = URI.parse(buildChatUri(session, 'peer-side-local'));
+				const result = await agent.chats.createChat(chatUri, {
+					sideChat: {
+						source: URI.parse(buildDefaultChatUri(session)),
+						turnId: 'local-1',
+						providerAnchorTurnId: 't1',
+						sourceContext,
+					},
+				});
+				await agent.chats.sendMessage(chatUri, 'side', undefined, undefined, 't2');
+				await agent.chats.sendMessage(chatUri, 'follow-up', undefined, undefined, 't3');
+				const turns = await agent.chats.getMessages(chatUri);
+
+				assert.deepStrictEqual({
+					forkTurnId,
+					sentPrompts: sideRecorder?.sends.map(send => send.prompt),
+					turns: turns.map(turn => turn.id),
+					visiblePrompt: turns[0]?.message.text,
+					sideChat: result ? JSON.parse(result.providerData!).sideChat : undefined,
+				}, {
+					forkTurnId: 't1',
+					sentPrompts: [injectedPrompt, 'follow-up'],
+					turns: ['t2'],
+					visiblePrompt: 'side',
+					sideChat: {
+						source: buildDefaultChatUri(session),
+						turnId: 'local-1',
+						providerAnchorTurnId: 't1',
+						inheritedTurnCount: 1,
+						context: sourceContext,
+					},
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -3837,9 +4000,9 @@ suite('CopilotAgent', () => {
 				installFake(agent, AgentSession.id(session), 'session', session);
 
 				const forkArgs: { turnId: string }[] = [];
-				(agent as unknown as { _forkSdkChat: (client: unknown, sourceEntry: unknown, turnId: string) => Promise<string> })._forkSdkChat = async (_c, _s, turnId) => {
+				(agent as unknown as { _forkSdkChat: (client: unknown, sourceEntry: unknown, turnId: string) => Promise<{ sessionId: string; inheritedTurnCount: number }> })._forkSdkChat = async (_c, _s, turnId) => {
 					forkArgs.push({ turnId });
-					return 'forked-sdk-id';
+					return { sessionId: 'forked-sdk-id', inheritedTurnCount: 0 };
 				};
 				stubBackingSession(agent);
 

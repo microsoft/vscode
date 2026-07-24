@@ -5434,7 +5434,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return { state: 'thinking' };
 		}
 
-		const responseText = lastRequest?.response?.response.getMarkdown().trim() ?? '';
+		const responseText = [
+			lastRequest?.response?.response.getMarkdown().trim(),
+			lastRequest?.response?.result?.errorDetails?.message.trim(),
+		].filter(value => !!value).join('\n\n');
 		return { state: 'idle', ...(responseText ? { last_response_summary: responseText } : {}) };
 	}
 
