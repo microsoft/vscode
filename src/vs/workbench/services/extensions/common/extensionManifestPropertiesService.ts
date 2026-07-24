@@ -31,7 +31,7 @@ const SESSIONS_WINDOW_ALLOWED_CONTRIBUTION_POINTS: ReadonlySet<keyof IExtensionC
 	'colors',
 	'keybindings',
 	'jsonValidation',
-	'jsonValidationCatalogs',
+	'jsonValidationRegistry',
 	'localizations',
 	'grammars',
 	'languages',

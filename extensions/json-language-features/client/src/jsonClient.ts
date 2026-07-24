@@ -564,7 +564,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 
 	const catalogWatchers = new Map<string, Disposable>();
 	const updateCatalogWatchers = () => {
-		const catalogUris = new Set(getSchemaCatalogUris().map(uri => uri.toString()));
+		const catalogUris = new Set(getSchemaRegistryUris().map(uri => uri.toString()));
 		for (const [uri, watcher] of catalogWatchers) {
 			if (!catalogUris.has(uri)) {
 				watcher.dispose();
@@ -845,10 +845,10 @@ function getSchemaExtensionAssociations(): ISchemaAssociation[] {
 	return associations;
 }
 
-function getSchemaCatalogUris(): Uri[] {
+function getSchemaRegistryUris(): Uri[] {
 	const result: Uri[] = [];
 	for (const extension of extensions.allAcrossExtensionHosts) {
-		const catalogs = extension.packageJSON?.contributes?.jsonValidationCatalogs;
+		const catalogs = extension.packageJSON?.contributes?.jsonValidationRegistry;
 		if (Array.isArray(catalogs)) {
 			for (const catalog of catalogs) {
 				if (typeof catalog?.url === 'string') {
@@ -862,7 +862,7 @@ function getSchemaCatalogUris(): Uri[] {
 
 async function getSchemaCatalogAssociations(): Promise<ISchemaAssociation[]> {
 	const result: ISchemaAssociation[] = [];
-	for (const catalogUri of getSchemaCatalogUris()) {
+	for (const catalogUri of getSchemaRegistryUris()) {
 		try {
 			const data = await workspace.fs.readFile(catalogUri);
 			const rawStr = new TextDecoder().decode(data);

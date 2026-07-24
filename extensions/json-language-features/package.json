@@ -174,7 +174,7 @@
         "url": "http://json-schema.org/draft-07/schema#"
       }
     ],
-    "jsonValidationCatalogs": [
+    "jsonValidationRegistry": [
       {
         "url": "vscode://schemas-associations/schemas-associations.json"
       }
