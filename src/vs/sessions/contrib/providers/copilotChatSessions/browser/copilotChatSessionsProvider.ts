@@ -1083,10 +1083,14 @@ class AgentSessionAdapter implements ICopilotChatSession {
 				};
 			}
 
+			const pullRequest = info.pullRequest;
+			if (!pullRequest) {
+				return info;
+			}
 			return {
 				...info,
 				pullRequest: {
-					...info.pullRequest,
+					...pullRequest,
 					icon: computeSessionPullRequestIcon(reader, this._gitHubService, this._pullRequestIconCache, info)
 				}
 			};
