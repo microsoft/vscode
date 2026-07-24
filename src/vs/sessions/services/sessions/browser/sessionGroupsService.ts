@@ -39,10 +39,8 @@ export interface ISessionGroupsChangeEvent {
  * groups. State is purely local (persisted to profile storage) and not synced
  * to providers.
  *
- * A session belongs to at most one group. Group membership is independent of
- * where the session renders: a grouped session that becomes pinned or archived
- * is rendered in the Pinned/Done section but retains its membership, so it
- * returns to the group once unpinned/restored.
+ * A session belongs to at most one group. Pinned sessions retain their
+ * membership, while archiving a session removes it from its group.
  */
 export interface ISessionGroupsService {
 	readonly _serviceBrand: undefined;
@@ -144,9 +142,6 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		this.load();
 
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
-			if (e.removed.length === 0) {
-				return;
-			}
 			const changed = new Set<string>();
 			for (const session of e.removed) {
 				this._inFlightSessionGroups.delete(session.sessionId);
@@ -154,10 +149,19 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 					changed.add(session.sessionId);
 				}
 			}
+			for (const session of e.changed) {
+				if (session.isArchived.get() && this._membership.delete(session.sessionId)) {
+					changed.add(session.sessionId);
+				}
+			}
 			if (changed.size > 0) {
 				this.save();
 				this._onDidChange.fire({ groupsChanged: false, membershipChanged: changed });
 			}
+		}));
+
+		this._register(this.sessionsManagementService.onDidArchiveSession(session => {
+			this.removeFromGroup(session.sessionId);
 		}));
 
 		// Lock the pending group onto the specific draft at send-dispatch, before

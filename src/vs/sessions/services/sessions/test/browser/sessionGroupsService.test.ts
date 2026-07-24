@@ -51,6 +51,8 @@ suite('SessionGroupsService', () => {
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
 	let willSendRequestEmitter: Emitter<ISession>;
 	let sessionStartedEmitter: Emitter<ISession>;
+	let sessionArchivedEmitter: Emitter<ISession>;
+	let sessionUnarchivedEmitter: Emitter<ISession>;
 	let sessionReplacedEmitter: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	let newSessionDiscardedEmitter: Emitter<ISession>;
 	let instantiationService: TestInstantiationService;
@@ -71,6 +73,8 @@ suite('SessionGroupsService', () => {
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
 		willSendRequestEmitter = disposables.add(new Emitter<ISession>());
 		sessionStartedEmitter = disposables.add(new Emitter<ISession>());
+		sessionArchivedEmitter = disposables.add(new Emitter<ISession>());
+		sessionUnarchivedEmitter = disposables.add(new Emitter<ISession>());
 		sessionReplacedEmitter = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		newSessionDiscardedEmitter = disposables.add(new Emitter<ISession>());
 		instantiationService.stub(ISessionsManagementService, {
@@ -78,6 +82,8 @@ suite('SessionGroupsService', () => {
 			onDidChangeSessions: sessionsChangedEmitter.event,
 			onWillSendRequest: willSendRequestEmitter.event,
 			onDidStartSession: sessionStartedEmitter.event,
+			onDidArchiveSession: sessionArchivedEmitter.event,
+			onDidUnarchiveSession: sessionUnarchivedEmitter.event,
 			onDidReplaceSession: sessionReplacedEmitter.event,
 			onDidDiscardNewSession: newSessionDiscardedEmitter.event,
 		});
@@ -162,6 +168,54 @@ suite('SessionGroupsService', () => {
 		}, {
 			groupName: 'A',
 			removedMembership: undefined,
+			remainingMembers: ['s2'],
+		});
+	});
+
+	test('archiving the last member leaves an empty group', () => {
+		const a = service.createGroup('A', ['s1']);
+
+		sessionArchivedEmitter.fire(createSession('s1'));
+
+		assert.deepStrictEqual({
+			archivedMembership: service.getGroupOfSession('s1'),
+			groupName: service.getGroup(a.id)?.name,
+			remainingMembers: service.getSessionIdsInGroup(a.id),
+		}, {
+			archivedMembership: undefined,
+			groupName: 'A',
+			remainingMembers: [],
+		});
+	});
+
+	test('restoring an archived session does not restore its group membership', () => {
+		const a = service.createGroup('A', ['s1']);
+		const session = createSession('s1');
+
+		sessionArchivedEmitter.fire(session);
+		sessionUnarchivedEmitter.fire(session);
+
+		assert.deepStrictEqual({
+			membership: service.getGroupOfSession('s1'),
+			remainingMembers: service.getSessionIdsInGroup(a.id),
+		}, {
+			membership: undefined,
+			remainingMembers: [],
+		});
+	});
+
+	test('membership is cleaned up when a provider reports an archived session', () => {
+		const a = service.createGroup('A', ['s1', 's2']);
+		const session = createSession('s1');
+		session.isArchived.set(true, undefined);
+
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
+
+		assert.deepStrictEqual({
+			archivedMembership: service.getGroupOfSession('s1'),
+			remainingMembers: service.getSessionIdsInGroup(a.id),
+		}, {
+			archivedMembership: undefined,
 			remainingMembers: ['s2'],
 		});
 	});
