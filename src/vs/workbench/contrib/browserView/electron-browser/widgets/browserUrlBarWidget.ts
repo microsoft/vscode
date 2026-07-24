@@ -85,7 +85,8 @@ export class BrowserUrlBarWidget extends Disposable {
 
 	private _suppressFocusOpen = false;
 	private _suppressBlurRevert = false;
-	private _pickerCanonicalUrl: string | undefined;
+	private _pickerEdited = false;
+	private _isSettingPickerValue = false;
 
 	constructor(
 		private readonly _host: IBrowserUrlBarHost,
@@ -127,9 +128,13 @@ export class BrowserUrlBarWidget extends Disposable {
 		// Keep the placeholder in sync with host state (e.g. search enablement).
 		this._urlDisplay.setAttribute('data-placeholder', this._placeholder);
 		const picker = this._picker.value;
-		if (picker && picker.value === this._pickerCanonicalUrl) {
-			this._pickerCanonicalUrl = this._canonicalUrl;
-			picker.value = this._pickerCanonicalUrl;
+		if (picker && !this._pickerEdited) {
+			this._isSettingPickerValue = true;
+			try {
+				picker.value = this._canonicalUrl;
+			} finally {
+				this._isSettingPickerValue = false;
+			}
 		}
 	}
 
@@ -278,7 +283,7 @@ export class BrowserUrlBarWidget extends Disposable {
 			// selected (matches browser URL-bar convention: click → ready to
 			// retype the whole thing).
 			const value = this._urlDisplay.textContent ?? '';
-			this._openPicker({ value, selection: [0, value.length] });
+			this._openPicker({ value, selection: [0, value.length], edited: false });
 		}));
 
 		this._register(addDisposableListener(this._urlDisplay, EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -320,7 +325,7 @@ export class BrowserUrlBarWidget extends Disposable {
 			}
 			const value = this._urlDisplay.textContent ?? '';
 			const caret = this._getCaretOffset();
-			this._openPicker({ value, selection: [caret, caret] });
+			this._openPicker({ value, selection: [caret, caret], edited: true });
 		}));
 	}
 
@@ -487,9 +492,9 @@ export class BrowserUrlBarWidget extends Disposable {
 	 * the display is hidden (visibility:hidden, to preserve layout) so only
 	 * the picker is visible.
 	 *
-	 * @param initial Optional value and selection carried from the display.
+	 * @param initial Optional display state carried into the picker.
 	 */
-	private _openPicker(initial?: { value: string; selection: [number, number] }): void {
+	private _openPicker(initial?: { value: string; selection: [number, number]; edited: boolean }): void {
 		if (this._picker.value) {
 			return;
 		}
@@ -517,7 +522,7 @@ export class BrowserUrlBarWidget extends Disposable {
 			picker.value = this._canonicalUrl;
 			picker.valueSelection = [0, this._canonicalUrl.length];
 		}
-		this._pickerCanonicalUrl = this._canonicalUrl;
+		this._pickerEdited = initial?.edited ?? false;
 		const disposables = new DisposableStore();
 
 		// Each provider keeps its own cached suggestions + cancellation so a
@@ -658,6 +663,9 @@ export class BrowserUrlBarWidget extends Disposable {
 			}
 		}));
 		disposables.add(picker.onDidChangeValue(value => {
+			if (!this._isSettingPickerValue) {
+				this._pickerEdited = true;
+			}
 			currentValue = value;
 			renderScheduler.cancel();
 			render(false);
@@ -768,7 +776,8 @@ export class BrowserUrlBarWidget extends Disposable {
 				}
 			}
 			disposables.dispose();
-			this._pickerCanonicalUrl = undefined;
+			this._pickerEdited = false;
+			this._isSettingPickerValue = false;
 			this._picker.clear();
 		}));
 		disposables.add(picker);

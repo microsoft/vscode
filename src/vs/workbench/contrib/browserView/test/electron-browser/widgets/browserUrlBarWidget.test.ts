@@ -32,10 +32,10 @@ class FakeQuickPick<T extends IQuickPickItem> extends Disposable {
 	matchOnDescription = false;
 	anchor: HTMLElement | { x: number; y: number } | undefined;
 	anchorPosition: 'above' | 'below' | 'overlay' | undefined;
-	value = '';
 	valueSelection: Readonly<[number, number]> | undefined;
 	buttons: ReadonlyArray<IQuickInputButton> = [];
 
+	private _value = '';
 	private _items: ReadonlyArray<T | IQuickPickSeparator> = [];
 	private _activeItems: ReadonlyArray<T> = [];
 	itemsAssignmentCount = 0;
@@ -79,6 +79,17 @@ class FakeQuickPick<T extends IQuickPickItem> extends Disposable {
 	private readonly _onDidHide = this._register(new Emitter<{ reason: QuickInputHideReason }>());
 	readonly onDidHide = this._onDidHide.event;
 
+	get value(): string {
+		return this._value;
+	}
+
+	set value(value: string) {
+		if (this._value !== value) {
+			this._value = value;
+			this._onDidChangeValue.fire(value);
+		}
+	}
+
 	show(): void { this.visible = true; }
 	hide(reason: QuickInputHideReason = QuickInputHideReason.Other): void {
 		if (!this.visible) {
@@ -91,7 +102,6 @@ class FakeQuickPick<T extends IQuickPickItem> extends Disposable {
 
 	type(value: string): void {
 		this.value = value;
-		this._onDidChangeValue.fire(value);
 	}
 
 	accept(): void {
@@ -413,12 +423,14 @@ suite('BrowserUrlBarWidget', () => {
 		assert.deepStrictEqual(navigated, ['https://fallback.test/']);
 	});
 
-	test('refreshUrl while the picker is open mirrors the canonical URL into the picker value', () => {
+	test('refreshUrl keeps an unedited picker synchronized with the canonical URL', () => {
 		const { widget, picker, inputState } = makeHarness();
 		widget.openUrlPicker();
 		inputState.url = 'https://changed.test/';
 		widget.refreshUrl();
-		assert.strictEqual(picker.value, 'https://changed.test/');
+		inputState.url = 'https://changed-again.test/';
+		widget.refreshUrl();
+		assert.strictEqual(picker.value, 'https://changed-again.test/');
 	});
 
 	test('refreshUrl does not overwrite picker input after the user types', () => {
@@ -428,6 +440,16 @@ suite('BrowserUrlBarWidget', () => {
 		inputState.url = 'https://changed.test/';
 		widget.refreshUrl();
 		assert.strictEqual(picker.value, 'https://typed.test/');
+	});
+
+	test('refreshUrl does not overwrite picker input after the user returns to the canonical URL', () => {
+		const { widget, picker, inputState } = makeHarness();
+		widget.openUrlPicker();
+		picker.type('https://typed.test/');
+		picker.type('https://example.com/');
+		inputState.url = 'https://changed.test/';
+		widget.refreshUrl();
+		assert.strictEqual(picker.value, 'https://example.com/');
 	});
 
 	test('refreshUrl synchronizes a picker opened by clicking without editing', () => {
