@@ -522,21 +522,17 @@ extends:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_SCHEDULEDBUILD: ${{ variables.VSCODE_SCHEDULEDBUILD }}
 
-      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
-        - stage: SanityTestsMacOS
-          displayName: Sanity Tests (macOS)
+      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false)) }}:
+        - stage: SanityTests
+          displayName: Sanity Tests
           dependsOn:
-            - macOS
+            - Publish
           variables:
             - name: BUILD_COMMIT
               value: $(Build.SourceVersion)
             - name: BUILD_QUALITY
               value: ${{ variables.VSCODE_QUALITY }}
           jobs:
-            - template: build/azure-pipelines/common/wait-for-publish.yml@self
-              parameters:
-                artifact: published_macos
-
             # macOS
             - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -546,7 +542,6 @@ extends:
                   poolName: AcesShared
                   os: macOS
                   args: --no-detection --grep "darwin-x64"
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -555,22 +550,6 @@ extends:
                   displayName: macOS arm64
                   poolName: AcesShared
                   os: macOS
-                  dependsOn: WaitForPublish
-
-      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
-        - stage: SanityTestsWindows
-          displayName: Sanity Tests (Windows)
-          dependsOn:
-            - Windows
-          variables:
-            - name: BUILD_COMMIT
-              value: $(Build.SourceVersion)
-            - name: BUILD_QUALITY
-              value: ${{ variables.VSCODE_QUALITY }}
-          jobs:
-            - template: build/azure-pipelines/common/wait-for-publish.yml@self
-              parameters:
-                artifact: published_windows
 
             # Windows
             - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
@@ -580,7 +559,6 @@ extends:
                   displayName: Windows x64
                   poolName: 1es-windows-2022-x64
                   os: windows
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -589,22 +567,6 @@ extends:
                   displayName: Windows arm64
                   poolName: 1es-windows-2022-arm64
                   os: windows
-                  dependsOn: WaitForPublish
-
-      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
-        - stage: SanityTestsAlpine
-          displayName: Sanity Tests (Alpine)
-          dependsOn:
-            - Alpine
-          variables:
-            - name: BUILD_COMMIT
-              value: $(Build.SourceVersion)
-            - name: BUILD_QUALITY
-              value: ${{ variables.VSCODE_QUALITY }}
-          jobs:
-            - template: build/azure-pipelines/common/wait-for-publish.yml@self
-              parameters:
-                artifact: published_alpine
 
             # Alpine 3.22
             - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
@@ -615,7 +577,6 @@ extends:
                   poolName: 1es-ubuntu-22.04-x64
                   container: alpine
                   arch: amd64
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -625,22 +586,6 @@ extends:
                   poolName: 1es-azure-linux-3-arm64
                   container: alpine
                   arch: arm64
-                  dependsOn: WaitForPublish
-
-      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
-        - stage: SanityTestsLinux
-          displayName: Sanity Tests (Linux)
-          dependsOn:
-            - Linux
-          variables:
-            - name: BUILD_COMMIT
-              value: $(Build.SourceVersion)
-            - name: BUILD_QUALITY
-              value: ${{ variables.VSCODE_QUALITY }}
-          jobs:
-            - template: build/azure-pipelines/common/wait-for-publish.yml@self
-              parameters:
-                artifact: published_linux
 
             # CentOS Stream 9
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
@@ -651,7 +596,6 @@ extends:
                   poolName: 1es-ubuntu-22.04-x64
                   container: centos
                   arch: amd64
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -661,7 +605,6 @@ extends:
                   poolName: 1es-azure-linux-3-arm64
                   container: centos
                   arch: arm64
-                  dependsOn: WaitForPublish
 
             # Debian 11
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
@@ -672,7 +615,6 @@ extends:
                   poolName: 1es-ubuntu-22.04-x64
                   container: debian-11
                   arch: amd64
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -682,7 +624,6 @@ extends:
                   poolName: 1es-azure-linux-3-arm64
                   container: debian-11
                   arch: arm
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -692,7 +633,6 @@ extends:
                   poolName: 1es-azure-linux-3-arm64
                   container: debian-11
                   arch: arm64
-                  dependsOn: WaitForPublish
 
             # Debian 12
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
@@ -703,7 +643,6 @@ extends:
                   poolName: 1es-ubuntu-22.04-x64
                   container: debian-12
                   arch: amd64
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -713,7 +652,6 @@ extends:
                   poolName: 1es-azure-linux-3-arm64
                   container: debian-12
                   arch: arm
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -723,7 +661,6 @@ extends:
                   poolName: 1es-azure-linux-3-arm64
                   container: debian-12
                   arch: arm64
-                  dependsOn: WaitForPublish
 
             # Fedora 42
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
@@ -734,7 +671,6 @@ extends:
                   poolName: 1es-ubuntu-22.04-x64
                   container: fedora-42
                   arch: amd64
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -744,7 +680,6 @@ extends:
                   poolName: 1es-azure-linux-3-arm64
                   container: fedora-42
                   arch: arm64
-                  dependsOn: WaitForPublish
 
             # Fedora 43
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
@@ -755,7 +690,6 @@ extends:
                   poolName: 1es-ubuntu-22.04-x64
                   container: fedora-43
                   arch: amd64
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -765,7 +699,6 @@ extends:
                   poolName: 1es-azure-linux-3-arm64
                   container: fedora-43
                   arch: arm64
-                  dependsOn: WaitForPublish
 
             # openSUSE Leap 16.0
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
@@ -776,7 +709,6 @@ extends:
                   poolName: 1es-ubuntu-22.04-x64
                   container: opensuse
                   arch: amd64
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -786,7 +718,6 @@ extends:
                   poolName: 1es-azure-linux-3-arm64
                   container: opensuse
                   arch: arm64
-                  dependsOn: WaitForPublish
 
             # Red Hat UBI 9
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
@@ -797,7 +728,6 @@ extends:
                   poolName: 1es-ubuntu-22.04-x64
                   container: redhat
                   arch: amd64
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -807,7 +737,6 @@ extends:
                   poolName: 1es-azure-linux-3-arm64
                   container: redhat
                   arch: arm64
-                  dependsOn: WaitForPublish
 
             # Ubuntu 22.04 Native (Snap coverage)
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
@@ -817,7 +746,6 @@ extends:
                   displayName: Ubuntu 22.04 x64 Native
                   poolName: 1es-ubuntu-22.04-x64
                   os: linux
-                  dependsOn: WaitForPublish
 
             # Ubuntu 22.04
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
@@ -828,7 +756,6 @@ extends:
                   poolName: 1es-ubuntu-22.04-x64
                   container: ubuntu-22
                   arch: amd64
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -838,7 +765,6 @@ extends:
                   poolName: 1es-azure-linux-3-arm64
                   container: ubuntu-22
                   arch: arm
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -848,7 +774,6 @@ extends:
                   poolName: 1es-azure-linux-3-arm64
                   container: ubuntu-22
                   arch: arm64
-                  dependsOn: WaitForPublish
 
             # Ubuntu 24.04
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
@@ -859,7 +784,6 @@ extends:
                   poolName: 1es-ubuntu-22.04-x64
                   container: ubuntu-24
                   arch: amd64
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -869,7 +793,6 @@ extends:
                   poolName: 1es-azure-linux-3-arm64
                   container: ubuntu-24
                   arch: arm
-                  dependsOn: WaitForPublish
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -879,7 +802,6 @@ extends:
                   poolName: 1es-azure-linux-3-arm64
                   container: ubuntu-24
                   arch: arm64
-                  dependsOn: WaitForPublish
 
         - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
           - stage: ApproveRelease
