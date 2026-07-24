@@ -13,14 +13,14 @@ import { Categories } from '../../../../../platform/action/common/actionCommonCa
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostService, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId, AGENT_HOST_LOG_OUTPUT_CHANNEL_ID } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { createDecorator, IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -208,8 +208,25 @@ export async function collectAgentHostDebugLogs(
 	// host-local absolute paths — no client-side knowledge of provider on-disk
 	// layout — which we resolve through the resource proxy: `file://` for a local
 	// session, `vscode-agent-host://` for a remote one.
+	//
+	// Resolve the artifacts from the owning host's `_meta` when the caller didn't
+	// already supply them: the Agents window passes them from the live session
+	// adapter, whereas the workbench window (no adapter) reads them here — from the
+	// local host or the matching remote connection. Best-effort: a miss just omits
+	// the provider artifacts; the general logs still export.
+	let debugArtifacts = activeSession?.debugArtifacts;
+	if (activeSession && debugArtifacts === undefined) {
+		if (activeSession.isLocal) {
+			debugArtifacts = await resolveSessionDebugArtifacts(() => agentHostService.listSessions(), activeSession.resource);
+		} else {
+			const connection = remoteConnection && remoteAgentHostService.getConnection(remoteConnection.address);
+			if (connection) {
+				debugArtifacts = await resolveSessionDebugArtifacts(() => connection.listSessions(), activeSession.resource);
+			}
+		}
+	}
 	const artifactAuthority = remoteConnection ? agentHostAuthority(remoteConnection.address) : undefined;
-	for (const artifact of activeSession?.debugArtifacts ?? []) {
+	for (const artifact of debugArtifacts ?? []) {
 		// `artifact.path` is an absolute path on the agent-host machine. Locally
 		// that's this platform (`URI.file`); remotely it's the remote platform, so
 		// preserve it verbatim via `URI.from` rather than let `URI.file` apply the
@@ -330,40 +347,28 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		// Extract services synchronously up front — the accessor is only valid
-		// before the first `await` below.
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const agentHostService = accessor.get(IAgentHostService);
-		const instantiationService = accessor.get(IInstantiationService);
 		const model = chatWidgetService.lastFocusedWidget?.viewModel?.model;
-		let activeSession = model ? toActiveAgentHostSession(model.sessionResource, model.title) : undefined;
-		// Unlike the Agents window, the workbench has no session adapter to read
-		// `_meta` off of, so resolve the host-advertised debug artifacts from the
-		// local agent host's session summaries (matched by the unique session id).
-		// Best-effort: a miss just omits provider artifacts — the general logs
-		// (channels, AHP, remote agenthost.log) still export.
-		if (activeSession?.isLocal) {
-			const debugArtifacts = await resolveLocalDebugArtifacts(agentHostService, activeSession.resource);
-			if (debugArtifacts?.length) {
-				activeSession = { ...activeSession, debugArtifacts };
-			}
-		}
-		// The original `accessor` is invalid after the await above, so re-enter with
-		// a fresh one for the (accessor-threading) export helper.
-		await instantiationService.invokeFunction(accessor => exportAgentHostDebugLogs(accessor, activeSession));
+		const activeSession = model ? toActiveAgentHostSession(model.sessionResource, model.title) : undefined;
+		// `collectAgentHostDebugLogs` resolves the host-advertised debug artifacts
+		// itself (it already holds the local + remote agent host services), so the
+		// accessor is used synchronously here with no `invokeFunction` re-entry.
+		await exportAgentHostDebugLogs(accessor, activeSession);
 	}
 }
 
 /**
- * Reads the host-advertised {@link IDebugArtifact}s for a local session from the
- * local agent host's session summaries, matched by the session's unique id (the
+ * Reads the host-advertised {@link IDebugArtifact}s for a session from the owning
+ * agent host's session summaries, matched by the session's unique id (the
  * summary's `session` URI may use the backend scheme, so we compare ids, not the
- * whole URI). Best-effort: any failure resolves to `undefined`.
+ * whole URI). The caller supplies the matching `listSessions` — the local host or
+ * a specific remote connection — so this serves both local and remote export.
+ * Best-effort: any failure resolves to `undefined`.
  */
-async function resolveLocalDebugArtifacts(agentHostService: IAgentHostService, resource: URI): Promise<readonly IDebugArtifact[] | undefined> {
+async function resolveSessionDebugArtifacts(listSessions: () => Promise<IAgentSessionMetadata[]>, resource: URI): Promise<readonly IDebugArtifact[] | undefined> {
 	try {
 		const rawId = resource.path.substring(1);
-		const sessions = await agentHostService.listSessions();
+		const sessions = await listSessions();
 		return readSessionDebugArtifacts(sessions.find(session => session.session.path.substring(1) === rawId)?._meta);
 	} catch {
 		return undefined;

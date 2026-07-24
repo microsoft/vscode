@@ -78,10 +78,16 @@ export class ClaudeDebugArtifacts {
 
 	/** This session's debug-log files (current + prior runs). The host owns `<logsHome>/claude/`, so scanning it is not cross-component path-guessing. */
 	private async _readDebugLogPaths(): Promise<string[]> {
-		const token = claudeDebugLogSessionToken(this._sessionId);
+		// Match the exact `claude-<timestamp>-<token>.log` shape emitted by
+		// buildClaudeDebugFilePath. A substring `includes(token)` check would also
+		// match another session whose id merely contains this token (e.g. `sess-abc`
+		// vs `sess-abc-extra`); debug logs can hold sensitive content, so exporting
+		// a sibling session's log would be an unsafe cross-session leak. The leading
+		// `-` in the suffix keeps the token boundary exact.
+		const suffix = `-${claudeDebugLogSessionToken(this._sessionId)}.log`;
 		try {
 			const stat = await this._fileService.resolve(joinPath(this._logsHome, CLAUDE_LOG_DIR));
-			return (stat.children ?? []).filter(c => !c.isDirectory && c.name.endsWith('.log') && c.name.includes(token)).map(c => c.resource.fsPath);
+			return (stat.children ?? []).filter(c => !c.isDirectory && c.name.startsWith('claude-') && c.name.endsWith(suffix)).map(c => c.resource.fsPath);
 		} catch {
 			return []; // <logsHome>/claude may not exist yet.
 		}

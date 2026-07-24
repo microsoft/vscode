@@ -26,7 +26,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallContributorKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { isDefaultChatUri, withSessionDebugArtifacts, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
+import { isDefaultChatUri, readSessionDebugArtifacts, withSessionDebugArtifacts, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { ClaudeDebugArtifacts } from './claudeDebugArtifacts.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
@@ -390,11 +390,16 @@ export class ClaudeAgentSession extends Disposable {
 	private _watchDebugArtifacts(): IDisposable {
 		return autorun(reader => {
 			const artifacts = this._debugArtifacts.artifacts.read(reader);
-			if (artifacts.length === 0) {
-				return;
-			}
 			const sessionKey = this.sessionUri.toString();
 			const current = this._stateManager.getSessionState(sessionKey)?._meta;
+			// Publish disk truth: a non-empty set advertises the artifacts; an empty
+			// set clears a previously-advertised slot (`withSessionDebugArtifacts`
+			// removes only this slot, preserving git/github). Skip only the initial
+			// nothing-advertised-and-nothing-to-clear case, to avoid a redundant
+			// `_meta` write before the first refresh lands.
+			if (artifacts.length === 0 && readSessionDebugArtifacts(current) === undefined) {
+				return;
+			}
 			this._stateManager.setSessionMeta(sessionKey, withSessionDebugArtifacts(current, artifacts));
 		});
 	}

@@ -48,6 +48,9 @@ suite('ClaudeDebugArtifacts', () => {
 		const mine = joinPath(logDir, `claude-2026-01-01T00-00-00-000Z-${SESSION_ID}.log`);
 		await write(fileService, mine);
 		await write(fileService, joinPath(logDir, 'claude-2026-01-01T00-00-00-000Z-other.log'));
+		// A sibling session whose id merely contains ours as a prefix must NOT match
+		// (exact suffix, not substring) — debug logs can hold sensitive content.
+		await write(fileService, joinPath(logDir, `claude-2026-01-01T00-00-00-000Z-${SESSION_ID}-extra.log`));
 		await write(fileService, joinPath(logDir, `${SESSION_ID}.txt`));
 		await artifacts.refresh();
 		assert.deepStrictEqual(artifacts.artifacts.get(), [{ label: CLAUDE_DEBUG_LOG_LABEL, path: mine.fsPath }]);
