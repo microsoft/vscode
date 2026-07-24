@@ -484,7 +484,6 @@ describe('TelemetrySender', () => {
 				terminalOutput: undefined,
 				similarFilesContext: undefined,
 				modelConfig: undefined,
-				rejectedEditMemoryEnabled: false,
 			};
 		}
 
