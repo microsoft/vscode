@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Delayer } from '../../../../../base/common/async.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
 import * as platform from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -19,15 +19,20 @@ import { CommonFindController, FindStartFocusAction, FocusEditorFromFindWidgetCo
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE } from '../../browser/findModel.js';
 import { withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyValue, IContext, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingResolver, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 const FOCUS_EDITOR_FROM_FIND_WIDGET_COMMAND_ID = 'focusEditorFromFindWidget';
+const FOCUS_EDITOR_FROM_FIND_WIDGET_KEYBINDING = KeyMod.CtrlCmd | KeyCode.DownArrow;
+const FOCUS_EDITOR_FROM_FIND_WIDGET_USER_OVERRIDE_COMMAND_ID = 'test.userFocusOverride';
 const FOCUS_EDITOR_FROM_FIND_WIDGET_CONTEXT_KEYS = ['editorTextFocus', CONTEXT_FIND_INPUT_FOCUSED.key, CONTEXT_FIND_WIDGET_VISIBLE.key];
 
 class TestFindController extends CommonFindController {
@@ -301,10 +306,32 @@ suite('FindController', () => {
 	test('issue #175444: focus editor from find widget is keybinding-dispatchable', async () => {
 		const focusEditorKeybinding = KeybindingsRegistry.getDefaultKeybindings().find(keybinding => keybinding.command === FocusEditorFromFindWidgetCommand.id);
 		const expectedKeybinding = new KeyCodeChord(!platform.isMacintosh, false, false, platform.isMacintosh, KeyCode.DownArrow).toKeybinding();
+		const resolvedKeybinding = createUSLayoutResolvedKeybinding(FOCUS_EDITOR_FROM_FIND_WIDGET_KEYBINDING, platform.OS)!;
+		const dispatchChord = resolvedKeybinding.getDispatchChords()[0];
+		const findInputContext: IContext = {
+			getValue: <T extends ContextKeyValue>(key: string) => FOCUS_EDITOR_FROM_FIND_WIDGET_CONTEXT_KEYS.includes(key) as T
+		};
 
 		assert.strictEqual(focusEditorKeybinding?.keybinding?.equals(expectedKeybinding), true);
 		assert.deepStrictEqual(focusEditorKeybinding?.when?.keys().sort(), [...FOCUS_EDITOR_FROM_FIND_WIDGET_CONTEXT_KEYS].sort());
 		assert.strictEqual(FocusEditorFromFindWidgetCommand.id, FOCUS_EDITOR_FROM_FIND_WIDGET_COMMAND_ID);
+		assert.ok(dispatchChord);
+
+		const defaultItem = new ResolvedKeybindingItem(resolvedKeybinding, FocusEditorFromFindWidgetCommand.id, null, focusEditorKeybinding?.when ?? undefined, true, null, false);
+		const defaultResolver = new KeybindingResolver([defaultItem], [], () => { });
+		const defaultResult = defaultResolver.resolve(findInputContext, [], dispatchChord);
+		assert.ok(defaultResult.kind === ResultKind.KbFound);
+		assert.strictEqual(defaultResult.commandId, FocusEditorFromFindWidgetCommand.id);
+
+		const userOverrideItem = new ResolvedKeybindingItem(resolvedKeybinding, FOCUS_EDITOR_FROM_FIND_WIDGET_USER_OVERRIDE_COMMAND_ID, null, focusEditorKeybinding?.when ?? undefined, false, null, false);
+		const userOverrideResolver = new KeybindingResolver([defaultItem], [userOverrideItem], () => { });
+		const userOverrideResult = userOverrideResolver.resolve(findInputContext, [], dispatchChord);
+		assert.ok(userOverrideResult.kind === ResultKind.KbFound);
+		assert.strictEqual(userOverrideResult.commandId, FOCUS_EDITOR_FROM_FIND_WIDGET_USER_OVERRIDE_COMMAND_ID);
+
+		const userRemovalItem = new ResolvedKeybindingItem(resolvedKeybinding, `-${FocusEditorFromFindWidgetCommand.id}`, null, focusEditorKeybinding?.when ?? undefined, false, null, false);
+		const userRemovalResolver = new KeybindingResolver([defaultItem], [userRemovalItem], () => { });
+		assert.strictEqual(userRemovalResolver.resolve(findInputContext, [], dispatchChord).kind, ResultKind.NoMatchingKb);
 
 		await withAsyncTestCodeEditor([
 			'ABC',
