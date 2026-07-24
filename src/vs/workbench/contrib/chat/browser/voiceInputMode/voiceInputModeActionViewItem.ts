@@ -300,6 +300,22 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 	private _listenSuppressClick = false;
 	private readonly _listenPointerUp = this._register(new MutableDisposable());
 
+	private _getLabelWithKeybinding(label: string, commandId: string): string {
+		return this.keybindingService.appendKeybinding(label, commandId);
+	}
+
+	private _updateAriaLabels(): void {
+		this._dictationCell?.setAttribute('aria-label', this._dictationCell.classList.contains('preparing')
+			? localize('voiceInputMode.dictationPreparing', "Preparing Speech to Text Model…")
+			: this._getLabelWithKeybinding(localize('voiceInputMode.dictation', "Dictation"), DICTATION_TOGGLE_COMMAND_ID));
+		this._voiceCell?.setAttribute('aria-label', this._voiceCell.classList.contains('on')
+			? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
+			: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID));
+		this._listenCell?.setAttribute('aria-label', this._listenCell.classList.contains('active')
+			? this._getLabelWithKeybinding(localize('voiceInputMode.stopListening', "Stop Listening"), ChatVoiceInputModeToggleListenAction.ID)
+			: this._getLabelWithKeybinding(localize('voiceInputMode.startListening', "Start Listening"), ChatVoiceInputModeToggleListenAction.ID));
+	}
+
 	constructor(
 		action: IAction,
 		private readonly _options: IVoiceInputModePillOptions | undefined,
@@ -335,9 +351,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._dictationCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.dictation'));
 		this._dictationCell.setAttribute('type', 'button');
 		this._dictationCell.setAttribute('role', 'button');
-		this._dictationCell.setAttribute('aria-label', localize('voiceInputMode.dictation', "Dictation"));
 		this._dictationIcon = dom.append(this._dictationCell, dom.$('span.chat-voice-input-mode-icon'));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._dictationCell, localize('voiceInputMode.dictation', "Dictation")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._dictationCell,
+			() => this._getLabelWithKeybinding(localize('voiceInputMode.dictation', "Dictation"), DICTATION_TOGGLE_COMMAND_ID)));
 		this._register(dom.addDisposableListener(this._dictationCell, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e, true);
 			this._onClickDictation();
@@ -352,7 +368,6 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._voiceCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.voice'));
 		this._voiceCell.setAttribute('type', 'button');
 		this._voiceCell.setAttribute('role', 'button');
-		this._voiceCell.setAttribute('aria-label', localize('voiceInputMode.voice', "Voice Mode"));
 		this._voiceBars = dom.append(this._voiceCell, dom.$('span.chat-voice-input-mode-bars'));
 		for (let i = 0; i < WAVEFORM_BAR_COUNT; i++) {
 			this._voiceBarEls.push(dom.append(this._voiceBars, dom.$('span.chat-voice-input-mode-bar')));
@@ -362,7 +377,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 				const connectedish = this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get() || this.voiceInputModeService.simulatedVoiceState.get() === 'idle' || this.voiceInputModeService.simulatedVoiceState.get() === 'listening' || this.voiceInputModeService.simulatedVoiceState.get() === 'speaking';
 				return connectedish
 					? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
-					: localize('voiceInputMode.voice', "Voice Mode");
+					: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID);
 			}));
 		// The voice button is a plain power toggle (connect / disconnect). Listening is
 		// driven by the separate listen cell in manual mode and by the auto-listen loop
@@ -390,8 +405,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._listenCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.listen'));
 		this._listenCell.setAttribute('type', 'button');
 		this._listenCell.setAttribute('role', 'button');
-		this._listenCell.setAttribute('aria-label', localize('voiceInputMode.listenToggle', "Toggle Listening"));
 		this._listenIcon = dom.append(this._listenCell, dom.$('span.chat-voice-input-mode-icon'));
+		this._updateAriaLabels();
+		this._register(this.keybindingService.onDidUpdateKeybindings(() => this._updateAriaLabels()));
 		this._register(addMicButtonContextMenuListener(
 			this._listenCell,
 			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
@@ -399,8 +415,8 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._listenCell,
 			() => this.voiceSessionController.voiceState.get() === 'listening'
-				? localize('voiceInputMode.stopListening', "Stop Listening")
-				: localize('voiceInputMode.startOrHoldListening', "Tap to start, or hold to talk")));
+				? this._getLabelWithKeybinding(localize('voiceInputMode.stopListening', "Stop Listening"), ChatVoiceInputModeToggleListenAction.ID)
+				: this._getLabelWithKeybinding(localize('voiceInputMode.startOrHoldListening', "Tap to start, or hold to talk"), ChatVoiceInputModeToggleListenAction.ID)));
 		// The listen cell supports two gestures: a tap toggles listening on/off, and a
 		// press-and-hold records while held and sends on release (hold-to-talk). Use the
 		// generic pointer-aware listener so press-and-hold also starts on iOS.
@@ -490,9 +506,6 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._dictationCell!.classList.toggle('active', isDictating || dictationBusy);
 			this._dictationCell!.classList.toggle('preparing', dictationBusy);
 			this._dictationCell!.setAttribute('aria-pressed', String(isDictating));
-			this._dictationCell!.setAttribute('aria-label', dictationBusy
-				? localize('voiceInputMode.dictationPreparing', "Preparing Speech to Text Model…")
-				: localize('voiceInputMode.dictation', "Dictation"));
 			this._dictationIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(dictationBusy ? Codicon.micDownload : (isDictating ? Codicon.micFilled : Codicon.mic))}`;
 
 			// Voice cell — Device EQ bars that transform:
@@ -507,9 +520,6 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._voiceCell!.classList.toggle('listening', listening);
 			this._voiceCell!.classList.toggle('speaking', speaking);
 			this._voiceCell!.setAttribute('aria-pressed', String(voiceOn));
-			this._voiceCell!.setAttribute('aria-label', voiceOn
-				? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
-				: localize('voiceInputMode.voice', "Voice Mode"));
 			// Simulated hover (walkthrough only) mirrors the real :hover disconnect preview.
 			this._voiceCell!.classList.toggle('sim-hover', this.voiceInputModeService.simulatedHover.read(reader));
 
@@ -518,10 +528,8 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._listenCell!.classList.toggle('active', listening);
 			this._listenCell!.classList.toggle('muted', !listening);
 			this._listenCell!.setAttribute('aria-pressed', String(listening));
-			this._listenCell!.setAttribute('aria-label', listening
-				? localize('voiceInputMode.stopListening', "Stop Listening")
-				: localize('voiceInputMode.startListening', "Start Listening"));
 			this._listenIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(listening ? Codicon.personVoiceFilled : Codicon.personVoice)}`;
+			this._updateAriaLabels();
 
 			// Audio-reactive bars only while live (and not hovering the disconnect preview).
 			this._syncBarAnimation();

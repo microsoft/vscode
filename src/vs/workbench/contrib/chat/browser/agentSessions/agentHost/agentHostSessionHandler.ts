@@ -2919,7 +2919,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}, opts.chatURI);
 			return;
 		}
-
 		const invocation = this._toolsService.beginToolCall({
 			toolCallId,
 			toolId: toolData.id,
