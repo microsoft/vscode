@@ -255,7 +255,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		);
 	}
 
-	resolveWorkspace(folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined {
+	resolveWorkspace(folderUri: URI, preferredProviderId?: string): { providerId: string; workspace: ISessionWorkspace } | undefined {
+		if (preferredProviderId) {
+			const preferred = this.sessionsProvidersService.getProvider(preferredProviderId);
+			const workspace = preferred?.resolveWorkspace(folderUri);
+			if (workspace) {
+				return { providerId: preferredProviderId, workspace };
+			}
+		}
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			const workspace = provider.resolveWorkspace(folderUri);
 			if (workspace) {
@@ -622,8 +629,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				throw new CancellationError();
 			}
 			if (createOptions?.modelId) {
-				await this._waitForRequestedModel(provider, session, createOptions.modelId, token, folderUri);
-				provider.setModel(session.sessionId, createOptions.modelId);
+				const resolvedModelId = await this._waitForRequestedModel(provider, session, createOptions.modelId, token, folderUri);
+				provider.setModel(session.sessionId, resolvedModelId);
 			}
 			if (createOptions?.modeId) {
 				provider.setMode?.(session.sessionId, createOptions.modeId);
@@ -653,11 +660,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	private async _waitForRequestedModel(provider: ISessionsProvider, session: ISession, modelId: string, token: CancellationToken, folderUri?: URI): Promise<void> {
+	private async _waitForRequestedModel(provider: ISessionsProvider, session: ISession, modelId: string, token: CancellationToken, folderUri?: URI): Promise<string> {
 		const resolveCurrent = () => provider.getModelsSnapshot(session.sessionId, modelId).desiredModelResolution;
 		const initial = resolveCurrent();
-		if (initial.kind === 'available' || initial.kind === 'notRequested') {
-			return;
+		if (initial.kind === 'available') {
+			return initial.model.identifier;
+		}
+		if (initial.kind === 'notRequested') {
+			return modelId;
 		}
 		if (initial.kind === 'unavailable') {
 			throw new Error(`Model '${modelId}' is unavailable for sessions provider '${provider.id}'`);
@@ -666,25 +676,27 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new CancellationError();
 		}
 
-		await new Promise<void>((resolve, reject) => {
+		return new Promise<string>((resolve, reject) => {
 			const disposables = new DisposableStore();
 			let settled = false;
-			const finish = (error?: Error) => {
+			const finish = (result: string | Error) => {
 				if (settled) {
 					return;
 				}
 				settled = true;
 				disposables.dispose();
-				if (error) {
-					reject(error);
+				if (result instanceof Error) {
+					reject(result);
 				} else {
-					resolve();
+					resolve(result);
 				}
 			};
 			const check = () => {
 				const resolution = resolveCurrent();
-				if (resolution.kind === 'available' || resolution.kind === 'notRequested') {
-					finish();
+				if (resolution.kind === 'available') {
+					finish(resolution.model.identifier);
+				} else if (resolution.kind === 'notRequested') {
+					finish(modelId);
 				} else if (resolution.kind === 'unavailable') {
 					finish(new Error(`Model '${modelId}' is unavailable for sessions provider '${provider.id}'`));
 				}

@@ -343,8 +343,6 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	private static readonly MAX_MACOS_DOCK_RECENT_WORKSPACES = 7; 		// prefer higher number of workspaces...
 	private static readonly MAX_MACOS_DOCK_RECENT_ENTRIES_TOTAL = 10; 	// ...over number of files
 
-	private static readonly MAX_WINDOWS_JUMP_LIST_ENTRIES = 7;
-
 	// Exclude some very common files from the dock/taskbar
 	private static readonly COMMON_FILES_FILTER = [
 		'COMMIT_EDITMSG',
@@ -398,8 +396,9 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			// so we need to update our list of recent paths with the choice of the user to not add them again
 			// Also: Windows will not show our custom category at all if there is any entry which was removed
 			// by the user! See https://github.com/microsoft/vscode/issues/15052
+			const jumpListSettings = app.getJumpListSettings();
 			const toRemove: URI[] = [];
-			for (const item of app.getJumpListSettings().removedItems) {
+			for (const item of jumpListSettings.removedItems) {
 				const args = item.args;
 				if (args) {
 					const match = /^--(folder|file)-uri\s+"([^"]+)"$/.exec(args);
@@ -410,9 +409,9 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			}
 			await this.removeRecentlyOpened(toRemove);
 
-			// Add entries
+			// Add entries up to the slot count Explorer requested (jumpListSettings.minItems).
 			let hasWorkspaces = false;
-			const items: JumpListItem[] = coalesce((await this.getRecentlyOpened()).workspaces.slice(0, WorkspacesHistoryMainService.MAX_WINDOWS_JUMP_LIST_ENTRIES).map(recent => {
+			const items: JumpListItem[] = coalesce((await this.getRecentlyOpened()).workspaces.slice(0, jumpListSettings.minItems).map(recent => {
 				const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
 
 				const { title, description } = this.getWindowsJumpListLabel(workspace, recent.label);

@@ -1,0 +1,106 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Generic "segmented icon toggle" chrome: a constant-size, rounded pill housing that holds a
+ * horizontal reel of equal-width icon cells. Cells that aren't present collapse their width to
+ * 0 and the housing centers whatever remains, so icons slide smoothly into place. Each cell
+ * clips its own content (no clipping on the housing) so hover backgrounds never get cut into a
+ * "half pill" by the rounded edge.
+ *
+ * This is toolbar-agnostic: apply these classes to build any small segmented icon control, then
+ * layer feature-specific classes (colors, glyph animations, etc.) on top. Tunable metrics are
+ * exposed as custom properties so a host toolbar can size the pill without overriding rules.
+ */
+
+.monaco-segmented-icon-toggle-container {
+	display: flex;
+	align-items: center;
+}
+
+.monaco-segmented-icon-toggle {
+	display: inline-flex;
+	justify-content: center;
+	align-items: stretch;
+	box-sizing: border-box;
+	width: var(--segmented-icon-toggle-width, 56px);
+	height: var(--segmented-icon-toggle-height, 24px);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 8px;
+}
+
+.monaco-segmented-icon-toggle-reel {
+	display: flex;
+	align-items: stretch;
+}
+
+.monaco-segmented-icon-toggle-cell {
+	position: relative;
+	flex: 0 0 auto;
+	box-sizing: border-box;
+	width: var(--segmented-icon-toggle-cell-width, 27px);
+	height: 100%;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	overflow: hidden;
+	transition: width 0.3s cubic-bezier(0.2, 0.9, 0.2, 1), opacity 0.22s ease, color 0.2s ease;
+}
+
+/* Icon content sits above the hover background. */
+.monaco-segmented-icon-toggle-cell > * {
+	position: relative;
+	z-index: 1;
+}
+
+/* Hover background — a rounded-rectangle (squircle) filling the whole cell, edge-to-edge and full height, so it fully covers the housing interior with no surrounding gap. */
+.monaco-segmented-icon-toggle-cell::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: 7px;
+	background: transparent;
+	transition: background 0.15s ease;
+	z-index: 0;
+}
+
+.monaco-segmented-icon-toggle-cell:hover::before {
+	background: var(--vscode-toolbar-hoverBackground, transparent);
+}
+
+/* Single-icon view: the lone button fills the whole pill, so its click target and hover background take up the entire pill. */
+.monaco-segmented-icon-toggle-container.single .monaco-segmented-icon-toggle-cell:not(.collapsed) {
+	width: var(--segmented-icon-toggle-single-width, 54px);
+}
+
+/* Absent cells collapse to zero width (icons slide into place as the housing recenters).
+ * `visibility: hidden` (delayed until the width/opacity transition finishes) also removes
+ * the collapsed native button from the Tab order and accessibility tree, so it can't be
+ * focused or keyboard-activated while invisible. */
+.monaco-segmented-icon-toggle-cell.collapsed {
+	width: 0;
+	opacity: 0;
+	pointer-events: none;
+	visibility: hidden;
+	transition: width 0.3s cubic-bezier(0.2, 0.9, 0.2, 1), opacity 0.22s ease, color 0.2s ease, visibility 0s linear 0.3s;
+}
+
+/* Respect reduced-motion preferences: no sliding/fading of cells. Hosts that gate motion
+ * with their own class (e.g. VS Code's `.monaco-enable-motion`) can add an equivalent rule. */
+@media (prefers-reduced-motion: reduce) {
+	.monaco-segmented-icon-toggle-cell {
+		transition: none;
+	}
+}
+
+.monaco-segmented-icon-toggle-cell:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}

@@ -13,7 +13,7 @@
  *     (quick input, hovers, suggest, context menus, toasts, dialogs, find,
  *     rename, color picker, ...).
  *   - Inner radius (6px): non-control containers that sit within the UI
- *     (notification center surfaces, sticky scroll, ...).
+ *     (notification center surfaces, ...).
  *   - Controls (4px): all interactable UI controls (text inputs, selects,
  *     list/tree rows, ...).
  *
@@ -137,6 +137,11 @@
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
+/* Match the minimap viewport slider to the adjacent editor scrollbar. */
+.style-override .monaco-editor .minimap-slider .minimap-slider-horizontal {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 /*
  * Diff editor "fake united slider": when the overview ruler is shown, the diff
  * editor draws its own combined viewport slider (`.diffViewport`, spanning both
@@ -164,15 +169,16 @@
 	width: calc(100% - 1px) !important;
 }
 
+/* Editor sticky scroll container */
+.style-override .monaco-editor .sticky-widget {
+	border-radius: 0 !important;
+	overflow: hidden;
+	width: 100% !important;
+}
+
 /* =============================================================================
  * Inner (6px) — non-control containers that live within the UI.
  * ========================================================================== */
-
-/* Editor sticky scroll container */
-.style-override .monaco-editor .sticky-widget {
-	border-radius: var(--vscode-cornerRadius-medium) !important;
-	overflow: hidden;
-}
 
 /*
  * Workbench parts (side bar, panel, auxiliary bar). The editor part is framed

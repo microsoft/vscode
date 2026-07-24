@@ -10,13 +10,13 @@
  */
 
 import assert from 'assert';
-import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { type SessionCustomizationDiscoveryMode } from '../../../common/agentHostCustomizationConfig.js';
+import { AgentHostConfigKey, type SessionCustomizationDiscoveryMode } from '../../../common/agentHostCustomizationConfig.js';
 import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
-import { customizationId, CustomizationType, ISessionWithDefaultChat, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { customizationId, CustomizationType, ISessionWithDefaultChat, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { type AhpNotification } from '../../../common/state/sessionProtocol.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
@@ -76,7 +76,7 @@ async function waitForAssert(
 	);
 }
 
-const TEST_WATCH = false;
+const TEST_WATCH = true;
 
 suite('Agent Host Provider Integration — Copilot Customizations', function () {
 
@@ -187,7 +187,8 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			await runSimpleSkillWatchTest('scan');
 		});
 
-		test('watch skill file changes [discover]', async function () {
+		// skipped for https://github.com/github/copilot-agent-runtime/issues/13285
+		test.skip('watch skill file changes [discover]', async function () {
 			this.timeout(TEST_TIMEOUT_MS);
 			await runSimpleSkillWatchTest('discover');
 		});
@@ -207,7 +208,8 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			await runSimpleInstructionWatchTest('scan');
 		});
 
-		test('watch instruction file changes [discover]', async function () {
+		// skipped for https://github.com/github/copilot-agent-runtime/issues/13000
+		test.skip('watch instruction file changes [discover]', async function () {
 			this.timeout(TEST_TIMEOUT_MS);
 			await runSimpleInstructionWatchTest('discover');
 		});
@@ -232,8 +234,36 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		]);
 	}
 
+	async function createWorkspace(prefix: string, isRepoRoot = true): Promise<string> {
+		const workspaceDir = await mkdtemp(`${tmpdir()}/${prefix}`);
+		tempDirs.push(workspaceDir);
+		if (isRepoRoot) {
+			// Create a minimal repository root so discovery does not traverse into an outer repository.
+			const gitDir = join(workspaceDir, '.git');
+			await Promise.all([
+				mkdir(join(gitDir, 'objects'), { recursive: true }),
+				mkdir(join(gitDir, 'refs', 'heads'), { recursive: true }),
+				mkdir(join(gitDir, 'refs', 'tags'), { recursive: true }),
+			]);
+			await Promise.all([
+				writeFile(join(gitDir, 'HEAD'), 'ref: refs/heads/main\n'),
+				writeFile(join(gitDir, 'config'), '[core]\n\trepositoryformatversion = 0\n\tfilemode = false\n\tbare = false\n'),
+			]);
+		}
+		return realpath(workspaceDir);
+	}
+
 	async function setupSession(sessionUri: string, clientId: string, discoveryMode: SessionCustomizationDiscoveryMode, turnId = 'turn-customizations-empty-mock', configuredCustomizations?: readonly { uri: string; displayName: string; description?: string }[]): Promise<ISessionWithDefaultChat> {
-		void discoveryMode;
+		client.dispatch({
+			channel: ROOT_STATE_URI,
+			clientSeq: 0,
+			action: {
+				type: ActionType.RootConfigChanged,
+				config: {
+					[AgentHostConfigKey.SessionCustomizationDiscoveryMode]: discoveryMode,
+				},
+			},
+		});
 		const activeClientCustomizations = configuredCustomizations?.map((customization): ClientPluginCustomization => ({
 			type: CustomizationType.Plugin,
 			id: customizationId(customization.uri),
@@ -271,8 +301,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	};
 
 	async function runEmptyWorkspaceCustomizationsTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
-		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-empty-mock-`);
-		tempDirs.push(workspaceDir);
+		const workspaceDir = await createWorkspace('ahp-customizations-empty-mock-');
 
 		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-customizations-empty-mock', createdSessions, URI.file(workspaceDir));
 		const session = await setupSession(sessionUri, 'real-sdk-customizations-empty-client-mock', discoveryMode);
@@ -308,8 +337,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	}
 
 	async function runWorkspaceCustomizationsTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
-		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-test-mock-`);
-		tempDirs.push(workspaceDir);
+		const workspaceDir = await createWorkspace('ahp-customizations-test-mock-');
 		const githubDir = join(workspaceDir, '.github');
 		const agentsDir = join(githubDir, 'agents');
 		const instructionsDir = join(githubDir, 'instructions');
@@ -404,7 +432,6 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), children: [URI.file(userSkillFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), children: [URI.file(userAgentFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Hook, uri: URI.file(join(userHomeDir, '.copilot', 'hooks')).toString(), children: [URI.file(userHookFile).toString()] },
-			{ type: CustomizationType.Directory, contents: CustomizationType.Rule, uri: URI.file(join(userHomeDir, '.copilot', 'instructions')).toString(), children: [URI.file(userInstructionFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.copilot', 'skills')).toString(), children: [URI.file(userCopilotSkillFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(workspaceDir, '.agents', 'skills')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), children: [] },
@@ -413,13 +440,18 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			{ type: CustomizationType.Directory, contents: CustomizationType.Hook, uri: URI.file(join(workspaceDir, '.github', 'hooks')).toString(), children: [URI.file(join(hooksDir, 'pre-tool.json')).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Rule, uri: URI.file(join(workspaceDir, '.github', 'instructions')).toString(), children: [URI.file(join(instructionsDir, 'policy.instructions.md')).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(workspaceDir, '.github', 'skills')).toString(), children: [URI.file(join(skillsDir, 'SKILL.md')).toString()] },
+			{
+				type: CustomizationType.Directory,
+				contents: CustomizationType.Rule,
+				uri: URI.file(join(userHomeDir, '.copilot', 'instructions')).toString(),
+				children: discoveryMode === 'scan' ? [URI.file(userInstructionFile).toString()] : [],
+			},
 		].sort((a, b) => a.uri.localeCompare(b.uri));
 		assert.deepStrictEqual(mappedCustomizations, expectedCustomizations);
 	}
 
 	async function runWorkspaceAndPluginCustomizationsTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
-		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-workspace-plugin-mock-`);
-		tempDirs.push(workspaceDir);
+		const workspaceDir = await createWorkspace('ahp-customizations-workspace-plugin-mock-');
 
 		const workspaceAgentsDir = join(workspaceDir, '.github', 'agents');
 		const workspaceAgentFile = join(workspaceAgentsDir, 'workspace.agent.md');
@@ -521,8 +553,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	}
 
 	async function runSyncedBundlePluginCustomizationsTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
-		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-workspace-synced-plugin-mock-`);
-		tempDirs.push(workspaceDir);
+		const workspaceDir = await createWorkspace('ahp-customizations-workspace-synced-plugin-mock-');
 		const syncedBundleDir = await mkdtemp(`${tmpdir()}/ahp-synced-customizations-plugin-mock-`);
 		tempDirs.push(syncedBundleDir);
 
@@ -648,8 +679,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	}
 
 	async function runAgentInstructionsDiscoveryTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
-		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-agent-instructions-mock-`);
-		tempDirs.push(workspaceDir);
+		const workspaceDir = await createWorkspace('ahp-customizations-agent-instructions-mock-');
 		const workspaceGithubDir = join(workspaceDir, '.github');
 		const workspaceCopilotInstructionsFile = join(workspaceGithubDir, 'copilot-instructions.md');
 		const workspaceAgentsInstructionsFile = join(workspaceDir, 'AGENTS.md');
@@ -721,8 +751,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 
 	async function runSimpleInstructionWatchTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
-		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-watch-simple-${discoveryMode}-`);
-		tempDirs.push(workspaceDir);
+		const workspaceDir = await createWorkspace(`ahp-customizations-watch-simple-${discoveryMode}-`);
 
 		const instructionsDir = join(workspaceDir, '.github', 'instructions');
 		const instructionFile = join(instructionsDir, 'policy.instructions.md');
@@ -829,8 +858,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	}
 
 	async function runSimpleAgentInstructionWatchTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
-		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-watch-simple-agent-instructions-${discoveryMode}-`);
-		tempDirs.push(workspaceDir);
+		const workspaceDir = await createWorkspace(`ahp-customizations-watch-simple-agent-instructions-${discoveryMode}-`);
 
 		const workspaceAgentInstructionsFile = join(workspaceDir, 'AGENTS.md');
 		const workspaceClaudeInstructionsFile = join(workspaceDir, 'CLAUDE.md');
@@ -938,8 +966,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 
 	async function runSimpleSkillWatchTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
-		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-watch-simple-skill-${discoveryMode}-`);
-		tempDirs.push(workspaceDir);
+		const workspaceDir = await createWorkspace(`ahp-customizations-watch-simple-skill-${discoveryMode}-`);
 
 		const skillsDir = join(workspaceDir, '.github', 'skills');
 		const skillDir = join(skillsDir, 'watch-skill');
@@ -1030,8 +1057,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	}
 
 	async function runSimpleAgentWatchTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
-		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-watch-simple-agent-${discoveryMode}-`);
-		tempDirs.push(workspaceDir);
+		const workspaceDir = await createWorkspace(`ahp-customizations-watch-simple-agent-${discoveryMode}-`);
 
 		const agentsDir = join(workspaceDir, '.github', 'agents');
 		const agentFile = join(agentsDir, 'watch.agent.md');
