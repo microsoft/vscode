@@ -6,6 +6,7 @@
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { VSBuffer, encodeBase64 } from '../../../../../base/common/buffer.js';
+import { safeIntl } from '../../../../../base/common/date.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { computeLevenshteinDistance } from '../../../../../base/common/diff/diff.js';
 import { joinPath } from '../../../../../base/common/resources.js';
@@ -34,13 +35,16 @@ import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
 
+const dictationCleanupWordSegmenter = safeIntl.Segmenter(undefined, { granularity: 'word' });
+
 export function isFaithfulDictationCleanup(raw: string, cleaned: string): boolean {
-	const toWords = (text: string): string[] => text
+	const toWords = (text: string): string[] => Array.from(dictationCleanupWordSegmenter.value.segment(text
 		.replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, '')
 		.normalize('NFD')
 		.toLocaleLowerCase()
-		.replace(/\p{M}|['\u2019]/gu, '')
-		.match(/[\p{L}\p{N}]+/gu) ?? [];
+		.replace(/\p{M}|['\u2019]/gu, '')))
+		.filter(segment => segment.isWordLike)
+		.map(segment => segment.segment);
 	const rawWords = toWords(raw);
 	const cleanedWords = toWords(cleaned);
 	if (

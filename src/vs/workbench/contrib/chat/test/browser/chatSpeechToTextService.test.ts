@@ -20,8 +20,10 @@ suite('ChatSpeechToTextService', () => {
 				),
 				isFaithfulDictationCleanup('dont stop now', 'Don\'t stop now.'),
 				isFaithfulDictationCleanup('le cafe est bon', 'Le café est bon.'),
+				// allow-any-unicode-next-line
+				isFaithfulDictationCleanup('今天天气很好我们去公园', '今天天气很好，我们去公园。'),
 			],
-			[true, true, true]
+			[true, true, true, true]
 		);
 	});
 
