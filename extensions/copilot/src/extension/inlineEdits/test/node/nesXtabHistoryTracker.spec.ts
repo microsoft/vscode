@@ -20,15 +20,26 @@ import { IRecordingInformation, ObservableWorkspaceRecordingReplayer } from '../
 
 
 describe('NesXtabHistoryTracker', () => {
+	const trackers: NesXtabHistoryTracker[] = [];
 
 	afterEach(() => {
+		for (const tracker of trackers) {
+			const sequences = tracker.getHistory().map(entry => {
+				assert(entry.sequence !== undefined);
+				return entry.sequence;
+			});
+			expect(sequences).toEqual([...sequences].sort((left, right) => left - right));
+		}
+		trackers.length = 0;
 		overrideNowValue(-1);
 	});
 
 	function createTracker(replayerWorkspace: any, maxHistorySize?: number | undefined, mergeStrategy = XtabEditMergeStrategy.sameStartLine) {
-		return new (class extends NesXtabHistoryTracker {
+		const tracker = new (class extends NesXtabHistoryTracker {
 			protected override readonly mergeStrategy = observableValue(this, mergeStrategy);
 		})(replayerWorkspace, maxHistorySize, new DefaultsOnlyConfigurationService(), new NullExperimentationService());
+		trackers.push(tracker);
+		return tracker;
 	}
 
 	function historyToString(tracker: NesXtabHistoryTracker): string {
@@ -71,6 +82,32 @@ describe('NesXtabHistoryTracker', () => {
 				{ kind: 'rejectedEdit', hunks: [{ startLineNumber: 0, oldLines: ['old'], newLines: ['four'] }] },
 			],
 		});
+	});
+
+	it('keeps normal history ordered by capture sequence when rejected edits are interleaved', () => {
+		const recording: IRecordingInformation = {
+			log: [
+				{ documentType: 'workspaceRecording@1.0', kind: 'header', repoRootUri: 'file:///Users/john/myProject', time: 0, uuid: '' },
+				{ time: 10, id: 0, kind: 'documentEncountered', relativePath: 'src/a.ts' },
+				{ time: 11, id: 0, v: 1, kind: 'setContent', content: 'one\ntwo' },
+				{ time: 12, id: 0, v: 2, kind: 'changed', edit: [[0, 3, 'ONE']] },
+				{ time: 13, id: 0, v: 3, kind: 'changed', edit: [[4, 7, 'TWO']] },
+			]
+		};
+		const replayer = new ObservableWorkspaceRecordingReplayer(recording);
+		const tracker = createTracker(replayer.workspace);
+		replayer.replay();
+
+		tracker.recordRejectedEdit(
+			DocumentId.create('file:///Users/john/myProject/src/a.ts'),
+			new StringText('ONE\nTWO'),
+			new StringReplacement(new OffsetRange(0, 3), 'One'),
+		);
+
+		expect({
+			normalSequences: tracker.getHistory().map(entry => entry.sequence),
+			rejectedSequences: tracker.getRejectedEditHistory().map(entry => entry.sequence),
+		}).toEqual({ normalSequences: [0, 1], rejectedSequences: [2] });
 	});
 
 	it('does not retain oversized rejected edits', () => {
