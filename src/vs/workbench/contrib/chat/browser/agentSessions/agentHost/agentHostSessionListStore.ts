@@ -9,6 +9,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ActionType, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -357,7 +358,7 @@ export class AgentHostSessionListStore extends Disposable {
 		if (!workingDirectory) {
 			return false;
 		}
-		const workingDirectoryUri = typeof workingDirectory === 'string' ? URI.parse(workingDirectory) : workingDirectory;
+		const workingDirectoryUri = fromAgentHostUri(typeof workingDirectory === 'string' ? URI.parse(workingDirectory) : workingDirectory);
 		return folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectoryUri, folder.uri));
 	}
 

@@ -23,6 +23,7 @@ import { createTextModel } from '../../../../../../editor/test/common/testTextMo
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
@@ -2541,6 +2542,25 @@ suite('AgentHostChatContribution', () => {
 			await listController.refresh(CancellationToken.None);
 
 			assert.deepStrictEqual(listController.items.map(item => item.label), ['In workspace']);
+		});
+
+		test('refresh includes remote agent host sessions from the current workspace', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const workspaceFolder = URI.parse('vscode-remote://ssh-remote+host/workspace/root');
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkspace: () => ({ id: '', folders: [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: Event.None,
+			});
+
+			const workingDirectory = toAgentHostUri(URI.joinPath(workspaceFolder, 'sub'), 'remote');
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'remote'), startTime: 1000, modifiedTime: 2000, summary: 'Remote workspace', workingDirectory });
+
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			await listController.refresh(CancellationToken.None);
+
+			assert.deepStrictEqual(listController.items.map(item => item.label), ['Remote workspace']);
 		});
 
 		test('refresh does not filter when no workspace folders are open', async () => {
