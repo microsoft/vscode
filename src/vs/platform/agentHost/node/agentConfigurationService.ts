@@ -12,6 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
+import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import type { ISchema, SchemaDefinition, SchemaValue } from '../common/agentHostSchema.js';
@@ -132,6 +133,9 @@ export interface IAgentConfigurationService {
 	 * Resolves once any in-flight root-config write has settled.
 	 */
 	whenIdle(): Promise<void>;
+
+	registerProviderConfiguration?(registration: IAgentCustomizationSettingsRegistration): void;
+	getRootConfigValues?(): Readonly<Record<string, unknown>>;
 }
 
 export class AgentConfigurationService extends Disposable implements IAgentConfigurationService {
@@ -160,6 +164,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		private readonly _stateManager: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
 		private readonly _rootConfigResource?: URI,
+		providerConfigurations: readonly IAgentCustomizationSettingsRegistration[] = [],
 	) {
 		super();
 		// Merge our customization schema/values into the existing root config
@@ -176,6 +181,9 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			},
 			values: { ...existing?.values, ...this._loadPersistedRootConfig() },
 		};
+		for (const registration of providerConfigurations) {
+			this.registerProviderConfiguration(registration);
+		}
 
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.RootConfigChanged) {
@@ -274,7 +282,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			return;
 		}
 
-		const values = this._stateManager.rootState.config?.values ?? { [AgentHostConfigKey.Customizations]: [] };
+		const values = { ...(this._stateManager.rootState.config?.values ?? { [AgentHostConfigKey.Customizations]: [] }) };
+		for (const key of getProviderBackedRootConfigKeys(this._stateManager.rootState)) {
+			delete values[key];
+		}
 		const content = JSON.stringify(values, undefined, '\t');
 		const resource = this._rootConfigResource;
 
@@ -293,6 +304,31 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 
 	async whenIdle(): Promise<void> {
 		await this._rootConfigWrite;
+	}
+
+	registerProviderConfiguration(registration: IAgentCustomizationSettingsRegistration): void {
+		const config = this._stateManager.rootState.config;
+		if (!config) {
+			return;
+		}
+		Object.assign(config.schema.properties, registration.properties);
+		for (const [key, property] of Object.entries(registration.properties)) {
+			if (config.values[key] === undefined && property.default !== undefined) {
+				config.values[key] = property.default;
+			}
+		}
+		const registrations = getAgentCustomizationSettingsEntries(this._stateManager.rootState).filter(entry => entry.provider !== registration.provider);
+		this._stateManager.rootState._meta = withAgentCustomizationSettings(this._stateManager.rootState, [...registrations, {
+			provider: registration.provider,
+			title: registration.title,
+			description: registration.description,
+			settings: registration.settings,
+			configurationFile: registration.configurationFile,
+		}]);
+	}
+
+	getRootConfigValues(): Readonly<Record<string, unknown>> {
+		return this._stateManager.rootState.config?.values ?? {};
 	}
 
 	/**

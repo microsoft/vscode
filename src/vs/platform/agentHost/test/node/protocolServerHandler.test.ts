@@ -20,9 +20,11 @@ import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCall
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
+import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileSystemProvider, agentHostUri } from '../../common/agentHostFileSystemProvider.js';
 import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
+import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -86,6 +88,7 @@ class MockAgentService implements IAgentService {
 	readonly readErrors = new Map<string, Error>();
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
+	shutdownCalls = 0;
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
@@ -147,7 +150,7 @@ class MockAgentService implements IAgentService {
 	}
 	addSubscriber(_resource: URI, _clientId: string): void { }
 	unsubscribe(_resource: URI, _clientId: string): void { }
-	async shutdown(): Promise<void> { }
+	async shutdown(): Promise<void> { this.shutdownCalls++; }
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
@@ -429,6 +432,54 @@ suite('ProtocolServerHandler', () => {
 				{ jsonrpc: '2.0', id: 9, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: notARealMethod' } },
 			],
 		);
+	});
+
+	test('extension methods remain enabled by default', async () => {
+		const transport = connectClient('client-extension-default');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 11);
+
+		transport.simulateMessage(request(11, 'shutdown', {}));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			shutdownCalls: agentService.shutdownCalls,
+		}, {
+			response: { jsonrpc: '2.0', id: 11, result: null },
+			shutdownCalls: 1,
+		});
+	});
+
+	test('extension methods can be disabled', () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const localServer = localDisposables.add(new MockProtocolServer());
+		localDisposables.add(new ProtocolServerHandler(
+			agentService,
+			stateManager,
+			localServer,
+			{
+				defaultDirectory: URI.file('/home/testuser').toString(),
+				allowExtensionMethods: false,
+			},
+			localDisposables.add(new AgentHostFileSystemProvider()),
+			logService,
+		));
+		const transport = new MockProtocolTransport();
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'client-extension-disabled',
+		}));
+		transport.sent.length = 0;
+		transport.simulateMessage(request(2, 'shutdown', {}));
+
+		assert.deepStrictEqual({
+			response: findResponse(transport.sent, 2),
+			shutdownCalls: agentService.shutdownCalls,
+		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
+			shutdownCalls: 0,
+		});
 	});
 
 	test('ping responds after initialize', async () => {
@@ -1840,6 +1891,41 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateClose();
 
 		assert.deepStrictEqual(counts, [1, 2, 1]);
+	});
+
+	test('shares connection count across MessagePort and external listeners', async () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const messagePortServer = new MessagePortProtocolServer<string>();
+		const socketServer = new MockProtocolServer();
+		const combinedServer = localDisposables.add(new CompositeProtocolServer([messagePortServer, socketServer]));
+		const combinedHandler = localDisposables.add(new ProtocolServerHandler(
+			agentService,
+			stateManager,
+			combinedServer,
+			{ defaultDirectory: URI.file('/home/testuser').toString() },
+			localDisposables.add(new AgentHostFileSystemProvider()),
+			logService,
+		));
+		const counts: number[] = [];
+		localDisposables.add(combinedHandler.onDidChangeConnectionCount(count => counts.push(count)));
+
+		await messagePortServer.call<void>('message-port-client', 'connect');
+		await messagePortServer.call<void>('message-port-client', 'send', JSON.stringify(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'message-port-client',
+		})));
+
+		const socketTransport = new MockProtocolTransport();
+		socketServer.simulateConnection(socketTransport);
+		socketTransport.simulateMessage(request(2, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'socket-client',
+		}));
+
+		messagePortServer.closeClient('message-port-client');
+		socketTransport.simulateClose();
+
+		assert.deepStrictEqual(counts, [1, 2, 1, 0]);
 	});
 
 	test('onDidChangeConnectionCount is not decremented by stale reconnect close', () => {

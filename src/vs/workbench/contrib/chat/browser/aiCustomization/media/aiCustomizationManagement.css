@@ -237,6 +237,11 @@
 	box-sizing: border-box;
 }
 
+.ai-customization-management-editor .contributed-section-container {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
 .ai-customization-management-editor .section-back-arrow-button {
 	flex-shrink: 0;
 	align-self: flex-start;

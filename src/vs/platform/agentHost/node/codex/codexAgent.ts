@@ -22,6 +22,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostMcpServersConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
+import { AgentHostConfigKey, agentHostCustomizationConfigSchema, type CodexUsageSource } from '../../common/agentHostCustomizationConfig.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider, type AuthenticateParams } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -29,6 +30,7 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProt
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
+import { AuthRequiredReason, type AuthRequiredParams } from '../../common/state/protocol/common/notifications.js';
 import { buildDefaultChatUri, parseChatUri, type ClientPluginCustomization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
@@ -58,6 +60,8 @@ import { resolveCodexInput } from './codexPromptResolver.js';
 import { buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAnswers } from './codexUserInputMapper.js';
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
+import { buildCodexLaunchConfig, buildCodexResumeParams, isCodexThreadProviderCompatible } from './codexLaunchConfig.js';
+import { codexAccountStateForUsageSource, codexAccountStateFromResponse, codexProtectedResourcesForUsageSource, resolveCodexUsageSourceAfterAccountRead, type ICodexAccountState } from './codexAccountState.js';
 import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
 import type { ReasoningSummary } from './protocol/generated/ReasoningSummary.js';
@@ -82,6 +86,7 @@ import type { ToolRequestUserInputQuestion } from './protocol/generated/v2/ToolR
 import type { ToolRequestUserInputResponse } from './protocol/generated/v2/ToolRequestUserInputResponse.js';
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
 import type { GetAccountResponse } from './protocol/generated/v2/GetAccountResponse.js';
+import type { ModelListResponse } from './protocol/generated/v2/ModelListResponse.js';
 import type { Thread } from './protocol/generated/v2/Thread.js';
 import type { ThreadListResponse } from './protocol/generated/v2/ThreadListResponse.js';
 import type { ThreadReadResponse } from './protocol/generated/v2/ThreadReadResponse.js';
@@ -103,6 +108,8 @@ import type { HooksListResponse } from './protocol/generated/v2/HooksListRespons
 import type { ItemGuardianApprovalReviewCompletedNotification } from './protocol/generated/v2/ItemGuardianApprovalReviewCompletedNotification.js';
 import type { GuardianWarningNotification } from './protocol/generated/v2/GuardianWarningNotification.js';
 import type { ThreadApproveGuardianDeniedActionResponse } from './protocol/generated/v2/ThreadApproveGuardianDeniedActionResponse.js';
+import type { ConfigReadResponse } from './protocol/generated/v2/ConfigReadResponse.js';
+import type { ConfigWriteResponse } from './protocol/generated/v2/ConfigWriteResponse.js';
 import { formatGuardianDenialNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
 
 const CLIENT_INFO = {
@@ -550,7 +557,8 @@ type ConnectionState =
 
 interface IConnectionReady {
 	readonly client: ICodexAppServerClient;
-	readonly proxyHandle: ICodexProxyHandle;
+	readonly usageSource: CodexUsageSource;
+	readonly proxyHandle?: ICodexProxyHandle;
 	readonly child: ChildProcessWithoutNullStreams;
 }
 
@@ -688,11 +696,19 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _onDidMaterializeSession = this._register(new Emitter<IAgentMaterializeSessionEvent>());
 	readonly onDidMaterializeSession = this._onDidMaterializeSession.event;
 
+	private readonly _onDidRequireAuth = this._register(new Emitter<Omit<AuthRequiredParams, 'channel'>>());
+	readonly onDidRequireAuth = this._onDidRequireAuth.event;
+
 	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
 	readonly onMcpNotification = this._onMcpNotification.event;
 
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models: IObservable<readonly IAgentModelInfo[]> = this._models;
+	private _openAIAccountState: ICodexAccountState = { usageSource: 'openai', status: 'signedOut' };
+	private _providerConfigurationValues: Record<string, unknown> = {};
+	private _providerConfigurationWrite = Promise.resolve();
+	private _providerConfigurationReady = false;
+	private _providerConfigurationRefresh: Promise<void> | undefined;
 
 	/** Keyed by caller-facing sessionId (the URI host). */
 	private readonly _sessions = new Map<string, ICodexSession>();
@@ -736,8 +752,12 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private readonly _mcpAuthServerUrlsByResource = new Map<string, Set<string>>();
 	private _githubToken: string | undefined;
+	private _usageSource: CodexUsageSource;
+	private _pendingUsageSource: CodexUsageSource | undefined;
 	private _connection: ConnectionState = { kind: 'idle' };
+	private _connectionGeneration = 0;
 	private _modelsRefreshPromise: Promise<void> | undefined;
+	private _usageSourceValidation = Promise.resolve();
 	private readonly _metadataStore: CodexSessionMetadataStore;
 
 	/**
@@ -764,15 +784,128 @@ export class CodexAgent extends Disposable implements IAgent {
 	) {
 		super();
 		this._metadataStore = this._instantiationService.createInstance(CodexSessionMetadataStore);
+		this._usageSource = this._resolveUsageSource();
+		this._register(this._configurationService.onDidRootConfigChange(() => {
+			const next = this._resolveUsageSource();
+			if (next !== this._usageSource) {
+				this._requestUsageSourceChange(next);
+			} else {
+				this._pendingUsageSource = undefined;
+			}
+			this._queueProviderConfigurationWrite();
+		}));
+		void this._refreshProviderConfiguration();
+		if (this._usageSource === 'openai') {
+			this._usageSourceValidation = this._validateOpenAIUsageSource();
+		}
+	}
+
+	private async _validateOpenAIUsageSource(): Promise<void> {
+		let account: ICodexAccountState;
+		try {
+			const connection = await this._ensureConnection(true);
+			account = await this._refreshAccount(connection.client, false);
+		} catch (error) {
+			if (this._usageSource !== 'openai') {
+				return;
+			}
+			const message = error instanceof Error ? error.message : String(error);
+			this._setOpenAIAccountState({ usageSource: 'openai', status: 'error', error: message }, false);
+			return;
+		}
+		if (this._usageSource !== 'openai') {
+			return;
+		}
+		const source = resolveCodexUsageSourceAfterAccountRead(this._usageSource, account);
+		if (source === 'copilot') {
+			this._logService.info('[Codex] OpenAI is signed out; falling back to GitHub Copilot');
+			this._configurationService.updateRootConfig({ [AgentHostConfigKey.CodexUsageSource]: source });
+			return;
+		}
+		if (account.status === 'signedIn') {
+			this._queueModelRefresh();
+		}
+	}
+
+	private _setOpenAIAccountState(state: ICodexAccountState, _publish = true): void {
+		this._openAIAccountState = state;
+	}
+
+	private _resolveUsageSource(): CodexUsageSource {
+		return this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.CodexUsageSource) ?? 'copilot';
+	}
+
+	private _requestUsageSourceChange(source: CodexUsageSource): void {
+		if (this._hasActiveTurns()) {
+			this._pendingUsageSource = source;
+			this._logService.info(`[Codex] Deferring usage source change to '${source}' until active turns finish`);
+			return;
+		}
+		if (source === 'openai') {
+			this._applyUsageSourceChange(source, false, false);
+			this._usageSourceValidation = this._validateOpenAIUsageSource();
+			return;
+		}
+		this._applyUsageSourceChange(source);
+	}
+
+	private _applyUsageSourceChange(source: CodexUsageSource, _publishAccount = true, refreshModels = true): void {
+		const previousSource = this._usageSource;
+		this._pendingUsageSource = undefined;
+		this._usageSource = source;
+		this._disposeConnection();
+		for (const session of this._sessions.values()) {
+			this._resetSessionForUsageSourceChange(session, source, previousSource);
+		}
+		this._subagentsByThreadId.clear();
+		this._models.set([], undefined);
+		if (!refreshModels) {
+			return;
+		}
+		if (source === 'openai') {
+			this._queueModelRefresh();
+		} else if (this._githubToken) {
+			this._queueModelRefresh();
+		} else {
+			this._onDidRequireAuth.fire({ resource: this._gitHubEndpointService.getCopilotResource().resource, reason: AuthRequiredReason.Required });
+		}
+	}
+
+	private _resetSessionForUsageSourceChange(session: ICodexSession, source: CodexUsageSource, previousSource?: CodexUsageSource): void {
+		if (session.threadId === undefined) {
+			return;
+		}
+		this._logService.info(`[Codex:${session.sessionId}] replacing ${previousSource ?? 'incompatible-provider'} thread ${session.threadId} with a fresh ${source} thread`);
+		this._sessionIdByThreadId.delete(session.threadId);
+		session.threadId = undefined;
+		session.materializePromise = undefined;
+		session.materializedToolsSig = undefined;
+		session.materializedMcpSig = undefined;
+		session.needsResume = false;
+		session.hostTurnIdByAppTurnId.clear();
+		session.codexTurnIdByHostTurnId.clear();
+	}
+
+	private _hasActiveTurns(): boolean {
+		return [...this._sessions.values()].some(session => session.currentTurnId !== undefined)
+			|| [...this._subagentsByThreadId.values()].some(subagent => subagent.session.currentTurnId !== undefined);
+	}
+
+	private _applyPendingUsageSourceIfIdle(): void {
+		const pendingUsageSource = this._pendingUsageSource;
+		if (pendingUsageSource && !this._hasActiveTurns()) {
+			this._applyUsageSourceChange(pendingUsageSource);
+		}
 	}
 
 	// #region Auth
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
-		return [
+		return codexProtectedResourcesForUsageSource(
+			this._usageSource,
 			this._gitHubEndpointService.getCopilotResource(),
-			this._gitHubEndpointService.getRepoResource()
-		];
+			this._gitHubEndpointService.getRepoResource(),
+		);
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
@@ -784,16 +917,21 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const changed = this._githubToken !== token;
 		this._githubToken = token;
-		if (changed && this._connection.kind === 'ready') {
+		if (this._usageSource === 'openai') {
+			void this._refreshProviderConfiguration();
+			return true;
+		}
+		if (changed && this._connection.kind === 'ready' && this._connection.proxyHandle) {
 			// Codex stays running — proxy reads the new token from its
 			// own cell on the next request (Decision 4).
 			this._connection.proxyHandle.setToken(token);
-			this._queueModelRefresh(token);
+			this._queueModelRefresh();
 		} else if (changed) {
 			// Defer model refresh until the connection comes up.
-			this._queueModelRefresh(token);
+			this._queueModelRefresh();
 		}
 		this._logService.info('[Codex] Auth token updated');
+		void this._refreshProviderConfiguration();
 		return true;
 	}
 
@@ -883,8 +1021,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private _queueModelRefresh(token: string): void {
-		const refreshPromise = this._refreshModels(token).finally(() => {
+	private _queueModelRefresh(): void {
+		const refreshPromise = this._refreshModels().finally(() => {
 			if (this._modelsRefreshPromise === refreshPromise) {
 				this._modelsRefreshPromise = undefined;
 			}
@@ -893,7 +1031,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		void this._modelsRefreshPromise;
 	}
 
-	private _ensureAuthenticated(): string {
+	private _ensureAuthenticated(): string | undefined {
+		if (this._usageSource === 'openai') {
+			return undefined;
+		}
 		const token = this._githubToken;
 		if (!token) {
 			throw new ProtocolError(
@@ -1044,11 +1185,21 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private async _refreshModels(token: string): Promise<void> {
+	private async _refreshModels(): Promise<void> {
+		const usageSource = this._usageSource;
+		if (usageSource === 'openai') {
+			await this._refreshOpenAIModels();
+			return;
+		}
+		const token = this._githubToken;
+		if (!token) {
+			this._models.set([], undefined);
+			return;
+		}
 		try {
 			const userAgent = `${USER_AGENT_PREFIX}/${this._productService.version}`;
 			const all = await this._copilotApiService.models(token, { headers: { 'User-Agent': userAgent }, suppressIntegrationId: true });
-			if (this._githubToken !== token) {
+			if (this._usageSource !== usageSource || this._githubToken !== token) {
 				return;
 			}
 			const configSchema = this._createReasoningEffortConfigSchema();
@@ -1083,7 +1234,41 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._models.set(models, undefined);
 		} catch (err) {
 			this._logService.warn(`[Codex] Failed to refresh models: ${err instanceof Error ? err.message : String(err)}`);
-			if (this._githubToken === token) {
+			if (this._usageSource === usageSource && this._githubToken === token) {
+				this._models.set([], undefined);
+			}
+		}
+	}
+
+	private async _refreshOpenAIModels(): Promise<void> {
+		try {
+			const connection = await this._ensureConnection();
+			if (connection.usageSource !== 'openai') {
+				return;
+			}
+			const data = [] as ModelListResponse['data'];
+			let cursor: string | null = null;
+			do {
+				const response: ModelListResponse = await connection.client.request<'model/list', ModelListResponse>('model/list', { cursor, limit: 100, includeHidden: false });
+				data.push(...response.data);
+				cursor = response.nextCursor;
+			} while (cursor !== null);
+			const configSchema = this._createReasoningEffortConfigSchema();
+			const models = data
+				.sort((left, right) => Number(right.isDefault) - Number(left.isDefault))
+				.map((model): IAgentModelInfo => ({
+					provider: this.id,
+					id: model.model,
+					name: model.displayName,
+					supportsVision: model.inputModalities.includes('image'),
+					configSchema,
+				}));
+			if (this._usageSource === 'openai') {
+				this._models.set(models, undefined);
+			}
+		} catch (err) {
+			this._logService.warn(`[Codex] Failed to refresh OpenAI models: ${err instanceof Error ? err.message : String(err)}`);
+			if (this._usageSource === 'openai') {
 				this._models.set([], undefined);
 			}
 		}
@@ -1098,19 +1283,38 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * authenticate via apiKey, and return the ready connection. Idempotent
 	 * — concurrent callers share the same promise.
 	 */
-	private _ensureConnection(): Promise<IConnectionReady> {
+	private async _ensureConnection(skipUsageSourceValidation = false): Promise<IConnectionReady> {
 		if (this._connection.kind === 'ready') {
 			return Promise.resolve(this._connection);
 		}
 		if (this._connection.kind === 'starting') {
 			return this._connection.promise;
 		}
+		if (!skipUsageSourceValidation && this._usageSource === 'openai') {
+			let validation = this._usageSourceValidation;
+			await validation;
+			while (validation !== this._usageSourceValidation) {
+				validation = this._usageSourceValidation;
+				await validation;
+			}
+		}
 		const token = this._ensureAuthenticated();
-		const promise = this._startConnection(token).then(ready => {
+		const usageSource = this._usageSource;
+		const generation = this._connectionGeneration;
+		const startPromise = this._startConnection(usageSource, token);
+		const promise = startPromise.then(ready => {
+			if (generation !== this._connectionGeneration || usageSource !== this._usageSource) {
+				ready.client.dispose();
+				ready.proxyHandle?.dispose();
+				try { ready.child.kill('SIGKILL'); } catch { /* already dead */ }
+				throw new Error('Codex usage source changed while app-server was starting');
+			}
 			this._connection = { kind: 'ready', ...ready };
 			return ready;
 		}).catch(err => {
-			this._connection = { kind: 'idle' };
+			if (generation === this._connectionGeneration) {
+				this._connection = { kind: 'idle' };
+			}
 			throw err;
 		});
 		this._connection = { kind: 'starting', promise };
@@ -1146,7 +1350,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		return this._agentSdkDownloader.loadSdkRoot(CodexSdkPackage, CancellationToken.None);
 	}
 
-	private async _startConnection(token: string): Promise<IConnectionReady> {
+	private async _startConnection(usageSource: CodexUsageSource, token: string | undefined): Promise<IConnectionReady> {
 		// Resolve the Codex SDK root: dev override / product download via the
 		// downloader, or this repo's `node_modules` in a source checkout (see
 		// `_resolveSdkRoot`). We spawn the native codex binary inside the
@@ -1172,52 +1376,25 @@ export class CodexAgent extends Disposable implements IAgent {
 			throw new Error(`Codex binary not executable: ${binaryPath} (${err instanceof Error ? err.message : String(err)})`);
 		}
 
-		const proxyHandle = await this._codexProxyService.start(token);
+		let proxyHandle: ICodexProxyHandle | undefined;
+		if (usageSource === 'copilot') {
+			if (!token) {
+				throw new Error('Codex Copilot launch requires a GitHub token');
+			}
+			proxyHandle = await this._codexProxyService.start(token);
+		}
 
-		// Build child env: inherit, override OPENAI_API_KEY so the proxy's
-		// nonce check passes. The proxy provider is plumbed via `-c` CLI
-		// overrides below; we deliberately do NOT write a config.toml,
-		// which would force a managed CODEX_HOME and trip codex's
-		// "refusing to write helper binaries under TMPDIR" warning.
-		const env: NodeJS.ProcessEnv = {
-			...process.env,
-			OPENAI_API_KEY: proxyHandle.nonce,
-		};
+		const extraArgs = parseBinaryArgs(process.env[AgentHostCodexAgentBinaryArgsEnvVar]);
+		const launchConfig = buildCodexLaunchConfig(usageSource, process.env, proxyHandle, extraArgs);
+		const env = launchConfig.env;
 		const userCodexHome = process.env[AgentHostCodexAgentCodexHomeEnvVar];
 		if (userCodexHome) {
 			env.CODEX_HOME = userCodexHome;
 		}
 
-		// Define an in-memory `vscode-proxy` provider that points at our
-		// local proxy with WebSocket transport disabled. Using `-c`
-		// overrides composes with the user's ~/.codex/config.toml — their
-		// other settings (model, MCP servers, etc.) still apply.
-		const providerOverrides = [
-			`model_provider="vscode-proxy"`,
-			`model_providers.vscode-proxy.name="VS Code Proxy"`,
-			`model_providers.vscode-proxy.base_url="${proxyHandle.baseUrl}/v1"`,
-			`model_providers.vscode-proxy.wire_api="responses"`,
-			`model_providers.vscode-proxy.env_key="OPENAI_API_KEY"`,
-			`model_providers.vscode-proxy.requires_openai_auth=false`,
-			`model_providers.vscode-proxy.supports_websockets=false`,
-			// Route MCP tool-call approvals through codex's `request_user_input`
-			// path (a proper Allow / Allow-and-remember / Cancel options
-			// question the agent host already renders) instead of the
-			// `tool_call_mcp_elicitation` path, which surfaces them as an
-			// empty-schema `mcpServer/elicitation/request` that would render as
-			// a bare free-text prompt. With this off, the host's MCP
-			// elicitation handler is reserved for genuine server-to-user
-			// elicitations.
-			`features.tool_call_mcp_elicitation=false`,
-			// CAPI rejects the hosted `image_generation` tool; disable it so codex does not emit it.
-			`features.image_generation=false`,
-		];
+		const args = [...launchConfig.args];
 
-		// Extra args forwarded as JSON from the workbench setting.
-		const extraArgs = parseBinaryArgs(process.env[AgentHostCodexAgentBinaryArgsEnvVar]);
-		const args = ['app-server', ...providerOverrides.flatMap(kv => ['-c', kv]), ...extraArgs];
-
-		this._logService.info(`[Codex] spawning ${binaryPath} ${args.join(' ')}`);
+		this._logService.info(`[Codex] spawning usageSource=${usageSource} proxy=${proxyHandle ? 'enabled' : 'disabled'} ${binaryPath} ${args.join(' ')}`);
 		const child = spawn(binaryPath, args, { env, stdio: ['pipe', 'pipe', 'pipe'] });
 
 		// Surface stderr to the log channel — codex writes useful startup
@@ -1250,7 +1427,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// With `requires_openai_auth = false` on the proxy provider,
 			// codex does not require a separate login step — the proxy
 			// nonce is read from OPENAI_API_KEY by the provider's env_key.
-			if (userCodexHome) {
+			if (userCodexHome && proxyHandle) {
 				// User-provided CODEX_HOME may target a provider that
 				// still requires auth; preserve the apiKey login path.
 				await client.request<'account/login/start'>('account/login/start', {
@@ -1258,16 +1435,25 @@ export class CodexAgent extends Disposable implements IAgent {
 					apiKey: proxyHandle.nonce,
 				});
 			}
-			void this._logAccountSnapshot(client);
+			if (usageSource === 'openai') {
+				void this._refreshAccount(client);
+			}
 		} catch (err) {
 			client.dispose();
-			proxyHandle.dispose();
+			proxyHandle?.dispose();
 			try { child.kill('SIGKILL'); } catch { /* already dead */ }
 			throw err;
 		}
 
 		// Wire global notification → SessionAction dispatch.
 		this._registerIgnoredNotifications(client);
+		this._register(client.onNotification('account/login/completed', () => { /* sign-in is managed outside VS Code */ }));
+		this._register(client.onNotification('account/updated', () => {
+			if (this._usageSource === 'openai' && this._connection.kind === 'ready' && this._connection.client === client) {
+				void this._refreshAccount(client);
+				this._queueModelRefresh();
+			}
+		}));
 		this._register(client.onNotification('turn/started', params => this._dispatchByThread(params.threadId, s => this._handleTurnStartedNotification(s, params))));
 		this._register(client.onNotification('item/started', params => this._dispatchByThread(params.threadId, s => this._handleItemStarted(s, params))));
 		this._register(client.onNotification('item/agentMessage/delta', params => this._dispatchByThread(params.threadId, s => mapAgentMessageDelta(s.mapState, this._withHostTurnId(s, params)))));
@@ -1346,7 +1532,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// until the next `mcpServer/startupStatus/updated` notification.
 		void this._refreshMcpInventory(client);
 
-		return { client, proxyHandle, child };
+		return { client, usageSource, proxyHandle, child };
 	}
 
 	/**
@@ -1747,7 +1933,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			'thread/settings/updated', // VS Code owns session config; Codex settings echoes are not consumed yet.
 			'thread/goal/updated', // Goals are not surfaced in the Agent Host UI yet.
 			'thread/goal/cleared', // Goals are not surfaced in the Agent Host UI yet.
-			'account/updated', // Account state is read on connect; live account updates are not surfaced yet.
 			'account/rateLimits/updated', // Rate-limit UI/state is not implemented yet.
 			'remoteControl/status/changed', // Remote-control state is not part of the VS Code integration.
 			'serverRequest/resolved', // We resolve requests through JSON-RPC responses, so this echo is informational.
@@ -1758,15 +1943,88 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _logAccountSnapshot(client: ICodexAppServerClient): Promise<void> {
+	private async _refreshAccount(client: ICodexAppServerClient, publish = true): Promise<ICodexAccountState> {
 		try {
 			const response = await client.request<'account/read', GetAccountResponse>('account/read', { refreshToken: false });
-			const accountType = response.account?.type ?? 'none';
-			const planType = response.account?.type === 'chatgpt' ? response.account.planType : undefined;
-			this._logService.info(`[Codex] account/read accountType=${accountType} requiresOpenaiAuth=${response.requiresOpenaiAuth}${planType ? ` planType=${planType}` : ''}`);
+			const state = codexAccountStateFromResponse(response);
+			this._setOpenAIAccountState(state, publish);
+			this._logService.info(`[Codex] account/read accountType=${response.account?.type ?? 'none'} requiresOpenaiAuth=${response.requiresOpenaiAuth}${state.planType ? ` planType=${state.planType}` : ''}`);
+			return state;
 		} catch (err) {
-			this._logService.warn(`[Codex] account/read failed: ${err instanceof Error ? err.message : String(err)}`);
+			const message = err instanceof Error ? err.message : String(err);
+			this._logService.warn(`[Codex] account/read failed: ${message}`);
+			const state: ICodexAccountState = { usageSource: 'openai', status: 'error', error: message };
+			this._setOpenAIAccountState(state, publish);
+			return state;
 		}
+	}
+
+	private async _readProviderConfiguration(): Promise<Record<string, unknown>> {
+		const connection = await this._ensureConnection();
+		const response = await connection.client.request<'config/read', ConfigReadResponse>('config/read', { includeLayers: true });
+		const userLayer = response.layers?.find(layer => layer.name.type === 'user' && layer.name.profile === null) ?? response.layers?.find(layer => layer.name.type === 'user');
+		const config = userLayer?.config && typeof userLayer.config === 'object' && !Array.isArray(userLayer.config) ? userLayer.config as Record<string, unknown> : {};
+		return {
+			'codex.personality': this._readConfigurationValue(config, 'personality') ?? 'default',
+			'codex.autoReviewPolicy': this._readConfigurationValue(config, 'auto_review.policy') ?? '',
+		};
+	}
+
+	private async _writeProviderConfiguration(key: string, value: unknown): Promise<void> {
+		const connection = await this._ensureConnection();
+		await connection.client.request<'config/batchWrite', ConfigWriteResponse>('config/batchWrite', {
+			edits: key === 'codex.autoReviewPolicy' && value === ''
+				? [{ keyPath: 'auto_review', value: null, mergeStrategy: 'replace' }]
+				: key === 'codex.personality' && value === 'default'
+					? [{ keyPath: 'personality', value: null, mergeStrategy: 'replace' }]
+					: [{ keyPath: key === 'codex.personality' ? 'personality' : 'auto_review.policy', value: value as string, mergeStrategy: 'replace' }],
+			expectedVersion: null,
+			reloadUserConfig: true,
+		});
+	}
+
+	private _refreshProviderConfiguration(): Promise<void> {
+		return this._providerConfigurationRefresh ??= (async () => {
+			try {
+				this._providerConfigurationValues = await this._readProviderConfiguration();
+				this._providerConfigurationReady = true;
+				this._configurationService.updateRootConfig(this._providerConfigurationValues);
+			} catch (error) {
+				this._logService.warn(`[Codex] Failed to read config.toml: ${error instanceof Error ? error.message : String(error)}`);
+			} finally {
+				this._providerConfigurationRefresh = undefined;
+			}
+		})();
+	}
+
+	private _queueProviderConfigurationWrite(): void {
+		if (!this._providerConfigurationReady) {
+			return;
+		}
+		const values = this._configurationService.getRootConfigValues?.() ?? {};
+		for (const key of ['codex.personality', 'codex.autoReviewPolicy']) {
+			if (values[key] === this._providerConfigurationValues[key]) { continue; }
+			const value = values[key];
+			if (value === undefined) { continue; }
+			this._providerConfigurationWrite = this._providerConfigurationWrite.then(async () => {
+				if (this._providerConfigurationValues[key] === value) {
+					return;
+				}
+				await this._writeProviderConfiguration(key, value);
+				this._providerConfigurationValues[key] = value;
+			}).catch(error => this._logService.error(`[Codex] Failed to update config.toml: ${error instanceof Error ? error.message : String(error)}`));
+		}
+	}
+
+	private _readConfigurationValue(config: Record<string, unknown>, keyPath: string): unknown {
+		let value: unknown = config;
+		for (const segment of keyPath.split('.')) {
+			if (!value || Array.isArray(value) || typeof value !== 'object') {
+				return undefined;
+			}
+			value = (value as Record<string, unknown>)[segment];
+		}
+		return value;
 	}
 
 	private _dispatchByThread(threadId: string, mapFn: (s: ICodexSession) => ReturnType<typeof mapTurnStarted>): void {
@@ -1853,9 +2111,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				chat: URI.parse(buildDefaultChatUri(subagent.session.sessionUri)),
 				toolCallId: subagent.toolCallId,
 			});
+			this._applyPendingUsageSourceIfIdle();
 			return;
 		}
 		this._dispatchByThread(params.threadId, s => this._handleTurnCompletedNotification(s, params));
+		this._applyPendingUsageSourceIfIdle();
 	}
 
 	/**
@@ -2299,6 +2559,15 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._fire(session.sessionUri, { type: ActionType.ChatTurnComplete, turnId, duration });
 			}
 		}
+		for (const subagent of this._subagentsByThreadId.values()) {
+			subagent.session.pendingCommandApprovals.denyAll('decline');
+			subagent.session.pendingClientToolCalls.rejectAll(new CancellationError());
+			subagent.session.pendingUserInputs.rejectAll(new CancellationError());
+			subagent.session.currentTurnId = undefined;
+			subagent.session.currentAppTurnId = undefined;
+		}
+		this._subagentsByThreadId.clear();
+		this._applyPendingUsageSourceIfIdle();
 		// Release resources. The proxy handle is refcounted and drops
 		// the underlying server once everyone releases.
 		try {
@@ -2307,10 +2576,22 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._logService.error(`[Codex] Failed to dispose app-server client after connection lost: ${err instanceof Error ? err.message : String(err)}`);
 		}
 		try {
-			conn.proxyHandle.dispose();
+			conn.proxyHandle?.dispose();
 		} catch (err) {
 			this._logService.error(`[Codex] Failed to dispose proxy handle after connection lost: ${err instanceof Error ? err.message : String(err)}`);
 		}
+	}
+
+	private _disposeConnection(): void {
+		const connection = this._connection;
+		this._connectionGeneration++;
+		this._connection = { kind: 'idle' };
+		if (connection.kind !== 'ready') {
+			return;
+		}
+		try { connection.client.dispose(); } catch { /* ignore */ }
+		try { connection.proxyHandle?.dispose(); } catch { /* ignore */ }
+		try { connection.child.kill('SIGKILL'); } catch { /* already dead */ }
 	}
 
 	// #endregion
@@ -2321,7 +2602,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		return {
 			provider: this.id,
 			displayName: localize('codexAgent.displayName', "Codex"),
-			description: localize('codexAgent.description', "Codex agent backed by the OpenAI Codex app-server"),
+			description: this._usageSource === 'openai'
+				? localize('codexAgent.description.openai', "Codex agent using your OpenAI account")
+				: localize('codexAgent.description.copilot', "Codex agent using GitHub Copilot"),
 		};
 	}
 
@@ -2379,7 +2662,13 @@ export class CodexAgent extends Disposable implements IAgent {
 	};
 
 	async createSession(config: IAgentCreateSessionConfig = {}): Promise<IAgentCreateSessionResult> {
-		this._logService.info(`[Codex DEBUG] createSession session=${config.session?.toString() ?? '(none)'} model=${config.model?.id ?? '(none)'} cwd=${config.workingDirectory?.toString() ?? '(none)'}`);
+		this._logService.info(`[Codex DEBUG] createSession usageSource=${this._usageSource} accountStatus=${codexAccountStateForUsageSource(this._usageSource, this._openAIAccountState).status} session=${config.session?.toString() ?? '(none)'} model=${config.model?.id ?? '(none)'} cwd=${config.workingDirectory?.toString() ?? '(none)'}`);
+		let validation = this._usageSourceValidation;
+		await validation;
+		while (validation !== this._usageSourceValidation) {
+			validation = this._usageSourceValidation;
+			await validation;
+		}
 		this._ensureAuthenticated();
 		if (config.fork) {
 			return this._forkSession(config, config.fork);
@@ -2926,10 +3215,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				// so a resumed thread reconnects auth-gated servers, matching
 				// the config a fresh `thread/start` would apply.
 				const mcpServers = this._buildSessionMcpServers(session);
-				await conn.client.request<'thread/resume'>('thread/resume', {
-					threadId,
-					...(Object.keys(mcpServers).length > 0 ? { config: { mcp_servers: mcpServers as JsonValue } } : {}),
-				});
+				await conn.client.request<'thread/resume'>('thread/resume', buildCodexResumeParams(this._usageSource, threadId, mcpServers));
 				session.materializedMcpSig = mcpServersSignature(mcpServers);
 				session.needsResume = false;
 			} catch (err) {
@@ -3310,12 +3596,16 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!this._sessions.has(sessionId)) {
 			const workingDirectory = read.thread.cwd ? URI.file(read.thread.cwd) : undefined;
 			const threadId = read.thread.id;
-			this._sessions.set(sessionId, this._createResumedSessionEntry(sessionId, threadId, session, workingDirectory, undefined));
+			const restored = this._createResumedSessionEntry(sessionId, threadId, session, workingDirectory, undefined);
+			this._sessions.set(sessionId, restored);
 			this._sessionIdByThreadId.set(threadId, sessionId);
-			// Restored threads skip materialization (the thread already exists),
-			// so advertise the server tools here for client-side parity.
-			const restored = this._sessions.get(sessionId);
-			if (restored && !restored.serverToolsAdvertised && this._serverToolHost) {
+			if (!isCodexThreadProviderCompatible(this._usageSource, read.thread.modelProvider)) {
+				this._resetSessionForUsageSourceChange(restored, this._usageSource);
+			}
+			// Compatible restored threads skip materialization because the thread
+			// already exists. Incompatible ones rematerialize on the next send.
+			// Either way, advertise server tools now for client-side parity.
+			if (!restored.serverToolsAdvertised && this._serverToolHost) {
 				restored.serverToolsAdvertised = true;
 				this._serverToolHost.advertise(restored.sessionUri.toString());
 			}
@@ -3909,11 +4199,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async shutdown(): Promise<void> {
-		if (this._connection.kind === 'ready') {
-			try { this._connection.client.dispose(); } catch { /* ignore */ }
-			try { this._connection.proxyHandle.dispose(); } catch { /* ignore */ }
-		}
-		this._connection = { kind: 'idle' };
+		this._disposeConnection();
 		for (const s of this._sessions.values()) {
 			s.pendingCommandApprovals.denyAll('decline');
 			s.pendingClientToolCalls.rejectAll(new CancellationError());
@@ -3991,11 +4277,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	override dispose(): void {
-		if (this._connection.kind === 'ready') {
-			try { this._connection.client.dispose(); } catch { /* ignore */ }
-			try { this._connection.proxyHandle.dispose(); } catch { /* ignore */ }
-		}
-		this._connection = { kind: 'idle' };
+		this._disposeConnection();
 		for (const s of this._sessions.values()) {
 			s.pendingCommandApprovals.denyAll('decline');
 			s.pendingClientToolCalls.rejectAll(new CancellationError());
