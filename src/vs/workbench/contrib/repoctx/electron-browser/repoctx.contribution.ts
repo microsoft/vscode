@@ -32,8 +32,8 @@ const viewContainer = viewContainersRegistry.registerViewContainer({
 	icon: repoctxViewIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [REPOCTX_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: REPOCTX_VIEW_CONTAINER_ID,
-	order: 2.5,
-}, ViewContainerLocation.Sidebar);
+	order: 2,
+}, ViewContainerLocation.AuxiliaryBar);
 
 class RepoctxTrustViewDescriptor implements IViewDescriptor {
 	readonly id = RepoctxTrustViewPane.ID;

@@ -19,7 +19,7 @@ flowchart LR
     G -. "convergence.md" .-> F
 ```
 
-## Native sidebar
+## Native secondary sidebar
 
 ```text
 ┌─ REPOCTX: TRUST ───────────────────┐
@@ -72,6 +72,7 @@ stateDiagram-v2
 
 ## Interaction rules
 
+- Repoctx lives beside agent chat in the right secondary sidebar, leaving Explorer and Source Control available on the left.
 - The current state is always expressed with text and an icon, never color alone.
 - Missing task text is shown as `Needs request`; typing a change request immediately unlocks the task-dependent stages.
 - Failed stages retain a visible `Failed` state and a one-click retry action instead of returning to an ambiguous idle state.

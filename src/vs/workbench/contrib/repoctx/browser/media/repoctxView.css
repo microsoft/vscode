@@ -54,6 +54,130 @@
 	margin: 0;
 }
 
+.repoctx-workflow {
+	border-bottom: 1px solid var(--vscode-panel-border);
+	border-top: 1px solid var(--vscode-panel-border);
+	margin: 16px 0;
+	padding: 12px 0 13px;
+}
+
+.repoctx-workflow-heading {
+	display: grid;
+	gap: 2px;
+	grid-template-columns: minmax(0, 1fr) auto;
+	margin-bottom: 11px;
+}
+
+.repoctx-workflow-heading span:first-child {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.repoctx-workflow-heading strong {
+	font-size: 14px;
+	grid-column: 1;
+}
+
+.repoctx-workflow-heading span:last-child {
+	align-self: end;
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	grid-column: 2;
+	grid-row: 1 / span 2;
+}
+
+.repoctx-workflow-route {
+	display: flex;
+	gap: 0;
+	list-style: none;
+	margin: 0 0 12px;
+	padding: 0;
+}
+
+.repoctx-workflow-step {
+	align-items: center;
+	color: var(--vscode-descriptionForeground);
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	font-size: 10px;
+	gap: 5px;
+	min-width: 0;
+	position: relative;
+	text-align: center;
+}
+
+.repoctx-workflow-step:not(:last-child)::after {
+	background: var(--vscode-tree-inactiveIndentGuidesStroke);
+	content: '';
+	height: 1px;
+	left: calc(50% + 11px);
+	position: absolute;
+	top: 10px;
+	width: calc(100% - 22px);
+}
+
+.repoctx-workflow-marker {
+	align-items: center;
+	background: var(--vscode-sideBar-background);
+	border: 1px solid var(--vscode-tree-inactiveIndentGuidesStroke);
+	border-radius: 50%;
+	display: flex;
+	height: 20px;
+	justify-content: center;
+	width: 20px;
+	z-index: 1;
+}
+
+.repoctx-workflow-step.is-available .repoctx-workflow-marker {
+	border-color: var(--vscode-testing-iconPassed);
+	color: var(--vscode-testing-iconPassed);
+}
+
+.repoctx-workflow-step.is-ready .repoctx-workflow-marker {
+	border-color: var(--vscode-focusBorder);
+	color: var(--vscode-focusBorder);
+}
+
+.repoctx-workflow-step.is-blocked .repoctx-workflow-marker {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.repoctx-workflow-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	width: 100%;
+}
+
+.repoctx-next-action {
+	align-items: flex-start;
+	background: var(--vscode-list-inactiveSelectionBackground);
+	display: grid;
+	gap: 8px;
+	grid-template-columns: 16px minmax(0, 1fr);
+	line-height: 1.4;
+	padding: 8px;
+}
+
+.repoctx-next-action > span {
+	color: var(--vscode-focusBorder);
+	margin-top: 1px;
+}
+
+.repoctx-next-action div {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.repoctx-next-action span {
+	color: var(--vscode-descriptionForeground);
+}
+
 .repoctx-run-notice {
 	align-items: start;
 	border: 1px solid var(--vscode-panel-border);

@@ -68,6 +68,8 @@ export class RepoctxTrustViewPane extends ViewPane {
 	private failedStage: RepoctxEvidenceStageId | undefined;
 	private runNotice: { readonly kind: 'info' | 'error'; readonly message: string } | undefined;
 	private requestHelp: HTMLElement | undefined;
+	private workflow: HTMLElement | undefined;
+	private evidence: RepoctxEvidence | undefined;
 	private readonly stageControls = new Map<RepoctxEvidenceStageId, IRepoctxStageControl>();
 	private refreshToken = 0;
 
@@ -182,7 +184,9 @@ export class RepoctxTrustViewPane extends ViewPane {
 			? localize('repoctxEvidenceReady', "All five evidence stages are available.")
 			: localize('repoctxEvidenceCount', "{0} of 5 evidence stages available.", availableCount);
 		this.renderSummary(repositoryName, summary);
+		this.evidence = evidence;
 		this.renderChangeRequest();
+		this.renderWorkflow(evidence);
 
 		if (this.runNotice) {
 			const notice = DOM.append(this.content, DOM.$(`.repoctx-run-notice.${this.runNotice.kind}`));
@@ -218,6 +222,9 @@ export class RepoctxTrustViewPane extends ViewPane {
 			this.taskRequest = this.taskInput?.value ?? '';
 			this.updateRequestHelp();
 			this.updateTaskDependentStages();
+			if (this.evidence) {
+				this.renderWorkflow(this.evidence);
+			}
 		}));
 	}
 
@@ -230,6 +237,52 @@ export class RepoctxTrustViewPane extends ViewPane {
 		DOM.append(header, DOM.$('span.repoctx-eyebrow', undefined, localize('repoctxTrustSummary', "Repository trust")));
 		DOM.append(header, DOM.$('h2', undefined, repositoryName));
 		DOM.append(header, DOM.$('p', undefined, summary));
+	}
+
+	private renderWorkflow(evidence: RepoctxEvidence): void {
+		if (!this.content) {
+			return;
+		}
+
+		const stages = this.getStagePresentations();
+		const completed = stages.filter(stage => Boolean(evidence[stage.id])).length;
+		const hasRequest = Boolean(this.taskRequest.trim());
+		const nextStage = stages.find(stage => !evidence[stage.id] && (!stage.requiresTask || hasRequest));
+		const nextSibling = this.workflow?.nextSibling;
+		this.workflow?.remove();
+		const workflow = DOM.$('.repoctx-workflow');
+		if (nextSibling) {
+			this.content.insertBefore(workflow, nextSibling);
+		} else {
+			DOM.append(this.content, workflow);
+		}
+		this.workflow = workflow;
+		const heading = DOM.append(workflow, DOM.$('.repoctx-workflow-heading'));
+		DOM.append(heading, DOM.$('span', undefined, localize('repoctxWorkflowEyebrow', "Trust path")));
+		DOM.append(heading, DOM.$('strong', undefined, completed === stages.length
+			? localize('repoctxReviewReady', "Ready for human review")
+			: localize('repoctxDecisionPending', "Decision in progress")));
+		DOM.append(heading, DOM.$('span', undefined, localize('repoctxWorkflowProgress', "{0} of {1} evidence stages", completed, stages.length)));
+
+		const route = DOM.append(workflow, DOM.$('ol.repoctx-workflow-route', { 'aria-label': localize('repoctxWorkflowRoute', "Change-to-merge workflow") }));
+		for (const stage of stages) {
+			const state = this.getStageState(stage, evidence[stage.id]);
+			const item = DOM.append(route, DOM.$(`li.repoctx-workflow-step.is-${state}`));
+			const marker = DOM.append(item, DOM.$('span.repoctx-workflow-marker'));
+			marker.classList.add(...ThemeIcon.asClassNameArray(this.getStageIcon(stage, state)));
+			DOM.append(item, DOM.$('span.repoctx-workflow-label', undefined, stage.title));
+		}
+
+		const next = DOM.append(workflow, DOM.$('.repoctx-next-action'));
+		const icon = DOM.append(next, DOM.$('span'));
+		icon.classList.add(...ThemeIcon.asClassNameArray(nextStage ? nextStage.icon : Codicon.pass));
+		const copy = DOM.append(next, DOM.$('div'));
+		DOM.append(copy, DOM.$('strong', undefined, hasRequest
+			? nextStage ? localize('repoctxNextEvidence', "Next: {0}", nextStage.title) : localize('repoctxAllEvidenceReady', "Evidence assembled")
+			: localize('repoctxNextRequest', "Start with the change request")));
+		DOM.append(copy, DOM.$('span', undefined, hasRequest
+			? nextStage ? nextStage.description : localize('repoctxReviewPrompt', "Use the evidence to make a human review decision.")
+			: localize('repoctxRequestPrompt', "Name the intended change, then Repoctx can map its impact and gate the merge.")));
 	}
 
 	private renderStage(container: HTMLElement, evidenceRoot: URI, stage: IRepoctxStagePresentation, artifactPath: string | undefined): void {
