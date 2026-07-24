@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../../../base/common/types.js';
@@ -28,7 +29,7 @@ import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } fr
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -70,6 +71,9 @@ import { IAgentHostFileSystemService } from '../../../../../services/agentHost/c
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
+import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
+import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
+import { IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -829,6 +833,18 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		isNewSession: sessionResource => workingDirectoryResolver?.isNewSession?.(sessionResource) ?? sessionResource.path.substring(1).startsWith('new-'),
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow } as Partial<IWorkbenchEnvironmentService>);
+	instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
+	instantiationService.stub(IChatInputNotificationService, {
+		_serviceBrand: undefined,
+		onDidChange: Event.None,
+		onDidDismiss: Event.None,
+		setNotification: () => { },
+		deleteNotification: () => { },
+		dismissNotification: () => { },
+		getActiveNotification: () => undefined,
+		handleMessageSent: () => { },
+		announceRendered: () => { },
+	});
 	instantiationService.stub(IAgentHostCustomizationService, customizationServiceOverride ?? new NullAgentHostCustomizationService());
 	instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 		onDidChange: Event.None,
@@ -1257,6 +1273,58 @@ suite('AgentHostChatContribution', () => {
 					value: 'Workspace context',
 					_meta: undefined,
 				}],
+			});
+
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: session!, turnId: turnId! } as ChatAction);
+			await turnPromise;
+		});
+
+		test('sends and restores element context using its display kind', async () => {
+			const elementValue = 'Attached Element Context from Integrated Browser\n\nElement: button#submit.primary\n\nOuter HTML:\n```html\n<button id="submit" class="primary" title="Save & Continue" data-action=\'save\'>Save & Continue</button>\n```';
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'inspect this',
+				variables: {
+					variables: [{
+						kind: 'element',
+						id: 'element-submit',
+						name: 'button#submit',
+						fullName: 'button#submit.primary',
+						value: elementValue,
+						innerText: 'Save',
+					}],
+				},
+			});
+
+			const turnStarted = agentHostService.turnActions[0].action as ITurnStartedAction;
+			const attachments = turnStarted.message.attachments;
+			const replayedVariables = messageAttachmentsToVariableData(attachments, 'test')?.variables;
+			const unhintedVariables = messageAttachmentsToVariableData(attachments?.map(attachment => ({ ...attachment, displayKind: undefined })), 'test')?.variables;
+			assert.deepStrictEqual({
+				attachments,
+				replayedVariables: replayedVariables?.map(variable => ({
+					kind: variable.kind,
+					name: variable.name,
+					fullName: variable.fullName,
+					icon: variable.icon?.id,
+					value: variable.value,
+				})),
+				unhintedKinds: unhintedVariables?.map(variable => variable.kind),
+			}, {
+				attachments: [{
+					type: MessageAttachmentKind.Simple,
+					label: 'button#submit',
+					modelRepresentation: elementValue,
+					displayKind: 'element',
+				}],
+				replayedVariables: [{
+					kind: 'element',
+					name: 'button#submit',
+					fullName: 'button#submit.primary',
+					icon: Codicon.layout.id,
+					value: elementValue,
+				}],
+				unhintedKinds: ['generic'],
 			});
 
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: session!, turnId: turnId! } as ChatAction);
@@ -5388,7 +5456,8 @@ suite('AgentHostChatContribution', () => {
 				content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/output', title: 'Terminal', isPty: false }],
 			} as ChatAction);
 
-			const terminalData = (collected[0][0] as ChatToolInvocation).toolSpecificData as IChatTerminalToolInvocationData;
+			const invocation = collected[0][0] as ChatToolInvocation;
+			const terminalData = invocation.toolSpecificData as IChatTerminalToolInvocationData;
 			assert.strictEqual(reviveCalls, 0);
 			assert.strictEqual(terminalData.isPty, false);
 			assert.deepStrictEqual(attached, {
@@ -5396,7 +5465,118 @@ suite('AgentHostChatContribution', () => {
 				terminalToolSessionId: JSON.stringify({ terminal: 'agenthost-terminal://shell/output', session: 'copilot:/new-turntest' }),
 			});
 
-			fire({ type: 'chat/toolCallComplete', session, turnId, toolCallId: 'tc-output', result: { success: true, pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/output', title: 'Terminal', isPty: false }] } } as ChatAction);
+			fire({
+				type: 'chat/toolCallComplete',
+				session,
+				turnId,
+				toolCallId: 'tc-output',
+				result: {
+					success: true,
+					pastTenseMessage: 'Ran command',
+					content: [{
+						type: ToolResultContentType.Terminal,
+						resource: 'agenthost-terminal://shell/output',
+						title: 'Terminal',
+						isPty: false,
+						result: { exitCode: 0, preview: 'final output\n' },
+					}],
+				},
+			} as ChatAction);
+			const completedTerminalData = invocation.toolSpecificData?.kind === 'terminal' ? invocation.toolSpecificData : undefined;
+			assert.deepStrictEqual({
+				output: completedTerminalData?.terminalCommandOutput?.text,
+				attachmentDisposed,
+			}, {
+				output: 'final output\r\n',
+				attachmentDisposed: false,
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			assert.strictEqual(attachmentDisposed, true);
+		});
+
+		test('completed output-only terminal with static output never attaches to the live resource', async () => {
+			let attachCalls = 0;
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				agentHostTerminalServiceOverride: {
+					attachOutputTerminal: () => {
+						attachCalls++;
+						return toDisposable(() => { });
+					},
+				},
+			});
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-static-output', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ChatAction);
+			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-static-output', invocationMessage: 'Running command', toolInput: 'echo done', confirmed: 'not-needed' } as ChatAction);
+			fire({
+				type: 'chat/toolCallComplete',
+				session,
+				turnId,
+				toolCallId: 'tc-static-output',
+				result: {
+					success: true,
+					pastTenseMessage: 'Ran command',
+					content: [{
+						type: ToolResultContentType.Terminal,
+						resource: 'agenthost-terminal://shell/static-output',
+						title: 'Terminal',
+						isPty: false,
+						result: { exitCode: 0, preview: 'done\n' },
+					}],
+				},
+			} as ChatAction);
+
+			const invocation = collected[0][0] as ChatToolInvocation;
+			const terminalData = invocation.toolSpecificData as IChatTerminalToolInvocationData;
+			assert.deepStrictEqual({
+				attachCalls,
+				output: terminalData.terminalCommandOutput?.text,
+			}, {
+				attachCalls: 0,
+				output: 'done\r\n',
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+		});
+
+		test('output-only terminal without a static preview stays attached until the turn ends', async () => {
+			let attachmentDisposed = false;
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				agentHostTerminalServiceOverride: {
+					attachOutputTerminal: () => toDisposable(() => attachmentDisposed = true),
+				},
+			});
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-no-preview', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ChatAction);
+			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-no-preview', invocationMessage: 'Running command', toolInput: 'long-running-command', confirmed: 'not-needed' } as ChatAction);
+			fire({
+				type: 'chat/toolCallContentChanged',
+				session,
+				turnId,
+				toolCallId: 'tc-no-preview',
+				content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/no-preview', title: 'Terminal', isPty: false }],
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallComplete',
+				session,
+				turnId,
+				toolCallId: 'tc-no-preview',
+				result: {
+					success: true,
+					pastTenseMessage: 'Started command',
+					content: [{
+						type: ToolResultContentType.Terminal,
+						resource: 'agenthost-terminal://shell/no-preview',
+						title: 'Terminal',
+						isPty: false,
+						result: { exitCode: 0 },
+					}],
+				},
+			} as ChatAction);
+
+			assert.strictEqual(attachmentDisposed, false);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 			assert.strictEqual(attachmentDisposed, true);
@@ -5595,6 +5775,67 @@ suite('AgentHostChatContribution', () => {
 				assert.strictEqual(termData.terminalCommandOutput?.text, 'file1\r\nfile2');
 				assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
 			}
+		});
+
+		test('restores subagent pills from the chat catalog when tool metadata was lost', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'subagent-history');
+			const defaultChatUri = buildDefaultChatUri(sessionUri.toString());
+			const childChatUri = buildSubagentChatUri(sessionUri.toString(), 'tc-subagent');
+			const summary = { resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() };
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: defaultChatUri,
+				chats: [{
+					resource: childChatUri,
+					title: 'Review agentHost changes',
+					status: SessionStatus.Idle,
+					modifiedAt: new Date().toISOString(),
+					origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri, toolCallId: 'tc-subagent' },
+					interactivity: ChatInteractivity.ReadOnly,
+				}],
+				turns: [{
+					id: 'turn-1',
+					message: { text: 'review changes', origin: { kind: MessageKind.User } },
+					state: TurnState.Complete,
+					responseParts: [{
+						kind: ResponsePartKind.ToolCall,
+						toolCall: {
+							status: ToolCallStatus.Completed,
+							toolCallId: 'tc-subagent',
+							toolName: 'task',
+							displayName: 'Delegating task',
+							invocationMessage: 'Delegating task',
+							confirmed: ToolCallConfirmationReason.NotNeeded,
+							success: true,
+							content: [],
+						},
+					}],
+					usage: undefined,
+				}],
+			} as SessionState);
+			agentHostService.sessionStates.set(childChatUri, {
+				...createSessionState({ ...summary, resource: childChatUri, title: 'Review agentHost changes' }),
+				lifecycle: SessionLifecycle.Ready,
+			} as SessionState);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/subagent-history' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			const response = chatSession.history[1];
+			assert.strictEqual(response.type, 'response');
+			const toolPart = response.type === 'response' ? response.parts[0] as IChatToolInvocationSerialized : undefined;
+
+			assert.deepStrictEqual(toolPart?.toolSpecificData?.kind === 'subagent' ? {
+				kind: toolPart.toolSpecificData.kind,
+				description: toolPart.toolSpecificData.description,
+				chatResource: toolPart.toolSpecificData.chatResource,
+			} : undefined, {
+				kind: 'subagent',
+				description: 'Review agentHost changes',
+				chatResource: childChatUri,
+			});
 		});
 
 		test('resolved input requests preserve their stream position and answers in history', async () => {
@@ -6433,6 +6674,26 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(turnAction.message.attachments, [
 				{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'foo.ts', displayKind: 'document' },
 			]);
+		}));
+
+		test('browser implicit context is not forwarded as an attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-implicit-browser' });
+			const browserUri = URI.from({ scheme: 'vscode-browser', path: '/browser-id' });
+			chatWidgetService.setWidgetForSession(sessionResource, [
+				{ kind: 'implicit', id: 'vscode.implicit.file', name: 'browser', isSelection: false, uri: browserUri, value: browserUri },
+			]);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'help with this page',
+				sessionResource,
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.strictEqual(turnAction.message.attachments, undefined);
 		}));
 
 		test('active editor implicit context is not duplicated when also attached explicitly', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

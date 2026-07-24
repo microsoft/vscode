@@ -495,7 +495,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				? { logsHome: this._environmentService.logsHome, connectionId: address, transport: 'websocket' }
 				: undefined,
 		);
-		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transportFactory, undefined));
+		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transportFactory, undefined, undefined));
 		const entry: IConnectionEntry = { store, client, connected: false, status: RemoteAgentHostConnectionStatus.connecting };
 		this._entries.set(address, entry);
 
@@ -536,7 +536,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					entry.status = RemoteAgentHostConnectionStatus.connected;
 					this._onDidChangeConnections.fire();
 					break;
-				default:
+				case AgentHostClientState.Connecting:
+				case AgentHostClientState.Incompatible:
+				case AgentHostClientState.Closed:
 					break;
 			}
 		}));
