@@ -12,6 +12,7 @@ import * as platform from '../../../base/common/platform.js';
 import { getSystemShell } from '../../../base/node/shell.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { AiAgentEnvValue, AiAgentEnvVar } from '../../chat/common/aiAgentEnv.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -296,6 +297,10 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		// Shell integration — inject scripts so the shell emits OSC 633 sequences
 		const nonce = generateUuid();
 		const env: Record<string, string> = { ...process.env as Record<string, string> };
+		// Announce that these commands are driven by VS Code's agent so `git` /
+		// `gh` can attribute them. Inherited from the agent host process, but set
+		// explicitly so the guarantee does not depend on how the host was spawned.
+		env[AiAgentEnvVar] = AiAgentEnvValue;
 		if (options?.preventShellHistory) {
 			// Picked up by the shell integration scripts to set HISTCONTROL=ignorespace
 			// (bash) / HIST_IGNORE_SPACE (zsh), or suppress PSReadLine history (pwsh).
