@@ -1391,16 +1391,7 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			this._list.layout(allItemsHeight);
 
-			const itemWidths: number[] = [];
-			for (let i = 0; i < allItems.length; i++) {
-				const element = this._getRowElement(i);
-				if (element) {
-					element.style.width = 'auto';
-					const width = element.getBoundingClientRect().width;
-					element.style.width = '';
-					itemWidths.push(width + this._computeToolbarWidth(allItems[i]));
-				}
-			}
+			const itemWidths = this._measureItemWidths(allItems);
 
 			maxWidth = clamp(Math.max(...itemWidths));
 
@@ -1410,16 +1401,11 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		// All items are visible, measure them directly
-		const itemWidths: number[] = [];
+		const visibleItems: IActionListItem<T>[] = [];
 		for (let i = 0; i < visibleCount; i++) {
-			const element = this._getRowElement(i);
-			if (element) {
-				element.style.width = 'auto';
-				const width = element.getBoundingClientRect().width;
-				element.style.width = '';
-				itemWidths.push(width + this._computeToolbarWidth(this._list.element(i)));
-			}
+			visibleItems.push(this._list.element(i));
 		}
+		const itemWidths = this._measureItemWidths(visibleItems);
 		return clamp(Math.max(...itemWidths));
 	}
 
@@ -1610,6 +1596,25 @@ export class ActionListWidget<T> extends Disposable {
 			if (item.kind === ActionListItemKind.Action && item.group?.title && !seenTitles.has(item.group.title)) {
 				seenTitles.add(item.group.title);
 				this._groupTitleByIndex.set(i, item.group.title);
+			}
+		}
+	}
+
+	private _measureItemWidths(items: readonly IActionListItem<T>[]): number[] {
+		const rows: { element: HTMLElement; item: IActionListItem<T> }[] = [];
+		for (let i = 0; i < items.length; i++) {
+			const element = this._getRowElement(i);
+			if (element) {
+				element.style.width = 'auto';
+				rows.push({ element, item: items[i] });
+			}
+		}
+
+		try {
+			return rows.map(({ element, item }) => element.getBoundingClientRect().width + this._computeToolbarWidth(item));
+		} finally {
+			for (const { element } of rows) {
+				element.style.width = '';
 			}
 		}
 	}

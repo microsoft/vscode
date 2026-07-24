@@ -387,6 +387,12 @@ export function migrateLegacyAutopilotConfig<T extends Record<string, unknown> |
  */
 export const AgentHostTelemetryLevelConfigKey = 'telemetryLevel';
 
+/** Legacy Copilot Chat debug switch that disables `request.repoInfo` collection. */
+export const AgentHostDisableRepoInfoTelemetryConfigKey = 'disableRepoInfoTelemetry';
+
+/** VS Code setting forwarded into {@link AgentHostDisableRepoInfoTelemetryConfigKey}. */
+export const DISABLE_REPO_INFO_TELEMETRY_SETTING_ID = 'chat.advanced.debug.disableRepoInfoTelemetry';
+
 /**
  * Root config key forwarded from the renderer when VS Code's
  * `chat.sessionSync.enabled` setting changes. Controls the `remote` flag
@@ -655,6 +661,12 @@ const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
 
 export const platformRootSchema = createSchema({
 	[SessionConfigKey.Permissions]: permissionsProperty,
+	[AgentHostDisableRepoInfoTelemetryConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.disableRepoInfoTelemetry.title', "Disable Repository Information Telemetry"),
+		description: localize('agentHost.config.disableRepoInfoTelemetry.description', "Whether repository information telemetry is disabled for Agent Host sessions."),
+		default: false,
+	}),
 	[AgentHostTelemetryLevelConfigKey]: schemaProperty<TelemetryConfiguration>({
 		type: 'string',
 		title: localize('agentHost.config.telemetryLevel.title', "Telemetry Level"),

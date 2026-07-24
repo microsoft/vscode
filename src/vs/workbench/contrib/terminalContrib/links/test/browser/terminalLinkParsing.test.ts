@@ -621,9 +621,9 @@ suite('TerminalLinkParsing', () => {
 
 		suite('should detect file names in git diffs', () => {
 			test('--- a/foo/bar', () => {
-				['a', 'c', 'w', 'i', 'o'].forEach((a) => {
+				['a', 'c', 'w', 'i', 'o'].forEach(prefix => {
 					deepStrictEqual(
-						detectLinks(`--- ${a}/foo/bar`, OperatingSystem.Linux),
+						detectLinks(`--- ${prefix}/foo/bar`, OperatingSystem.Linux),
 						[
 							{
 								path: {
@@ -638,9 +638,9 @@ suite('TerminalLinkParsing', () => {
 				});
 			});
 			test('+++ b/foo/bar', () => {
-				['b', 'c', 'w', 'i', 'o'].forEach((b) => {
+				['b', 'c', 'w', 'i', 'o'].forEach(prefix => {
 					deepStrictEqual(
-						detectLinks(`+++ ${b}/foo/bar`, OperatingSystem.Linux),
+						detectLinks(`+++ ${prefix}/foo/bar`, OperatingSystem.Linux),
 						[
 							{
 								path: {
@@ -655,9 +655,9 @@ suite('TerminalLinkParsing', () => {
 				});
 			});
 			test('diff --git a/foo/bar b/foo/baz', () => {
-				[['a', 'b'], ['c', 'w'], ['i', 'o']].forEach(([a, b]) => {
+				[['a', 'b'], ['c', 'w'], ['i', 'o']].forEach(([sourcePrefix, destinationPrefix]) => {
 					deepStrictEqual(
-						detectLinks(`diff --git ${a}/foo/bar ${b}/foo/baz`, OperatingSystem.Linux),
+						detectLinks(`diff --git ${sourcePrefix}/foo/bar ${destinationPrefix}/foo/baz`, OperatingSystem.Linux),
 						[
 							{
 								path: {
@@ -678,6 +678,108 @@ suite('TerminalLinkParsing', () => {
 						] as IParsedLink[]
 					);
 				});
+			});
+			test('numeric prefixes used by git diff --no-index', () => {
+				deepStrictEqual(
+					[
+						detectLinks('--- 1/foo/bar', OperatingSystem.Linux),
+						detectLinks('+++ 2/foo/baz', OperatingSystem.Linux),
+						detectLinks('diff --git 1/foo/bar 2/foo/baz', OperatingSystem.Linux)
+					],
+					[
+						[{
+							path: { index: 6, text: 'foo/bar' },
+							prefix: undefined,
+							suffix: undefined
+						}],
+						[{
+							path: { index: 6, text: 'foo/baz' },
+							prefix: undefined,
+							suffix: undefined
+						}],
+						[{
+							path: { index: 13, text: 'foo/bar' },
+							prefix: undefined,
+							suffix: undefined
+						}, {
+							path: { index: 23, text: 'foo/baz' },
+							prefix: undefined,
+							suffix: undefined
+						}]
+					] as IParsedLink[][]
+				);
+			});
+			test('reversed numeric prefixes used by git diff --no-index -R', () => {
+				deepStrictEqual(
+					[
+						detectLinks('--- 2/foo/baz', OperatingSystem.Linux),
+						detectLinks('+++ 1/foo/bar', OperatingSystem.Linux),
+						detectLinks('diff --git 2/foo/baz 1/foo/bar', OperatingSystem.Linux)
+					],
+					[
+						[{
+							path: { index: 6, text: 'foo/baz' },
+							prefix: undefined,
+							suffix: undefined
+						}],
+						[{
+							path: { index: 6, text: 'foo/bar' },
+							prefix: undefined,
+							suffix: undefined
+						}],
+						[{
+							path: { index: 13, text: 'foo/baz' },
+							prefix: undefined,
+							suffix: undefined
+						}, {
+							path: { index: 23, text: 'foo/bar' },
+							prefix: undefined,
+							suffix: undefined
+						}]
+					] as IParsedLink[][]
+				);
+			});
+			test('ordinary numeric line suffix', () => {
+				deepStrictEqual(
+					detectLinks('foo 1', OperatingSystem.Linux),
+					[{
+						path: { index: 0, text: 'foo' },
+						prefix: undefined,
+						suffix: {
+							row: 1,
+							col: undefined,
+							rowEnd: undefined,
+							colEnd: undefined,
+							suffix: { index: 3, text: ' 1' }
+						}
+					}] as IParsedLink[]
+				);
+			});
+			test('numeric suffix followed by a path separator', () => {
+				deepStrictEqual(
+					detectLinks('foo 1/bar', OperatingSystem.Linux),
+					[{
+						path: { index: 4, text: '1/bar' },
+						prefix: undefined,
+						suffix: undefined
+					}] as IParsedLink[]
+				);
+			});
+			test('ordinary numeric line suffix after diff --git text', () => {
+				deepStrictEqual(
+					detectLinks('diff --git foo.ts:123', OperatingSystem.Linux),
+					[{
+						path: { index: 11, text: 'foo.ts' },
+						prefix: undefined,
+						suffix: {
+							row: 123,
+							col: undefined,
+							rowEnd: undefined,
+							colEnd: undefined,
+							suffix: { index: 17, text: ':123' }
+						}
+					}] as IParsedLink[]
+				);
 			});
 		});
 

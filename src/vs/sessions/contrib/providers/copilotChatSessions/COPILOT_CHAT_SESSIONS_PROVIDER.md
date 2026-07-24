@@ -42,6 +42,7 @@ When `createNewSession(workspace)` is called, the provider creates one of two co
 **`CopilotCLISession`** — For local `file://` workspaces:
 - Implements `ISession` plus provider-specific observable fields (`permissionLevel`, `branchObservable`, `isolationModeObservable`)
 - Performs async git repository resolution during construction (sets `loading` to true until resolved)
+- Exposes `hasGitRepository` as an observable that becomes true only when the repository has a HEAD commit, so scoped session context keys hide worktree/branch controls for non-Git and empty repositories
 - Configuration methods: `setIsolationMode()`, `setBranch()`, `setModelId()`, `setMode()`, `setPermissionLevel()`, `setModeById()`
 - Tracks selected options via `Map<string, IChatSessionProviderOptionItem>` and syncs to `IChatSessionsService`
 - Uses `IGitService` to open the repository and resolve branch information
@@ -132,6 +133,8 @@ Each picker action uses a `when` clause to show only for the correct session typ
 | `IsActiveSessionCopilotChatCLI` | Copilot CLI sessions |
 | `IsActiveSessionCopilotChatCloud` | Copilot Cloud sessions |
 | `IsActiveSessionCopilotChatClaudeCode` | Claude sessions |
+
+Repository controls additionally require `SessionHasGitRepositoryContext`. The provider publishes usable Git availability through `ISession.hasGitRepository`, and `setSessionContextKeys` binds that observable into each session view's scoped context-key service. Menu visibility therefore follows the toolbar's own `ISessionContext`, not the window's globally active session.
 
 These are composed from `SessionTypeContext` (the session type ID) and `SessionProviderIdContext` (the provider ID).
 

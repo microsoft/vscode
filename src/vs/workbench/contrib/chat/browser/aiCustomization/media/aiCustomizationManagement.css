@@ -922,6 +922,30 @@
 	gap: 8px;
 }
 
+.ai-customization-management-editor .prompt-migration-item .icon-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	font-size: 16px;
+}
+
+.ai-customization-management-editor .prompt-migration-item .icon-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.ai-customization-management-editor .prompt-migration-item .icon-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .ai-customization-management-editor .prompt-migration-empty {
 	margin: 0;
 	padding: 8px 12px;
@@ -2947,7 +2971,6 @@ pane is first mounted. View switches inside the modal are not animated. */
 	min-width: 0;
 }
 
-.automation-form-prompt-host .automation-form-isolation-chip,
 .automation-form-prompt-host .automation-form-branch-slot {
 	display: inline-flex;
 	align-items: center;
@@ -2963,32 +2986,24 @@ pane is first mounted. View switches inside the modal are not animated. */
 	touch-action: manipulation;
 }
 
-.automation-form-prompt-host .automation-form-isolation-chip > .codicon,
 .automation-form-prompt-host .automation-form-branch-slot > .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-icon-foreground);
 	flex-shrink: 0;
 }
 
-.automation-form-prompt-host .automation-form-isolation-chip,
 .automation-form-prompt-host .automation-form-branch-slot:not(.branch-picker-disabled) {
 	cursor: pointer;
 }
 
-.automation-form-prompt-host .automation-form-isolation-chip:not(.automation-form-isolation-chip-disabled):hover,
 .automation-form-prompt-host .automation-form-branch-slot:not(.branch-picker-disabled):hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
 }
 
-.automation-form-prompt-host .automation-form-isolation-chip:focus-visible,
 .automation-form-prompt-host .automation-form-branch-slot:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
-}
-
-.automation-form-prompt-host .automation-form-isolation-chip-disabled {
-	cursor: default;
 }
 
 .automation-form-prompt-host .automation-form-branch-slot.branch-picker-disabled,
@@ -2997,7 +3012,6 @@ pane is first mounted. View switches inside the modal are not animated. */
 	color: var(--vscode-descriptionForeground);
 }
 
-.automation-form-prompt-host .automation-form-isolation-label,
 .automation-form-prompt-host .automation-form-branch-name {
 	font-size: var(--vscode-agents-fontSize-label2);
 }
@@ -3012,7 +3026,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 /* Mirror the new-session `|` divider between repo-config chips:
  * `box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border)` paints
  * a 1px-wide bar in the gap to the chip's left. */
-.automation-form-prompt-host .automation-form-isolation-group > .automation-form-branch-picker-slot {
+.automation-form-prompt-host .automation-form-isolation-group .automation-form-branch-picker-slot {
 	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
 }
 
@@ -3051,9 +3065,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 	font-style: italic;
 }
 
-.hc-black .automation-form-prompt-host .automation-form-isolation-chip:focus-visible,
 .hc-black .automation-form-prompt-host .automation-form-branch-slot:focus-visible,
-.hc-light .automation-form-prompt-host .automation-form-isolation-chip:focus-visible,
 .hc-light .automation-form-prompt-host .automation-form-branch-slot:focus-visible {
 	outline-color: var(--vscode-contrastActiveBorder);
 }

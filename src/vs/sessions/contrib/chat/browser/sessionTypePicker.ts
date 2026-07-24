@@ -339,7 +339,9 @@ export class SessionTypePicker extends Disposable {
 		this._triggerElement = trigger;
 		// Onboarding spotlight target — id is referenced by the "new session view"
 		// tour in vs/sessions/contrib/onboardingTours.
-		this._renderDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.harnessPicker'));
+		this._renderDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.harnessPicker', {
+			open: () => this._showPicker(),
+		}));
 		this._updateTriggerLabel();
 
 		this._renderDisposables.add(Gesture.addTarget(trigger));

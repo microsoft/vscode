@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { getCommandArgumentHint, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
+import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, type AgentCustomization, type ToolCallState } from '../../common/state/sessionState.js';
 import type { SessionModelInfo, SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
@@ -71,6 +71,13 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolArguments: undefined })), {});
 		});
 
+		test('reads valid tool-search candidates and drops malformed corpora', () => {
+			const candidates = [{ name: 'everything-get-sum', description: 'Adds numbers' }];
+			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolSearchCandidates: candidates })), { toolSearchCandidates: candidates });
+			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolSearchCandidates: [{ name: 1, description: 'bad' }] })), {});
+			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolSearchCandidates: 'bad' })), {});
+		});
+
 		test('toToolCallMeta round-trips and returns undefined when empty', () => {
 			assert.strictEqual(toToolCallMeta({}), undefined);
 			const wire = toToolCallMeta({ toolKind: 'search', language: undefined });
@@ -129,6 +136,35 @@ suite('Agent host _meta readers', () => {
 			assert.strictEqual(getCommandArgumentHint({ argumentHint: 5 }), undefined);
 			assert.strictEqual(getCommandArgumentHint({ command: 'rename' }), undefined);
 			assert.strictEqual(getCommandArgumentHint(undefined), undefined);
+		});
+
+		test('classifies a command bag carrying an action and round-trips it', () => {
+			const wire = toCommandCompletionAttachmentMeta({
+				command: 'autopilot',
+				description: 'Run this request in Autopilot mode',
+				argumentHint: 'prompt',
+				action: { applyConfig: { mode: 'autopilot' } },
+			});
+			assert.deepStrictEqual(wire, {
+				command: 'autopilot',
+				description: 'Run this request in Autopilot mode',
+				argumentHint: 'prompt',
+				action: { applyConfig: { mode: 'autopilot' } },
+			});
+			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(wire)), {
+				kind: 'command',
+				command: 'autopilot',
+				description: 'Run this request in Autopilot mode',
+				argumentHint: 'prompt',
+				action: { applyConfig: { mode: 'autopilot' } },
+			});
+		});
+
+		test('getCompletionAction reads the action, dropping wrong-typed sub-fields and empty bags', () => {
+			assert.deepStrictEqual(getCompletionAction({ action: { applyConfig: { autoApprove: 'autoApprove', bad: 5 } } }), { applyConfig: { autoApprove: 'autoApprove' } });
+			assert.strictEqual(getCompletionAction({ action: { applyConfig: {} } }), undefined);
+			assert.strictEqual(getCompletionAction({ command: 'yolo' }), undefined);
+			assert.strictEqual(getCompletionAction(undefined), undefined);
 		});
 	});
 
