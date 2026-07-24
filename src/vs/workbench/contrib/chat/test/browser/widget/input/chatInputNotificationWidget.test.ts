@@ -108,6 +108,38 @@ suite('ChatInputNotificationWidget', () => {
 		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'Local only');
 	});
 
+	test('reactively applies session resource filter when the session changes', () => {
+		const firstSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-1');
+		const secondSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-2');
+		const currentSessionType = observableValue<string | undefined>('currentSessionType', SessionType.AgentHostCopilot);
+		const currentSessionResource = observableValue<URI | undefined>('currentSessionResource', firstSession);
+		const notificationService = createNotificationService();
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IChatInputNotificationService, notificationService);
+		instantiationService.stub(ICommandService, new TestCommandService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, {
+			modelTargetChatSessionType: currentSessionType,
+			sessionResource: currentSessionResource,
+		}));
+
+		notificationService.setNotification({
+			id: 'first-session-only',
+			severity: ChatInputNotificationSeverity.Info,
+			message: 'First session only',
+			description: undefined,
+			actions: [],
+			dismissible: false,
+			autoDismissOnMessage: false,
+			sessionResources: [firstSession],
+		});
+
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'First session only');
+		currentSessionResource.set(secondSession, undefined);
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification'), null);
+	});
+
 	/**
 	 * A notification service mock that records the notifications forwarded to
 	 * {@link IChatInputNotificationService.announceRendered} and applies the

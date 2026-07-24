@@ -756,7 +756,7 @@ export interface IChatToolInvocationOtherClientData {
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
 	/** Active-only metadata that is omitted when the invocation is serialized. */
 	readonly otherClientToolCall?: IChatToolInvocationOtherClientData;
 	/**
@@ -1044,7 +1044,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatAutomationConfiguredData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -1089,6 +1089,10 @@ export interface IChatSubagentToolInvocationData {
 	result?: string;
 	modelName?: string;
 	credits?: number;
+	/** Millisecond timestamp when the subagent's first turn started. */
+	startedAt?: number;
+	/** Final elapsed duration in milliseconds. Set when the subagent stops. */
+	duration?: number;
 	/**
 	 * Resource (URI string) of the subagent's own chat, when the subagent runs as
 	 * a distinct chat (e.g. an agent host worker chat). Used to offer an "Open
@@ -1155,6 +1159,28 @@ export interface IChatSessionCreatedData {
 	readonly label: string;
 	/** Whether this is a `create_chat` result (vs `create_session`); selects the pill icon. */
 	readonly isChat?: boolean;
+}
+
+/**
+ * Tool-specific data for a completed automation create or update. The stable
+ * automation ID lets the renderer open the Automations editor at the affected
+ * entry without relying on model-authored prose.
+ */
+export interface IChatAutomationConfiguredData {
+	readonly kind: 'automationConfigured';
+	readonly automationId: string;
+	readonly automationName: string;
+	readonly operation: 'created' | 'updated';
+}
+
+/**
+ * Transient preparation data used to guard an automation update across the
+ * confirmation boundary. It is omitted from serialized chat invocations.
+ */
+export interface IChatAutomationConfigurationData {
+	readonly kind: 'automationConfiguration';
+	readonly expectedAutomationId: string;
+	readonly expectedEditableState: string;
 }
 
 export interface IChatModifiedFilesConfirmationData {

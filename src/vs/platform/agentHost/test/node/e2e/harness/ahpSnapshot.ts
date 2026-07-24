@@ -430,6 +430,7 @@ function isBehaviorSnapshotNoise(type: ActionType): boolean {
 		case ActionType.SessionInputNeededRemoved:
 		case ActionType.SessionCustomizationsChanged:
 		case ActionType.SessionChangesetsChanged:
+		case ActionType.SessionMetaChanged:
 		case ActionType.SessionActivityChanged:
 		case ActionType.ChatActivityChanged:
 		case ActionType.ChatUsage:

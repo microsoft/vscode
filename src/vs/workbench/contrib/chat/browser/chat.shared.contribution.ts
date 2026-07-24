@@ -18,6 +18,7 @@ import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
+import { ChatSessionArchiveActionWordingSettingId } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -101,6 +102,8 @@ import { registerChatContextActions } from './actions/chatContextActions.js';
 import { ChatCopyActionRendering, registerChatCopyActions } from './actions/chatCopyActions.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { registerChatExecuteActions } from './actions/chatExecuteActions.js';
+import { ChatVoiceInputModeAction, ChatVoiceInputModeToggleListenAction, registerVoiceInputModeSimulateActions } from './voiceInputMode/voiceInputModeActionViewItem.js';
+import './voiceInputMode/voiceInputMode.js';
 import { registerChatSpeechToTextActions } from './actions/chatSpeechToTextActions.js';
 import { ChatSpeechToTextService, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
 import { registerChatFileTreeActions } from './actions/chatFileTreeActions.js';
@@ -207,6 +210,7 @@ import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.
 import { ChatWidgetService } from './widget/chatWidgetService.js';
 import { ILanguageModelsConfigurationService } from '../common/languageModelsConfiguration.js';
 import { ChatWindowNotifier } from './chatWindowNotifier.js';
+import { ChatPetService, IChatPetService } from './chatPetService.js';
 import { ChatRepoInfoContribution } from './chatRepoInfo.js';
 import { VALID_PROMPT_FOLDER_PATTERN } from '../common/promptSyntax/utils/promptFilesLocator.js';
 import { ChatTipService, IChatTipService } from './chatTipService.js';
@@ -257,8 +261,19 @@ configurationRegistry.registerConfiguration({
 		'dictation.enabled': {
 			type: 'boolean',
 			markdownDescription: nls.localize('dictation.enabled', "Enables dictation across the product (chat input, editor, and terminal). When enabled on a supported platform, a microphone button appears in the chat input and the dictation shortcut becomes available; the on-device transcription model is downloaded on first use and runs locally."),
-			default: product.quality !== 'stable',
-			tags: ['experimental']
+			default: true,
+			tags: ['experimental'],
+			policy: {
+				name: 'DictationEnabled',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.131',
+				localization: {
+					description: {
+						key: 'dictation.enabled.policy',
+						value: nls.localize('dictation.enabled.policy', "Controls whether dictation is available across the product (chat input, editor, and terminal).")
+					}
+				},
+			}
 		},
 		'dictation.model': {
 			type: 'string',
@@ -276,6 +291,12 @@ configurationRegistry.registerConfiguration({
 			],
 			markdownDescription: nls.localize('dictation.model', "The model used for dictation. On-device models download on first use and run locally through Microsoft Foundry Local; the cloud option streams audio to the Microsoft AI voice service."),
 			default: 'nemotron-speech-streaming-en-0.6b',
+			tags: ['experimental']
+		},
+		'dictation.experimental.llmCleanup': {
+			type: 'boolean',
+			markdownDescription: nls.localize('dictation.experimental.llmCleanup', "Experimental: periodically refine finalized text while dictating, then pass the final transcript through a small language model to restore punctuation, capitalization, paragraphs, and lists. Requires Copilot to be enabled; the transcript is sent to the language model for cleanup. Falls back to the raw transcript when no model is available."),
+			default: true,
 			tags: ['experimental']
 		},
 		'chat.editor.fontSize': {
@@ -797,6 +818,18 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			description: nls.localize('chat.viewProgressBadge.enabled', "Show a progress badge on the chat view when an agent session is in progress that is opened in that view."),
+		},
+		[ChatSessionArchiveActionWordingSettingId]: {
+			type: 'string',
+			enum: ['archive', 'done'],
+			enumDescriptions: [
+				nls.localize('chat.experimental.sessionArchiveActionWording.archive', "Use Archive, Archive All, Unarchive, and Unarchive All."),
+				nls.localize('chat.experimental.sessionArchiveActionWording.done', "Use Mark as Done, Mark All as Done, Restore, and Restore All."),
+			],
+			default: 'archive',
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+			description: nls.localize('chat.experimental.sessionArchiveActionWording', "Controls the wording and icons used by actions that archive and unarchive chat sessions."),
 		},
 		[ChatConfiguration.AgentsHandoffTipMode]: {
 			type: 'string',
@@ -2823,6 +2856,9 @@ registerChatFileTreeActions();
 registerChatPromptNavigationActions();
 registerChatTitleActions();
 registerChatExecuteActions();
+registerAction2(ChatVoiceInputModeAction);
+registerAction2(ChatVoiceInputModeToggleListenAction);
+registerVoiceInputModeSimulateActions();
 registerChatSpeechToTextActions();
 registerChatQueueActions();
 registerQuickChatActions();
@@ -2850,6 +2886,7 @@ registerSingleton(IChatSpeechToTextService, ChatSpeechToTextService, Instantiati
 registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
+registerSingleton(IChatPetService, ChatPetService, InstantiationType.Delayed);
 registerSingleton(IQuickChatService, QuickChatService, InstantiationType.Delayed);
 registerSingleton(IChatAccessibilityService, ChatAccessibilityService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetHistoryService, ChatWidgetHistoryService, InstantiationType.Delayed);
