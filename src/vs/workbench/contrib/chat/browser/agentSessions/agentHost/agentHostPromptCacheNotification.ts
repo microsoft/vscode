@@ -20,6 +20,7 @@ const PROMPT_CACHE_EXPIRATION_NOTIFICATION_EXPERIMENT = 'copilotchat.promptCache
 const PROMPT_CACHE_EXPIRATION_GRACE_PERIOD_MS = 10 * 60 * 1000;
 const PROMPT_CACHE_EXPIRATION_DISABLED_STORAGE_KEY = 'chat.promptCacheExpirationNotification.disabled';
 const DISABLE_PROMPT_CACHE_EXPIRATION_NOTIFICATION_COMMAND = 'workbench.action.chat.disablePromptCacheExpirationNotification';
+const PROMPT_CACHE_EXPIRATION_LEARN_MORE_URL = 'https://code.visualstudio.com/docs/agents/agent-troubleshooting/cache-explorer#_why-prompt-caching-matters';
 
 export class AgentHostPromptCacheNotification extends Disposable {
 	private readonly _trackedSessions = this._register(new DisposableMap<string>());
@@ -110,13 +111,19 @@ export class AgentHostPromptCacheNotification extends Disposable {
 			id: this._notificationId(sessionResource),
 			telemetryId: 'copilot.promptCacheExpired',
 			severity: ChatInputNotificationSeverity.Info,
-			message: localize('promptCacheExpiration.title', "Start a new chat for better performance"),
-			description: localize('promptCacheExpiration.description', "This chat's prompt cache expired more than 10 minutes ago."),
+			message: localize('promptCacheExpiration.title', "This chat's prompt cache is stale"),
+			description: localize('promptCacheExpiration.description', "The next prompt will incur increased cost. Consider starting a new chat."),
 			actions: [
 				{
 					kind: ChatInputNotificationActionKind.Command,
 					label: localize('promptCacheExpiration.dontShowAgain', "Don't Show Again"),
 					commandId: DISABLE_PROMPT_CACHE_EXPIRATION_NOTIFICATION_COMMAND,
+				},
+				{
+					kind: ChatInputNotificationActionKind.Command,
+					label: localize('promptCacheExpiration.learnMore', "Learn More"),
+					commandId: 'vscode.open',
+					commandArgs: [URI.parse(PROMPT_CACHE_EXPIRATION_LEARN_MORE_URL)],
 				},
 				{
 					kind: ChatInputNotificationActionKind.Command,
