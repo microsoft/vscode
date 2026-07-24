@@ -2349,7 +2349,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 						placeholder: true as const,
 						sectionId,
 						label: localize('noSessionInGroup', "No session"),
-						hover: localize('noSessionInGroupHover', "Right-click a session and select Add to Group, or drag it into this group."),
+						hover: localize('noSessionInGroupHover', "Use Add to Group from a session's context menu, or drag it into this group."),
 					}
 				}]
 				: renderSessionChildren(groupItem.sessions, sectionId, groupItem.group.name, !this.hasFindPattern && this.workspaceGroupCapped);

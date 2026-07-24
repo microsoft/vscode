@@ -140,6 +140,11 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		super();
 
 		this.load();
+		const archivedMembershipChanged = new Set<string>();
+		this.removeArchivedMembership(this.sessionsManagementService.getSessions(), archivedMembershipChanged);
+		if (archivedMembershipChanged.size > 0) {
+			this.save();
+		}
 
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
 			const changed = new Set<string>();
@@ -149,11 +154,8 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 					changed.add(session.sessionId);
 				}
 			}
-			for (const session of e.changed) {
-				if (session.isArchived.get() && this._membership.delete(session.sessionId)) {
-					changed.add(session.sessionId);
-				}
-			}
+			this.removeArchivedMembership(e.added, changed);
+			this.removeArchivedMembership(e.changed, changed);
 			if (changed.size > 0) {
 				this.save();
 				this._onDidChange.fire({ groupsChanged: false, membershipChanged: changed });
@@ -312,6 +314,14 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		if (this._membership.get(sessionId) !== groupId) {
 			this._membership.set(sessionId, groupId);
 			changed.add(sessionId);
+		}
+	}
+
+	private removeArchivedMembership(sessions: readonly ISession[], changed: Set<string>): void {
+		for (const session of sessions) {
+			if (session.isArchived.get() && this._membership.delete(session.sessionId)) {
+				changed.add(session.sessionId);
+			}
 		}
 	}
 
