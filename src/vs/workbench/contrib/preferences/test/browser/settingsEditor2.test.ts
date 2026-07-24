@@ -33,17 +33,18 @@ suite('SettingsEditor2', () => {
 			assert.strictEqual(isSettingsSearchUpToDate(false, undefined, ''), false);
 		});
 
-		test('uses Delayer.isTriggered() return value (regression #327360)', () => {
+		test('uses Delayer.isTriggered() return value (regression #327360)', async () => {
 			const delayer = store.add(new Delayer<void>(1000));
 
 			assert.strictEqual(delayer.isTriggered(), false);
 			assert.strictEqual(isSettingsSearchUpToDate(delayer.isTriggered(), 'font', 'font'), true);
 
-			delayer.trigger(() => { });
+			const pending = assert.rejects(delayer.trigger(() => { }));
 			assert.strictEqual(delayer.isTriggered(), true);
 			assert.strictEqual(isSettingsSearchUpToDate(delayer.isTriggered(), 'font', 'font'), false);
 
 			delayer.cancel();
+			await pending;
 			assert.strictEqual(delayer.isTriggered(), false);
 			assert.strictEqual(isSettingsSearchUpToDate(delayer.isTriggered(), 'font', 'font'), true);
 		});
