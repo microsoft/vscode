@@ -45,7 +45,7 @@ export interface IModelPickerPresentationOptions {
 	readonly showUnavailableFeatured: boolean;
 	readonly showFeatured: boolean;
 	readonly showAutoModel: boolean;
-	readonly useGenericModelIcon: boolean;
+	readonly showModelIcon: boolean;
 }
 
 export interface IModelPickerDelegate {

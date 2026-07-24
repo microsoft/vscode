@@ -13,6 +13,7 @@ import { Workbench } from '../../browser/workbench.js';
 import { DockedEditorSizeMemento, SinglePaneWorkbench } from '../../browser/singlePaneWorkbench.js';
 import { SinglePaneMainEditorPart } from '../../browser/parts/singlePaneEditorPart.js';
 import { DockedEditorInput } from '../../common/dockedEditorInput.js';
+import { EditorInputCapabilities } from '../../../workbench/common/editor.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
 
 interface IViewSize { width: number; height: number }
@@ -49,7 +50,8 @@ suite('Sessions - Workbench', () => {
 	const savePartSizes = Reflect.get(Workbench.prototype, '_savePartSizes') as (this: ISavePartSizesTestHarness) => void;
 	const isEditorPaneVisible = Workbench.prototype.isEditorPaneVisible as (this: ITestWorkbench) => boolean;
 	const isSinglePaneEditorPaneVisible = SinglePaneWorkbench.prototype.isEditorPaneVisible as (this: ITestWorkbench) => boolean;
-	const toggleEditorPane = SinglePaneWorkbench.prototype.toggleEditorPane as (this: ITestWorkbench) => void;
+	const toggleSecondarySideBarSinglePane = SinglePaneWorkbench.prototype.toggleSecondarySideBar as (this: ITestWorkbench) => void;
+	const isSecondarySideBarVisibleSinglePane = SinglePaneWorkbench.prototype.isSecondarySideBarVisible as (this: ITestWorkbench) => boolean;
 
 	// --- Harness ------------------------------------------------------------
 
@@ -71,6 +73,7 @@ suite('Sessions - Workbench', () => {
 		readonly classToggles: { name: string; force: boolean }[];
 		readonly counts: { save: number; layout: number };
 		readonly sidePaneReveals: boolean[];
+		readonly focusedParts: Parts[];
 		setEditorHidden(hidden: boolean, explicit?: boolean): void;
 		setAuxiliaryBarHidden(hidden: boolean): void;
 	}
@@ -112,6 +115,7 @@ suite('Sessions - Workbench', () => {
 		dockedWidth?: number;
 		hasAppliedInitialEditorSplit?: boolean;
 		suppressionCount?: number;
+		focusedPart?: Parts;
 		editorGroupService?: { mainPart: { groups: readonly { isEmpty: boolean }[] } };
 		viewDescriptorService?: {
 			getDefaultViewContainer(...args: unknown[]): { id: string } | undefined;
@@ -131,6 +135,7 @@ suite('Sessions - Workbench', () => {
 		const classToggles: { name: string; force: boolean }[] = [];
 		const counts = { save: 0, layout: 0 };
 		const sidePaneReveals: boolean[] = [];
+		const focusedParts: Parts[] = [];
 		let editorNodeVisible = (options.partVisibility?.editor ?? false) || (options.partVisibility?.auxiliaryBar ?? true);
 		const viewSizes = new Map<object, IViewSize>([
 			[editorPartView, { width: options.editorWidth ?? 0, height: 800 }],
@@ -190,6 +195,8 @@ suite('Sessions - Workbench', () => {
 			_layoutDockedAuxBar: () => { counts.layout++; },
 			layoutMobileSidebar: () => { },
 			setEditorMaximized: () => { },
+			hasFocus: (part: Parts) => options.focusedPart === part,
+			focusPart: (part: Parts) => { focusedParts.push(part); },
 			// captures
 			resizes,
 			visibilityChanges,
@@ -197,6 +204,7 @@ suite('Sessions - Workbench', () => {
 			classToggles,
 			counts,
 			sidePaneReveals,
+			focusedParts,
 		};
 
 		Object.setPrototypeOf(host, options.single ? SinglePaneWorkbench.prototype : Workbench.prototype);
@@ -241,17 +249,21 @@ suite('Sessions - Workbench', () => {
 		assert.strictEqual(isSinglePaneEditorPaneVisible.call(host), false);
 	});
 
-	test('single-pane editor pane toggle controls the editor pane', () => {
-		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: true } });
+	test('single-pane secondary sidebar toggle controls the editor pane', () => {
+		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: true }, focusedPart: Parts.EDITOR_PART });
 
-		toggleEditorPane.call(host);
+		toggleSecondarySideBarSinglePane.call(host);
 
 		assert.deepStrictEqual({
 			editorVisible: host.partVisibility.editor,
 			auxiliaryBarVisible: host.partVisibility.auxiliaryBar,
+			secondarySideBarVisible: isSecondarySideBarVisibleSinglePane.call(host),
+			focusedParts: host.focusedParts,
 		}, {
 			editorVisible: false,
 			auxiliaryBarVisible: true,
+			secondarySideBarVisible: false,
+			focusedParts: [Parts.AUXILIARYBAR_PART],
 		});
 	});
 
@@ -779,6 +791,20 @@ suite('Sessions - Workbench', () => {
 		revealEditorOnOpen.call(harness, { groupId: 1, editor: { typeId: 'workbench.editors.files.fileEditorInput' } });
 
 		assert.deepStrictEqual(setEditorHiddenCalls, []);
+	});
+
+	test('docked editors are excluded from the editor limit (prevents managed-tab open/close loop)', () => {
+		// The managed Changes/Files tabs are pinned but not sticky, so a per-group
+		// editor limit of 1 would otherwise evict them and the managed-tab
+		// reconciliation would reopen them, hanging the renderer. Docked inputs opt
+		// out of the limit so they are never auto-closed.
+		const dockedEditor = new TestDockedEditorInput();
+
+		try {
+			assert.strictEqual(dockedEditor.hasCapability(EditorInputCapabilities.ExcludeFromEditorLimit), true);
+		} finally {
+			dockedEditor.dispose();
+		}
 	});
 
 	test('[Scenario 5] single-pane does not reveal a docked editor while the detail panel is open and the editor is closed', () => {

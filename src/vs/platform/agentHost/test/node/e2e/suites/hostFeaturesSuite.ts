@@ -127,7 +127,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 			isActionNotification(n, 'chat/turnComplete')
 			&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-rename',
 		);
-		await assertRecordedAhpSnapshot(this.test!, context.client);
+		await assertRecordedAhpSnapshot(this.test!, context.client, behaviorSnapshot);
 
 		const after = await getCompletions(sessionUri, '/r');
 		const session = await fetchSessionWithChat(context.client, sessionUri);
@@ -157,7 +157,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 			isActionNotification(n, 'chat/turnComplete')
 			&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-empty-rename',
 		);
-		await assertRecordedAhpSnapshot(this.test!, context.client);
+		await assertRecordedAhpSnapshot(this.test!, context.client, behaviorSnapshot);
 
 		const after = await fetchSessionWithChat(context.client, sessionUri);
 		assert.deepStrictEqual({

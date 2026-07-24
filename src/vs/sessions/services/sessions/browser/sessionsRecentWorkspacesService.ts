@@ -40,8 +40,18 @@ export interface ISessionsRecentWorkspacesService {
 
 	readonly onDidChangeRecentWorkspaces: Event<void>;
 
-	/** The recently used folders, resolved and most recent first: own history first, then VS Code's recents (deduplicated). */
-	getRecentWorkspaces(): IRecentWorkspace[];
+	/**
+	 * The recently used folders, resolved and most recent first: own history
+	 * first, then (when `includeVSCodeRecents` is `true`, the default) VS
+	 * Code's own recently opened folders (deduplicated against own history).
+	 *
+	 * Pass `false` to restrict to the sessions' own recently-picked history
+	 * only, e.g. to restore the last explicit selection made in an Agents
+	 * Window folder picker, so an unrelated folder the user merely opened in
+	 * a regular VS Code window never silently becomes a new session's
+	 * default workspace.
+	 */
+	getRecentWorkspaces(includeVSCodeRecents?: boolean): IRecentWorkspace[];
 
 	/** Records `folderUri` as most-recently used; `checked` un-checks every other entry. */
 	addRecentWorkspace(folderUri: URI, providerId: string | undefined, checked: boolean): void;
@@ -75,18 +85,26 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 		this._register(this.workspacesService.onDidChangeRecentlyOpened(() => this._refreshVSCodeRecentWorkspaces()));
 	}
 
-	getRecentWorkspaces(): IRecentWorkspace[] {
+	getRecentWorkspaces(includeVSCodeRecents = true): IRecentWorkspace[] {
 		const own = this._getStoredRecentWorkspaces();
+		if (!includeVSCodeRecents) {
+			return this._resolveStored(own);
+		}
+
 		const ownUris = new Set(own.map(o => this.uriIdentityService.extUri.getComparisonKey(URI.revive(o.uri))));
 		const vsCode = this._vsCodeRecentFolderUris
 			.filter(uri => !ownUris.has(this.uriIdentityService.extUri.getComparisonKey(uri)))
 			.map(uri => ({ uri: uri.toJSON(), providerId: undefined, checked: false }) satisfies IStoredRecentWorkspace);
 
+		return this._resolveStored([...own, ...vsCode]);
+	}
+
+	private _resolveStored(stored: readonly IStoredRecentWorkspace[]): IRecentWorkspace[] {
 		const recents: IRecentWorkspace[] = [];
-		for (const stored of [...own, ...vsCode]) {
-			const resolved = this._resolveWorkspace(URI.revive(stored.uri), stored.providerId);
+		for (const entry of stored) {
+			const resolved = this._resolveWorkspace(URI.revive(entry.uri), entry.providerId);
 			if (resolved) {
-				recents.push({ workspace: resolved.workspace, providerId: resolved.providerId, checked: stored.checked });
+				recents.push({ workspace: resolved.workspace, providerId: resolved.providerId, checked: entry.checked });
 			}
 		}
 		return recents;

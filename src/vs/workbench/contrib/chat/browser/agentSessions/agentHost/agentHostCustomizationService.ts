@@ -94,7 +94,7 @@ export interface IAgentHostCustomizationService {
 	 * {@link authenticateMcpServer}. No-op when the session/server cannot be
 	 * resolved.
 	 */
-	showMcpServerLog(sessionResource: URI, serverId: string): void;
+	showMcpServerLog(sessionResource: URI, serverId: string, beforeShow?: () => Promise<void>): Promise<void>;
 }
 
 export class NullAgentHostCustomizationService implements IAgentHostCustomizationService {
@@ -128,8 +128,8 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	prepareMcpServersForTurn(_sessionResource: URI): void {
 		// no-op
 	}
-	showMcpServerLog(_sessionResource: URI, _serverId: string): void {
-		// no-op
+	async showMcpServerLog(_sessionResource: URI, _serverId: string, beforeShow?: () => Promise<void>): Promise<void> {
+		await beforeShow?.();
 	}
 }
 
@@ -157,10 +157,9 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	private readonly _mcpLogRegistry: AgentHostMcpServerLogRegistry;
 	/**
 	 * Sessions whose MCP diagnostics we mirror into per-server Output channels.
-	 * A session is tracked once the UI first queries its MCP servers; from then
+	 * A session is tracked once the user reveals a server's output; from then
 	 * on every state change is recorded via {@link onDidChangeCustomizations},
-	 * independent of whether the UI re-queries -- so a failure and a later
-	 * recovery both land in the channel history.
+	 * so subsequent failures and recoveries land in the channel history.
 	 */
 	private readonly _mcpDiagnosticSessions = new ResourceSet();
 
@@ -194,10 +193,6 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!target) {
 			return [];
 		}
-		// Start mirroring this session's MCP diagnostics (idempotent). Recording
-		// itself is driven by state-change events, not this getter, so a later
-		// failure/recovery is captured even without a re-query.
-		this._trackMcpDiagnostics(sessionResource, target);
 		return this._flattenMcpServers(target.customizations)
 			.map((c): IAgentHostMcpServer => ({
 				id: this._scopedMcpServerId(sessionResource, c.id),
@@ -205,25 +200,26 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				enabled: c.enabled,
 				status: c.state.kind,
 				state: c.state,
+				logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), c.id),
 				setEnabled: (enabled: boolean) => target.setCustomizationEnabled(c.id, enabled),
 				start: () => target.startMcpServer(c.id),
 				stop: () => target.stopMcpServer(c.id),
 			}));
 	}
 
-	showMcpServerLog(sessionResource: URI, serverId: string): void {
+	showMcpServerLog(sessionResource: URI, serverId: string, beforeShow?: () => Promise<void>): Promise<void> {
 		const target = this._resolveTarget(sessionResource);
 		if (!target) {
-			return;
+			return Promise.resolve();
 		}
 		const server = this._flattenMcpServers(target.customizations).find(c => this._scopedMcpServerId(sessionResource, c.id) === serverId);
 		if (!server) {
-			return;
+			return Promise.resolve();
 		}
 		// Ensure the session is tracked and its channels exist, then reveal.
 		this._trackMcpDiagnostics(sessionResource, target);
 		const channelId = this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: server.enabled, state: server.state });
-		this._mcpLogRegistry.show(channelId);
+		return this._mcpLogRegistry.show(channelId, beforeShow);
 	}
 
 	/**
@@ -610,12 +606,13 @@ class AgentHostMcpServerLogRegistry extends Disposable {
 	}
 
 	/** Reveals the diagnostics channel `channelId`, making its hidden logger visible. */
-	show(channelId: string): void {
+	async show(channelId: string, beforeShow?: () => Promise<void>): Promise<void> {
 		if (!this._entries.has(channelId)) {
 			return;
 		}
 		this._loggerService.setVisibility(channelId, true);
-		void this._outputService.showChannel(channelId);
+		await beforeShow?.();
+		await this._outputService.showChannel(channelId);
 	}
 
 	/** Disposes every channel/logger owned by `sessionResource` (session teardown). */
