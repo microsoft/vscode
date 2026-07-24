@@ -45,7 +45,9 @@ flowchart LR
 │  │  Run Review                    │
 │  │                                 │
 │  ◇  Gate           Needs request │
-│  │  Tieline · Bouncer · Aiglare   │
+│  │  ○ Tieline  contracts    Ready │
+│  │  ○ Bouncer  compliance   Ready │
+│  │  ○ Aiglare  governance   Ready │
 │  │  Run Gate                      │
 │  │                                 │
 │  ◇  Audit          Needs request │
@@ -80,6 +82,7 @@ stateDiagram-v2
 - Failed stages retain a visible `Failed` state and a one-click retry action instead of returning to an ambiguous idle state.
 - The bundled Repoctx CLI is launched through Repoctx IDE's own runtime as a direct integrated-terminal process with structured arguments. Users do not need a separate global install, task text is never composed into a shell command, and Electron archive handling is disabled for repository scans so ordinary `.asar` fixture files stay quiet.
 - A successful stage writes a named artifact into `.dev-context` and the rail refreshes from the filesystem.
+- Gate runs the bundled Tieline contract, Bouncer compliance, and Aiglare AI-governance checks. Each tool remains visible while it is checking and resolves to `Pass`, `Warning`, `Fail`, or `Not configured` from `gate.md`; status is never inferred from process activity alone.
 - A failed stage points to the visible Repoctx terminal output.
 - Context, Impact, Gate, and Audit require a change request. Review can inspect the current diff without one.
 - The next useful action stays beside the evidence it creates.

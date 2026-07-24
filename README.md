@@ -6,7 +6,7 @@ Repoctx IDE is a native Code OSS evidence workbench for AI-assisted software tea
 
 ## Trust Rail
 
-The Repoctx Trust Rail lives in the right secondary sidebar so it can sit beside Chat without displacing Explorer or Source Control. Its native Context → Impact → Review → Gate → Audit path reads real `.dev-context` artifacts and keeps missing evidence explicit.
+The Repoctx Trust Rail lives in the right secondary sidebar so it can sit beside Chat without displacing Explorer or Source Control. Its native Context → Impact → Review → Gate → Audit path reads real `.dev-context` artifacts and keeps missing evidence explicit. Gate runs the bundled Tieline, Bouncer, and Aiglare checks, then shows each tool's running, pass, warning, fail, or not-configured state from the durable Gate receipt.
 
 When Context evidence is available, Repoctx automatically provides every IDE agent request with a concise repository map and exact evidence paths. Chat shows a read-only `Repoctx · N evidence files` attachment before and after the request, so the handoff is visible without becoming another step to manage. Agents can open deeper evidence on demand, without copying full reports into every prompt or coupling the workflow to a particular model provider. This is enabled by default and can be disabled with `repoctx.agentContext.enabled`.
 

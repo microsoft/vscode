@@ -359,21 +359,60 @@
 
 .repoctx-stage-tools {
 	display: flex;
-	flex-wrap: wrap;
-	gap: 3px 8px;
-	margin: 1px 0;
+	flex-direction: column;
+	gap: 3px;
+	margin: 3px 0;
 }
 
 .repoctx-stage-tool {
+	align-items: center;
 	color: var(--vscode-descriptionForeground);
-	display: inline-flex;
+	display: flex;
 	font-size: 11px;
+	gap: 6px;
+	min-height: 18px;
+	min-width: 0;
+}
+
+.repoctx-stage-tool-icon {
+	flex: 0 0 14px;
+	text-align: center;
+}
+
+.repoctx-stage-tool-identity {
+	display: flex;
 	gap: 4px;
+	min-width: 0;
 }
 
 .repoctx-stage-tool strong {
 	color: var(--vscode-foreground);
 	font-weight: 600;
+}
+
+.repoctx-stage-tool-state {
+	margin-left: auto;
+	white-space: nowrap;
+}
+
+.repoctx-stage-tool.is-pass .repoctx-stage-tool-icon,
+.repoctx-stage-tool.is-pass .repoctx-stage-tool-state {
+	color: var(--vscode-testing-iconPassed);
+}
+
+.repoctx-stage-tool.is-warn .repoctx-stage-tool-icon,
+.repoctx-stage-tool.is-warn .repoctx-stage-tool-state {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.repoctx-stage-tool.is-fail .repoctx-stage-tool-icon,
+.repoctx-stage-tool.is-fail .repoctx-stage-tool-state {
+	color: var(--vscode-testing-iconFailed);
+}
+
+.repoctx-stage-tool.is-running .repoctx-stage-tool-icon,
+.repoctx-stage-tool.is-running .repoctx-stage-tool-state {
+	color: var(--vscode-progressBar-background);
 }
 
 .repoctx-stage-evidence {

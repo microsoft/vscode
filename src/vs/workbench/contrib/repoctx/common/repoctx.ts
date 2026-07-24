@@ -7,6 +7,17 @@ export type RepoctxEvidenceStageId = 'context' | 'impact' | 'review' | 'gate' | 
 
 export type RepoctxStageState = 'available' | 'running' | 'failed' | 'needs-request' | 'ready';
 
+export type RepoctxGateToolId = 'tieline' | 'bouncer' | 'aiglare';
+
+export type RepoctxGateToolEvidenceStatus = 'pass' | 'warn' | 'fail';
+
+export interface IRepoctxGateToolEvidence {
+	readonly status: RepoctxGateToolEvidenceStatus;
+	readonly summary: string;
+}
+
+export type RepoctxGateEvidence = Partial<Record<RepoctxGateToolId, IRepoctxGateToolEvidence>>;
+
 export const repoctxAgentContextEnabledSetting = 'repoctx.agentContext.enabled';
 
 export interface IRepoctxStageStateOptions {
@@ -92,6 +103,58 @@ export async function findRepoctxEvidence(exists: (relativePath: string) => Prom
 	}));
 
 	return Object.fromEntries(entries) as RepoctxEvidence;
+}
+
+const gateToolByCheckName: Readonly<Record<string, RepoctxGateToolId>> = {
+	'Contract drift': 'tieline',
+	'Compliance controls': 'bouncer',
+	'AI governance': 'aiglare',
+};
+
+export function parseRepoctxGateEvidence(content: string): RepoctxGateEvidence {
+	try {
+		const parsed = JSON.parse(content) as { readonly checks?: readonly { readonly name?: unknown; readonly status?: unknown; readonly summary?: unknown }[] };
+		if (Array.isArray(parsed.checks)) {
+			return parseRepoctxGateChecks(parsed.checks);
+		}
+	} catch {
+		// The durable default is Markdown. Fall through to its headings.
+	}
+
+	const checks: { readonly name: string; readonly status: string; readonly summary: string }[] = [];
+	for (const section of content.split(/^###\s+/m).slice(1)) {
+		const [heading = '', ...body] = section.split(/\r?\n/);
+		const match = /^(PASS|WARN|FAIL)\s+·\s+(.+?)\s*$/.exec(heading);
+		if (!match) {
+			continue;
+		}
+		checks.push({
+			status: match[1],
+			name: match[2],
+			summary: body.map(line => line.trim()).find(Boolean) ?? '',
+		});
+	}
+
+	return parseRepoctxGateChecks(checks);
+}
+
+function parseRepoctxGateChecks(checks: readonly { readonly name?: unknown; readonly status?: unknown; readonly summary?: unknown }[]): RepoctxGateEvidence {
+	const evidence: RepoctxGateEvidence = {};
+	for (const check of checks) {
+		if (typeof check.name !== 'string' || typeof check.status !== 'string') {
+			continue;
+		}
+		const toolId = gateToolByCheckName[check.name];
+		const status = check.status.toLowerCase();
+		if (!toolId || (status !== 'pass' && status !== 'warn' && status !== 'fail')) {
+			continue;
+		}
+		evidence[toolId] = {
+			status,
+			summary: typeof check.summary === 'string' ? check.summary : '',
+		};
+	}
+	return evidence;
 }
 
 export function buildRepoctxAgentContext(options: IRepoctxAgentContextOptions): string | undefined {

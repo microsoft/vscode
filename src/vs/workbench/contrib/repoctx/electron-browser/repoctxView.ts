@@ -32,7 +32,7 @@ import { IViewDescriptorService } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { ITerminalService } from '../../terminal/browser/terminal.js';
-import { findRepoctxEvidence, getRepoctxStageInvocation, getRepoctxStageState, RepoctxEvidence, RepoctxEvidenceStageId, RepoctxStageState, repoctxAgentContextEnabledSetting } from '../common/repoctx.js';
+import { findRepoctxEvidence, getRepoctxStageInvocation, getRepoctxStageState, parseRepoctxGateEvidence, RepoctxEvidence, RepoctxEvidenceStageId, RepoctxGateEvidence, RepoctxGateToolId, RepoctxStageState, repoctxAgentContextEnabledSetting } from '../common/repoctx.js';
 
 import '../browser/media/repoctxView.css';
 
@@ -43,8 +43,10 @@ interface IRepoctxStagePresentation {
 	readonly command: string;
 	readonly icon: ThemeIcon;
 	readonly requiresTask: boolean;
-	readonly tools?: readonly { readonly name: string; readonly purpose: string }[];
+	readonly tools?: readonly { readonly id: RepoctxGateToolId; readonly name: string; readonly purpose: string }[];
 }
+
+type RepoctxGateToolState = 'ready' | 'running' | 'pass' | 'warn' | 'fail' | 'not-configured';
 
 interface IRepoctxStageControl {
 	readonly stage: IRepoctxStagePresentation;
@@ -70,6 +72,7 @@ export class RepoctxTrustViewPane extends ViewPane {
 	private requestHelp: HTMLElement | undefined;
 	private workflow: HTMLElement | undefined;
 	private evidence: RepoctxEvidence | undefined;
+	private gateEvidence: RepoctxGateEvidence = {};
 	private readonly stageControls = new Map<RepoctxEvidenceStageId, IRepoctxStageControl>();
 	private refreshToken = 0;
 
@@ -135,10 +138,20 @@ export class RepoctxTrustViewPane extends ViewPane {
 		this.renderLoading(folder.name);
 		const evidenceRoot = URI.joinPath(folder.uri, '.dev-context');
 		const evidence = await findRepoctxEvidence(relativePath => this.fileService.exists(URI.joinPath(evidenceRoot, relativePath)));
+		let gateEvidence: RepoctxGateEvidence = {};
+		if (evidence.gate) {
+			try {
+				const content = await this.fileService.readFile(URI.joinPath(evidenceRoot, evidence.gate));
+				gateEvidence = parseRepoctxGateEvidence(content.value.toString());
+			} catch {
+				// Keep the tools explicit even when durable evidence is unreadable.
+			}
+		}
 		if (token !== this.refreshToken) {
 			return;
 		}
 
+		this.gateEvidence = gateEvidence;
 		this.renderEvidence(folder.name, evidenceRoot, evidence);
 	}
 
@@ -326,12 +339,7 @@ export class RepoctxTrustViewPane extends ViewPane {
 		const stateElement = DOM.append(titleRow, DOM.$('span.repoctx-stage-state', { role: 'status' }, this.getStageStateLabel(state)));
 		DOM.append(content, DOM.$('span.repoctx-stage-description', undefined, stage.description));
 		if (stage.tools?.length) {
-			const tools = DOM.append(content, DOM.$('.repoctx-stage-tools', { role: 'list', 'aria-label': localize('repoctxGateTools', "Gate tools") }));
-			for (const tool of stage.tools) {
-				const item = DOM.append(tools, DOM.$('span.repoctx-stage-tool', { role: 'listitem', title: tool.purpose }));
-				DOM.append(item, DOM.$('strong', undefined, tool.name));
-				DOM.append(item, DOM.$('span', undefined, tool.purpose));
-			}
+			this.renderGateTools(content, stage.tools, artifactPath);
 		}
 		DOM.append(content, DOM.$('code.repoctx-stage-evidence', undefined, artifactPath ? `.dev-context/${artifactPath}` : stage.command));
 
@@ -348,6 +356,53 @@ export class RepoctxTrustViewPane extends ViewPane {
 				void this.runStage(stage);
 			}
 		}));
+	}
+
+	private renderGateTools(container: HTMLElement, tools: readonly { readonly id: RepoctxGateToolId; readonly name: string; readonly purpose: string }[], artifactPath: string | undefined): void {
+		const list = DOM.append(container, DOM.$('.repoctx-stage-tools', { role: 'list', 'aria-label': localize('repoctxGateTools', "Gate tools") }));
+		for (const tool of tools) {
+			const evidence = this.gateEvidence[tool.id];
+			const state: RepoctxGateToolState = this.runningStage === 'gate'
+				? 'running'
+				: evidence?.status ?? (artifactPath ? 'not-configured' : 'ready');
+			const stateLabel = this.getGateToolStateLabel(state);
+			const summary = evidence?.summary || (state === 'not-configured'
+				? localize('repoctxGateToolNoConfiguration', "No configuration found for this tool.")
+				: localize('repoctxGateToolNoEvidence', "No tool evidence yet."));
+			const item = DOM.append(list, DOM.$(`.repoctx-stage-tool.is-${state}`, {
+				role: 'listitem',
+				title: summary,
+				'aria-label': localize('repoctxGateToolStatus', "{0}, {1}: {2}", tool.name, stateLabel, summary),
+			}));
+			const icon = DOM.append(item, DOM.$('span.repoctx-stage-tool-icon'));
+			icon.classList.add(...ThemeIcon.asClassNameArray(this.getGateToolIcon(state)));
+			const identity = DOM.append(item, DOM.$('span.repoctx-stage-tool-identity'));
+			DOM.append(identity, DOM.$('strong', undefined, tool.name));
+			DOM.append(identity, DOM.$('span', undefined, tool.purpose));
+			DOM.append(item, DOM.$('span.repoctx-stage-tool-state', { role: 'status' }, stateLabel));
+		}
+	}
+
+	private getGateToolIcon(state: RepoctxGateToolState): ThemeIcon {
+		switch (state) {
+			case 'ready': return Codicon.circleOutline;
+			case 'running': return ThemeIcon.modify(Codicon.loading, 'spin');
+			case 'pass': return Codicon.passFilled;
+			case 'warn': return Codicon.warning;
+			case 'fail': return Codicon.error;
+			case 'not-configured': return Codicon.circleSlash;
+		}
+	}
+
+	private getGateToolStateLabel(state: RepoctxGateToolState): string {
+		switch (state) {
+			case 'ready': return localize('repoctxGateToolReady', "Ready");
+			case 'running': return localize('repoctxGateToolRunning', "Checking");
+			case 'pass': return localize('repoctxGateToolPass', "Pass");
+			case 'warn': return localize('repoctxGateToolWarning', "Warning");
+			case 'fail': return localize('repoctxGateToolFail', "Fail");
+			case 'not-configured': return localize('repoctxGateToolNotConfigured', "Not configured");
+		}
 	}
 
 	private getStageState(stage: IRepoctxStagePresentation, artifactPath: string | undefined): RepoctxStageState {
@@ -539,9 +594,9 @@ export class RepoctxTrustViewPane extends ViewPane {
 				icon: Codicon.shield,
 				requiresTask: true,
 				tools: [
-					{ name: 'Tieline', purpose: localize('repoctxTielinePurpose', "contracts") },
-					{ name: 'Bouncer', purpose: localize('repoctxBouncerPurpose', "compliance") },
-					{ name: 'Aiglare', purpose: localize('repoctxAiglarePurpose', "AI governance") },
+					{ id: 'tieline', name: 'Tieline', purpose: localize('repoctxTielinePurpose', "contracts") },
+					{ id: 'bouncer', name: 'Bouncer', purpose: localize('repoctxBouncerPurpose', "compliance") },
+					{ id: 'aiglare', name: 'Aiglare', purpose: localize('repoctxAiglarePurpose', "AI governance") },
 				],
 			},
 			{

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildRepoctxAgentContext, findRepoctxEvidence, getRepoctxStageInvocation, getRepoctxStageState, RepoctxEvidence } from '../../common/repoctx.js';
+import { buildRepoctxAgentContext, findRepoctxEvidence, getRepoctxStageInvocation, getRepoctxStageState, parseRepoctxGateEvidence, RepoctxEvidence } from '../../common/repoctx.js';
 
 suite('Repoctx evidence', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,6 +40,45 @@ suite('Repoctx evidence', () => {
 			gate: undefined,
 			audit: undefined,
 		});
+	});
+
+	test('parses bundled Gate tool evidence from Markdown', () => {
+		const evidence = parseRepoctxGateEvidence([
+			'# repoctx pass: fixture',
+			'',
+			'### PASS  ·  Contract drift',
+			'',
+			'No frontend↔backend contract drift detected (tieline).',
+			'',
+			'### WARN  ·  Compliance controls',
+			'',
+			'1 control could not be determined (bouncer).',
+			'',
+			'### FAIL  ·  AI governance',
+			'',
+			'1 irreversible AI surface lacks required guardrails (aiglare).',
+		].join('\n'));
+
+		assert.deepStrictEqual(evidence, {
+			tieline: { status: 'pass', summary: 'No frontend↔backend contract drift detected (tieline).' },
+			bouncer: { status: 'warn', summary: '1 control could not be determined (bouncer).' },
+			aiglare: { status: 'fail', summary: '1 irreversible AI surface lacks required guardrails (aiglare).' },
+		});
+	});
+
+	test('parses Gate JSON and leaves unconfigured tools explicit', () => {
+		const evidence = parseRepoctxGateEvidence(JSON.stringify({
+			checks: [
+				{ name: 'AI governance', status: 'PASS', summary: '16 AI surfaces inspected.' },
+				{ name: 'Validation commands', status: 'PASS', summary: 'Tests are configured.' },
+			],
+		}));
+
+		assert.deepStrictEqual(evidence, {
+			aiglare: { status: 'pass', summary: '16 AI surfaces inspected.' },
+		});
+		assert.strictEqual(evidence.tieline, undefined);
+		assert.strictEqual(evidence.bouncer, undefined);
 	});
 
 	test('derives explicit stage states in priority order', () => {
