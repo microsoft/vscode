@@ -69,6 +69,8 @@ suite('copilotConfigSlashCommands', () => {
 			assert.deepStrictEqual(resolveCopilotConfigSlashCommandOnSend('autopilot', 'do the thing'), { applyConfig: { mode: 'autopilot' }, strippedPrompt: 'do the thing' });
 			// `plan` has no sub-args, so trailing text is forwarded as the prompt.
 			assert.deepStrictEqual(resolveCopilotConfigSlashCommandOnSend('plan', 'the feature'), { applyConfig: { mode: 'plan' }, strippedPrompt: 'the feature' });
+			assert.strictEqual(resolveCopilotConfigSlashCommandOnSend('yolo', 'onxxxcva'), undefined);
+			assert.strictEqual(resolveCopilotConfigSlashCommandOnSend('allow-all', 'offxxxcva'), undefined);
 			assert.strictEqual(resolveCopilotConfigSlashCommandOnSend('notACommand', 'x'), undefined);
 		});
 	});

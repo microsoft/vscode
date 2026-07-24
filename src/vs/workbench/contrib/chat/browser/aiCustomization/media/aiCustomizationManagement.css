@@ -237,6 +237,11 @@
 	box-sizing: border-box;
 }
 
+.ai-customization-management-editor .contributed-section-container {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
 .ai-customization-management-editor .section-back-arrow-button {
 	flex-shrink: 0;
 	align-self: flex-start;
@@ -920,6 +925,30 @@
 
 .ai-customization-management-editor .prompt-migration-item .item-left {
 	gap: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-item .icon-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	font-size: 16px;
+}
+
+.ai-customization-management-editor .prompt-migration-item .icon-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.ai-customization-management-editor .prompt-migration-item .icon-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .ai-customization-management-editor .prompt-migration-empty {

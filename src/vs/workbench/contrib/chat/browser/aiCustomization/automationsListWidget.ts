@@ -374,8 +374,9 @@ export class AutomationsListWidget extends Disposable {
 
 	private lastHeight = 0;
 	private lastWidth = 0;
-	private _layoutDeferred = false;
-	private readonly _layoutRAF = this._register(new MutableDisposable());
+	private visible = false;
+	private listDirty = false;
+	private remeasureOnNextLayout = false;
 
 	constructor(
 		@IAutomationService private readonly automationService: IAutomationService,
@@ -465,11 +466,12 @@ export class AutomationsListWidget extends Disposable {
 	private updateList(items: readonly IAutomation[]): void {
 		if (items.length === 0) {
 			this.element.classList.add('automations-empty');
+			this.displayEntries = [];
+			this.listDirty = true;
+			this.commitList();
 			this.emptyContainer.style.display = '';
 			this.listContainer.style.display = 'none';
 			this.renderEmptyState();
-			this.displayEntries = [];
-			this.list.splice(0, this.list.length, []);
 			return;
 		}
 
@@ -486,7 +488,20 @@ export class AutomationsListWidget extends Disposable {
 			inFlight: this.runInFlight.has(automation.id),
 		}));
 
+		this.listDirty = true;
+		this.commitList();
+		if (this.visible && this.lastHeight > 0 && this.lastWidth > 0) {
+			this.layout(this.lastHeight, this.lastWidth);
+		}
+	}
+
+	private commitList(): void {
+		if (!this.visible || !this.listDirty) {
+			return;
+		}
+
 		this.list.splice(0, this.list.length, this.displayEntries);
+		this.listDirty = false;
 	}
 
 	private renderEmptyState(): void {
@@ -677,24 +692,36 @@ export class AutomationsListWidget extends Disposable {
 
 		this.element.style.height = `${height}px`;
 
-		// Measure the header to calculate the list height.
-		// When offsetHeight returns 0 the container may have just become visible
-		// after display:none and the browser hasn't reflowed yet. Defer layout
-		// once so measurements are accurate. Only retry once to avoid an endless
-		// loop when the widget is created while permanently hidden.
+		if (!this.visible || this.displayEntries.length === 0 || height <= 0 || width <= 0) {
+			return;
+		}
+
 		const headerHeight = this.headerEl.offsetHeight;
-		if (headerHeight === 0 && !this._layoutDeferred) {
-			this._layoutDeferred = true;
-			this._layoutRAF.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.element), () => {
-				this._layoutDeferred = false;
-				this.layout(this.lastHeight, this.lastWidth);
-			});
+		if (headerHeight === 0) {
 			return;
 		}
 		const listHeight = Math.max(0, height - headerHeight);
 
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight, width);
+		if (this.remeasureOnNextLayout) {
+			this.remeasureOnNextLayout = false;
+			this.list.rerender();
+		}
+	}
+
+	setVisible(visible: boolean): void {
+		if (this.visible === visible) {
+			return;
+		}
+
+		this.visible = visible;
+		if (!visible) {
+			return;
+		}
+
+		this.commitList();
+		this.remeasureOnNextLayout = this.list.length > 0;
 	}
 
 	fireItemCount(): void {

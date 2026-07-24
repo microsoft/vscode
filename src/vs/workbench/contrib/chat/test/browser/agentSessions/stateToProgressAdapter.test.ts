@@ -11,7 +11,7 @@ import type { IMarkdownString } from '../../../../../../base/common/htmlContent.
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -302,6 +302,48 @@ suite('stateToProgressAdapter', () => {
 			assertInputOutputDetails(details);
 			assert.strictEqual(details.isError, true);
 			assert.deepStrictEqual(details.output, [{ type: 'embed', value: 'request timed out', isText: true, mimeType: 'text/plain' }]);
+		});
+
+		test('failed MCP App tool call in history remains confirmed', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						toolName: 'GitHub-create_pull_request',
+						toolInput: '{"owner":"microsoft","repo":"vscode"}',
+						success: false,
+						error: { message: 'The pull request form is awaiting submission.' },
+						contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'github-customization' },
+						_meta: {
+							ui: {
+								resourceUri: 'ui://github-mcp-server/pr-write',
+								channel: 'mcp://copilot/session/GitHub',
+							},
+						},
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.deepStrictEqual({
+				isConfirmed: serialized.isConfirmed,
+				toolSpecificData: serialized.toolSpecificData,
+			}, {
+				isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+				toolSpecificData: {
+					kind: 'input',
+					rawInput: { owner: 'microsoft', repo: 'vscode' },
+					mcpAppData: {
+						kind: 'agentHost',
+						resourceUri: 'ui://github-mcp-server/pr-write',
+						serverId: 'github-customization',
+						channel: 'mcp://copilot/session/GitHub',
+					},
+				},
+			});
 		});
 
 		test('generic completed tool call maps embedded resources and resource refs', () => {
@@ -936,7 +978,7 @@ suite('stateToProgressAdapter', () => {
 			const invocation = toolCallStateToInvocation(tc);
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'terminal');
 			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string } };
-			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n', 'normalizes \\n to \\r\\n for xterm');
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n');
 		});
 
 		test('does not render terminal pill for terminal toolKind without a command (falls back to invocationMessage)', () => {
@@ -1255,7 +1297,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(value, 'Read [](vscode-agent-host://ssh__macbook-air/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)');
 		});
 
-		test('finalizes terminal tool with output and exit code', () => {
+		test('finalizes pty terminal tool with compatibility output and exit code', () => {
 			const tc = createToolCallState({
 				toolInput: 'echo hi',
 				status: ToolCallStatus.Running,
@@ -1283,13 +1325,13 @@ suite('stateToProgressAdapter', () => {
 
 			assert.ok(invocation.toolSpecificData);
 			assert.strictEqual(invocation.toolSpecificData.kind, 'terminal');
-			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput: { text: string }; terminalCommandState: { exitCode: number } };
-			assert.strictEqual(termData.terminalCommandOutput.text, 'output text');
-			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string }; terminalCommandState?: { exitCode: number } };
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'output text');
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
 			assert.strictEqual(IChatToolInvocation.resultDetails(invocation), undefined);
 		});
 
-		test('normalizes LF line endings to CRLF in terminal output for xterm rendering', () => {
+		test('normalizes plain-text line endings for the detached terminal', () => {
 			const tc = createToolCallState({
 				toolInput: 'grep -n foo',
 				status: ToolCallStatus.Running,
@@ -1315,8 +1357,8 @@ suite('stateToProgressAdapter', () => {
 				],
 			});
 
-			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput: { text: string } };
-			assert.strictEqual(termData.terminalCommandOutput.text, 'line1\r\nline2\r\nline3\r\n');
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string } };
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'line1\r\nline2\r\nline3\r\n');
 		});
 
 		test('finalizes generic tool with input/output details', () => {
@@ -1911,7 +1953,7 @@ suite('stateToProgressAdapter', () => {
 				_meta: { toolKind: 'terminal' },
 				toolInput: 'npm test',
 				content: [
-					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///abc123', title: 'Terminal' },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///abc123', title: 'Terminal', isPty: false },
 				],
 				success: true,
 			});
@@ -1932,14 +1974,14 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandUri.toString(), 'agenthost-terminal:/abc123');
 		});
 
-		test('terminal content block skips output from text content', () => {
+		test('terminal content block skips bookkeeping text output', () => {
 			const tc = createCompletedToolCall({
 				_meta: {
 					toolKind: 'terminal',
 				},
 				toolInput: 'npm test',
 				content: [
-					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///abc123', title: 'Terminal' },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///abc123', title: 'Terminal', isPty: false },
 					{ type: ToolResultContentType.Text, text: 'text-output' },
 				],
 				success: true,
@@ -1957,8 +1999,7 @@ suite('stateToProgressAdapter', () => {
 			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandUri?: { toString(): string }; terminalCommandOutput?: { text: string } };
 			// Terminal content block URI should be set
 			assert.ok(termData.terminalCommandUri);
-			// Text content is still extracted as output
-			assert.strictEqual(termData.terminalCommandOutput?.text, 'text-output');
+			assert.strictEqual(termData.terminalCommandOutput, undefined);
 		});
 
 		test('uses terminal completion exit code for completed SDK shell tool history', () => {
@@ -1967,7 +2008,7 @@ suite('stateToProgressAdapter', () => {
 				toolInput: 'gti status',
 				content: [
 					{ type: ToolResultContentType.Text, text: 'command not found\n<shellId: 104 completed with exit code 127>' },
-					{ type: ToolResultContentType.TerminalComplete, exitCode: 127, cwd: URI.file('/repo').toString(), preview: 'preview only\n', truncated: true },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 127, preview: 'preview only\n', truncated: true } },
 				],
 				success: true,
 			});
@@ -1988,13 +2029,13 @@ suite('stateToProgressAdapter', () => {
 			assert.ok(!termData.terminalCommandOutput?.text.includes('shellId'));
 		});
 
-		test('strips legacy shell completion marker from terminal fallback output', () => {
+		test('does not use text content when a terminal block owns the output', () => {
 			const tc = createCompletedToolCall({
 				_meta: { toolKind: 'terminal' },
 				toolInput: 'ehco hi',
 				content: [
 					{ type: ToolResultContentType.Text, text: 'bash: line 1: ehco: command not found\n<shellId: 104 completed with exit code 127>' },
-					{ type: ToolResultContentType.TerminalComplete, exitCode: 127, cwd: URI.file('/repo').toString() },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 127 } },
 				],
 				success: true,
 			});
@@ -2010,8 +2051,35 @@ suite('stateToProgressAdapter', () => {
 			const serialized = response.parts[0] as IChatToolInvocationSerialized;
 			const termData = getSerializedTerminalData(serialized);
 			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
-			assert.strictEqual(termData.terminalCommandOutput?.text, 'bash: line 1: ehco: command not found\r\n');
-			assert.ok(!termData.terminalCommandOutput?.text.includes('shellId'));
+			assert.strictEqual(termData.terminalCommandOutput, undefined);
+		});
+
+		test('reads legacy terminalComplete blocks from old persisted state', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'pwd',
+				content: [
+					{ type: ToolResultContentType.Text, text: '/repo\n' },
+					// Removed from the protocol in AHP 0.7.0; may linger in old persisted turns.
+					{ type: 'terminalComplete', exitCode: 127, preview: 'legacy preview\n' } as unknown as ToolResultContent,
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const termData = getSerializedTerminalData(serialized);
+			// The legacy block's completion data is preserved instead of
+			// degrading to the Text fallback and the tool success flag.
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'legacy preview\r\n');
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
 		});
 
 		test('keeps zero terminal completion exit code as success for completed SDK shell tool history', () => {
@@ -2020,7 +2088,7 @@ suite('stateToProgressAdapter', () => {
 				toolInput: 'pwd',
 				content: [
 					{ type: ToolResultContentType.Text, text: '/repo\n' },
-					{ type: ToolResultContentType.TerminalComplete, exitCode: 0, cwd: URI.file('/repo').toString() },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 0 } },
 				],
 				success: true,
 			});
@@ -2039,13 +2107,13 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
 		});
 
-		test('falls back to tool success when terminal completion has no exit code', () => {
+		test('does not fall back to tool success when terminal completion has no exit code', () => {
 			const tc = createCompletedToolCall({
 				_meta: { toolKind: 'terminal' },
 				toolInput: 'pwd',
 				content: [
 					{ type: ToolResultContentType.Text, text: '/repo\n' },
-					{ type: ToolResultContentType.TerminalComplete, cwd: URI.file('/repo').toString() },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: {} },
 				],
 				success: true,
 			});
@@ -2061,7 +2129,32 @@ suite('stateToProgressAdapter', () => {
 			const serialized = response.parts[0] as IChatToolInvocationSerialized;
 			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
 			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode: number } };
-			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
+			assert.strictEqual(termData.terminalCommandState, undefined);
+		});
+
+		test('uses failed tool state when an output-only terminal has no shell exit', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'eci hi',
+				content: [
+					{ type: ToolResultContentType.Text, text: '/bin/bash: eci: command not found\n' },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false },
+				],
+				success: false,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode: number } };
+			assert.deepStrictEqual(termData.terminalCommandState, { exitCode: 1 });
 		});
 
 		test('running tool call with terminal content block sets terminalCommandUri', () => {
@@ -2136,7 +2229,7 @@ suite('stateToProgressAdapter', () => {
 				pastTenseMessage: 'Ran false',
 				content: [
 					{ type: ToolResultContentType.Text, text: '' },
-					{ type: ToolResultContentType.TerminalComplete, exitCode: 1, cwd: URI.file('/repo').toString() },
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 1 } },
 				],
 			});
 

@@ -19,12 +19,14 @@ import { ILanguageFeaturesService } from '../../../../editor/common/services/lan
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { localize } from '../../../../nls.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { IChatSubmitRequestHandlerService, type IChatSubmitRequest, type IChatSubmitRequestHandler } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { IChatPromptSlashCommand } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
 import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 /**
  * Static command ID used by completion items to trigger immediate slash command execution,
  * mirroring the pattern of core's `ChatSubmitAction` for `executeImmediately` commands.
@@ -54,10 +56,11 @@ interface ISessionsSlashCommandData {
  * Manages slash commands for the sessions new-chat input widget — registration,
  * autocompletion, decorations (syntax highlighting + placeholder text), and execution.
  */
-export class SlashCommandHandler extends Disposable {
+export class SlashCommandHandler extends Disposable implements IChatSubmitRequestHandler {
 
 	private static readonly _commandClassName = 'sessions-slash-command';
 	private static readonly _placeholderClassName = 'sessions-slash-placeholder';
+	readonly id = 'sessions.slashCommands';
 
 	private readonly _slashCommands: ISessionsSlashCommandData[] = [];
 	private _cachedPromptCommands: readonly IChatPromptSlashCommand[] = [];
@@ -73,11 +76,14 @@ export class SlashCommandHandler extends Disposable {
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@INewChatModelPickerService private readonly newChatModelPickerService: INewChatModelPickerService,
 		@ISessionContext private readonly sessionContext: ISessionContext,
+		@IChatPetService private readonly chatPetService: IChatPetService,
+		@IChatSubmitRequestHandlerService submitRequestHandlerService: IChatSubmitRequestHandlerService,
 	) {
 		super();
 		this._commandDecorations = this._editor.createDecorationsCollection();
 		this._placeholderDecorations = this._editor.createDecorationsCollection();
 		this._registerSlashCommands();
+		this._register(submitRequestHandlerService.register(this));
 		this._registerCompletions();
 		this._registerDecorations();
 
@@ -95,6 +101,14 @@ export class SlashCommandHandler extends Disposable {
 
 	clearInput(): void {
 		this._editor.getModel()?.setValue('');
+	}
+
+	async tryHandle(request: IChatSubmitRequest): Promise<boolean> {
+		const currentSessionResource = this.sessionContext.session.get()?.resource;
+		if (!currentSessionResource || !request.providerId || !request.sessionId || !isEqual(currentSessionResource, request.sessionResource)) {
+			return false;
+		}
+		return this.tryExecuteSlashCommand(request.input);
 	}
 
 	private _refreshPromptCommands(sessionResource: URI | undefined): void {
@@ -145,6 +159,13 @@ export class SlashCommandHandler extends Disposable {
 		const openSection = (section: AICustomizationManagementSection) =>
 			() => this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, section);
 
+		this._slashCommands.push({
+			command: 'vscode-pet',
+			detail: localize('slashCommand.vscodePet', "Toggle the VS Code pet"),
+			sortText: 'z3_vscodePet',
+			executeImmediately: true,
+			execute: () => this.chatPetService.toggle(),
+		});
 		this._slashCommands.push({
 			command: 'agents',
 			detail: localize('slashCommand.agents', "View and manage custom agents"),

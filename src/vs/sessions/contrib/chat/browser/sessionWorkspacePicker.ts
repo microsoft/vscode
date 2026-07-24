@@ -11,8 +11,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { basename } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -25,27 +24,25 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move remote host options out of providers
 import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions } from '../../providers/remoteAgentHost/browser/remoteHostOptions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkspacesService, isRecentFolder } from '../../../../platform/workspaces/common/workspaces.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 
-const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
+
 const FILTER_THRESHOLD = 10;
-const MAX_RECENT_WORKSPACES = 10;
 
 /**
  * Fixed picker width when the categorical tab bar is shown. Keeps the tab
@@ -63,35 +60,15 @@ const TABBED_PICKER_WIDTH = 360;
 const RESTORE_CONNECT_GRACE_MS = 5000;
 
 /**
- * A workspace entry as resolved from a folder URI for rendering. The
- * `providerId` is the provider that resolved the URI (first match in
- * iteration order). For local URIs that any local provider can resolve,
- * this is the first registered local provider; for remote URIs it is the
- * remote provider for that authority.
- *
- * Selection now flows out of the picker as a plain folder URI — the
- * provider is rediscovered at session-creation time by
- * {@link ISessionsManagementService.createNewSession}. The `providerId`
- * carried here is only used internally for rendering (connection state,
- * grouping into tabs).
+ * A workspace as resolved from a folder URI for rendering. The `providerId`
+ * is the provider that resolved the URI (first match in iteration order,
+ * or the preferred hint when honored). For local URIs that any local
+ * provider can resolve, this is the first registered local provider; for
+ * remote URIs it is the remote provider for that authority.
  */
 export interface IResolvedFolderWorkspace {
 	readonly providerId: string;
 	readonly workspace: ISessionWorkspace;
-}
-
-/**
- * Stored recent workspace entry. The `checked` flag marks the currently
- * selected workspace so we only need a single storage key.
- *
- * `providerId` is retained for backwards compatibility with previously
- * stored entries; new entries are written without it. When reading,
- * entries are resolved by iterating registered providers.
- */
-interface IStoredRecentWorkspace {
-	readonly uri: UriComponents;
-	readonly providerId?: string;
-	readonly checked: boolean;
 }
 
 /**
@@ -169,9 +146,6 @@ export class WorkspacePicker extends Disposable {
 	 */
 	private _userPickedTab = false;
 
-	/** Cached VS Code recent folder URIs, resolved lazily. */
-	private _vsCodeRecentFolderUris: URI[] = [];
-
 	get selectedFolderUri(): URI | undefined {
 		return this._selectedFolderUri;
 	}
@@ -189,13 +163,12 @@ export class WorkspacePicker extends Disposable {
 
 	constructor(
 		@IActionWidgetService protected readonly actionWidgetService: IActionWidgetService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ISessionsProvidersService protected readonly sessionsProvidersService: ISessionsProvidersService,
+		@ISessionsRecentWorkspacesService private readonly recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -254,10 +227,6 @@ export class WorkspacePicker extends Disposable {
 			}
 		}));
 
-		// Load VS Code recent folders eagerly and refresh on changes
-		this._loadVSCodeRecentFolders();
-		this._register(this.workspacesService.onDidChangeRecentlyOpened(() => this._loadVSCodeRecentFolders()));
-
 		// Re-arm auto-tab whenever the workspace selection changes to a new
 		// value, but only while the picker is closed. This way picking a tab
 		// and then a workspace within the same open keeps that tab active for
@@ -306,7 +275,9 @@ export class WorkspacePicker extends Disposable {
 		this._renderTriggerLabel(trigger);
 		// Onboarding spotlight target — id is referenced by the "new session" tour
 		// in vs/sessions/contrib/onboardingTours.
-		triggerDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.workspacePicker'));
+		triggerDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.workspacePicker', {
+			open: () => this.showPicker(false, trigger),
+		}));
 
 		triggerDisposables.add(touch.Gesture.addTarget(trigger));
 		[dom.EventType.CLICK, touch.EventType.Tap].forEach(eventType => {
@@ -608,10 +579,7 @@ export class WorkspacePicker extends Disposable {
 		this._connectionStatusWatch.clear();
 		this._selectedFolderUri = undefined;
 		this._selectedResolved = undefined;
-		// Clear checked state from all recents
-		const recents = this._getStoredRecentWorkspaces();
-		const updated = recents.map(p => ({ ...p, checked: false }));
-		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.recentWorkspacesService.clearCheckedWorkspace();
 		this._updateTriggerLabel();
 		this._onDidChangeSelection.fire();
 	}
@@ -633,13 +601,13 @@ export class WorkspacePicker extends Disposable {
 		// providerId stored in the recents for this URI, so re-picking a
 		// Local Agent Host folder restores the Local Agent Host association
 		// even when another provider also resolves the URI.
-		const storedProviderId = this._getStoredRecentWorkspaces()
-			.find(r => this.uriIdentityService.extUri.isEqual(URI.revive(r.uri), folderUri))
+		const storedProviderId = this.recentWorkspacesService.getRecentWorkspaces()
+			.find(r => this.uriIdentityService.extUri.isEqual(r.workspace.folders[0]?.root, folderUri))
 			?.providerId;
 		const resolved = this._resolveFolder(folderUri, providerIdHint ?? storedProviderId);
 		this._selectedFolderUri = folderUri;
 		this._selectedResolved = resolved;
-		this._persistSelectedFolder(folderUri, resolved?.providerId);
+		this.recentWorkspacesService.addRecentWorkspace(folderUri, resolved?.providerId, true);
 		this._updateTriggerLabel();
 		this._onDidChangeSelection.fire();
 		if (fireEvent) {
@@ -778,21 +746,13 @@ export class WorkspacePicker extends Disposable {
 		const tabFilter = this._isTabFiltered()
 			? (w: IResolvedFolderWorkspace) => w.workspace.group === this._activeTab
 			: undefined;
-		const ownRecentWorkspaces = this._getRecentWorkspaces()
+		// Own recents first, then VS Code recents (merged and deduplicated by the service)
+		const recentWorkspaces = this._getRecentWorkspaces()
 			.filter(w => providerIds.has(w.providerId))
 			.filter(w => !tabFilter || tabFilter(w));
-
-		// Merge VS Code recent folders (resolved through providers, deduplicated)
-		const vsCodeRecents = this._getVSCodeRecentWorkspaces()
-			.filter(w => providerIds.has(w.providerId))
-			.filter(w => !tabFilter || tabFilter(w));
-		const ownRecentCount = ownRecentWorkspaces.length;
-		const recentWorkspaces = [...ownRecentWorkspaces, ...vsCodeRecents];
 
 		// Build flat list in recency order (no source grouping)
-		for (let i = 0; i < recentWorkspaces.length; i++) {
-			const { workspace, providerId } = recentWorkspaces[i];
-			const isOwnRecent = i < ownRecentCount;
+		for (const { workspace, providerId } of recentWorkspaces) {
 			const folderUri = workspace.folders[0]?.root;
 			if (!folderUri) {
 				continue;
@@ -805,7 +765,7 @@ export class WorkspacePicker extends Disposable {
 				group: { title: '', icon: workspace.icon },
 				disabled: this._isProviderUnavailable(providerId),
 				item: { folderUri, providerId, checked: selected || undefined },
-				onRemove: isOwnRecent ? () => this._removeRecentWorkspace(folderUri) : () => this._removeVSCodeRecentWorkspace(folderUri),
+				onRemove: () => this._removeRecentWorkspace(folderUri),
 			});
 		}
 
@@ -1004,10 +964,6 @@ export class WorkspacePicker extends Disposable {
 		return this.uriIdentityService.extUri.isEqual(this._selectedFolderUri, folderUri);
 	}
 
-	private _persistSelectedFolder(folderUri: URI, providerId: string | undefined): void {
-		this._addRecentFolder(folderUri, providerId, true);
-	}
-
 	private _restoreSelectedWorkspace(): IResolvedFolderWorkspace | undefined {
 		// Try the checked entry first
 		const checked = this._restoreCheckedWorkspace();
@@ -1018,19 +974,15 @@ export class WorkspacePicker extends Disposable {
 		// Fall back to the first resolvable recent workspace from a connected provider.
 		// Fallbacks (vs. the user's explicit checked pick) require the provider
 		// to be ready: we don't want to silently land on, e.g., a disconnected
-		// remote workspace that the user never picked.
+		// remote workspace that the user never picked. Restrict to the sessions'
+		// own recent history (not VS Code's global recents) so restoration never
+		// seeds a new session from a folder merely opened in another window.
 		try {
-			const storedRecents = this._getStoredRecentWorkspaces();
-			for (const stored of storedRecents) {
-				const uri = URI.revive(stored.uri);
-				const resolved = this._resolveFolder(uri, stored.providerId);
-				if (!resolved) {
+			for (const recent of this.recentWorkspacesService.getRecentWorkspaces(false)) {
+				if (this._isProviderUnavailable(recent.providerId)) {
 					continue;
 				}
-				if (this._isProviderUnavailable(resolved.providerId)) {
-					continue;
-				}
-				return resolved;
+				return recent;
 			}
 			return undefined;
 		} catch {
@@ -1048,18 +1000,7 @@ export class WorkspacePicker extends Disposable {
 	 */
 	private _restoreCheckedWorkspace(): IResolvedFolderWorkspace | undefined {
 		try {
-			const storedRecents = this._getStoredRecentWorkspaces();
-			for (const stored of storedRecents) {
-				if (!stored.checked) {
-					continue;
-				}
-				const uri = URI.revive(stored.uri);
-				const resolved = this._resolveFolder(uri, stored.providerId);
-				if (resolved) {
-					return resolved;
-				}
-			}
-			return undefined;
+			return this.recentWorkspacesService.getRecentWorkspaces(false).find(recent => recent.checked);
 		} catch {
 			return undefined;
 		}
@@ -1130,42 +1071,14 @@ export class WorkspacePicker extends Disposable {
 		}, RESTORE_CONNECT_GRACE_MS, store);
 	}
 
-	// -- Recent workspaces storage --
-
-	private _addRecentFolder(folderUri: URI, providerId: string | undefined, checked: boolean): void {
-		const recents = this._getStoredRecentWorkspaces();
-		const filtered = recents.map(p => {
-			// Remove the entry being re-added (it will go to the front)
-			if (this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), folderUri)) {
-				return undefined;
-			}
-			// Clear checked from all other entries when marking checked
-			if (checked && p.checked) {
-				return { ...p, checked: false };
-			}
-			return p;
-		}).filter((p): p is IStoredRecentWorkspace => p !== undefined);
-
-		const entry: IStoredRecentWorkspace = { uri: folderUri.toJSON(), providerId, checked };
-		const updated = [entry, ...filtered].slice(0, MAX_RECENT_WORKSPACES);
-		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
-	}
+	// -- Recent workspaces (sessions' own history) --
 
 	protected _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
-		return this._getStoredRecentWorkspaces()
-			.map(stored => {
-				const uri = URI.revive(stored.uri);
-				return this._resolveFolder(uri, stored.providerId);
-			})
-			.filter((w): w is IResolvedFolderWorkspace => w !== undefined);
+		return this.recentWorkspacesService.getRecentWorkspaces();
 	}
 
 	protected _removeRecentWorkspace(folderUri: URI): void {
-		const recents = this._getStoredRecentWorkspaces();
-		const updated = recents.filter(p =>
-			!this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), folderUri)
-		);
-		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.recentWorkspacesService.removeRecentWorkspace(folderUri);
 
 		// Clear current selection if it was the removed workspace
 		if (this._isSelectedFolder(folderUri)) {
@@ -1175,82 +1088,6 @@ export class WorkspacePicker extends Disposable {
 			this._updateTriggerLabel();
 			this._onDidSelectWorkspace.fire(undefined);
 		}
-	}
-
-	protected _removeVSCodeRecentWorkspace(folderUri: URI): void {
-		this.workspacesService.removeRecentlyOpened([folderUri]);
-
-		// Clear current selection if it was the removed workspace
-		if (this._isSelectedFolder(folderUri)) {
-			this._hidePicker();
-			this._selectedFolderUri = undefined;
-			this._selectedResolved = undefined;
-			this._updateTriggerLabel();
-			this._onDidSelectWorkspace.fire(undefined);
-		}
-	}
-
-	private _getStoredRecentWorkspaces(): IStoredRecentWorkspace[] {
-		const raw = this.storageService.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
-		if (!raw) {
-			return [];
-		}
-		try {
-			return JSON.parse(raw) as IStoredRecentWorkspace[];
-		} catch {
-			return [];
-		}
-	}
-
-	// -- VS Code recent folders -----------------------------------------------
-
-	private async _loadVSCodeRecentFolders(): Promise<void> {
-		const recentlyOpened = await this.workspacesService.getRecentlyOpened();
-		this._vsCodeRecentFolderUris = recentlyOpened.workspaces
-			.filter(isRecentFolder)
-			.map(f => f.folderUri)
-			.filter(uri => !this._isCopilotWorktree(uri))
-			.slice(0, 10);
-	}
-
-	/**
-	 * Returns whether the given URI points to a copilot-managed folder
-	 * (a folder whose name starts with `copilot-`).
-	 */
-	private _isCopilotWorktree(uri: URI): boolean {
-		return basename(uri).startsWith('copilot-');
-	}
-
-	/**
-	 * Returns VS Code recent folders resolved through registered session
-	 * providers, excluding any URIs already present in the sessions' own
-	 * recent workspace history.
-	 */
-	protected _getVSCodeRecentWorkspaces(): IResolvedFolderWorkspace[] {
-		if (this._vsCodeRecentFolderUris.length === 0) {
-			return [];
-		}
-
-		// Collect URIs already in sessions history to avoid duplicates
-		const ownRecents = this._getStoredRecentWorkspaces();
-		const ownUris = new Set(ownRecents.map(r => URI.revive(r.uri).toString()));
-
-		const result: IResolvedFolderWorkspace[] = [];
-
-		for (const folderUri of this._vsCodeRecentFolderUris) {
-			if (ownUris.has(folderUri.toString())) {
-				continue;
-			}
-			const resolved = this._resolveFolder(folderUri);
-			if (resolved && !this._isProviderUnavailable(resolved.providerId)) {
-				result.push(resolved);
-			}
-			if (result.length >= 10) {
-				break;
-			}
-		}
-
-		return result;
 	}
 
 }

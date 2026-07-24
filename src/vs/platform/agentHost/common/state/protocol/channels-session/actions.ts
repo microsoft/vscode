@@ -250,6 +250,48 @@ export interface SessionActiveClientRemovedAction {
 	clientId: string;
 }
 
+// ─── Working Directory Actions ───────────────────────────────────────────────
+
+/**
+ * A working directory was added to the session's
+ * {@link SessionState.workingDirectories} set.
+ *
+ * Membership semantics keyed by the directory URI: the reducer appends
+ * `directory` when the set does not already contain it (creating the set if
+ * absent) and is a no-op when it is already present. Only valid when the agent
+ * advertises {@link AgentCapabilities.multipleWorkingDirectories}.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionWorkingDirectorySetAction {
+	type: ActionType.SessionWorkingDirectorySet;
+	/** The working directory to grant the session's agent tool access to. */
+	directory: URI;
+}
+
+/**
+ * A working directory was removed from the session's
+ * {@link SessionState.workingDirectories} set.
+ *
+ * Removes `directory` from the set; a no-op when it is not present. There is no
+ * atomic backend "remove one" primitive — a host reconfigures its agent to the
+ * reduced set — so this action is safe to model as idempotent. A host MAY
+ * decline to apply the removal (e.g. a directory still designated as some
+ * chat's {@link ChatState.primaryWorkingDirectory | primary}); it then leaves
+ * the set unchanged.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionWorkingDirectoryRemovedAction {
+	type: ActionType.SessionWorkingDirectoryRemoved;
+	/** The working directory to revoke the session's agent tool access to. */
+	directory: URI;
+}
+
 // ─── Input Needed Actions ────────────────────────────────────────────────────
 
 /**
