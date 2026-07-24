@@ -22,7 +22,7 @@ import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext 
 import { SessionsCategories } from '../../../../common/categories.js';
 import { UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
-import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem } from './sessionsList.js';
+import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
@@ -615,6 +615,7 @@ registerAction2(class MarkAllSessionsInGroupAsDoneAction extends Action2 {
 				id: SessionGroupToolbarMenuId,
 				group: 'navigation',
 				order: 0,
+				when: SessionGroupHasVisibleSessionsContext,
 			}]
 		});
 	}
@@ -649,6 +650,31 @@ registerAction2(class MarkAllSessionsInGroupAsDoneAction extends Action2 {
 
 		for (const session of context.sessions) {
 			await sessionsManagementService.archiveSession(session);
+		}
+	}
+});
+
+registerAction2(class DeleteEmptySessionGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.deleteEmptyGroup',
+			title: localize2('deleteEmptyGroup', "Delete Group"),
+			icon: Codicon.trash,
+			menu: [{
+				id: SessionGroupToolbarMenuId,
+				group: 'navigation',
+				order: 0,
+				when: SessionGroupIsEmptyContext,
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, context?: ISessionGroupItem): void {
+		if (!context) {
+			return;
+		}
+		const sessionGroupsService = accessor.get(ISessionGroupsService);
+		if (sessionGroupsService.getSessionIdsInGroup(context.group.id).length === 0) {
+			sessionGroupsService.deleteGroup(context.group.id);
 		}
 	}
 });

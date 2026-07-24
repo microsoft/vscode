@@ -119,13 +119,11 @@ suite('ClaudeSessionMetadataStore', () => {
 		assert.deepStrictEqual(overlay.model, { id: 'm', config: { thinking: 'high' } });
 	});
 
-	test('project combines SDK info with overlay onto IAgentSessionMetadata', async () => {
+	test('project maps SDK info onto IAgentSessionMetadata', async () => {
 		const store = createStore(disposables);
 		const sdkInfo = makeSdkInfo({ sessionId: 'abc', summary: 'sdk-summary', customTitle: 'custom', cwd: '/repo' });
 
-		const projected = store.project(sdkInfo, {
-			customizationDirectory: URI.file('/custom'),
-		});
+		const projected = store.project(sdkInfo);
 
 		assert.deepStrictEqual({
 			session: projected.session.toString(),
@@ -133,14 +131,12 @@ suite('ClaudeSessionMetadataStore', () => {
 			modifiedTime: projected.modifiedTime,
 			summary: projected.summary,
 			workingDirectory: projected.workingDirectory?.toString(),
-			customizationDirectory: projected.customizationDirectory?.toString(),
 		}, {
 			session: 'claude:/abc',
 			startTime: 1000,
 			modifiedTime: 2000,
 			summary: 'custom',
 			workingDirectory: URI.file('/repo').toString(),
-			customizationDirectory: URI.file('/custom').toString(),
 		});
 	});
 
@@ -148,16 +144,14 @@ suite('ClaudeSessionMetadataStore', () => {
 		const store = createStore(disposables);
 		const sdkInfo = makeSdkInfo({ summary: 'fallback', customTitle: undefined, cwd: undefined });
 
-		const projected = store.project(sdkInfo, {});
+		const projected = store.project(sdkInfo);
 
 		assert.deepStrictEqual({
 			summary: projected.summary,
 			workingDirectory: projected.workingDirectory,
-			customizationDirectory: projected.customizationDirectory,
 		}, {
 			summary: 'fallback',
 			workingDirectory: undefined,
-			customizationDirectory: undefined,
 		});
 	});
 });

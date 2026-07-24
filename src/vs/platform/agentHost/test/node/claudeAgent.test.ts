@@ -3704,8 +3704,6 @@ suite('ClaudeAgent', () => {
 			summaryB: b?.summary,
 			modifiedA: a?.modifiedTime,
 			modifiedB: b?.modifiedTime,
-			custDirA: a?.customizationDirectory?.toString(),
-			custDirB: b?.customizationDirectory,
 			sdkCalls: sdk.listSessionsCallCount,
 		}, {
 			count: 2,
@@ -3714,8 +3712,6 @@ suite('ClaudeAgent', () => {
 			summaryB: 'Session B',
 			modifiedA: 1000,
 			modifiedB: 2000,
-			custDirA: URI.file('/foo').toString(),
-			custDirB: undefined,
 			sdkCalls: 1,
 		});
 	});
@@ -3772,17 +3768,11 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual({
 			count: result.length,
 			ids: result.map(r => AgentSession.id(r.session)).sort(),
-			okCustDir: find('ok')?.customizationDirectory?.toString(),
-			corruptCustDir: find('corrupt')?.customizationDirectory,
 			corruptSummary: find('corrupt')?.summary,
-			externalCustDir: find('external')?.customizationDirectory,
 		}, {
 			count: 3,
 			ids: ['corrupt', 'external', 'ok'],
-			okCustDir: URI.file('/ok').toString(),
-			corruptCustDir: undefined,
 			corruptSummary: 'Corrupt',
-			externalCustDir: undefined,
 		});
 	});
 
@@ -3875,7 +3865,6 @@ suite('ClaudeAgent', () => {
 				startTime: sidecar?.startTime,
 				modifiedTime: sidecar?.modifiedTime,
 				workingDirectory: sidecar?.workingDirectory?.toString(),
-				customizationDirectory: sidecar?.customizationDirectory?.toString(),
 			},
 			external: {
 				session: external?.session.toString(),
@@ -3883,7 +3872,6 @@ suite('ClaudeAgent', () => {
 				startTime: external?.startTime,
 				modifiedTime: external?.modifiedTime,
 				workingDirectory: external?.workingDirectory?.toString(),
-				customizationDirectory: external?.customizationDirectory,
 			},
 			unknown,
 			sdkLookups: sdk.getSessionInfoCalls.slice().sort(),
@@ -3894,7 +3882,6 @@ suite('ClaudeAgent', () => {
 				startTime: 4900,
 				modifiedTime: 5000,
 				workingDirectory: URI.file('/work').toString(),
-				customizationDirectory: URI.file('/cust').toString(),
 			},
 			external: {
 				session: externalUri.toString(),
@@ -3902,7 +3889,6 @@ suite('ClaudeAgent', () => {
 				startTime: 5900,
 				modifiedTime: 6000,
 				workingDirectory: URI.file('/raw-cli').toString(),
-				customizationDirectory: undefined,
 			},
 			unknown: undefined,
 			sdkLookups: ['external', 'sidecar', 'unknown'],

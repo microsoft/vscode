@@ -23,7 +23,7 @@ const VOICE_DISCONNECT_COMMAND = 'agentsVoice.disconnect';
 /** Command that opens the Voice Mode settings; the affordance that used to live behind the toolbar gear. */
 const VOICE_OPEN_SETTINGS_COMMAND = 'agentsVoice.openSettings';
 /** Setting that enables dictation; toggled off by "Disable Dictation". */
-const DICTATION_ENABLED_SETTING = 'chat.speechToText.enabled';
+const DICTATION_ENABLED_SETTING = 'dictation.enabled';
 /** Setting that enables Voice Mode; toggled off by "Disable Voice Mode". */
 const VOICE_ENABLED_SETTING = 'agents.voice.enabled';
 
