@@ -129,7 +129,7 @@ export class TelemetryService extends BaseTelemetryService {
 		// Forward CAPI assignment context to the core telemetry pipeline
 		// so it appears on all telemetry events from the current window.
 		if (name === 'capi.assignmentcontext') {
-			vscode.commands.executeCommand('_telemetry.setExperimentProperty', name, value);
+			vscode.commands.executeCommand('_telemetry.setCapiAssignmentContext', value);
 		}
 	}
 }

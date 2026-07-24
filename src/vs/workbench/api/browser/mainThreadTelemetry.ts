@@ -60,8 +60,23 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 	}
 }
 
-CommandsRegistry.registerCommand('_telemetry.setExperimentProperty', function (accessor, name: string, value: string) {
-	accessor.get(ITelemetryService).setExperimentProperty(name, value);
+const capiAssignmentContextPropertyName = 'capi.assignmentcontext';
+const maxCapiAssignmentContextLength = 8 * 1024;
+const capiAssignmentContextEntryPattern = /^[^:;\s\x00-\x1F\x7F]+:[^;\x00-\x1F\x7F]+$/;
+
+function isValidCapiAssignmentContext(value: string): boolean {
+	if (value.length === 0 || value.length > maxCapiAssignmentContextLength) {
+		return false;
+	}
+
+	const entries = value.split(';');
+	return entries.length > 0 && entries.every(entry => capiAssignmentContextEntryPattern.test(entry));
+}
+
+CommandsRegistry.registerCommand('_telemetry.setCapiAssignmentContext', function (accessor, value: string) {
+	if (!isValidCapiAssignmentContext(value)) {
+		return;
+	}
+
+	accessor.get(ITelemetryService).setExperimentProperty(capiAssignmentContextPropertyName, value);
 });
-
-
