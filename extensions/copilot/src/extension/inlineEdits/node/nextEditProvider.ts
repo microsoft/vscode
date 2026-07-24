@@ -9,7 +9,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits, RootedEdit } from '../../../platform/inlineEdits/common/dataTypes/edit';
 import { RootedLineEdit } from '../../../platform/inlineEdits/common/dataTypes/rootedLineEdit';
-import { applyStrategyConfig, PromptingStrategy, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { applyStrategyConfig, isRejectedEditMemoryEnabled, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext, type MarkdownLoggable } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
@@ -1648,8 +1648,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 	}
 
 	private _isRejectedEditMemoryEnabled(): boolean {
-		const modelConfig = applyStrategyConfig(this._modelService.selectedModelConfiguration());
-		return modelConfig.promptingStrategy === PromptingStrategy.PatchBased02 && modelConfig.memory?.rejectedEdits === true;
+		return isRejectedEditMemoryEnabled(applyStrategyConfig(this._modelService.selectedModelConfiguration()));
 	}
 
 	private _addLiveLogContextEntry(logContext: InlineEditRequestLogContext, debugNameOverride?: string): void {

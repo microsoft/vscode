@@ -7,7 +7,7 @@ import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/docum
 import { LanguageContextResponse } from '../../../platform/inlineEdits/common/dataTypes/languageContext';
 import { PromptSectionTokenCounts } from '../../../platform/inlineEdits/common/dataTypes/promptSectionTokens';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
-import { AggressivenessLevel, CurrentFileOptions, GlobalBudgetOptions, PromptingStrategy, PromptOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, CurrentFileOptions, GlobalBudgetOptions, isRejectedEditMemoryEnabled, PromptingStrategy, PromptOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ContextKind, TraitContext } from '../../../platform/languageServer/common/languageContextService';
@@ -76,7 +76,7 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 	let neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
 	let editDiffHistory: string;
 	let nDiffsInPrompt: number;
-	const rejectedEditMemoryEnabled = opts.promptingStrategy === PromptingStrategy.PatchBased02 && opts.memory?.rejectedEdits === true;
+	const rejectedEditMemoryEnabled = isRejectedEditMemoryEnabled(opts);
 	const rejectedEditHistory = rejectedEditMemoryEnabled ? promptPieces.rejectedEditHistory : [];
 
 	if (opts.globalBudget !== undefined) {

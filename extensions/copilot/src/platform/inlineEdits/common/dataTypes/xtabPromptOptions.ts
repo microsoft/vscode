@@ -563,6 +563,10 @@ export function isAggressivenessStrategy(strategy: PromptingStrategy | undefined
 		|| strategy === PromptingStrategy.Xtab275EditIntentShort;
 }
 
+export function isRejectedEditMemoryEnabled(options: Pick<PromptOptions, 'promptingStrategy' | 'memory'>): boolean {
+	return options.promptingStrategy === PromptingStrategy.PatchBased02 && options.memory?.rejectedEdits === true;
+}
+
 export enum ResponseFormat {
 	CodeBlock = 'codeBlock',
 	UnifiedWithXml = 'unifiedWithXml',
