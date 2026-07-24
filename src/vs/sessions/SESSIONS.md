@@ -247,6 +247,10 @@ Review-capable changesets expose `setReviewState(resource, reviewed)`. Agent-hos
    → Iterates providers, picks the first one whose resolveWorkspace(folderUri)
      succeeds (filtered by options.sessionTypeId when given)
    → Calls provider.createNewSession(folderUri, sessionTypeId)
+   → If another workspace draft is pending, deletes that provider draft and
+     fires onDidReplaceNewDraftSession before publishing the replacement
+   → SessionsTerminalContribution transfers terminals when the drafts share a
+     cwd/backend; otherwise it rehomes the old terminals as standalone
    → Returns ISession (model draft, `newSession`); the view then activates it so
      it becomes the activeSession and the draft slot shows reactively, and
      openNewSession resolves `{ session, trustDeclined: false }`
@@ -614,6 +618,15 @@ Backend state change (turn complete, status update, etc.)
 ```
 
 Providers may fire `onDidReplaceSession` when a temporary (untitled) session is atomically replaced by a committed one after the first turn.
+
+Workspace draft replacement is management-owned: `createNewSession` creates the
+replacement, deletes the previous provider draft, fires
+`onDidReplaceNewDraftSession`, and only then publishes the replacement through
+`newSession`. Terminal ownership relies on this ordering so compatible terminals
+can transfer before activation eagerly ensures the replacement terminal.
+Incompatible terminals are detached as standalone terminals and excluded from
+future session matching and visibility management. A terminal that finishes
+creating after its draft was replaced is disposed before activation.
 
 Provider add notifications are authoritative upserts. A provisional `listSessions()` entry may already be cached when the backend publishes its materialized project and working directory, so providers update the existing session adapter in place and report it as changed rather than replacing its identity.
 
