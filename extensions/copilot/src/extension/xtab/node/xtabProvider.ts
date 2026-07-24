@@ -296,7 +296,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				return Result.error(new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait'));
 			}
 
-			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget);
+			const rejectedEditHistory = promptOptions.promptingStrategy === xtabPromptOptions.PromptingStrategy.PatchBased02 && promptOptions.memory?.rejectedEdits === true
+				? request.xtabRejectedEditHistory
+				: [];
+			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget, rejectedEditHistory);
 			const currentFileBudget = xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget);
 
 			const taggedCurrentFileContentResult = clipCurrentFileToBudget(currentFileBudget + cascade.finalSurplus);
@@ -360,6 +363,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		const { promptOptions, modelServiceConfig } = this.determineModelConfiguration(activeDocument);
 
 		telemetry.setModelConfig(JSON.stringify(modelServiceConfig));
+		telemetry.setRejectedEditMemoryEnabled(
+			promptOptions.promptingStrategy === xtabPromptOptions.PromptingStrategy.PatchBased02
+			&& promptOptions.memory?.rejectedEdits === true
+		);
 
 		const endpoint = this.getEndpointWithLogging(promptOptions.modelName, logContext, telemetry);
 
@@ -490,6 +497,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			promptOptions,
 			neighborSnippets,
 			precomputedCascade,
+			request.xtabRejectedEditHistory,
 		);
 
 		const { prompt: userPrompt, nDiffsInPrompt, neighborSnippetsResult, sectionTokens } = getUserPrompt(promptPieces);
@@ -1428,6 +1436,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					request.recordingBookmark,
 					request.recording,
 					request.providerRequestStartDateTime,
+					request.xtabRejectedEditHistory,
 				);
 
 				return yield* this.doGetNextEditWithSelection(
@@ -1782,6 +1791,7 @@ export function overrideModelConfig(modelConfig: ModelConfig, overridingConfig: 
 			includeTags: overridingConfig.includeTagsInCurrentFile,
 		},
 		recentlyViewedDocuments: { ...modelConfig.recentlyViewedDocuments, ...overridingConfig.recentlyViewedDocuments },
+		memory: overridingConfig.memory ? { ...modelConfig.memory, ...overridingConfig.memory } : modelConfig.memory,
 		lintOptions: overridingConfig.lintOptions
 			? mergeLintOptions(modelConfig.lintOptions, overridingConfig.lintOptions)
 			: modelConfig.lintOptions,

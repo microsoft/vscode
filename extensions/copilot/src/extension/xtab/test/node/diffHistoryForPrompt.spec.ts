@@ -9,7 +9,7 @@ import { Edits, RootedEdit } from '../../../../platform/inlineEdits/common/dataT
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
 import { DiffHistoryOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
-import { IXtabHistoryEditEntry, IXtabHistoryEntry } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
+import { IXtabHistoryEditEntry, IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { LineEdit } from '../../../../util/vs/editor/common/core/edits/lineEdit';
 import { StringEdit, StringReplacement } from '../../../../util/vs/editor/common/core/edits/stringEdit';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
@@ -51,8 +51,8 @@ describe('getEditDiffHistory', () => {
 		return Math.ceil(s.length / 4);
 	}
 
-	function runGetEditDiffHistory(activeDoc: StatelessNextEditDocument, xtabHistory: readonly IXtabHistoryEntry[], docsInPrompt: Set<DocumentId>, computeTokens: (s: string) => number, options: DiffHistoryOptions): string {
-		const res = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, options);
+	function runGetEditDiffHistory(activeDoc: StatelessNextEditDocument, xtabHistory: readonly IXtabHistoryEntry[], docsInPrompt: Set<DocumentId>, computeTokens: (s: string) => number, options: DiffHistoryOptions, rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[] = []): string {
+		const res = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, options, rejectedEditHistory);
 		const lines = [
 			res.nDiffs + ' diffs',
 			'-------------',
@@ -151,5 +151,60 @@ describe('getEditDiffHistory', () => {
 			+BBB
 			"
 		`);
+	});
+
+	it('adds separately tracked rejected edits with rejection annotations', () => {
+		const docId = DocumentId.create('file:///workspace/src/a.ts');
+		const activeDoc = createActiveDocument(docId, new StringText('aaa\nbbb'));
+		const rejectedEntry: IXtabHistoryRejectedEditEntry = {
+			kind: 'rejectedEdit',
+			docId,
+			hunks: [{ startLineNumber: 0, oldLines: ['aaa'], newLines: ['AAA'] }],
+		};
+
+		const result = runGetEditDiffHistory(activeDoc, [], new Set(), computeTokens, diffHistoryOptions, [rejectedEntry]);
+
+		expect(result).toContain('@@ -0,1 +0,1 @@ <|rejected/|>');
+		expect(result).toContain('-aaa\n+AAA');
+	});
+
+	it('preserves chronology across normal and rejected histories', () => {
+		const docId = DocumentId.create('file:///workspace/src/a.ts');
+		const activeDoc = createActiveDocument(docId, new StringText('aaa\nbbb'));
+		const rejectedEntry: IXtabHistoryRejectedEditEntry = {
+			kind: 'rejectedEdit',
+			docId,
+			sequence: 1,
+			hunks: [{ startLineNumber: 0, oldLines: ['aaa'], newLines: ['AAA'] }],
+		};
+		const normalEntry = { ...createHistoryEntry(docId, 'aaa\nbbb', [new StringReplacement(new OffsetRange(4, 7), 'BBB')]), sequence: 2 };
+
+		const result = runGetEditDiffHistory(activeDoc, [normalEntry], new Set(), computeTokens, diffHistoryOptions, [rejectedEntry]);
+
+		expect(result.indexOf('<|rejected/|>')).toBeLessThan(result.indexOf('+BBB'));
+	});
+
+	it('skips an over-budget rejected sample without starving normal history', () => {
+		const docId = DocumentId.create('file:///workspace/src/a.ts');
+		const activeDoc = createActiveDocument(docId, new StringText('a\nb'));
+		const rejectedEntry: IXtabHistoryRejectedEditEntry = {
+			kind: 'rejectedEdit',
+			docId,
+			sequence: 2,
+			hunks: [{ startLineNumber: 0, oldLines: ['a'], newLines: ['x'.repeat(500)] }],
+		};
+		const normalEntry = { ...createHistoryEntry(docId, 'a\nb', [new StringReplacement(new OffsetRange(2, 3), 'B')]), sequence: 1 };
+
+		const result = runGetEditDiffHistory(
+			activeDoc,
+			[normalEntry],
+			new Set(),
+			computeTokens,
+			{ ...diffHistoryOptions, maxTokens: 30 },
+			[rejectedEntry],
+		);
+
+		expect(result).not.toContain('<|rejected/|>');
+		expect(result).toContain('+B');
 	});
 });

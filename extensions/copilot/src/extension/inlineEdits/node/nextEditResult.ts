@@ -24,6 +24,7 @@ export interface INextEditResult {
 		displayLocation?: INextEditDisplayLocation;
 		targetDocumentId?: DocumentId;
 		isFromCursorJump?: boolean;
+		rejectedEditMemoryEnabled?: boolean;
 	} | undefined;
 }
 
@@ -40,6 +41,7 @@ export class NextEditResult implements INextEditResult {
 			isFromCursorJump: boolean;
 			jumpToPosition?: Position;
 			isSubsequentEdit: boolean;
+			rejectedEditMemoryEnabled?: boolean;
 			/**
 			 * Reference to the underlying cache entry, when this result was either
 			 * served from the cache or freshly produced and immediately cached.

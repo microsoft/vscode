@@ -6,12 +6,16 @@
 import * as fs from 'fs/promises';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
+import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { overrideNowValue } from '../../../../platform/inlineEdits/common/utils/utils';
 import { NesXtabHistoryTracker, XtabEditMergeStrategy } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { assert } from '../../../../util/vs/base/common/assert';
 import { observableValue } from '../../../../util/vs/base/common/observable';
 import * as path from '../../../../util/vs/base/common/path';
+import { StringReplacement } from '../../../../util/vs/editor/common/core/edits/stringEdit';
+import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
+import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
 import { IRecordingInformation, ObservableWorkspaceRecordingReplayer } from '../../common/observableWorkspaceRecordingReplayer';
 
 
@@ -37,6 +41,55 @@ describe('NesXtabHistoryTracker', () => {
 	function stripTrailingWhitespace(s: string): string {
 		return s.replace(/[^\S\n]+$/gm, '');
 	}
+
+	it('stores rejected edits separately in a bounded compact history', () => {
+		const recording: IRecordingInformation = {
+			log: [
+				{ documentType: 'workspaceRecording@1.0', kind: 'header', repoRootUri: 'file:///Users/john/myProject', time: 0, uuid: '' },
+			]
+		};
+		const replayer = new ObservableWorkspaceRecordingReplayer(recording);
+		const tracker = createTracker(replayer.workspace);
+		const docId = DocumentId.create('file:///Users/john/myProject/src/a.ts');
+
+		for (const replacement of ['one', 'two', 'three', 'four']) {
+			tracker.recordRejectedEdit(
+				docId,
+				new StringText('old\nunchanged'),
+				new StringReplacement(new OffsetRange(0, 3), replacement),
+			);
+		}
+
+		expect({
+			normalHistoryLength: tracker.getHistory().length,
+			rejectedHistory: tracker.getRejectedEditHistory(),
+		}).toMatchObject({
+			normalHistoryLength: 0,
+			rejectedHistory: [
+				{ kind: 'rejectedEdit', hunks: [{ startLineNumber: 0, oldLines: ['old'], newLines: ['two'] }] },
+				{ kind: 'rejectedEdit', hunks: [{ startLineNumber: 0, oldLines: ['old'], newLines: ['three'] }] },
+				{ kind: 'rejectedEdit', hunks: [{ startLineNumber: 0, oldLines: ['old'], newLines: ['four'] }] },
+			],
+		});
+	});
+
+	it('does not retain oversized rejected edits', () => {
+		const recording: IRecordingInformation = {
+			log: [
+				{ documentType: 'workspaceRecording@1.0', kind: 'header', repoRootUri: 'file:///Users/john/myProject', time: 0, uuid: '' },
+			]
+		};
+		const replayer = new ObservableWorkspaceRecordingReplayer(recording);
+		const tracker = createTracker(replayer.workspace);
+
+		tracker.recordRejectedEdit(
+			DocumentId.create('file:///Users/john/myProject/src/a.ts'),
+			new StringText('old'),
+			new StringReplacement(new OffsetRange(0, 3), 'x'.repeat(3001)),
+		);
+
+		expect(tracker.getRejectedEditHistory()).toEqual([]);
+	});
 
 	it('1 line, 1 edit', () => {
 		const recording: IRecordingInformation = {

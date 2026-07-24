@@ -9,7 +9,7 @@ import { PromptSectionTokenCounts } from '../../../platform/inlineEdits/common/d
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { AggressivenessLevel, CurrentFileOptions, GlobalBudgetOptions, PromptingStrategy, PromptOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
-import { IXtabHistoryEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
+import { IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ContextKind, TraitContext } from '../../../platform/languageServer/common/languageContextService';
 import { Result } from '../../../util/common/result';
 import { range } from '../../../util/vs/base/common/arrays';
@@ -48,6 +48,7 @@ export class PromptPieces {
 		 * prompt. Only honored when `opts.globalBudget` is set.
 		 */
 		public readonly precomputedCascade?: CascadeResult,
+		public readonly rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[] = [],
 	) {
 	}
 }
@@ -75,12 +76,14 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 	let neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
 	let editDiffHistory: string;
 	let nDiffsInPrompt: number;
+	const rejectedEditMemoryEnabled = opts.promptingStrategy === PromptingStrategy.PatchBased02 && opts.memory?.rejectedEdits === true;
+	const rejectedEditHistory = rejectedEditMemoryEnabled ? promptPieces.rejectedEditHistory : [];
 
 	if (opts.globalBudget !== undefined) {
 		// Reuse a cascade the caller already ran (the provider runs it first so it can
 		// clip the current file last from `finalSurplus`), or run it now for callers
 		// that set a global budget without precomputing (e.g. tests).
-		const cascade = precomputedCascade ?? runGlobalBudgetCascade(activeDoc, xtabHistory, langCtx, computeTokens, opts, neighborSnippets, opts.globalBudget);
+		const cascade = precomputedCascade ?? runGlobalBudgetCascade(activeDoc, xtabHistory, langCtx, computeTokens, opts, neighborSnippets, opts.globalBudget, rejectedEditHistory);
 		recentlyViewedCodeSnippets = cascade.codeSnippets;
 		recentlyViewedSubsections = cascade.subsections;
 		docsInPrompt = cascade.documents;
@@ -96,7 +99,7 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 
 		docsInPrompt.add(activeDoc.id); // Add active document to the set of documents in prompt
 
-		const diff = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, opts.diffHistory);
+		const diff = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, opts.diffHistory, rejectedEditHistory);
 		editDiffHistory = diff.promptPiece;
 		nDiffsInPrompt = diff.nDiffs;
 	}
@@ -105,7 +108,11 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 
 	const currentFilePath = toUniquePath(activeDoc.id, activeDoc.workspaceRoot?.path);
 
-	const postScript = promptPieces.opts.includePostScript ? getPostScript(opts.promptingStrategy, currentFilePath, aggressivenessLevel) : '';
+	const rejectedEditMemoryPostScript = rejectedEditMemoryEnabled
+		? `Edit history hunks whose header ends with \`<|rejected/|>\` are previous suggestions the developer rejected; avoid repeating them unless later context makes them clearly appropriate.`
+		: '';
+	const modelPostScript = promptPieces.opts.includePostScript ? getPostScript(opts.promptingStrategy, currentFilePath, aggressivenessLevel) : '';
+	const postScript = [rejectedEditMemoryPostScript, modelPostScript].filter(part => part.length > 0).join(' ');
 
 	const lintsWithNewLinePadding = opts.lintOptions ? `\n${lintErrors.getFormattedLintErrors(opts.lintOptions)}\n` : '';
 
@@ -252,6 +259,7 @@ export function runGlobalBudgetCascade(
 	opts: PromptOptions,
 	neighborSnippets: readonly INeighborFileSnippet[] | undefined,
 	globalBudget: GlobalBudgetOptions,
+	rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[] = [],
 ): CascadeResult {
 	GlobalBudgetOptions.validate(globalBudget);
 
@@ -299,7 +307,7 @@ export function runGlobalBudgetCascade(
 			}
 			case 'diffHistory': {
 				const overriddenDiff = { ...opts.diffHistory, maxTokens: budget };
-				const r = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, overriddenDiff);
+				const r = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, overriddenDiff, rejectedEditHistory);
 				editDiffHistory = r.promptPiece;
 				nDiffsInPrompt = r.nDiffs;
 				tokensConsumed = r.totalTokens;

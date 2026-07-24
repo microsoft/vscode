@@ -24,6 +24,7 @@ import { NextEditFetchRequest } from '../../node/nextEditProvider';
 const testModelTelemetry: IStatelessNextEditModelTelemetry = {
 	modelName: undefined,
 	modelConfig: undefined,
+	rejectedEditMemoryEnabled: false,
 };
 
 describe('NextEditCache cursor distance check', () => {

@@ -25,7 +25,7 @@ import { PromptSectionTokenCounts } from './dataTypes/promptSectionTokens';
 import { DebugRecorderBookmark } from './debugRecorderBookmark';
 import { InlineEditRequestLogContext } from './inlineEditLogContext';
 import { stringifyChatMessages } from './utils/stringifyChatMessages';
-import { IXtabHistoryEntry } from './workspaceEditTracker/nesXtabHistoryTracker';
+import { IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from './workspaceEditTracker/nesXtabHistoryTracker';
 
 export type EditStreaming = AsyncGenerator<StreamedEdit, NoNextEditReason, void>;
 
@@ -121,6 +121,7 @@ export class StatelessNextEditRequest<TFirstEdit = any> {
 		public readonly recordingBookmark: DebugRecorderBookmark | undefined,
 		public readonly recording: LogEntry[] | undefined,
 		public readonly providerRequestStartDateTime: number | undefined,
+		public readonly xtabRejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[] = [],
 	) {
 		assert(documents.length > 0);
 		assert(activeDocumentIdx >= 0 && activeDocumentIdx < documents.length);
@@ -355,6 +356,8 @@ export interface IStatelessNextEditModelTelemetry {
 	readonly modelName: string | undefined;
 	/** JSON-encoded model configuration from the model service. */
 	readonly modelConfig: string | undefined;
+	/** Whether the request's model configuration enabled rejected-edit prompt memory. */
+	readonly rejectedEditMemoryEnabled: boolean;
 }
 
 export interface IStatelessNextEditTelemetry extends IStatelessNextEditModelTelemetry {
@@ -534,6 +537,7 @@ export class StatelessNextEditTelemetryBuilder {
 			terminalOutput: this._terminalOutput,
 			similarFilesContext: this._similarFilesContext,
 			modelConfig: this._modelConfig,
+			rejectedEditMemoryEnabled: this._rejectedEditMemoryEnabled,
 		};
 	}
 
@@ -766,6 +770,12 @@ export class StatelessNextEditTelemetryBuilder {
 	private _modelConfig: string | undefined;
 	public setModelConfig(modelConfig: string): this {
 		this._modelConfig = modelConfig;
+		return this;
+	}
+
+	private _rejectedEditMemoryEnabled = false;
+	public setRejectedEditMemoryEnabled(enabled: boolean): this {
+		this._rejectedEditMemoryEnabled = enabled;
 		return this;
 	}
 }

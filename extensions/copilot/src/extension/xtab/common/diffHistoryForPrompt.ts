@@ -7,9 +7,11 @@ import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/docum
 import { RootedEdit } from '../../../platform/inlineEdits/common/dataTypes/edit';
 import { DiffHistoryOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
-import { IXtabHistoryEditEntry, IXtabHistoryEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
+import { IXtabHistoryEditEntry, IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { groupAdjacentBy, pushMany } from '../../../util/vs/base/common/arrays';
 import { toUniquePath } from './promptCraftingUtils';
+
+export const REJECTED_EDIT_TAG = '<|rejected/|>';
 
 export interface EditDiffHistoryResult {
 	readonly promptPiece: string;
@@ -23,10 +25,17 @@ export function getEditDiffHistory(
 	docsInPrompt: Set<DocumentId>,
 	computeTokens: (s: string) => number,
 	{ onlyForDocsInPrompt, maxTokens, nEntries, useRelativePaths }: DiffHistoryOptions,
+	rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[] = [],
 ): EditDiffHistoryResult {
 	const workspacePath = useRelativePaths ? activeDoc.workspaceRoot?.path : undefined;
 
-	const reversedHistory = xtabHistory.slice().reverse();
+	// Rejected edits are retained separately from normal workspace history, then
+	// merged by capture sequence only while constructing a memory-enabled prompt.
+	const reversedHistory = [...xtabHistory, ...rejectedEditHistory]
+		.map((entry, index) => ({ entry, sequence: entry.sequence ?? index }))
+		.sort((a, b) => a.sequence - b.sequence)
+		.map(({ entry }) => entry)
+		.reverse();
 
 	let tokenBudget = maxTokens;
 	let totalTokensConsumed = 0;
@@ -47,21 +56,27 @@ export function getEditDiffHistory(
 			continue;
 		}
 
-		const docDiff = generateDocDiff(entry, workspacePath);
+		const docDiff = entry.kind === 'rejectedEdit'
+			? generateRejectedDocDiff(entry, workspacePath)
+			: generateDocDiff(entry, workspacePath);
 		if (docDiff === null) {
 			continue;
 		}
 
 		const tokenCount = computeTokens(docDiff);
 
-		tokenBudget -= tokenCount;
-
-		if (tokenBudget < 0) {
+		if (tokenCount > tokenBudget) {
+			// A bounded rejected sample can still exceed a small experimental
+			// budget. Skip it rather than starving normal edit history.
+			if (entry.kind === 'rejectedEdit') {
+				continue;
+			}
 			break;
-		} else {
-			totalTokensConsumed += tokenCount;
-			allDiffs.push(docDiff);
 		}
+
+		tokenBudget -= tokenCount;
+		totalTokensConsumed += tokenCount;
+		allDiffs.push(docDiff);
 	}
 
 	const diffsFromOldestToNewest = allDiffs.reverse();
@@ -74,6 +89,18 @@ export function getEditDiffHistory(
 	}
 
 	return { promptPiece, nDiffs: allDiffs.length, totalTokens: totalTokensConsumed };
+}
+
+function generateRejectedDocDiff(entry: IXtabHistoryRejectedEditEntry, workspacePath: string | undefined): string {
+	const docDiffLines: string[] = [];
+	for (const hunk of entry.hunks) {
+		docDiffLines.push(`@@ -${hunk.startLineNumber},${hunk.oldLines.length} +${hunk.startLineNumber},${hunk.newLines.length} @@ ${REJECTED_EDIT_TAG}`);
+		pushMany(docDiffLines, hunk.oldLines.map(x => `-${x}`));
+		pushMany(docDiffLines, hunk.newLines.map(x => `+${x}`));
+	}
+
+	const uniquePath = toUniquePath(entry.docId, workspacePath);
+	return [`--- ${uniquePath}`, `+++ ${uniquePath}`, ...docDiffLines].join('\n');
 }
 
 function generateDocDiff(entry: IXtabHistoryEditEntry, workspacePath: string | undefined): string | null {
@@ -137,4 +164,3 @@ function generateDocDiff(entry: IXtabHistoryEditEntry, workspacePath: string | u
 
 	return docDiff;
 }
-

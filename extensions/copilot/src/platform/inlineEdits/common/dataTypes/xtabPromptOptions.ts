@@ -90,6 +90,16 @@ export type DiffHistoryOptions = {
 	readonly useRelativePaths: boolean;
 };
 
+export type PromptMemoryOptions = {
+	readonly rejectedEdits?: boolean;
+};
+
+export namespace PromptMemoryOptions {
+	export const VALIDATOR: IValidator<PromptMemoryOptions> = vObj({
+		'rejectedEdits': vUnion(vBoolean(), vUndefined()),
+	});
+}
+
 /**
  * Parts that are rendered by the global-budget cascade and listed in `order`.
  * Lint output is intentionally excluded and keeps its own per-part shape.
@@ -486,6 +496,7 @@ export type PromptOptions = {
 	readonly languageContext: LanguageContextOptions;
 	readonly neighborFiles: NeighborFilesOptions;
 	readonly diffHistory: DiffHistoryOptions;
+	readonly memory?: PromptMemoryOptions;
 	readonly includePostScript: boolean;
 	readonly lintOptions: LintOptions | undefined;
 	/**
@@ -630,6 +641,7 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 		onlyForDocsInPrompt: false,
 		useRelativePaths: false,
 	},
+	memory: undefined,
 	lintOptions: undefined,
 	includePostScript: true,
 };
@@ -657,6 +669,7 @@ export interface ModelConfiguration {
 	includePostScript?: boolean;
 	currentFile?: Partial<CurrentFileOptions>;
 	recentlyViewedDocuments?: Partial<RecentlyViewedDocumentsOptions>;
+	memory?: PromptMemoryOptions;
 	lintOptions: Partial<LintOptions> | undefined;
 	supportsNextCursorLinePrediction?: boolean;
 	/** Whether import-only edits are allowed. `undefined` is treated as {@link ImportChanges.None}. */
@@ -725,6 +738,7 @@ export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vOb
 	'includePostScript': vUnion(vBoolean(), vUndefined()),
 	'currentFile': vUnion(CurrentFileOptions.VALIDATOR, vUndefined()),
 	'recentlyViewedDocuments': vUnion(RecentlyViewedDocumentsOptions.VALIDATOR, vUndefined()),
+	'memory': vUnion(PromptMemoryOptions.VALIDATOR, vUndefined()),
 	'lintOptions': vUnion(LINT_OPTIONS_VALIDATOR, vUndefined()),
 	'supportsNextCursorLinePrediction': vUnion(vBoolean(), vUndefined()),
 	'allowImportChanges': vUnion(ImportChanges.VALIDATOR, vUndefined()),

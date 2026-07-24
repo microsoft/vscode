@@ -85,6 +85,17 @@ describe('applyStrategyConfig', () => {
 
 describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 
+	it('keeps rejected-edit memory off by default', () => {
+		expect(DEFAULT_OPTIONS.memory).toBeUndefined();
+		expect(MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig()).content?.memory).toBeUndefined();
+	});
+
+	it('accepts rejected-edit memory in the model configuration', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ memory: { rejectedEdits: true } }));
+		expect(result.error).toBeUndefined();
+		expect(result.content?.memory?.rejectedEdits).toBe(true);
+	});
+
 	it('accepts a config with allowImportChanges', () => {
 		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ allowImportChanges: ImportChanges.All }));
 		expect(result.error).toBeUndefined();

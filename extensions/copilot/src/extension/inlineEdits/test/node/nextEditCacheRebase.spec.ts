@@ -23,6 +23,7 @@ import { NextEditFetchRequest } from '../../node/nextEditProvider';
 const testModelTelemetry: IStatelessNextEditModelTelemetry = {
 	modelName: 'test-patch-model',
 	modelConfig: JSON.stringify({ promptingStrategy: 'patchBased02' }),
+	rejectedEditMemoryEnabled: false,
 };
 
 /**

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { outdent } from 'outdent';
-import { afterAll, assert, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, assert, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ConfigKey, ExperimentBasedConfig, ExperimentBasedConfigType, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
@@ -500,7 +500,7 @@ describe('NextEditProvider Caching', () => {
 	 * fetch) and a promise that resolves once the first request's stream has fully ended (so
 	 * tests can re-request only after the no-suggestions stream-end handling has run).
 	 */
-	function createCrossFileStatelessProvider(targetDocId: DocumentId, targetEdit: LineReplacement, activeDocWindow?: OffsetRange): { provider: IStatelessNextEditProvider; getCallCount: () => number; whenFirstStreamEnded: Promise<void> } {
+	function createCrossFileStatelessProvider(targetDocId: DocumentId, targetEdit: LineReplacement, activeDocWindow?: OffsetRange, rejectedEditMemoryEnabled = false): { provider: IStatelessNextEditProvider; getCallCount: () => number; whenFirstStreamEnded: Promise<void> } {
 		let callCount = 0;
 		const firstStreamEnded = new DeferredPromise<void>();
 		const provider: IStatelessNextEditProvider = {
@@ -508,7 +508,8 @@ describe('NextEditProvider Caching', () => {
 			provideNextEdit: async function*(request: StatelessNextEditRequest, logger: ILogger, logContext: InlineEditRequestLogContext, cancellationToken: CancellationToken) {
 				const telemetryBuilder = new StatelessNextEditTelemetryBuilder(request.headerRequestId)
 					.setModelName(testModelName)
-					.setModelConfig(testModelConfig);
+					.setModelConfig(testModelConfig)
+					.setRejectedEditMemoryEnabled(rejectedEditMemoryEnabled);
 				callCount++;
 				const isFirstCall = callCount === 1;
 				try {
@@ -527,7 +528,7 @@ describe('NextEditProvider Caching', () => {
 		return { provider, getCallCount: () => callCount, whenFirstStreamEnded: firstStreamEnded.p };
 	}
 
-	async function runCrossFileScenario(options?: { activeDocWindow?: OffsetRange; disposeTargetBeforeSecondRequest?: boolean; mutateTargetBeforeSecondRequest?: boolean; disableEditorChangeTrigger?: boolean }) {
+	async function runCrossFileScenario(options?: { activeDocWindow?: OffsetRange; disposeTargetBeforeSecondRequest?: boolean; mutateTargetBeforeSecondRequest?: boolean; disableEditorChangeTrigger?: boolean; rejectedEditMemoryEnabled?: boolean; rejectFirstSuggestion?: boolean }) {
 		const obsWorkspace = new MutableObservableWorkspace();
 		const obsGit = new ObservableGit(gitExtensionService);
 
@@ -541,9 +542,10 @@ describe('NextEditProvider Caching', () => {
 
 		// Suggestion (for the non-active document B) replacing its `return 1;` line.
 		const targetEdit = new LineReplacement(new LineRange(2, 3), ['\treturn 42;']);
-		const { provider: statelessNextEditProvider, getCallCount, whenFirstStreamEnded } = createCrossFileStatelessProvider(docBId, targetEdit, options?.activeDocWindow);
+		const { provider: statelessNextEditProvider, getCallCount, whenFirstStreamEnded } = createCrossFileStatelessProvider(docBId, targetEdit, options?.activeDocWindow, options?.rejectedEditMemoryEnabled);
 
-		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), new NesXtabHistoryTracker(obsWorkspace, undefined, scenarioConfigService, expService), undefined, scenarioConfigService, snippyService, logService, expService, requestLogger);
+		const historyTracker = new NesXtabHistoryTracker(obsWorkspace, undefined, scenarioConfigService, expService);
+		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), historyTracker, undefined, scenarioConfigService, snippyService, logService, expService, requestLogger);
 
 		const docB = obsWorkspace.addDocument({ id: docBId, initialValue: ['export function helper() {', '\treturn 1;', '}'].join('\n') });
 		const docA = obsWorkspace.addDocument({ id: docAId, initialValue: ['class Point {', '\tconstructor(', '\t\tprivate readonly x: number,', '\t) { }', '}'].join('\n') });
@@ -576,6 +578,15 @@ describe('NextEditProvider Caching', () => {
 		await whenFirstStreamEnded;
 		await timeout(0);
 
+		if (options?.rejectFirstSuggestion) {
+			vi.useFakeTimers();
+			nextEditProvider.handleShown(first);
+			vi.advanceTimersByTime(1001);
+			nextEditProvider.handleRejection(docA.id, first);
+			vi.useRealTimers();
+		}
+		const rejectedEditHistory = historyTracker.getRejectedEditHistory();
+
 		// Optionally close the target document B before re-requesting, so the cached cross-file
 		// entry can no longer be resolved against live content.
 		if (options?.disposeTargetBeforeSecondRequest) {
@@ -603,7 +614,7 @@ describe('NextEditProvider Caching', () => {
 		docA.dispose();
 		docB.dispose();
 
-		return { first, second, secondTelemetry, docBId, getCallCount };
+		return { first, second, secondTelemetry, docBId, getCallCount, rejectedEditHistory };
 	}
 
 	it('re-serves a cross-file suggestion from cache while the cursor stays in the active document (surviving the no-suggestions stream end)', async () => {
@@ -631,6 +642,24 @@ describe('NextEditProvider Caching', () => {
 			modelName: testModelName,
 			modelConfig: testModelConfig,
 			hadStatelessNextEditProviderCall: undefined,
+		});
+
+	});
+
+	it('records a cross-file rejection only when the originating suggestion enabled memory', async () => {
+		const enabled = await runCrossFileScenario({ rejectedEditMemoryEnabled: true, rejectFirstSuggestion: true });
+		const disabled = await runCrossFileScenario({ rejectedEditMemoryEnabled: false, rejectFirstSuggestion: true });
+
+		expect({
+			enabled: enabled.rejectedEditHistory,
+			disabled: disabled.rejectedEditHistory,
+		}).toMatchObject({
+			enabled: [{
+				kind: 'rejectedEdit',
+				docId: enabled.docBId,
+				hunks: [{ oldLines: ['\treturn 1;'], newLines: ['\treturn 42;'] }],
+			}],
+			disabled: [],
 		});
 	});
 

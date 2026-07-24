@@ -41,6 +41,7 @@ import { ILlmNESTelemetry, NextEditProviderTelemetryBuilder, ReusedRequestKind }
 const testModelTelemetry: IStatelessNextEditModelTelemetry = {
 	modelName: 'test-speculative-patch-model',
 	modelConfig: JSON.stringify({ promptingStrategy: 'patchBased02WithRecentLineNumbers' }),
+	rejectedEditMemoryEnabled: false,
 };
 
 interface ICallRecord {
