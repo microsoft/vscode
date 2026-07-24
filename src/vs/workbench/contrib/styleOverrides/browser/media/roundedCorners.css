@@ -219,9 +219,12 @@
 	overflow: hidden;
 }
 
-/* Match suggest rows to the containing overlay so focused rows are not clipped. */
-.style-override .editor-widget.suggest-widget .monaco-list .monaco-list-row:not(.separator) {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+/* Only boundary rows adopt the overlay's outer corners; interior rows keep the Control radius. */
+.style-override .editor-widget.suggest-widget .monaco-list .monaco-list-row:not(.separator):first-child {
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0 !important;
+}
+.style-override .editor-widget.suggest-widget .monaco-list .monaco-list-row:not(.separator):last-child {
+	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) !important;
 }
 
 /* Context menus and general menu surfaces */
