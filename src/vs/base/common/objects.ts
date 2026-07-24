@@ -232,8 +232,7 @@ function _stableStringify(value: unknown, seen: WeakSet<object>): string {
 		result = '{' + parts.join(',') + '}';
 	}
 
-	// Only track the current ancestor path, so a value that is shared across
-	// sibling branches is serialized in full rather than reported as circular.
+	// Track only ancestors so shared sibling references are serialized in full.
 	seen.delete(value as object);
 	return result;
 }
