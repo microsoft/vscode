@@ -1150,6 +1150,17 @@ registerEditorCommand(new FindCommand({
 	}
 }));
 
+export const FocusEditorFromFindWidgetCommand = registerEditorCommand(new FindCommand({
+	id: FIND_IDS.FocusEditorFromFindWidgetCommand,
+	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
+	handler: x => x.editor.focus(),
+	kbOpts: {
+		weight: KeybindingWeight.EditorContrib + 5,
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED),
+		primary: KeyMod.CtrlCmd | KeyCode.DownArrow
+	}
+}));
+
 registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ReplaceOneAction,
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
