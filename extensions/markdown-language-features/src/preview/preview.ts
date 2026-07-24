@@ -797,11 +797,19 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 				return;
 			}
 
+			if (!isMarkdownFile(editor.document)) {
+				return;
+			}
+
+			if (this.#locked) {
+				return;
+			}
+
 			if (this.#isTabPinned()) {
 				return;
 			}
 
-			if (isMarkdownFile(editor.document) && !this.#locked && !this.#preview.isPreviewOf(editor.document.uri)) {
+			if (!this.#preview.isPreviewOf(editor.document.uri)) {
 				const line = getVisibleLine(editor);
 				this.update(editor.document.uri, line ? new StartingScrollLine(line) : undefined);
 			}
@@ -939,8 +947,8 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 				if (previewTabs.length === 1) {
 					return true;
 				}
-				// Multiple previews: match by locked state via title convention ([...] prefix)
-				if (tab.label.startsWith('[') === this.#locked) {
+				// Multiple previews: match by exact title
+				if (tab.label === this.#webviewPanel.title) {
 					return true;
 				}
 			}
