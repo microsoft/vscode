@@ -347,8 +347,8 @@ class TestCopilotClient implements ITestCopilotClient {
 				this.modelListRequests.push(params);
 				const gate = this.modelListGates.shift() ?? this.modelListGate;
 				const models = this.modelListResponses.shift() ?? this._models;
-				await gate;
 				const error = this.modelListErrors.shift();
+				await gate;
 				if (error) {
 					throw error;
 				}

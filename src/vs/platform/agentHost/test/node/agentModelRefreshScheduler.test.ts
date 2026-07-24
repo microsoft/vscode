@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -49,11 +48,8 @@ function asAgents(...agents: readonly (TestAgent | LegacyTestAgent)[]): readonly
 
 suite('AgentModelRefreshScheduler', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const INTERVAL_MS = 2;
-
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createScheduler(agents: ReturnType<typeof observableValue<readonly IAgent[]>>): AgentModelRefreshScheduler {
 		return disposables.add(new AgentModelRefreshScheduler(agents, INTERVAL_MS, new NullLogService()));
