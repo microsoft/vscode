@@ -117,7 +117,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 				return;
 			}
 			if (this._isTerminalAccessibleViewOpen() && this._xterm!.raw.buffer.active.baseY === 0) {
-				this.show();
+				this._bufferProvider?.refresh();
 			}
 		}));
 
@@ -127,7 +127,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 				return;
 			}
 			if (this._isTerminalAccessibleViewOpen()) {
-				this.show();
+				this._bufferProvider?.refresh();
 			}
 		}));
 	}

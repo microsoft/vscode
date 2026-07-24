@@ -24,6 +24,9 @@ export class TerminalAccessibleBufferProvider extends Disposable implements IAcc
 	private readonly _onDidRequestClearProvider = this._register(new Emitter<AccessibleViewProviderId>());
 	readonly onDidRequestClearLastProvider = this._onDidRequestClearProvider.event;
 
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
+
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'onDidExecuteText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'onDisposed'>,
 		private _bufferTracker: BufferContentTracker,
@@ -52,6 +55,10 @@ export class TerminalAccessibleBufferProvider extends Disposable implements IAcc
 	private _updatePosition(configurationService: IConfigurationService): void {
 		const preserveCursorPosition = configurationService.getValue<boolean | TerminalAccessibleViewPreserveCursorPosition>(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition);
 		this.options.position = preserveCursorPosition === TerminalAccessibleViewPreserveCursorPosition.Always ? 'initial-bottom-preserve' : preserveCursorPosition ? 'initial-bottom' : 'bottom';
+	}
+
+	refresh(): void {
+		this._onDidChangeContent.fire();
 	}
 
 	onClose() {
