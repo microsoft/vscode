@@ -179,6 +179,16 @@ export function getIncrementalDictationCleanupRange(transcript: string, previous
 	return { start: cleanupStart, end: cleanupEnd };
 }
 
+export function isCurrentMaiTranscription(event: Pick<IVoiceTranscription, 'turnId' | 'revision'>, turnId: string, hasStreamedAudio: boolean, latestRevision: number): boolean {
+	if (!hasStreamedAudio) {
+		return false;
+	}
+	if (event.turnId !== undefined && turnId && event.turnId !== turnId) {
+		return false;
+	}
+	return event.revision === undefined || event.revision > latestRevision;
+}
+
 /** Sample rate (Hz) of the PCM16 audio streamed to the transcription backend. */
 const SAMPLE_RATE = 16000;
 
@@ -1028,15 +1038,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 * cumulative transcript for the turn.
 	 */
 	private _handleMaiTranscription(e: IVoiceTranscription): void {
-		if (e.turnId !== undefined && this._maiTurnId && e.turnId !== this._maiTurnId) {
-			this._logService.trace(`[chat-stt] mai transcription dropped (turn ${e.turnId} != ${this._maiTurnId})`);
+		if (!isCurrentMaiTranscription(e, this._maiTurnId, this._firstAudioMs > 0, this._maiRevision)) {
+			this._logService.trace(`[chat-stt] mai transcription dropped (turn=${e.turnId ?? 'none'}, activeTurn=${this._maiTurnId}, revision=${e.revision ?? 'none'}, latestRevision=${this._maiRevision}, hasStreamedAudio=${this._firstAudioMs > 0})`);
 			return;
 		}
 		if (e.revision !== undefined) {
-			if (e.revision <= this._maiRevision) {
-				this._logService.trace(`[chat-stt] mai transcription dropped (revision ${e.revision} <= ${this._maiRevision})`);
-				return;
-			}
 			this._maiRevision = e.revision;
 		}
 		this._logService.trace(`[chat-stt] mai transcription status=${e.status ?? 'none'} revision=${e.revision ?? 'none'} len=${e.text.length}`);

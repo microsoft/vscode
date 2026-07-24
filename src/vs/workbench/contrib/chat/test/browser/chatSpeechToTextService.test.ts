@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createIncrementalDictationTranscript, getIncrementalDictationCleanupRange, isFaithfulDictationCleanup } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { createIncrementalDictationTranscript, getIncrementalDictationCleanupRange, isCurrentMaiTranscription, isFaithfulDictationCleanup } from '../../browser/speechToText/chatSpeechToTextService.js';
 
 suite('ChatSpeechToTextService', () => {
 
@@ -152,6 +152,19 @@ suite('ChatSpeechToTextService', () => {
 				idleReevaluationRange: { start: 0, end: 'one two three four five six'.length },
 				shortRange: undefined,
 			}
+		);
+	});
+
+	test('accepts only current MAI transcriptions after audio starts', () => {
+		assert.deepStrictEqual(
+			[
+				isCurrentMaiTranscription({}, 'current-turn', false, -1),
+				isCurrentMaiTranscription({ turnId: 'previous-turn', revision: 2 }, 'current-turn', true, -1),
+				isCurrentMaiTranscription({ turnId: 'current-turn', revision: 2 }, 'current-turn', true, 2),
+				isCurrentMaiTranscription({ turnId: 'current-turn', revision: 3 }, 'current-turn', true, 2),
+				isCurrentMaiTranscription({}, 'current-turn', true, 2),
+			],
+			[false, false, false, true, true]
 		);
 	});
 });

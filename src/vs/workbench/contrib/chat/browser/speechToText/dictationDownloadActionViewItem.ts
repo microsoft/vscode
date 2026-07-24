@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IManagedHoverContent } from '../../../../../base/browser/ui/hover/hover.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -57,12 +55,6 @@ export class DictationDownloadActionViewItem extends MenuEntryActionViewItem {
 			this._register(new DictationDownloadRing(container, this._speechToTextService));
 		}
 
-		// super.render() applies the action's cloud-download glyph via
-		// _updateItemClass() directly (not through updateClass()), so apply the
-		// cloud-backend spinner swap here too — otherwise the mic/cloud glyph is
-		// what renders on first paint in the OSS toolbar.
-		this._applyMaiSpinner();
-
 		// Keep the mic context menu available while the model prepares so the
 		// affordance doesn't lose Select Microphone / Disable Dictation during
 		// first-use download.
@@ -71,28 +63,6 @@ export class DictationDownloadActionViewItem extends MenuEntryActionViewItem {
 			() => getDictationContextMenuActions(this._commandService, this._configurationService, this._keybindingService, TOGGLE_DICTATION_COMMAND_ID),
 			this._contextMenuService,
 		));
-	}
-
-	protected override updateClass(): void {
-		super.updateClass();
-		this._applyMaiSpinner();
-	}
-
-	/**
-	 * For the cloud backend, replace the action's cloud-download glyph with a
-	 * loading spinner so the mic reads as "connecting" rather than downloading.
-	 * The base class re-adds the cloud-download classes on every render/update, so
-	 * this must run after both super.render() and super.updateClass(). Uses a
-	 * dedicated marker class (not codicon-modifier-spin) so only the glyph spins,
-	 * regardless of the surrounding toolbar, rather than the whole button.
-	 */
-	private _applyMaiSpinner(): void {
-		if (this._speechToTextService.currentBackend !== 'mai' || !this.label) {
-			return;
-		}
-		const cloudClasses = ThemeIcon.asClassNameArray(Codicon.cloudDownload);
-		this.label.classList.remove(...cloudClasses);
-		this.label.classList.add('codicon', 'codicon-loading', 'dictation-connecting-spinner');
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
