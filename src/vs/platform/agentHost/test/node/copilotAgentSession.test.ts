@@ -2179,6 +2179,7 @@ suite('CopilotAgentSession', () => {
 
 			await waitForSignal(signal => signal.kind === 'pending_confirmation');
 			assert.strictEqual(signals.length, 1);
+			assert.strictEqual(signals[0].kind === 'pending_confirmation' && signals[0].managedApprovalRequired, true);
 			assert.ok(session.respondToPermissionRequest('tc-managed', true));
 			assert.strictEqual((await resultPromise).kind, 'approve-once');
 		});

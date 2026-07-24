@@ -2316,6 +2316,7 @@ export class CopilotAgentSession extends Disposable {
 				},
 				permissionKind,
 				permissionPath,
+				managedApprovalRequired,
 				requestSandboxBypass: request.requestSandboxBypass,
 				parentToolCallId,
 			});

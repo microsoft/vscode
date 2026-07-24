@@ -4745,6 +4745,54 @@ suite('AgentSideEffects', () => {
 			]);
 		});
 
+		test('managed approval bypasses session auto-approval and reaches the client confirmation UI', async () => {
+			setupSession();
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: { type: 'object', properties: {} },
+				values: { permissions: { allow: ['CustomTool'], deny: [] } },
+			});
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-managed', toolName: 'CustomTool', displayName: 'Custom Tool', contributor: undefined,
+				},
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-managed', toolName: 'CustomTool', displayName: 'Custom Tool',
+					invocationMessage: 'Run managed custom tool', toolInput: undefined,
+					confirmationTitle: 'Run managed custom tool', edits: undefined,
+				},
+				permissionKind: 'custom-tool',
+				managedApprovalRequired: true,
+			});
+
+			const toolCall = await waitForState(stateManager, () => {
+				const part = stateManager.getSessionState(sessionUri.toString())?.activeTurn?.responseParts.find(
+					responsePart => responsePart.kind === ResponsePartKind.ToolCall && responsePart.toolCall.toolCallId === 'tc-managed'
+				);
+				return part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.PendingConfirmation
+					? part.toolCall
+					: undefined;
+			});
+
+			assert.deepStrictEqual({
+				status: toolCall.status,
+				options: toolCall.options?.map(option => option.id),
+				responses: agent.respondToPermissionCalls,
+			}, {
+				status: ToolCallStatus.PendingConfirmation,
+				options: ['allow-session', 'allow-once', 'skip'],
+				responses: [],
+			});
+		});
+
 		test('subagent tool calls inherit parent session permissions', async () => {
 			setupSession();
 			stateManager.setSessionConfig(sessionUri.toString(), {

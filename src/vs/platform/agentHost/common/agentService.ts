@@ -1259,6 +1259,8 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'extension-management' | 'extension-permission-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
+	/** Host-only flag requiring the client to show a confirmation instead of applying host auto-approval. */
+	readonly managedApprovalRequired?: boolean;
 	/**
 	 * Host-only flag (not part of the dispatched action): the model requested
 	 * this shell command run OUTSIDE the sandbox (and the host opted in via
