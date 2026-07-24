@@ -50,9 +50,9 @@ Each extension follows the standard VS Code extension structure with `package.js
 
 ## Validating TypeScript changes
 
-Choose validation based on the scope and risk of the change. Prefer existing editor or watch-task diagnostics and the smallest targeted tests that cover the changed behavior. Do not start build or watch tasks, run broad type checks, or make type checking a prerequisite for targeted tests solely as a completion ritual.
+Choose validation based on the scope and risk of the change. Large-scale builds and typechecking can be slow, and consume significant resources, so minimize their use. Prefer existing editor or watch-task diagnostics and the smallest targeted tests that cover the changed behavior. Do not start build or watch tasks, run broad type checks, or make type checking a prerequisite for targeted tests solely as a completion ritual.
 
-Run a targeted type check or build when existing diagnostics are unavailable, the change is broad or cross-cutting, it affects build or type configuration, or another validation step reports a compilation problem. Useful commands include:
+Run a targeted type check or build when you are not fully confident in the change, and the change is broad or cross-cutting, it affects build or type configuration, or another validation step reports a compilation problem. Useful commands include:
 
 - `npm run typecheck-client` for the main sources under `src/`
 - `npm run gulp compile-extensions` for built-in extensions
