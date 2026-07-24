@@ -16,6 +16,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
+import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
@@ -55,7 +56,7 @@ import {
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, type AgentHostModelTelemetryKind, type AgentHostTurnFailureStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
@@ -378,7 +379,16 @@ export class AgentSideEffects extends Disposable {
 		const authenticationId = this._toolAuthenticationNeededId(chatUri, turnId, toolCallId);
 		const toolCall = this._findToolCall(chatUri, turnId, toolCallId);
 
-		const needsConfirmation = toolCall?.status === ToolCallStatus.PendingConfirmation || toolCall?.status === ToolCallStatus.PendingResultConfirmation;
+		// A call auto-approved by the session's bypass setting is run
+		// automatically by the owning client and never blocks on the user, so
+		// keep it out of the session `inputNeeded` queue (which would flash
+		// "input needed" in the sessions list). `autoApproveBySetting` covers
+		// only the parameter gate; a `PendingResultConfirmation` is a genuine
+		// prompt and is still surfaced.
+		const autoApproved = !!toolCall && readToolCallMeta(toolCall).autoApproveBySetting === true;
+
+		const suppressAutoApprovedConfirmation = autoApproved && toolCall?.status === ToolCallStatus.PendingConfirmation;
+		const needsConfirmation = !suppressAutoApprovedConfirmation && (toolCall?.status === ToolCallStatus.PendingConfirmation || toolCall?.status === ToolCallStatus.PendingResultConfirmation);
 		if (needsConfirmation && toolCall) {
 			this._setSessionInputNeeded(chatUri, {
 				id: confirmationId,
@@ -392,7 +402,7 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		const contributor = toolCall?.contributor;
-		if (toolCall?.status === ToolCallStatus.Running && contributor?.kind === ToolCallContributorKind.Client) {
+		if (!autoApproved && toolCall?.status === ToolCallStatus.Running && contributor?.kind === ToolCallContributorKind.Client) {
 			this._setSessionInputNeeded(chatUri, {
 				id: clientExecutionId,
 				kind: SessionInputRequestKind.ToolClientExecution,
@@ -1126,8 +1136,8 @@ export class AgentSideEffects extends Disposable {
 				}
 				const attachments = action.message.attachments;
 				this._telemetryReporter.userMessageSent(agent.id, channel, state, 'direct', attachments);
-				const { model, permissionLevel } = this._getTurnTelemetryContext(state, action.message.model?.id);
-				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, permissionLevel);
+				const { model, modelTelemetryKind, permissionLevel } = this._getTurnTelemetryContext(agent, state, action.message.model?.id);
+				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, modelTelemetryKind, permissionLevel);
 				void this._sendTurnMessage({
 					agent,
 					sessionChannel,
@@ -1479,8 +1489,8 @@ export class AgentSideEffects extends Disposable {
 		const attachments = msg.message.attachments;
 		const queuedState = this._stateManager.getSessionState(session);
 		this._telemetryReporter.userMessageSent(agent.id, session, queuedState, 'queued', attachments);
-		const { model, permissionLevel } = this._getTurnTelemetryContext(queuedState, msg.message.model?.id);
-		this._turnTracker.turnStarted(agent.id, session, turnId, model, permissionLevel);
+		const { model, modelTelemetryKind, permissionLevel } = this._getTurnTelemetryContext(agent, queuedState, msg.message.model?.id);
+		this._turnTracker.turnStarted(agent.id, session, turnId, model, modelTelemetryKind, permissionLevel);
 		// Selection travels on the queued message; it is applied before sending.
 		void this._sendTurnMessage({
 			agent,
@@ -1495,10 +1505,21 @@ export class AgentSideEffects extends Disposable {
 	}
 
 
-	private _getTurnTelemetryContext(state: SessionState | undefined, modelId: string | undefined): { model: string | undefined; permissionLevel: string | undefined } {
+	private _getTurnTelemetryContext(agent: IAgent, state: SessionState | undefined, modelId: string | undefined): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined; permissionLevel: string | undefined } {
 		const permissionValue = state?.config?.values[SessionConfigKey.AutoApprove];
 		const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
-		return { model: modelId, permissionLevel };
+		const model = modelId === undefined ? undefined : agent.models.get().find(model => model.id === modelId);
+		let modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+		if (modelId === 'auto') {
+			modelTelemetryKind = 'trusted';
+		} else if (modelId === undefined) {
+			modelTelemetryKind = undefined;
+		} else if (model === undefined) {
+			modelTelemetryKind = 'unknown';
+		} else {
+			modelTelemetryKind = readAgentModelByokIdentifier(model) === undefined ? 'trusted' : 'byok';
+		}
+		return { model: modelId, modelTelemetryKind, permissionLevel };
 	}
 
 	/**

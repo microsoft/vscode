@@ -140,8 +140,8 @@ export interface IVoiceSessionController {
 	connect(window: Window & typeof globalThis): Promise<void>;
 	disconnect(source?: 'explicit' | 'internal'): void;
 
-	pttDown(source?: 'explicit' | 'auto' | 'connect'): void;
-	pttUp(source?: 'explicit' | 'internal'): void;
+	pttDown(source?: 'explicit' | 'auto' | 'connect', forceNewTurn?: boolean): void;
+	pttUp(source?: 'explicit' | 'internal', forceFinish?: boolean): void;
 
 	/**
 	 * Stop the current recording / auto-listen loop without disconnecting.
@@ -2200,7 +2200,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	pttDown(source: 'explicit' | 'auto' | 'connect' = 'explicit'): void {
+	pttDown(source: 'explicit' | 'auto' | 'connect' = 'explicit', forceNewTurn = false): void {
 		if (!this._isConnected.get()) { this.logService.trace('[voice] pttDown ignored: not connected'); return; }
 
 		// A press is passive when the mic opened without a deliberate user gesture
@@ -2213,8 +2213,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._suppressSendToChatUntil = 0;
 		this._setPinnedSubmitSession(undefined);
 
-		// Toggle mode: second tap finishes recording
-		if (this._pttToggleMode) {
+		// Toggle mode: second tap finishes recording. A forced new turn (e.g.
+		// hold-to-talk press) cancels any pending toggle mode and records fresh.
+		if (forceNewTurn) {
+			this._pttToggleMode = false;
+		} else if (this._pttToggleMode) {
 			this.logService.trace('[voice] pttDown: toggle-mode second tap -> finishing turn');
 			this._pttToggleMode = false;
 			this._finishPtt();
@@ -2339,14 +2342,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}, VoiceSessionController._PTT_MAX_DURATION_MS);
 	}
 
-	pttUp(source: 'explicit' | 'internal' = 'explicit'): void {
+	pttUp(source: 'explicit' | 'internal' = 'explicit', forceFinish = false): void {
 		if (!this._pttHeld) { return; }
 
 		// Short tap: enter toggle mode — keep recording until next tap
-		const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : Infinity;
-		if (holdMs < VoiceSessionController._PTT_TOGGLE_THRESHOLD_MS) {
-			this._pttToggleMode = true;
-			return;
+		if (!forceFinish) {
+			const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : Infinity;
+			if (holdMs < VoiceSessionController._PTT_TOGGLE_THRESHOLD_MS) {
+				this._pttToggleMode = true;
+				return;
+			}
 		}
 
 		this._finishPtt('local', source);

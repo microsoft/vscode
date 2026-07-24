@@ -292,6 +292,12 @@ export interface ISessionsManagementService {
 	 * {@link sendNewChatRequest} clears it without firing this event.
 	 */
 	readonly onDidDiscardNewSession: Event<ISession>;
+	/**
+	 * Fires when {@link createNewSession} replaces the current in-progress
+	 * draft with another new-session draft (New Session → New Session).
+	 * Draft graduation uses {@link onDidReplaceSession} instead.
+	 */
+	readonly onDidReplaceNewDraftSession: Event<{ readonly from: ISession; readonly to: ISession }>;
 
 	// -- New Session --
 

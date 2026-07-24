@@ -222,7 +222,7 @@ export class SessionInputBanners extends Disposable {
 					run: () => state.debug ? undefined : this._executeCommand(FIX_CI_CHECKS_COMMAND_ID),
 				},
 				{
-					label: localize('ci.revealChecks', "Reveal Checks"),
+					label: localize('ci.revealChecks', "Reveal"),
 					run: () => { if (!state.debug) { void this._executeCommand(REVEAL_CI_CHECKS_COMMAND_ID); } },
 				},
 			],
@@ -252,7 +252,7 @@ export class SessionInputBanners extends Disposable {
 					run: () => state.debug ? undefined : this._addressComments(state.sessionResource).catch(err => this.logService.error('[SessionInputBanners] Failed to address comments', err)),
 				},
 				{
-					label: localize('comments.reveal', "Reveal Comments"),
+					label: localize('comments.reveal', "Reveal"),
 					run: () => { if (!state.debug) { this._revealComment(state.sessionResource, state.firstCommentId); } },
 				},
 			],

@@ -11,7 +11,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -1499,6 +1499,14 @@ function createSessionTitleFromArgs(toolInput: string | undefined): string | und
 	}
 }
 
+function completedToolCallConfirmedReason(tc: ICompletedToolCall): NonNullable<IChatToolInvocationSerialized['isConfirmed']> {
+	if (tc.status === ToolCallStatus.Completed) {
+		return { type: ToolConfirmKind.ConfirmationNotNeeded };
+	}
+
+	return { type: tc.reason === ToolCallCancellationReason.Skipped ? ToolConfirmKind.Skipped : ToolConfirmKind.Denied };
+}
+
 /**
  * Converts a completed tool call from the protocol state into a serialized
  * tool invocation suitable for history replay.
@@ -1524,9 +1532,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			invocationMessage: invocationMsg,
 			originMessage: undefined,
 			pastTenseMessage: pastTenseMsg,
-			isConfirmed: isSuccess
-				? { type: ToolConfirmKind.ConfirmationNotNeeded }
-				: { type: ToolConfirmKind.Denied },
+			isConfirmed: completedToolCallConfirmedReason(tc),
 			isComplete: true,
 			presentation: undefined,
 			subAgentInvocationId: subAgentInvocationId,
@@ -1580,9 +1586,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		invocationMessage: invocationMsg,
 		originMessage: undefined,
 		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
-		isConfirmed: isSuccess
-			? { type: ToolConfirmKind.ConfirmationNotNeeded }
-			: { type: ToolConfirmKind.Denied },
+		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
 		presentation: undefined,
 		subAgentInvocationId: subAgentInvocationId,
@@ -2242,6 +2246,8 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 			agentName: subagentContent.agentName,
 			credits: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.credits : undefined,
 			modelName: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.modelName : undefined,
+			startedAt: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.startedAt : undefined,
+			duration: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.duration : undefined,
 			chatResource: subagentContent.resource,
 		};
 		// toolSpecificData is a plain property — notify state observers
@@ -2256,7 +2262,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		const description = getSubagentTaskDescription(tc) ?? existing.toolSpecificData.description;
 		const agentName = getSubagentAgentName(tc) ?? existing.toolSpecificData.agentName;
 		if (description !== existing.toolSpecificData.description || agentName !== existing.toolSpecificData.agentName) {
-			existing.toolSpecificData = { kind: 'subagent', isActive: existing.toolSpecificData.isActive, description, agentName, credits: existing.toolSpecificData.credits, modelName: existing.toolSpecificData.modelName, chatResource: existing.toolSpecificData.chatResource };
+			existing.toolSpecificData = { ...existing.toolSpecificData, description, agentName };
 			existing.notifyToolSpecificDataChanged();
 		}
 		return;
@@ -2355,6 +2361,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				result: resultText,
 				credits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
 				modelName: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.modelName : undefined,
+				startedAt: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.startedAt : undefined,
+				duration: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.duration : undefined,
 				chatResource: getSubagentChatResource(tc, subagentContent, backendSession),
 			};
 		} else if (invocation.toolSpecificData?.kind === 'subagent') {
@@ -2368,6 +2376,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				result: getToolOutputText(tc),
 				credits: invocation.toolSpecificData.credits,
 				modelName: invocation.toolSpecificData.modelName,
+				startedAt: invocation.toolSpecificData.startedAt,
+				duration: invocation.toolSpecificData.duration,
 				chatResource: invocation.toolSpecificData.chatResource ?? getSubagentChatResource(tc, undefined, backendSession),
 			};
 		}
