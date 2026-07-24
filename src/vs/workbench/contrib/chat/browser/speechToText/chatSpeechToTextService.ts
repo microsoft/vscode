@@ -34,6 +34,35 @@ import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
 
+export function isFaithfulDictationCleanup(raw: string, cleaned: string): boolean {
+	const toWords = (text: string): string[] => text
+		.replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, '')
+		.normalize('NFD')
+		.toLocaleLowerCase()
+		.replace(/\p{M}|['\u2019]/gu, '')
+		.match(/[\p{L}\p{N}]+/gu) ?? [];
+	const rawWords = toWords(raw);
+	const cleanedWords = toWords(cleaned);
+	if (
+		rawWords.length === 0 ||
+		cleanedWords.length < Math.ceil(rawWords.length * 0.6)
+	) {
+		return false;
+	}
+
+	let rawIndex = 0;
+	for (const cleanedWord of cleanedWords) {
+		while (rawIndex < rawWords.length && rawWords[rawIndex] !== cleanedWord) {
+			rawIndex++;
+		}
+		if (rawIndex === rawWords.length) {
+			return false;
+		}
+		rawIndex++;
+	}
+	return true;
+}
+
 /** Sample rate (Hz) of the PCM16 audio streamed to the transcription backend. */
 const SAMPLE_RATE = 16000;
 
@@ -1266,7 +1295,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				return undefined;
 			}
 			cleaned = cleaned.trim();
-			if (!cleaned || !this._isFaithfulCleanup(text, cleaned)) {
+			if (!cleaned || !isFaithfulDictationCleanup(text, cleaned)) {
 				this._logService.warn('[chat-stt] language model transcript cleanup changed the dictated wording; using raw transcript');
 				return undefined;
 			}
@@ -1278,31 +1307,6 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			clearTimeout(timer);
 			cts.dispose();
 		}
-	}
-
-	private _isFaithfulCleanup(raw: string, cleaned: string): boolean {
-		const toWords = (text: string): string[] => text
-			.replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, '')
-			.split(/\s+/)
-			.map(word => word.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, ''))
-			.filter(Boolean);
-		const rawWords = toWords(raw);
-		const cleanedWords = toWords(cleaned);
-		if (cleanedWords.length < Math.ceil(rawWords.length * 0.6)) {
-			return false;
-		}
-
-		let rawIndex = 0;
-		for (const cleanedWord of cleanedWords) {
-			while (rawIndex < rawWords.length && rawWords[rawIndex] !== cleanedWord) {
-				rawIndex++;
-			}
-			if (rawIndex === rawWords.length) {
-				return false;
-			}
-			rawIndex++;
-		}
-		return true;
 	}
 
 	/**
