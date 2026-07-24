@@ -57,7 +57,47 @@ model:
 
 VS Code checks entries in order and selects the first available model. Defaults come from that same entry; an unavailable entry's configuration is never applied to a later fallback. Reasoning effort must be supported by the selected provider. Context size can use a custom value between 10,000 tokens and the model's maximum, including a value that is not one of the provider's advertised picker tiers. If the provider declares a minimum, VS Code uses it; otherwise the minimum is 10,000, capped at the model's maximum.
 
-When the agent is selected manually, declared defaults update that chat editor's model picker and request configuration. A later manual model or configuration choice overrides them until the agent is explicitly selected again or its definition changes. For `runSubagent`, an explicit `model` argument takes precedence; otherwise the agent fallback is used, then the parent request model.
+When the agent is selected manually, declared defaults update that chat editor's model picker and request configuration. A later manual model or configuration choice overrides them until the agent is explicitly selected again or its definition changes.
+
+For each `runSubagent` call, model selection uses this precedence:
+
+1. The call's explicit `model`
+2. The named agent's fallback list, or the current agent's list when `agentName` is omitted
+3. The parent request model
+
+An explicit model that matches any entry in the applicable agent list receives that entry's defaults, even when it is a later fallback. An explicit model outside the list receives no defaults from the agent. Unavailable, skipped, and differently named entries never contribute configuration.
+
+After selecting the model, its request configuration uses this precedence:
+
+1. The resolved model's current base configuration
+2. `reasoning-effort` and `context-size` defaults from the matching agent entry
+3. The call's explicit `reasoningEffort` and `contextSize`, applied independently
+
+For example, this named-agent call selects the first available fallback, replaces both defaults for that invocation, and does not change the saved model configuration:
+
+```json
+{
+  "agentName": "Researcher",
+  "prompt": "Investigate the issue",
+  "description": "Investigate issue",
+  "reasoningEffort": "high",
+  "contextSize": 180000
+}
+```
+
+This call explicitly selects a later entry from `Researcher`'s list. It keeps that entry's `context-size` default while replacing only its reasoning effort:
+
+```json
+{
+  "agentName": "Researcher",
+  "model": "GPT-5.4 (copilot)",
+  "prompt": "Investigate the issue",
+  "description": "Investigate issue",
+  "reasoningEffort": "medium"
+}
+```
+
+Per-call overrides are validated against the resolved model. Unsupported effort values, missing provider configuration properties, and context sizes outside the model's supported range reject that call so the parent agent can correct it and retry; they do not select a different fallback.
 
 Structured entries are not supported in prompt files, Claude-target agents, or GitHub-target agents.
 

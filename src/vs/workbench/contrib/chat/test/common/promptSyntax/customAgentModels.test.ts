@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
-import { customAgentModelEntriesEqual, getCustomAgentModelConfiguration, isCustomAgentModelEntries, resolveCustomAgentModel } from '../../../common/promptSyntax/customAgentModels.js';
+import { customAgentModelEntriesEqual, getCustomAgentModelConfiguration, getCustomAgentModelInvocationConfiguration, isCustomAgentModelEntries, resolveCustomAgentModel } from '../../../common/promptSyntax/customAgentModels.js';
 
 suite('CustomAgentModels', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -65,6 +65,59 @@ suite('CustomAgentModels', () => {
 			below: { tokens: 10_000 },
 			within: { tokens: 150_000 },
 			above: { tokens: 200_000 },
+		});
+	});
+
+	test('strict invocation overrides use provider properties and accept custom context sizes within bounds', () => {
+		const metadata = createModel('Configured', {
+			properties: {
+				thinkingLevel: { type: 'string', enum: ['low', 'high'], group: 'navigation' },
+				maxPromptTokens: { type: 'integer', minimum: 20_000, maximum: 250_000, enum: [100_000, 200_000], group: 'tokens' },
+			}
+		}).metadata;
+
+		assert.deepStrictEqual(getCustomAgentModelInvocationConfiguration({
+			reasoningEffort: 'high',
+			contextSize: 175_000,
+		}, metadata), {
+			thinkingLevel: 'high',
+			maxPromptTokens: 175_000,
+		});
+	});
+
+	test('strict invocation overrides report unsupported properties and values', () => {
+		const withoutConfiguration = createModel('Unconfigured').metadata;
+		const configured = createModel('Configured', {
+			properties: {
+				thinkingLevel: { type: 'string', enum: ['low', 'high'], group: 'navigation' },
+				maxPromptTokens: { type: 'integer', minimum: 20_000, maximum: 250_000, group: 'tokens' },
+			}
+		}).metadata;
+		const errorMessage = (callback: () => void) => {
+			try {
+				callback();
+				return undefined;
+			} catch (error) {
+				return error instanceof Error ? error.message : String(error);
+			}
+		};
+
+		assert.deepStrictEqual({
+			unsupportedEffort: errorMessage(() => getCustomAgentModelInvocationConfiguration({ reasoningEffort: 'high' }, withoutConfiguration)),
+			emptyEffort: errorMessage(() => getCustomAgentModelInvocationConfiguration({ reasoningEffort: '' }, configured)),
+			invalidEffort: errorMessage(() => getCustomAgentModelInvocationConfiguration({ reasoningEffort: 'medium' }, configured)),
+			unsupportedContext: errorMessage(() => getCustomAgentModelInvocationConfiguration({ contextSize: 100_000 }, withoutConfiguration)),
+			invalidContext: errorMessage(() => getCustomAgentModelInvocationConfiguration({ contextSize: 1.5 }, configured)),
+			contextBelowRange: errorMessage(() => getCustomAgentModelInvocationConfiguration({ contextSize: 19_999 }, configured)),
+			contextAboveRange: errorMessage(() => getCustomAgentModelInvocationConfiguration({ contextSize: 250_001 }, configured)),
+		}, {
+			unsupportedEffort: "Resolved model 'Unconfigured (test)' does not support reasoningEffort overrides.",
+			emptyEffort: "reasoningEffort must be a non-empty string for resolved model 'Configured (test)'.",
+			invalidEffort: "reasoningEffort 'medium' is not supported by resolved model 'Configured (test)'. Supported values: low, high.",
+			unsupportedContext: "Resolved model 'Unconfigured (test)' does not support contextSize overrides.",
+			invalidContext: "contextSize must be a positive integer for resolved model 'Configured (test)'.",
+			contextBelowRange: "contextSize 19999 is outside the supported range for resolved model 'Configured (test)'. Supported range: 20000-250000.",
+			contextAboveRange: "contextSize 250001 is outside the supported range for resolved model 'Configured (test)'. Supported range: 20000-250000.",
 		});
 	});
 

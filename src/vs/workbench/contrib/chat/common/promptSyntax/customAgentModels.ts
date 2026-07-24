@@ -30,6 +30,11 @@ export interface ICustomAgentContextSizeBounds {
 	readonly maximum: number;
 }
 
+export interface ICustomAgentModelInvocationOverrides {
+	readonly reasoningEffort?: string;
+	readonly contextSize?: number;
+}
+
 const defaultCustomAgentContextSizeMinimum = 10_000;
 
 function isPositiveSafeInteger(value: unknown): value is number {
@@ -91,6 +96,14 @@ export function getCustomAgentContextSizeBounds(metadata: ILanguageModelChatMeta
 	};
 }
 
+function acceptsString(schema: ICustomAgentModelConfigurationProperty['schema']): boolean {
+	return schema.type === 'string' || Array.isArray(schema.type) && schema.type.includes('string') || schema.type === undefined && (!schema.enum || schema.enum.every(value => typeof value === 'string'));
+}
+
+function acceptsNumber(schema: ICustomAgentModelConfigurationProperty['schema']): boolean {
+	return schema.type === 'number' || schema.type === 'integer' || Array.isArray(schema.type) && (schema.type.includes('number') || schema.type.includes('integer')) || schema.type === undefined && (!schema.enum || schema.enum.every(value => typeof value === 'number'));
+}
+
 export function getCustomAgentModelConfiguration(entry: CustomAgentModelEntry, metadata: ILanguageModelChatMetadata): Record<string, string | number> | undefined {
 	if (typeof entry === 'string') {
 		return undefined;
@@ -105,8 +118,7 @@ export function getCustomAgentModelConfiguration(entry: CustomAgentModelEntry, m
 		const property = getCustomAgentModelConfigurationProperty(metadata, 'navigation');
 		if (property) {
 			const { key, schema } = property;
-			const acceptsString = schema.type === 'string' || Array.isArray(schema.type) && schema.type.includes('string') || schema.type === undefined && (!schema.enum || schema.enum.every(value => typeof value === 'string'));
-			if (acceptsString && (!schema.enum || schema.enum.includes(entry.reasoningEffort))) {
+			if (acceptsString(schema) && (!schema.enum || schema.enum.includes(entry.reasoningEffort))) {
 				result[key] = entry.reasoningEffort;
 			}
 		}
@@ -115,13 +127,60 @@ export function getCustomAgentModelConfiguration(entry: CustomAgentModelEntry, m
 		const property = getCustomAgentModelConfigurationProperty(metadata, 'tokens');
 		if (property) {
 			const { key, schema } = property;
-			const acceptsNumber = schema.type === 'number' || schema.type === 'integer' || Array.isArray(schema.type) && (schema.type.includes('number') || schema.type.includes('integer')) || schema.type === undefined && (!schema.enum || schema.enum.every(value => typeof value === 'number'));
-			if (acceptsNumber) {
+			if (acceptsNumber(schema)) {
 				const bounds = getCustomAgentContextSizeBounds(metadata, schema);
 				result[key] = Math.max(bounds.minimum, Math.min(bounds.maximum, entry.contextSize));
 			}
 		}
 	}
+	return Object.keys(result).length ? result : undefined;
+}
+
+/**
+ * Maps per-invocation model overrides to the selected provider's configuration
+ * properties. Unlike custom-agent frontmatter defaults, invocation overrides
+ * are strict so the caller can correct an incompatible request and retry.
+ */
+export function getCustomAgentModelInvocationConfiguration(overrides: ICustomAgentModelInvocationOverrides, metadata: ILanguageModelChatMetadata): Record<string, string | number> | undefined {
+	const result: Record<string, string | number> = {};
+	const modelName = ILanguageModelChatMetadata.asQualifiedName(metadata);
+
+	if (overrides.reasoningEffort !== undefined) {
+		const reasoningEffort = overrides.reasoningEffort;
+		if (typeof reasoningEffort !== 'string' || !reasoningEffort.trim()) {
+			throw new Error(`reasoningEffort must be a non-empty string for resolved model '${modelName}'.`);
+		}
+
+		const property = getCustomAgentModelConfigurationProperty(metadata, 'navigation');
+		if (!property || !acceptsString(property.schema)) {
+			throw new Error(`Resolved model '${modelName}' does not support reasoningEffort overrides.`);
+		}
+
+		const supportedValues = property.schema.enum?.filter((value): value is string => typeof value === 'string');
+		if (property.schema.enum && !property.schema.enum.includes(reasoningEffort)) {
+			throw new Error(`reasoningEffort '${reasoningEffort}' is not supported by resolved model '${modelName}'. Supported values: ${supportedValues?.join(', ') || 'none'}.`);
+		}
+		result[property.key] = reasoningEffort;
+	}
+
+	if (overrides.contextSize !== undefined) {
+		const contextSize = overrides.contextSize;
+		if (!isPositiveSafeInteger(contextSize)) {
+			throw new Error(`contextSize must be a positive integer for resolved model '${modelName}'.`);
+		}
+
+		const property = getCustomAgentModelConfigurationProperty(metadata, 'tokens');
+		if (!property || !acceptsNumber(property.schema)) {
+			throw new Error(`Resolved model '${modelName}' does not support contextSize overrides.`);
+		}
+
+		const bounds = getCustomAgentContextSizeBounds(metadata, property.schema);
+		if (contextSize < bounds.minimum || contextSize > bounds.maximum) {
+			throw new Error(`contextSize ${contextSize} is outside the supported range for resolved model '${modelName}'. Supported range: ${bounds.minimum}-${bounds.maximum}.`);
+		}
+		result[property.key] = contextSize;
+	}
+
 	return Object.keys(result).length ? result : undefined;
 }
 

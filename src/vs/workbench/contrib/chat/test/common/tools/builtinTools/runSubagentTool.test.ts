@@ -685,6 +685,40 @@ suite('RunSubagentTool', () => {
 				modelName: 'Copilot Sonnet',
 			});
 		});
+
+		test('does not select another fallback when an invocation override is incompatible', async () => {
+			const mainMeta = createMetadata('Main', 1);
+			const incompatibleMeta = createMetadata('Incompatible', 1);
+			const compatibleMeta: ILanguageModelChatMetadata = {
+				...createMetadata('Compatible', 1),
+				configurationSchema: {
+					properties: {
+						thinkingLevel: { type: 'string', enum: ['low', 'high'], group: 'navigation' },
+					}
+				},
+			};
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['incompatible-model-id', incompatibleMeta],
+				['compatible-model-id', compatibleMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['Incompatible (TestVendor)', { metadata: incompatibleMeta, identifier: 'incompatible-model-id' }],
+				['Compatible (TestVendor)', { metadata: compatibleMeta, identifier: 'compatible-model-id' }],
+			]);
+			const agent = createAgent('ConfiguredAgent', ['Incompatible (TestVendor)', 'Compatible (TestVendor)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			await assert.rejects(
+				() => tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task', agentName: agent.name, reasoningEffort: 'high' },
+					toolCallId: 'incompatible-override',
+					modelId: 'main-model-id',
+					chatSessionResource: URI.parse('test://session'),
+				}, CancellationToken.None),
+				/Resolved model 'Incompatible \(TestVendor\)' does not support reasoningEffort overrides/
+			);
+		});
 	});
 
 	suite('explicit model parameter', () => {
@@ -772,6 +806,17 @@ suite('RunSubagentTool', () => {
 			assert.strictEqual(toolData.inputSchema?.properties?.model?.type, 'string');
 			// No enum should be present - validation happens at runtime
 			assert.strictEqual(toolData.inputSchema?.properties?.model?.enum, undefined, 'model should not have an enum');
+			assert.deepStrictEqual(toolData.inputSchema?.properties?.reasoningEffort, {
+				type: 'string',
+				minLength: 1,
+				pattern: '\\S',
+				description: 'Optional reasoning effort to apply to the model resolved for this subagent invocation.',
+			});
+			assert.deepStrictEqual(toolData.inputSchema?.properties?.contextSize, {
+				type: 'integer',
+				minimum: 1,
+				description: 'Optional context size to apply to the model resolved for this subagent invocation.',
+			});
 		});
 
 		test('resolves explicit model parameter without agentName', async () => {
@@ -914,6 +959,20 @@ suite('RunSubagentTool', () => {
 				}
 			);
 		});
+
+		test('throws a clear error when configuration overrides have no resolved model', async () => {
+			const tool = createTool({ models: new Map(), qualifiedNameMap: new Map() });
+
+			await assert.rejects(
+				() => tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task', reasoningEffort: 'high' },
+					toolCallId: 'model-call-no-resolved-model',
+					modelId: undefined,
+					chatSessionResource: URI.parse('test://session'),
+				}, CancellationToken.None),
+				/Cannot apply reasoningEffort or contextSize overrides because no model could be resolved/
+			);
+		});
 	});
 
 	suite('nested subagent depth tracking', () => {
@@ -928,6 +987,7 @@ suite('RunSubagentTool', () => {
 			currentModeInstructions?: IChatRequestModeInstructions;
 			customAgents?: ICustomAgent[];
 			languageModelsService?: ILanguageModelsService;
+			productService?: IProductService;
 		}) {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 			mockToolsService.toToolReferences = () => [];
@@ -982,7 +1042,7 @@ suite('RunSubagentTool', () => {
 				configService,
 				promptsService,
 				mockInstantiationService as IInstantiationService,
-				{} as IProductService,
+				opts.productService ?? {} as IProductService,
 			));
 
 			return { tool, mockChatAgentService };
@@ -998,7 +1058,7 @@ suite('RunSubagentTool', () => {
 			} as IToolInvocation;
 		}
 
-		test('prepared structured fallback forwards paired defaults for named and current agents', async () => {
+		test('named and current agents merge invocation overrides individually over paired fallback defaults', async () => {
 			const capturedRequests: IChatAgentRequest[] = [];
 			const availableMetadata: ILanguageModelChatMetadata = {
 				extension: new ExtensionIdentifier('test.extension'),
@@ -1046,9 +1106,18 @@ suite('RunSubagentTool', () => {
 			};
 			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: false, capturedRequests, currentModeInstructions, customAgents: [customAgent], languageModelsService });
 			const sessionUri = URI.parse('test://session/structured');
-			for (const agentName of ['Structured', undefined]) {
+			const parameters = [
+				{ agentName: 'Structured', reasoningEffort: 'low', contextSize: 150_000 },
+				{ reasoningEffort: 'low' },
+				{ agentName: 'Structured' },
+			];
+			for (const overrides of parameters) {
 				const invocation = createInvocation(sessionUri);
-				invocation.parameters = { prompt: 'do something', description: 'test', ...(agentName ? { agentName } : {}) };
+				invocation.parameters = {
+					prompt: 'do something',
+					description: 'test',
+					...overrides,
+				};
 				invocation.modelId = 'main-id';
 
 				await tool.prepareToolInvocation({
@@ -1066,13 +1135,190 @@ suite('RunSubagentTool', () => {
 			})), [
 				{
 					modelId: 'available-id',
-					configuration: { temperature: 0.5, thinkingLevel: 'high', maxPromptTokens: 222_222 },
+					configuration: { temperature: 0.5, thinkingLevel: 'low', maxPromptTokens: 150_000 },
+				},
+				{
+					modelId: 'available-id',
+					configuration: { temperature: 0.5, thinkingLevel: 'low', maxPromptTokens: 222_222 },
 				},
 				{
 					modelId: 'available-id',
 					configuration: { temperature: 0.5, thinkingLevel: 'high', maxPromptTokens: 222_222 },
 				},
 			]);
+		});
+
+		test('explicit models receive defaults only from their matching custom-agent entry', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const createMetadata = (name: string): ILanguageModelChatMetadata => ({
+				extension: new ExtensionIdentifier('test.extension'),
+				name,
+				id: name.toLowerCase(),
+				vendor: 'test',
+				version: '1',
+				family: name,
+				maxInputTokens: 300_000,
+				maxOutputTokens: 10_000,
+				isDefaultForLocation: {},
+				capabilities: { toolCalling: true },
+				configurationSchema: {
+					properties: {
+						thinkingLevel: { type: 'string', enum: ['low', 'medium', 'high'], group: 'navigation' },
+						maxPromptTokens: { type: 'number', enum: [100_000, 300_000], group: 'tokens' },
+					}
+				}
+			});
+			const firstMetadata = createMetadata('First');
+			const laterMetadata = createMetadata('Later');
+			const outsideMetadata = createMetadata('Outside');
+			const metadataById = new Map([
+				['first-id', firstMetadata],
+				['later-id', laterMetadata],
+				['outside-id', outsideMetadata],
+			]);
+			const metadataByName = new Map<string, ILanguageModelChatMetadataAndIdentifier>([
+				['First (test)', { identifier: 'first-id', metadata: firstMetadata }],
+				['Later (test)', { identifier: 'later-id', metadata: laterMetadata }],
+				['Outside (test)', { identifier: 'outside-id', metadata: outsideMetadata }],
+			]);
+			const languageModelsService: Partial<ILanguageModelsService> = {
+				getLanguageModelIds: () => Array.from(metadataById.keys()),
+				lookupLanguageModel: (id: string) => metadataById.get(id),
+				lookupLanguageModelByQualifiedName: (name: string) => metadataByName.get(name),
+				getModelConfiguration: () => ({ temperature: 0.5, thinkingLevel: 'medium', maxPromptTokens: 100_000 }),
+			};
+			const customAgent: ICustomAgent = {
+				id: 'file:///test/explicit.agent.md',
+				uri: URI.parse('file:///test/explicit.agent.md'),
+				name: 'Explicit',
+				model: [
+					{ name: 'First (test)', reasoningEffort: 'low', contextSize: 120_000 },
+					{ name: 'Later (test)', reasoningEffort: 'high', contextSize: 220_000 },
+				],
+				agentInstructions: { content: 'test', toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true },
+				enabled: true,
+			};
+			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: false, capturedRequests, customAgents: [customAgent], languageModelsService: languageModelsService as ILanguageModelsService });
+			const sessionUri = URI.parse('test://session/explicit-config');
+			for (const { model, reasoningEffort } of [
+				{ model: 'Later (test)', reasoningEffort: 'medium' },
+				{ model: 'Outside (test)', reasoningEffort: 'high' },
+			]) {
+				const invocation = createInvocation(sessionUri);
+				invocation.parameters = {
+					prompt: 'do something',
+					description: 'test',
+					agentName: customAgent.name,
+					model,
+					reasoningEffort,
+				};
+				invocation.modelId = 'first-id';
+
+				await tool.prepareToolInvocation({
+					parameters: invocation.parameters,
+					toolCallId: invocation.callId,
+					modelId: invocation.modelId,
+					chatSessionResource: sessionUri,
+				}, CancellationToken.None);
+				await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+			}
+
+			assert.deepStrictEqual(capturedRequests.map(request => ({
+				modelId: request.userSelectedModelId,
+				configuration: request.modelConfiguration,
+			})), [
+				{
+					modelId: 'later-id',
+					configuration: { temperature: 0.5, thinkingLevel: 'medium', maxPromptTokens: 220_000 },
+				},
+				{
+					modelId: 'outside-id',
+					configuration: { temperature: 0.5, thinkingLevel: 'high', maxPromptTokens: 100_000 },
+				},
+			]);
+		});
+
+		test('built-in BYOK fallback skips Copilot defaults and applies invocation overrides to the inherited model', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const byokMetadata: ILanguageModelChatMetadata = {
+				extension: new ExtensionIdentifier('test.extension'),
+				name: 'BYOK',
+				id: 'byok',
+				vendor: 'anthropic',
+				version: '1',
+				family: 'byok',
+				maxInputTokens: 300_000,
+				maxOutputTokens: 10_000,
+				isDefaultForLocation: {},
+				isBYOK: true,
+				capabilities: { toolCalling: true },
+				configurationSchema: {
+					properties: {
+						thinkingLevel: { type: 'string', enum: ['low', 'high'], group: 'navigation' },
+						maxPromptTokens: { type: 'number', enum: [100_000, 300_000], group: 'tokens' },
+					}
+				}
+			};
+			const copilotMetadata: ILanguageModelChatMetadata = {
+				...byokMetadata,
+				name: 'Copilot',
+				id: 'copilot',
+				vendor: COPILOT_VENDOR_ID,
+				isBYOK: false,
+			};
+			const languageModelsService = {
+				getLanguageModelIds: () => ['byok-id', 'copilot-id'],
+				lookupLanguageModel: (id: string) => id === 'byok-id' ? byokMetadata : id === 'copilot-id' ? copilotMetadata : undefined,
+				lookupLanguageModelByQualifiedName: (name: string) => name === 'Copilot (copilot)' ? { identifier: 'copilot-id', metadata: copilotMetadata } : undefined,
+				getModelConfiguration: (id: string) => id === 'byok-id' ? { temperature: 0.5, thinkingLevel: 'low', maxPromptTokens: 100_000 } : undefined,
+			} as ILanguageModelsService;
+			const builtinProductService = { defaultChatAgent: { chatExtensionId: 'github.copilot-chat' } } as IProductService;
+			const customAgent: ICustomAgent = {
+				id: 'file:///test/byok.agent.md',
+				uri: URI.parse('file:///test/byok.agent.md'),
+				name: 'Explore',
+				model: [{ name: 'Copilot (copilot)', reasoningEffort: 'low', contextSize: 120_000 }],
+				agentInstructions: { content: 'test', toolReferences: [] },
+				source: { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier('github.copilot-chat') },
+				target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true },
+				enabled: true,
+			};
+			const { tool } = createInvokableTool({
+				allowInvocationsFromSubagents: false,
+				capturedRequests,
+				customAgents: [customAgent],
+				languageModelsService,
+				productService: builtinProductService,
+			});
+			const sessionUri = URI.parse('test://session/byok-config');
+			const invocation = createInvocation(sessionUri);
+			invocation.parameters = {
+				prompt: 'do something',
+				description: 'test',
+				agentName: customAgent.name,
+				reasoningEffort: 'high',
+			};
+			invocation.modelId = 'byok-id';
+
+			await tool.prepareToolInvocation({
+				parameters: invocation.parameters,
+				toolCallId: invocation.callId,
+				modelId: invocation.modelId,
+				chatSessionResource: sessionUri,
+			}, CancellationToken.None);
+			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+
+			assert.deepStrictEqual(capturedRequests.map(request => ({
+				modelId: request.userSelectedModelId,
+				configuration: request.modelConfiguration,
+			})), [{
+				modelId: 'byok-id',
+				configuration: { temperature: 0.5, thinkingLevel: 'high', maxPromptTokens: 100_000 },
+			}]);
 		});
 
 		test('prepared structured fallback merges defaults over the configuration at invocation time', async () => {

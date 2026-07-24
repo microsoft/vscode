@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Emitter, type Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
@@ -31,8 +32,7 @@ import { ChatRequestHooks, mergeHooks } from '../../promptSyntax/hookSchema.js';
 import { HookType } from '../../promptSyntax/hookTypes.js';
 import { ICustomAgent, IPromptsService } from '../../promptSyntax/service/promptsService.js';
 import { isBuiltinAgent } from '../../promptSyntax/utils/promptsServiceUtils.js';
-import { getCustomAgentModelConfiguration, getCustomAgentModelName } from '../../promptSyntax/customAgentModels.js';
-import { IStringDictionary } from '../../../../../../base/common/collections.js';
+import { type CustomAgentModelEntry, getCustomAgentModelConfiguration, getCustomAgentModelInvocationConfiguration, getCustomAgentModelName } from '../../promptSyntax/customAgentModels.js';
 import {
 	CountTokensCallback,
 	ILanguageModelToolsService,
@@ -64,6 +64,8 @@ export interface IRunSubagentToolInputParams {
 	description: string;
 	agentName?: string;
 	model?: string;
+	reasoningEffort?: string;
+	contextSize?: number;
 }
 
 export const RUN_SUBAGENT_MAX_NESTING_DEPTH = 5;
@@ -71,6 +73,7 @@ export const RUN_SUBAGENT_MAX_NESTING_DEPTH = 5;
 interface IResolvedSubagentModel {
 	readonly modeModelId: string | undefined;
 	readonly resolvedModelName: string | undefined;
+	readonly customAgentModelEntry: CustomAgentModelEntry | undefined;
 	readonly modelConfigurationOverrides: IStringDictionary<unknown> | undefined;
 }
 
@@ -120,7 +123,18 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		};
 		properties.model = {
 			type: 'string',
-			description: 'Optional model for the subagent. Format: "Model Name (Vendor)", vendor is usually "copilot". Only use to enforce a specific model.',
+			description: 'Optional model to resolve for this subagent invocation. Format: "Model Name (Vendor)", vendor is usually "copilot". Only use to enforce a specific model.',
+		};
+		properties.reasoningEffort = {
+			type: 'string',
+			minLength: 1,
+			pattern: '\\S',
+			description: 'Optional reasoning effort to apply to the model resolved for this subagent invocation.',
+		};
+		properties.contextSize = {
+			type: 'integer',
+			minimum: 1,
+			description: 'Optional context size to apply to the model resolved for this subagent invocation.',
 		};
 
 		const inputSchema: IJSONSchema & { properties: IJSONSchemaMap } = {
@@ -191,7 +205,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 						modelConfigurationOverrides = cached.modelConfigurationOverrides;
 					} else {
 						// Fallback: resolve the model here if prepare didn't cache it
-						const resolved = this.resolveSubagentModel(subagent, invocation.modelId, args.model);
+						const resolved = this.resolveSubagentModel(subagent, invocation.modelId, args);
 						modeModelId = resolved.modeModelId;
 						resolvedModelName = resolved.resolvedModelName;
 						modelConfigurationOverrides = resolved.modelConfigurationOverrides;
@@ -236,7 +250,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					modelConfigurationOverrides = cached.modelConfigurationOverrides;
 				} else {
 					const currentSubagent = await this.getSubAgentForModeInstructions(currentModeInstructions);
-					const resolved = this.resolveSubagentModel(currentSubagent, invocation.modelId, args.model);
+					const resolved = this.resolveSubagentModel(currentSubagent, invocation.modelId, args);
 					modeModelId = resolved.modeModelId;
 					resolvedModelName = resolved.resolvedModelName;
 					modelConfigurationOverrides = resolved.modelConfigurationOverrides;
@@ -522,24 +536,24 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 	/**
 	 * Resolves the model to be used by a subagent.
-	 * @param explicitModelQualifiedName Optional explicit model specified by the caller.
-	 *        If provided and not found or not allowed, throws an error with available models.
+	 * @param args Optional model selection and per-invocation configuration supplied by the caller.
 	 * @throws Error if the requested model is not found or exceeds the main model's cost tier.
 	 */
-	private resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined, explicitModelQualifiedName?: string): IResolvedSubagentModel {
+	private resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined, args: Pick<IRunSubagentToolInputParams, 'model' | 'reasoningEffort' | 'contextSize'>): IResolvedSubagentModel {
 		let modeModelId = mainModelId;
 		let explicitModelResolved = false;
-		let agentModelConfiguration: IStringDictionary<unknown> | undefined;
+		let customAgentModelEntry: CustomAgentModelEntry | undefined;
 
 		// Explicit model parameter takes highest priority
-		if (explicitModelQualifiedName) {
-			const lm = this.languageModelsService.lookupLanguageModelByQualifiedName(explicitModelQualifiedName);
+		if (args.model) {
+			const lm = this.languageModelsService.lookupLanguageModelByQualifiedName(args.model);
 			if (lm?.identifier) {
 				modeModelId = lm.identifier;
 				explicitModelResolved = true;
+				customAgentModelEntry = subagent?.model?.find(entry => ILanguageModelChatMetadata.matchesQualifiedName(getCustomAgentModelName(entry), lm.metadata));
 			} else {
 				// Model not found - throw error with available models
-				throw new Error(`Requested model '${explicitModelQualifiedName}' not found. ${this.getAvailableModelsInfo(mainModelId)}`);
+				throw new Error(`Requested model '${args.model}' not found. ${this.getAvailableModelsInfo(mainModelId)}`);
 			}
 		}
 
@@ -560,7 +574,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 							continue;
 						}
 						modeModelId = lmByQualifiedName.identifier;
-						agentModelConfiguration = getCustomAgentModelConfiguration(entry, lmByQualifiedName.metadata);
+						customAgentModelEntry = entry;
 						break;
 					}
 				}
@@ -577,7 +591,26 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		}
 
 		const resolvedModelMetadata = modeModelId ? this.languageModelsService.lookupLanguageModel(modeModelId) : undefined;
-		return { modeModelId, resolvedModelName: resolvedModelMetadata?.name, modelConfigurationOverrides: agentModelConfiguration };
+		const hasInvocationOverrides = args.reasoningEffort !== undefined || args.contextSize !== undefined;
+		if (hasInvocationOverrides && !resolvedModelMetadata) {
+			throw new Error('Cannot apply reasoningEffort or contextSize overrides because no model could be resolved for this subagent invocation.');
+		}
+
+		const agentModelConfiguration = customAgentModelEntry && resolvedModelMetadata
+			? getCustomAgentModelConfiguration(customAgentModelEntry, resolvedModelMetadata)
+			: undefined;
+		const invocationModelConfiguration = resolvedModelMetadata
+			? getCustomAgentModelInvocationConfiguration(args, resolvedModelMetadata)
+			: undefined;
+		const modelConfigurationOverrides = agentModelConfiguration || invocationModelConfiguration
+			? { ...agentModelConfiguration, ...invocationModelConfiguration }
+			: undefined;
+		return {
+			modeModelId,
+			resolvedModelName: resolvedModelMetadata?.name,
+			customAgentModelEntry,
+			modelConfigurationOverrides,
+		};
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -590,7 +623,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			: await this.getSubAgentForModeInstructions(currentModeInstructions);
 
 		// Resolve the model early and cache it for invoke()
-		const resolved = this.resolveSubagentModel(subagent, context.modelId, args.model);
+		const resolved = this.resolveSubagentModel(subagent, context.modelId, args);
 		this._resolvedModels.set(context.toolCallId, resolved);
 
 		return {
