@@ -77,6 +77,7 @@ import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEdito
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -92,6 +93,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IExtension } from '../../../extensions/common/extensions.js';
@@ -332,10 +334,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail' = 'list';
 	private migrationContentContainer: HTMLElement | undefined;
 	private migrationListContainer: HTMLElement | undefined;
+	private migrationListScrollable: DomScrollableElement | undefined;
 	private migrationMigrateButton: Button | undefined;
 	private migrationSearchInput: InputBox | undefined;
 	private migrationDescriptionElement: HTMLElement | undefined;
 	private migrationSearchQuery = '';
+	private readonly collapsedPromptMigrationGroups = new Set<string>();
 	private selectedPromptMigrationUris = new ResourceSet();
 	private readonly migrationPageDisposables = this._register(new DisposableStore());
 
@@ -885,7 +889,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 			void this.migratePromptFiles(selectedPromptFiles);
 		}));
 
-		this.migrationListContainer = DOM.append(this.migrationContentContainer, $('.prompt-migration-list.list-container'));
+		this.migrationListContainer = $('.prompt-migration-list.list-container');
+		this.migrationListScrollable = this.editorDisposables.add(new DomScrollableElement(this.migrationListContainer, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			useShadows: false,
+		}));
+		const migrationListScrollableNode = this.migrationListScrollable.getDomNode();
+		migrationListScrollableNode.classList.add('prompt-migration-list-scrollable');
+		this.migrationContentContainer.appendChild(migrationListScrollableNode);
+		const targetWindow = DOM.getWindow(this.migrationContentContainer);
+		const migrationResizeObserver = this.editorDisposables.add(new DOM.DisposableResizeObserver(
+			'AICustomizationManagementEditor.promptMigrationListScrollable',
+			() => this.migrationListScrollable?.scanDomNode(),
+			targetWindow,
+		));
+		this.editorDisposables.add(migrationResizeObserver.observe(migrationListScrollableNode));
 		this.renderPromptMigrationPage();
 	}
 
@@ -1257,6 +1276,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const emptyMessage = DOM.append(this.migrationListContainer, $('p.prompt-migration-empty'));
 			emptyMessage.textContent = localize('promptMigrationPageEmpty', "No prompt files are available to migrate.");
 			this.migrationMigrateButton.enabled = false;
+			this.migrationListScrollable?.scanDomNode();
 			return;
 		}
 
@@ -1273,6 +1293,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const emptyMessage = DOM.append(this.migrationListContainer, $('p.prompt-migration-empty'));
 			emptyMessage.textContent = localize('promptMigrationSearchEmpty', "No prompt files match your search.");
 			this.updatePromptMigrationActionState();
+			this.migrationListScrollable?.scanDomNode();
 			return;
 		}
 
@@ -1336,7 +1357,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}));
 		};
 
-		const renderGroup = (groupLabel: string, promptFiles: readonly IPromptPath[]): void => {
+		const renderGroup = (groupKey: string, groupLabel: string, promptFiles: readonly IPromptPath[]): void => {
 			if (promptFiles.length === 0) {
 				return;
 			}
@@ -1358,25 +1379,53 @@ export class AICustomizationManagementEditor extends EditorPane {
 				}
 				this.renderPromptMigrationPage();
 			}));
-			const groupLabelGroup = DOM.append(groupHeader, $('.group-label-group'));
+			const groupToggle = DOM.append(groupHeader, $('button.prompt-migration-group-toggle')) as HTMLButtonElement;
+			groupToggle.type = 'button';
+			const groupId = `prompt-migration-group-${groupKey}`;
+			const collapsed = this.collapsedPromptMigrationGroups.has(groupId);
+			groupToggle.setAttribute('aria-controls', `${groupId}-items`);
+			groupToggle.setAttribute('aria-expanded', String(!collapsed));
+			const chevron = DOM.append(groupToggle, $('span.group-chevron'));
+			chevron.setAttribute('aria-hidden', 'true');
+			const groupLabelGroup = DOM.append(groupToggle, $('.group-label-group'));
 			const label = DOM.append(groupLabelGroup, $('span.group-label'));
 			label.textContent = groupLabel;
-			const count = DOM.append(groupLabelGroup, $('span.group-count'));
+			const count = DOM.append(groupToggle, $('span.group-count'));
 			count.textContent = String(promptFiles.length);
+			const groupItems = DOM.append(group, $('.prompt-migration-group-items'));
+			groupItems.id = `${groupId}-items`;
+			const setGroupCollapsed = (collapsed: boolean): void => {
+				groupItems.style.display = collapsed ? 'none' : '';
+				chevron.className = 'group-chevron';
+				chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+				groupToggle.setAttribute('aria-expanded', String(!collapsed));
+				this.migrationListScrollable?.scanDomNode();
+			};
+			setGroupCollapsed(collapsed);
+			this.migrationPageDisposables.add(DOM.addDisposableListener(groupToggle, 'click', () => {
+				if (this.collapsedPromptMigrationGroups.has(groupId)) {
+					this.collapsedPromptMigrationGroups.delete(groupId);
+					setGroupCollapsed(false);
+				} else {
+					this.collapsedPromptMigrationGroups.add(groupId);
+					setGroupCollapsed(true);
+				}
+			}));
 
 			for (const promptFile of promptFiles) {
-				renderItem(group, promptFile);
+				renderItem(groupItems, promptFile);
 			}
 		};
 
-		renderGroup(localize('promptMigrationWorkspaceGroup', "Workspace"), workspacePromptFiles);
-		renderGroup(localize('promptMigrationUserGroup', "User"), userPromptFiles);
+		renderGroup(PromptsStorage.local, localize('promptMigrationWorkspaceGroup', "Workspace"), workspacePromptFiles);
+		renderGroup(PromptsStorage.user, localize('promptMigrationUserGroup', "User"), userPromptFiles);
 
 		for (const promptFile of filteredPromptFiles.filter(file => file.storage !== PromptsStorage.local && file.storage !== PromptsStorage.user)) {
 			renderItem(this.migrationListContainer, promptFile);
 		}
 
 		this.updatePromptMigrationActionState();
+		this.migrationListScrollable?.scanDomNode();
 	}
 
 	private updatePromptMigrationPageDescription(): void {
@@ -1989,6 +2038,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			widget.layout?.(dimension);
 		}
 		this.migrationSearchInput?.layout();
+		this.migrationListScrollable?.scanDomNode();
 	}
 
 	override focus(): void {
