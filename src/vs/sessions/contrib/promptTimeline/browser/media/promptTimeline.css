@@ -51,11 +51,11 @@
 }
 
 /* ---- Sticky prompt header ------------------------------------------------------------------
- * A flat, opaque band pinned to the top of the transcript (editor "sticky scroll" pattern): it
- * shares the transcript surface, carries only a hairline bottom border and a soft downward shadow,
- * and names the prompt currently scrolled off the top. Independent of the rail: `.hidden` (toggled
- * in JS once a prompt is pinned, alongside the `inert` attribute) drives the reveal, so it also
- * works in header-only mode. */
+ * A flat, opaque band pinned to the top of the transcript (editor "sticky scroll" pattern). The outer
+ * element only handles positioning and the reveal; the visible band (background/border/shadow) lives on
+ * the centered content element so it matches the transcript's message column instead of bleeding to the
+ * window edges. Independent of the rail: `.hidden` (toggled in JS once a prompt is pinned, alongside the
+ * `inert` attribute) drives the reveal, so it also works in header-only mode. */
 .prompt-timeline-sticky {
 	position: absolute;
 	top: 0;
@@ -66,12 +66,6 @@
 	transform: translateY(-6px);
 	transition: opacity 140ms ease, transform 140ms ease;
 	pointer-events: none;
-	border-bottom: 1px solid var(--vscode-agentsPanel-border, transparent);
-	/* The band overlays scrolling transcript rows, so it must stay opaque: composite the (translucent)
-	 * chat request-bubble tint over the opaque panel base so it reads as a chat bubble without bleed-through. */
-	background-color: var(--vscode-agentsPanel-background);
-	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
-	box-shadow: 0 6px 6px -6px var(--vscode-widget-shadow, transparent);
 	color: var(--vscode-foreground);
 }
 
@@ -89,22 +83,30 @@
 }
 
 /* High-contrast themes rely on the explicit contrast border and suppress decorative shadows. */
-.hc-black .prompt-timeline-sticky,
-.hc-light .prompt-timeline-sticky {
+.hc-black .prompt-timeline-sticky-content,
+.hc-light .prompt-timeline-sticky-content {
 	box-shadow: none;
 }
 
-/* Left-align the pinned prompt with the transcript's centered message column (chatView.css: max-width
- * 950, margin auto, 32px inset) via a matching left inset, but let the band span the full transcript
- * width so the label can use all the room to the right before it has to ellipsize. */
+/* The visible band: matches the transcript's centered message column (chatView.css: max-width 950,
+ * margin auto, 32px inset) so it lines up with the title and prompts rather than spanning the whole
+ * width. It overlays scrolling transcript rows, so it must stay opaque: composite the (translucent)
+ * chat request-bubble tint over the opaque panel base so it reads as a chat bubble without bleed-through. */
 .prompt-timeline-sticky-content {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 	height: 30px;
 	box-sizing: border-box;
-	padding-left: max(32px, (100% - 950px) / 2 + 32px);
+	max-width: 950px;
+	margin: 0 auto;
+	padding-left: 32px;
 	padding-right: 32px;
+	border-bottom: 1px solid var(--vscode-agentsPanel-border, transparent);
+	background-color: var(--vscode-agentsPanel-background);
+	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
+	box-shadow: 0 6px 6px -6px var(--vscode-widget-shadow, transparent);
+	color: var(--vscode-foreground);
 }
 
 .prompt-timeline-host.prompt-timeline-with-rail .prompt-timeline-sticky-content {
