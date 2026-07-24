@@ -15,7 +15,6 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
-import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -31,16 +30,13 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
+import { EmptyTextEditorHintContributionId, IEmptyTextEditorHintContribution } from './emptyTextEditorHintTypes.js';
 import './emptyTextEditorHint.css';
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
-export class EmptyTextEditorHintContribution extends Disposable implements IEditorContribution {
+export class EmptyTextEditorHintContribution extends Disposable implements IEmptyTextEditorHintContribution {
 
-	static readonly ID = 'editor.contrib.emptyTextEditorHint';
-
-	static get(editor: ICodeEditor): EmptyTextEditorHintContribution | null {
-		return editor.getContribution<EmptyTextEditorHintContribution>(EmptyTextEditorHintContribution.ID);
-	}
+	static readonly ID = EmptyTextEditorHintContributionId;
 
 	private textHintContentWidget: EmptyTextEditorHintContentWidget | undefined;
 
