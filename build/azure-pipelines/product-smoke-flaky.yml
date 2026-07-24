@@ -151,6 +151,8 @@ extends:
         enabled: false
       sourceAnalysisPool: 1es-windows-2022-x64
       createAdoIssuesForJustificationsForDisablement: false
+    settings:
+      networkIsolationPolicy: Permissive,CFSClean2,CFSClean3
     stages:
       # The per-OS compile template unconditionally waits (up to 30 min) for a
       # `Copilot` job to publish the `copilot_vsix` artifact, which is mixed into
