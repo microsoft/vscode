@@ -26,6 +26,7 @@ import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/cha
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 /**
  * Static command ID used by completion items to trigger immediate slash command execution,
  * mirroring the pattern of core's `ChatSubmitAction` for `executeImmediately` commands.
@@ -75,6 +76,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@INewChatModelPickerService private readonly newChatModelPickerService: INewChatModelPickerService,
 		@ISessionContext private readonly sessionContext: ISessionContext,
+		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IChatSubmitRequestHandlerService submitRequestHandlerService: IChatSubmitRequestHandlerService,
 	) {
 		super();
@@ -157,6 +159,13 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 		const openSection = (section: AICustomizationManagementSection) =>
 			() => this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, section);
 
+		this._slashCommands.push({
+			command: 'vscode-pet',
+			detail: localize('slashCommand.vscodePet', "Toggle the VS Code pet"),
+			sortText: 'z3_vscodePet',
+			executeImmediately: true,
+			execute: () => this.chatPetService.toggle(),
+		});
 		this._slashCommands.push({
 			command: 'agents',
 			detail: localize('slashCommand.agents', "View and manage custom agents"),

@@ -4,14 +4,82 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
+import { DisposableStore, IDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
+import { CompletionItem, CompletionItemKind, CompletionTriggerKind } from '../../../../../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../../../../../editor/common/model.js';
+import { LanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeaturesService.js';
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
-import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
+import { AgentHostInputCompletionsBase } from '../../../../../browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
+import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult } from '../../../../../common/chatSessionsService.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
+import { MockChatSessionsService } from '../../../../common/mockChatSessionsService.js';
+
+class TestChatSessionsService extends MockChatSessionsService {
+	override async provideChatInputCompletions(_sessionResource: URI, _params: IChatInputCompletionsParams, _token: CancellationToken): Promise<IChatInputCompletionsResult> {
+		return {
+			items: [{
+				insertText: '#roadmap.md',
+				attachment: {
+					kind: 'resource',
+					uri: URI.file('/workspace/roadmap.md'),
+				},
+			}],
+		};
+	}
+}
+
+class TestAgentHostInputCompletions extends AgentHostInputCompletionsBase<void> {
+	register(): IDisposable {
+		return this._registerProvider({ scheme: 'test' }, 'testAgentHostInputCompletions', ['#'], undefined);
+	}
+
+	protected override _resolveContext(_model: ITextModel): { sessionResource: URI; context: void } {
+		return { sessionResource: URI.parse('test:session'), context: undefined };
+	}
+
+	protected override _buildItem(position: Position, item: IChatInputCompletionItem): CompletionItem {
+		return {
+			label: item.insertText,
+			insertText: item.insertText,
+			range: Range.fromPositions(position),
+			kind: CompletionItemKind.File,
+		};
+	}
+}
+
+suite('AgentHostInputCompletionsBase', () => {
+
+	const store = new DisposableStore();
+
+	teardown(() => store.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('marks results incomplete so the host is queried as the token changes', async () => {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new TestChatSessionsService()));
+		store.add(completions.register());
+		const model = store.add(createTextModel('#', null, undefined, URI.parse('test:input')));
+		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
+
+		const result = await provider.provideCompletionItems(model, new Position(1, 2), { triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: '#' }, CancellationToken.None);
+
+		assert.deepStrictEqual(result, {
+			suggestions: [{
+				label: '#roadmap.md',
+				insertText: '#roadmap.md',
+				range: new Range(1, 2, 1, 2),
+				kind: CompletionItemKind.File,
+			}],
+			incomplete: true,
+		});
+	});
+});
 
 suite('escapeForCharClass', () => {
 
