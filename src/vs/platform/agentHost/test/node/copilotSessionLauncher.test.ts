@@ -35,6 +35,8 @@ const testRuntime: ICopilotSessionRuntime = {
 	createServerSdkTools: () => [],
 };
 
+const testWorkingDirectory = URI.file(process.cwd());
+
 function createTestLauncher(): CopilotSessionLauncher {
 	const configurationService = {
 		getRootValue: () => undefined,
@@ -312,7 +314,7 @@ suite('CopilotSessionLauncher client identity', () => {
 		const basePlan = {
 			client,
 			sessionId: 'session-1',
-			workingDirectory: URI.file('/workspace'),
+			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
 			snapshot: { tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
@@ -330,18 +332,22 @@ suite('CopilotSessionLauncher client identity', () => {
 			fallback: { model: undefined },
 		};
 
-		const created = await launcher.launch(createPlan, testRuntime);
-		const resumed = await launcher.launch(resumePlan, testRuntime);
-		created.dispose();
-		resumed.dispose();
+		const sessions = new DisposableStore();
+		try {
+			sessions.add(await launcher.launch(createPlan, testRuntime));
+			sessions.add(await launcher.launch(resumePlan, testRuntime));
 
-		assert.deepStrictEqual({
-			createClientName: createConfigs[0].clientName,
-			resumeClientName: resumeConfigs[0].clientName,
-		}, {
-			createClientName: 'vscode-agent-host',
-			resumeClientName: 'vscode-agent-host',
-		});
+			assert.deepStrictEqual({
+				createClientName: createConfigs[0].clientName,
+				resumeClientName: resumeConfigs[0].clientName,
+			}, {
+				createClientName: 'vscode-agent-host',
+				resumeClientName: 'vscode-agent-host',
+			});
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
 	});
 });
 
@@ -376,7 +382,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			plan: {
 				client,
 				sessionId: 'session-1',
-				workingDirectory: URI.file('/workspace'),
+				workingDirectory: testWorkingDirectory,
 				resolvedAgentName: undefined,
 				snapshot: { tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(),
@@ -392,26 +398,38 @@ suite('CopilotSessionLauncher resume fallback', () => {
 	test('falls back to createSession after a Start Over truncate leaves the session empty', async () => {
 		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch(`Request session.resume failed with message: LocalRpcSession: 'session.getMessages' returned no events for session session-1`);
 
-		const session = await launcher.launch(plan, testRuntime);
-		session.dispose();
-
-		assert.strictEqual(getCreateSessionCalls(), 1);
+		const sessions = new DisposableStore();
+		try {
+			sessions.add(await launcher.launch(plan, testRuntime));
+			assert.strictEqual(getCreateSessionCalls(), 1);
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
 	});
 
 	test('falls back to createSession for an unknown -32603 from resumeSession', async () => {
 		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed: something went wrong');
 
-		const session = await launcher.launch(plan, testRuntime);
-		session.dispose();
-
-		assert.strictEqual(getCreateSessionCalls(), 1);
+		const sessions = new DisposableStore();
+		try {
+			sessions.add(await launcher.launch(plan, testRuntime));
+			assert.strictEqual(getCreateSessionCalls(), 1);
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
 	});
 
 	test('does not replace a corrupted session file with an empty session', async () => {
 		const { launcher, plan, getCreateSessionCalls } = createResumeFailingLaunch('Request session.resume failed with message: Session file is corrupted (line 19567: data.compactionTokensUsed.copilotUsage.tokenDetails.0.batchSize: Number must be greater than 0)');
 
-		await assert.rejects(() => launcher.launch(plan, testRuntime), /Session file is corrupted/);
-		assert.strictEqual(getCreateSessionCalls(), 0);
+		try {
+			await assert.rejects(() => launcher.launch(plan, testRuntime), /Session file is corrupted/);
+			assert.strictEqual(getCreateSessionCalls(), 0);
+		} finally {
+			await launcher.disposeByokProxyHandle();
+		}
 	});
 });
 
