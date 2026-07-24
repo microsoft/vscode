@@ -4160,19 +4160,10 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.claude48OpusPrompt.enabled": {
+          "github.copilot.chat.claudeOpus5Prompt.enabled": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "%github.copilot.config.claude48OpusPrompt.enabled%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ]
-          },
-          "github.copilot.chat.claudeSonnet5Prompt.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.claudeSonnet5Prompt.enabled%",
+            "markdownDescription": "%github.copilot.config.claudeOpus5Prompt.enabled%",
             "tags": [
               "experimental",
               "onExp"
