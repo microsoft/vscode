@@ -40,9 +40,9 @@ const dictationCleanupWordSegmenter = safeIntl.Segmenter(undefined, { granularit
 export function isFaithfulDictationCleanup(raw: string, cleaned: string): boolean {
 	const toWords = (text: string): string[] => Array.from(dictationCleanupWordSegmenter.value.segment(text
 		.replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, '')
-		.normalize('NFD')
 		.toLocaleLowerCase()
-		.replace(/\p{M}|['\u2019]/gu, '')))
+		.normalize('NFC')
+		.replace(/['\u2019]/gu, '')))
 		.filter(segment => segment.isWordLike)
 		.map(segment => segment.segment);
 	const rawWords = toWords(raw);
