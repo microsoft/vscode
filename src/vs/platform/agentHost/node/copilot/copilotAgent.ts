@@ -80,6 +80,7 @@ import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRouter.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
@@ -739,20 +740,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _routeGitHubTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
+		const additionalProperties = { initiatorClientType: this._clientTypeForTelemetry(notification.sessionId) };
 		const router = this._githubTelemetryRouter;
 		if (!router?.isTarget(notification)) {
 			this._gitHubTelemetryForwarder.forward(notification);
 			return;
 		}
 		if (!notification.restricted) {
-			router.route(notification);
+			router.route(notification, undefined, additionalProperties);
 			return;
 		}
 
 		const sessionId = notification.sessionId;
 		const githubToken = this._githubToken;
 		if (!githubToken) {
-			router.route(notification);
+			router.route(notification, undefined, additionalProperties);
 			return;
 		}
 
@@ -768,10 +770,24 @@ export class CopilotAgent extends Disposable implements IAgent {
 				isInternal: context.isInternal === true,
 				userName: context.userName,
 				isVscodeTeamMember: context.isVscodeTeamMember === true,
-			});
+			}, additionalProperties);
 		} catch (error) {
 			this._logService.debug(`[Copilot:${sessionId}] Restricted telemetry context resolution failed; dropping ${notification.event.kind}: ${error instanceof Error ? error.message : String(error)}`);
 		}
+	}
+
+	private _clientTypeForTelemetry(sdkSessionId: string | undefined): AgentHostClientType {
+		if (!sdkSessionId) {
+			return AgentHostClientType.Unknown;
+		}
+		for (const entry of this._sessions.values()) {
+			for (const chat of entry.allChatSessions()) {
+				if (chat.sessionId === sdkSessionId) {
+					return chat.currentTurnClientType;
+				}
+			}
+		}
+		return AgentHostClientType.Unknown;
 	}
 
 	private async _refreshModels(attempt = 0): Promise<void> {
@@ -1497,8 +1513,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this._disposeChat(session, chat);
 		},
-		sendMessage: (chatUri: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
-			return this._sendMessage(chatUri, prompt, attachments, turnId, senderClientId, workingDirectory);
+		sendMessage: (chatUri: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void> => {
+			return this._sendMessage(chatUri, prompt, attachments, turnId, senderClientId, clientType, workingDirectory);
 		},
 		abort: (chatUri: URI): Promise<void> => {
 			return this._abortSession(chatUri);
@@ -1924,7 +1940,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, workingDirectory?: URI): Promise<void> {
+	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectory?: URI): Promise<void> {
 		const context = this._getChatContext(chat);
 		// Additional (non-default) chats are backed by their own SDK
 		// chat hosted on the owning session entry, keyed by the chat URI.
@@ -1934,12 +1950,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw new Error(`[Copilot] sendMessage for unknown chat: ${chat.toString()}`);
 			}
 			if (turnId) {
-				entry.resetTurnState(turnId, senderClientId);
+				entry.resetTurnState(turnId, senderClientId, clientType);
 			}
 			const sideChat = this._chatBackings.get(chat.toString())?.sideChat;
 			const existingTurns = sideChat ? await entry.getMessages() : [];
 			const sdkPrompt = prepareSideChatPrompt(prompt, existingTurns, sideChat);
-			await entry.send(sdkPrompt, attachments, turnId, this._resolveSdkMode(context.session), senderClientId);
+			await entry.send(sdkPrompt, attachments, turnId, this._resolveSdkMode(context.session), senderClientId, clientType);
 			return;
 		}
 		await this._sessionSequencer.queue(context.sessionId, async () => {
@@ -1978,12 +1994,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// next text/reasoning chunk (and any host-emitted announcement)
 			// allocates a fresh response part.
 			if (turnId) {
-				entry.resetTurnState(turnId, senderClientId);
+				entry.resetTurnState(turnId, senderClientId, clientType);
 			}
 
 			try {
 				const sdkMode = this._resolveSdkMode(context.session);
-				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId);
+				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId, clientType);
 			} catch (err) {
 				const errCode = (err as { code?: number })?.code;
 				const errMsg = err instanceof Error ? err.message : String(err);

@@ -68,6 +68,7 @@ import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents
 import { addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { McpAuthRequiredReason, McpServerStatus, type McpAuthRequirement, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
@@ -490,7 +491,12 @@ class CopilotTurn {
 	/** Model of the most recent round, reported as the turn's model. */
 	lastModel: string | undefined;
 
-	constructor(readonly id: string, readonly ordinal: number, readonly senderClientId: string | undefined) { }
+	constructor(
+		readonly id: string,
+		readonly ordinal: number,
+		readonly senderClientId: string | undefined,
+		readonly clientType: AgentHostClientType,
+	) { }
 
 	get state(): CopilotTurnState { return this._state; }
 	get isPending(): boolean { return this._state === 'pending'; }
@@ -604,6 +610,7 @@ export class CopilotAgentSession extends Disposable {
 	 * non-destructive idle release to avoid disconnecting mid-turn.
 	 */
 	get hasActiveTurn(): boolean { return this._currentTurn !== undefined; }
+	get currentTurnClientType(): AgentHostClientType { return this._currentTurn?.clientType ?? AgentHostClientType.Unknown; }
 	/**
 	 * Last model id seen on the SDK's per-LLM-call `Usage` event (or a
 	 * direct {@link setModel} call). We rely on the
@@ -943,8 +950,8 @@ export class CopilotAgentSession extends Disposable {
 	 * from a previous turn so the next text/reasoning chunk allocates a new
 	 * response part. The turn becomes `running` on the first SDK event.
 	 */
-	resetTurnState(turnId: string, senderClientId?: string): void {
-		this._currentTurn = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId);
+	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown): void {
+		this._currentTurn = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientType);
 	}
 
 	private _completeActiveTurn(): void {
@@ -959,6 +966,7 @@ export class CopilotAgentSession extends Disposable {
 		this._telemetryReporter.toolCallDetails({
 			session: this.sessionUri.toString(),
 			turnId: turn.id,
+			clientType: turn.clientType,
 			model: turn.lastModel,
 			responseType: 'success',
 			toolCounts: Object.fromEntries(turn.toolCounts),
@@ -1505,12 +1513,12 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- session operations -------------------------------------------------
 
-	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string): Promise<void> {
+	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
 		if (turnId && this._currentTurn?.id !== turnId) {
 			// Establish the `pending` turn for this message. Callers normally
 			// call `resetTurnState` just before `send()`; this covers the
 			// direct-send path and is a no-op when the turn already exists.
-			this.resetTurnState(turnId, senderClientId);
+			this.resetTurnState(turnId, senderClientId, clientType);
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
@@ -3153,9 +3161,10 @@ export class CopilotAgentSession extends Disposable {
 			// Main agent only: `_appliedSnapshot.tools` is the session's tool set, which does not
 			// describe a subagent's model call, so subagent messages (mapped or dropped) are skipped.
 			if (!e.agentId) {
-				this._telemetryReporter.assistantMessageReceived(this.sessionUri.toString(), e.data.serviceRequestId, this._appliedSnapshot.tools);
+				const clientType = this._currentTurn?.clientType ?? AgentHostClientType.Unknown;
+				this._telemetryReporter.assistantMessageReceived(this.sessionUri.toString(), clientType, e.data.serviceRequestId, this._appliedSnapshot.tools);
 				// Restricted `conversation.messageText` (source=model): the model's raw response text.
-				this._telemetryReporter.modelMessageText(this.sessionUri.toString(), e.data.content, this._turnOrdinal, e.data.serviceRequestId);
+				this._telemetryReporter.modelMessageText(this.sessionUri.toString(), clientType, e.data.content, this._turnOrdinal, e.data.serviceRequestId);
 				// Accumulate the per-turn tool-call aggregate for the restricted `toolCallDetails` event.
 				// Every main-agent `assistant.message` is one model-call round (matches the extension's
 				// `numRequests = toolCallRounds.length`, which counts the final tool-free response round
@@ -4352,7 +4361,7 @@ export class CopilotAgentSession extends Disposable {
 			// and SDK-injected synthetic messages (skill/harness injections carry a non-`user` source,
 			// matching `isSyntheticUserMessage`) so injected content is not reported as the user's prompt.
 			if (!e.agentId && (!e.data.source || e.data.source.toLowerCase() === 'user')) {
-				this._telemetryReporter.userMessageText(this.sessionUri.toString(), e.data.content, this._turnOrdinal);
+				this._telemetryReporter.userMessageText(this.sessionUri.toString(), this._currentTurn?.clientType ?? AgentHostClientType.Unknown, e.data.content, this._turnOrdinal);
 			}
 		}));
 

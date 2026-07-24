@@ -40,7 +40,7 @@ import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, AgentHostCodexEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, getAgentHostTerminalAutoApproveRulesConfig, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, AUTO_REPLY_SETTING_ID, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
-import type { InitializeResult } from '../common/state/protocol/common/commands.js';
+import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
 import { dirname } from '../../../base/common/resources.js';
 import { observableValue, type IObservable } from '../../../base/common/observable.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
@@ -303,6 +303,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		transportOrFactory: IProtocolTransport | (() => IProtocolTransport),
 		loadEstimator: ILoadEstimator | undefined,
 		clientId: string | undefined = undefined,
+		private readonly _clientInfo: Implementation | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostResourceService private readonly _resourceService: IAgentHostResourceService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -462,6 +463,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				channel: ROOT_STATE_URI,
 				protocolVersions: [PROTOCOL_VERSION],
 				clientId: this._clientId,
+				clientInfo: this._clientInfo,
 				initialSubscriptions: [ROOT_STATE_URI],
 			}, { bypassInitializeQueue: true });
 			this._serverSeq = result.serverSeq;
@@ -630,11 +632,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				subscriptions.unshift(ROOT_STATE_URI);
 			}
 			const lastSeenServerSeq = this._serverSeq;
-			const result = await this._dispatchRequest<CommandMap['reconnect']['result']>('reconnect', {
-				clientId: this._clientId,
-				lastSeenServerSeq,
-				subscriptions,
-			}, { bypassReconnectGate: true });
+			const result = await this._reconnectOrInitialize(lastSeenServerSeq, subscriptions);
 
 			if (this._state.kind !== AgentHostClientState.Reconnecting) {
 				return;
@@ -668,6 +666,46 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			oldGate.error(err);
 			this._scheduleReconnect();
 		}
+	}
+
+	private async _reconnectOrInitialize(lastSeenServerSeq: number, subscriptions: string[]): Promise<CommandMap['reconnect']['result']> {
+		try {
+			return await this._dispatchRequest<CommandMap['reconnect']['result']>('reconnect', {
+				clientId: this._clientId,
+				lastSeenServerSeq,
+				subscriptions,
+			}, { bypassReconnectGate: true });
+		} catch (error) {
+			if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.NotFound) {
+				throw error;
+			}
+		}
+
+		this._logService.info(`[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
+		const initializeResult = await this._dispatchRequest<CommandMap['initialize']['result']>('initialize', {
+			channel: ROOT_STATE_URI,
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: this._clientId,
+			clientInfo: this._clientInfo,
+			initialSubscriptions: subscriptions,
+		}, { bypassReconnectGate: true });
+		this._initializeResult.set(initializeResult, undefined);
+		this._serverSeq = initializeResult.serverSeq;
+		if (initializeResult.defaultDirectory) {
+			const directory = initializeResult.defaultDirectory;
+			this._defaultDirectory = typeof directory === 'string' ? URI.parse(directory).path : URI.revive(directory).path;
+		}
+		this._updateTelemetryLevel();
+		this._updateSessionSyncEnabled();
+		this._updateTerminalAutoApproveEnabled();
+		this._updateGlobalAutoApproveEnabled();
+		this._updateAutoReplyEnabled();
+		this._updatePreferLongContextEnabled();
+		this._updateSystemProxyEnabled();
+		this._updateTerminalAutoApproveRules();
+		this._updateCodexEnabled();
+		this._updateDisableRepoInfoTelemetry();
+		return { type: ReconnectResultType.Snapshot, snapshots: initializeResult.snapshots ?? [] };
 	}
 
 	/**

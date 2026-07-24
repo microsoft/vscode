@@ -9,6 +9,7 @@ import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -38,6 +39,7 @@ interface IMockSendMessageCall {
 	readonly attachments?: readonly MessageAttachment[];
 	readonly chat?: URI;
 	readonly senderClientId?: string;
+	readonly clientType?: AgentHostClientType;
 }
 
 /**
@@ -141,8 +143,15 @@ export class MockAgent implements IAgent {
 		return { items: [] };
 	}
 
-	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> {
-		const call = { session, prompt, attachments, chat, ...(senderClientId ? { senderClientId } : {}) };
+	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
+		const call = {
+			session,
+			prompt,
+			attachments,
+			chat,
+			...(senderClientId ? { senderClientId } : {}),
+			...(clientType !== AgentHostClientType.Unknown ? { clientType } : {}),
+		};
 		this.sendMessageCalls.push(call);
 		this._onDidSendMessage.fire(call);
 		if (turnId) {
@@ -241,9 +250,9 @@ export class MockAgent implements IAgent {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.disposeChat(session, chat);
 		},
-		sendMessage: (chatUri: URI, prompt: string, _workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
+		sendMessage: (chatUri: URI, prompt: string, _workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void> => {
 			const { session, chat } = this._resolveChatTarget(chatUri);
-			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId);
+			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId, clientType);
 		},
 		abort: (chat: URI): Promise<void> => {
 			const { session } = this._resolveChatTarget(chat);
