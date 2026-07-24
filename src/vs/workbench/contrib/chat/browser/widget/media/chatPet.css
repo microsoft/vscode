@@ -125,7 +125,7 @@
 	min-width: var(--vscode-spacing-size240);
 	height: var(--vscode-spacing-size160);
 	transform: translateX(-50%);
-	color: #191a1b;
+	color: var(--vscode-editor-background);
 	background: var(--vscode-foreground);
 	image-rendering: pixelated;
 	pointer-events: none;
