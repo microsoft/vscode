@@ -534,15 +534,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		telemetryBuilder.setStatus('notAccepted'); // Acceptance pending.
 
-		const nextEditResult = new NextEditResult(logContext.requestId, req, {
-			edit: edit.actualEdit,
-			isFromCursorJump: edit.isFromCursorJump,
-			documentBeforeEdits: currentDocument,
-			targetDocumentId,
-			isSubsequentEdit: isSubsequentCachedEdit,
-			cacheEntry,
-			rejectedEditMemoryEnabled: cacheEntry?.modelTelemetry.rejectedEditMemoryEnabled ?? false,
-		});
+		const nextEditResult = new NextEditResult(logContext.requestId, req, { edit: edit.actualEdit, isFromCursorJump: edit.isFromCursorJump, documentBeforeEdits: currentDocument, targetDocumentId, isSubsequentEdit: isSubsequentCachedEdit, cacheEntry });
 
 		telemetryBuilder.setHasNextEdit(true);
 
