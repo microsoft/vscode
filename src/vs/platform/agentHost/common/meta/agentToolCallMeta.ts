@@ -46,6 +46,14 @@ export interface IToolCallMeta {
 	 * explicit user action), so the client can render it as setting-driven.
 	 */
 	readonly autoApproveBySetting?: boolean;
+	/** Transient runtime corpus for the local client tool-search invocation. */
+	readonly toolSearchCandidates?: readonly IToolSearchCandidate[];
+}
+
+/** Minimal metadata needed to embed and rank a deferred tool. */
+export interface IToolSearchCandidate {
+	readonly name: string;
+	readonly description: string;
 }
 
 /**
@@ -85,6 +93,27 @@ function readToolCallUiMeta(value: unknown): IToolCallUiMeta | undefined {
 	return result;
 }
 
+function readToolSearchCandidates(value: unknown): readonly IToolSearchCandidate[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const result: IToolSearchCandidate[] = [];
+	for (const candidate of value) {
+		if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+			return undefined;
+		}
+		const raw = candidate as Record<string, unknown>;
+		if (typeof raw['name'] !== 'string' || typeof raw['description'] !== 'string') {
+			return undefined;
+		}
+		result.push({
+			name: raw['name'],
+			description: raw['description'],
+		});
+	}
+	return result;
+}
+
 /**
  * Reads the well-known {@link IToolCallMeta} keys from a tool call's `_meta`
  * bag, dropping unknown keys and wrong-typed values.
@@ -104,6 +133,8 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (typeof meta['mcpServerName'] === 'string') { result.mcpServerName = meta['mcpServerName']; }
 	if (typeof meta['mcpToolName'] === 'string') { result.mcpToolName = meta['mcpToolName']; }
 	if (typeof meta['autoApproveBySetting'] === 'boolean') { result.autoApproveBySetting = meta['autoApproveBySetting']; }
+	const toolSearchCandidates = readToolSearchCandidates(meta['toolSearchCandidates']);
+	if (toolSearchCandidates) { result.toolSearchCandidates = toolSearchCandidates; }
 	const ui = readToolCallUiMeta(meta['ui']);
 	if (ui) { result.ui = ui; }
 	return result;

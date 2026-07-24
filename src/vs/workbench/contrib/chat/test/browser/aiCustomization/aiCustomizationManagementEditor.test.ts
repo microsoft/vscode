@@ -17,7 +17,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
-import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 
 suite('aiCustomizationManagementEditor', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,12 +46,18 @@ suite('aiCustomizationManagementEditor', () => {
 		showEmbeddedEditor(...args: unknown[]): Promise<void>;
 		getActiveHarnessLabel(): string;
 		welcomePage: { setPromptMigrationInfo(info: unknown): void } | undefined;
+		selectedSection: AICustomizationManagementSection | undefined;
+		contributedSectionContainers: Map<AICustomizationManagementSection, HTMLElement>;
+		automationsContentContainer: HTMLElement | undefined;
+		automationsListWidget: { setVisible(visible: boolean): void } | undefined;
 		getEditorModeButtonLabel(): string;
 		getEditorModeButtonTooltip(): string;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 		onStructuredPreviewSettingChanged(): void;
 		refreshPromptMigrationUi(): void;
 		renderPromptMigrationPage(): void;
+		updateContentVisibility(): void;
+		setVisible(visible: boolean): void;
 	};
 
 	function createConfigurationServiceStub(values: Record<string, unknown> = {}): IConfigurationService {
@@ -97,12 +103,17 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.showEmbeddedEditor = async () => { };
 		editor.getActiveHarnessLabel = () => 'Copilot [Agent Host]';
 		editor.welcomePage = undefined;
+		editor.contributedSectionContainers = new Map();
 		editor.editorPreviewRenderScheduler = {
 			cancel(): void { },
 			schedule(): void { },
 		};
 		editor.viewMode = 'list';
 		editor.dimension = undefined;
+		editor.selectedSection = undefined;
+		editor.automationsContentContainer = undefined;
+		editor.automationsListWidget = undefined;
+		editor.setVisible(false);
 		return editor;
 	}
 
@@ -291,5 +302,29 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.migrationPageDisposables.dispose();
 			editor.editorPreviewDisposables.dispose();
 		}
+	});
+
+	test('propagates editor and section visibility to the Automations widget', () => {
+		const visibility: boolean[] = [];
+		const editor = createTestEditor();
+		editor.selectedSection = AICustomizationManagementSection.Automations;
+		editor.automationsContentContainer = document.createElement('div');
+		editor.automationsListWidget = {
+			setVisible: visible => visibility.push(visible),
+		};
+
+		editor.updateContentVisibility();
+		editor.setVisible(true);
+		editor.selectedSection = AICustomizationManagementSection.Agents;
+		editor.updateContentVisibility();
+
+		assert.deepStrictEqual({
+			visibility,
+			display: editor.automationsContentContainer.style.display,
+		}, {
+			visibility: [false, true, false],
+			display: 'none',
+		});
+		editor.editorPreviewDisposables.dispose();
 	});
 });

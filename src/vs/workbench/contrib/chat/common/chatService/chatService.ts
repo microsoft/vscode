@@ -1089,6 +1089,10 @@ export interface IChatSubagentToolInvocationData {
 	result?: string;
 	modelName?: string;
 	credits?: number;
+	/** Millisecond timestamp when the subagent's first turn started. */
+	startedAt?: number;
+	/** Final elapsed duration in milliseconds. Set when the subagent stops. */
+	duration?: number;
 	/**
 	 * Resource (URI string) of the subagent's own chat, when the subagent runs as
 	 * a distinct chat (e.g. an agent host worker chat). Used to offer an "Open

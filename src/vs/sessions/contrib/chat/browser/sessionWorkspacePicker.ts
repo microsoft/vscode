@@ -275,7 +275,9 @@ export class WorkspacePicker extends Disposable {
 		this._renderTriggerLabel(trigger);
 		// Onboarding spotlight target — id is referenced by the "new session" tour
 		// in vs/sessions/contrib/onboardingTours.
-		triggerDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.workspacePicker'));
+		triggerDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.workspacePicker', {
+			open: () => this.showPicker(false, trigger),
+		}));
 
 		triggerDisposables.add(touch.Gesture.addTarget(trigger));
 		[dom.EventType.CLICK, touch.EventType.Tap].forEach(eventType => {

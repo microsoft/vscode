@@ -28,12 +28,14 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AgentHostElementAttachmentDisplayKind } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -41,7 +43,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentChatUri, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, ChatOriginKind, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type StringOrMarkdown, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -87,6 +89,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
+import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
 import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
@@ -257,6 +260,25 @@ function parseTimestamp(value: string): number | undefined {
 	return Number.isFinite(timestamp) ? timestamp : undefined;
 }
 
+function getSubagentTiming(state: ISessionWithDefaultChat): { startedAt: number | undefined; duration: number | undefined } {
+	const turns = state.activeTurn ? [...state.turns, state.activeTurn] : state.turns;
+	const starts = turns
+		.map(turn => turn.startedAt ? Date.parse(turn.startedAt) : undefined)
+		.filter((timestamp): timestamp is number => timestamp !== undefined && Number.isFinite(timestamp));
+	const startedAt = starts.length > 0 ? Math.min(...starts) : undefined;
+	if (startedAt === undefined || state.activeTurn) {
+		return { startedAt, duration: undefined };
+	}
+	const ends = state.turns.flatMap(turn => {
+		const turnStartedAt = turn.startedAt ? Date.parse(turn.startedAt) : undefined;
+		return turnStartedAt !== undefined && Number.isFinite(turnStartedAt) && typeof turn.duration === 'number' && Number.isFinite(turn.duration)
+			? [turnStartedAt + Math.max(0, turn.duration)]
+			: [];
+	});
+	const endedAt = ends.length > 0 ? Math.max(...ends) : undefined;
+	return { startedAt, duration: endedAt !== undefined ? Math.max(0, endedAt - startedAt) : undefined };
+}
+
 function userOriginMessage(text: string, attachments: readonly MessageAttachment[] | undefined): Message {
 	return attachments?.length
 		? { text, origin: { kind: MessageKind.User }, attachments: [...attachments] }
@@ -361,6 +383,19 @@ function getClientToolPreApproval(toolCall: ToolCallState): ConfirmedReason | un
 	}
 
 	return undefined;
+}
+
+/**
+ * Returns the tool call's `_meta` with the transient
+ * {@link IToolCallMeta.toolSearchCandidates} corpus removed. Always returns an
+ * object (never `undefined`) so a completion action can force-replace the prior
+ * `_meta` — the reducer keeps the existing bag when an action omits one, so an
+ * explicit empty replacement is what actually drops the candidates.
+ */
+function metaWithoutToolSearchCandidates(source: { readonly _meta?: Record<string, unknown> }): Record<string, unknown> {
+	const meta = { ...source._meta };
+	delete meta['toolSearchCandidates'];
+	return meta;
 }
 
 /**
@@ -498,6 +533,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly isReadOnly: IObservable<boolean>;
 	private readonly _sessionState = observableValue<IObservable<SessionState | undefined>>(this, constObservable(undefined));
 	private readonly _chatState = observableValue<IObservable<ChatState | undefined>>(this, constObservable(undefined));
+	private readonly _promptCacheTracking = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -516,6 +552,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		readonly title: string | undefined,
 		sessionSubscription: IAgentSubscription<SessionState> | undefined,
 		chatSubscription: IAgentSubscription<ChatState> | undefined,
+		private readonly _promptCacheNotification: AgentHostPromptCacheNotification | undefined,
 		private readonly _forkSession: ((request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>),
 		private readonly _renameSession: ((title: string, token: CancellationToken) => Promise<void>),
 		inputState: ISerializableChatModelInputState | undefined,
@@ -551,6 +588,8 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	}
 
 	setStateSubscriptions(sessionSubscription: IAgentSubscription<SessionState> | undefined, chatSubscription: IAgentSubscription<ChatState> | undefined): void {
+		this._promptCacheTracking.clear();
+		this._promptCacheTracking.value = sessionSubscription ? this._promptCacheNotification?.trackSession(this.sessionResource, sessionSubscription) : undefined;
 		transaction(tx => {
 			this._sessionState.set(sessionSubscription ? observableFromSubscription(this, sessionSubscription) : constObservable(undefined), tx);
 			this._chatState.set(chatSubscription ? observableFromSubscription(this, chatSubscription) : constObservable(undefined), tx);
@@ -646,6 +685,7 @@ export interface IAgentHostSessionHandlerConfig {
 	 *   state that require authentication.
 	 */
 	readonly resolveAuthentication?: (protectedResources: ProtectedResourceMetadata[]) => Promise<boolean>;
+	readonly promptCacheNotification?: AgentHostPromptCacheNotification;
 }
 
 /**
@@ -1019,7 +1059,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						// Enrich history with inner tool calls from subagent
 						// child sessions. Subscribes to each child session so
 						// its tool calls appear grouped under the parent widget.
-						await this._enrichHistoryWithSubagentCalls(history, resolvedSession, sessionResource);
+						await this._enrichHistoryWithSubagentCalls(history, resolvedSession, sessionResource, sessionState);
 
 						// Store historical turns so the editing session can seed a
 						// request-level checkpoint for each turn (with file edits
@@ -1118,6 +1158,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			sessionTitle,
 			sessionSubscription,
 			chatSubscription,
+			this._config.promptCacheNotification,
 			(request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => {
 				if (!this._getSessionState(resolvedSession.toString())) {
 					throw new Error('Cannot fork session before the initial request');
@@ -2862,7 +2903,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			adopted.didExecuteTool(undefined);
 		}
 
-		const toolData = this._toolsService.getToolByName(toolName);
+		const clientToolName = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME ? CLIENT_TOOL_SEARCH_REFERENCE_NAME : toolName;
+		const toolData = this._toolsService.getToolByName(clientToolName);
 		if (!toolData) {
 			this._logService.warn(`[AgentHost] Client tool call for unknown tool: ${toolName}`);
 			this._dispatchAction(opts.backendSession, {
@@ -2981,11 +3023,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const protocolToolCall = part$.get().toolCall;
 			const isProtocolToolCallComplete = protocolToolCall.status === ToolCallStatus.Completed || protocolToolCall.status === ToolCallStatus.Cancelled;
 			if (!isProtocolToolCallComplete) {
+				// The tool-search ready action stashes the (potentially large)
+				// deferred-tool corpus in `_meta.toolSearchCandidates` purely to
+				// seed this invocation. The completion reducer keeps the prior
+				// `_meta` when the action omits one, so without an explicit
+				// replacement the corpus would persist on the completed call and
+				// across reconnects. Carry a candidate-stripped `_meta` on the
+				// tool-search completion to drop it once the search has run.
+				const clearedMeta = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME
+					? metaWithoutToolSearchCandidates(protocolToolCall)
+					: undefined;
 				this._dispatchAction(opts.backendSession, {
 					type: ActionType.ChatToolCallComplete,
 					turnId: opts.turnId,
 					toolCallId,
 					result: toolResultToProtocol(result ?? { content: [] }, toolName),
+					...(clearedMeta !== undefined ? { _meta: clearedMeta } : {}),
 				}, opts.chatURI);
 			}
 		};
@@ -3025,6 +3078,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (invoked || cts.token.isCancellationRequested) {
 				return;
 			}
+			const toolSearchCandidates = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME
+				? readToolCallMeta(tc).toolSearchCandidates
+				: undefined;
+			if (toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME && toolSearchCandidates === undefined) {
+				return;
+			}
 			// eslint-disable-next-line local/code-no-in-operator
 			let toolInput = 'toolInput' in tc ? tc.toolInput : undefined;
 			if (toolInput === undefined) {
@@ -3047,6 +3106,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				parameters = parsed as Record<string, unknown>;
 			} catch {
 				this._logService.warn(`[AgentHost] Failed to parse tool input for ${toolName}`);
+				const clearedMeta = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME
+					? metaWithoutToolSearchCandidates(tc)
+					: undefined;
 				this._dispatchAction(opts.backendSession, {
 					type: ActionType.ChatToolCallComplete,
 					turnId: opts.turnId,
@@ -3056,8 +3118,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						pastTenseMessage: `Failed to execute ${toolName}`,
 						error: { message: `Invalid tool input for "${toolName}": expected JSON object parameters` },
 					},
+					...(clearedMeta !== undefined ? { _meta: clearedMeta } : {}),
 				}, opts.chatURI);
 				return;
+			}
+			if (toolSearchCandidates !== undefined) {
+				parameters = { ...parameters, candidateTools: toolSearchCandidates };
 			}
 
 			const inv: IToolInvocation = {
@@ -3357,7 +3423,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const terminalCommandUri = URI.parse(terminalUri);
 		const isPty = terminalContent.isPty !== false;
 		const terminalInstance = isPty ? this._ensureTerminalInstance(terminalUri, sessionId) : undefined;
-		if (!isPty && outputTerminalAttachment.sessionId !== sessionId) {
+		const hasStaticNonPtyResult = tc.status === ToolCallStatus.Completed
+			&& !isPty
+			&& terminalContent.result?.exitCode !== undefined
+			&& terminalContent.result.preview !== undefined;
+		if (!isPty && !hasStaticNonPtyResult && outputTerminalAttachment.sessionId !== sessionId) {
 			outputTerminalAttachment.disposable.value = this._agentHostTerminalService.attachOutputTerminal(this._config.connection, terminalCommandUri, sessionId);
 			outputTerminalAttachment.sessionId = sessionId;
 		}
@@ -3422,9 +3492,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		history: IChatSessionHistoryItem[],
 		parentSession: URI,
 		sessionResource: URI,
+		sessionState: ISessionWithDefaultChat,
 	): Promise<void> {
 		const parentSessionStr = parentSession.toString();
-		const subagentInsertions: { item: Extract<IChatSessionHistoryItem, { type: 'response' }>; index: number; toolCallId: string }[] = [];
+		const subagentChats = new Map(sessionState.chats.flatMap(chat =>
+			chat.origin?.kind === ChatOriginKind.Tool ? [[chat.origin.toolCallId, chat] as const] : []
+		));
+		const subagentInsertions: { item: Extract<IChatSessionHistoryItem, { type: 'response' }>; index: number; toolCallId: string; childChatUri: string }[] = [];
 
 		for (const item of history) {
 			if (item.type !== 'response') {
@@ -3433,8 +3507,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			for (let i = 0; i < item.parts.length; i++) {
 				const part = item.parts[i];
-				if (part.kind === 'toolInvocationSerialized' && part.toolSpecificData?.kind === 'subagent') {
-					subagentInsertions.push({ item, index: i, toolCallId: part.toolCallId });
+				if (part.kind !== 'toolInvocationSerialized') {
+					continue;
+				}
+				const subagentChat = subagentChats.get(part.toolCallId);
+				if (subagentChat) {
+					const existing = part.toolSpecificData?.kind === 'subagent' ? part.toolSpecificData : undefined;
+					part.toolSpecificData = {
+						...existing,
+						kind: 'subagent',
+						description: subagentChat.title || existing?.description || (typeof part.invocationMessage === 'string' ? part.invocationMessage : part.invocationMessage.value),
+						chatResource: subagentChat.resource.toString(),
+					};
+				}
+				if (part.toolSpecificData?.kind === 'subagent') {
+					const childChatUri = part.toolSpecificData.chatResource
+						?? subagentChat?.resource.toString()
+						?? buildSubagentChatUri(parentSessionStr, part.toolCallId);
+					part.toolSpecificData.chatResource = childChatUri;
+					subagentInsertions.push({ item, index: i, toolCallId: part.toolCallId, childChatUri });
 				}
 			}
 		}
@@ -3453,8 +3544,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return existing;
 		};
 
-		const enrichedInsertions = await Promise.all(subagentInsertions.map(async ({ item, index, toolCallId }) => {
-			const childChatUri = buildSubagentChatUri(parentSessionStr, toolCallId);
+		const enrichedInsertions = await Promise.all(subagentInsertions.map(async ({ item, index, toolCallId, childChatUri }) => {
 			try {
 				const childState = await getChildState(childChatUri);
 				if (childState) {
@@ -3524,6 +3614,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (modelName && !part.toolSpecificData.modelName) {
 			part.toolSpecificData.modelName = modelName;
 		}
+		const timing = getSubagentTiming(childState);
+		part.toolSpecificData.startedAt = timing.startedAt;
+		part.toolSpecificData.duration = timing.duration;
 	}
 
 	private _getSubagentInnerParts(childSessionUri: string, toolCallId: string, childState: ISessionWithDefaultChat): IChatProgress[] {
@@ -3606,9 +3699,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return;
 				}
 				const isActive = !!state.activeTurn;
-				if (parentInvocation.toolSpecificData?.kind === 'subagent' && parentInvocation.toolSpecificData.isActive !== isActive) {
-					parentInvocation.toolSpecificData.isActive = isActive;
-					parentInvocation.notifyToolSpecificDataChanged();
+				if (parentInvocation.toolSpecificData?.kind === 'subagent') {
+					const timing = getSubagentTiming(state);
+					const fallbackDuration = !isActive && timing.duration === undefined && parentInvocation.toolSpecificData.isActive && parentInvocation.toolSpecificData.startedAt !== undefined
+						? Date.now() - parentInvocation.toolSpecificData.startedAt
+						: timing.duration;
+					if (parentInvocation.toolSpecificData.isActive !== isActive
+						|| parentInvocation.toolSpecificData.startedAt !== timing.startedAt
+						|| parentInvocation.toolSpecificData.duration !== fallbackDuration) {
+						parentInvocation.toolSpecificData.isActive = isActive;
+						parentInvocation.toolSpecificData.startedAt = timing.startedAt;
+						parentInvocation.toolSpecificData.duration = fallbackDuration;
+						parentInvocation.notifyToolSpecificDataChanged();
+					}
 				}
 			}));
 
@@ -4296,6 +4399,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (entry.value === undefined) {
 				continue;
 			}
+			if (entry.uri?.scheme === Schemas.vscodeBrowser) {
+				continue;
+			}
 			if (skipUntitled && entry.uri?.scheme === Schemas.untitled) {
 				continue;
 			}
@@ -4502,6 +4608,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				BrowserViewAttachmentDisplayKind,
 				referenceRange,
 			);
+		}
+		if (v.kind === 'element') {
+			return this._toSimpleAttachment(v.name, v.value, v._meta, AgentHostElementAttachmentDisplayKind, referenceRange);
 		}
 		// Pasted code, prompt text, workspace context, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
@@ -5009,15 +5118,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
  */
 export function toolResultToProtocol(result: IToolResult, toolName: string): {
 	success: boolean;
-	pastTenseMessage: string;
+	pastTenseMessage: StringOrMarkdown;
 	content?: ({ type: ToolResultContentType.Text; text: string } | { type: ToolResultContentType.EmbeddedResource; data: string; contentType: string })[];
 	error?: { message: string };
 } {
 	const isError = !!result.toolResultError;
-	const pastTense = typeof result.toolResultMessage === 'string'
+	const defaultPastTense = isError ? `${toolName} failed` : `Ran ${toolName}`;
+	const pastTense: StringOrMarkdown = typeof result.toolResultMessage === 'string'
 		? result.toolResultMessage
-		: result.toolResultMessage?.value
-		?? (isError ? `${toolName} failed` : `Ran ${toolName}`);
+		: result.toolResultMessage
+			? { markdown: result.toolResultMessage.value }
+			: defaultPastTense;
 
 	const content: ({ type: ToolResultContentType.Text; text: string } | { type: ToolResultContentType.EmbeddedResource; data: string; contentType: string })[] = [];
 	for (const part of result.content) {
