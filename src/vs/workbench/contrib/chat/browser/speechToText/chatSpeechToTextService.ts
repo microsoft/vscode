@@ -14,7 +14,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProgress, IProgressService, IProgressStep, Progress, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
-import { DeferredPromise, RunOnceScheduler } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellation, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../nls.js';
@@ -366,8 +366,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _incrementalCleanedRawPrefix = '';
 	/** Display text corresponding to `_incrementalCleanedRawPrefix`. */
 	private _incrementalCleanedPrefix = '';
-	/** Raw finalized length used by the latest request, so failures are not retried until more text arrives. */
-	private _incrementalCleanupAttemptedRawLength = 0;
+	/** Raw finalized prefix used by the latest request, so revisions can invalidate and retry it. */
+	private _incrementalCleanupAttemptedRawPrefix = '';
 
 	// Per-session telemetry accumulators.
 	private _sessionStartMs = 0;
@@ -581,7 +581,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._backendFinalizedText = '';
 		this._incrementalCleanedRawPrefix = '';
 		this._incrementalCleanedPrefix = '';
-		this._incrementalCleanupAttemptedRawLength = 0;
+		this._incrementalCleanupAttemptedRawPrefix = '';
 
 		let stream: MediaStream;
 		try {
@@ -654,6 +654,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			(!text.startsWith(this._incrementalCleanedRawPrefix) || !finalizedText.startsWith(this._incrementalCleanedRawPrefix))
 		) {
 			this._resetIncrementalCleanup();
+		} else if (
+			this._incrementalCleanupAttemptedRawPrefix &&
+			!finalizedText.startsWith(this._incrementalCleanupAttemptedRawPrefix)
+		) {
+			this._resetIncrementalCleanupAttempt();
 		}
 		if (!isFinal) {
 			this._sessionSegments++;
@@ -688,7 +693,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		) {
 			return;
 		}
-		const processedRawLength = Math.max(this._incrementalCleanedRawPrefix.length, this._incrementalCleanupAttemptedRawLength);
+		const processedRawLength = Math.max(this._incrementalCleanedRawPrefix.length, this._incrementalCleanupAttemptedRawPrefix.length);
 		const newFinalizedLength = this._backendFinalizedText.length - processedRawLength;
 		if (newFinalizedLength >= LLM_INCREMENTAL_CLEANUP_MIN_CHARS) {
 			this._incrementalCleanupScheduler.schedule();
@@ -696,7 +701,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	private async _runIncrementalCleanup(): Promise<void> {
-		if (this._state !== ChatSpeechToTextState.Recording || this._incrementalCleanupCts.value) {
+		if (
+			this._state !== ChatSpeechToTextState.Recording ||
+			this._configurationService.getValue<boolean>(LLM_CLEANUP_SETTING) !== true ||
+			this._incrementalCleanupCts.value
+		) {
 			return;
 		}
 
@@ -721,7 +730,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		const rawText = finalizedText.slice(cleanupStart, cleanupEnd);
 		const processedRawPrefix = finalizedText.slice(0, cleanupEnd);
 		const separator = this._incrementalCleanedPrefix && /^\s/.test(rawText) ? ' ' : '';
-		this._incrementalCleanupAttemptedRawLength = cleanupEnd;
+		this._incrementalCleanupAttemptedRawPrefix = processedRawPrefix;
 		const cts = this._incrementalCleanupCts.value = new CancellationTokenSource();
 		let applied = false;
 		try {
@@ -751,12 +760,17 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	private _resetIncrementalCleanup(): void {
+		this._resetIncrementalCleanupAttempt();
+		this._incrementalCleanedRawPrefix = '';
+		this._incrementalCleanedPrefix = '';
+		this._incrementalCleanupAttemptedRawPrefix = '';
+	}
+
+	private _resetIncrementalCleanupAttempt(): void {
 		this._incrementalCleanupScheduler.cancel();
 		this._incrementalCleanupCts.value?.cancel();
 		this._incrementalCleanupCts.clear();
-		this._incrementalCleanedRawPrefix = '';
-		this._incrementalCleanedPrefix = '';
-		this._incrementalCleanupAttemptedRawLength = 0;
+		this._incrementalCleanupAttemptedRawPrefix = this._incrementalCleanedRawPrefix;
 	}
 
 	/**
@@ -1181,7 +1195,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		const cts = new CancellationTokenSource(token);
 		const timer = setTimeout(() => cts.cancel(), LLM_CLEANUP_TIMEOUT_MS);
 		try {
-			const models = await this._languageModelsService.selectLanguageModels(LLM_CLEANUP_MODEL_SELECTOR);
+			const models = await raceCancellation(
+				this._languageModelsService.selectLanguageModels(LLM_CLEANUP_MODEL_SELECTOR),
+				cts.token,
+				[],
+			);
 			if (!models.length || cts.token.isCancellationRequested) {
 				return undefined;
 			}
