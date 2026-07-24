@@ -56,8 +56,7 @@ export class PromptTimelineStickyHeader extends Disposable {
 	) {
 		super();
 		this._domNode = append(container, $('.prompt-timeline-sticky'));
-		// The content mirrors the session header's box model (see promptTimeline.css): a centered 950 host
-		// with 10px side padding, and an inner band that carries the background so it lines up with the header.
+		// Mirror the session header's box model (see promptTimeline.css) so the band lines up with it.
 		const content = append(this._domNode, $('.prompt-timeline-sticky-content'));
 		const band = append(content, $('.prompt-timeline-sticky-band'));
 
@@ -69,8 +68,7 @@ export class PromptTimelineStickyHeader extends Disposable {
 		// A native <button> already activates on click and on Enter/Space, so no manual key handling.
 		this._register(addDisposableListener(this._labelButton, EventType.CLICK, () => this._onDidActivate.fire()));
 
-		// Previous/Next are actions in a standard toolbar so they inherit theming, keyboard behaviour and
-		// action lifecycle instead of a bespoke button implementation.
+		// Previous/Next use a standard toolbar for theming, keyboard behaviour and action lifecycle.
 		this._previousAction = this._register(new Action(PREVIOUS_ACTION_ID, localize('promptTimeline.previousPrompt', "Go to Previous Prompt"), ThemeIcon.asClassName(Codicon.chevronUp), true, async () => this._onDidNavigate.fire(-1)));
 		this._nextAction = this._register(new Action(NEXT_ACTION_ID, localize('promptTimeline.nextPrompt', "Go to Next Prompt"), ThemeIcon.asClassName(Codicon.chevronDown), true, async () => this._onDidNavigate.fire(1)));
 		const toolbarContainer = append(band, $('.prompt-timeline-sticky-nav'));
@@ -157,8 +155,7 @@ export class PromptTimelineStickyHeader extends Disposable {
 	private _setVisible(visible: boolean): void {
 		this._visible = visible;
 		this._domNode.classList.toggle('hidden', !visible);
-		// `.hidden` only drops opacity/pointer-events, which does not remove the label and toolbar from the
-		// tab order; mark the header inert while hidden so it contributes no invisible tab stops.
+		// `.hidden` only drops opacity/pointer-events, so also mark it inert to remove invisible tab stops.
 		this._domNode.toggleAttribute('inert', !visible);
 		if (!visible) {
 			this._finalizeRoll();

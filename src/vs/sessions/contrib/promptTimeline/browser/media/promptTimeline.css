@@ -88,12 +88,13 @@
 	box-shadow: none;
 }
 
-/* The centered host mirrors the session header: a 950px centered block (sessionView.css:
- * .session-view-centered-content) with the header bar's 10px side padding (chatCompositeBar.css:
- * .chat-composite-bar.session-header-bar). The band inside fills the padded area. */
+/* The centered host mirrors the session header: the shared centered-content width (sessionView.css:
+ * .session-view-centered-content / --session-view-centered-content-max-width) with the header bar's
+ * 10px side padding (chatCompositeBar.css: .chat-composite-bar.session-header-bar). The band inside
+ * fills the padded area. */
 .prompt-timeline-sticky-content {
 	display: flex;
-	max-width: 950px;
+	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: 0 auto;
 	padding: 0 10px;
 	box-sizing: border-box;
@@ -169,10 +170,12 @@
 	text-overflow: ellipsis;
 }
 
-/* Match the chat request bubble's hover treatment. */
+/* Cover the band tint with the opaque base first, then composite the request-bubble hover token so it
+ * matches the standard bubble hover instead of stacking over the band's own tint. */
 .prompt-timeline-sticky-label-button:hover,
 .prompt-timeline-sticky-label-button:focus-visible {
-	background-color: var(--vscode-chat-requestBubbleHoverBackground, var(--vscode-toolbar-hoverBackground));
+	background-color: var(--vscode-agentsPanel-background);
+	background-image: linear-gradient(var(--vscode-chat-requestBubbleHoverBackground, var(--vscode-toolbar-hoverBackground)), var(--vscode-chat-requestBubbleHoverBackground, var(--vscode-toolbar-hoverBackground)));
 }
 
 .prompt-timeline-sticky-count {
