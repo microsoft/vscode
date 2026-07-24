@@ -142,9 +142,6 @@
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message .dialog-message-text {
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 /** Dialog: Details */
