@@ -618,6 +618,24 @@ export interface IAgentHostNetworkDiagnosticsInfo {
 	readonly endpoints: readonly IAgentHostNetworkEndpoint[];
 }
 
+export interface IAgentHostManagedSettingsSnapshot {
+	readonly account?: string;
+	readonly source: 'server' | 'device' | 'none';
+	readonly serverManaged: boolean;
+	readonly deviceManaged: boolean;
+	readonly failClosed: boolean;
+	readonly bypassPermissionsDisabled: boolean;
+	readonly permissionsAllowIntersected?: boolean;
+	readonly managedKeys: readonly string[];
+	readonly settings?: Readonly<Record<string, unknown>>;
+}
+
+export interface IAgentHostManagedSettingsDiagnostics {
+	readonly provider: AgentProvider;
+	readonly snapshot?: IAgentHostManagedSettingsSnapshot;
+	readonly error?: string;
+}
+
 /** Result of a DNS lookup for a single address family, part of {@link IAgentHostNetworkFetchResult}. */
 export interface IAgentHostDnsResult {
 	/** The resolved address, when the lookup succeeded. */
@@ -693,6 +711,7 @@ export interface IAgentHostManagementService {
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatOptions): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
+	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;
 	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined>;
@@ -1596,6 +1615,9 @@ export interface IAgent {
 	/** Authenticated account name to display in network diagnostics, when known. */
 	getNetworkDiagnosticsAccount?(): Promise<string | undefined>;
 
+	/** Resolve the provider's own effective enterprise managed-settings snapshot. */
+	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
+
 	/**
 	 * Fires when the agent's host-owned customizations change
 	 * (loading state, resolution results, etc.), so infrastructure
@@ -1867,6 +1889,9 @@ export interface IAgentService {
 	 */
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 
+	/** Resolve managed settings through each provider's native SDK/runtime implementation. */
+	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
+
 	/**
 	 * Probe connectivity from the agent host process to a single `url`,
 	 * resolving the proxy and timing DNS + reachability. Used by the "Network
@@ -2103,6 +2128,9 @@ export interface IAgentConnection {
 	 * runs in.
 	 */
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
+
+	/** Resolve managed settings through each provider's native SDK/runtime implementation. */
+	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 
 	/**
 	 * Probe connectivity from the agent host to a single `url`. Runs on the

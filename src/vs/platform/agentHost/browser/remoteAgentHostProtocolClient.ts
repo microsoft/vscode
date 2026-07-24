@@ -18,7 +18,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentSession, AgentHostCodexAgentEnabledSettingId, AgentHostSystemProxyEnabledSettingId, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
+import { AgentSession, AgentHostCodexAgentEnabledSettingId, AgentHostSystemProxyEnabledSettingId, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
@@ -97,6 +97,7 @@ function transportLostError(address: string): ProtocolError {
 interface IRemoteAgentHostExtensionCommandMap {
 	'shutdown': { params: undefined; result: void };
 	'getNetworkDiagnosticsInfo': { params: undefined; result: IAgentHostNetworkDiagnosticsInfo };
+	'getManagedSettingsDiagnostics': { params: undefined; result: readonly IAgentHostManagedSettingsDiagnostics[] };
 	'diagnosticsFetch': { params: { url: string }; result: IAgentHostNetworkFetchResult };
 }
 
@@ -941,6 +942,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
 		return this._sendExtensionRequest('getNetworkDiagnosticsInfo');
+	}
+
+	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> {
+		return this._sendExtensionRequest('getManagedSettingsDiagnostics');
 	}
 
 	/**

@@ -1448,6 +1448,8 @@ export class ProtocolServerHandler extends Disposable {
 				return this._agentService.shutdown();
 			case 'getNetworkDiagnosticsInfo':
 				return this._agentService.getNetworkDiagnosticsInfo();
+			case 'getManagedSettingsDiagnostics':
+				return this._agentService.getManagedSettingsDiagnostics();
 			case 'diagnosticsFetch':
 				return this._agentService.diagnosticsFetch((params as { url: string }).url);
 			default:
