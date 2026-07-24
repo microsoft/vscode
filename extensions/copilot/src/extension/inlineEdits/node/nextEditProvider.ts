@@ -9,8 +9,9 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits, RootedEdit } from '../../../platform/inlineEdits/common/dataTypes/edit';
 import { RootedLineEdit } from '../../../platform/inlineEdits/common/dataTypes/rootedLineEdit';
-import { SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { applyStrategyConfig, PromptingStrategy, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext, type MarkdownLoggable } from '../../../platform/inlineEdits/common/inlineEditLogContext';
+import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
 import { IStatelessNextEditModelTelemetry, IStatelessNextEditProvider, IStatelessNextEditTelemetry, NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StatelessNextEditResult, StatelessNextEditTelemetryBuilder, StreamedEdit } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { autorunWithChanges } from '../../../platform/inlineEdits/common/utils/observable';
@@ -96,7 +97,7 @@ function getModelTelemetry(telemetry: IStatelessNextEditTelemetry): IStatelessNe
 	return {
 		modelName: telemetry.modelName,
 		modelConfig: telemetry.modelConfig,
-			};
+	};
 }
 
 interface DocState {
@@ -248,6 +249,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		private readonly _historyContextProvider: IHistoryContextProvider,
 		private readonly _xtabHistoryTracker: NesXtabHistoryTracker,
 		private readonly _debugRecorder: DebugRecorder | undefined,
+		@IInlineEditsModelService private readonly _modelService: IInlineEditsModelService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@ISnippyService private readonly _snippyService: ISnippyService,
 		@ILogService private readonly _logService: ILogService,
@@ -1605,7 +1607,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			// so it wasn't an accidental rejection
 			const targetDocumentId = suggestion.result.targetDocumentId ?? docId;
 			this._rejectionCollector.reject(targetDocumentId, suggestion.result.edit);
-			if (suggestion.result.rejectedEditMemoryEnabled === true) {
+			if (this._isRejectedEditMemoryEnabled()) {
 				this._xtabHistoryTracker.recordRejectedEdit(targetDocumentId, suggestion.result.documentBeforeEdits, suggestion.result.edit);
 			}
 			this._nextEditCache.rejectedNextEdit(suggestion.source.headerRequestId);
@@ -1642,6 +1644,11 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			return;
 		}
 		this._snippyService.handlePostInsertion(docId.toUri(), suggestion.result.documentBeforeEdits, suggestion.result.edit);
+	}
+
+	private _isRejectedEditMemoryEnabled(): boolean {
+		const modelConfig = applyStrategyConfig(this._modelService.selectedModelConfiguration());
+		return modelConfig.promptingStrategy === PromptingStrategy.PatchBased02 && modelConfig.memory?.rejectedEdits === true;
 	}
 
 	private _addLiveLogContextEntry(logContext: InlineEditRequestLogContext, debugNameOverride?: string): void {
