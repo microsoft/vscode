@@ -101,7 +101,7 @@ import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
 import { IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IInputModel, logChangesToStateModel } from '../../../common/model/chatModel.js';
-import { filterModelsForSession, hasModelsTargetingSession, isModelHiddenInPicker, isModelValidForSession, mergeModelsWithCache, shouldResetOnModelListChange } from './chatInputModelUtils.js';
+import { filterModelsForSession, hasModelsTargetingSession, isModelHiddenInPicker, mergeModelsWithCache, shouldResetOnModelListChange } from './chatInputModelUtils.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -1803,13 +1803,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * If the current model doesn't belong to the destination session pool (cross-pool
-	 * leak from a harness switch), re-initialize from storage to restore the user's
-	 * previous selection for this pool, then validate.
+	 * If the current model is absent from the destination session's filtered pool,
+	 * re-initialize from storage to restore the user's previous selection for this
+	 * pool, then validate. Uses the filtered pool (same as `revalidateForSessionType`)
+	 * so models that are catalogued but not valid for the destination are caught even
+	 * before targeted models load.
 	 */
 	private reinitializeIfModelInvalidForPool(): void {
 		const currentModel = this._currentLanguageModel.get();
-		if (currentModel && !isModelValidForSession(currentModel, this.getAllMergedModels(), this.getCurrentSessionType())) {
+		if (!currentModel) {
+			return;
+		}
+		const pool = this.getModelsForSessionType(this.getCurrentSessionType());
+		if (!pool.some(m => m.identifier === currentModel.identifier)) {
 			this.initSelectedModel();
 			this.checkModelInSessionPool();
 		}
