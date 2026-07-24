@@ -183,7 +183,7 @@ const between = text.slice(firstBrace + 1, lastBrace)
 	.trim();
 const insertion = between.length === 0
 	? '\n  "' + KEY + '": true\n'
-	: (between.endsWith(',') ? '\n' : ',\n') + '  "' + KEY + '": true\n';
+	: ',\n  "' + KEY + '": true\n';
 
 fs.writeFileSync(f, text.slice(0, lastBrace) + insertion + text.slice(lastBrace));
 NODE
