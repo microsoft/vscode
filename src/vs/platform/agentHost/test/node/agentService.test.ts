@@ -186,6 +186,46 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('aggregates managed-settings diagnostics from capable providers', async () => {
+			const provider: IAgent = copilotAgent;
+			provider.getManagedSettingsDiagnostics = async () => ({
+				source: 'device',
+				serverManaged: false,
+				deviceManaged: true,
+				failClosed: false,
+				bypassPermissionsDisabled: false,
+				managedKeys: ['permissions'],
+				settings: { permissions: { allow: ['Shell(echo *)'] } },
+			});
+			const unsupportedProvider = new MockAgent('other');
+			disposables.add(toDisposable(() => unsupportedProvider.dispose()));
+			const failingProvider = new MockAgent('failing');
+			disposables.add(toDisposable(() => failingProvider.dispose()));
+			const failingProviderContract: IAgent = failingProvider;
+			failingProviderContract.getManagedSettingsDiagnostics = async () => { throw new Error('unavailable'); };
+			service.registerProvider(provider);
+			service.registerProvider(unsupportedProvider);
+			service.registerProvider(failingProvider);
+
+			const diagnostics = await service.getManagedSettingsDiagnostics();
+
+			assert.deepStrictEqual(diagnostics, [
+				{
+					provider: 'copilot',
+					snapshot: {
+						source: 'device',
+						serverManaged: false,
+						deviceManaged: true,
+						failClosed: false,
+						bypassPermissionsDisabled: false,
+						managedKeys: ['permissions'],
+						settings: { permissions: { allow: ['Shell(echo *)'] } },
+					},
+				},
+				{ provider: 'failing', error: 'unavailable' },
+			]);
+		});
+
 		test('maps progress events to protocol actions via onDidAction', async () => {
 			service.registerProvider(copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
