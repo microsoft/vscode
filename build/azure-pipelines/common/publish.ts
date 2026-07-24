@@ -19,16 +19,9 @@ import { ConfidentialClientApplication } from '@azure/msal-node';
 import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient, ContainerSASPermissions, generateBlobSASQueryParameters } from '@azure/storage-blob';
 import jws from 'jws';
 import { clearInterval, setInterval } from 'node:timers';
+import { azdoFetchOptions, e, type Artifact, requestAZDOAPI } from './pipelineApi.ts';
 
-export function e(name: string): string {
-	const result = process.env[name];
-
-	if (typeof result !== 'string') {
-		throw new Error(`Missing env: ${name}`);
-	}
-
-	return result;
-}
+export { e, type Artifact, requestAZDOAPI } from './pipelineApi.ts';
 
 function hashStream(hashName: string, stream: Readable): Promise<Buffer> {
 	return new Promise<Buffer>((c, e) => {
@@ -592,48 +585,9 @@ class State {
 	}
 }
 
-const azdoFetchOptions = {
-	headers: {
-		// Pretend we're a web browser to avoid download rate limits
-		'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0',
-		'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-		'Accept-Encoding': 'gzip, deflate, br',
-		'Accept-Language': 'en-US,en;q=0.9',
-		'Referer': 'https://dev.azure.com',
-		Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}`
-	}
-};
-
-export async function requestAZDOAPI<T>(path: string): Promise<T> {
-	const abortController = new AbortController();
-	const timeout = setTimeout(() => abortController.abort(), 2 * 60 * 1000);
-
-	try {
-		const res = await retry(() => fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal }));
-
-		if (!res.ok) {
-			throw new Error(`Unexpected status code: ${res.status}`);
-		}
-
-		return await res.json() as T;
-	} finally {
-		clearTimeout(timeout);
-	}
-}
-
-export interface Artifact {
-	readonly name: string;
-	readonly resource: {
-		readonly downloadUrl: string;
-		readonly properties: {
-			readonly artifactsize: number;
-		};
-	};
-}
-
 async function getPipelineArtifacts(): Promise<Artifact[]> {
 	const result = await requestAZDOAPI<{ readonly value: Artifact[] }>('artifacts');
-	return result.value.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
+	return result.value;
 }
 
 interface Timeline {
@@ -713,6 +667,74 @@ interface Asset {
 	sha256hash: string;
 	size: number;
 	supportsFastUpdate?: boolean;
+}
+
+type PublishStage = 'Windows' | 'Linux' | 'Alpine' | 'macOS';
+
+const publishStages: readonly PublishStage[] = ['Windows', 'Linux', 'Alpine', 'macOS'];
+
+function getArtifactPublishStage(artifactName: string): PublishStage | undefined {
+	const match = /^vscode_[^_]+_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_/.exec(artifactName);
+	if (!match) {
+		return undefined;
+	}
+
+	const { os, arch } = match.groups!;
+	switch (os) {
+		case 'win32':
+			return 'Windows';
+		case 'linux':
+			if (arch === 'alpine') {
+				return 'Alpine';
+			}
+			return arch === 'standalone' ? undefined : 'Linux';
+		case 'alpine':
+			return 'Alpine';
+		case 'darwin':
+			return 'macOS';
+		default:
+			return undefined;
+	}
+}
+
+function getPublishMarkerArtifactName(stage: PublishStage): string {
+	return `published_${stage.toLowerCase()}`;
+}
+
+function publishStageMarker(stage: PublishStage): void {
+	const artifactName = getPublishMarkerArtifactName(stage);
+	const markerPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifactName}.txt`);
+	fs.writeFileSync(markerPath, `${stage} artifacts published for ${e('BUILD_SOURCEVERSION')}\n`);
+	console.log(`##vso[artifact.upload containerfolder=${artifactName};artifactname=${artifactName}]${markerPath}`);
+	console.log(`Published completion marker for ${stage}: ${artifactName}`);
+}
+
+function publishCompletedStageMarkers(timeline: Timeline, pipelineArtifacts: Artifact[], done: State, publishedStages: Set<PublishStage>): void {
+	const artifacts = pipelineArtifacts.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
+
+	for (const stage of publishStages) {
+		const markerArtifactName = getPublishMarkerArtifactName(stage);
+		if (pipelineArtifacts.some(artifact => artifact.name === markerArtifactName)) {
+			publishedStages.add(stage);
+			continue;
+		}
+
+		if (publishedStages.has(stage)) {
+			continue;
+		}
+
+		const stageRecord = timeline.records.find(record => record.type === 'Stage' && record.name === stage);
+		const stageArtifacts = artifacts.filter(artifact => getArtifactPublishStage(artifact.name) === stage);
+		if (
+			stageRecord?.state === 'completed'
+			&& (stageRecord.result === 'succeeded' || stageRecord.result === 'succeededWithIssues')
+			&& stageArtifacts.length > 0
+			&& stageArtifacts.every(artifact => done.has(artifact.name))
+		) {
+			publishStageMarker(stage);
+			publishedStages.add(stage);
+		}
+	}
 }
 
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
@@ -979,15 +1001,19 @@ async function main() {
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
 
 	let timeline: Timeline;
-	let artifacts: Artifact[];
+	let pipelineArtifacts: Artifact[];
 	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
 	const operations: { name: string; operation: Promise<void> }[] = [];
+	const publishedStages = new Set<PublishStage>();
 
 	while (true) {
-		[timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
+		[timeline, pipelineArtifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
+		const artifacts = pipelineArtifacts.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
 		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
 		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
 		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
+
+		publishCompletedStageMarkers(timeline, pipelineArtifacts, done, publishedStages);
 
 		if (stagesInProgress.length === 0 && artifacts.length === done.size + processing.size) {
 			break;
@@ -1056,6 +1082,7 @@ async function main() {
 	}
 
 	const results = await resultPromise;
+	publishCompletedStageMarkers(timeline, pipelineArtifacts, done, publishedStages);
 
 	for (let i = 0; i < operations.length; i++) {
 		const result = results[i];

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { type Artifact, requestAZDOAPI } from '../common/publish.ts';
-import { retry } from '../common/retry.ts';
+import { type Artifact, requestAZDOAPI } from './pipelineApi.ts';
+import { retry } from './retry.ts';
 
 async function getPipelineArtifacts(): Promise<Artifact[]> {
 	const result = await requestAZDOAPI<{ readonly value: Artifact[] }>('artifacts');

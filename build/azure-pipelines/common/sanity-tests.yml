@@ -17,10 +17,14 @@ parameters:
   - name: args
     type: string
     default: ""
+  - name: dependsOn
+    type: object
+    default: []
 
 jobs:
   - job: ${{ parameters.name }}
     displayName: ${{ parameters.displayName }}
+    dependsOn: ${{ parameters.dependsOn }}
     continueOnError: true
     pool:
       name: ${{ parameters.poolName }}
