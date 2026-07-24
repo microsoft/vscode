@@ -236,6 +236,8 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 				const wantsAltCommand = !!this._menuItemAction.alt?.enabled &&
 					(!this._accessibilityService.isMotionReduced() || isMouseOver) && (
 						this._altKey.keyStatus.altKey ||
+						// Web: Shift key events are intercepted by the browser and can trigger unwanted Alt-like behavior.
+						// Only use Shift as Alt trigger on desktop where the event model handles it correctly.
 						(this._altKey.keyStatus.shiftKey && isMouseOver && !isWeb)
 					);
 
