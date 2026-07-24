@@ -127,6 +127,27 @@
             "usesOnlineServices"
           ]
         },
+        "json.schemaStore.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "%json.enableSchemaStore.desc%",
+          "tags": [
+            "usesOnlineServices"
+          ]
+        },
+        "json.schemaStore.exclude": {
+          "type": "array",
+          "default": [],
+          "description": "%json.schemaStore.exclude.desc%",
+          "items": {
+            "type": "string",
+            "default": "**/openapi.json",
+            "description": "%json.schemaStore.exclude.item.desc%"
+          },
+          "tags": [
+            "usesOnlineServices"
+          ]
+        },
         "json.schemaDownload.trustedDomains": {
           "type": "object",
           "default": {

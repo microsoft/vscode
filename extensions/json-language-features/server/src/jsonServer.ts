@@ -11,7 +11,7 @@ import {
 
 import { runSafe, runSafeAsync } from './utils/runner.js';
 import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation.js';
-import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position, SortOptions, SeverityLevel } from 'vscode-json-languageservice';
+import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position, SortOptions, SeverityLevel, LanguageSettings } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache.js';
 import { Utils, URI } from 'vscode-uri';
 import * as l10n from '@vscode/l10n';
@@ -358,20 +358,21 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	function updateConfiguration(extraSchemas?: SchemaConfiguration[]) {
-		const languageSettings = {
+		const schemas = new Array<SchemaConfiguration>();
+		const languageSettings: LanguageSettings = {
 			validate: validateEnabled,
 			allowComments: true,
-			schemas: new Array<SchemaConfiguration>()
+			schemas
 		};
 		if (schemaAssociations) {
 			if (Array.isArray(schemaAssociations)) {
-				Array.prototype.push.apply(languageSettings.schemas, schemaAssociations);
+				Array.prototype.push.apply(schemas, schemaAssociations);
 			} else {
 				for (const pattern in schemaAssociations) {
 					const association = schemaAssociations[pattern];
 					if (Array.isArray(association)) {
 						association.forEach(uri => {
-							languageSettings.schemas.push({ uri, fileMatch: [pattern] });
+							schemas.push({ uri, fileMatch: [pattern] });
 						});
 					}
 				}
@@ -384,12 +385,12 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 					uri = schema.schema.id || `vscode://schemas/custom/${index}`;
 				}
 				if (uri) {
-					languageSettings.schemas.push({ uri, fileMatch: schema.fileMatch, schema: schema.schema, folderUri: schema.folderUri });
+					schemas.push({ uri, fileMatch: schema.fileMatch, schema: schema.schema, folderUri: schema.folderUri });
 				}
 			});
 		}
 		if (extraSchemas) {
-			languageSettings.schemas.push(...extraSchemas);
+			schemas.push(...extraSchemas);
 		}
 
 		languageService.configure(languageSettings);
@@ -576,7 +577,3 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 function getFullRange(document: TextDocument): Range {
 	return Range.create(Position.create(0, 0), document.positionAt(document.getText().length));
 }
-
-
-
-
