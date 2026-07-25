@@ -752,7 +752,7 @@ describe('XtabProvider integration', () => {
 			beforeText,
 			[doc],
 			0,
-			[{ docId, kind: 'visibleRanges', visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
+			[{ docId, kind: 'visibleRanges', sequence: 0, visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
 			new DeferredPromise<Result<unknown, NoNextEditReason>>(),
 			opts?.expandedEditWindowNLines,
 			opts?.isSpeculative ?? false,
@@ -855,7 +855,7 @@ describe('XtabProvider integration', () => {
 
 			const request = new StatelessNextEditRequest(
 				'req-1', 'opp-1', text, [doc], 0,
-				[{ docId: doc.id, kind: 'visibleRanges', visibleRanges: [new OffsetRange(0, 50)], documentContent: text }],
+				[{ docId: doc.id, kind: 'visibleRanges', sequence: 0, visibleRanges: [new OffsetRange(0, 50)], documentContent: text }],
 				new DeferredPromise<Result<unknown, NoNextEditReason>>(), undefined,
 				false, // isSpeculative
 				createLogContext(), undefined, undefined, Date.now(),
@@ -2055,7 +2055,7 @@ describe('XtabProvider integration', () => {
 			const beforeText = new StringText(doc.documentBeforeEdits.value);
 			const request = new StatelessNextEditRequest(
 				'req-sim', 'opp-sim', beforeText, [doc], 0,
-				[{ docId: doc.id, kind: 'visibleRanges', visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
+				[{ docId: doc.id, kind: 'visibleRanges', sequence: 0, visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
 				new DeferredPromise<Result<unknown, NoNextEditReason>>(), undefined,
 				false, // isSpeculative
 				createLogContext(), undefined, undefined, Date.now(),

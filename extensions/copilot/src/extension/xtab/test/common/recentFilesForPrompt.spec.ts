@@ -693,6 +693,7 @@ suite('historyEntriesToCodeSnippet', () => {
 		return {
 			kind: 'edit',
 			docId,
+			sequence: 0,
 			edit: new RootedEdit(new StringText(base), edit),
 		};
 	}
@@ -704,6 +705,7 @@ suite('historyEntriesToCodeSnippet', () => {
 		return {
 			kind: 'visibleRanges',
 			docId,
+			sequence: 0,
 			documentContent: new StringText(content),
 			visibleRanges,
 		};

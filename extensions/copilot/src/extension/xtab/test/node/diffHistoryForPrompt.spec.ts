@@ -40,6 +40,7 @@ function createHistoryEntry(docId: DocumentId, baseContent: string, replacements
 	return {
 		docId,
 		kind: 'edit',
+		sequence: 0,
 		edit: new RootedEdit(base, new StringEdit(replacements)),
 	};
 }
@@ -159,6 +160,7 @@ describe('getEditDiffHistory', () => {
 		const rejectedEntry: IXtabHistoryRejectedEditEntry = {
 			kind: 'rejectedEdit',
 			docId,
+			sequence: 0,
 			hunks: [{ startLineNumber: 0, oldLines: ['aaa'], newLines: ['AAA'] }],
 		};
 
