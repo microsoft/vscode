@@ -261,7 +261,7 @@ class PlanReviewFeedbackOverlayWidget implements IOverlayWidget {
 		this._showStore.add(addCommentButton.onDidClick(() => this._onDidRequestAddComment.fire()));
 
 		const review = this._planReviewFeedbackService.getPlanReview(planUri);
-		if (feedbackCount > 0 || review?.hasOverallFeedback()) {
+		if (feedbackCount > 0 || review?.getOverallFeedback()?.trim()) {
 			const submitButton = this._showStore.add(new Button(this._decisionActionsNode, { ...defaultButtonStyles, supportIcons: true }));
 			submitButton.label = feedbackCount > 0
 				? localize('planReviewFeedback.submitWithCount', 'Submit Feedback ({0})', feedbackCount)
@@ -333,6 +333,7 @@ export class PlanReviewFeedbackEditorContribution extends Disposable implements 
 	private _isActivePlan = false;
 	private readonly _widgetListeners = this._register(new DisposableStore());
 	private readonly _decorations: IEditorDecorationsCollection;
+	private _decorationFeedbackIds: string[] = [];
 	private readonly _hasFeedbackContextKey;
 
 	constructor(
@@ -348,6 +349,7 @@ export class PlanReviewFeedbackEditorContribution extends Disposable implements 
 
 		this._register(this._editor.onDidChangeCursorSelection(() => this._onSelectionChanged()));
 		this._register(this._editor.onDidChangeModel(() => this._onModelChanged()));
+		this._register(this._editor.onDidChangeModelContent(() => this._syncDecorationRanges()));
 		this._register(this._editor.onDidScrollChange(() => {
 			if (this._visible) {
 				this._updatePosition();
@@ -405,6 +407,7 @@ export class PlanReviewFeedbackEditorContribution extends Disposable implements 
 	private _onModelChanged(): void {
 		this._hide();
 		this._suppressSelectionChangeOnce = false;
+		this._decorationFeedbackIds = [];
 
 		const model = this._editor.getModel();
 		this._isActivePlan = !!model && this._planReviewFeedbackService.isActivePlanReview(model.uri);
@@ -597,10 +600,8 @@ export class PlanReviewFeedbackEditorContribution extends Disposable implements 
 			return false;
 		}
 
-		const line = selection.startLineNumber;
-		const column = selection.startColumn;
-		this._planReviewFeedbackService.addFeedback(model.uri, line, column, text);
-		status(localize('planReviewFeedback.commentAdded', 'Plan feedback comment added on line {0}.', line));
+		this._planReviewFeedbackService.addFeedbackForRange(model.uri, selection, text);
+		status(localize('planReviewFeedback.commentAdded', 'Plan feedback comment added on line {0}.', selection.startLineNumber));
 		this._hideAndRefocusEditor();
 		return true;
 	}
@@ -656,6 +657,7 @@ export class PlanReviewFeedbackEditorContribution extends Disposable implements 
 		const model = this._editor.getModel();
 		if (!model || !this._isActivePlan) {
 			this._decorations.clear();
+			this._decorationFeedbackIds = [];
 			this._hasFeedbackContextKey.set(false);
 			this._hideOverlayToolbar();
 			return;
@@ -667,9 +669,10 @@ export class PlanReviewFeedbackEditorContribution extends Disposable implements 
 		const bearings = this._planReviewFeedbackService.getNavigationBearing(model.uri);
 		this._showOverlayToolbar(model.uri, bearings);
 
+		this._decorationFeedbackIds = items.map(item => item.id);
 		this._decorations.set(
 			items.map(item => ({
-				range: new Range(item.line, item.column, item.line, item.column),
+				range: new Range(item.line, item.column, item.endLine, item.endColumn),
 				options: {
 					description: 'plan-review-feedback',
 					glyphMarginClassName: ThemeIcon.asClassName(Codicon.comment),
@@ -682,6 +685,18 @@ export class PlanReviewFeedbackEditorContribution extends Disposable implements 
 				}
 			}))
 		);
+	}
+
+	private _syncDecorationRanges(): void {
+		const model = this._editor.getModel();
+		if (!model || !this._isActivePlan) {
+			return;
+		}
+		const ranges = this._decorations.getRanges();
+		this._planReviewFeedbackService.updateFeedbackRanges(model.uri, ranges.map((range, index) => ({
+			id: this._decorationFeedbackIds[index],
+			range,
+		})));
 	}
 
 	private _ensureOverlayWidget(): PlanReviewFeedbackOverlayWidget {

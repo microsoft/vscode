@@ -40,11 +40,28 @@ interface PlanReview {
 		readonly default?: boolean;
 	}[];
 	readonly feedbackCount: number;
+	readonly overallFeedback?: string;
+	readonly activeFeedbackId?: string;
+	readonly activeFeedbackRequestId: number;
 	readonly overallFeedbackLabel: string;
 	readonly rejectLabel: string;
 	readonly submitFeedbackLabel: string;
 	readonly submitFeedbackWithCountLabel: string;
 	readonly approvePlanLabel: string;
+}
+
+function createStringEdit(previousValue: string, nextValue: string): StringEdit {
+	let start = 0;
+	while (start < previousValue.length && start < nextValue.length && previousValue[start] === nextValue[start]) {
+		start++;
+	}
+	let previousEnd = previousValue.length;
+	let nextEnd = nextValue.length;
+	while (previousEnd > start && nextEnd > start && previousValue[previousEnd - 1] === nextValue[nextEnd - 1]) {
+		previousEnd--;
+		nextEnd--;
+	}
+	return StringEdit.replace(OffsetRange.fromTo(start, previousEnd), nextValue.slice(start, nextEnd));
 }
 
 class PlanReviewToolbar extends Disposable {
@@ -112,9 +129,12 @@ class PlanReviewToolbar extends Disposable {
 		this.#rejectAction.type = 'button';
 		toolbar.appendChild(this.#rejectAction);
 
-		const updatePrimaryAction = () => this.#updatePrimaryAction();
-		this.#overallFeedback.addEventListener('input', updatePrimaryAction);
-		this._register({ dispose: () => this.#overallFeedback.removeEventListener('input', updatePrimaryAction) });
+		const updateOverallFeedback = () => {
+			this.#updatePrimaryAction();
+			postMessage({ type: 'updateOverallFeedback', overallFeedback: this.#overallFeedback.value });
+		};
+		this.#overallFeedback.addEventListener('input', updateOverallFeedback);
+		this._register({ dispose: () => this.#overallFeedback.removeEventListener('input', updateOverallFeedback) });
 
 		const submitPrimaryAction = () => {
 			const review = this.#review;
@@ -150,6 +170,8 @@ class PlanReviewToolbar extends Disposable {
 				event.preventDefault();
 				this.#setMenuOpen(false);
 				this.#actionToggle.focus();
+			} else if (event.key === 'Tab') {
+				this.#setMenuOpen(false);
 			} else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
 				event.preventDefault();
 				const delta = event.key === 'ArrowDown' ? 1 : -1;
@@ -164,11 +186,9 @@ class PlanReviewToolbar extends Disposable {
 			if (!actionId) {
 				return;
 			}
-			this.#selectedActionId = actionId;
 			this.#setMenuOpen(false);
-			this.#renderActionMenu();
-			this.#updatePrimaryAction();
 			this.#primaryAction.focus();
+			postMessage({ type: 'submitAction', actionId });
 		};
 		this.#actionMenu.addEventListener('click', onMenuClick);
 		this._register({ dispose: () => this.#actionMenu.removeEventListener('click', onMenuClick) });
@@ -189,6 +209,9 @@ class PlanReviewToolbar extends Disposable {
 		this.#element.querySelector('[role="toolbar"]')?.setAttribute('aria-label', review.approvePlanLabel);
 		this.#overallFeedback.placeholder = review.overallFeedbackLabel;
 		this.#overallFeedback.setAttribute('aria-label', review.overallFeedbackLabel);
+		if (this.#overallFeedback.value !== (review.overallFeedback ?? '')) {
+			this.#overallFeedback.value = review.overallFeedback ?? '';
+		}
 		this.#actionToggle.setAttribute('aria-label', review.approvePlanLabel);
 		this.#rejectAction.textContent = review.rejectLabel;
 		this.#selectedActionId = review.actions.find(action => action.default)?.id ?? review.actions[0]?.id ?? '';
@@ -408,6 +431,12 @@ class Editor extends Disposable {
 	#isUpdatingComments = false;
 	#mermaidCounter = 0;
 	#initialized = false;
+	#view: EditorView | undefined;
+	#host: HTMLElement | undefined;
+	#commentRanges = new Map<string, OffsetRange>();
+	#activeFeedbackId: string | undefined;
+	#activeFeedbackRequestId = 0;
+	#revealGeneration = 0;
 
 	readonly #comments = new CommentsModel();
 	readonly #review = observableValue<PlanReview | undefined>('planReview', undefined);
@@ -450,15 +479,23 @@ class Editor extends Disposable {
 				}
 				case 'comments': {
 					this.#isUpdatingComments = true;
-					this.#comments.set(message.comments.map((comment: { id: string; start: number; endExclusive: number; body: string; author?: string }) => ({
+					const comments = (message.comments as readonly { id: string; start: number; endExclusive: number; body: string; author?: string }[]).map(comment => ({
 						id: comment.id,
 						range: OffsetRange.fromTo(comment.start, comment.endExclusive),
 						body: comment.body,
 						author: comment.author,
-					})));
+					}));
+					this.#commentRanges = new Map(comments.map(comment => [comment.id, comment.range]));
+					this.#comments.set(comments);
 					this.#isUpdatingComments = false;
 					this.#acceptsComments.set(!!message.acceptsComments, undefined);
 					this.#review.set(message.review, undefined);
+					this.#activeFeedbackId = message.review?.activeFeedbackId;
+					const activeFeedbackRequestId = message.review?.activeFeedbackRequestId ?? 0;
+					if (activeFeedbackRequestId !== this.#activeFeedbackRequestId) {
+						this.#activeFeedbackRequestId = activeFeedbackRequestId;
+						this.#revealActiveFeedback(this.#activeFeedbackId);
+					}
 					break;
 				}
 			}
@@ -523,6 +560,11 @@ class Editor extends Disposable {
 				return div;
 			},
 		}));
+		this.#view = view;
+		this.#host = host;
+		if (this.#activeFeedbackRequestId > 0) {
+			this.#revealActiveFeedback(this.#activeFeedbackId);
+		}
 
 		this._register(new EditorController(model, view));
 		host.appendChild(view.element);
@@ -632,11 +674,36 @@ class Editor extends Disposable {
 		// read-only, so this is a no-op in that mode; keeping it always registered
 		// means unlocking a read-only editor immediately resumes edit forwarding.
 		let firstTime = true;
+		let previousText = content;
 		this._register(autorun((reader) => {
 			const text = reader.readObservable(this.model.sourceText).value;
 			if (!this.isUpdatingFromExtension && !firstTime) {
 				this.#vscode.postMessage({ type: 'edit', content: text });
+				const edit = createStringEdit(previousText, text);
+				const comments = this.#comments.comments.read(undefined);
+				const updatedComments = comments.map(comment => ({
+					...comment,
+					range: OffsetRange.fromTo(
+						edit.mapOffset(comment.range.start),
+						edit.mapOffset(comment.range.endExclusive),
+					),
+				}));
+				this.#isUpdatingComments = true;
+				this.#comments.set(updatedComments);
+				this.#isUpdatingComments = false;
+				this.#commentRanges = new Map(updatedComments.map(comment => [comment.id, comment.range]));
+				for (let index = 0; index < comments.length; index++) {
+					if (!comments[index].range.equals(updatedComments[index].range)) {
+						this.#vscode.postMessage({
+							type: 'updateCommentRange',
+							id: comments[index].id,
+							start: updatedComments[index].range.start,
+							endExclusive: updatedComments[index].range.endExclusive,
+						});
+					}
+				}
 			}
+			previousText = text;
 			firstTime = false;
 		}));
 
@@ -644,6 +711,25 @@ class Editor extends Disposable {
 		// syntax highlighting, mermaid), so re-apply until it sticks.
 		// TODO@copilot: Consider using a more robust method for restoring scroll position, e.g. by waiting for the editor to stabilize
 		this.#restoreScroll(host, savedViewState.scrollTop);
+	}
+
+	#revealActiveFeedback(feedbackId: string | undefined): void {
+		const range = feedbackId ? this.#commentRanges.get(feedbackId) : undefined;
+		if (!range || !this.#view || !this.#host) {
+			return;
+		}
+		const generation = ++this.#revealGeneration;
+		this.model.selection.set(new Selection(range.start, range.endExclusive), undefined);
+		this.#view.element.focus();
+		requestAnimationFrame(() => {
+			if (generation !== this.#revealGeneration || !this.#view || !this.#host) {
+				return;
+			}
+			const rect = this.#view.rangeRects(range).get()[0];
+			if (rect) {
+				this.#host.scrollTop += rect.y - this.#host.clientHeight / 2;
+			}
+		});
 	}
 
 	#getViewState(): PersistedViewState {

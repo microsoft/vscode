@@ -47,12 +47,26 @@ export class MainThreadAgentEditorComments implements MainThreadAgentEditorComme
 		this._bridge.addComment(resource, range, body);
 	}
 
+	async $updateCommentRange(handle: number, id: string, range: IRange): Promise<void> {
+		const resource = this._resources.get(handle);
+		if (resource) {
+			this._bridge.updateCommentRange(resource, id, range);
+		}
+	}
+
 	async $deleteComment(handle: number, id: string): Promise<void> {
 		const resource = this._resources.get(handle);
 		if (!resource) {
 			return;
 		}
 		this._bridge.deleteComment(resource, id);
+	}
+
+	async $updateAgentEditorOverallFeedback(handle: number, overallFeedback: string): Promise<void> {
+		const resource = this._resources.get(handle);
+		if (resource) {
+			this._bridge.updateOverallFeedback(resource, overallFeedback);
+		}
 	}
 
 	async $submitAgentEditorFeedback(handle: number, overallFeedback: string | undefined): Promise<void> {

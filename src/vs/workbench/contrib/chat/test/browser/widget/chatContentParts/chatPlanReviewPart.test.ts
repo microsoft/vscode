@@ -23,6 +23,7 @@ import { IResourceEditorInput } from '../../../../../../../platform/editor/commo
 import { ITextFileService } from '../../../../../../services/textfile/common/textfiles.js';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { AgentEditorCommentsBridge } from '../../../../../../services/agentEditorComments/common/agentEditorComments.js';
+import { IModelService } from '../../../../../../../editor/common/services/model.js';
 
 function createMockReview(overrides?: Partial<IChatPlanReview>): IChatPlanReview {
 	return {
@@ -41,6 +42,16 @@ function createMockReviewWithPlan(overrides?: Partial<IChatPlanReview>): IChatPl
 		planUri: URI.parse('file:///plan.md').toJSON(),
 		...overrides,
 	});
+}
+
+function createReviewDataWithPlan(content = '# Plan summary'): ChatPlanReviewData {
+	return new ChatPlanReviewData(
+		'Review Plan',
+		content,
+		[{ id: 'approve', label: 'Approve', default: true }],
+		true,
+		URI.parse('file:///plan.md').toJSON(),
+	);
 }
 
 function createMockContext(): IChatContentPartRenderContext {
@@ -79,6 +90,7 @@ suite('ChatPlanReviewPart', () => {
 	let submitCount = 0;
 	let lastFeedbackService: IPlanReviewFeedbackService | undefined;
 	let lastEditorService: IEditorService | undefined;
+	let lastModelService: IModelService | undefined;
 	let lastTextFileService: ITextFileService | undefined;
 
 	function createWidget(review: IChatPlanReview, dialogService?: TestDialogService): ChatPlanReviewPart {
@@ -88,6 +100,7 @@ suite('ChatPlanReviewPart', () => {
 
 		lastFeedbackService = feedbackService;
 		lastEditorService = instantiationService.get(IEditorService);
+		lastModelService = instantiationService.get(IModelService);
 		lastTextFileService = instantiationService.get(ITextFileService);
 		if (dialogService) {
 			instantiationService.stub(IDialogService, dialogService);
@@ -111,6 +124,7 @@ suite('ChatPlanReviewPart', () => {
 		submitCount = 0;
 		lastFeedbackService = undefined;
 		lastEditorService = undefined;
+		lastModelService = undefined;
 		lastTextFileService = undefined;
 		sinon.restore();
 	});
@@ -438,6 +452,28 @@ suite('ChatPlanReviewPart', () => {
 			assert.ok(!submitButton!.classList.contains('disabled'), 'Submit Feedback should be enabled with one inline comment');
 		});
 
+		test('revealing a comment publishes its active id for the custom editor', async () => {
+			const review = createMockReviewWithPlan();
+			createWidget(review);
+			const planUri = URI.revive(review.planUri!);
+			lastFeedbackService!.addFeedback(planUri, 4, 2, 'Clarify this');
+			const openEditorSpy = sinon.spy(lastEditorService!, 'openEditor');
+
+			(widget.domNode.querySelector('.chat-plan-review-comment-reveal') as HTMLButtonElement).click();
+			await tick();
+
+			const editorInput = openEditorSpy.lastCall.args[0] as IResourceEditorInput;
+			assert.deepStrictEqual({
+				activeFeedbackIndex: lastFeedbackService!.getNavigationBearing(planUri).activeIdx,
+				override: editorInput.options?.override,
+				hasSelection: Object.hasOwn(editorInput.options ?? {}, 'selection'),
+			}, {
+				activeFeedbackIndex: 0,
+				override: 'vscode.markdown.editor',
+				hasSelection: false,
+			});
+		});
+
 		test('editor toolbar feedback submission updates the original plan widget', async () => {
 			const review = createMockReviewWithPlan();
 			createWidget(review);
@@ -472,6 +508,48 @@ suite('ChatPlanReviewPart', () => {
 				feedback: 'Please simplify the rollout',
 				feedbackOverall: 'Please simplify the rollout',
 				feedbackInlineMarkdown: undefined,
+			});
+		});
+
+		test('restored overall feedback is available when the plan registers', () => {
+			const review = createReviewDataWithPlan();
+			review.draftFeedback = 'Restored draft';
+			createWidget(review);
+
+			assert.deepStrictEqual({
+				registeredFeedback: lastFeedbackService!.getPlanReview(URI.revive(review.planUri!))?.getOverallFeedback(),
+				textareaFeedback: (widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement).value,
+			}, {
+				registeredFeedback: 'Restored draft',
+				textareaFeedback: 'Restored draft',
+			});
+		});
+
+		test('submission uses feedback changes made while the plan save is pending', async () => {
+			const review = createMockReviewWithPlan();
+			createWidget(review);
+			const planUri = URI.revive(review.planUri!);
+			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
+			textarea.value = 'Before save';
+			textarea.dispatchEvent(new Event('input'));
+			const oldComment = lastFeedbackService!.addFeedback(planUri, 2, 1, 'Old comment');
+			const saveDeferred = new DeferredPromise<URI | undefined>();
+			sinon.stub(lastTextFileService!, 'isDirty').returns(true);
+			sinon.stub(lastTextFileService!, 'save').returns(saveDeferred.p);
+
+			const submission = lastFeedbackService!.submitAllFeedback(planUri);
+			textarea.value = 'After save';
+			textarea.dispatchEvent(new Event('input'));
+			lastFeedbackService!.removeFeedback(planUri, oldComment);
+			lastFeedbackService!.addFeedback(planUri, 7, 1, 'New comment');
+			saveDeferred.complete(planUri);
+			await submission;
+
+			assert.deepStrictEqual(lastSubmitResult, {
+				rejected: false,
+				feedback: 'After save\n\nInline comments on `plan.md`:\n- **Line 7:** New comment',
+				feedbackOverall: 'After save',
+				feedbackInlineMarkdown: 'Inline comments on `plan.md`:\n- **Line 7:** New comment',
 			});
 		});
 
@@ -667,6 +745,39 @@ suite('ChatPlanReviewPart', () => {
 	});
 
 	suite('Multiple actions', () => {
+		test('a dirty save refreshes persisted plan content', async () => {
+			const review = createReviewDataWithPlan();
+			createWidget(review);
+			const planUri = URI.revive(review.planUri!);
+			store.add(lastModelService!.createModel('# Edited plan', null, planUri));
+			sinon.stub(lastTextFileService!, 'isDirty').returns(true);
+			sinon.stub(lastTextFileService!, 'save').resolves(planUri);
+
+			getFooterButtons(widget).find(button => button.textContent?.includes('Approve'))!.click();
+			await tick();
+
+			assert.deepStrictEqual({
+				content: review.content,
+				persistedContent: review.toJSON().content,
+			}, {
+				content: '# Edited plan',
+				persistedContent: '# Edited plan',
+			});
+		});
+
+		test('a no-op save preserves summary content', async () => {
+			const review = createReviewDataWithPlan('# Plan summary');
+			createWidget(review);
+			const planUri = URI.revive(review.planUri!);
+			store.add(lastModelService!.createModel('# Backing file', null, planUri));
+			sinon.stub(lastTextFileService!, 'isDirty').returns(false);
+
+			getFooterButtons(widget).find(button => button.textContent?.includes('Approve'))!.click();
+			await tick();
+
+			assert.strictEqual(review.content, '# Plan summary');
+		});
+
 		test('concurrent approval attempts submit only once', async () => {
 			const review = createMockReviewWithPlan({
 				actions: [{ id: 'approve', label: 'Approve', default: true }],

@@ -29,6 +29,9 @@ declare module 'vscode' {
 			readonly default?: boolean;
 		}[];
 		readonly feedbackCount: number;
+		readonly overallFeedback?: string;
+		readonly activeFeedbackId?: string;
+		readonly activeFeedbackRequestId: number;
 		readonly overallFeedbackLabel: string;
 		readonly rejectLabel: string;
 		readonly submitFeedbackLabel: string;
@@ -77,6 +80,8 @@ declare module 'vscode' {
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		addComment(range: Range, body: string): void;
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		updateCommentRange(id: string, range: Range): void;
 
 		/**
 		 * Delete the comment with the given id. No-op when no comment with that id
@@ -86,6 +91,8 @@ declare module 'vscode' {
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		deleteComment(id: string): void;
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		updateOverallFeedback(overallFeedback: string): void;
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		submitFeedback(overallFeedback?: string): Thenable<void>;
 		// eslint-disable-next-line local/vscode-dts-provider-naming

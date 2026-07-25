@@ -51,6 +51,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	#wireSingle(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel): void {
 		const webview = webviewPanel.webview;
 		let isUpdatingFromWebview = false;
+		let editQueue = Promise.resolve();
+		let latestEdit = Promise.resolve();
 
 		const onMessage = webview.onDidReceiveMessage(async (message) => {
 			switch (message.type) {
@@ -70,21 +72,32 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				}
 				case 'edit': {
 					const content = message.content as string;
-					if (content === document.getText()) {
-						return;
-					}
-					isUpdatingFromWebview = true;
-					const edit = new vscode.WorkspaceEdit();
-					edit.replace(
-						document.uri,
-						new vscode.Range(0, 0, document.lineCount, 0),
-						content,
-					);
-					try {
-						await vscode.workspace.applyEdit(edit);
-					} finally {
-						isUpdatingFromWebview = false;
-					}
+					const editOperation = editQueue.then(async () => {
+						if (content === document.getText()) {
+							return;
+						}
+						isUpdatingFromWebview = true;
+						const edit = new vscode.WorkspaceEdit();
+						edit.replace(
+							document.uri,
+							new vscode.Range(0, 0, document.lineCount, 0),
+							content,
+						);
+						try {
+							await vscode.workspace.applyEdit(edit);
+						} finally {
+							isUpdatingFromWebview = false;
+						}
+					});
+					editQueue = editOperation.then(() => undefined, () => undefined);
+					latestEdit = editOperation;
+					const resetLatestEdit = () => {
+						if (latestEdit === editOperation) {
+							latestEdit = Promise.resolve();
+						}
+					};
+					void editOperation.then(resetLatestEdit, resetLatestEdit);
+					await editOperation;
 					break;
 				}
 			}
@@ -99,7 +112,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 
 		const highlight = this.#wireHighlight(webview);
 		const quickDiff = this.#wireQuickDiff(document, webview);
-		const comments = this.#wireComments(document, webview);
+		const comments = this.#wireComments(document, webview, () => latestEdit);
 
 		webviewPanel.onDidDispose(() => {
 			onMessage.dispose();
@@ -157,8 +170,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	 * Comment ranges are converted between {@link vscode.Range} and the source
 	 * character offsets the webview works in.
 	 */
-	#wireComments(document: vscode.TextDocument, webview: vscode.Webview): vscode.Disposable {
+	#wireComments(document: vscode.TextDocument, webview: vscode.Webview, getPendingEdit: () => Promise<void>): vscode.Disposable {
 		const commentsProvider = vscode.window.createAgentEditorComments(document.uri);
+		let operationQueue = Promise.resolve();
 
 		const postComments = () => {
 			const comments = commentsProvider.comments.map(comment => ({
@@ -172,24 +186,51 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		};
 
 		const onChange = commentsProvider.onDidChange(postComments);
-		const onMessage = webview.onDidReceiveMessage(async (message) => {
+		const onMessage = webview.onDidReceiveMessage((message) => {
 			if (message.type === 'ready') {
 				postComments();
-			} else if (message.type === 'addComment') {
-				const range = new vscode.Range(
-					document.positionAt(message.start),
-					document.positionAt(message.endExclusive),
-				);
-				commentsProvider.addComment(range, message.text);
-			} else if (message.type === 'deleteComment') {
-				commentsProvider.deleteComment(message.id);
-			} else if (message.type === 'submitFeedback') {
-				await commentsProvider.submitFeedback(message.overallFeedback);
-			} else if (message.type === 'submitAction') {
-				await commentsProvider.submitAction(message.actionId);
-			} else if (message.type === 'rejectReview') {
-				await commentsProvider.reject();
+				return;
 			}
+			if (message.type !== 'addComment'
+				&& message.type !== 'updateCommentRange'
+				&& message.type !== 'deleteComment'
+				&& message.type !== 'updateOverallFeedback'
+				&& message.type !== 'submitFeedback'
+				&& message.type !== 'submitAction'
+				&& message.type !== 'rejectReview') {
+				return;
+			}
+			const pendingEdit = getPendingEdit();
+			const operation = operationQueue.then(async () => {
+				await pendingEdit;
+				if (message.type === 'addComment') {
+					const range = new vscode.Range(
+						document.positionAt(message.start),
+						document.positionAt(message.endExclusive),
+					);
+					commentsProvider.addComment(range, message.text);
+				} else if (message.type === 'updateCommentRange') {
+					commentsProvider.updateCommentRange(
+						message.id,
+						new vscode.Range(
+							document.positionAt(message.start),
+							document.positionAt(message.endExclusive),
+						),
+					);
+				} else if (message.type === 'deleteComment') {
+					commentsProvider.deleteComment(message.id);
+				} else if (message.type === 'updateOverallFeedback') {
+					commentsProvider.updateOverallFeedback(message.overallFeedback);
+				} else if (message.type === 'submitFeedback') {
+					await commentsProvider.submitFeedback(message.overallFeedback);
+				} else if (message.type === 'submitAction') {
+					await commentsProvider.submitAction(message.actionId);
+				} else if (message.type === 'rejectReview') {
+					await commentsProvider.reject();
+				}
+			});
+			operationQueue = operation.then(() => undefined, () => undefined);
+			return operation;
 		});
 
 		return vscode.Disposable.from(commentsProvider, onChange, onMessage);

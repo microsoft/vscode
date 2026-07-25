@@ -24,7 +24,8 @@ export interface IPlanReviewFeedbackItem {
 
 export interface IPlanReviewFeedbackRegistration {
 	readonly actions: readonly IChatPlanApprovalAction[];
-	readonly hasOverallFeedback: () => boolean;
+	readonly getOverallFeedback: () => string | undefined;
+	readonly setOverallFeedback: (value: string) => void;
 	readonly submitFeedback: (overallFeedback?: string) => Promise<void>;
 	readonly submitAction: (action: IChatPlanApprovalAction) => Promise<void>;
 	readonly reject: () => Promise<void>;
@@ -47,6 +48,7 @@ export interface IPlanReviewFeedbackService {
 	addFeedbackForRange(planUri: URI, range: IRange, text: string): string;
 	removeFeedback(planUri: URI, feedbackId: string): void;
 	updateFeedback(planUri: URI, feedbackId: string, newText: string): void;
+	updateFeedbackRanges(planUri: URI, updates: readonly { id: string; range: IRange }[]): void;
 	getFeedback(planUri: URI): readonly IPlanReviewFeedbackItem[];
 	clearFeedback(planUri: URI): void;
 	getNextFeedback(planUri: URI, next: boolean): IPlanReviewFeedbackItem | undefined;
@@ -61,6 +63,7 @@ interface IPlanReviewRegistration {
 	readonly review: IPlanReviewFeedbackRegistration;
 	readonly items: IPlanReviewFeedbackItem[];
 	navigationAnchor: string | undefined;
+	navigationRequestId: number;
 }
 
 export class PlanReviewFeedbackService extends Disposable implements IPlanReviewFeedbackService, IAgentEditorCommentsProvider {
@@ -78,7 +81,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	private readonly _onDidChangeRegistrations = this._register(new Emitter<void>());
 	readonly onDidChangeRegistrations: Event<void> = this._onDidChangeRegistrations.event;
 
-	readonly onDidChangeComments = Event.any(Event.signal(this.onDidChangeFeedback), this.onDidChangeRegistrations);
+	readonly onDidChangeComments = Event.any(Event.signal(this.onDidChangeFeedback), Event.signal(this.onDidChangeNavigation), this.onDidChangeRegistrations);
 
 	constructor(
 		@IAgentEditorCommentsBridge bridge: IAgentEditorCommentsBridge,
@@ -89,7 +92,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 
 	registerPlanReview(planUri: URI, review: IPlanReviewFeedbackRegistration): IDisposable {
 		const key = planUri.toString();
-		this._registrations.set(key, { review, items: [], navigationAnchor: undefined });
+		this._registrations.set(key, { review, items: [], navigationAnchor: undefined, navigationRequestId: 0 });
 		this._onDidChangeRegistrations.fire();
 		return toDisposable(() => {
 			this._registrations.delete(key);
@@ -171,6 +174,39 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 		}
 	}
 
+	updateFeedbackRanges(planUri: URI, updates: readonly { id: string; range: IRange }[]): void {
+		const registration = this._registrations.get(planUri.toString());
+		if (!registration) {
+			return;
+		}
+
+		const rangesById = new Map(updates.map(update => [update.id, update.range]));
+		let didChange = false;
+		for (let index = 0; index < registration.items.length; index++) {
+			const item = registration.items[index];
+			const range = rangesById.get(item.id);
+			if (!range
+				|| item.line === range.startLineNumber
+				&& item.column === range.startColumn
+				&& item.endLine === range.endLineNumber
+				&& item.endColumn === range.endColumn) {
+				continue;
+			}
+			registration.items[index] = {
+				...item,
+				line: range.startLineNumber,
+				column: range.startColumn,
+				endLine: range.endLineNumber,
+				endColumn: range.endColumn,
+			};
+			didChange = true;
+		}
+		if (didChange) {
+			registration.items.sort((a, b) => a.line - b.line || a.column - b.column);
+			this._onDidChangeFeedback.fire(planUri);
+		}
+	}
+
 	getFeedback(planUri: URI): readonly IPlanReviewFeedbackItem[] {
 		const key = planUri.toString();
 		return this._registrations.get(key)?.items ?? [];
@@ -234,6 +270,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 		const registration = this._registrations.get(key);
 		if (registration) {
 			registration.navigationAnchor = itemId;
+			registration.navigationRequestId++;
 			this._onDidChangeNavigation.fire(planUri);
 		}
 	}
@@ -241,7 +278,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	submitAllFeedback(planUri: URI): Promise<void> {
 		const key = planUri.toString();
 		const registration = this._registrations.get(key);
-		if (!registration || (registration.items.length === 0 && !registration.review.hasOverallFeedback())) {
+		if (!registration || (registration.items.length === 0 && !registration.review.getOverallFeedback()?.trim())) {
 			return Promise.resolve();
 		}
 
@@ -277,6 +314,10 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 		this.addFeedbackForRange(resource, range, body);
 	}
 
+	updateCommentRange(resource: URI, id: string, range: IRange): void {
+		this.updateFeedbackRanges(resource, [{ id, range }]);
+	}
+
 	deleteComment(resource: URI, id: string): void {
 		this.removeFeedback(resource, id);
 	}
@@ -294,12 +335,19 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 				default: action.default,
 			})),
 			feedbackCount: registration.items.length,
+			overallFeedback: registration.review.getOverallFeedback(),
+			activeFeedbackId: registration.navigationAnchor,
+			activeFeedbackRequestId: registration.navigationRequestId,
 			overallFeedbackLabel: localize('planReviewFeedback.overallFeedback', 'Overall Feedback'),
 			rejectLabel: localize('planReviewFeedback.reject', 'Reject'),
 			submitFeedbackLabel: localize('planReviewFeedback.submitFeedback', 'Submit Feedback'),
 			submitFeedbackWithCountLabel: localize('planReviewFeedback.submitFeedbackWithCount', 'Submit Feedback ({0})'),
 			approvePlanLabel: localize('planReviewFeedback.approvePlan', 'Approve Plan'),
 		};
+	}
+
+	updateOverallFeedback(resource: URI, overallFeedback: string): void {
+		this._registrations.get(resource.toString())?.review.setOverallFeedback(overallFeedback);
 	}
 
 	submitFeedback(resource: URI, overallFeedback: string | undefined): Promise<void> {

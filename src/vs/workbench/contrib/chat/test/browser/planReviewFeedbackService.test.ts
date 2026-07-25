@@ -18,7 +18,8 @@ function feedbackSummary(items: readonly { line: number; column: number }[]): st
 function createRegistration(overrides?: Partial<IPlanReviewFeedbackRegistration>): IPlanReviewFeedbackRegistration {
 	return {
 		actions: [{ id: 'approve', label: 'Approve', default: true }],
-		hasOverallFeedback: () => false,
+		getOverallFeedback: () => undefined,
+		setOverallFeedback: () => { },
 		submitFeedback: async () => { },
 		submitAction: async () => { },
 		reject: async () => { },
@@ -113,6 +114,45 @@ suite('PlanReviewFeedbackService - Ordering', () => {
 		assert.strictEqual(items.length, 1);
 		assert.strictEqual(items[0].text, 'updated');
 		assert.strictEqual(items[0].line, 10);
+	});
+
+	test('updates feedback ranges after editor decorations move', () => {
+		const firstId = service.addFeedbackForRange(planUri, {
+			startLineNumber: 3,
+			startColumn: 2,
+			endLineNumber: 4,
+			endColumn: 5,
+		}, 'first');
+		const secondId = service.addFeedback(planUri, 8, 1, 'second');
+
+		service.updateFeedbackRanges(planUri, [
+			{
+				id: firstId,
+				range: {
+					startLineNumber: 5,
+					startColumn: 2,
+					endLineNumber: 6,
+					endColumn: 5,
+				},
+			},
+			{
+				id: secondId,
+				range: {
+					startLineNumber: 2,
+					startColumn: 1,
+					endLineNumber: 2,
+					endColumn: 1,
+				},
+			},
+		]);
+
+		assert.deepStrictEqual(service.getFeedback(planUri).map(item => ({
+			id: item.id,
+			range: [item.line, item.column, item.endLine, item.endColumn],
+		})), [
+			{ id: secondId, range: [2, 1, 2, 1] },
+			{ id: firstId, range: [5, 2, 6, 5] },
+		]);
 	});
 });
 
@@ -337,7 +377,7 @@ suite('PlanReviewFeedbackService - Submit', () => {
 		const planUri = URI.parse('file:///plan.md');
 		let called = false;
 		store.add(service.registerPlanReview(planUri, createRegistration({
-			hasOverallFeedback: () => true,
+			getOverallFeedback: () => 'draft',
 			submitFeedback: async () => { called = true; },
 		})));
 
@@ -439,6 +479,7 @@ suite('PlanReviewFeedbackService - Custom Editor Comments', () => {
 
 	test('bridges review actions and overall feedback', async () => {
 		const bridge = store.add(new AgentEditorCommentsBridge());
+		let overallFeedback = 'Existing draft';
 		let submittedOverallFeedback: string | undefined;
 		let submittedAction: string | undefined;
 		let rejected = false;
@@ -446,22 +487,59 @@ suite('PlanReviewFeedbackService - Custom Editor Comments', () => {
 		const planUri = URI.parse('file:///plan.md');
 		store.add(service.registerPlanReview(planUri, createRegistration({
 			actions: [{ id: 'autopilot', label: 'Implement with Autopilot', default: true }],
+			getOverallFeedback: () => overallFeedback,
+			setOverallFeedback: value => { overallFeedback = value; },
 			submitFeedback: async overallFeedback => { submittedOverallFeedback = overallFeedback; },
 			submitAction: async action => { submittedAction = action.id; },
 			reject: async () => { rejected = true; },
 		})));
 
-		assert.deepStrictEqual(bridge.getReview(planUri)?.actions, [{
-			id: 'autopilot',
-			label: 'Implement with Autopilot',
-			description: undefined,
-			default: true,
-		}]);
+		const commentId = service.addFeedback(planUri, 4, 1, 'Clarify this');
+		service.setNavigationAnchor(planUri, commentId);
+		assert.deepStrictEqual({
+			actions: bridge.getReview(planUri)?.actions,
+			overallFeedback: bridge.getReview(planUri)?.overallFeedback,
+			activeFeedbackId: bridge.getReview(planUri)?.activeFeedbackId,
+			activeFeedbackRequestId: bridge.getReview(planUri)?.activeFeedbackRequestId,
+		}, {
+			actions: [{
+				id: 'autopilot',
+				label: 'Implement with Autopilot',
+				description: undefined,
+				default: true,
+			}],
+			overallFeedback: 'Existing draft',
+			activeFeedbackId: commentId,
+			activeFeedbackRequestId: 1,
+		});
+		bridge.updateCommentRange(planUri, commentId, {
+			startLineNumber: 6,
+			startColumn: 2,
+			endLineNumber: 7,
+			endColumn: 4,
+		});
+		service.setNavigationAnchor(planUri, commentId);
+		bridge.updateOverallFeedback(planUri, 'Updated in Markdown');
 		await bridge.submitFeedback(planUri, 'Make the approach shorter');
 		await bridge.submitAction(planUri, 'autopilot');
 		await bridge.reject(planUri);
 
-		assert.deepStrictEqual({ submittedOverallFeedback, submittedAction, rejected }, {
+		assert.deepStrictEqual({
+			overallFeedback,
+			commentRange: bridge.getComments(planUri)[0].range,
+			activeFeedbackRequestId: bridge.getReview(planUri)?.activeFeedbackRequestId,
+			submittedOverallFeedback,
+			submittedAction,
+			rejected,
+		}, {
+			overallFeedback: 'Updated in Markdown',
+			commentRange: {
+				startLineNumber: 6,
+				startColumn: 2,
+				endLineNumber: 7,
+				endColumn: 4,
+			},
+			activeFeedbackRequestId: 2,
 			submittedOverallFeedback: 'Make the approach shorter',
 			submittedAction: 'autopilot',
 			rejected: true,

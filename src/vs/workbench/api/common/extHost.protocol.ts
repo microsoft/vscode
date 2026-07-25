@@ -2216,6 +2216,9 @@ export interface IAgentEditorReviewDto {
 		default?: boolean;
 	}[];
 	feedbackCount: number;
+	overallFeedback?: string;
+	activeFeedbackId?: string;
+	activeFeedbackRequestId: number;
 	overallFeedbackLabel: string;
 	rejectLabel: string;
 	submitFeedbackLabel: string;
@@ -2226,7 +2229,9 @@ export interface IAgentEditorReviewDto {
 export interface MainThreadAgentEditorCommentsShape extends IDisposable {
 	$createAgentEditorComments(handle: number, uri: UriComponents): Promise<void>;
 	$addComment(handle: number, range: IRange, body: string): Promise<void>;
+	$updateCommentRange(handle: number, id: string, range: IRange): Promise<void>;
 	$deleteComment(handle: number, id: string): Promise<void>;
+	$updateAgentEditorOverallFeedback(handle: number, overallFeedback: string): Promise<void>;
 	$submitAgentEditorFeedback(handle: number, overallFeedback: string | undefined): Promise<void>;
 	$submitAgentEditorAction(handle: number, actionId: string): Promise<void>;
 	$rejectAgentEditorReview(handle: number): Promise<void>;

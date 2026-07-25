@@ -19,6 +19,7 @@ import { basename } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -84,6 +85,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IModelService private readonly _modelService: IModelService,
 		@IPlanReviewFeedbackService private readonly _planReviewFeedbackService: IPlanReviewFeedbackService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 	) {
@@ -108,7 +110,8 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			const registrationStore = new DisposableStore();
 			registrationStore.add(this._planReviewFeedbackService.registerPlanReview(planUri, {
 				actions: review.actions,
-				hasOverallFeedback: () => !!this._feedbackTextarea?.value.trim(),
+				getOverallFeedback: () => this._feedbackTextarea?.value ?? (review instanceof ChatPlanReviewData ? review.draftFeedback : undefined),
+				setOverallFeedback: value => this.setOverallFeedback(value),
 				submitFeedback: overallFeedback => this.submitFeedback(overallFeedback),
 				submitAction: action => this.submitApproval(action),
 				reject: () => this.submitRejection(),
@@ -391,7 +394,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			textEl.textContent = item.text;
 
 			this._commentRowDisposables.add(dom.addDisposableListener(revealButton, dom.EventType.CLICK, () => {
-				this.revealInlineComment(item.id, item.line, item.column);
+				this.revealInlineComment(item.id);
 			}));
 
 			const removeLabel = localize('chat.planReview.removeComment', "Remove comment on line {0}", item.line);
@@ -415,7 +418,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			: [];
 	}
 
-	private async revealInlineComment(itemId: string, line: number, column: number): Promise<void> {
+	private async revealInlineComment(itemId: string): Promise<void> {
 		const uri = this.review.planUri ? URI.revive(this.review.planUri) : undefined;
 		if (!uri) {
 			return;
@@ -426,7 +429,6 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			options: {
 				pinned: true,
 				override: MARKDOWN_EDITOR_ID,
-				selection: { startLineNumber: line, startColumn: column },
 			},
 		});
 	}
@@ -773,7 +775,17 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			return true;
 		}
 		const planUri = URI.revive(this.review.planUri);
-		return !this._textFileService.isDirty(planUri) || !!await this._textFileService.save(planUri);
+		if (!this._textFileService.isDirty(planUri)) {
+			return true;
+		}
+		if (!await this._textFileService.save(planUri)) {
+			return false;
+		}
+		const model = this._modelService.getModel(planUri);
+		if (this.review instanceof ChatPlanReviewData && model) {
+			this.review.content = model.getValue();
+		}
+		return true;
 	}
 
 	private async enterFeedbackMode(options?: { focus?: boolean }): Promise<void> {
@@ -830,20 +842,31 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this._feedbackTextarea?.focus();
 	}
 
+	private setOverallFeedback(value: string): void {
+		const textarea = this._feedbackTextarea;
+		if (!textarea || textarea.value === value) {
+			return;
+		}
+		textarea.value = value;
+		textarea.dispatchEvent(new (dom.getWindow(textarea).Event)(dom.EventType.INPUT));
+	}
+
 	private async submitFeedback(overallFeedback?: string): Promise<void> {
 		if (this._isSubmitted || this._isSubmitting) {
 			return;
 		}
-		const textareaFeedback = overallFeedback?.trim() || this._feedbackTextarea?.value.trim();
-
-		const editorFeedbackItems = [...this.getInlineFeedbackItems()];
-
-		if (!textareaFeedback && editorFeedbackItems.length === 0) {
+		if (!overallFeedback?.trim() && !this._feedbackTextarea?.value.trim() && this.getInlineFeedbackItems().length === 0) {
 			return;
 		}
 		this._isSubmitting = true;
 		try {
 			if (!await this.savePlanFile()) {
+				return;
+			}
+
+			const textareaFeedback = this._feedbackTextarea ? this._feedbackTextarea.value.trim() : overallFeedback?.trim();
+			const editorFeedbackItems = [...this.getInlineFeedbackItems()];
+			if (!textareaFeedback && editorFeedbackItems.length === 0) {
 				return;
 			}
 

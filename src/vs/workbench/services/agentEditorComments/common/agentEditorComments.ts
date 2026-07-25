@@ -29,6 +29,9 @@ export interface IAgentEditorReviewAction {
 export interface IAgentEditorReview {
 	readonly actions: readonly IAgentEditorReviewAction[];
 	readonly feedbackCount: number;
+	readonly overallFeedback?: string;
+	readonly activeFeedbackId?: string;
+	readonly activeFeedbackRequestId: number;
 	readonly overallFeedbackLabel: string;
 	readonly rejectLabel: string;
 	readonly submitFeedbackLabel: string;
@@ -45,8 +48,10 @@ export interface IAgentEditorCommentsProvider {
 	acceptsComments(resource: URI): boolean;
 	getComments(resource: URI): readonly IAgentEditorComment[];
 	addComment(resource: URI, range: IRange, body: string): void;
+	updateCommentRange?(resource: URI, id: string, range: IRange): void;
 	deleteComment(resource: URI, id: string): void;
 	getReview?(resource: URI): IAgentEditorReview | undefined;
+	updateOverallFeedback?(resource: URI, overallFeedback: string): void;
 	submitFeedback?(resource: URI, overallFeedback: string | undefined): Promise<void>;
 	submitAction?(resource: URI, actionId: string): Promise<void>;
 	reject?(resource: URI): Promise<void>;
@@ -66,8 +71,10 @@ export interface IAgentEditorCommentsBridge {
 	acceptsComments(resource: URI): boolean;
 	getComments(resource: URI): readonly IAgentEditorComment[];
 	addComment(resource: URI, range: IRange, body: string): void;
+	updateCommentRange(resource: URI, id: string, range: IRange): void;
 	deleteComment(resource: URI, id: string): void;
 	getReview(resource: URI): IAgentEditorReview | undefined;
+	updateOverallFeedback(resource: URI, overallFeedback: string): void;
 	submitFeedback(resource: URI, overallFeedback: string | undefined): Promise<void>;
 	submitAction(resource: URI, actionId: string): Promise<void>;
 	reject(resource: URI): Promise<void>;
@@ -114,12 +121,20 @@ export class AgentEditorCommentsBridge extends Disposable implements IAgentEdito
 		this._getProvider(resource)?.addComment(resource, range, body);
 	}
 
+	updateCommentRange(resource: URI, id: string, range: IRange): void {
+		this._getProvider(resource)?.updateCommentRange?.(resource, id, range);
+	}
+
 	deleteComment(resource: URI, id: string): void {
 		this._getProvider(resource)?.deleteComment(resource, id);
 	}
 
 	getReview(resource: URI): IAgentEditorReview | undefined {
 		return this._getProvider(resource)?.getReview?.(resource);
+	}
+
+	updateOverallFeedback(resource: URI, overallFeedback: string): void {
+		this._getProvider(resource)?.updateOverallFeedback?.(resource, overallFeedback);
 	}
 
 	submitFeedback(resource: URI, overallFeedback: string | undefined): Promise<void> {
