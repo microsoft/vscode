@@ -22,17 +22,14 @@ body {
 }
 
 .md-plan-review-toolbar-host {
-	position: sticky;
-	top: 0;
-	height: 0;
+	position: fixed;
+	left: var(--vscode-spacing-size320, 32px);
+	bottom: var(--vscode-spacing-size160, 16px);
 	z-index: 10;
 	pointer-events: none;
 }
 
 .md-plan-review-toolbar {
-	position: absolute;
-	top: var(--vscode-spacing-size40, 4px);
-	right: 112px;
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size20, 2px);
@@ -44,7 +41,8 @@ body {
 	pointer-events: auto;
 	font: var(--vscode-fontWeight-semiBold, 600) var(--vscode-fontSize-label1, 12px) / 1 var(--vscode-font-family, system-ui, sans-serif);
 	box-sizing: border-box;
-	width: min(620px, calc(100vw - 132px));
+	width: max-content;
+	max-width: calc(100vw - 2 * var(--vscode-spacing-size320, 32px));
 }
 
 .md-plan-review-toolbar button,
@@ -57,8 +55,9 @@ body {
 }
 
 .md-plan-review-overall-feedback {
-	flex: 1 1 auto;
-	min-width: 100px;
+	flex: 0 0 180px;
+	width: 180px;
+	min-width: 180px;
 	padding: 0 var(--vscode-spacing-size80, 8px);
 	background: transparent;
 	color: var(--vscode-input-foreground);
@@ -69,15 +68,15 @@ body {
 	position: relative;
 	display: flex;
 	align-items: stretch;
-	flex: 0 0 250px;
+	flex: 0 0 auto;
 	border-radius: var(--vscode-cornerRadius-circle, 9999px);
 	background: var(--vscode-button-background);
 	overflow: visible;
 }
 
 .md-plan-review-primary-action {
-	flex: 1 1 auto;
-	min-width: 0;
+	flex: 0 0 auto;
+	max-width: clamp(120px, calc(100vw - 360px), 320px);
 	padding: 0 var(--vscode-spacing-size100, 10px);
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);

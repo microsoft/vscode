@@ -69,7 +69,7 @@ class PlanReviewToolbar extends Disposable {
 		toolbar.className = 'md-plan-review-toolbar';
 		toolbar.setAttribute('role', 'toolbar');
 		this.#element.appendChild(toolbar);
-		host.prepend(this.#element);
+		host.appendChild(this.#element);
 		this._register({ dispose: () => this.#element.remove() });
 
 		this.#overallFeedback = document.createElement('input');
