@@ -38,36 +38,82 @@ import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDI
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
+
+const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWindow', "Open in Agents");
+const OPEN_WORKSPACE_IN_AGENTS_WINDOW_CHAT_TITLE_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.chatTitle';
+const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.titleBar';
+
+async function openCurrentWorkspaceInAgentsWindow(accessor: ServicesAccessor, source: AgentsWindowOpenSource): Promise<void> {
+	const nativeHostService = accessor.get(INativeHostService);
+	const workspaceContextService = accessor.get(IWorkspaceContextService);
+	const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
+	await nativeHostService.openAgentsWindow({ folderUri: folderUri?.scheme === Schemas.file ? folderUri : undefined, source });
+}
+
+function isOpenChatSessionInAgentsWindowOptions(value: unknown): value is { readonly agentsWindowOpenSource: AgentsWindowOpenSource } {
+	return !!value
+		&& typeof value === 'object'
+		&& isAgentsWindowOpenSource((value as { readonly agentsWindowOpenSource?: unknown }).agentsWindowOpenSource);
+}
 
 export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID,
-			title: localize2('openWorkspaceInAgentsWindow', "Open in Agents"),
+			title: OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE,
 			category: CHAT_CATEGORY,
 			precondition: OPEN_AGENTS_WINDOW_PRECONDITION,
 			f1: true,
-			menu: [{
+		});
+	}
+
+	async run(accessor: ServicesAccessor, options?: { readonly source?: AgentsWindowOpenSource }): Promise<void> {
+		await openCurrentWorkspaceInAgentsWindow(accessor, options?.source ?? AgentsWindowOpenSource.CommandPalette);
+	}
+}
+
+export class OpenWorkspaceInAgentsWindowChatTitleAction extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_CHAT_TITLE_COMMAND_ID,
+			title: OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE,
+			precondition: OPEN_AGENTS_WINDOW_PRECONDITION,
+			f1: false,
+			menu: {
 				id: MenuId.ChatTitleBarMenu,
 				group: 'c_sessions',
 				order: 1,
 				when: OPEN_AGENTS_WINDOW_PRECONDITION,
-			}, {
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(ICommandService).executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source: AgentsWindowOpenSource.ChatTitleBar });
+	}
+}
+
+export class OpenWorkspaceInAgentsWindowTitleBarAction extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID,
+			title: OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE,
+			precondition: OPEN_AGENTS_WINDOW_PRECONDITION,
+			f1: false,
+			menu: {
 				id: MenuId.TitleBarAdjacentCenter,
 				order: -1000,
 				when: ContextKeyExpr.and(
 					OPEN_AGENTS_WINDOW_PRECONDITION,
 					ContextKeyExpr.notEquals(`config.${ChatConfiguration.TitleBarOpenInAgentsWindowEnabled}`, false),
 				),
-			}]
+			},
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
-		const nativeHostService = accessor.get(INativeHostService);
-		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
-		await nativeHostService.openAgentsWindow({ folderUri: folderUri?.scheme === Schemas.file ? folderUri : undefined });
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(ICommandService).executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source: AgentsWindowOpenSource.TitleBar });
 	}
 }
 
@@ -95,19 +141,21 @@ export class OpenAgentsWindowAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(IsSessionsWindowContext.toNegated(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.toNegated()),
+				args: { source: AgentsWindowOpenSource.KeyboardShortcut },
 			}, {
 				// In screen reader mode, Cmd/Ctrl+Shift+A conflicts with many screen reader keybindings,
 				// so require an additional Alt modifier.
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyA,
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(IsSessionsWindowContext.toNegated(), CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+				args: { source: AgentsWindowOpenSource.KeyboardShortcut },
 			}],
 		});
 	}
 
-	async run(accessor: ServicesAccessor, args?: { folderUri?: UriComponents; sessionResource?: UriComponents }) {
+	async run(accessor: ServicesAccessor, args?: { folderUri?: UriComponents; sessionResource?: UriComponents; source?: AgentsWindowOpenSource }) {
 		const nativeHostService = accessor.get(INativeHostService);
-		await nativeHostService.openAgentsWindow(args);
+		await nativeHostService.openAgentsWindow({ ...args, source: args?.source ?? AgentsWindowOpenSource.CommandPalette });
 	}
 }
 
@@ -147,8 +195,11 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		const nativeHostService = accessor.get(INativeHostService);
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
 
+		const commandOptions = isOpenChatSessionInAgentsWindowOptions(rest[0]) ? rest[0] : undefined;
+		const source = commandOptions?.agentsWindowOpenSource ?? AgentsWindowOpenSource.ChatTitleBar;
+		const args = commandOptions ? rest.slice(1) : rest;
 		let sessionResource: URI | undefined;
-		const arg = rest[0];
+		const arg = args[0];
 		if (URI.isUri(arg)) {
 			sessionResource = arg;
 		} else if (arg && typeof arg === 'object') {
@@ -170,6 +221,7 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		await nativeHostService.openAgentsWindow({
 			folderUri: !hasRealSession && folderUri?.scheme === Schemas.file ? folderUri.toJSON() : undefined,
 			sessionResource: hasRealSession ? sessionResource?.toJSON() : undefined,
+			source,
 		});
 	}
 }
@@ -219,7 +271,7 @@ export class OpenWorkspaceInAgentsContribution extends Disposable implements IWo
 		@IProductService productService: IProductService,
 	) {
 		super();
-		this._register(actionViewItemService.register(MenuId.TitleBarAdjacentCenter, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, (action, options) => {
+		this._register(actionViewItemService.register(MenuId.TitleBarAdjacentCenter, OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID, (action, options) => {
 			return instantiationService.createInstance(OpenWorkspaceInAgentsTitleBarWidget, action, options);
 		}, undefined));
 	}
@@ -312,7 +364,7 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			this._logTipAction('open');
 			// Opening the tip counts as handling it: don't show it again this window.
 			this._dismissForWindow();
-			return accessor.get(ICommandService).executeCommand(OpenChatSessionInAgentsWindowAction.ID, ...args);
+			return accessor.get(ICommandService).executeCommand(OpenChatSessionInAgentsWindowAction.ID, { agentsWindowOpenSource: AgentsWindowOpenSource.ChatHandoff }, ...args);
 		}));
 
 		this._register(CommandsRegistry.registerCommand(AgentsHandoffInputTipContribution.TIP_MUTE_COMMAND_ID, () => {

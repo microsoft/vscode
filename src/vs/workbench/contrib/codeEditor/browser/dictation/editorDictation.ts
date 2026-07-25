@@ -34,6 +34,7 @@ import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js
 import { toAction } from '../../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isWindows } from '../../../../../base/common/platform.js';
+import { EmptyTextEditorHintContributionId, IEmptyTextEditorHintContribution } from '../emptyTextEditorHint/emptyTextEditorHintTypes.js';
 
 const EDITOR_DICTATION_IN_PROGRESS = new RawContextKey<boolean>('editorDictation.inProgress', false);
 const VOICE_CATEGORY = localize2('voiceCategory', "Voice");
@@ -222,6 +223,8 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 	}
 
 	async start(): Promise<void> {
+		this.editor.getContribution<IEmptyTextEditorHintContribution>(EmptyTextEditorHintContributionId)?.disposeHint();
+
 		// Prefer the built-in on-device engine (private, in-box) when it is
 		// configured, falling back to the speech extension's provider otherwise.
 		if (this.chatSpeechToTextService.isConfigured) {

@@ -167,7 +167,7 @@ export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) 
 export function isKimiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
 	const matches = (value: string): boolean => {
 		const normalized = value.toLowerCase();
-		return normalized.includes('kimi-k2.6') || normalized.includes('kimi-k2.7-code');
+		return normalized.includes('kimi-k2.6') || normalized.includes('kimi-k2.7-code') || normalized.includes('kimi-k3');
 	};
 
 	if (typeof model === 'string') {

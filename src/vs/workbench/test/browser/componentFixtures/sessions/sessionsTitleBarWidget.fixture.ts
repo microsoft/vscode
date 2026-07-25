@@ -66,6 +66,7 @@ function buildBlocked(specs: readonly IBlockedSpec[]): { blocked: IBlockedSessio
 		const chatResource = URI.parse(`session-chat:/blocked/${i}`);
 		if (spec.approvalKind) {
 			approvals.set(chatResource.toString(), {
+				approvalId: chatResource.toString(),
 				kind: spec.approvalKind,
 				label: 'npm run build',
 				languageId: undefined,

@@ -6,6 +6,7 @@
 import type { SectionOverride } from '@github/copilot-sdk';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { BrowserChatToolReferenceName, browserChatToolReferenceNames } from '../../../../browserView/common/browserChatToolReferenceNames.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../common/toolSearchConstants.js';
 
 /**
  * Model-agnostic guidance for the `tool_instructions` system-prompt section.
@@ -64,6 +65,16 @@ const browserToolInstructions: ToolInstructionLine = hasTool => {
  * guidance here.
  */
 const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [browserToolInstructions];
+
+/** Tool-search guidance mirrored from the Copilot extension prompt. */
+const toolSearchToolInstructions: ToolInstructionLine = hasTool =>
+	hasTool(CLIENT_TOOL_SEARCH_REFERENCE_NAME)
+		? `Most tools are deferred and hidden until you search for them. Before calling a tool that has not already been loaded, ALWAYS call \`${RUNTIME_TOOL_SEARCH_TOOL_NAME}\` first with a short description of the capability you need, then call the specific tool it returns; tools it returns are immediately available and must not be searched for again.`
+		: undefined;
+
+export function toolSearchInstructionLines(toolSearchActive: boolean): readonly ToolInstructionLine[] {
+	return toolSearchActive ? [...TOOL_INSTRUCTION_LINES, toolSearchToolInstructions] : TOOL_INSTRUCTION_LINES;
+}
 
 /**
  * Composes the applicable `lines` into a single block (one line each), or

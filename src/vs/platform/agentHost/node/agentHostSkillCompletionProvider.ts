@@ -13,7 +13,7 @@ import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
-import { extractWhitespaceDelimitedSlashToken } from './agentHostSlashCompletion.js';
+import { extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from './agentHostSlashCompletion.js';
 
 
 /**
@@ -53,7 +53,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		return candidates
 			.filter(skill => {
 				const uri = skill.uri;
-				if ((!typed.length || skill.slashCommandName.startsWith(typed)) && !skillsSeen.has(uri)) {
+				if (matchesSlashCompletion(typed, skill.slashCommandName) && !skillsSeen.has(uri)) {
 					skillsSeen.add(uri);
 					return true;
 				}

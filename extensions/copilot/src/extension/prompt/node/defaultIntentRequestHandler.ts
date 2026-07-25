@@ -22,6 +22,7 @@ import { HAS_IGNORED_FILES_MESSAGE } from '../../../platform/ignore/common/ignor
 import { ILogService } from '../../../platform/log/common/logService';
 import { isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { FilterReason } from '../../../platform/networking/common/openai';
+import { IChatWebSocketManager } from '../../../platform/networking/node/chatWebSocketManager';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
@@ -101,6 +102,7 @@ export class DefaultIntentRequestHandler {
 		@IChatHookService private readonly _chatHookService: IChatHookService,
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatWebSocketManager private readonly _chatWebSocketManager: IChatWebSocketManager,
 	) {
 		// Initialize properties
 		this.turn = conversation.getLatestTurn();
@@ -110,6 +112,9 @@ export class DefaultIntentRequestHandler {
 		if (isToolCallLimitCancellation(this.request)) {
 			// Just some friendly text instead of an empty message on cancellation:
 			this.stream.markdown(l10n.t("Let me know if there's anything else I can help with!"));
+			if (this.request.subAgentInvocationId) {
+				this._chatWebSocketManager.closeConnection(this.conversation.sessionId, this.request.subAgentInvocationId);
+			}
 			return {};
 		}
 
@@ -189,6 +194,10 @@ export class DefaultIntentRequestHandler {
 			const chatResult = { errorDetails: { message: errorMessage } };
 			this.turn.setResponse(TurnStatus.Error, { message: errorMessage, type: 'meta' }, undefined, chatResult);
 			return chatResult;
+		} finally {
+			if (this.request.subAgentInvocationId) {
+				this._chatWebSocketManager.closeConnection(this.conversation.sessionId, this.request.subAgentInvocationId);
+			}
 		}
 	}
 
@@ -703,6 +712,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 			},
 			debugName,
 			conversationId: this.options.conversation.sessionId,
+			webSocketConnectionId: this.options.request.subAgentInvocationId,
 			turnId: opts.turnId,
 			finishedCb: (text, index, delta) => {
 				this.telemetry.markReceivedToken();

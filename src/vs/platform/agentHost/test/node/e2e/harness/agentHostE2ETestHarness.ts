@@ -220,6 +220,8 @@ export interface IAgentHostE2EProviderConfig {
 	 * session. Claude has not landed subagents yet (Phase 12 in roadmap).
 	 */
 	readonly supportsSubagents: boolean;
+	/** Whether the provider supports creating side chats from a source turn. */
+	readonly supportsSideChats?: boolean;
 	/**
 	 * When set, shell-dependent replay tests are skipped on Linux because this
 	 * provider completes recorded shell-tool turns without emitting tool-call

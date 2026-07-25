@@ -8,3 +8,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/extensions/markdown-language-features"
+    schedule:
+      interval: "daily"
+    allow:
+      - dependency-name: "@vscode/markdown-editor"

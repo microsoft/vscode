@@ -25,9 +25,6 @@ rounds:
       - channel: ${session_0}
         action:
           type: session/ready
-      - channel: ${session_0}
-        action:
-          type: session/metaChanged
       - channel: ${chat_0}
         action:
           type: chat/toolCallStart

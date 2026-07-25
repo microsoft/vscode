@@ -21,9 +21,10 @@ type Reporter = (message: string, isError: boolean) => void;
  * Stylelint gulpfile task. When `designTokensEverywhere` is `true` the
  * design-token suggestions run on every linted file rather than only the
  * design-system area (`src/vs/sessions`); used when the caller explicitly
- * targets a path so the checks follow the requested scope.
+ * targets a path so the checks follow the requested scope. Set
+ * `reportDesignTokenSuggestions` to `false` when only enforced checks should run.
  */
-export default function gulpstylelint(reporter: Reporter, designTokensEverywhere = false): NodeJS.ReadWriteStream {
+export default function gulpstylelint(reporter: Reporter, designTokensEverywhere = false, reportDesignTokenSuggestions = true): NodeJS.ReadWriteStream {
 	const variableValidator = getVariableNameValidator();
 	let errorCount = 0;
 	const monacoWorkbenchPattern = /\.monaco-workbench/;
@@ -65,7 +66,7 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 		// file header as compact `path(line,col): [category] value -> var` rows so
 		// the terminal both groups them visually and linkifies each row.
 		const contents = file.contents.toString('utf8');
-		if (designTokensEverywhere || designSystemPattern.test(file.relative)) {
+		if (reportDesignTokenSuggestions && (designTokensEverywhere || designSystemPattern.test(file.relative))) {
 			const findings: { line: number; category: string; message: string }[] = [];
 			for (const v of validateCodiconFontSizes(contents)) { findings.push({ line: v.line, category: 'codicon', message: v.message }); }
 			for (const v of validateFontSizeTokens(contents)) { findings.push({ line: v.line, category: 'font-size', message: v.message }); }

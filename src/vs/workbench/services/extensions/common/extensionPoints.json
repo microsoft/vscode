@@ -24,6 +24,7 @@
 	"iconThemes",
 	"icons",
 	"jsonValidation",
+	"jsonValidationRegistry",
 	"keybindings",
 	"languageModelChatProviders",
 	"languageModelToolSets",

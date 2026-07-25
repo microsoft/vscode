@@ -20,9 +20,10 @@ import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AutomationIsolationGroupActionViewItem, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { AutomationIsolationGroupActionViewItem, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, resolveAutomationModelIdentifier, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
 const FOLDER = URI.file('/workspace');
@@ -603,6 +604,37 @@ suite('Automation branch picker', () => {
 		const item = sheet.appendChild(document.createElement('button'));
 
 		assert.strictEqual(isAutomationDialogPopupTarget(item), true);
+	});
+
+	test('resolves a legacy model identifier to the selected concrete target', () => {
+		const legacyIdentifier = 'copilotcli/gpt-5.6-sol';
+		const concreteIdentifier = 'agent-host-copilotcli:gpt-5.6-sol';
+		const unrelatedIdentifier = 'other/gpt-5.6-sol';
+		const modelIds = [legacyIdentifier, unrelatedIdentifier];
+		const models = new Map<string, ILanguageModelChatMetadata>([
+			[legacyIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5.6-sol', targetChatSessionType: 'copilotcli' })],
+			[concreteIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5.6-sol', targetChatSessionType: 'agent-host-copilotcli' })],
+			[unrelatedIdentifier, upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5.6-sol', targetChatSessionType: 'other' })],
+		]);
+		const languageModelsService = upcastPartial<ILanguageModelsService>({
+			getLanguageModelIds: () => modelIds,
+			lookupLanguageModel: identifier => models.get(identifier),
+		});
+
+		const beforeConcreteTargetArrives = resolveAutomationModelIdentifier(languageModelsService, legacyIdentifier, 'copilotcli', 'agent-host-copilotcli');
+		modelIds.push(concreteIdentifier);
+
+		assert.deepStrictEqual({
+			beforeConcreteTargetArrives,
+			afterConcreteTargetArrives: resolveAutomationModelIdentifier(languageModelsService, legacyIdentifier, 'copilotcli', 'agent-host-copilotcli'),
+			alreadyConcrete: resolveAutomationModelIdentifier(languageModelsService, concreteIdentifier, 'copilotcli', 'agent-host-copilotcli'),
+			unrelated: resolveAutomationModelIdentifier(languageModelsService, unrelatedIdentifier, 'copilotcli', 'agent-host-copilotcli'),
+		}, {
+			beforeConcreteTargetArrives: legacyIdentifier,
+			afterConcreteTargetArrives: concreteIdentifier,
+			alreadyConcrete: concreteIdentifier,
+			unrelated: unrelatedIdentifier,
+		});
 	});
 });
 

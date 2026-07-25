@@ -9,4 +9,5 @@
 // `vs/workbench/contrib/onboarding` and are booted from the workbench
 // contribution imported in the entry point.
 import './newSessionTourContribution.js';
+import './newSessionViewV2TourContribution.js';
 import './newSessionViewTourContribution.js';

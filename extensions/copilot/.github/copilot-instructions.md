@@ -25,16 +25,9 @@ This is the **GitHub Copilot Chat** extension for Visual Studio Code - a VS Code
 
 ## Validating changes
 
-You MUST check compilation output before running ANY script or declaring work complete!
+Choose validation based on the scope and risk of the change. Prefer existing diagnostics and the smallest targeted tests that cover the changed behavior. Do not start `start-watch-tasks`, run a full build, or make type checking a prerequisite for targeted tests solely as a completion ritual.
 
-1. **ALWAYS** check the `start-watch-tasks` watch task output for compilation errors
-2. **NEVER** use the `compile` task as a way to check if everything is working properly
-3. **FIX** all compilation errors before moving forward
-
-### TypeScript compilation steps
-- Monitor the `start-watch-tasks` task outputs for real-time compilation errors as you make changes
-- This task runs `npm: watch:typecheck-extension`,`npm: watch:typecheck-extension-web`, `npm: watch:typecheck-simulation-workbench`, and `npm: watch:esbuild` to incrementally compile the project
-- Start the task if it's not already running in the background
+If `start-watch-tasks` is already running, use its diagnostics. Start it or run another targeted type check or build when existing diagnostics are unavailable, the change is broad or cross-cutting, it affects build or type configuration, or another validation step reports a compilation problem. `start-watch-tasks` runs the extension, extension-web, simulation-workbench, and esbuild watchers.
 
 ## Project Architecture
 

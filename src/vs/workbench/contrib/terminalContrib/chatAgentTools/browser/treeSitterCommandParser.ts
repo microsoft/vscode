@@ -31,6 +31,8 @@ export const enum TreeSitterCommandParserLanguage {
  */
 const pwshFlagEqualsRegex = /(^|\s)(-{1,2}[\w-]+)=/g;
 
+const envOptionsWithValue = new Set(['-u', '--unset', '-C', '--chdir', '-a', '--argv0']);
+
 // TODO: Remove once upstream tree-sitter PowerShell grammer is updated.
 function maskPwshFlagEquals(commandLine: string): string {
 	return commandLine.replace(pwshFlagEqualsRegex, (_, pre, flag) => `${pre}${flag} `);
@@ -174,15 +176,46 @@ export class TreeSitterCommandParser extends Disposable {
 			commandIndex++;
 		}
 
-		const keyword = this._normalizeCommandKeyword(tokens[commandIndex] ?? '');
+		let keyword = this._normalizeCommandKeyword(tokens[commandIndex] ?? '');
 		if (!keyword) {
 			return undefined;
+		}
+		if (keyword === 'env') {
+			const wrappedCommandIndex = this._getEnvWrappedCommandIndex(tokens, commandIndex + 1);
+			if (wrappedCommandIndex !== undefined) {
+				commandIndex = wrappedCommandIndex;
+				keyword = this._normalizeCommandKeyword(tokens[commandIndex] ?? '');
+				if (!keyword) {
+					return undefined;
+				}
+			}
 		}
 
 		return {
 			keyword,
 			args: tokens.slice(commandIndex + 1),
 		};
+	}
+
+	private _getEnvWrappedCommandIndex(tokens: readonly string[], startIndex: number): number | undefined {
+		for (let i = startIndex; i < tokens.length; i++) {
+			const token = tokens[i];
+			if (this._isVariableAssignment(token)) {
+				continue;
+			}
+			if (token === '--') {
+				return i + 1 < tokens.length ? i + 1 : undefined;
+			}
+			if (token === '-' || token.startsWith('-')) {
+				const option = token.includes('=') ? token.substring(0, token.indexOf('=')) : token;
+				if (!token.includes('=') && envOptionsWithValue.has(option)) {
+					i++;
+				}
+				continue;
+			}
+			return i;
+		}
+		return undefined;
 	}
 
 	/**

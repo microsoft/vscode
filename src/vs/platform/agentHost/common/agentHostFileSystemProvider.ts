@@ -46,10 +46,8 @@ export interface IRemoteFilesystemConnection {
 	 * reports under the watched root. Disposing the handle unsubscribes
 	 * the watch (subject to the receiver's grace window).
 	 *
-	 * Optional: implementations that do not have access to the AHP
-	 * subscription machinery (e.g. raw IPC channels in
-	 * {@link createAgentHostClientResourceConnection}) omit it; the FS
-	 * provider degrades to a no-op `watch()` in that case.
+	 * Optional: implementations without subscription machinery omit it; the
+	 * filesystem provider degrades to a no-op `watch()` in that case.
 	 */
 	watchResource?(params: CreateResourceWatchParams): Promise<IRemoteWatchHandle>;
 }

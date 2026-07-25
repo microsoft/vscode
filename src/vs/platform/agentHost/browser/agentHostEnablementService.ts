@@ -19,6 +19,7 @@ import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../
 // IAgentHostEnablementService. The string is needed here only to register
 // and apply the policy.
 const agentHostEnabledSettingId = 'chat.agentHost.enabled';
+const aiFeaturesDisabledSettingId = 'chat.disableAIFeatures';
 
 // Add the `policy` block to `chat.agentHost.enabled`. The base registration
 // (type, default, description) is done in the common layer as a side-effect of
@@ -61,7 +62,9 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
-		this.enabled = !isWeb && (configurationService.getValue<boolean>(agentHostEnabledSettingId) ?? false);
+		this.enabled = !isWeb
+			&& configurationService.getValue<boolean>(agentHostEnabledSettingId) === true
+			&& configurationService.getValue<boolean>(aiFeaturesDisabledSettingId) !== true;
 		AGENT_HOST_ENABLED_CONTEXT_KEY.bindTo(contextKeyService).set(this.enabled);
 	}
 }

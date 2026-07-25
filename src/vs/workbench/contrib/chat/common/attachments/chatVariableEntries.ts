@@ -449,6 +449,7 @@ export interface IElementAncestorData {
 
 export interface IElementVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'element';
+	readonly value: string;
 	readonly ancestors?: IElementAncestorData[];
 	readonly attributes?: Record<string, string>;
 	readonly computedStyles?: Record<string, string>;

@@ -499,7 +499,7 @@ export class ChatEndpoint implements IChatEndpoint {
 			useWebSocket
 			&& options.conversationId
 			&& options.turnId
-			&& this._chatWebSocketService.hasActiveConnection(options.conversationId)
+			&& this._chatWebSocketService.hasActiveConnection({ conversationId: options.conversationId, modelId: this.model, connectionId: options.webSocketConnectionId })
 		);
 		const response = await this._makeChatRequest2({
 			...options,

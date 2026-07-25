@@ -48,6 +48,13 @@ export interface JsonRpcErrorResponse {
 	};
 }
 
+/** A JSON-RPC parse error cannot identify the request that failed to parse. */
+export interface JsonRpcParseErrorResponse {
+	readonly jsonrpc: '2.0';
+	readonly id: null;
+	readonly error: JsonRpcErrorResponse['error'];
+}
+
 /**
  * A typed JSON-RPC error response whose error object is a fully typed
  * {@link AhpError}. Useful when the caller knows the response is an AHP
@@ -60,7 +67,7 @@ export interface AhpErrorResponse {
 }
 
 /** A JSON-RPC response (success or error). */
-export type JsonRpcResponse = JsonRpcSuccessResponse | JsonRpcErrorResponse;
+export type JsonRpcResponse = JsonRpcSuccessResponse | JsonRpcErrorResponse | JsonRpcParseErrorResponse;
 
 /** A JSON-RPC notification: has `method` but no `id`. */
 export interface JsonRpcNotification {

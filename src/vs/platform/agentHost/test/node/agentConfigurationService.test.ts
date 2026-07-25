@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { createSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
 import { buildSubagentSessionUri, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -183,5 +187,54 @@ suite('AgentConfigurationService', () => {
 				config: { level: 'high' },
 			});
 		});
+	});
+
+	test('does not persist provider-backed root settings in agent-host config', async () => {
+		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
+		const resource = URI.file(join(directory, 'agent-host-config.json'));
+		const localManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const localService = disposables.add(new AgentConfigurationService(localManager, new NullLogService(), resource));
+		localService.registerProviderConfiguration({
+			provider: 'test',
+			title: 'Test',
+			description: 'Test settings',
+			properties: { 'test.personality': { type: 'string', title: 'Personality', default: 'friendly' } },
+			settings: [{ key: 'test.personality', group: 'Personalization' }],
+		});
+
+		localService.updateRootConfig({ 'test.personality': 'pragmatic' });
+		await localService.whenIdle();
+
+		const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
+		assert.strictEqual(persisted['test.personality'], undefined);
+		assert.strictEqual(localManager.rootState.config?.values['test.personality'], 'pragmatic');
+		fs.rmSync(directory, { recursive: true, force: true });
+	});
+
+	test('seeds provider configuration into the initial root snapshot', () => {
+		const localManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		disposables.add(new AgentConfigurationService(localManager, new NullLogService(), undefined, [{
+			provider: 'test',
+			title: 'Test',
+			description: 'Test settings',
+			properties: { 'test.personality': { type: 'string', title: 'Personality', default: 'friendly' } },
+			settings: [{ key: 'test.personality', group: 'Personalization' }],
+		}]));
+
+		assert.strictEqual(localManager.rootState.config?.schema.properties['test.personality']?.title, 'Personality');
+		assert.strictEqual(localManager.rootState.config?.values['test.personality'], 'friendly');
+		assert.deepStrictEqual(getAgentCustomizationSettingsEntries(localManager.rootState).map(entry => entry.provider), ['test']);
+	});
+
+	test('ignores malformed provider customization metadata', () => {
+		manager.rootState._meta = {
+			[AGENT_CUSTOMIZATION_SETTINGS_META_KEY]: [
+				{ provider: 'missing-settings' },
+				{ provider: 'bad-setting', title: 'Bad', description: 'Bad', settings: [{ group: 'Group' }] },
+				{ provider: 'valid', title: 'Valid', description: 'Valid settings', settings: [{ key: 'valid.value', group: 'Group' }] },
+			],
+		};
+
+		assert.deepStrictEqual(getAgentCustomizationSettingsEntries(manager.rootState).map(entry => entry.provider), ['valid']);
 	});
 });

@@ -29,6 +29,7 @@ interface IControlSpec {
 		readonly sharingState?: BrowserViewSharingState;
 	}[];
 	readonly subagents?: readonly string[];
+	readonly subagentStatus?: SessionStatus;
 	readonly enabled?: boolean;
 }
 
@@ -58,7 +59,7 @@ function createControl(spec: IControlSpec, store: ReturnType<typeof ensureNoDisp
 	const subagents = (spec.subagents ?? []).map((title, index) => new class extends mock<IChat>() {
 		override readonly resource = URI.parse(`chat:subagent-${index}`);
 		override readonly title = constObservable(title);
-		override readonly status = constObservable(SessionStatus.InProgress);
+		override readonly status = constObservable(spec.subagentStatus ?? SessionStatus.InProgress);
 		override readonly origin = { kind: ChatOriginKind.Tool, parentChat: mainChat.resource };
 	}());
 	const session = new class extends mock<IActiveSession>() {
@@ -223,6 +224,18 @@ suite('SessionBackgroundActivitiesControl', () => {
 				{ text: '2 Background Activities', ariaLabel: 'Show 2 background activities', icons: ['session-in-progress', 'chevron-down'] },
 			],
 			disabledVisible: false,
+		});
+	});
+
+	test('keeps subagents visible while they need input', () => {
+		const harness = createControl({ subagents: ['Waiting'], subagentStatus: SessionStatus.NeedsInput }, store);
+
+		assert.deepStrictEqual({
+			visible: harness.control.isVisible.get(),
+			summary: summarize(harness.control),
+		}, {
+			visible: true,
+			summary: { text: 'Waiting', ariaLabel: 'Open Waiting', icons: ['agent'] },
 		});
 	});
 

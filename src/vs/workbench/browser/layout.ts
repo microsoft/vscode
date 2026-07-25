@@ -2322,11 +2322,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	toggleSecondarySideBar(): void {
-		const visible = !this.isVisible(Parts.AUXILIARYBAR_PART);
+		const visible = !this.isSecondarySideBarVisible();
 		this.setPartHidden(!visible, Parts.AUXILIARYBAR_PART);
 		alert(visible
 			? localize('auxiliaryBarVisible', "Secondary Side Bar shown")
 			: localize('auxiliaryBarHidden', "Secondary Side Bar hidden"));
+	}
+
+	isSecondarySideBarVisible(): boolean {
+		return this.isVisible(Parts.AUXILIARYBAR_PART);
 	}
 
 	hasMainWindowBorder(): boolean {

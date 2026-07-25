@@ -56,7 +56,7 @@ export class SSHRelayClientFactory implements ISSHRelayClientFactory {
 			{ logsHome: this._environmentService.logsHome, connectionId, transport: 'ssh' },
 		) : undefined;
 		const transport = this._instantiationService.createInstance(SSHRelayTransport, connectionId, mainService, logger);
-		return this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined);
+		return this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined, undefined);
 	}
 }
 

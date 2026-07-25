@@ -13,6 +13,7 @@ import { StaticChatMLFetcher } from '../../../../platform/chat/test/common/stati
 import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
 import { IResponseDelta } from '../../../../platform/networking/common/fetch';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
+import { IChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { SpyingTelemetryService } from '../../../../platform/telemetry/node/spyingTelemetryService';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
@@ -189,6 +190,24 @@ suite('defaultIntentRequestHandler', () => {
 		// Wait for event loop to finish as we often fire off telemetry without properly awaiting it as it doesn't matter when it is sent
 		await new Promise(setImmediate);
 		expect(getDerandomizedTelemetry()).toMatchSnapshot();
+	});
+
+	test('isolates and closes a subagent WebSocket connection', async () => {
+		const request = new TestChatRequest();
+		Object.assign(request, { subAgentInvocationId: 'subagent-1', subAgentName: 'Reviewer' });
+		const requestSpy = vi.spyOn(endpoint, 'makeChatRequest2');
+		const closeConnectionSpy = vi.spyOn(accessor.get(IChatWebSocketManager), 'closeConnection');
+		const handler = makeHandler({ request });
+		chatResponse[0] = 'some response here :)';
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+		};
+
+		await handler.getResult();
+
+		expect(requestSpy.mock.calls[0][0].webSocketConnectionId).toBe('subagent-1');
+		expect(closeConnectionSpy).toHaveBeenCalledWith(sessionId, 'subagent-1');
 	});
 
 	test('propagates resolvedModel into result metadata from a successful response', async () => {

@@ -79,10 +79,7 @@ export abstract class AgentHostInputCompletionsBase<TContext, TRegData = void> e
 
 	private async _provide(model: ITextModel, position: Position, token: CancellationToken, triggerCharacters: readonly string[], regData: TRegData): Promise<CompletionList | null> {
 		// Only consult the agent host when the cursor sits inside a token
-		// led by one of the host-announced trigger characters. Without
-		// this gate Monaco re-invokes the provider on every keystroke
-		// (for filtering / incomplete-result refresh), which would
-		// produce an RPC round-trip per character.
+		// led by one of the host-announced trigger characters.
 		if (!isAtTriggerCharacterToken(model, position, triggerCharacters)) {
 			return null;
 		}
@@ -106,7 +103,7 @@ export abstract class AgentHostInputCompletionsBase<TContext, TRegData = void> e
 				suggestions.push(built);
 			}
 		}
-		return { suggestions };
+		return { suggestions, incomplete: true };
 	}
 
 	/**

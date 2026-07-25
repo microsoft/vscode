@@ -12,6 +12,8 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
+import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
@@ -149,6 +151,11 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		return telemetry.events.filter(e => e.eventName === 'agentHost.turnCompleted');
 	}
 
+	function capturedModel(data: Record<string, unknown>): { trusted: boolean; value: unknown } {
+		const model = data.model;
+		return model instanceof TelemetryTrustedValue ? { trusted: true, value: model.value } : { trusted: false, value: model };
+	}
+
 	function failedEvents(): { eventName: string; data: unknown }[] {
 		return telemetry.events.filter(e => e.eventName === 'agentHost.turnFailed');
 	}
@@ -192,6 +199,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	test('emits turnCompleted with timing, model and permissionLevel on success', () => {
 		setupSession();
+		agent.setModels([{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false }]);
 		setAutoApprove('autopilot');
 		startTurn('turn-1', 'hello', 'gpt-5.5');
 
@@ -205,11 +213,35 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(data.agentSessionId, 'session-1');
 		assert.strictEqual(data.turnId, 'turn-1');
 		assert.strictEqual(data.result, 'success');
-		assert.strictEqual(data.model, 'gpt-5.5');
+		assert.deepStrictEqual(capturedModel(data), { trusted: true, value: 'gpt-5.5' });
 		assert.strictEqual(data.modelSelectionKind, 'explicit');
 		assert.strictEqual(data.permissionLevel, 'autopilot');
 		assert.strictEqual(typeof data.totalTime, 'number');
 		assert.strictEqual(typeof data.timeToFirstProgress, 'number');
+	});
+
+	test('uses generic model values for BYOK and unknown selections', () => {
+		setupSession();
+		agent.setModels([{
+			provider: 'mock',
+			id: 'openrouter/private-model',
+			name: 'Private Model',
+			supportsVision: false,
+			_meta: createAgentModelByokMeta('openrouter/private-model'),
+		}]);
+
+		startTurn('turn-byok', 'hello', 'openrouter/private-model');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-byok', duration: 1000 });
+		startTurn('turn-unknown', 'hello', 'unadvertised/private-model');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-unknown', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { model: data.model, modelSelectionKind: data.modelSelectionKind };
+		}), [
+			{ model: 'byokModel', modelSelectionKind: 'explicit' },
+			{ model: 'unknown', modelSelectionKind: 'explicit' },
+		]);
 	});
 
 	test('timeToFirstProgress is undefined when no visible progress arrives before completion', () => {
@@ -229,10 +261,12 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		startTurn('turn-1', 'hello', 'auto');
 		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1000 });
 
-		const events = completedEvents();
-		assert.strictEqual(events.length, 1);
-		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'cancelled');
-		assert.strictEqual((events[0].data as Record<string, unknown>).modelSelectionKind, 'auto');
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			model: capturedModel(data),
+			result: data.result,
+			modelSelectionKind: data.modelSelectionKind,
+		}, { model: { trusted: true, value: 'auto' }, result: 'cancelled', modelSelectionKind: 'auto' });
 	});
 
 	test('emits result=error on ChatError', () => {

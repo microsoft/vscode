@@ -8,7 +8,7 @@ import { copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
 import { appendSystemMessageContent, COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS, COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides } from './systemMessage.js';
-import { resolveToolInstructionsOverride } from './toolInstructions.js';
+import { resolveToolInstructionsOverride, toolSearchInstructionLines } from './toolInstructions.js';
 
 type CopilotCliConfigDefinition = typeof copilotCliConfigSchema.definition;
 
@@ -43,6 +43,9 @@ export interface IAgentHostPromptContext {
 	 * is the context-enrichment follow-up.
 	 */
 	hasClientTool(name: string): boolean;
+
+	/** Whether deferred tool search is active for this session. */
+	toolSearchActive: boolean;
 
 	/**
 	 * Whether this is a workspace-less session. When `true`, the
@@ -205,7 +208,7 @@ export class AgentHostPromptRegistry {
 		if (config.mode !== 'customize') {
 			return config;
 		}
-		const toolInstructions = resolveToolInstructionsOverride(name => context.hasClientTool(name), config.sections?.tool_instructions);
+		const toolInstructions = resolveToolInstructionsOverride(name => context.hasClientTool(name), config.sections?.tool_instructions, toolSearchInstructionLines(context.toolSearchActive));
 		if (!toolInstructions) {
 			return config;
 		}

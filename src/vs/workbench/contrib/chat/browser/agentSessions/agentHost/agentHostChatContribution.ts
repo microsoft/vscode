@@ -31,6 +31,7 @@ import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
 import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
+import { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 
@@ -103,6 +104,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	private readonly _isSessionsWindow: boolean;
 	private readonly _enableSmokeTestDriver: boolean;
+	private readonly _promptCacheNotification: AgentHostPromptCacheNotification | undefined;
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -126,6 +128,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		if (!agentHostEnablementService.enabled) {
 			return;
 		}
+		this._promptCacheNotification = this._register(this._instantiationService.createInstance(AgentHostPromptCacheNotification));
 
 		this._register(_agentHostFileSystemService.registerAuthority('local', this._agentHostService));
 
@@ -268,6 +271,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			connection: this._agentHostService,
 			connectionAuthority: 'local',
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
+			promptCacheNotification: this._promptCacheNotification,
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 

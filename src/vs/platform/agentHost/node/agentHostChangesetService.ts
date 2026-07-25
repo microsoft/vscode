@@ -311,12 +311,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	refreshChangesetCatalog(session: ProtocolURI): void {
 		const state = this._stateManager.getSessionState(session);
-		if (state?.lifecycle !== SessionLifecycle.Ready) {
+		if (!state || state?.lifecycle === SessionLifecycle.CreationFailed) {
 			return;
 		}
 
-		const gitState = readSessionGitState(state?._meta);
-		const changesets = buildDefaultChangesetCatalog(session, gitState);
+		const changesets = buildDefaultChangesetCatalog(session, state);
 		this._stateManager.setSessionChangesets(session, changesets);
 	}
 

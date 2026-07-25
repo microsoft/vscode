@@ -54,6 +54,36 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.strictEqual(auto?.metadata.detail, undefined, 'discountPercent 0 → no detail');
 	});
 
+	test('carries picker category, price category, and promo from model metadata', async () => {
+		const provider = createProvider();
+		provider.updateModels([makeModel('claude-sonnet', {
+			category: 'powerful',
+			priceCategory: 'medium',
+			promo: {
+				id: 'summer-sale',
+				discountPercent: 25,
+				endsAt: '2026-08-01T00:00:00Z',
+				message: 'Save on Claude Sonnet',
+			},
+		})]);
+
+		const metadata = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata;
+		assert.deepStrictEqual({
+			category: metadata.category,
+			priceCategory: metadata.priceCategory,
+			promo: metadata.promo,
+		}, {
+			category: 'powerful',
+			priceCategory: 'medium',
+			promo: {
+				id: 'summer-sale',
+				discountPercent: 25,
+				endsAt: '2026-08-01T00:00:00Z',
+				message: 'Save on Claude Sonnet',
+			},
+		});
+	});
+
 	test('derives the picker group from the model-id prefix, not the harness provider', async () => {
 		const provider = createProvider();
 		// The agent host reports every model under the harness provider (`copilotcli`);

@@ -1103,6 +1103,10 @@
 		"--slide-from-y"
 	],
 	"sizes": [
+		"--segmented-icon-toggle-cell-width",
+		"--segmented-icon-toggle-height",
+		"--segmented-icon-toggle-single-width",
+		"--segmented-icon-toggle-width",
 		"--vscode-agents-fontSize-body1",
 		"--vscode-agents-fontSize-body2",
 		"--vscode-agents-fontSize-heading1",

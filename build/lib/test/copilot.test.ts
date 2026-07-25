@@ -126,6 +126,7 @@ suite('copilot', () => {
 		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-darwin-arm64', [
 			'index.js',
 			'app.js',
+			'sdk/index.js',
 			'sea-loader.js',
 			'prebuilds/darwin-arm64/runtime.node',
 			'prebuilds/darwin-arm64/pty.node',

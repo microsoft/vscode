@@ -22,6 +22,7 @@ import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
+import { TerminalInitialHintContribution } from '../../inlineHint/browser/terminal.initialHint.contribution.js';
 
 
 const symbolMap: { [key: string]: string } = {
@@ -91,6 +92,10 @@ export class TerminalVoiceSession extends Disposable {
 
 	async start(): Promise<void> {
 		this.stop();
+		const activeInstance = this._terminalService.activeInstance;
+		if (activeInstance) {
+			TerminalInitialHintContribution.get(activeInstance)?.dispose();
+		}
 		let voiceTimeout = this._configurationService.getValue<number>(AccessibilityVoiceSettingId.SpeechTimeout);
 		if (!isNumber(voiceTimeout) || voiceTimeout < 0) {
 			voiceTimeout = SpeechTimeoutDefault;

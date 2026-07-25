@@ -76,9 +76,17 @@ export class SinglePaneWorkbench extends Workbench {
 		this.toggleEditorPane();
 	}
 
+	override isSecondarySideBarVisible(): boolean {
+		return this.isVisible(Parts.EDITOR_PART, mainWindow);
+	}
+
 	toggleEditorPane(): void {
-		const visible = !this.isVisible(Parts.EDITOR_PART, mainWindow);
+		const visible = !this.isSecondarySideBarVisible();
+		const editorHadFocus = !visible && this.hasFocus(Parts.EDITOR_PART);
 		this.setEditorHidden(!visible, /* explicit */ true);
+		if (editorHadFocus) {
+			this.focusPart(this.isVisible(Parts.AUXILIARYBAR_PART) ? Parts.AUXILIARYBAR_PART : Parts.SESSIONS_PART);
+		}
 		alert(visible
 			? localize('editorPaneVisible', "Editor pane shown")
 			: localize('editorPaneHidden', "Editor pane hidden"));

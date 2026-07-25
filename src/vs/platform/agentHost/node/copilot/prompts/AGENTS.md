@@ -73,6 +73,42 @@ default client-tool allowlist is `chat.agentHost.clientTools` (see
 These lines compose with a per-model `tool_instructions` override (see
 `composeToolInstructions`), so Lever 1 and Lever 2 stack.
 
+## Tool search (deferred tool loading)
+
+When `chat.agentHost.copilot.toolSearch.enabled` is on AND the session's model
+supports it (`agentHostModelSupportsToolSearch`), the launcher sets
+`toolSearch: { enabled: true, deferThreshold: 1 }` and the session defers MCP +
+non-core client tools behind the runtime's `tool_search_tool`:
+
+- **The override** (`copilotAgentSession._createClientSdkTools`): the client's
+  forwarded `toolSearch` tool is registered as `tool_search_tool` with
+  `overridesBuiltInTool: true` and `defer: 'never'`, so the runtime routes the
+  model's search to the client's semantic search. The SDK supplies the runtime's
+  live deferred-tool metadata to the override handler; Agent Host carries that
+  corpus as transient tool-call metadata and injects it only into the local
+  `toolSearch` invocation, so embeddings rank the runtime/MCP tools rather than
+  the extension's registry. The corpus is never added to model-facing tool input.
+  Every other client tool gets
+  `defer: 'never'` if it is in `NON_DEFERRED_CLIENT_TOOL_NAMES`
+  (`runTests`, `rename`, `usages`), else `defer: 'auto'`. Built-in runtime tools
+  are never deferred. The renderer (`agentHostSessionHandler._setupClientToolCall`)
+  maps `tool_search_tool` back to `toolSearch` to execute the real VS Code tool.
+- **The prompt** (this folder): `toolSearchInstructionLines(toolSearchActive)`
+  adds a `tool_instructions` line (`toolSearchToolInstructions`) telling the
+  model to load deferred tools via `tool_search_tool` first — gated on
+  `context.toolSearchActive` because the `toolSearch` tool is *always* forwarded,
+  so presence alone can't gate it. The runtime already emits its own
+  deferred-tools reminder (`build_deferred_tools_user_message`) with the accurate
+  deferred set, so this layer intentionally does NOT re-list the deferred tools.
+
+The two identity/count levers are independent: `deferThreshold` is a total
+tool-count gate (1 ⇒ always active), while each tool's `defer` flag decides
+whether *that* tool is deferred.
+
+This B-inject bridge is intentionally interim. A follow-up moves tool-search
+registration and ranking into VS Code core so Agent Host no longer depends on
+the Copilot extension's tool implementation or embeddings plumbing.
+
 ## Lever 2 — per-model contributor (`promptRegistry.ts` + `allPrompts.ts`)
 
 Guidance scoped to a model or family. Implement `IAgentHostPrompt` and register

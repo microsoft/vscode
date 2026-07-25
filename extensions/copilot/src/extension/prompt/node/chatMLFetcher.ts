@@ -138,7 +138,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 	 * Note: the returned array of strings may be less than `n` (e.g., in case there were errors during streaming)
 	 */
 	public async fetchMany(opts: IFetchMLOptions, token: CancellationToken): Promise<ChatResponses> {
-		let { debugName, endpoint: chatEndpoint, finishedCb, location, messages, requestOptions, source, telemetryProperties, userInitiatedRequest, interactionTypeOverride, conversationId, turnId, topLevelTurnId, useWebSocket, ignoreStatefulMarker } = opts;
+		let { debugName, endpoint: chatEndpoint, finishedCb, location, messages, requestOptions, source, telemetryProperties, userInitiatedRequest, interactionTypeOverride, conversationId, webSocketConnectionId, turnId, topLevelTurnId, useWebSocket, ignoreStatefulMarker } = opts;
 		const interactionType = interactionTypeOverride ?? locationToIntent(location);
 		if (useWebSocket && this._consecutiveWebSocketRetryFallbacks >= ChatMLFetcherImpl._maxConsecutiveWebSocketFallbacks) {
 			this._logService.debug(`[ChatWebSocketManager] Disabling WebSocket for request due to ${this._consecutiveWebSocketRetryFallbacks} consecutive WebSocket failures with successful HTTP fallback.`);
@@ -243,6 +243,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					useWebSocket,
 					turnId,
 					conversationId,
+					webSocketConnectionId,
 					telemetryProperties,
 					opts.useFetcher,
 					canRetryOnce,
@@ -914,7 +915,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._logService.info(`[ChatWebSocketManager] WebSocket request failed with successful HTTP fallback (${this._consecutiveWebSocketRetryFallbacks} consecutive).`);
 			if (opts.conversationId) {
 				// Closing here because the retry is transparent.
-				this._webSocketManager.closeConnection(opts.conversationId);
+				this._webSocketManager.closeConnection(opts.conversationId, opts.webSocketConnectionId);
 			}
 		}
 		return { retryResult, connectivityTestError, connectivityTestErrorGitHubRequestId };
@@ -936,6 +937,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		useWebSocket?: boolean,
 		turnId?: string,
 		conversationId?: string,
+		webSocketConnectionId?: string,
 		telemetryProperties?: TelemetryProperties | undefined,
 		useFetcher?: FetcherId,
 		canRetryOnce?: boolean,
@@ -976,6 +978,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				useWebSocket,
 				turnId,
 				conversationId,
+				webSocketConnectionId,
 				telemetryProperties,
 				useFetcher,
 				canRetryOnce,
@@ -1015,6 +1018,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		useWebSocket?: boolean,
 		turnId?: string,
 		conversationId?: string,
+		webSocketConnectionId?: string,
 		telemetryProperties?: TelemetryProperties | undefined,
 		useFetcher?: FetcherId,
 		canRetryOnce?: boolean,
@@ -1093,6 +1097,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					ourRequestId,
 					turnId,
 					conversationId,
+					webSocketConnectionId,
 					cancellationToken,
 					countTokens,
 					userInitiatedRequest,
@@ -1152,6 +1157,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		ourRequestId: string,
 		turnId: string,
 		conversationId: string,
+		webSocketConnectionId: string | undefined,
 		cancellationToken: CancellationToken,
 		countTokens: () => Promise<number>,
 		userInitiatedRequest: boolean | undefined,
@@ -1175,7 +1181,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		if (request.messages?.some((m: CAPIChatMessage) => Array.isArray(m.content) ? m.content.some(c => 'image_url' in c) : false) && chatEndpointInfo.supportsVision) {
 			additionalHeaders['Copilot-Vision-Request'] = 'true';
 		}
-		const connection = this._webSocketManager.getOrCreateConnection(conversationId, additionalHeaders, ourRequestId);
+		const connection = this._webSocketManager.getOrCreateConnection({ conversationId, modelId: chatEndpointInfo.model, connectionId: webSocketConnectionId }, additionalHeaders, ourRequestId);
 		try {
 			await connection.connect();
 		} catch (err) {

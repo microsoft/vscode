@@ -8,7 +8,7 @@ import { derived, IObservable, ISettableObservable, observableValue, transaction
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import {
 	AutomationRunTrigger,
@@ -20,15 +20,15 @@ import {
 import {
 	IAutomationService,
 	ICreateAutomationOptions,
+	IGuardedAutomationUpdateResult,
+	serializeAutomationEditableState,
 	IUpdateAutomationOptions,
 	IUpdateAutomationRunOptions,
 } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { publishAutomationCreated, publishAutomationDeleted, publishAutomationUpdated } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import { computeNextRunAt } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
-
-// APPLICATION scope, non-roaming.
-const STORAGE_KEY = 'chat.automations.ledger';
+import { AUTOMATION_STORAGE_KEY, IAutomationStorageService } from '../common/automationStorageService.js';
 
 const LEGACY_SCHEMA_VERSIONS = new Set([1, 2]);
 const CURRENT_SCHEMA_VERSION = 3;
@@ -97,6 +97,10 @@ interface ILedger {
 	readonly runs: readonly IAutomationRun[];
 }
 
+type ILedgerMutation<T> =
+	| { readonly kind: 'commit'; readonly ledger: ILedger; readonly result: T }
+	| { readonly kind: 'noChange'; readonly result: T };
+
 const EMPTY_LEDGER: ILedger = Object.freeze({ automations: [], runs: [] });
 
 type ReadLedgerResult =
@@ -112,9 +116,6 @@ export class AutomationService extends Disposable implements IAutomationService 
 	private _now: () => Date;
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 
-	// Set when on-disk schema is newer than this build. Prevents writes that would destroy data.
-	private _unsupportedSchema = false;
-
 	private _lastSeenRevision = 0;
 
 	readonly automations: IObservable<readonly IAutomation[]>;
@@ -124,12 +125,13 @@ export class AutomationService extends Disposable implements IAutomationService 
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IAutomationStorageService private readonly automationStorageService: IAutomationStorageService,
 	) {
 		super();
 
 		this._now = () => new Date();
 
-		const result = this.readLedger();
+		const result = this.readLedger(this.storageService.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION));
 		const initial = result.kind === 'ledger' ? result.ledger : EMPTY_LEDGER;
 		if (result.kind === 'ledger') {
 			this._lastSeenRevision = result.revision;
@@ -139,12 +141,8 @@ export class AutomationService extends Disposable implements IAutomationService 
 		this.automations = this._automations;
 		this.runs = this._runs;
 
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, STORAGE_KEY, this._store)(() => {
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, AUTOMATION_STORAGE_KEY, this._store)(() => {
 			this.refreshFromStorage();
-		}));
-
-		this._register(this.storageService.onWillSaveState(() => {
-			this.persist(this._automations.get(), this._runs.get());
 		}));
 	}
 
@@ -167,9 +165,6 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	async createAutomation(options: ICreateAutomationOptions): Promise<IAutomation> {
-		if (this._unsupportedSchema) {
-			throw new Error('Cannot modify automations: storage was written by a newer version');
-		}
 		const now = this._now();
 		const nowIso = now.toISOString();
 		const nextRun = computeNextRunAt(options.schedule, now);
@@ -188,60 +183,91 @@ export class AutomationService extends Disposable implements IAutomationService 
 			lastRunAt: undefined,
 			nextRunAt: nextRun?.toISOString(),
 		});
-		const next = [automation, ...this._automations.get()];
-		this.commit(next, this._runs.get());
+		await this.mutateLedger(ledger => ({
+			kind: 'commit',
+			ledger: { automations: [automation, ...ledger.automations], runs: ledger.runs },
+			result: undefined,
+		}));
 		publishAutomationCreated(this.telemetryService, automation);
 		return automation;
 	}
 
 	async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation> {
-		if (this._unsupportedSchema) {
-			throw new Error('Cannot modify automations: storage was written by a newer version');
-		}
-		const current = this.getAutomation(id);
-		if (!current) {
-			throw new Error(`Automation not found: ${id}`);
-		}
-		const merged = mergeAutomation(current, patch);
-		const scheduleChanged = patch.schedule !== undefined;
-		const enabledChanged = patch.enabled !== undefined;
-		const updated: IAutomation = Object.freeze({
-			...merged,
-			updatedAt: this._now().toISOString(),
-			nextRunAt: (scheduleChanged || (enabledChanged && merged.enabled))
-				? computeNextRunAt(merged.schedule, this._now())?.toISOString()
-				: merged.nextRunAt,
+		const now = this._now();
+		const result = await this.mutateLedger(ledger => {
+			const current = ledger.automations.find(automation => automation.id === id);
+			if (!current) {
+				throw new Error(`Automation not found: ${id}`);
+			}
+			const updated = updateAutomation(current, patch, now);
+			return {
+				kind: 'commit',
+				ledger: {
+					automations: ledger.automations.map(automation => automation.id === id ? updated : automation),
+					runs: ledger.runs,
+				},
+				result: { current, updated },
+			};
 		});
-		const next = this._automations.get().map(a => a.id === id ? updated : a);
-		this.commit(next, this._runs.get());
-		publishAutomationUpdated(this.telemetryService, current, updated);
-		return updated;
+		publishAutomationUpdated(this.telemetryService, result.current, result.updated);
+		return result.updated;
+	}
+
+	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation): Promise<IGuardedAutomationUpdateResult> {
+		const now = this._now();
+		let previous: IAutomation | undefined;
+		const result = await this.mutateLedger<IGuardedAutomationUpdateResult>(ledger => {
+			const current = ledger.automations.find(automation => automation.id === id);
+			if (!current || serializeAutomationEditableState(current) !== serializeAutomationEditableState(expected)) {
+				return {
+					kind: 'noChange',
+					result: { kind: 'conflict', current } as const,
+				};
+			}
+
+			const updated = updateAutomation(current, patch, now);
+			previous = current;
+			return {
+				kind: 'commit',
+				ledger: {
+					automations: ledger.automations.map(automation => automation.id === id ? updated : automation),
+					runs: ledger.runs,
+				},
+				result: { kind: 'updated', automation: updated } as const,
+			};
+		});
+		if (result.kind === 'conflict' || !previous) {
+			return result;
+		}
+
+		publishAutomationUpdated(this.telemetryService, previous, result.automation);
+		return result;
 	}
 
 	async deleteAutomation(id: string): Promise<void> {
-		if (this._unsupportedSchema) {
-			throw new Error('Cannot modify automations: storage was written by a newer version');
-		}
-		const existing = this.getAutomation(id);
-		const next = this._automations.get().filter(a => a.id !== id);
-		if (next.length === this._automations.get().length) {
+		const existing = await this.mutateLedger(ledger => {
+			const automation = ledger.automations.find(automation => automation.id === id);
+			if (!automation) {
+				return { kind: 'noChange', result: undefined };
+			}
+			return {
+				kind: 'commit',
+				ledger: {
+					automations: ledger.automations.filter(automation => automation.id !== id),
+					runs: ledger.runs.filter(run => run.automationId !== id),
+				},
+				result: automation,
+			};
+		});
+		if (!existing) {
 			return;
 		}
-		this.commit(next, this._runs.get());
+
 		this._runsForCache.delete(id);
-		if (existing) {
-			publishAutomationDeleted(this.telemetryService, existing);
-		}
+		publishAutomationDeleted(this.telemetryService, existing);
 	}
 
 	async recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRun> {
-		if (this._unsupportedSchema) {
-			throw new Error('Cannot modify automations: storage was written by a newer version');
-		}
-		const automation = this.getAutomation(automationId);
-		if (!automation) {
-			throw new Error(`Automation not found: ${automationId}`);
-		}
 		const now = this._now();
 		const startedAt = now.toISOString();
 		const run: IAutomationRun = Object.freeze({
@@ -252,39 +278,52 @@ export class AutomationService extends Disposable implements IAutomationService 
 			startedAt,
 			leaderWindowId,
 		});
-		let nextAutomations = this._automations.get();
-		if (trigger !== 'manual') {
-			const updatedAutomation: IAutomation = Object.freeze({
-				...automation,
-				lastRunAt: startedAt,
-				nextRunAt: computeNextRunAt(automation.schedule, now)?.toISOString(),
-				updatedAt: startedAt,
-			});
-			nextAutomations = nextAutomations.map(a => a.id === automationId ? updatedAutomation : a);
-		}
-		const nextRuns = [run, ...this._runs.get()];
-		this.commit(nextAutomations, nextRuns);
+		await this.mutateLedger(ledger => {
+			const automation = ledger.automations.find(automation => automation.id === automationId);
+			if (!automation) {
+				throw new Error(`Automation not found: ${automationId}`);
+			}
+			let automations = ledger.automations;
+			if (trigger !== 'manual') {
+				const updatedAutomation: IAutomation = Object.freeze({
+					...automation,
+					lastRunAt: startedAt,
+					nextRunAt: computeNextRunAt(automation.schedule, now)?.toISOString(),
+					updatedAt: startedAt,
+				});
+				automations = automations.map(automation => automation.id === automationId ? updatedAutomation : automation);
+			}
+			return {
+				kind: 'commit',
+				ledger: { automations, runs: [run, ...ledger.runs] },
+				result: undefined,
+			};
+		});
 		return run;
 	}
 
 	async updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined> {
-		if (this._unsupportedSchema) {
-			throw new Error('Cannot modify automations: storage was written by a newer version');
-		}
-		const current = this._runs.get().find(r => r.id === runId);
-		if (!current) {
-			return undefined;
-		}
-		const merged: IAutomationRun = Object.freeze({
-			...current,
-			status: patch.status ?? current.status,
-			sessionResource: patch.sessionResource ?? current.sessionResource,
-			completedAt: patch.completedAt ?? current.completedAt,
-			errorMessage: patch.errorMessage ?? current.errorMessage,
+		return this.mutateLedger(ledger => {
+			const current = ledger.runs.find(run => run.id === runId);
+			if (!current) {
+				return { kind: 'noChange', result: undefined };
+			}
+			const updated: IAutomationRun = Object.freeze({
+				...current,
+				status: patch.status ?? current.status,
+				sessionResource: patch.sessionResource ?? current.sessionResource,
+				completedAt: patch.completedAt ?? current.completedAt,
+				errorMessage: patch.errorMessage ?? current.errorMessage,
+			});
+			return {
+				kind: 'commit',
+				ledger: {
+					automations: ledger.automations,
+					runs: ledger.runs.map(run => run.id === runId ? updated : run),
+				},
+				result: updated,
+			};
 		});
-		const nextRuns = this._runs.get().map(r => r.id === runId ? merged : r);
-		this.commit(this._automations.get(), nextRuns);
-		return merged;
 	}
 
 	getActiveRunFor(automationId: string): IAutomationRun | undefined {
@@ -292,81 +331,93 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	async markStaleRunsFailed(reason: string): Promise<void> {
-		if (this._unsupportedSchema) {
-			throw new Error('Cannot modify automations: storage was written by a newer version');
-		}
-		let changed = false;
 		const completedAt = this._now().toISOString();
-		const nextRuns = this._runs.get().map(r => {
-			if (r.status === 'pending' || r.status === 'running') {
-				changed = true;
-				return Object.freeze({ ...r, status: 'failed' as const, completedAt, errorMessage: reason });
+		await this.mutateLedger(ledger => {
+			let changed = false;
+			const runs = ledger.runs.map(run => {
+				if (run.status === 'pending' || run.status === 'running') {
+					changed = true;
+					return Object.freeze({ ...run, status: 'failed' as const, completedAt, errorMessage: reason });
+				}
+				return run;
+			});
+			if (!changed) {
+				return { kind: 'noChange', result: undefined };
 			}
-			return r;
+			return {
+				kind: 'commit',
+				ledger: { automations: ledger.automations, runs },
+				result: undefined,
+			};
 		});
-		if (changed) {
-			this.commit(this._automations.get(), nextRuns);
-		}
 	}
 
 	//#region Persistence
 
-	private commit(automations: readonly IAutomation[], runs: readonly IAutomationRun[]): void {
-		if (this._unsupportedSchema) {
-			this.logService.warn('[AutomationService] Skipping commit; ledger has an unsupported (newer) schema version.');
-			return;
+	private async mutateLedger<T>(mutate: (ledger: ILedger) => ILedgerMutation<T>): Promise<T> {
+		let raw = await this.automationStorageService.read();
+		while (true) {
+			const readResult = this.readLedger(raw);
+			if (readResult.kind === 'unsupportedSchema') {
+				throw new Error('Cannot modify automations: storage was written by a newer version');
+			}
+
+			this.acceptLedger(readResult.ledger, readResult.revision);
+			const mutation = mutate(readResult.ledger);
+			if (mutation.kind === 'noChange') {
+				return mutation.result;
+			}
+
+			const ledger: ILedger = {
+				automations: mutation.ledger.automations,
+				runs: trimRunsPerAutomation(mutation.ledger.runs, MAX_RUNS_PER_AUTOMATION),
+			};
+			const revision = readResult.revision + 1;
+			const serialized: ISerializedLedger = {
+				schemaVersion: CURRENT_SCHEMA_VERSION,
+				revision,
+				automations: ledger.automations.map(serializeAutomation),
+				runs: [...ledger.runs],
+			};
+			const newValue = JSON.stringify(serialized);
+			const writeResult = await this.automationStorageService.compareAndSwap(raw, newValue);
+			if (writeResult.swapped) {
+				this.acceptLedger(ledger, revision);
+				return mutation.result;
+			}
+			if (writeResult.currentValue === raw) {
+				throw new Error('Automation storage rejected an unchanged compare-and-swap value.');
+			}
+			raw = writeResult.currentValue;
 		}
-		const trimmedRuns = trimRunsPerAutomation(runs, MAX_RUNS_PER_AUTOMATION);
-		transaction(tx => {
-			this._automations.set(automations, tx);
-			this._runs.set(trimmedRuns, tx);
-		});
-		this.persist(automations, trimmedRuns);
 	}
 
-	private persist(automations: readonly IAutomation[], runs: readonly IAutomationRun[]): void {
-		if (this._unsupportedSchema) {
+	private acceptLedger(ledger: ILedger, revision: number): void {
+		if (revision < this._lastSeenRevision) {
 			return;
 		}
-
-		const nextRevision = this._lastSeenRevision + 1;
-		const serialized: ISerializedLedger = {
-			schemaVersion: CURRENT_SCHEMA_VERSION,
-			revision: nextRevision,
-			automations: automations.map(serializeAutomation),
-			runs: [...runs],
-		};
-		try {
-			this.storageService.store(STORAGE_KEY, JSON.stringify(serialized), StorageScope.APPLICATION, StorageTarget.MACHINE);
-		} catch (err) {
-			this.logService.warn('[AutomationService] Failed to persist ledger to storage', err);
-			return;
-		}
-		this._lastSeenRevision = nextRevision;
+		this._lastSeenRevision = revision;
+		transaction(tx => {
+			this._automations.set(ledger.automations, tx);
+			this._runs.set(ledger.runs, tx);
+		});
 	}
 
 	private refreshFromStorage(): void {
-		const result = this.readLedger();
+		const result = this.readLedger(this.storageService.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION));
 		if (result.kind === 'unsupportedSchema') {
 			return;
 		}
-		this._unsupportedSchema = false;
-		this._lastSeenRevision = result.revision;
-		transaction(tx => {
-			this._automations.set(result.ledger.automations, tx);
-			this._runs.set(result.ledger.runs, tx);
-		});
+		this.acceptLedger(result.ledger, result.revision);
 	}
 
-	private readLedger(): ReadLedgerResult {
-		const raw = this.storageService.get(STORAGE_KEY, StorageScope.APPLICATION);
+	private readLedger(raw: string | undefined): ReadLedgerResult {
 		if (!raw) {
 			return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
 		}
 		try {
 			const parsed = JSON.parse(raw) as ISerializedLedger | ILegacySerializedLedger;
 			if (typeof parsed?.schemaVersion === 'number' && parsed.schemaVersion > CURRENT_SCHEMA_VERSION) {
-				this._unsupportedSchema = true;
 				this.logService.warn(`[AutomationService] Ledger has schema v${parsed.schemaVersion}; this build only supports v${CURRENT_SCHEMA_VERSION}. Entering read-only mode.`);
 				return { kind: 'unsupportedSchema' };
 			}
@@ -484,6 +535,19 @@ function createAutomationFromSerialized(s: ISerializedAutomationBase, target: Au
 		updatedAt: s.updatedAt,
 		lastRunAt: s.lastRunAt,
 		nextRunAt: s.nextRunAt,
+	});
+}
+
+function updateAutomation(current: IAutomation, patch: IUpdateAutomationOptions, now: Date): IAutomation {
+	const merged = mergeAutomation(current, patch);
+	const scheduleChanged = patch.schedule !== undefined;
+	const enabledChanged = patch.enabled !== undefined;
+	return Object.freeze({
+		...merged,
+		updatedAt: now.toISOString(),
+		nextRunAt: (scheduleChanged || (enabledChanged && merged.enabled))
+			? computeNextRunAt(merged.schedule, now)?.toISOString()
+			: merged.nextRunAt,
 	});
 }
 

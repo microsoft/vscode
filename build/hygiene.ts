@@ -243,7 +243,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 			} else {
 				console.warn(message);
 			}
-		})))
+		}), false, false))
 	);
 
 	let count = 0;

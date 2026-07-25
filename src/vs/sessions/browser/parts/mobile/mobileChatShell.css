@@ -574,6 +574,12 @@
 	min-width: max-content;
 }
 
+/* Keep phone chips unconstrained so long labels scroll horizontally instead of clipping. */
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .sessions-chat-session-type-picker,
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-session-type-picker-host {
+	max-width: none;
+}
+
 /* Chip-pill style for each picker / toolbar action item in the chip row.
  * Each chip is a rounded, touch-friendly pill with a subtle background,
  * styled to match the iOS reference: compact padding, no visible border,

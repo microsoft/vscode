@@ -54,6 +54,7 @@ suite('KimiPrompts', () => {
 		const renderedPrompts = await Promise.all([
 			renderSystemPrompt('kimi-k2.6'),
 			renderSystemPrompt('kimi-k2.7-code'),
+			renderSystemPrompt('kimi-k3'),
 		]);
 
 		for (const renderedPrompt of renderedPrompts) {

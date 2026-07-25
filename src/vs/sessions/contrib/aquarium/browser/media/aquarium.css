@@ -253,11 +253,16 @@
 .agents-aquarium-toggle-streak {
 	display: inline-flex;
 	align-items: center;
+	gap: var(--vscode-spacing-size40);
 	font-size: var(--vscode-agents-fontSize-label2, 11px);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 1;
 	white-space: nowrap;
 	color: var(--vscode-foreground, #cccccc);
+}
+
+.agents-aquarium-toggle-streak .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 /* A died streak badge: a quiet, non-interactive hint that feeding a fish will
@@ -267,7 +272,7 @@
 	color: var(--vscode-descriptionForeground, #999999);
 }
 
-/* Off-state icon (smiley): brief attention-grabbing wiggle every 12s. The
+/* Off-state fish: brief attention-grabbing wiggle every 12s. The
  * keyframes hold the rest pose for ~93% of the cycle and only animate during
  * the first ~7%. */
 .agents-aquarium-toggle:not(.active) .codicon {

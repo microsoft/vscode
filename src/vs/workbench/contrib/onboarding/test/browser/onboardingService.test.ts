@@ -399,17 +399,29 @@ suite('OnboardingScenarioService', () => {
 			presentation: { kind: presentation.kind, payload: undefined }
 		});
 
-		// Before resolution the id is blocked from telemetry by the prefix filter.
+		const assignmentContext = 'onb-tour-q3:12345';
 		const { service } = createService({}, assignment);
-		assert.strictEqual(assignment.isExcluded('onb-tour-q3'), true, 'blocked before would-show');
+		const excludedBeforeWouldShow = assignment.isExcluded(assignmentContext);
 
 		service.start();
 		await timeout(0);
 		await timeout(0);
 
 		assert.deepStrictEqual(
-			{ runs: presentation.runs, shown: service.hasBeenShown('exp-treat'), excluded: assignment.isExcluded('onb-tour-q3') },
-			{ runs: ['exp-treat'], shown: true, excluded: false }
+			{
+				excludedBeforeWouldShow,
+				runs: presentation.runs,
+				shown: service.hasBeenShown('exp-treat'),
+				excludedAfterWouldShow: assignment.isExcluded(assignmentContext),
+				otherVariantExcluded: assignment.isExcluded('onb-tour-q3-other:12346')
+			},
+			{
+				excludedBeforeWouldShow: true,
+				runs: ['exp-treat'],
+				shown: true,
+				excludedAfterWouldShow: false,
+				otherVariantExcluded: true
+			}
 		);
 	});
 
@@ -431,7 +443,7 @@ suite('OnboardingScenarioService', () => {
 
 		// No tour shown, not marked shown (re-eligible later), but the id now flows.
 		assert.deepStrictEqual(
-			{ runs: presentation.runs, shown: service.hasBeenShown('exp-control'), excluded: assignment.isExcluded('onb-tour-q3') },
+			{ runs: presentation.runs, shown: service.hasBeenShown('exp-control'), excluded: assignment.isExcluded('onb-tour-q3:12345') },
 			{ runs: [], shown: false, excluded: false }
 		);
 	});
@@ -509,7 +521,7 @@ suite('OnboardingScenarioService', () => {
 		const secondAssignment = new FakeAssignmentService({ 'exp.show': false, 'exp.id': 'onb-tour-q3' });
 		createService({}, secondAssignment, storage);
 
-		assert.strictEqual(secondAssignment.isExcluded('onb-tour-q3'), false);
+		assert.strictEqual(secondAssignment.isExcluded('onb-tour-q3:12345'), false);
 	});
 
 	test('a second experiment with a new id is blocked for a user who already saw the tour', async () => {

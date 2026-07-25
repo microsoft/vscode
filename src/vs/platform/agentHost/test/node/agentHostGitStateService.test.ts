@@ -103,7 +103,7 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
-	test('defers git state while a session is creating', async () => {
+	test('refreshes git state in memory while a session is creating', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const h = createHarness();
 			h.stateManager.createSession({
@@ -115,16 +115,21 @@ suite('AgentHostGitStateService', () => {
 				modifiedAt: new Date(0).toISOString(),
 				workingDirectories: ['file:///original'],
 			}, { emitNotification: false });
-			h.setGitResult({ branchName: 'feature' });
+			const next: ISessionGitState = { branchName: 'feature', uncommittedChanges: 1 };
+			h.setGitResult(next);
 
 			await h.service.refreshSessionGitState(SESSION, URI.parse('file:///explicit'));
 
 			assert.deepStrictEqual({
 				gitCalls: h.gitCalls,
+				gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
+				persistedGit: await h.db.getMetadata(META_GIT_STATE),
 				runEvents: h.runEvents,
 			}, {
-				gitCalls: [],
-				runEvents: [],
+				gitCalls: ['file:///explicit'],
+				gitState: next,
+				persistedGit: undefined,
+				runEvents: [SESSION],
 			});
 		});
 	});

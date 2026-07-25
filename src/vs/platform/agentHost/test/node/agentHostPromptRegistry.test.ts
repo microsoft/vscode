@@ -11,6 +11,7 @@ import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
 import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS, COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
 import { BrowserChatToolReferenceName } from '../../../browserView/common/browserChatToolReferenceNames.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import '../../node/copilot/prompts/allPrompts.js';
 
@@ -18,12 +19,13 @@ import '../../node/copilot/prompts/allPrompts.js';
  * Builds a prompt context backed by an in-memory bag of customization settings
  * and an optional set of available tool names.
  */
-function context(settings: SchemaValues<typeof copilotCliConfigSchema.definition> = {}, tools: readonly string[] = [], workspaceless = false): IAgentHostPromptContext {
+function context(settings: SchemaValues<typeof copilotCliConfigSchema.definition> = {}, tools: readonly string[] = [], workspaceless = false, toolSearchActive = false): IAgentHostPromptContext {
 	const toolNames = new Set(tools);
 	return {
 		getSetting: key => settings[key],
 		hasClientTool: name => toolNames.has(name),
 		workspaceless,
+		toolSearchActive,
 	};
 }
 
@@ -257,6 +259,58 @@ suite('AgentHostPromptRegistry', () => {
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({}, ['anyTool'])),
 				withFileLinkInstructions({ mode: 'customize', sections: { tool_instructions: { action: 'append', content: 'Always prefer ripgrep.' } } })
+			);
+		});
+	});
+
+	suite('tool search instructions wiring', () => {
+		// End-to-end guard that the registry layers the tool-search line only
+		// when `toolSearchActive` AND the client tool-search tool are both
+		// present; the composition/gating itself is covered in
+		// toolInstructions.test.ts.
+		const TOOL_SEARCH_LINE = `Most tools are deferred and hidden until you search for them. Before calling a tool that has not already been loaded, ALWAYS call \`${RUNTIME_TOOL_SEARCH_TOOL_NAME}\` first with a short description of the capability you need, then call the specific tool it returns; tools it returns are immediately available and must not be searched for again.`;
+
+		test('layers the tool-search line onto the default config when active and the tool-search tool is present', () => {
+			const registry = new AgentHostPromptRegistry();
+			assert.deepStrictEqual(
+				registry.resolveSystemMessageConfig({ id: 'm' }, context({}, [CLIENT_TOOL_SEARCH_REFERENCE_NAME], false, true)),
+				withFileLinkInstructions({
+					mode: 'customize',
+					sections: {
+						identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+						tool_instructions: { action: 'append', content: `\n${TOOL_SEARCH_LINE}` },
+					},
+				})
+			);
+		});
+
+		test('is a no-op when tool search is inactive even if the tool-search tool is present', () => {
+			const registry = new AgentHostPromptRegistry();
+			assert.deepStrictEqual(
+				registry.resolveSystemMessageConfig({ id: 'm' }, context({}, [CLIENT_TOOL_SEARCH_REFERENCE_NAME], false, false)),
+				withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
+			);
+		});
+
+		test('is a no-op when active but the client does not expose the tool-search tool', () => {
+			const registry = new AgentHostPromptRegistry();
+			assert.deepStrictEqual(
+				registry.resolveSystemMessageConfig({ id: 'm' }, context({}, ['anyTool'], false, true)),
+				withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
+			);
+		});
+
+		test('composes the tool-search line with a per-model tool_instructions override', () => {
+			const registry = new AgentHostPromptRegistry();
+			registry.registerPrompt(class {
+				static readonly familyPrefixes = ['claude'];
+				resolveSectionOverrides(): Partial<Record<SystemMessageSection, SectionOverride>> {
+					return { tool_instructions: { action: 'append', content: 'Always prefer ripgrep.' } };
+				}
+			});
+			assert.deepStrictEqual(
+				registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({}, [CLIENT_TOOL_SEARCH_REFERENCE_NAME], false, true)),
+				withFileLinkInstructions({ mode: 'customize', sections: { tool_instructions: { action: 'append', content: `\nAlways prefer ripgrep.\n${TOOL_SEARCH_LINE}` } } })
 			);
 		});
 	});

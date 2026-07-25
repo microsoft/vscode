@@ -197,6 +197,16 @@ suite('AgentHostSkillCompletionProvider', () => {
 		]);
 	});
 
+	test('fuzzy matches skills by the typed slash token', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('fix-ci'), skill('other')])];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/ci');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/skills:fix-ci ']);
+	});
+
 	test('filters skills by an in-message slash prefix and replaces only that token', async () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha'), skill('beta')])];

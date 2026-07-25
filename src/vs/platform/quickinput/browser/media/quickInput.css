@@ -13,13 +13,13 @@
 	box-shadow: var(--vscode-shadow-xl);
 }
 
-.style-override.monaco-enable-motion .quick-input-widget {
+.style-override.monaco-enable-motion .quick-input-widget:not(.quick-input-widget-overlay) {
 	animation: quick-input-widget-open 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
 	transform-origin: top center;
 	will-change: transform, opacity;
 }
 
-.style-override.monaco-enable-motion .quick-input-widget.quick-input-widget-closing {
+.style-override.monaco-enable-motion .quick-input-widget.quick-input-widget-closing:not(.quick-input-widget-overlay) {
 	animation: quick-input-widget-close 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
 	pointer-events: none;
 }
@@ -327,6 +327,10 @@
 	line-height: normal;
 	text-overflow: ellipsis;
 	overflow: hidden;
+}
+
+.quick-input-list .monaco-list-row.focused .quick-input-list-label-meta {
+	opacity: 1;
 }
 
 /* preserve list-like styling instead of tree-like styling */

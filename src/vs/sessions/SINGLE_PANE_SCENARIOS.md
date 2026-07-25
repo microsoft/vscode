@@ -82,7 +82,7 @@ width) captures a width to restore later.
 | **Toggle Details** (`≡`) | Editor title bar, primary inline, after Maximize | Shows/hides the detail panel (default keybinding **`⌥⌘L`**). Hiding the detail **while the editor is hidden reveals the editor** (→ *Editor only*), so the pane is never left empty — this applies in the **new-session view** too (revealing the empty editor rather than closing the whole pane). Opening the detail panel via this action auto-collapses the **sessions list** to free width for the editor area **only on a small window** (`≤ 1800px`); a wider window has room to keep the list open. Closing the detail restores the sessions list. Its `toggled` state (`AuxiliaryBarVisibleContext`) is kept **in sync with the actual rendering**: the toggle reads "on" iff the detail panel is rendered with an active view container — an empty (gated-off) container is never shown, and the layout controller (D10) reconciles the part away if it becomes visible with nothing to render. Shown **only** when the active tab is **Changes or Files** (not Browser or Search, which have no detail). |
 | **Maximize / Restore** | Editor title bar, primary inline | Maximizes the editor area (forces the Changes detail while maximized; restores on un-maximize). Default keybinding **`⌥⌘E`** toggles maximize/restore while the editor area is visible. |
 | **Collapse All Diffs** | Changes editor header, primary inline | Collapses every file in the Changes multi-diff (`SessionChangesEditor.collapseAllDiffs`). |
-| **`+` Add Tab** | End of the tab strip | Opens the Add Tab menu (Browser `⇧⌘K B`, Search `⌘K S`; a **Changes** entry when the Changes editor tab is closed, and a **Files** entry `⌘K B` when the Files tab is closed — both for a created workspace session). Re-added managed Changes/Files tabs are inserted at the **end** of the tab strip. Search opens a new Search editor. **Hidden when the editor area is closed.** |
+| **`+` Add Tab** | End of the tab strip | Opens the Add Tab menu (Browser `⇧⌘K B`, Search `⌘K S`; a **Changes** entry when the Changes editor tab is closed, and a **Files** entry `⌘K B` when the Files tab is closed — both for any workspace session). Re-added managed Changes/Files tabs are inserted at the **end** of the tab strip. Search opens a new Search editor. **Hidden when the editor area is closed.** |
 | **Toggle Side Panel** | Command / keybinding | Closes/opens the **whole** side pane (editor + detail together) → chat-only and back. |
 | **Toggle Sessions List** | Title bar / command | Collapses/opens the left sessions list. Collapsing it gives the freed width to the editor/detail side pane (not the chat); reopening restores the previous editor/detail width so the chat gets that space back. The list is **also** auto-collapsed — **but only on a small window (`≤ 1800px`)** — when the user opens the detail panel via **Toggle Details**, or when they open a real file/diff into the editor area **in an existing (created) session while the editor area is currently closed** (and restored when they close it), unless the user has since reopened it manually. On a wider window there is room to keep the list open, so neither gesture collapses it. An auto-collapsed list is **also restored** once the space constraint is gone — the side pane becomes fully hidden (both editor and detail closed, e.g. switching to a quick chat), **or the window grows past the threshold** — so the list is never left collapsed with nothing to make room for. A list the user closed **manually** stays closed. |
 | **Grid sash** | Between the chat and the third pane | Dragging a detail-only side pane wider keeps the editor content closed. When editor content and details are visible but no longer fit, the detail panel hides; widening past the hysteresis threshold restores it. |
@@ -92,17 +92,19 @@ width) captures a width to restore later.
 
 **Managed Files tab.** The empty Files placeholder tab (and the Changes tab) is opened only when the editor group is **empty** on a view-open trigger (a session switch or a side-pane reveal). Opening a real workspace file **tidies away** the empty placeholder (a `[Changes][file]` strip) as a **one-shot reaction to that open** — not a standing rule — so the user can still add the Files tab via **`+` Files** while a real file is open (that opens an `EmptyFileEditorInput`, not a real file, so it is not tidied away). The placeholder is **not** re-added when the real file closes; the defaults return only when the group empties and the side pane is reopened.
 
-**Layout-driven vs user editor changes.** The default docked tabs are (re)opened into an empty group on a **settled** session-switch restore — the base controller fires `onDidEndSessionLayoutRestore` once the restore epoch (working-set apply + aux restore) completes, and the strategy reconciles off that. This matters for a new session: its **empty** working set closes the previous session's docked tabs, emptying the group *after* the switch; reconciling on the settled restore-end reads the reliably-empty group and re-opens the Files tab. Reacting to the transient editor-change *during* the async apply would race the empty state. A **user-driven** editor change (opening a file, closing a tab) is *not* a restore, so it never re-opens the defaults and a user close still sticks / still closes the side pane.
+**Layout-driven vs user editor changes.** The default docked tabs are (re)opened into an empty group on a **settled** session-switch restore — the base controller fires `onDidEndSessionLayoutRestore` once the restore epoch (working-set apply + aux restore) completes, and the strategy reconciles off that. This matters for a new session: its **empty** working set closes the previous session's docked tabs, emptying the group *after* the switch; reconciling on the settled restore-end reads the reliably-empty group and re-opens both managed tabs. Reacting to the transient editor-change *during* the async apply would race the empty state. A **user-driven** editor change (opening a file, closing a tab) is *not* a restore, so it never re-opens the defaults and a user close still sticks / still closes the side pane.
 
-**New-session submit.** On submit (an uncreated session becoming created — in place or via a resource-replace commit) the new-session view already holds the Files placeholder, so the empty-group rule above would skip opening Changes. The submit transition (`isCreated` going false → true for the active session) is therefore treated as a one-shot "ensure the Changes tab" moment: the Changes tab is opened **active** and pinned first even though the group is non-empty (opening it active — not inactive — is what makes the detail panel map to the Changes container rather than the still-present Files placeholder). Because it is a genuine one-time transition, it never fights a later user close. The submit reconcile's "activate Changes" intent is **scoped to its session**: if the reconcile is superseded by a **session switch** while it is still opening the Changes editor, its intent is dropped rather than leaked onto the switched-to session (which would otherwise reopen a closed tab or activate Changes for the wrong session).
+**Folder-less composer to workspace draft.** Opening **New Session** first exposes a folder-less composer and then seeds its concrete workspace draft. The first step removes the previous session's Changes tab while the shared Files placeholder can keep the editor group non-empty, so the second step explicitly ensures Changes when `wantsChangesTab` becomes true. When the selected session folder differs from the new-session default folder, the workspace-gated working-set restore can settle later and remove that early Changes tab while retaining Files; the settled restore therefore repeats the one-shot Changes ensure for the uncreated session. Relying only on the empty-group rule or only on the initial eligibility transition leaves Files as the sole tab until another reveal or New Session gesture.
 
-**Details-only reveal.** When the side pane is opened as **details-only** (the aux-bar detail panel is revealed without the editor area — e.g. the new-session view, or a created session whose editor was hidden), the docked details panel *shows* the managed docked inputs, so they must always be present. On such a reveal the managed inputs (Changes if created, plus the Files placeholder) are ensured **even when the group is non-empty** — e.g. if the user had earlier closed one of them, it is restored. This is tied to the reveal gesture, so a close *within* an already-open details view still sticks until the next reveal. An editor-included reveal (the editor area is visible) keeps the strict "add only into an empty group" rule, so a close there is respected.
+**New-session submit.** On submit (an uncreated session becoming created — in place or via a resource-replace commit) the new-session view already holds both managed tabs with Files as the default. The submit transition (`isCreated` going false → true for the active session) is therefore treated as a one-shot "activate the Changes tab" moment even though the group is non-empty (making it active is what maps the detail panel to the Changes container rather than the Files placeholder). Because it is a genuine one-time transition, it never fights a later user close. The submit reconcile's "activate Changes" intent is **scoped to its session**: if the reconcile is superseded by a **session switch** while it is still opening the Changes editor, its intent is dropped rather than leaked onto the switched-to session (which would otherwise reopen a closed tab or activate Changes for the wrong session).
 
-**Closing managed tabs.** The user can close the managed Changes and Files tabs (they are non-preview, not sticky). Closes are respected without any dismissal bookkeeping: the default tabs are opened **only into an empty editor group** on a view-open trigger (plus the one-shot submit ensure above, and the details-only reveal ensure), so closing one tab while another (or a real file) remains leaves the group non-empty and it is not re-created. Closing the last tab closes the whole side pane; reopening it (empty group) restores the defaults. While a managed tab is closed for a created workspace session, the `+` Add Tab menu offers a matching entry to reopen it — **Changes** (gated on `SinglePaneChangesTabMissingContext`) and **Files** (gated on `SinglePaneFilesTabMissingContext`); the re-added tab makes the group non-empty, so it survives.
+**Details-only reveal.** When the side pane is opened as **details-only** (the aux-bar detail panel is revealed without the editor area — e.g. the new-session view, or a created session whose editor was hidden), the docked details panel *shows* the managed docked inputs, so they must always be present. On such a reveal the Changes and Files inputs are ensured **even when the group is non-empty** — e.g. if the user had earlier closed one of them, it is restored. This is tied to the reveal gesture, so a close *within* an already-open details view still sticks until the next reveal. An editor-included reveal (the editor area is visible) keeps the strict "add only into an empty group" rule, so a close there is respected.
+
+**Closing managed tabs.** The user can close the managed Changes and Files tabs (they are non-preview, not sticky). Closes are respected without any dismissal bookkeeping: the default tabs are opened **only into an empty editor group** on a view-open trigger (plus the one-shot submit activation above, and the details-only reveal ensure), so closing one tab while another (or a real file) remains leaves the group non-empty and it is not re-created. Closing the last tab closes the whole side pane; reopening it (empty group) restores the defaults. While a managed tab is closed for a workspace session, the `+` Add Tab menu offers a matching entry to reopen it — **Changes** (gated on `SinglePaneChangesTabMissingContext`) and **Files** (gated on `SinglePaneFilesTabMissingContext`); the re-added tab makes the group non-empty, so it survives.
 
 **Per-session detail state.** A created session's detail-panel (aux-bar) visible/hidden choice is captured per session and restored on switch-back and reload (a detail-closed session stays detail-closed when returning to it), even if an external component transiently reveals the aux bar during the working-set restore or a queued detail-container sync from the previous session runs later.
 
-**Reopening after closing all tabs.** Closing all tabs closes the whole side pane; the managed Changes (created) / Files (new-session) tabs are re-ensured, so reopening the side pane shows the Changes editor or Files tab — never an empty editor.
+**Reopening after closing all tabs.** Closing all tabs closes the whole side pane; the managed Changes and Files tabs are re-ensured, so reopening the side pane is never empty.
 
 **Side-pane-closed persists across reload.** Closing the whole side pane is remembered across a window reload. On reload the restored managed tab does **not** re-reveal the detail: the detail-panel forced reveal is gated on the editor content being visible, so a fully-closed side pane stays closed until the user reopens it.
 
@@ -116,7 +118,7 @@ layout keeps *Close Editor Area*).
 ## 4. Tabs
 
 - **Changes** — a custom `SessionChangesEditor` (Branch Changes dropdown + diff stats + embedded
-  multi-diff). Pinned first, present for **created** sessions with a workspace.
+  multi-diff). Pinned first, present for every session with a workspace.
 - **File** — the empty File tab (`EmptyFileEditorInput`) as a landing tab, plus real file editors the
   user opens. Opened **pinned, inactive, preserve-focus** so it never steals focus from the chat.
 - **Browser** — the integrated browser (`BrowserEditorInput`).
@@ -150,8 +152,9 @@ Rules:
 
 ### R1 — New-session (uncreated) view
 When the new-session composer is active (uncreated session, has a workspace, not a quick chat):
-- **Initial state:** **File tab** active + **Files detail** open + **editor content closed** (*Detail
-  only*). Tab bar visible. The composer keeps focus (the File tab is inactive/preserve-focus).
+- **Initial state:** **Changes and File tabs** shown, **File tab** active + **Files detail** open +
+  **editor content closed** (*Detail only*). Tab bar visible. The composer keeps focus (the File tab is
+  inactive/preserve-focus).
 - The editor is kept hidden while this view is active, but the hide is **transition-triggered**: it fires
   when the editor **just became visible**, or when the new-session view was **just entered** with the editor
   already visible (an inherited-visible editor from the previous session) — where *real content* is a real
@@ -176,7 +179,7 @@ When the new-session composer is active (uncreated session, has a workspace, not
 
 ### R2 — New session submitted (uncreated → created)
 When the new session is submitted:
-- A **Changes tab** is added and the **Changes detail** is shown.
+- The existing **Changes tab** is activated and the **Changes detail** is shown.
 - The **editor content stays closed** (*Detail only*) — neither the submit nor the auto-opened Changes
   editor reveals it. This also applies when the provider commits the draft by replacing it with a new
   session resource. The user opens the editor when they want it (open a file/diff).
@@ -195,7 +198,7 @@ then hidden, an auto-collapsed **sessions list** is restored (see Toggle Session
 
 | From | Action | To |
 |------|--------|-----|
-| — | Enter new-session view | *Detail only* (File tab + Files detail, editor closed) |
+| — | Enter new-session view | *Detail only* (Changes + File tabs, File active + Files detail, editor closed) |
 | *Detail only* (new session) | Open a file from Files | *Editor + Detail* (editor revealed, stays open) |
 | *Detail only* / *Side pane closed* (created session) | Click **Changes** pill | *Editor only* (Changes editor revealed, detail stays closed unless separately restored/opened) |
 | *Detail only* (new session) | Toggle Details (hide detail) | *Editor only* (empty editor revealed — the side pane does not vanish) |
@@ -214,18 +217,18 @@ then hidden, an auto-collapsed **sessions list** is restored (see Toggle Session
 | *Detail only* (created session) | Drag grid sash wider | *Detail only* (editor content stays closed) |
 | any | Activate **Browser** tab | detail hidden (transient) |
 | Browser active (detail hidden) | Activate **Files/Changes** tab | detail restored |
-| new-session *Detail only* | **Submit** the session | *Detail only* + Changes tab + Changes detail |
+| new-session *Detail only* | **Submit** the session | *Detail only* + Changes tab active + Changes detail |
 
 ---
 
 ## 8. Manual validation checklist
 
-1. **New session view:** File tab + Files detail open + **no editor content**; tab bar visible; the
-   "What are you building?" composer keeps focus.
+1. **New session view:** Changes and File tabs shown + File active + Files detail open + **no editor
+   content**; tab bar visible; the "What are you building?" composer keeps focus.
 2. **Open a file** from the Files view in the new-session view → the editor content appears and stays.
 3. **Detail toggle** in the new-session view → the editor content appears (detail hides).
-4. **Submit** a new session → a Changes tab appears with the Changes detail; the editor content is
-   **still closed**.
+4. **Submit** a new session → the Changes tab becomes active with the Changes detail; the editor
+   content is **still closed**.
 5. **Hide Editor** chevron → editor content closes, detail **keeps its width**, chat expands, tab bar
    stays; the chevron then hides.
 6. **Detail toggle** from *Editor + Detail* → detail hides, editor stays (*Editor only*); toggle again

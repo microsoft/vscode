@@ -48,7 +48,7 @@ described delivery slots (native MDM, server-managed, and file-based).
 |---------|-----------------|----------------|----------|
 | **Native MDM** (Windows registry / macOS plist) | OS managed preferences | `NativeManagedSettingsService` (`src/vs/platform/policy/node/nativeManagedSettingsService.ts`) via `@vscode/policy-watcher` | `INativeManagedSettingsService.managedSettings` |
 | **Server-managed** (`/copilot_internal/managed_settings`) | GitHub endpoint; per the code comment in `managedSettings.ts`, it returns the enterprise's `.github/copilot/settings.json` content | `adaptManagedSettings` (`src/vs/workbench/services/accounts/browser/managedSettings.ts`) → `DefaultAccountService.policyData` | `accountPolicyData.managedSettings` |
-| **File-based** (`managed-settings.json`) | well-known per-OS disk path (e.g. `/Library/Application Support/GitHubCopilot/` on macOS), read in the main process and exposed to renderer windows over IPC | `FileManagedSettingsService` (`src/vs/platform/policy/common/fileManagedSettingsService.ts`) | `IFileManagedSettingsService.managedSettings` |
+| **File-based** (`managed-settings.json`) | well-known per-OS disk path (e.g. `/Library/Application Support/GitHubCopilot/` on macOS), read in the main process and exposed to renderer windows over IPC | `FileManagedSettingsService` (`src/vs/platform/policy/common/fileManagedSettingsService.ts`) | `IFileManagedSettingsService.rawManagedSettings` + `.managedSettings` |
 
 All three VS Code channels converge in `AccountPolicyService.getPolicyData()`.
 
@@ -268,7 +268,28 @@ The **file-based** channel is wired the same way (`src/vs/code/electron-main/mai
 `NullFileManagedSettingsService` when no path applies. It is exposed to the renderer over IPC
 via `FileManagedSettingsChannel` / `FileManagedSettingsChannelClient`
 (`fileManagedSettingsIpc.ts`), registered as the `fileManagedSettings` channel in `app.ts`,
-and `AccountPolicyService` subscribes to its `onDidChangeManagedSettings` too.
+and `AccountPolicyService` subscribes to its `onDidChangeManagedSettings` too. The service also
+retains the parsed source object as `rawManagedSettings` with a separate change event. That raw
+snapshot is diagnostics-only; policy evaluation continues to consume the normalized
+`managedSettings` bag.
+
+## Diagnostics pipeline
+
+**Developer: Policy Diagnostics** shows each delivery channel as a pipeline:
+
+1. Source input (the server response, parsed file, or definition-scoped native watcher values).
+2. Canonical normalized bag from `normalizeManagedSettings`.
+3. VS Code policy projection from `projectManagedSettings`.
+
+It then shows per-key channel precedence, the merged normalized bag, and the final bag delivered to
+VS Code policy callbacks. Runtime-owned settings can therefore remain visible in a raw source even
+when VS Code has no corresponding policy declaration and the projected bag is empty.
+
+The report separately queries capable Agent Host providers for their own effective managed-settings
+snapshot. Copilot uses the platform runtime package's public `sdk/index.js#getManagedSettings()`
+API, which returns the same payload as `session.managed_settings_resolved` without requiring an
+active session. This runtime snapshot is not treated as another VS Code delivery channel because
+the runtime owns its schema and authority resolution independently.
 
 ## Adding a brand-new managed-settings key (checklist)
 

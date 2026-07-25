@@ -225,6 +225,17 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 			return;
 		}
 
+		if (method === 'GET' && pathname === '/v1/models') {
+			// The Codex endpoint expects its own rich `ModelsResponse` schema, not
+			// CAPI's model shape. VS Code already owns CAPI model discovery and
+			// supplies the selected model when starting a turn, so an empty remote
+			// catalog keeps Codex's bundled model metadata while avoiding a noisy
+			// refresh failure on every proxy-backed runtime start.
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ models: [] }));
+			return;
+		}
+
 		// Codex sends `/v1/responses`, `//responses` (when base_url ends in `/`),
 		// or plain `/responses`. Accept all three.
 		if (method === 'POST' && (pathname === '/v1/responses' || pathname === '/responses' || pathname === '//responses')) {

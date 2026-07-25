@@ -53,7 +53,7 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 			{ logsHome: this._environmentService.logsHome, connectionId, transport: 'wsl' },
 		) : undefined;
 		const transport = this._instantiationService.createInstance(WSLRelayTransport, connectionId, mainService, logger);
-		return this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined);
+		return this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined, undefined);
 	}
 }
 

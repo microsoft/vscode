@@ -60,15 +60,8 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	// ---- Lifecycle hooks ----------------------------------------------------
 
 	/**
-	 * Called at session create time. Registers the static changeset URIs
-	 * on the state manager so client subscriptions resolve to a
-	 * `status: computing` snapshot before the first compute pass.
-	 *
-	 * The catalogue summary (`summary.changesets`) is seeded synchronously
-	 * by `_buildInitialSummary` in {@link AgentService} via
-	 * {@link buildDefaultChangesetCatalogue}; this method only registers
-	 * the backing per-changeset state. Both halves run before
-	 * `SessionReady` is dispatched.
+	 * Seeds the create-time catalogue and registers its backing changeset state
+	 * before `SessionReady` is dispatched.
 	 */
 	onSessionCreated(sessionStr: string): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);

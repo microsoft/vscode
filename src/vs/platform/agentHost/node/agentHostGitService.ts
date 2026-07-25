@@ -16,7 +16,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { EMPTY_TREE_OBJECT, getBranchCompletions, IAgentHostGitService, IBranchDiffSafetyInfo, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions } from '../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { Limiter, SequencerByKey } from '../../../base/common/async.js';
 
@@ -67,16 +67,36 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return undefined;
 	}
 
-	async getBranches(workingDirectory: URI, options?: { readonly query?: string; readonly limit?: number }): Promise<string[]> {
-		const args = ['for-each-ref', '--format=%(refname:short)', '--sort=-committerdate'];
-		args.push('refs/heads');
+	async getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]> {
+		const args = ['for-each-ref', '--format=%(refname)%00%(upstream)'];
+
+		if (query?.sort && query.sort !== 'alphabetically') {
+			args.push('--sort', `-${query.sort}`);
+		}
+
+		if (query?.count) {
+			args.push(`--count=${query.count}`);
+		}
+
+		if (query?.pattern) {
+			const patterns = Array.isArray(query.pattern) ? query.pattern : [query.pattern];
+			for (const pattern of patterns) {
+				args.push(pattern.startsWith('refs/') ? pattern : `refs/${pattern}`);
+			}
+		}
 
 		const output = await this._runGit(workingDirectory, args);
-		if (!output) {
-			return [];
-		}
-		const branches = output.split(/\r?\n/g).map(line => line.trim()).filter(branch => branch.length > 0);
-		return getBranchCompletions(branches, options);
+		return parseGitRefs(output);
+	}
+
+	async getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]> {
+		const refs = await this.getRefs(workingDirectory, query);
+		return refs.filter(r => r.kind === GitRefType.Head || r.kind === GitRefType.RemoteHead);
+	}
+
+	async getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined> {
+		const refs = await this.getBranches(workingDirectory, { pattern: name });
+		return refs.length > 0 ? refs[0] : undefined;
 	}
 
 	async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> {
@@ -1173,6 +1193,54 @@ export function parseDefaultBranchRef(symbolicRefOutput: string | undefined): st
 	if (!ref) { return undefined; }
 	const prefix = 'refs/remotes/origin/';
 	return ref.startsWith(prefix) ? ref.substring(prefix.length) : ref;
+}
+
+export function parseRemoteBranchRef(ref: string): { ref: string; name: string; remote: string } | undefined {
+	if (!ref.startsWith('refs/remotes/')) {
+		return undefined;
+	}
+
+	const name = ref.substring(13);
+	const remote = name.split('/')[0];
+	return { ref, name, remote };
+}
+
+export function parseGitRefs(output: string | undefined): GitRef[] {
+	if (!output) {
+		return [];
+	}
+
+	const refs: GitRef[] = [];
+	for (const line of output.split(/\r?\n/g)) {
+		const [ref, upstream] = line.trim().split('\0');
+
+		if (ref.startsWith('refs/heads/')) {
+			refs.push({
+				ref,
+				name: ref.substring(11),
+				upstream: upstream
+					? parseRemoteBranchRef(upstream)
+					: undefined,
+				kind: GitRefType.Head
+			} satisfies IBranch);
+		} else if (ref.startsWith('refs/remotes/') && !/^refs\/remotes\/[^/]+\/HEAD$/.test(ref)) {
+			const parsedRemoteBranch = parseRemoteBranchRef(ref);
+			if (parsedRemoteBranch) {
+				refs.push({
+					...parsedRemoteBranch,
+					kind: GitRefType.RemoteHead
+				} satisfies IRemoteBranch);
+			}
+		} else if (ref.startsWith('refs/tags/')) {
+			refs.push({
+				ref,
+				name: ref.substring(10),
+				kind: GitRefType.Tag
+			} satisfies ITag);
+		}
+	}
+
+	return refs;
 }
 
 function stripUndefined<T extends object>(obj: T): T {

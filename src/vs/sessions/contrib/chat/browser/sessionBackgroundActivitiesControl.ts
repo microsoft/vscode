@@ -17,7 +17,7 @@ import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/co
 import { browserViewUrlMatches, BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, IChat, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, IChat, isActiveSessionStatus } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 import './media/sessionBackgroundActivitiesControl.css';
@@ -96,7 +96,7 @@ export class SessionBackgroundActivitiesControl extends Disposable {
 				chat.origin?.kind === ChatOriginKind.Tool &&
 				!!chat.origin.parentChat &&
 				isEqual(chat.origin.parentChat, parentChat.resource) &&
-				chat.status.read(reader) === SessionStatus.InProgress)
+				isActiveSessionStatus(chat.status.read(reader)))
 			.map(chat => ({
 				source: 'subagent',
 				kind: 'subagent',

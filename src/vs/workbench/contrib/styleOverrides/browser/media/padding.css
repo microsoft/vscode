@@ -265,6 +265,10 @@
 	padding: 2px 0 0;
 }
 
+.style-override.monaco-workbench .quick-input-widget-overlay .quick-input-titlebar {
+	padding-top: 0;
+}
+
 .style-override.monaco-workbench .quick-input-list .quick-input-list-entry-action-bar {
 	margin-right: 0;
 }

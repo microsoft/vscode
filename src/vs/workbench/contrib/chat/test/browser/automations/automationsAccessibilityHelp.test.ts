@@ -57,6 +57,10 @@ suite('AutomationsAccessibilityHelp', () => {
 		assert.match(content, /No workspace/);
 		assert.match(content, /Workspace target selector/);
 		assert.match(content, /workspace-less-capable session types/);
+		assert.match(content, /current tool approval policy/);
+		assert.match(content, /normal tool confirmation/);
+		assert.match(content, /chat button/);
+		assert.match(content, /Cancelling or denying/);
 		assert.match(content, /Run History/);
 		assert.match(content, /accessibility\.verbosity\.automations/);
 	});

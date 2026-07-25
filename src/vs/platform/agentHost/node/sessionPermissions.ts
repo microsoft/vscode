@@ -64,6 +64,14 @@ const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
 	'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
 	'**/*.lock': false,
 	'**/*-lock.{yaml,json}': false,
+	// Files that can register lifecycle hooks running arbitrary shell commands.
+	// Writing them must never be auto-approved. Keep in sync with the hook and
+	// agent source locations in `promptFileLocations.ts`.
+	'**/.github/agents/**': false,
+	'**/.github/hooks/**': false,
+	'**/.claude/agents/**': false,
+	'**/.claude/settings.json': false,
+	'**/.claude/settings.local.json': false,
 };
 
 const HOME_DIR = URI.file(homedir());

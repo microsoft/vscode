@@ -28,6 +28,31 @@ suite('SessionDatabase', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	suite('initialization', () => {
+
+		test('retries after a transient initialization failure', async () => {
+			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-retry-' + generateUuid()));
+			try {
+				const databaseDir = join(tempRoot, 'blocked');
+				const databasePath = join(databaseDir, 'session.db');
+				await fs.writeFile(databaseDir, '');
+				const database = new SessionDatabase(databasePath);
+				try {
+					await assert.rejects(() => database.setMetadata('key', 'first'), { code: 'EEXIST' });
+					await fs.rm(databaseDir);
+
+					await database.setMetadata('key', 'second');
+
+					assert.strictEqual(await database.getMetadata('key'), 'second');
+				} finally {
+					await database.close();
+				}
+			} finally {
+				await fs.rm(tempRoot, { recursive: true, force: true });
+			}
+		});
+	});
+
 	/**
 	 * Extends SessionDatabase to allow ejecting/injecting the raw sqlite3
 	 * Database instance, enabling reopen tests with :memory: databases.

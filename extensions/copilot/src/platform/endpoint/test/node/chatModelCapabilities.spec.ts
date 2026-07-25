@@ -46,6 +46,7 @@ describe('Kimi edit tool capabilities', () => {
 		const models = {
 			'kimi-k2.6': fakeModel('kimi-k2.6'),
 			'kimi-k2.7-code': fakeModel('kimi-k2.7-code'),
+			'kimi-k3': fakeModel('kimi-k3'),
 			'moonshot/kimi-k2.7-code': fakeModel('moonshot/kimi-k2.7-code'),
 			'moonshot/kimi-k2.6': fakeModel('moonshot/kimi-k2.6'),
 			'unknown-family + kimi model id': fakeModel('unknown-family', 'kimi-k2.7-code-preview'),
@@ -69,6 +70,14 @@ describe('Kimi edit tool capabilities', () => {
 				canUseApplyPatchExclusively: false,
 			},
 			'kimi-k2.7-code': {
+				isKimiFamily: true,
+				supportsReplaceString: true,
+				supportsMultiReplaceString: true,
+				canUseReplaceStringExclusively: true,
+				supportsApplyPatch: false,
+				canUseApplyPatchExclusively: false,
+			},
+			'kimi-k3': {
 				isKimiFamily: true,
 				supportsReplaceString: true,
 				supportsMultiReplaceString: true,

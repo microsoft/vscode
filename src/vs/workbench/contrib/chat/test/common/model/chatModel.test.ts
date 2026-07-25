@@ -211,6 +211,32 @@ suite('ChatModel', () => {
 		});
 	});
 
+	test('subagent credits are folded into parent response usage', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+
+		request.response?.setSubagentCopilotCredits('subagent-1', 5);
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 2, copilotCredits: 2 });
+		request.response?.setSubagentCopilotCredits('subagent-1', 6);
+		request.response?.setSubagentCopilotCredits('subagent-1', 4);
+		request.response?.setSubagentCopilotCredits('subagent-2', 3);
+		request.response?.setSubagentCopilotCredits('invalid', Number.NaN);
+		request.response?.setSubagentCopilotCredits('invalid', -1);
+
+		assert.deepStrictEqual({ usage: request.response?.usage, completionTokenCount: request.response?.completionTokenCount, sessionCost: model.sessionCost }, {
+			usage: { kind: 'usage', promptTokens: 10, completionTokens: 2, copilotCredits: 11 },
+			completionTokenCount: 2,
+			sessionCost: 11,
+		});
+		const restoredSeparateCosts = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: JSON.parse(JSON.stringify(model.toJSON())) as ISerializableChatData3, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+		assert.strictEqual(restoredSeparateCosts.sessionCost, 11);
+	});
+
 	test('response details, elapsed time, and tokens roundtrip through serialization', () => {
 		const completedAt = 1_752_012_405_000;
 		const serializableData: ISerializableChatData3 = {

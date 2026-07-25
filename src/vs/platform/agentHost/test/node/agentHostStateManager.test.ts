@@ -14,6 +14,7 @@ import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionL
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -181,6 +182,39 @@ suite('AgentHostStateManager', () => {
 		});
 		assert.strictEqual(envelopes.length, 3);
 		assert.strictEqual(manager.serverSeq, 3);
+	});
+
+	test('root config replacement preserves provider-backed values', () => {
+		const rootState = manager.rootState;
+		assert.ok(rootState.config);
+		rootState.config.values['codex.personality'] = 'friendly';
+		rootState._meta = withAgentCustomizationSettings(rootState, [{
+			provider: 'codex',
+			title: 'Codex Settings',
+			description: 'Codex settings',
+			settings: [{ key: 'codex.personality', group: 'Personalization' }],
+		}]);
+
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+		manager.dispatchClientAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { codexUsageSource: 'openai' },
+			replace: true,
+		}, { clientId: 'renderer-1', clientSeq: 1 });
+
+		assert.deepStrictEqual(manager.rootState.config?.values, {
+			codexUsageSource: 'openai',
+			'codex.personality': 'friendly',
+		});
+		assert.deepStrictEqual(envelopes[0].action, {
+			type: ActionType.RootConfigChanged,
+			config: {
+				codexUsageSource: 'openai',
+				'codex.personality': 'friendly',
+			},
+			replace: true,
+		});
 	});
 
 	test('removeSession clears state without notification', () => {

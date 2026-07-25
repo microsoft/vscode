@@ -5,7 +5,7 @@
 
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js';
 import { AgentHostByokLmHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostByokLmHandler.js';
@@ -21,10 +21,17 @@ import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js'
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { SessionsCopilotConfigSlashSubmitHandlerContribution } from '../browser/copilotConfigSlashSubmitHandler.js';
+import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
+import { ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.selectAgentsFolder';
+	private readonly _windowOpenTelemetry = this._register(new MutableDisposable<SessionsWindowOpenTelemetry>());
+	private _didHandleInitialWindowOpen = false;
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -35,18 +42,62 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		@ISessionsSetUpService private readonly sessionsSetUpService: ISessionsSetUpService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
 			const folderUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
 			const sessionResource = args[1] ? URI.revive(args[1] as UriComponents) : undefined;
+			const source = isAgentsWindowOpenSource(args[2]) ? args[2] : AgentsWindowOpenSource.Unknown;
 			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${folderUri?.toString() ?? '(none)'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
+			this._startWindowOpenTelemetry(source);
 
-			this.handleOpenIntent(folderUri, sessionResource)
+			this._handleOpenIntentAndCaptureInitialState(folderUri, sessionResource)
 				.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
 		};
 		ipcRenderer.on('vscode:selectAgentsFolder', handleSelectAgentsFolder);
 		this._register({ dispose: () => ipcRenderer.removeListener('vscode:selectAgentsFolder', handleSelectAgentsFolder) });
+	}
+
+	private _startWindowOpenTelemetry(source: AgentsWindowOpenSource): void {
+		if (this._didHandleInitialWindowOpen) {
+			return;
+		}
+		this._didHandleInitialWindowOpen = true;
+		if (this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) !== 0) {
+			return;
+		}
+
+		this._windowOpenTelemetry.value = new SessionsWindowOpenTelemetry(
+			source,
+			() => this.sessionsSetUpService.initialSignInDialogShown,
+			() => this._getWindowOpenViewState(),
+			this.telemetryService,
+			this.lifecycleService,
+		);
+	}
+
+	private async _captureInitialWindowViewState(): Promise<void> {
+		await this.lifecycleService.when(LifecyclePhase.Eventually);
+		this._windowOpenTelemetry.value?.captureInitialViewState();
+	}
+
+	private async _handleOpenIntentAndCaptureInitialState(folderUri: URI | undefined, sessionResource: URI | undefined): Promise<void> {
+		try {
+			await this.handleOpenIntent(folderUri, sessionResource);
+		} finally {
+			await this._captureInitialWindowViewState();
+		}
+	}
+
+	private _getWindowOpenViewState(): ISessionsWindowOpenViewState {
+		const activeSession = this.sessionsService.activeSession.get();
+		return {
+			workspacePreselected: !activeSession || !activeSession.isCreated.get()
+				? activeSession?.workspace.get() !== undefined
+				: undefined,
+		};
 	}
 
 	private async handleOpenIntent(folderUri: URI | undefined, sessionResource: URI | undefined): Promise<void> {

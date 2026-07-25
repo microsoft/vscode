@@ -15,9 +15,12 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { IChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
 import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IClientTransport } from '../common/state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
+
+const REDACTED_TOKEN = '<redacted>';
 
 /**
  * Wraps an {@link IChannel} as an {@link IClientTransport} for the agent
@@ -42,7 +45,10 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 	private _closeFired = false;
 	private _malformedFrames = 0;
 
-	constructor(private readonly _channel: IChannel) {
+	constructor(
+		private readonly _channel: IChannel,
+		private readonly _ahpLogger?: AhpJsonlLogger,
+	) {
 		super();
 	}
 
@@ -70,7 +76,9 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 		}
 		// Fire-and-forget. The channel call resolves asynchronously; failures
 		// are surfaced via the close event from the server side.
-		this._channel.call('send', JSON.stringify(message)).catch(() => this._fireClose());
+		const text = JSON.stringify(message);
+		this._logFrame(message, 'c2s', text);
+		this._channel.call('send', text).catch(() => this._fireClose());
 	}
 
 	override dispose(): void {
@@ -101,7 +109,12 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 			}
 			return;
 		}
+		this._logFrame(message, 's2c', text);
 		this._onMessage.fire(message);
+	}
+
+	private _logFrame(message: object, direction: 'c2s' | 's2c', text: string): void {
+		this._ahpLogger?.log(redactAuthenticationToken(message), direction, getAhpLogByteLength(text));
 	}
 
 	private _fireClose(): void {
@@ -112,4 +125,18 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 		this._isOpen = false;
 		this._onClose.fire();
 	}
+}
+
+function redactAuthenticationToken(message: object): object {
+	const candidate = message as { readonly method?: unknown; readonly params?: unknown };
+	if (candidate.method !== 'authenticate' || typeof candidate.params !== 'object' || candidate.params === null) {
+		return message;
+	}
+
+	const params = candidate.params as Record<string, unknown>;
+	if (typeof params.token !== 'string') {
+		return message;
+	}
+
+	return { ...candidate, params: { ...params, token: REDACTED_TOKEN } };
 }

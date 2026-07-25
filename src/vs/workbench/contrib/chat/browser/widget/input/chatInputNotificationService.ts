@@ -8,6 +8,8 @@ import { renderAsPlaintext } from '../../../../../../base/browser/markdownRender
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 
@@ -71,6 +73,8 @@ export interface IChatInputNotification {
 	 * list will render it.
 	 */
 	readonly sessionTypes?: readonly string[];
+	/** Optional allow-list of concrete chat session resources that should display this notification. */
+	readonly sessionResources?: readonly URI[];
 	/**
 	 * Optional "mute" affordance rendered as a bell-slash icon button next to
 	 * the dismiss (X) button. Use for a "stop showing this entirely" action
@@ -82,6 +86,11 @@ export interface IChatInputNotification {
 /** Returns whether a notification applies to the concrete model-target session type. */
 export function isChatInputNotificationApplicableToSessionType(notification: IChatInputNotification, sessionType: string | undefined): boolean {
 	return !notification.sessionTypes?.length || (!!sessionType && notification.sessionTypes.includes(sessionType));
+}
+
+export function isChatInputNotificationApplicableToSession(notification: IChatInputNotification, sessionType: string | undefined, sessionResource: URI | undefined): boolean {
+	return isChatInputNotificationApplicableToSessionType(notification, sessionType)
+		&& (!notification.sessionResources?.length || (!!sessionResource && notification.sessionResources.some(resource => isEqual(resource, sessionResource))));
 }
 
 export const IChatInputNotificationService = createDecorator<IChatInputNotificationService>('chatInputNotificationService');

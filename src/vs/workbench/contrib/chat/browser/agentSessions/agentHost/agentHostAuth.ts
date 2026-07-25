@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { fetchAuthorizationServerMetadata } from '../../../../../../base/common/oauth.js';
+import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type McpOAuthClient, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -358,10 +359,8 @@ export async function resolveMcpServerAuthentication(
 	const authenticationMcpAccessService = accessor.get(IAuthenticationMcpAccessService);
 	const authenticationMcpService = accessor.get(IAuthenticationMcpService);
 	const authenticationMcpUsageService = accessor.get(IAuthenticationMcpUsageService);
+	const dynamicAuthenticationProviderStorageService = accessor.get(IDynamicAuthenticationProviderStorageService);
 	const logService = accessor.get(ILogService);
-	const dynamicAuthenticationProviderStorageService = options.oauthClient
-		? accessor.get(IDynamicAuthenticationProviderStorageService)
-		: undefined;
 	const agentHostMeta = options.agentHost
 		? { authority: options.agentHost.authority, label: accessor.get(ILabelService).getHostLabel(options.agentHost.scheme, options.agentHost.authority) }
 		: undefined;
@@ -369,56 +368,75 @@ export async function resolveMcpServerAuthentication(
 	const scopes = options.scopes.length > 0 || isGitHubMcpResource(protectedResource)
 		? options.scopes
 		: protectedResource.scopes_supported ?? [];
+	const authenticationOperations = getMcpAuthenticationOperations(authenticationService);
 	for (const authorizationServer of protectedResource.authorization_servers ?? []) {
 		const authorizationServerUri = URI.parse(authorizationServer);
-		const providerId = await getOrCreateProviderForMcpResource(
-			authorizationServerUri,
-			protectedResource,
-			options.oauthClient,
-			authenticationService,
-			dynamicAuthenticationProviderStorageService,
-			logService,
-			options.logPrefix,
-			options.allowInteraction,
-			options.authorizationServerMetadataFetcher ?? fetchAuthorizationServerMetadata,
-		);
-		if (!providerId) {
-			continue;
-		}
+		const providerOperationId = getDynamicAuthenticationProviderId(authorizationServerUri, protectedResource);
+		const authenticated = await authenticationOperations.queue(providerOperationId, async () => {
+			const providerId = await getOrCreateProviderForMcpResource(
+				authorizationServerUri,
+				protectedResource,
+				options.oauthClient,
+				authenticationService,
+				dynamicAuthenticationProviderStorageService,
+				logService,
+				options.logPrefix,
+				options.allowInteraction,
+				options.authorizationServerMetadataFetcher ?? fetchAuthorizationServerMetadata,
+			);
+			if (!providerId) {
+				return false;
+			}
 
-		const oauthClientOptions = options.oauthClient
-			? { clientId: options.oauthClient.clientId, clientSecret: options.oauthClient.clientSecret }
-			: {};
-		const sessions = await authenticationService.getSessions(providerId, [...scopes], {
-			authorizationServer: authorizationServerUri,
-			resource: protectedResource.resource,
-			...oauthClientOptions,
-		}, true);
-		const allowedSession = getAllowedMcpSession(providerId, sessions, authenticationMcpAccessService, authenticationMcpService, options);
-		if (allowedSession) {
-			await authenticateMcpSession(providerId, allowedSession, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, false, agentHostMeta);
-			return true;
-		}
-
-		if (!options.allowInteraction) {
-			continue;
-		}
-
-		const provider = authenticationService.getProvider(providerId);
-		const session = sessions.length
-			? provider.supportsMultipleAccounts
-				? await authenticationMcpService.selectSession(providerId, options.mcpServerId, options.mcpServerName, [...scopes], sessions)
-				: sessions[0]
-			: await authenticationService.createSession(providerId, [...scopes], {
-				activateImmediate: true,
+			const oauthClientOptions = options.oauthClient
+				? { clientId: options.oauthClient.clientId, clientSecret: options.oauthClient.clientSecret }
+				: {};
+			const sessions = await authenticationService.getSessions(providerId, [...scopes], {
 				authorizationServer: authorizationServerUri,
 				resource: protectedResource.resource,
 				...oauthClientOptions,
-			});
-		await authenticateMcpSession(providerId, session, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, true, agentHostMeta);
-		return true;
+				silent: !options.allowInteraction,
+			}, true);
+			const allowedSession = getAllowedMcpSession(providerId, sessions, authenticationMcpAccessService, authenticationMcpService, options);
+			if (allowedSession) {
+				await authenticateMcpSession(providerId, allowedSession, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, false, agentHostMeta);
+				return true;
+			}
+
+			if (!options.allowInteraction) {
+				return false;
+			}
+
+			const provider = authenticationService.getProvider(providerId);
+			const session = sessions.length
+				? provider.supportsMultipleAccounts
+					? await authenticationMcpService.selectSession(providerId, options.mcpServerId, options.mcpServerName, [...scopes], sessions)
+					: sessions[0]
+				: await authenticationService.createSession(providerId, [...scopes], {
+					activateImmediate: true,
+					authorizationServer: authorizationServerUri,
+					resource: protectedResource.resource,
+					...oauthClientOptions,
+				});
+			await authenticateMcpSession(providerId, session, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, true, agentHostMeta);
+			return true;
+		});
+		if (authenticated) {
+			return true;
+		}
 	}
 	return false;
+}
+
+const mcpAuthenticationOperations = new WeakMap<IAuthenticationService, SequencerByKey<string>>();
+
+function getMcpAuthenticationOperations(authenticationService: IAuthenticationService): SequencerByKey<string> {
+	let operations = mcpAuthenticationOperations.get(authenticationService);
+	if (!operations) {
+		operations = new SequencerByKey();
+		mcpAuthenticationOperations.set(authenticationService, operations);
+	}
+	return operations;
 }
 
 function isGitHubMcpResource(resource: ProtectedResourceMetadata): boolean {
@@ -430,18 +448,17 @@ async function getOrCreateProviderForMcpResource(
 	protectedResource: ProtectedResourceMetadata,
 	oauthClient: McpOAuthClient | undefined,
 	authenticationService: IAuthenticationService,
-	dynamicAuthenticationProviderStorageService: IDynamicAuthenticationProviderStorageService | undefined,
+	dynamicAuthenticationProviderStorageService: IDynamicAuthenticationProviderStorageService,
 	logService: ILogService,
 	logPrefix: string,
 	allowCreation: boolean,
 	authorizationServerMetadataFetcher: typeof fetchAuthorizationServerMetadata,
 ): Promise<string | undefined> {
 	const resourceUri = URI.parse(protectedResource.resource);
+	const dynamicProviderId = getDynamicAuthenticationProviderId(authorizationServer, protectedResource);
+	let clientId = oauthClient?.clientId;
+	let clientSecret = oauthClient?.clientSecret;
 	if (oauthClient) {
-		if (!dynamicAuthenticationProviderStorageService) {
-			throw new Error('Dynamic authentication provider storage is required for a configured OAuth client.');
-		}
-		const dynamicProviderId = getDynamicAuthenticationProviderId(authorizationServer, protectedResource);
 		const isProviderActive = authenticationService.isDynamicAuthenticationProvider(dynamicProviderId);
 		const registeredClient = await dynamicAuthenticationProviderStorageService.getClientRegistration(dynamicProviderId);
 		const clientMatches = registeredClient?.clientId === oauthClient.clientId && registeredClient.clientSecret === oauthClient.clientSecret;
@@ -460,14 +477,20 @@ async function getOrCreateProviderForMcpResource(
 		}
 	} else {
 		const existing = await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceUri);
-		if (existing || !allowCreation) {
+		if (existing) {
 			return existing;
 		}
+		const registeredClient = await dynamicAuthenticationProviderStorageService.getClientRegistration(dynamicProviderId);
+		if (!registeredClient?.clientId && !allowCreation) {
+			return undefined;
+		}
+		clientId = registeredClient?.clientId;
+		clientSecret = registeredClient?.clientSecret;
 	}
 
 	try {
 		const { metadata } = await authorizationServerMetadataFetcher(authorizationServer.toString(true));
-		const provider = await authenticationService.createDynamicAuthenticationProvider(authorizationServer, metadata, protectedResource, oauthClient?.clientId, oauthClient?.clientSecret);
+		const provider = await authenticationService.createDynamicAuthenticationProvider(authorizationServer, metadata, protectedResource, clientId, clientSecret);
 		return provider?.id;
 	} catch (err) {
 		logService.warn(`${logPrefix} Failed to create MCP auth provider for ${authorizationServer.toString(true)}`, err);

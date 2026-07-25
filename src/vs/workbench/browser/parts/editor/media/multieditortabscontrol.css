@@ -564,7 +564,7 @@
 	position: absolute;
 	top: 0;
 	height: 100%;
-	width: 1px;
+	width: 2px;
 	background-color: var(--vscode-tab-dragAndDropBorder);
 	pointer-events: none;
 	z-index: 11;
@@ -575,18 +575,9 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-left::after {
-	right: -1px; /* -1 to connect with drop-target-right */
+	right: -2px; /* -2 to connect with drop-target-right */
 }
-
-/* Make drop target edge cases more visible (wrapped tabs & first/last) */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row.drop-target-left:not(:last-child)::after {
-	right: 0px;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row.drop-target-left::after,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row + .tab.drop-target-right::before,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:last-child.drop-target-left::after,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:first-child.drop-target-right::before {
-	width: 2px;
+	right: 0;
 }

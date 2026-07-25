@@ -16,6 +16,7 @@
 export type {
 	JsonRpcErrorResponse,
 	JsonRpcNotification,
+	JsonRpcParseErrorResponse,
 	JsonRpcRequest,
 	JsonRpcResponse,
 	JsonRpcSuccessResponse,

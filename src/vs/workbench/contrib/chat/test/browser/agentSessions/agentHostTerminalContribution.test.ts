@@ -526,4 +526,3 @@ suite('AgentHostTerminalContribution', () => {
 		});
 	});
 });
-

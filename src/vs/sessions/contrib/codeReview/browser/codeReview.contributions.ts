@@ -11,7 +11,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
-import { IsPhoneLayoutContext, SessionHasChangesContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionHasChangesContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -35,6 +35,7 @@ const codeReviewChangesToolbarWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	SessionWorkspaceIsVirtualContext.toNegated(),
 	IsPhoneLayoutContext.negate(),
+	SessionIsCreatedContext,
 	ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 	singlePaneDetailPanel.negate(),
 );
@@ -75,6 +76,7 @@ class RunSessionCodeReviewAction extends Action2 {
 						IsAuxiliaryWindowContext.toNegated(),
 						IsTopRightEditorGroupContext,
 						SessionWorkspaceIsVirtualContext.toNegated(),
+						SessionIsCreatedContext,
 						SessionHasChangesContext,
 					),
 				},
