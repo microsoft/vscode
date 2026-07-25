@@ -55,6 +55,7 @@ export class FeedbackInputWidget extends Disposable {
 	private readonly _secondaryAction: Action | undefined;
 	private _isShowingSecondary = false;
 	private _busy = false;
+	private readonly _hasExplicitAriaLabel: boolean;
 
 	/** Whether {@link setBusy} is currently active; callers must not submit again while true. */
 	get isBusy(): boolean {
@@ -69,6 +70,7 @@ export class FeedbackInputWidget extends Disposable {
 
 	constructor(private readonly _options: IFeedbackInputWidgetOptions) {
 		super();
+		this._hasExplicitAriaLabel = _options.ariaLabel !== undefined;
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('agent-feedback-input-widget');
 		this.domNode.style.display = 'none';
@@ -168,7 +170,9 @@ export class FeedbackInputWidget extends Disposable {
 			return;
 		}
 		this.inputElement.placeholder = placeholder;
-		this.inputElement.setAttribute('aria-label', placeholder);
+		if (!this._hasExplicitAriaLabel) {
+			this.inputElement.setAttribute('aria-label', placeholder);
+		}
 		this.autoSize();
 	}
 

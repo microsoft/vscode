@@ -145,10 +145,14 @@ suite('ResponseSelectionSideChatController', () => {
 		inputDomNode(controller).querySelector<HTMLElement>('.action-label')!.click();
 	}
 
-	function dispatchKey(target: HTMLElement, key: string): void {
-		const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+	function dispatchKey(target: HTMLElement, key: string, options?: { shiftKey?: boolean; isComposing?: boolean }): KeyboardEvent {
+		const event = new KeyboardEvent('keydown', { key, shiftKey: options?.shiftKey, bubbles: true, cancelable: true });
 		Object.defineProperty(event, 'keyCode', { get: () => key === 'Escape' ? 27 : 13 });
+		if (options?.isComposing) {
+			Object.defineProperty(event, 'isComposing', { get: () => true });
+		}
 		target.dispatchEvent(event);
+		return event;
 	}
 
 	test('shows the ask-question input for a valid markdown selection', () => {
@@ -416,5 +420,89 @@ suite('ResponseSelectionSideChatController', () => {
 		resolveCreate(upcastPartial<IChat>({ resource: URI.parse('test:///chat/side') }));
 		await new Promise(resolve => setTimeout(resolve, 0));
 		assert.strictEqual(inputDomNode(controller).style.display, 'none');
+	});
+
+	test('a success that settles after a different-resource setChat does not reopen, refocus, or mutate the overlay', async () => {
+		let resolveCreate!: (chat: IChat) => void;
+		const pending = new Promise<IChat>(resolve => { resolveCreate = resolve; });
+		const { controller, setSelection, focusResponseItemCalls } = setup({
+			createSideChatInSession: async () => pending,
+		});
+		setSelection('hello world');
+		submitViaClick(controller, 'what does this mean?');
+
+		controller.setChat(upcastPartial<IChat>({ resource: URI.parse('test:///chat/other') }));
+		setSelection('');
+		const focusCallsAtDismiss = focusResponseItemCalls.length;
+
+		resolveCreate(upcastPartial<IChat>({ resource: URI.parse('test:///chat/side') }));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(inputDomNode(controller).style.display, 'none', 'a stale success must not reopen the overlay');
+		assert.strictEqual(inputTextArea(controller).value, '', 'a stale success must not mutate the (already cleared) input value');
+		assert.deepStrictEqual(focusResponseItemCalls.length, focusCallsAtDismiss, 'a stale success must not refocus the transcript');
+	});
+
+	test('a failure that settles after a different-resource setChat does not reopen, refocus, mutate, or notify', async () => {
+		let rejectCreate!: (err: Error) => void;
+		const pending = new Promise<IChat>((_resolve, reject) => { rejectCreate = reject; });
+		const { controller, setSelection, notificationService, focusResponseItemCalls } = setup({
+			createSideChatInSession: async () => pending,
+		});
+		setSelection('hello world');
+		submitViaClick(controller, 'what does this mean?');
+
+		controller.setChat(upcastPartial<IChat>({ resource: URI.parse('test:///chat/other') }));
+		setSelection('');
+		const focusCallsAtDismiss = focusResponseItemCalls.length;
+
+		rejectCreate(new Error('boom'));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(inputDomNode(controller).style.display, 'none', 'a stale failure must not reopen the overlay');
+		assert.strictEqual(inputTextArea(controller).value, '', 'a stale failure must not restore the failed question into the (already cleared) input');
+		assert.deepStrictEqual(focusResponseItemCalls.length, focusCallsAtDismiss, 'a stale failure must not refocus the input');
+		assert.strictEqual(notificationService.notifications.length, 0, 'a stale failure must not surface a retry notification for an abandoned overlay');
+	});
+
+	test('plain Enter submits and prevents the default newline', () => {
+		const { controller, setSelection, callOrder } = setup();
+		setSelection('hello world');
+		const textArea = inputTextArea(controller);
+		textArea.value = 'what does this mean?';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+
+		const event = dispatchKey(textArea, 'Enter');
+
+		assert.strictEqual(event.defaultPrevented, true, 'plain Enter must prevent the default newline');
+		assert.ok(callOrder[0]?.startsWith('create:turn-1:hello world'), 'plain Enter must submit');
+	});
+
+	test('Shift+Enter inserts a newline instead of submitting', () => {
+		const { controller, setSelection, callOrder } = setup();
+		setSelection('hello world');
+		const textArea = inputTextArea(controller);
+		textArea.value = 'what does this mean?';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+
+		const event = dispatchKey(textArea, 'Enter', { shiftKey: true });
+
+		assert.strictEqual(event.defaultPrevented, false, 'Shift+Enter must let the textarea insert a newline');
+		assert.deepStrictEqual(callOrder, [], 'Shift+Enter must not submit');
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none', 'Shift+Enter must not dismiss the overlay');
+	});
+
+	test('Enter during IME composition does not submit', () => {
+		const { controller, setSelection, callOrder } = setup();
+		setSelection('hello world');
+		const textArea = inputTextArea(controller);
+		textArea.value = 'what does this mean?';
+		textArea.dispatchEvent(new Event('input', { bubbles: true }));
+
+		const event = dispatchKey(textArea, 'Enter', { isComposing: true });
+
+		assert.strictEqual(event.defaultPrevented, false, 'Enter during IME composition must not be prevented');
+		assert.deepStrictEqual(callOrder, [], 'Enter during IME composition must not submit');
+		assert.notStrictEqual(inputDomNode(controller).style.display, 'none', 'Enter during IME composition must not dismiss the overlay');
 	});
 });

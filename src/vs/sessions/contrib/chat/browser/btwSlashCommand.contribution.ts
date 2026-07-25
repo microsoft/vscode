@@ -110,7 +110,7 @@ export class BtwSlashCommandContribution extends Disposable implements IWorkbenc
 				return;
 			}
 
-			await openAndSendSideChat(sessionsService, sessionsManagementService, session, sideChat, remainder);
+			await openAndSendSideChat(sessionsManagementService, sessionsService, session, sideChat, remainder);
 		}));
 	}
 }

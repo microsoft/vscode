@@ -15,8 +15,8 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
  * before sending the first message.
  */
 export async function openAndSendSideChat(
-	sessionsService: ISessionsService,
 	sessionsManagementService: ISessionsManagementService,
+	sessionsService: ISessionsService,
 	session: ISession,
 	sideChat: IChat,
 	query: string,
@@ -39,6 +39,6 @@ export async function createAndSendSideChat(
 	selection?: ISideChatSelection,
 ): Promise<IChat> {
 	const sideChat = await sessionsManagementService.createSideChatInSession(session, sourceChat, turnId, selection);
-	await openAndSendSideChat(sessionsService, sessionsManagementService, session, sideChat, query);
+	await openAndSendSideChat(sessionsManagementService, sessionsService, session, sideChat, query);
 	return sideChat;
 }

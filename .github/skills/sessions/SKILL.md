@@ -138,6 +138,8 @@ Whenever the user flags a wrong pattern, rejects an approach, or gives design/ru
 
 - **A view-lifecycle `setChat`/`setModel`-style hook can be re-invoked for the *same* underlying resource**: `ChatView.setChat` fires again on unrelated status/interactivity observable changes, not only on a genuine view swap. A consumer like `ResponseSelectionSideChatController` that force-dismisses its own transient UI on every call discards an in-progress draft and, worse, clears a pending busy submission mid-flight, letting a duplicate submission race in. Compare the incoming resource against the previously tracked one and only treat a genuine change (or the first call) as dismiss-worthy; a same-resource re-invocation must preserve visible/busy state.
 
+- **A pending async submission's completion/error handler must no-op after a genuine force-dismiss, not just after a same-resource re-invocation**: even with the same-resource guard above, `ResponseSelectionSideChatController._submit`'s `createAndSendSideChat().then()/.catch()` can still settle *after* the user has genuinely navigated away (a different-resource `setChat`, or any other force-dismiss) — reopening the overlay, restoring the typed query, refocusing the input, or showing a stale error notification for UI the user already dismissed. Capture a `_generation` counter bumped only on a genuine force-dismiss, snapshot it before the async call, and have the settle handlers bail when the counter no longer matches; don't rely solely on resource comparison, since the overlay's own dismissed state (not the chat identity) is what must gate the mutation.
+
 ## Validating Changes
 
 You **must** run these checks before declaring work complete:

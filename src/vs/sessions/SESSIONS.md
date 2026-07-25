@@ -650,12 +650,16 @@ busy submission rather than clearing it and letting a duplicate race in. On
 failure the busy state clears, the typed question and normal controls are
 restored, and the input is refocused so the user can retry without losing
 their text — the existing warning/error notification and log call are
-unchanged. Escape, scrolling, and selection invalidation are all ignored while
-a submission is pending so they cannot race the in-flight request. The
-action-bar slot and the spinner that replaces it both size to a shared
-`--agent-feedback-line-height` CSS custom property (set once on the widget
-root, matching the textarea's line-height) and center via flex, rather than a
-hardcoded icon height or a positional transform — this keeps both optically
+unchanged. A completion/error that settles after a genuine chat navigation
+already force-dismissed the overlay (`setChat` with a different chat resource)
+is tracked via a submission generation counter bumped on that force-dismiss,
+so the stale handler no-ops instead of reopening, refocusing, or mutating the
+now-unrelated overlay. Escape, scrolling, and selection invalidation are all
+ignored while a submission is pending so they cannot race the in-flight
+request. The action-bar slot and the spinner that replaces it both size to the
+widget's shared `_LINE_HEIGHT` constant (applied as an inline style to each
+element, matching the textarea's line-height) and center via flex, rather than
+a hardcoded icon height or a positional transform — this keeps both optically
 centered on the input's single line, and still flush to the last line when the
 textarea grows multi-line (the row keeps `align-items: flex-end`).
 
@@ -667,12 +671,21 @@ just focused. The captured selection is treated as an immutable snapshot for
 that reason — it is not re-read from the live DOM selection on submit.
 Escape (or any other dismissal while the input has focus) restores focus to
 the source response via `IChatWidget.focusResponseItem(true)` rather than
-letting it fall through to the document body. The overlay's position clamps
+letting it fall through to the document body. Plain Enter submits and
+prevents the default newline; Shift+Enter and Enter during IME composition
+(`e.browserEvent.isComposing`) are left alone so the textarea inserts a
+newline or lets composition finish. The overlay's position clamps
 both horizontally and vertically against the chat widget's own bounds and the
 visible viewport, measured after `FeedbackInputWidget.show()`/`autoSize()` so
 real dimensions are used; when there isn't room below the selection it flips
 above instead, falling back to the nearest in-bounds edge only when neither
 placement fully fits.
+
+`FeedbackInputWidget.setPlaceholder` only derives `aria-label` from the
+placeholder when the widget was constructed without an explicit
+`options.ariaLabel`; a caller (like this controller, which sets a dedicated
+accessible name) keeps its configured `aria-label` untouched across
+placeholder changes.
 
 Agent-host approval levels map to the Copilot SDK allow-all modes before each
 turn: Default approvals uses `off`, Allow all uses `on`, and Assisted permissions

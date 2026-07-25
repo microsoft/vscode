@@ -12,10 +12,11 @@ import { FeedbackInputWidget } from '../../browser/feedbackInputWidget.js';
 suite('FeedbackInputWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWidget() {
+	function createWidget(ariaLabel?: string) {
 		const store = disposables.add(new DisposableStore());
 		const widget = store.add(new FeedbackInputWidget({
 			placeholder: 'Ask Question',
+			ariaLabel,
 			getMaxContentWidth: () => 400,
 			primaryAction: { label: 'Ask', icon: Codicon.send, keybindingLabel: 'Enter' },
 		}));
@@ -108,5 +109,23 @@ suite('FeedbackInputWidget', () => {
 		assert.ok(actionsRect.height > 0, 'sanity: the action bar must have measured a non-zero height while visible');
 		assert.strictEqual(busyRect.top, actionsRect.top);
 		assert.strictEqual(busyRect.height, actionsRect.height);
+	});
+
+	test('setPlaceholder does not overwrite an explicitly configured aria-label', () => {
+		const widget = createWidget('Ask a question about the selected response text');
+
+		widget.setPlaceholder('New Placeholder');
+
+		assert.strictEqual(widget.inputElement.placeholder, 'New Placeholder');
+		assert.strictEqual(widget.inputElement.getAttribute('aria-label'), 'Ask a question about the selected response text');
+	});
+
+	test('setPlaceholder keeps the aria-label derived from the placeholder when none was configured', () => {
+		const widget = createWidget();
+		assert.strictEqual(widget.inputElement.getAttribute('aria-label'), 'Ask Question');
+
+		widget.setPlaceholder('New Placeholder');
+
+		assert.strictEqual(widget.inputElement.getAttribute('aria-label'), 'New Placeholder');
 	});
 });

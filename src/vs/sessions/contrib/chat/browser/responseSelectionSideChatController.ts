@@ -30,6 +30,8 @@ export class ResponseSelectionSideChatController extends Disposable {
 	private readonly _input: FeedbackInputWidget;
 	private _resolved: IResolvedResponseSelection | undefined;
 	private _chat: IChat | undefined;
+	/** Bumped on a genuine chat navigation/force-dismiss so a stale submission's completion/error handler can no-op. */
+	private _generation = 0;
 
 	constructor(
 		private readonly _widget: IChatWidget,
@@ -61,6 +63,10 @@ export class ResponseSelectionSideChatController extends Disposable {
 				return;
 			}
 			if (e.keyCode === KeyCode.Enter) {
+				if (e.browserEvent.isComposing || e.shiftKey) {
+					// Let IME composition finish, or Shift+Enter insert a newline.
+					return;
+				}
 				e.preventDefault();
 				e.stopPropagation();
 				this._submit();
@@ -165,6 +171,10 @@ export class ResponseSelectionSideChatController extends Disposable {
 		if (!force && this._input.isBusy) {
 			return;
 		}
+		if (force) {
+			// A genuine navigation: bump the generation so a stale submission's completion/error handler no-ops.
+			this._generation++;
+		}
 		const hadFocus = dom.isAncestorOfActiveElement(this._input.domNode);
 		this._resolved = undefined;
 		this._input.setBusy(false);
@@ -201,8 +211,13 @@ export class ResponseSelectionSideChatController extends Disposable {
 		// `setChat`; on failure the question and normal controls are restored
 		// below so the user can retry.
 		this._input.setBusy(true, localize('sessions.selectionSideChat.busy', "Asking question…"));
+		const generation = this._generation;
 		createAndSendSideChat(this._sessionsManagementService, this._sessionsService, session, chat.resource, resolved.response.requestId, query, { text: resolved.text })
 			.then(() => {
+				// A stale completion after a genuine navigation force-dismissed this overlay must no-op.
+				if (this._generation !== generation) {
+					return;
+				}
 				// `setChat` (fired by the view change from opening the side
 				// chat) normally dismisses this overlay already; clear busy
 				// defensively in case that doesn't happen.
@@ -210,6 +225,9 @@ export class ResponseSelectionSideChatController extends Disposable {
 			})
 			.catch(err => {
 				this._logService.error('[selectionSideChat] Failed to create side chat', err);
+				if (this._generation !== generation) {
+					return;
+				}
 				this._notificationService.error(localize('sessions.selectionSideChat.createFailed', "The side chat could not be created."));
 				this._input.setBusy(false);
 				this._input.inputElement.value = query;
