@@ -1100,7 +1100,7 @@ export class CopilotAgentSession extends Disposable {
 					defer: 'never',
 					skipPermission: true,
 					handler: async (_args: Record<string, unknown>, invocation) => {
-						if (this._abortState === CopilotAbortState.Aborting) {
+						if (this._isAbortInProgress()) {
 							return this._toolSearchFailure('Tool call cancelled: session is aborting');
 						}
 						try {
@@ -1126,7 +1126,7 @@ export class CopilotAgentSession extends Disposable {
 				parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
 				defer,
 				handler: async (_args: Record<string, unknown>, { toolCallId }) => {
-					if (this._abortState === CopilotAbortState.Aborting) {
+					if (this._isAbortInProgress()) {
 						return this._toolSearchFailure('Tool call cancelled: session is aborting');
 					}
 					try {
@@ -1142,6 +1142,10 @@ export class CopilotAgentSession extends Disposable {
 
 	private _isToolSearchActive(): boolean {
 		return this._toolSearchActive;
+	}
+
+	private _isAbortInProgress(): boolean {
+		return this._abortState === CopilotAbortState.Aborting;
 	}
 
 	private _setAbortState(state: CopilotAbortState): void {
@@ -1378,13 +1382,13 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _handleMcpAuthRequest(request: McpAuthRequest): Promise<McpAuthResult | null | undefined> {
-		if (this._abortState === CopilotAbortState.Aborting) {
+		if (this._isAbortInProgress()) {
 			return { kind: 'cancelled' };
 		}
 		const githubToken = request.reason === 'initial' && this._scopesFromChallenge(request.wwwAuthenticateParams?.scope).length === 0
 			? await this._initialGitHubMcpToken(request)
 			: undefined;
-		if (this._abortState === CopilotAbortState.Aborting) {
+		if (this._isAbortInProgress()) {
 			return { kind: 'cancelled' };
 		}
 		if (githubToken) {
@@ -2176,7 +2180,7 @@ export class CopilotAgentSession extends Disposable {
 		request: ITypedPermissionRequest,
 	): Promise<PermissionRequestResult> {
 		try {
-			if (this._abortState === CopilotAbortState.Aborting) {
+			if (this._isAbortInProgress()) {
 				this._logService.info(`[Copilot:${this.sessionId}] Rejecting permission request received while aborting`);
 				return { kind: 'reject' };
 			}
@@ -2190,7 +2194,7 @@ export class CopilotAgentSession extends Disposable {
 			const autoApproval = this._lastAppliedPermissionMode === 'auto'
 				? await this._takeAutoApproval(toolCallId)
 				: undefined;
-			if (this._abortState === CopilotAbortState.Aborting) {
+			if (this._isAbortInProgress()) {
 				return { kind: 'reject' };
 			}
 			const recommendation = autoApproval?.recommendation;
@@ -2667,7 +2671,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean> {
-		if (this._abortState === CopilotAbortState.Aborting) {
+		if (this._isAbortInProgress()) {
 			return false;
 		}
 		const deferred = new DeferredPromise<PermissionRequestResult>();
@@ -2718,7 +2722,7 @@ export class CopilotAgentSession extends Disposable {
 		request: UserInputRequest,
 		_invocation: { sessionId: string },
 	): Promise<UserInputResponse> {
-		if (this._abortState === CopilotAbortState.Aborting) {
+		if (this._isAbortInProgress()) {
 			return { answer: '', wasFreeform: true };
 		}
 		const isAutopilot = this._isAutopilotMode();
@@ -2813,7 +2817,7 @@ export class CopilotAgentSession extends Disposable {
 	 * be misleading to the MCP server.
 	 */
 	private async _handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult> {
-		if (this._abortState === CopilotAbortState.Aborting) {
+		if (this._isAbortInProgress()) {
 			return { action: 'cancel' };
 		}
 		const isAutopilot = this._isAutopilotMode();
@@ -4130,7 +4134,7 @@ export class CopilotAgentSession extends Disposable {
 	 * `currentMode` so the model can continue with implementation.
 	 */
 	private async _handleExitPlanModeRequest(data: ExitPlanModeRequest, _invocation: { sessionId: string }): Promise<IExitPlanModeResponse> {
-		if (this._abortState === CopilotAbortState.Aborting) {
+		if (this._isAbortInProgress()) {
 			return { approved: false };
 		}
 		const turnId = this._currentTurn?.id;
@@ -4149,7 +4153,7 @@ export class CopilotAgentSession extends Disposable {
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] rpc.plan.read failed for exit_plan_mode: ${err instanceof Error ? err.message : String(err)}`);
 		}
-		if (this._abortState === CopilotAbortState.Aborting) {
+		if (this._isAbortInProgress()) {
 			return { approved: false };
 		}
 		if (this._currentTurn?.id !== turnId) {
