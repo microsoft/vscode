@@ -614,7 +614,12 @@ export class AutomationsListWidget extends Disposable {
 			return;
 		}
 		try {
-			await this.automationService.updateAutomation(result.id, result.value);
+			const updateResult = await this.automationService.updateAutomationIfUnchanged(result.id, result.value, automation);
+			if (updateResult.kind === 'conflict') {
+				throw new Error(updateResult.current
+					? localize('automationChangedDuringEdit', "This automation changed while the dialog was open. Reopen it to review the latest values.")
+					: localize('automationDeletedDuringEdit', "This automation was deleted while the dialog was open."));
+			}
 			status(localize('automationUpdatedStatus', "Updated automation {0}", automation.name));
 		} catch (err) {
 			this.logService.error('[Automations] Failed to update automation', err);
@@ -741,6 +746,22 @@ export class AutomationsListWidget extends Disposable {
 	 */
 	getDisplayEntriesForTest(): readonly IAutomationListEntry[] {
 		return this.displayEntries;
+	}
+
+	/**
+	 * Expands, reveals, and moves keyboard focus to an automation.
+	 */
+	focusAutomation(automationId: string): boolean {
+		const index = this.displayEntries.findIndex(entry => entry.automation.id === automationId);
+		if (index < 0) {
+			return false;
+		}
+		this.expandedRows.add(automationId);
+		this.updateList(this.automationService.automations.get());
+		this.list.reveal(index);
+		this.list.setFocus([index]);
+		this.list.domFocus();
+		return true;
 	}
 
 	focus(): void {

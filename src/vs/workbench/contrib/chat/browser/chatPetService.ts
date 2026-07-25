@@ -45,7 +45,7 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		this._enabled.set(enabled, undefined);
 		this.storageService.store(CHAT_PET_ENABLED_STORAGE_KEY, enabled, StorageScope.APPLICATION, StorageTarget.USER);
 		status(enabled
-			? localize('chatPet.enabled', "VS Code pet enabled")
+			? localize('chatPet.enabled', "VS Code pet enabled. Click the pet to interact with it, or use the Left and Right Arrow keys to move it.")
 			: localize('chatPet.disabled', "VS Code pet disabled"));
 		return enabled;
 	}
