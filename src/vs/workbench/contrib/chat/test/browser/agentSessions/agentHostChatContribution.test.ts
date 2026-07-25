@@ -29,7 +29,7 @@ import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } fr
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -44,7 +44,7 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
-import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
@@ -789,6 +789,13 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		removePendingRequestCalls: [] as { sessionResource: URI; requestId: string }[],
 		removePendingRequest(sessionResource: URI, requestId: string) {
 			this.removePendingRequestCalls.push({ sessionResource, requestId });
+		},
+		syncPendingRequestsFromRemoteCalls: [] as { sessionResource: URI; requests: readonly IRemotePendingRequest[] }[],
+		/** Set by tests that want to mirror remote pending messages into their fake chat model. */
+		applyRemotePendingRequests: undefined as ((sessionResource: URI, requests: readonly IRemotePendingRequest[]) => void) | undefined,
+		syncPendingRequestsFromRemote(sessionResource: URI, requests: readonly IRemotePendingRequest[]) {
+			this.syncPendingRequestsFromRemoteCalls.push({ sessionResource, requests });
+			this.applyRemotePendingRequests?.(sessionResource, requests);
 		},
 	};
 	instantiationService.stub(IChatService, chatService);
@@ -8385,6 +8392,138 @@ suite('AgentHostChatContribution', () => {
 				id: 'queued-request-1',
 				message: { text, origin: { kind: MessageKind.User } },
 			});
+		});
+
+		test('projects pending messages queued by another client into the chat model', async () => {
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+
+			const backendSession = AgentSession.uri('copilot', 'remote-queued');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Test',
+					status: SessionStatus.InProgress,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeTurn: createActiveTurn('active-turn-1', { text: 'Working', origin: { kind: MessageKind.User } }, '2025-01-01T00:00:00.000Z'),
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/remote-queued' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const pendingRequests: IChatPendingRequest[] = [];
+			const chatModel = createPendingChatModel(sessionResource, pendingRequests);
+			chatService.applyRemotePendingRequests = (_resource, requests) => {
+				pendingRequests.length = 0;
+				for (const remote of requests) {
+					pendingRequests.push({
+						request: upcastPartial<IChatRequestModel>({ id: remote.id, message: { text: remote.message, parts: [] }, variableData: remote.variableData }),
+						kind: remote.kind,
+						sendOptions: {},
+					});
+				}
+				chatModel.firePendingRequestsChanged();
+			};
+			chatService.setSession(sessionResource, chatModel.model);
+			chatService.syncPendingRequestsFromRemoteCalls.length = 0;
+			agentHostService.dispatchedActions.length = 0;
+
+			// Another client queues a message and steers the active turn.
+			agentHostService.fireAction({
+				channel: buildDefaultChatUri(backendSession.toString()),
+				action: {
+					type: ActionType.ChatPendingMessageSet,
+					kind: PendingMessageKind.Queued,
+					id: 'remote-queued-1',
+					message: { text: 'queued elsewhere', origin: { kind: MessageKind.User } },
+				} as ChatAction,
+				serverSeq: 1,
+				origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: buildDefaultChatUri(backendSession.toString()),
+				action: {
+					type: ActionType.ChatPendingMessageSet,
+					kind: PendingMessageKind.Steering,
+					id: 'remote-steering-1',
+					message: { text: 'steered elsewhere', origin: { kind: MessageKind.User } },
+				} as ChatAction,
+				serverSeq: 2,
+				origin: undefined,
+			});
+
+			const last = chatService.syncPendingRequestsFromRemoteCalls.at(-1);
+			assert.deepStrictEqual({
+				model: pendingRequests.map(p => ({ id: p.request.id, kind: p.kind, message: p.request.message.text })),
+				protocol: last?.requests.map(r => ({ id: r.id, kind: r.kind, message: r.message })),
+				echoedActions: agentHostService.dispatchedActions.filter(d =>
+					d.action.type === ActionType.ChatPendingMessageSet
+					|| d.action.type === ActionType.ChatPendingMessageRemoved
+					|| d.action.type === ActionType.ChatQueuedMessagesReordered
+				),
+			}, {
+				model: [
+					{ id: 'remote-steering-1', kind: ChatRequestQueueKind.Steering, message: 'steered elsewhere' },
+					{ id: 'remote-queued-1', kind: ChatRequestQueueKind.Queued, message: 'queued elsewhere' },
+				],
+				protocol: [
+					{ id: 'remote-steering-1', kind: ChatRequestQueueKind.Steering, message: 'steered elsewhere' },
+					{ id: 'remote-queued-1', kind: ChatRequestQueueKind.Queued, message: 'queued elsewhere' },
+				],
+				echoedActions: [],
+			});
+		});
+
+		test('hydrates queued messages from the protocol instead of clearing them when attaching', async () => {
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+
+			const backendSession = AgentSession.uri('copilot', 'attach-existing-queue');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Test',
+					status: SessionStatus.InProgress,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeTurn: createActiveTurn('active-turn-1', { text: 'Working', origin: { kind: MessageKind.User } }, '2025-01-01T00:00:00.000Z'),
+				queuedMessages: [{ id: 'queued-elsewhere', message: { text: 'queued by another window', origin: { kind: MessageKind.User } } }],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/attach-existing-queue' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			// Mirror remote messages into this window's initially empty model.
+			const pendingRequests: IChatPendingRequest[] = [];
+			const chatModel = createPendingChatModel(sessionResource, pendingRequests);
+			chatService.applyRemotePendingRequests = (_resource, requests) => {
+				pendingRequests.length = 0;
+				for (const remote of requests) {
+					pendingRequests.push({
+						request: upcastPartial<IChatRequestModel>({ id: remote.id, message: { text: remote.message, parts: [] } }),
+						kind: remote.kind,
+						sendOptions: {},
+					});
+				}
+				chatModel.firePendingRequestsChanged();
+			};
+
+			agentHostService.dispatchedActions.length = 0;
+			chatService.setSession(sessionResource, chatModel.model);
+
+			assert.deepStrictEqual(pendingRequests.map(p => p.request.id), ['queued-elsewhere'], 'the remote queue should be mirrored locally');
+			assert.strictEqual(
+				agentHostService.dispatchedActions.some(d => d.action.type === ActionType.ChatPendingMessageRemoved),
+				false,
+				'attaching must not remove messages queued by another client',
+			);
 		});
 
 		test('syncs text updates for existing queued pending messages', async () => {

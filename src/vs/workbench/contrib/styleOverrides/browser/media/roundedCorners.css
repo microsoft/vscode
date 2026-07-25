@@ -52,6 +52,10 @@
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
+.style-override .browser-root .browser-url-container {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 /* Select / dropdown controls */
 .style-override .monaco-select-box,
 .style-override .monaco-select-box-dropdown-container {

@@ -12,7 +12,7 @@ import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDis
 import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
-import { observableValue } from '../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../base/common/observable.js';
 import { dirname as resourcesDirname, extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -64,6 +64,7 @@ import { CopilotApiService, ICopilotApiService } from './shared/copilotApiServic
 import { INetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
+import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostChangesetOperationService } from './agentHostChangesetOperationService.js';
 import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
@@ -508,6 +509,15 @@ export class AgentService extends Disposable implements IAgentService {
 		// truth in `serverToolGroups.ts`; the session-management group's runtime
 		// dependency (this service) is injected via the accessor.
 		this._serverToolHost = new AgentServerToolHost(this._stateManager, buildServerToolGroups(this._createSessionServerToolAccessor()));
+	}
+
+	/**
+	 * The registered providers. Exposed so process-lifetime background jobs
+	 * (notably {@link AgentModelRefreshScheduler}) can observe registrations
+	 * without this service owning an ambient recurring timer of its own.
+	 */
+	get agents(): IObservable<readonly IAgent[]> {
+		return this._agents;
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -1347,6 +1357,7 @@ export class AgentService extends Disposable implements IAgentService {
 	async disposeChat(session: URI, chat: URI): Promise<void> {
 		const sessionKey = session.toString();
 		const provider = this._findProviderForSession(session);
+		this._sideEffects.clearQueuedMessageSenders(chat.toString());
 		this._stateManager.removeChat(sessionKey, chat.toString());
 		// Drop the chat from the orchestrator-owned catalog so it isn't
 		// re-materialized on the next restore.
@@ -1782,6 +1793,9 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._worktree?.removeCreatedWorktree(AgentSession.id(session));
 		this._changesetCoordinator.onSessionDisposed(session.toString());
 		this._sideEffects.cancelSessionTitleGeneration(session.toString());
+		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
+			this._sideEffects.clearQueuedMessageSenders(chat.resource);
+		}
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());
 		this._stateManager.deleteSession(session.toString());
@@ -2148,7 +2162,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
 
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType = AgentHostClientType.Unknown): void {
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
 
 		// Clients dispatch chat (chat) actions against a chat channel
@@ -2161,7 +2175,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		const pending = this._clientDispatchQueues.get(clientId);
 		if (!pending && !this._needsAsyncRewrite(sessionChannel, action)) {
-			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq);
+			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq, clientType);
 			return;
 		}
 		const next = (pending ?? Promise.resolve()).then(async () => {
@@ -2176,7 +2190,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				this._changesets.refreshBranchChangeset(changeset.sessionUri);
 			}
-			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq);
+			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientType);
 		}).catch(err => {
 			this._logService.error(`[AgentService] async dispatchAction failed: ${toErrorMessage(err)}`);
 		});
@@ -2188,13 +2202,13 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 	}
 
-	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType: AgentHostClientType): void {
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(channel, action, origin);
 		if (action.type === ActionType.RootConfigChanged) {
 			this._configurationService.persistRootConfig();
 		}
-		this._sideEffects.handleAction(channel, action, clientId);
+		this._sideEffects.handleAction(channel, action, clientId, clientType);
 	}
 
 	private _needsAsyncRewrite(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {

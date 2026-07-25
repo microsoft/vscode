@@ -17,6 +17,7 @@ import * as os from 'os';
 import * as inspector from 'inspector';
 import { AgentHostByokModelsEnabledEnvVar, AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -277,6 +278,15 @@ async function startAgentHost(): Promise<void> {
 		logService.error('Failed to create AgentService', err);
 		throw err;
 	}
+
+	// Keep every provider's model catalog fresh. Provider-owned refresh
+	// triggers (authentication, transport flips, client restarts) are all
+	// edge-based, so this periodic tick is the only thing that notices a model
+	// added service-side while the host stays up. Owned here, at process
+	// lifetime, rather than inside `AgentHostService`: a service that arms a
+	// recurring timer in its constructor is one that no faked-timer unit test
+	// can ever drain.
+	disposables.add(instantiationService.createInstance(AgentModelRefreshScheduler, agentService.agents, MODEL_REFRESH_INTERVAL_MS));
 
 	// Surface agent-SDK download progress to clients as generic `progress`
 	// notifications. The downloader fires process-global frames keyed by package
