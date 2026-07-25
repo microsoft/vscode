@@ -1855,6 +1855,110 @@ suite('AgentHostChatContribution', () => {
 			}]);
 
 		}));
+
+		test('uri-only image in a draft stays a resource reference without reading bytes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' });
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:opus-4.7', modelMetadata],
+			]);
+			const { sessionHandler, agentHostService, chatService, fileService } = createContribution(disposables, { languageModels });
+			// Content the draft path must never read. Drafts are persisted on every
+			// debounced input change and are not model-facing, so a uri-only image
+			// must stay a lightweight resource reference rather than hydrating bytes.
+			// If the non-hydrating default ever regressed, readFile would embed these
+			// bytes and both assertions below would fail.
+			fileService.setContent('draft image bytes');
+			const backendSession = AgentSession.uri('copilot', 'draft-image');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/draft-image' });
+			const imageUri = URI.file('/workspace/draft-pic.png');
+
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Draft Image',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+			});
+
+			const inputState = observableValue<IChatModelInputState | undefined>('test.inputState', {
+				attachments: [
+					upcastPartial<IChatRequestVariableEntry>({
+						kind: 'image',
+						id: 'v-img',
+						name: 'draft-pic.png',
+						value: imageUri,
+						mimeType: 'image/png',
+						references: [{ reference: imageUri, kind: 'reference' }],
+					}),
+				],
+				mode: { id: 'agent://reviewer', kind: ChatModeKind.Agent },
+				selectedModel: { identifier: 'agent-host-copilot:opus-4.7', metadata: modelMetadata },
+				inputText: 'draft body',
+				selections: [],
+				contrib: {},
+			});
+			const inputModel = upcastPartial<IInputModel>({
+				state: inputState,
+				setState(state: Partial<IChatModelInputState>): void {
+					inputState.set({
+						attachments: [],
+						mode: { id: 'agent', kind: ChatModeKind.Agent },
+						selectedModel: undefined,
+						inputText: '',
+						selections: [],
+						contrib: {},
+						...inputState.get(),
+						...state,
+					}, undefined);
+				},
+				clearState(): void {
+					inputState.set(undefined, undefined);
+				},
+				toJSON: () => undefined,
+			});
+			const chatModel = upcastPartial<IChatModel>({
+				sessionResource,
+				inputModel,
+				onDidChangePendingRequests: Event.None,
+				getPendingRequests: () => [],
+			});
+
+			chatService.setSession(sessionResource, chatModel);
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			agentHostService.dispatchedActions.length = 0;
+
+			await timeout(499);
+			assert.strictEqual(agentHostService.dispatchedActions.length, 0);
+
+			await timeout(1);
+			// Flush the now-async draft conversion chain.
+			await timeout(0);
+			assert.deepStrictEqual(agentHostService.dispatchedActions.map(d => ({ channel: d.channel, action: d.action })), [{
+				channel: buildDefaultChatUri(backendSession.toString()),
+				action: {
+					type: ActionType.ChatDraftChanged,
+					draft: {
+						text: 'draft body',
+						origin: { kind: MessageKind.User },
+						attachments: [
+							{ type: MessageAttachmentKind.Resource, uri: imageUri.toString(), label: 'draft-pic.png', displayKind: 'image' },
+						],
+						model: { id: 'opus-4.7' },
+						agent: { uri: 'agent://reviewer' },
+					},
+				},
+			}]);
+			// The draft path must stay a lightweight reference and never read bytes.
+			assert.strictEqual(fileService.readOperations.length, 0);
+
+		}));
 	});
 
 	// ---- Session disposal -----------------------------------------------
