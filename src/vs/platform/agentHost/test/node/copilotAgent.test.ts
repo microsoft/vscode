@@ -864,7 +864,7 @@ suite('CopilotAgent', () => {
 				provider: 'copilotcli',
 				displayName: 'Copilot',
 				description: 'Copilot SDK agent running in the local agent host process',
-				capabilities: { multipleChats: { fork: true } },
+				capabilities: { multipleChats: { fork: true }, resumeTurn: {} },
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -3723,6 +3723,7 @@ suite('CopilotAgent', () => {
 
 		interface IFakeConvRecorder {
 			readonly sends: { prompt: string; turnId: string | undefined; senderClientId: string | undefined }[];
+			readonly resumes: { turnId: string; senderClientId: string | undefined }[];
 			readonly resets: { turnId: string; senderClientId: string | undefined }[];
 			readonly modelCalls: string[];
 			readonly agentCalls: (string | undefined)[];
@@ -3737,13 +3738,16 @@ suite('CopilotAgent', () => {
 		 * the real legacy methods.
 		 */
 		function installFake(agent: CopilotAgent, key: string, target: 'chat' | 'session', sessionUri: URI): IFakeConvRecorder {
-			const rec: IFakeConvRecorder = { sends: [], resets: [], modelCalls: [], agentCalls: [], aborted: 0, disposed: false };
+			const rec: IFakeConvRecorder = { sends: [], resumes: [], resets: [], modelCalls: [], agentCalls: [], aborted: 0, disposed: false };
 			const fake = {
 				sessionUri,
 				sessionId: `sdk-${key}`,
 				appliedSnapshot: { tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 				async send(prompt: string, _attachments: unknown, turnId: string | undefined, _mode: unknown, senderClientId: string | undefined): Promise<void> {
 					rec.sends.push({ prompt, turnId, senderClientId });
+				},
+				async resume(turnId: string, _mode: unknown, senderClientId: string | undefined): Promise<void> {
+					rec.resumes.push({ turnId, senderClientId });
 				},
 				resetTurnState(turnId: string, senderClientId: string | undefined): void { rec.resets.push({ turnId, senderClientId }); },
 				async setModel(id: string): Promise<void> { rec.modelCalls.push(id); },
@@ -3906,6 +3910,31 @@ suite('CopilotAgent', () => {
 				await agent.chats.sendMessage(defaultChatUri(session), 'hello-default', undefined, undefined, 'turn-d', 'client-d');
 
 				assert.deepStrictEqual(rec.sends, [{ prompt: 'hello-default', turnId: 'turn-d', senderClientId: 'client-d' }]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('resumeTurn routes to the targeted default and peer chats', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'conv-resume');
+				const peerUri = URI.parse(buildChatUri(session, 'peer-a'));
+				const defaultRec = installFake(agent, AgentSession.id(session), 'session', session);
+				const peerRec = installFake(agent, peerUri.toString(), 'chat', session);
+
+				await agent.chats.resumeTurn(defaultChatUri(session), 'turn-default', 'client-default');
+				await agent.chats.resumeTurn(peerUri, 'turn-peer', 'client-peer');
+
+				assert.deepStrictEqual({
+					default: defaultRec.resumes,
+					peer: peerRec.resumes,
+					sends: [...defaultRec.sends, ...peerRec.sends],
+				}, {
+					default: [{ turnId: 'turn-default', senderClientId: 'client-default' }],
+					peer: [{ turnId: 'turn-peer', senderClientId: 'client-peer' }],
+					sends: [],
+				});
 			} finally {
 				await disposeAgent(agent);
 			}

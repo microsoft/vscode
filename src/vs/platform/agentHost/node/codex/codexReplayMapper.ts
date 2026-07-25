@@ -11,11 +11,13 @@ import {
 	ToolCallConfirmationReason,
 	ToolCallStatus,
 	ToolResultContentType,
+	TurnState,
 	type ResponsePart,
 	type ToolCallResponsePart,
 	type ToolResultContent,
 	type Turn,
 } from '../../common/state/sessionState.js';
+import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import {
 	describeFileChange,
 	describeWebSearch,
@@ -47,22 +49,48 @@ import type { Turn as CodexTurn } from './protocol/generated/v2/Turn.js';
  * pre-flight coalescing (see {@link codexMapAppServerEvents}) — so restored
  * sessions render identically to active ones.
  */
-export function replayThreadToTurns(thread: Thread): Turn[] {
+export interface ICodexReplayResult {
+	readonly turns: Turn[];
+	readonly codexTurnIdByHostTurnId: ReadonlyMap<string, string>;
+}
+
+export function replayThread(thread: Thread): ICodexReplayResult {
 	const turns: Turn[] = [];
+	const codexTurnIdByHostTurnId = new Map<string, string>();
 	for (const codexTurn of thread.turns ?? []) {
-		const turn = replayTurnToTurn(codexTurn);
-		if (turn) {
-			turns.push(turn);
+		const replayed = replayTurnToTurn(codexTurn);
+		if (!replayed) {
+			continue;
+		}
+		if (replayed.hasUserMessage) {
+			turns.push(replayed.turn);
+			codexTurnIdByHostTurnId.set(replayed.turn.id, codexTurn.id);
+			continue;
+		}
+		const previous = turns.at(-1);
+		if (previous) {
+			turns[turns.length - 1] = mergeContinuedTurn(previous, replayed.turn);
+			codexTurnIdByHostTurnId.set(previous.id, codexTurn.id);
 		}
 	}
-	return turns;
+	return { turns, codexTurnIdByHostTurnId };
+}
+
+export function replayThreadToTurns(thread: Thread): Turn[] {
+	return replayThread(thread).turns;
 }
 
 /** A completed `commandExecution` item narrowed to its terminal fields. */
 type CommandExecutionItem = Extract<ThreadItem, { type: 'commandExecution' }>;
 
-function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
+interface IReplayedTurn {
+	readonly turn: Turn;
+	readonly hasUserMessage: boolean;
+}
+
+function replayTurnToTurn(codexTurn: CodexTurn): IReplayedTurn | undefined {
 	let userText = '';
+	let hasUserMessage = false;
 	const parts: ResponsePart[] = [];
 	// A successful command that produced no output may be a sandbox pre-flight
 	// that codex immediately re-ran under an approval prompt (same command, new
@@ -103,6 +131,7 @@ function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 		flushPreflight();
 
 		if (item.type === 'userMessage') {
+			hasUserMessage = true;
 			const collected: string[] = [];
 			for (const c of item.content) {
 				if (c.type === 'text') {
@@ -132,15 +161,40 @@ function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 
 	// If we got nothing recognizable, drop the turn — there's nothing for
 	// the UI to render.
-	if (!userText && parts.length === 0) {
+	if (hasUserMessage && !userText && parts.length === 0) {
 		return undefined;
 	}
+	const state = turnStateFromStatus(codexTurn.status);
+	const errorMessage = state === TurnState.Error ? codexTurn.error?.message ?? 'Codex turn failed' : undefined;
 	return {
-		id: codexTurn.id,
-		message: { text: userText, origin: { kind: MessageKind.User } },
-		responseParts: parts,
-		usage: undefined,
-		state: turnStateFromStatus(codexTurn.status),
+		hasUserMessage,
+		turn: {
+			id: codexTurn.id,
+			message: { text: userText, origin: { kind: MessageKind.User } },
+			responseParts: parts,
+			usage: undefined,
+			state,
+			...(errorMessage ? {
+				error: {
+					errorType: 'CodexError',
+					...extractForwardedErrorInfo(errorMessage),
+					resumable: true,
+				},
+			} : {}),
+		},
+	};
+}
+
+function mergeContinuedTurn(previous: Turn, continuation: Turn): Turn {
+	return {
+		id: previous.id,
+		...(previous.startedAt ? { startedAt: previous.startedAt } : {}),
+		...(continuation.duration !== undefined ? { duration: continuation.duration } : previous.duration !== undefined ? { duration: previous.duration } : {}),
+		message: previous.message,
+		responseParts: [...previous.responseParts, ...continuation.responseParts],
+		usage: continuation.usage ?? previous.usage,
+		state: continuation.state,
+		...(continuation.error ? { error: continuation.error } : {}),
 	};
 }
 

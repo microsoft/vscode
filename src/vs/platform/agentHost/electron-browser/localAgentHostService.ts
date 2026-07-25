@@ -434,8 +434,13 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+		this.dispatchWithSequence(channel, action);
+	}
+
+	dispatchWithSequence(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): number {
 		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
 		this.dispatchAction(channel, action, this.clientId, seq);
+		return seq;
 	}
 
 	resourceList(uri: URI): Promise<ResourceListResult> {

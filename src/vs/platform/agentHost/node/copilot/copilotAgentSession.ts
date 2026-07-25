@@ -1487,13 +1487,25 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type })))}`);
 		}
 
+		await this._prepareSdkTurn(mode);
+		await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
+		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
+	}
+
+	async resume(turnId: string, mode?: CopilotSdkMode, senderClientId?: string): Promise<void> {
+		this.resetTurnState(turnId, senderClientId);
+		this._logService.info(`[Copilot:${this.sessionId}] Resuming failed turn ${turnId}`);
+		await this._prepareSdkTurn(mode);
+		await this._wrapper.session.rpc.sendMessages({ messages: [] });
+		this._logService.info(`[Copilot:${this.sessionId}] session.sendMessages() returned`);
+	}
+
+	private async _prepareSdkTurn(mode: CopilotSdkMode | undefined): Promise<void> {
 		await this.applyMode(mode);
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
 		await this._reconcileMcpServerEnablement();
 		this._markEnabledMcpServersStarting();
-		await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
-		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
 	async hasRuntimeSlashCommand(command: string): Promise<boolean> {
@@ -3332,6 +3344,11 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onSessionError(e => {
 			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
+			const parentToolCallId = e.agentId ? this._parentToolCallIdsByAgentId.get(e.agentId) : undefined;
+			if (e.agentId && !parentToolCallId) {
+				this._logService.warn(`[Copilot:${sessionId}] Ignoring session error for unknown subagent agentId=${e.agentId}`);
+				return;
+			}
 			// Prefer the structured SDK fields (the Copilot CLI classifies its own
 			// CAPI errors); fall back to decoding a forwarded marker from the message.
 			const meta = tryBuildChatErrorMetaFromFields(e.data) ?? tryBuildChatErrorMeta(e.data.message);
@@ -3343,9 +3360,10 @@ export class CopilotAgentSession extends Disposable {
 					errorType: e.data.errorType,
 					message: stripProxyErrorMarker(e.data.message),
 					stack: e.data.stack,
+					...(!e.agentId && this._currentTurn !== undefined ? { resumable: true } : {}),
 					...(meta ? { _meta: meta } : {}),
 				},
-			});
+			}, parentToolCallId);
 		}));
 
 		// Tracks the last parent-scope usage so the async attribution enrichment

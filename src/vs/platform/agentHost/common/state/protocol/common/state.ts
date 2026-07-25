@@ -320,6 +320,8 @@ export interface ErrorInfo {
 	message: string;
 	/** Stack trace */
 	stack?: string;
+	/** Whether the failed operation can be resumed without adding new user input. */
+	resumable?: boolean;
 	/**
 	 * Additional provider-specific metadata for this error.
 	 * Clients MAY look for well-known optional keys here to provide enhanced UI

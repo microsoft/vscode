@@ -26,7 +26,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, ChatOriginKind, CustomizationType, McpAuthRequiredReason, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -276,6 +276,85 @@ suite('AgentSideEffects', () => {
 			await waitForSendMessageCalls(1);
 
 			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world', attachments: undefined, chat: URI.parse(defaultChatUri) }]);
+		});
+
+		suite('handleAction — chat/turnResumed', () => {
+			test('routes the resumed turn without sending another user message', async () => {
+				setupSession();
+				agent.resumeTurnSupported = true;
+				startTurn('turn-1');
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatError,
+					turnId: 'turn-1',
+					duration: 100,
+					error: { errorType: 'requestFailed', message: 'failed', resumable: true },
+				});
+				const action: ChatAction = {
+					type: ActionType.ChatTurnResumed,
+					turnId: 'turn-1',
+				};
+				stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'client-B', clientSeq: 2 });
+				sideEffects.handleAction(defaultChatUri, action, 'client-B');
+				stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'client-B', clientSeq: 3 });
+				sideEffects.handleAction(defaultChatUri, action, 'client-B');
+				await Promise.resolve();
+
+				assert.deepStrictEqual({
+					resumeTurnCalls: agent.resumeTurnCalls,
+					sendMessageCalls: agent.sendMessageCalls,
+					changeModelCalls: agent.changeModelCalls,
+					changeAgentCalls: agent.changeAgentCalls,
+					telemetry: telemetryService.events,
+				}, {
+					resumeTurnCalls: [{
+						session: URI.parse(sessionUri.toString()),
+						chat: URI.parse(defaultChatUri),
+						turnId: 'turn-1',
+						senderClientId: 'client-B',
+					}],
+					sendMessageCalls: [],
+					changeModelCalls: [],
+					changeAgentCalls: [],
+					telemetry: [],
+				});
+			});
+
+			test('terminates a resumed turn when the agent does not advertise support', () => {
+				setupSession();
+				startTurn('turn-1');
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatError,
+					turnId: 'turn-1',
+					duration: 100,
+					error: { errorType: 'requestFailed', message: 'failed', resumable: true },
+				});
+				const action: ChatAction = {
+					type: ActionType.ChatTurnResumed,
+					turnId: 'turn-1',
+				};
+				stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 2 });
+				sideEffects.handleAction(defaultChatUri, action);
+
+				assert.deepStrictEqual({
+					resumeTurnCalls: agent.resumeTurnCalls,
+					turn: stateManager.getChatState(defaultChatUri)?.turns.at(-1),
+				}, {
+					resumeTurnCalls: [],
+					turn: {
+						id: 'turn-1',
+						startedAt: '2025-01-01T00:00:00.000Z',
+						duration: 0,
+						message: { text: 'hello', origin: { kind: MessageKind.User } },
+						responseParts: [],
+						usage: undefined,
+						state: TurnState.Error,
+						error: {
+							errorType: 'resumeUnsupported',
+							message: 'The selected agent does not support resuming failed turns.',
+						},
+					},
+				});
+			});
 		});
 
 		test('passes the dispatching client id to sendMessage', async () => {

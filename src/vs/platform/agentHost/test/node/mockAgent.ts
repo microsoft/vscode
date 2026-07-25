@@ -59,6 +59,7 @@ export class MockAgent implements IAgent {
 
 
 	readonly sendMessageCalls: IMockSendMessageCall[] = [];
+	readonly resumeTurnCalls: { session: URI; chat: URI; turnId: string; senderClientId?: string }[] = [];
 	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[]; chat?: URI }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly releaseSessionCalls: URI[] = [];
@@ -91,8 +92,15 @@ export class MockAgent implements IAgent {
 
 	constructor(readonly id: AgentProvider = 'mock') { }
 
+	resumeTurnSupported = false;
+
 	getDescriptor(): IAgentDescriptor {
-		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent` };
+		return {
+			provider: this.id,
+			displayName: `Agent ${this.id}`,
+			description: `Test ${this.id} agent`,
+			capabilities: this.resumeTurnSupported ? { resumeTurn: {} } : undefined,
+		};
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
@@ -126,6 +134,7 @@ export class MockAgent implements IAgent {
 	 * or branch setup throwing).
 	 */
 	sendMessageError: Error | undefined;
+	resumeTurnError: Error | undefined;
 	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
 		const session = config?.session ?? AgentSession.uri(this.id, `${this.id}-session-${this._nextId++}`);
 		const rawId = AgentSession.id(session);
@@ -150,6 +159,13 @@ export class MockAgent implements IAgent {
 		}
 		if (this.sendMessageError) {
 			throw this.sendMessageError;
+		}
+	}
+
+	async resumeTurn(session: URI, chat: URI, turnId: string, senderClientId?: string): Promise<void> {
+		this.resumeTurnCalls.push({ session, chat, turnId, ...(senderClientId ? { senderClientId } : {}) });
+		if (this.resumeTurnError) {
+			throw this.resumeTurnError;
 		}
 	}
 
@@ -244,6 +260,10 @@ export class MockAgent implements IAgent {
 		sendMessage: (chatUri: URI, prompt: string, _workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId);
+		},
+		resumeTurn: (chatUri: URI, turnId: string, senderClientId?: string): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.resumeTurn(session, chat, turnId, senderClientId);
 		},
 		abort: (chat: URI): Promise<void> => {
 			const { session } = this._resolveChatTarget(chat);
@@ -923,6 +943,9 @@ export class ScriptedMockAgent implements IAgent {
 		sendMessage: (chatUri: URI, prompt: string, _workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.sendMessage(session, chat, prompt, attachments, turnId);
+		},
+		resumeTurn: (): Promise<void> => {
+			throw new Error('Scripted mock agent does not support resuming failed turns');
 		},
 		abort: (chat: URI): Promise<void> => {
 			const { session } = this._resolveChatTarget(chat);

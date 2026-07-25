@@ -72,6 +72,163 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('restores a persisted request error as resumable', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'failed-turn', data: { interactionId: 'm1', content: 'Try this' } },
+			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'Partial response' } },
+			{ type: 'session.error', data: { errorType: 'test_error', message: 'Request failed', stack: 'stack' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns, [{
+			id: 'failed-turn',
+			message: { text: 'Try this', origin: { kind: MessageKind.User } },
+			responseParts: [{
+				kind: ResponsePartKind.Markdown,
+				id: turns[0].responseParts[0].kind === ResponsePartKind.Markdown ? turns[0].responseParts[0].id : '',
+				content: 'Partial response',
+			}],
+			usage: undefined,
+			state: TurnState.Error,
+			error: {
+				errorType: 'test_error',
+				message: 'Request failed',
+				stack: 'stack',
+				resumable: true,
+			},
+		}]);
+	});
+
+	test('restores a pre-loop request error as non-resumable', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'failed-turn', data: { interactionId: 'm1', content: 'Try this' } },
+			{ type: 'session.error', data: { errorType: 'setup_error', message: 'Setup failed' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns[0].error, {
+			errorType: 'setup_error',
+			message: 'Setup failed',
+			stack: undefined,
+		});
+	});
+
+	test('restores a subagent error without advertising root-turn resume', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'parent-turn', data: { interactionId: 'm1', content: 'Delegate this' } },
+			{
+				type: 'subagent.started',
+				agentId: 'subagent-1',
+				data: {
+					toolCallId: 'task-1',
+					agentName: 'explore',
+					agentDisplayName: 'Explore',
+					agentDescription: 'Explores',
+				},
+			},
+			{ type: 'session.error', agentId: 'subagent-1', data: { errorType: 'subagent_error', message: 'Subagent failed' } },
+		];
+
+		const { subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(subagentTurnsByToolCallId.get('task-1')?.[0].error, {
+			errorType: 'subagent_error',
+			message: 'Subagent failed',
+			stack: undefined,
+		});
+	});
+
+	test('ignores an error from an unknown subagent', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'parent-turn', data: { interactionId: 'm1', content: 'Delegate this' } },
+			{ type: 'session.error', agentId: 'unknown-subagent', data: { errorType: 'subagent_error', message: 'Subagent failed' } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			parentState: turns[0].state,
+			parentError: turns[0].error,
+			subagentCount: subagentTurnsByToolCallId.size,
+		}, {
+			parentState: TurnState.Cancelled,
+			parentError: undefined,
+			subagentCount: 0,
+		});
+	});
+
+	test('ignores a stale error after a subagent turn completed', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'parent-turn', data: { interactionId: 'm1', content: 'Delegate this' } },
+			{
+				type: 'subagent.started',
+				agentId: 'subagent-1',
+				data: {
+					toolCallId: 'task-1',
+					agentName: 'explore',
+					agentDisplayName: 'Explore',
+					agentDescription: 'Explores',
+				},
+			},
+			{ type: 'assistant.turn_start', agentId: 'subagent-1', data: { turnId: 'subagent-turn' } },
+			{ type: 'assistant.message', agentId: 'subagent-1', data: { messageId: 'm2', content: 'Done' } },
+			{ type: 'assistant.turn_end', agentId: 'subagent-1', data: { turnId: 'subagent-turn' } },
+			{ type: 'session.error', agentId: 'subagent-1', data: { errorType: 'stale_error', message: 'Late failure' } },
+		];
+
+		const { subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			state: subagentTurnsByToolCallId.get('task-1')?.[0].state,
+			error: subagentTurnsByToolCallId.get('task-1')?.[0].error,
+		}, {
+			state: TurnState.Complete,
+			error: undefined,
+		});
+	});
+
+	test('does not apply an idle session error to the preceding completed turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'completed-turn', data: { interactionId: 'm1', content: 'Try this' } },
+			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'Done' } },
+			{ type: 'assistant.turn_end', data: { turnId: 'sdk-turn' } },
+			{ type: 'session.error', data: { errorType: 'idle_error', message: 'Idle failure' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			state: turns[0].state,
+			error: turns[0].error,
+		}, {
+			state: TurnState.Complete,
+			error: undefined,
+		});
+	});
+
+	test('restores the latest error after a zero-message resume fails again', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'failed-turn', data: { interactionId: 'm1', content: 'Try this' } },
+			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn-1' } },
+			{ type: 'session.error', data: { errorType: 'first_error', message: 'First failure' } },
+			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn-2' } },
+			{ type: 'session.error', data: { errorType: 'second_error', message: 'Second failure' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns[0].error, {
+			errorType: 'second_error',
+			message: 'Second failure',
+			stack: undefined,
+			resumable: true,
+		});
+	});
+
 	test('task_complete without a summary renders nothing', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },

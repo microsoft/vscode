@@ -745,8 +745,13 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+		this.dispatchWithSequence(channel, action);
+	}
+
+	dispatchWithSequence(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): number {
 		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
 		this.dispatchAction(channel, action, this._clientId, seq);
+		return seq;
 	}
 
 	/**

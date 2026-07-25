@@ -897,7 +897,24 @@ suite('codexMapAppServerEvents', () => {
 		assert.strictEqual(completeDuration, 321);
 	});
 
-	test('turn/completed with status=failed emits ChatError + ChatTurnComplete', () => {
+	test('turn/completed with status=failed emits resumable ChatError for the default chat', () => {
+		const state = createCodexSessionMapState();
+		const actions = mapTurnCompleted(state, {
+			threadId: 'thr_1',
+			turn: {
+				id: 'turn_a', items: [], itemsView: { type: 'full' } as never,
+				status: 'failed' as never,
+				error: { message: 'boom' } as never,
+				startedAt: null, completedAt: null, durationMs: null,
+			},
+		}, undefined, true);
+		assert.deepStrictEqual(actions, [
+			{ type: ActionType.ChatError, turnId: 'turn_a', duration: 0, error: { errorType: 'CodexError', message: 'boom', resumable: true } },
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn_a', duration: 0 },
+		]);
+	});
+
+	test('turn/completed with status=failed remains non-resumable for a read-only subagent chat', () => {
 		const state = createCodexSessionMapState();
 		const actions = mapTurnCompleted(state, {
 			threadId: 'thr_1',

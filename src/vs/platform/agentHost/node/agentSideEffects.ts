@@ -127,6 +127,7 @@ export class AgentSideEffects extends Disposable {
 
 	/** Maps tool call IDs to the agent that owns them, for routing confirmations. */
 	private readonly _toolCallAgents = new Map<string, string>();
+	private readonly _resumingTurns = new Set<string>();
 	private _lastAgentInfos: readonly AgentInfo[] = [];
 
 	private readonly _permissionManager: SessionPermissionManager;
@@ -196,6 +197,9 @@ export class AgentSideEffects extends Disposable {
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (isAhpChatChannel(envelope.channel) && isChatAction(envelope.action)) {
 				this._syncSessionInputNeededForChatAction(envelope.channel, envelope.action);
+				if (envelope.action.type === ActionType.ChatTurnComplete || envelope.action.type === ActionType.ChatTurnCancelled || envelope.action.type === ActionType.ChatError) {
+					this._resumingTurns.delete(this._resumingTurnKey(envelope.channel, envelope.action.turnId));
+				}
 			}
 			if (!envelope.origin && envelope.action.type === ActionType.ChatToolCallComplete) {
 				const action = envelope.action;
@@ -1125,6 +1129,47 @@ export class AgentSideEffects extends Disposable {
 				});
 				break;
 			}
+			case ActionType.ChatTurnResumed: {
+				if (!chatChannel) {
+					throw new Error(`ChatTurnResumed must be handled on an AHP chat channel: ${channel}`);
+				}
+				const resumingTurnKey = this._resumingTurnKey(channel, action.turnId);
+				if (this._resumingTurns.has(resumingTurnKey)) {
+					this._logService.warn(`[AgentSideEffects] Ignoring duplicate turn resume for chat=${channel}, turnId=${action.turnId}`);
+					return;
+				}
+				const chatState = this._stateManager.getChatState(channel);
+				if (chatState?.activeTurn?.id !== action.turnId) {
+					this._logService.warn(`[AgentSideEffects] Ignoring invalid turn resume for chat=${channel}, turnId=${action.turnId}`);
+					return;
+				}
+				const turnStopWatch = StopWatch.create(false);
+				const agent = this._options.getAgent(sessionChannel);
+				if (!agent) {
+					this._stateManager.dispatchServerAction(channel, {
+						type: ActionType.ChatError,
+						turnId: action.turnId,
+						duration: this._turnDuration(turnStopWatch),
+						error: { errorType: 'noAgent', message: 'No agent found for session' },
+					});
+					return;
+				}
+				if (!agent.getDescriptor().capabilities?.resumeTurn) {
+					this._stateManager.dispatchServerAction(channel, {
+						type: ActionType.ChatError,
+						turnId: action.turnId,
+						duration: this._turnDuration(turnStopWatch),
+						error: { errorType: 'resumeUnsupported', message: 'The selected agent does not support resuming failed turns.' },
+					});
+					return;
+				}
+				const state = this._stateManager.getSessionState(channel);
+				const { model, permissionLevel } = this._getTurnTelemetryContext(state, chatState.activeTurn.message.model?.id);
+				this._resumingTurns.add(resumingTurnKey);
+				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, permissionLevel);
+				void this._resumeTurn(agent, sessionChannel, channel, action.turnId, clientId, turnStopWatch);
+				break;
+			}
 			case ActionType.ChatToolCallConfirmed: {
 				if (!chatChannel) {
 					throw new Error(`ChatToolCallConfirmed must be handled on an AHP chat channel: ${channel}`);
@@ -1506,18 +1551,15 @@ export class AgentSideEffects extends Disposable {
 		// archived. This is the enforcement behind the UI hiding the composer, so a
 		// buggy or remote client cannot run work in a read-only or archived session
 		// (which may no longer have its isolated worktree on disk).
-		const chatState = this._stateManager.getChatState(chat);
-		const sessionStatus = this._stateManager.getSessionSummary(options.sessionChannel)?.status ?? 0;
-		const sessionArchived = (sessionStatus & SessionStatus.IsArchived) === SessionStatus.IsArchived;
-		if (isChatReadOnly(chatState?.interactivity, sessionArchived)) {
+		const readOnlyError = this._getReadOnlyTurnError(sessionChannel, chat);
+		if (readOnlyError) {
+			const sessionArchived = readOnlyError.errorType === 'archived';
 			this._logService.warn(`[AgentSideEffects] Rejecting turn on read-only chat=${chat} (archived=${sessionArchived}), turnId=${turnId}`);
 			this._stateManager.dispatchServerAction(turnChannel, {
 				type: ActionType.ChatError,
 				turnId,
 				duration: this._turnDuration(turnStopWatch),
-				error: sessionArchived
-					? { errorType: 'archived', message: 'This session is archived and read-only. Restore the session to continue the conversation.' }
-					: { errorType: 'readOnly', message: 'This chat is read-only.' },
+				error: readOnlyError,
 			});
 			this._turnTracker.turnCompleted(turnChannel, turnId, 'error');
 			this._toolCallTracker.clearSession(turnChannel);
@@ -1559,6 +1601,53 @@ export class AgentSideEffects extends Disposable {
 			this._toolCallTracker.clearSession(turnChannel);
 			this._failSessionCreationIfStillCreating(sessionChannel, err);
 		}
+	}
+
+	private async _resumeTurn(agent: IAgent, sessionChannel: ProtocolURI, turnChannel: ProtocolURI, turnId: string, senderClientId: string | undefined, turnStopWatch: StopWatch): Promise<void> {
+		const readOnlyError = this._getReadOnlyTurnError(sessionChannel, turnChannel);
+		if (readOnlyError) {
+			this._logService.warn(`[AgentSideEffects] Rejecting resumed turn on read-only chat=${turnChannel}, turnId=${turnId}`);
+			this._stateManager.dispatchServerAction(turnChannel, {
+				type: ActionType.ChatError,
+				turnId,
+				duration: this._turnDuration(turnStopWatch),
+				error: readOnlyError,
+			});
+			this._turnTracker.turnCompleted(turnChannel, turnId, 'error');
+			this._toolCallTracker.clearSession(turnChannel);
+			return;
+		}
+
+		try {
+			await agent.chats.resumeTurn(URI.parse(turnChannel), turnId, senderClientId);
+		} catch (err) {
+			const errCode = (err as { code?: number })?.code;
+			this._logService.error(`[AgentSideEffects] resumeTurn failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
+			this._stateManager.dispatchServerAction(turnChannel, {
+				type: ActionType.ChatError,
+				turnId,
+				duration: this._turnDuration(turnStopWatch),
+				error: buildSendFailedError(err),
+			});
+			this._turnTracker.turnCompleted(turnChannel, turnId, 'error');
+			this._toolCallTracker.clearSession(turnChannel);
+		}
+	}
+
+	private _resumingTurnKey(chat: ProtocolURI, turnId: string): string {
+		return `${chat}\0${turnId}`;
+	}
+
+	private _getReadOnlyTurnError(sessionChannel: ProtocolURI, chat: ProtocolURI): ErrorInfo | undefined {
+		const chatState = this._stateManager.getChatState(chat);
+		const sessionStatus = this._stateManager.getSessionSummary(sessionChannel)?.status ?? 0;
+		const sessionArchived = (sessionStatus & SessionStatus.IsArchived) === SessionStatus.IsArchived;
+		if (!isChatReadOnly(chatState?.interactivity, sessionArchived)) {
+			return undefined;
+		}
+		return sessionArchived
+			? { errorType: 'archived', message: 'This session is archived and read-only. Restore the session to continue the conversation.' }
+			: { errorType: 'readOnly', message: 'This chat is read-only.' };
 	}
 
 	/**

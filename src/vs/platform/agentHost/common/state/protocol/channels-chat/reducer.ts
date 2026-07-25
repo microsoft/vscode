@@ -333,6 +333,38 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			return next;
 		}
 
+		case ActionType.ChatTurnResumed: {
+			if (state.activeTurn) {
+				return state;
+			}
+			const turnIndex = state.turns.length - 1;
+			const turn = state.turns[turnIndex];
+			if (!turn || turn.id !== action.turnId) {
+				return state;
+			}
+			if (turn.state !== TurnState.Error || turn.error?.resumable !== true) {
+				return state;
+			}
+			const turns = state.turns.slice();
+			turns.splice(turnIndex, 1);
+			const next: ChatState = {
+				...state,
+				turns,
+				activeTurn: {
+					id: turn.id,
+					startedAt: turn.startedAt ?? state.modifiedAt,
+					message: turn.message,
+					responseParts: turn.responseParts,
+					usage: turn.usage,
+				},
+			};
+			return {
+				...next,
+				status: withStatusFlag(summaryStatus(next), SessionStatus.IsRead, false),
+				modifiedAt: new Date(Date.now()).toISOString(),
+			};
+		}
+
 		case ActionType.ChatDelta:
 			return updateResponsePart(state, action.turnId, action.partId, part => {
 				if (part.kind === ResponsePartKind.Markdown) {
@@ -364,6 +396,30 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 
 		case ActionType.ChatActivityChanged:
 			return { ...state, activity: action.activity };
+
+		// ── Working Directories ───────────────────────────────────────────────
+
+		case ActionType.ChatWorkingDirectorySet: {
+			const list = state.workingDirectories ?? [];
+			if (list.includes(action.directory)) {
+				return state;
+			}
+			return { ...state, workingDirectories: [...list, action.directory] };
+		}
+
+		case ActionType.ChatWorkingDirectoryRemoved: {
+			const list = state.workingDirectories;
+			if (!list) {
+				return state;
+			}
+			const idx = list.indexOf(action.directory);
+			if (idx < 0) {
+				return state;
+			}
+			const updated = list.slice();
+			updated.splice(idx, 1);
+			return { ...state, workingDirectories: updated };
+		}
 
 		// ── Tool Call State Machine ───────────────────────────────────────────
 

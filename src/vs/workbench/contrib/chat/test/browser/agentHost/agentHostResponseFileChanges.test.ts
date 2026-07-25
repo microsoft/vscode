@@ -85,8 +85,8 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		} as unknown as SessionState;
 	}
 
-	function observe(provider: AgentHostResponseFileChangesProvider, ds: DisposableStore): { latest: () => readonly IEditSessionEntryDiff[] } {
-		const obs = provider.getChangesForRequest(chatResource, 't1')!;
+	function observe(provider: AgentHostResponseFileChangesProvider, ds: DisposableStore, requestId = 't1'): { latest: () => readonly IEditSessionEntryDiff[] } {
+		const obs = provider.getChangesForRequest(chatResource, requestId)!;
 		let latest: readonly IEditSessionEntryDiff[] = [];
 		ds.add(autorun(r => { latest = obs.read(r); }));
 		return { latest: () => latest };
@@ -135,6 +135,34 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			subscriptionCountBeforeUpdate,
 			conn.getSubscriptionCount(turnChangesetUri('t1')),
 		], [1, 1]);
+	});
+
+	test('resolves synthetic retry request IDs to the resumed turn', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(new AgentHostResponseFileChangesProvider(
+			conn,
+			authority,
+			() => backendSession,
+			(_sessionResource, requestId) => requestId === 'retry-request' ? 't1' : requestId,
+		));
+
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(turnChangesetUri('t1'), {
+			status: ChangesetStatus.Ready,
+			files: [{ id: '1', edit: { after: { uri: URI.file('/repo/retried.ts').toString(), content: { uri: 'git-blob://retried-after' } }, diff: { added: 2, removed: 0 } } }],
+		} satisfies ChangesetState);
+
+		const { latest } = observe(provider, ds, 'retry-request');
+		assert.deepStrictEqual({
+			files: latest().map(diff => fromAgentHostUri(diff.modifiedURI).path),
+			resumedTurnSubscriptions: conn.getSubscriptionCount(turnChangesetUri('t1')),
+			syntheticRequestSubscriptions: conn.getSubscriptionCount(turnChangesetUri('retry-request')),
+		}, {
+			files: ['/repo/retried.ts'],
+			resumedTurnSubscriptions: 1,
+			syntheticRequestSubscriptions: 0,
+		});
 	});
 
 	test('maps turn file edits into entry diffs', () => {

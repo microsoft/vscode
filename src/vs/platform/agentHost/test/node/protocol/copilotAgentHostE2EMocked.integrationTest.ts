@@ -29,6 +29,7 @@ export const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsHostTerminalTool: true,
 	supportsSubagents: true,
 	supportsPlanMode: true,
+	supportsResumeTurn: true,
 	githubToken: 'not-a-real-token', // The tests will use a mocked LLM, so the token doesn't need to be valid.
 };
 

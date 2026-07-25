@@ -56,7 +56,7 @@ import { unwrapShellInvocation } from './codexShellCommand.js';
 import { planForkedTurnIdMap, resolveForkBoundary } from './codexForkPlan.js';
 import { resolveCodexInput } from './codexPromptResolver.js';
 import { buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAnswers } from './codexUserInputMapper.js';
-import { replayThreadToTurns } from './codexReplayMapper.js';
+import { replayThread } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
 import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
@@ -1610,10 +1610,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		return [];
 	}
 
-	private _handleTurnCompletedNotification(session: ICodexSession, params: TurnCompletedNotification): (SessionAction | ChatAction)[] {
+	private _handleTurnCompletedNotification(session: ICodexSession, params: TurnCompletedNotification, resumable: boolean): (SessionAction | ChatAction)[] {
 		const appTurnId = params.turn.id;
 		const hostTurnId = this._hostTurnId(session, appTurnId);
-		const out = mapTurnCompleted(session.mapState, this._withHostTurn(session, params), this._clearTurnStopWatch(session));
+		const out = mapTurnCompleted(session.mapState, this._withHostTurn(session, params), this._clearTurnStopWatch(session), resumable);
 		// Remember which codex (app-server) turn each workbench turn maps to so
 		// truncateSession can translate a host turn id to a thread rollback even
 		// after the live correlation below is cleared.
@@ -1839,7 +1839,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _dispatchTurnCompleted(params: TurnCompletedNotification): void {
 		const subagent = this._subagentsByThreadId.get(params.threadId);
 		if (subagent) {
-			const actions = this._handleTurnCompletedNotification(subagent.session, params);
+			const actions = this._handleTurnCompletedNotification(subagent.session, params, false);
 			for (const action of actions) {
 				if (action.type === ActionType.ChatTurnComplete) {
 					continue;
@@ -1855,7 +1855,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			});
 			return;
 		}
-		this._dispatchByThread(params.threadId, s => this._handleTurnCompletedNotification(s, params));
+		this._dispatchByThread(params.threadId, s => this._handleTurnCompletedNotification(s, params, true));
 	}
 
 	/**
@@ -2320,6 +2320,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			provider: this.id,
 			displayName: localize('codexAgent.displayName', "Codex"),
 			description: localize('codexAgent.description', "Codex agent backed by the OpenAI Codex app-server"),
+			capabilities: { resumeTurn: {} },
 		};
 	}
 
@@ -2360,6 +2361,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		},
 		sendMessage: (chat: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
 			return this._sendMessage(chat, prompt, attachments, turnId, workingDirectory);
+		},
+		resumeTurn: (chat: URI, turnId: string): Promise<void> => {
+			return this._resumeTurn(chat, turnId);
 		},
 		abort: (chat: URI): Promise<void> => {
 			return this._abort(chat);
@@ -2615,7 +2619,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					sourceTurns.map(t => t.id),
 					forkedTurns.map(t => t.id),
 					keepThroughIndex,
-					sourceSession?.hostTurnIdByAppTurnId,
+					sourceSession?.codexTurnIdByHostTurnId,
 					fork.turnIdMapping,
 				);
 				for (const [hostTurnId, forkedCodexTurnId] of entries) {
@@ -2856,6 +2860,53 @@ export class CodexAgent extends Disposable implements IAgent {
 		return typeof elapsed === 'number' && Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
 	}
 
+	private async _resumeThreadIfNeeded(session: ICodexSession, client: ICodexAppServerClient): Promise<void> {
+		if (!session.needsResume) {
+			return;
+		}
+		const threadId = session.threadId;
+		if (!threadId) {
+			throw new Error(`Codex session has no thread to resume: ${session.sessionUri.toString()}`);
+		}
+		const mcpServers = this._buildSessionMcpServers(session);
+		await client.request<'thread/resume'>('thread/resume', {
+			threadId,
+			...(Object.keys(mcpServers).length > 0 ? { config: { mcp_servers: mcpServers as JsonValue } } : {}),
+		});
+		session.materializedMcpSig = mcpServersSignature(mcpServers);
+		session.needsResume = false;
+	}
+
+	private async _resumeTurn(chat: URI, turnId: string): Promise<void> {
+		const sessionUri = this._sessionUriFromChat(chat);
+		const session = this._sessions.get(AgentSession.id(sessionUri));
+		if (!session?.threadId) {
+			throw new Error(`Codex session not found or not materialized: ${sessionUri.toString()}`);
+		}
+		const conn = await this._ensureConnection();
+		await this._resumeThreadIfNeeded(session, conn.client);
+
+		resetCodexTurnMapState(session.mapState);
+		session.lastPromptText = '';
+		session.currentTurnId = turnId;
+		this._startTurnStopWatch(session);
+		try {
+			const model = await this._resolveModel(session);
+			await conn.client.request<'turn/start'>('turn/start', {
+				threadId: session.threadId,
+				input: [],
+				model: model.id,
+				...this._turnStartOptions(session, model.id),
+			});
+			session.firstTurnSent = true;
+		} catch (error) {
+			session.currentTurnId = undefined;
+			session.currentAppTurnId = undefined;
+			this._clearTurnStopWatch(session);
+			throw error;
+		}
+	}
+
 	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, workingDirectory?: URI): Promise<void> {
 		const sessionUri = this._sessionUriFromChat(chat);
 		this._logService.info(`[Codex DEBUG] sendMessage session=${sessionUri.toString()} prompt=${JSON.stringify(prompt).slice(0, 60)}`);
@@ -2920,16 +2971,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const threadId = session.threadId!;
 		if (session.needsResume) {
 			try {
-				// Carry the current MCP servers (with any injected auth token)
-				// so a resumed thread reconnects auth-gated servers, matching
-				// the config a fresh `thread/start` would apply.
-				const mcpServers = this._buildSessionMcpServers(session);
-				await conn.client.request<'thread/resume'>('thread/resume', {
-					threadId,
-					...(Object.keys(mcpServers).length > 0 ? { config: { mcp_servers: mcpServers as JsonValue } } : {}),
-				});
-				session.materializedMcpSig = mcpServersSignature(mcpServers);
-				session.needsResume = false;
+				await this._resumeThreadIfNeeded(session, conn.client);
 			} catch (err) {
 				const duration = this._clearTurnStopWatch(session);
 				this._fire(sessionUri, {
@@ -3192,8 +3234,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	async truncateSession(sessionUri: URI, turnId?: string): Promise<void> {
 		// Codex rolls back by a count of trailing turns. Resolve how many turns
 		// follow `turnId` (or all of them when omitted) from the persisted
-		// thread, whose turn ids match the workbench's restored turn ids
-		// (see {@link replayThreadToTurns}). Unknown ids no-op to avoid data loss.
+		// thread. Restored empty-input retries are coalesced into one AHP turn,
+		// so the replay mapper records that AHP id's latest physical Codex turn.
+		// Unknown ids no-op to avoid data loss.
 		const read = await this._readSession(sessionUri);
 		if (!read) {
 			return;
@@ -3292,7 +3335,25 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	getSessionMessages(chat: URI): Promise<readonly Turn[]> {
-		return this._readSession(this._sessionUriFromChat(chat)).then(read => read ? replayThreadToTurns(read.thread) : []);
+		const sessionUri = this._sessionUriFromChat(chat);
+		return this._readSession(sessionUri).then(read => {
+			if (!read) {
+				return [];
+			}
+			const replay = replayThread(read.thread);
+			this._updateTurnIdMappings(sessionUri, replay.codexTurnIdByHostTurnId);
+			return replay.turns;
+		});
+	}
+
+	private _updateTurnIdMappings(sessionUri: URI, mappings: ReadonlyMap<string, string>): void {
+		const session = this._sessions.get(AgentSession.id(sessionUri));
+		if (!session) {
+			return;
+		}
+		for (const [hostTurnId, codexTurnId] of mappings) {
+			session.codexTurnIdByHostTurnId.set(hostTurnId, codexTurnId);
+		}
 	}
 
 	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
@@ -3318,6 +3379,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._serverToolHost.advertise(restored.sessionUri.toString());
 			}
 		}
+		this._updateTurnIdMappings(session, replayThread(read.thread).codexTurnIdByHostTurnId);
 		return this._threadToMetadata(read.thread, session);
 	}
 

@@ -306,6 +306,7 @@ export type IChatSessionHistoryItem = {
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
 
 export interface IChatSessionServerRequest {
+	readonly requestId?: string;
 	readonly prompt: string;
 	readonly variableData?: IChatRequestVariableData;
 	readonly timestamp?: number;

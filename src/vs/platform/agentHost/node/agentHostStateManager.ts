@@ -1131,6 +1131,10 @@ export class AgentHostStateManager extends Disposable {
 		return this._applyAndEmit(channel, action, origin);
 	}
 
+	dispatchRejectedClientAction(channel: URI, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, origin: ActionOrigin, rejectionReason: string): void {
+		this._emitEnvelope(channel, action, origin, rejectionReason);
+	}
+
 	// ---- Internal -----------------------------------------------------------
 
 	private _applyAndEmit(channel: URI, action: StateAction, origin: ActionOrigin | undefined): unknown {
@@ -1228,18 +1232,22 @@ export class AgentHostStateManager extends Disposable {
 			resultingState = newState;
 		}
 
-		// Emit envelope
+		this._emitEnvelope(channel, action, origin);
+
+		return resultingState;
+	}
+
+	private _emitEnvelope(channel: URI, action: StateAction, origin: ActionOrigin | undefined, rejectionReason?: string): void {
 		const envelope: ActionEnvelope = {
 			channel,
 			action,
 			serverSeq: ++this._serverSeq,
 			origin,
+			...(rejectionReason ? { rejectionReason } : {}),
 		};
 
-		this._logService.trace(`[AgentHostStateManager] Emitting envelope: seq=${envelope.serverSeq}, channel=${envelope.channel}, type=${action.type}${origin ? `, origin=${origin.clientId}:${origin.clientSeq}` : ''}`);
+		this._logService.trace(`[AgentHostStateManager] Emitting envelope: seq=${envelope.serverSeq}, channel=${envelope.channel}, type=${action.type}${origin ? `, origin=${origin.clientId}:${origin.clientSeq}` : ''}${rejectionReason ? `, rejected=${rejectionReason}` : ''}`);
 		this._onDidEmitEnvelope.fire(envelope);
-
-		return resultingState;
 	}
 
 	/**

@@ -896,7 +896,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			if (providedSession.onDidStartServerRequest) {
-				disposables.add(providedSession.onDidStartServerRequest(({ prompt, variableData, timestamp, isSystemInitiated, systemInitiatedLabel, isTerminalRequest }) => {
+				disposables.add(providedSession.onDidStartServerRequest(({ requestId, prompt, variableData, timestamp, isSystemInitiated, systemInitiatedLabel, isTerminalRequest }) => {
 					// Complete any in-flight request
 					if (lastRequest?.response && !lastRequest.response.isComplete) {
 						completeLastResponse();
@@ -917,7 +917,7 @@ export class ChatService extends Disposable implements IChatService {
 						undefined, // isCompleteAddedRequest
 						undefined, // modelId
 						undefined, // userSelectedTools
-						undefined, // id
+						requestId,
 						isSystemInitiated,
 						systemInitiatedLabel,
 						undefined, // terminalExecutionId

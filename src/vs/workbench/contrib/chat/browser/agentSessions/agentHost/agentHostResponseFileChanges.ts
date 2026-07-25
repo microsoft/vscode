@@ -74,6 +74,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		private readonly _connection: IAgentConnection,
 		private readonly _connectionAuthority: string,
 		private readonly _resolveBackendSession: (sessionResource: URI) => URI | undefined,
+		private readonly _resolveTurnId: (sessionResource: URI, requestId: string) => string = (_sessionResource, requestId) => requestId,
 	) {
 		super();
 	}
@@ -84,10 +85,11 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			return undefined;
 		}
 
-		const key = `${backendSession.toString()}\0${requestId}`;
+		const turnId = this._resolveTurnId(sessionResource, requestId);
+		const key = `${backendSession.toString()}\0${turnId}`;
 		let obs = this._perRequest.get(key);
 		if (!obs) {
-			obs = this._createDiffsObservable(backendSession, requestId);
+			obs = this._createDiffsObservable(backendSession, turnId);
 			this._perRequest.set(key, obs);
 		}
 		return obs;
@@ -99,10 +101,11 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			return undefined;
 		}
 
-		const key = `${backendSession.toString()}\0${requestId}`;
+		const turnId = this._resolveTurnId(sessionResource, requestId);
+		const key = `${backendSession.toString()}\0${turnId}`;
 		let obs = this._perRequestFileEdits.get(key);
 		if (!obs) {
-			obs = this._createFileEditDiffsObservable(backendSession, requestId);
+			obs = this._createFileEditDiffsObservable(backendSession, turnId);
 			this._perRequestFileEdits.set(key, obs);
 		}
 		return obs;

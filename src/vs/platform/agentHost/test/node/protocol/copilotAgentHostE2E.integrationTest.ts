@@ -52,6 +52,7 @@ const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsHostTerminalTool: true,
 	supportsSubagents: true,
 	supportsPlanMode: true,
+	supportsResumeTurn: true,
 };
 
 defineAgentHostE2ETests(COPILOT_CONFIG);

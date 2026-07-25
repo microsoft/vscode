@@ -14,12 +14,13 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
+import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -101,6 +102,7 @@ interface ITurnBuilder {
 	message: Message;
 	readonly responseParts: ResponsePart[];
 	usage: UsageInfo | undefined;
+	error: ErrorInfo | undefined;
 	/** Tool starts seen but not yet completed in this turn, keyed by toolCallId. */
 	readonly pendingTools: Map<string, IToolStartInfo>;
 }
@@ -119,7 +121,7 @@ function newTurnBuilder(id: string, text: string, options?: { attachments?: Mess
 		...(options?.model ? { model: options.model } : {}),
 		...(options?.agent ? { agent: options.agent } : {}),
 	};
-	return { id, message, responseParts: [], usage: undefined, pendingTools: new Map() };
+	return { id, message, responseParts: [], usage: undefined, error: undefined, pendingTools: new Map() };
 }
 
 function readStringProperty(source: unknown, key: string): string | undefined {
@@ -191,6 +193,7 @@ function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
 		responseParts: builder.responseParts,
 		usage: builder.usage,
 		state,
+		...(state === TurnState.Error && builder.error ? { error: builder.error } : {}),
 	};
 }
 
@@ -300,6 +303,9 @@ export async function mapSessionEvents(
 	let parentTurnState = TurnState.Cancelled;
 	let parentTurnAborted = false;
 	let rootAssistantTurnActive = false;
+	let rootRequestActive = false;
+	const activeSubagentTurns = new Set<string>();
+	const finishedSubagentTurns = new Set<string>();
 	let pendingAutoModeResolved: Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data'] | undefined;
 
 	const flushParent = (): void => {
@@ -310,6 +316,7 @@ export async function mapSessionEvents(
 		parentBuilder = undefined;
 		parentTurnState = TurnState.Cancelled;
 		parentTurnAborted = false;
+		rootRequestActive = false;
 	};
 
 	const flushSubagent = (parentToolCallId: string): void => {
@@ -321,7 +328,7 @@ export async function mapSessionEvents(
 		subagentBuilders.delete(parentToolCallId);
 		const state = subagentTurnStates.get(parentToolCallId) ?? TurnState.Complete;
 		subagentTurnStates.delete(parentToolCallId);
-		if (builder.responseParts.length === 0) {
+		if (builder.responseParts.length === 0 && !builder.error) {
 			return;
 		}
 		const list = subagentTurns.get(parentToolCallId) ?? [];
@@ -353,11 +360,27 @@ export async function mapSessionEvents(
 			case 'assistant.turn_start':
 				if (!e.agentId) {
 					rootAssistantTurnActive = true;
+					if (parentTurnState === TurnState.Error) {
+						rootRequestActive = true;
+					}
+				} else {
+					const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+					if (parentToolCallId) {
+						activeSubagentTurns.add(parentToolCallId);
+						finishedSubagentTurns.delete(parentToolCallId);
+					}
 				}
 				break;
 			case 'assistant.turn_end':
 				if (!e.agentId) {
 					rootAssistantTurnActive = false;
+					rootRequestActive = false;
+				} else {
+					const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+					if (parentToolCallId) {
+						activeSubagentTurns.delete(parentToolCallId);
+						finishedSubagentTurns.add(parentToolCallId);
+					}
 				}
 				break;
 			case 'session.model_change': {
@@ -370,6 +393,43 @@ export async function mapSessionEvents(
 				}
 				break;
 			}
+			case 'session.error': {
+				const parentToolCallId = e.agentId ? resolveParentToolCallId(e.agentId, undefined) : undefined;
+				if (e.agentId && !parentToolCallId) {
+					break;
+				}
+				if (parentToolCallId && finishedSubagentTurns.has(parentToolCallId)) {
+					break;
+				}
+				if (!e.agentId && !rootRequestActive) {
+					break;
+				}
+				const builder = targetBuilderFor(parentToolCallId);
+				if (!builder) {
+					break;
+				}
+				const meta = tryBuildChatErrorMetaFromFields(e.data) ?? tryBuildChatErrorMeta(e.data.message);
+				builder.error = {
+					errorType: e.data.errorType,
+					message: stripProxyErrorMarker(e.data.message),
+					stack: e.data.stack,
+					...(!e.agentId && rootAssistantTurnActive ? { resumable: true } : {}),
+					...(meta ? { _meta: meta } : {}),
+				};
+				if (parentToolCallId) {
+					subagentTurnStates.set(parentToolCallId, TurnState.Error);
+					activeSubagentTurns.delete(parentToolCallId);
+					finishedSubagentTurns.add(parentToolCallId);
+				} else {
+					parentTurnState = TurnState.Error;
+					rootAssistantTurnActive = false;
+					rootRequestActive = false;
+				}
+				break;
+			}
+			case 'session.idle':
+				rootRequestActive = false;
+				break;
 			case 'subagent.deselected': {
 				if (!e.agentId) {
 					currentAgent = undefined;
@@ -412,6 +472,7 @@ export async function mapSessionEvents(
 					flushParent();
 					const turnId = e.id ?? messageId;
 					parentBuilder = newTurnBuilder(turnId, content, { attachments, model: currentModel, agent: currentAgent });
+					rootRequestActive = true;
 					if (pendingAutoModeResolved) {
 						parentBuilder.usage = {
 							model: pendingAutoModeResolved.chosenModel,
@@ -565,8 +626,11 @@ export async function mapSessionEvents(
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
 				if (parentToolCallId) {
 					subagentTurnStates.set(parentToolCallId, TurnState.Cancelled);
+					activeSubagentTurns.delete(parentToolCallId);
+					finishedSubagentTurns.add(parentToolCallId);
 				} else {
 					rootAssistantTurnActive = false;
+					rootRequestActive = false;
 					if (parentBuilder) {
 						parentTurnState = TurnState.Cancelled;
 						parentTurnAborted = true;

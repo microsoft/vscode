@@ -868,6 +868,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		sendMessage: (chatUri, prompt, workingDirectory, attachments, turnId, senderClientId) => {
 			return this._sendMessage(chatUri, prompt, workingDirectory, attachments, turnId, senderClientId);
 		},
+		resumeTurn: () => {
+			throw new Error('Claude agent does not support resuming failed turns');
+		},
 		abort: chatUri => {
 			return this._abortSession(chatUri);
 		},

@@ -501,6 +501,66 @@ suite('AgentService (node dispatcher)', () => {
 			return { svc, agent, session, db };
 		}
 
+		test('runs resume side effects only for an accepted state transition', async () => {
+			copilotAgent.resumeTurnSupported = true;
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const chat = buildDefaultChatUri(session.toString());
+			const resumeEnvelopes: ActionEnvelope[] = [];
+			disposables.add(service.onDidAction(envelope => {
+				if (envelope.action.type === ActionType.ChatTurnResumed) {
+					resumeEnvelopes.push(envelope);
+				}
+			}));
+			service.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+
+			const resumeAction = {
+				type: ActionType.ChatTurnResumed,
+				turnId: 'turn-1',
+			} as const;
+			service.dispatchAction(chat, resumeAction, 'test-client', 2);
+			copilotAgent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(chat),
+				action: {
+					type: ActionType.ChatError,
+					turnId: 'turn-1',
+					duration: 10,
+					error: { errorType: 'requestFailed', message: 'failed', resumable: true },
+				},
+			});
+			service.dispatchAction(chat, resumeAction, 'test-client', 3);
+			service.dispatchAction(chat, resumeAction, 'test-client', 4);
+			await Promise.resolve();
+
+			assert.deepStrictEqual({
+				resumeTurnCalls: copilotAgent.resumeTurnCalls.map(call => ({
+					session: call.session.toString(),
+					chat: call.chat.toString(),
+					turnId: call.turnId,
+					senderClientId: call.senderClientId,
+				})),
+				rejections: resumeEnvelopes.map(envelope => envelope.rejectionReason),
+			}, {
+				resumeTurnCalls: [{
+					session: session.toString(),
+					chat,
+					turnId: 'turn-1',
+					senderClientId: 'test-client',
+				}],
+				rejections: [
+					'Another request is already in progress.',
+					undefined,
+					'Another request is already in progress.',
+				],
+			});
+		});
+
 		test('applies and persists root config changes from clients', async () => {
 			const tempDir = URI.file(mkdtempSync(`${tmpdir()}/agent-host-config-`));
 			// Use a local DisposableStore so that svc can be explicitly disposed
@@ -3157,6 +3217,7 @@ suite('AgentService (node dispatcher)', () => {
 					this.chatCalls.push({ op: 'disposeChat', args: [chat.toString()] });
 				},
 				sendMessage: async () => { },
+				resumeTurn: async () => { },
 				abort: async () => { },
 				changeModel: async () => { },
 				changeAgent: async () => { },

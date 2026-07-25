@@ -39,7 +39,7 @@ import { IAgentSubscription, observableFromSubscription } from '../../../../../.
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, ChatTurnResumedAction, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { buildSubagentChatUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
@@ -142,7 +142,11 @@ interface IObserveTurnOptions {
 	readonly adoptInvocations?: ReadonlyMap<string, ChatToolInvocation>;
 	readonly seedEmittedLengths?: ReadonlyMap<string, number>;
 	readonly initialResponsePartCount?: number;
+	readonly suppressInitialResponseParts?: boolean;
+	readonly waitForActiveTurn?: boolean;
+	readonly resumeClientSeq?: number;
 	readonly onTurnEnded?: (lastTurn: Turn | undefined) => void;
+	readonly onTurnRejected?: (reason: string) => void;
 	readonly onFileEdits?: (tc: ToolCallState, fileEdits: IToolCallFileEdit[]) => void;
 	/**
 	 * When set, a failed turn does NOT emit its error as a markdown progress
@@ -175,6 +179,17 @@ interface IObserveTurnOptions {
 	readonly subAgentModelObservable?: ISettableObservable<string | undefined>;
 }
 
+interface IResumeTurnConfirmationData {
+	readonly agentHostResumeTurnId: string;
+}
+
+function isResumeTurnConfirmationData(value: unknown): value is IResumeTurnConfirmationData {
+	return typeof value === 'object'
+		&& value !== null
+		&& 'agentHostResumeTurnId' in value
+		&& typeof value.agentHostResumeTurnId === 'string';
+}
+
 /**
  * Shared context for subagent observation within a parent turn. Tracks which
  * subagent tool calls already have observers so they aren't double-subscribed.
@@ -185,6 +200,7 @@ interface ISubagentContext {
 }
 
 interface IStartServerRequestOptions {
+	readonly requestId?: string;
 	readonly isSystemInitiated?: boolean;
 	readonly timestamp?: number;
 	readonly isTerminalRequest?: boolean;
@@ -497,6 +513,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			this.isCompleteObs.set(false, tx);
 		});
 		this._onDidStartServerRequest.fire({
+			requestId: options?.requestId,
 			prompt,
 			variableData,
 			isSystemInitiated: options?.isSystemInitiated,
@@ -576,6 +593,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _serverTurnWatchers = this._register(new DisposableResourceMap());
 	/** Historical turns with file edits, pending hydration into the editing session. */
 	private readonly _pendingHistoryTurns = new ResourceMap<readonly Turn[]>();
+	/** Maps synthetic confirmation request IDs back to the resumed AHP turn IDs. */
+	private readonly _resumedTurnsByRequest = new Map<string, { readonly sessionResource: string; readonly turnId: string }>();
 	/**
 	 * Per-session set of MCP server ids that already had an authentication
 	 * prompt surfaced in the current conversation. A server is removed from the
@@ -712,6 +731,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				config.connection,
 				config.connectionAuthority,
 				sessionResource => this._resolveSessionUri(sessionResource),
+				(sessionResource, requestId) => this._protocolTurnIdForRequest(sessionResource, requestId),
 			)),
 		));
 
@@ -890,6 +910,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						}
 						const fallbackRawModelId = lastTurnModelSelection(sessionState)?.id;
 						const lookup = this._createTurnModelLookup(sessionResource, fallbackRawModelId);
+						const lastTurnId = sessionState.turns.at(-1)?.id;
 						history.push(...turnsToHistory(
 							resolvedSession,
 							sessionState.turns,
@@ -898,6 +919,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							lookup,
 							this._chatErrorContext(),
 							this._config.connection.initializeResult.get()?.terminalCommandPrefix,
+							turn => this._getTurnErrorDetails(turn, turn.id === lastTurnId),
 						));
 
 						// Enrich history with inner tool calls from subagent
@@ -1022,6 +1044,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._draftSyncSubscriptions.deleteAndDispose(sessionResource);
 				this._serverTurnWatchers.deleteAndDispose(sessionResource);
 				this._pendingHistoryTurns.delete(sessionResource);
+				const sessionResourceKey = sessionResource.toString();
+				for (const [requestId, resumedTurn] of this._resumedTurnsByRequest) {
+					if (resumedTurn.sessionResource === sessionResourceKey) {
+						this._resumedTurnsByRequest.delete(requestId);
+					}
+				}
 				this._surfacedMcpAuthServers.delete(sessionResource);
 				const chatURI = this._chatURIsBySessionResource.get(sessionResource);
 				this._chatURIsBySessionResource.delete(sessionResource);
@@ -1269,12 +1297,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * non-error turns. Falls back to the raw error when no structured chat
 	 * error was forwarded in `_meta`.
 	 */
-	private _getTurnErrorDetails(turn: Turn | undefined): IChatResponseErrorDetails | undefined {
+	private _getTurnErrorDetails(turn: Turn | undefined, allowResume = true): IChatResponseErrorDetails | undefined {
 		if (turn?.state !== TurnState.Error || !turn.error) {
 			return undefined;
 		}
-		return getChatErrorDetailsFromMeta(turn.error, this._chatErrorContext())
+		const errorDetails = getChatErrorDetailsFromMeta(turn.error, this._chatErrorContext())
 			?? { message: localize('agentHost.turnError', "Error: ({0}) {1}", turn.error.errorType, turn.error.message) };
+		if (!allowResume || turn.error.resumable !== true || !this._supportsResumeTurn() || errorDetails.responseIsFiltered) {
+			return errorDetails;
+		}
+		return {
+			...errorDetails,
+			confirmationButtons: [
+				...(errorDetails.confirmationButtons ?? []),
+				{
+					data: { agentHostResumeTurnId: turn.id } satisfies IResumeTurnConfirmationData,
+					label: localize('agentHost.resumeTurn', "Try Again"),
+				},
+			],
+		};
 	}
 
 	/**
@@ -1436,6 +1477,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._config.connection.dispatch(target, action);
 	}
 
+	private _dispatchActionWithSequence(channel: URI, action: ClientSessionAction | ClientChatAction, chatURI?: string): number | undefined {
+		const target = isChatAction(action)
+			? this._requireChatURI(chatURI, action.type)
+			: channel.toString();
+		if (this._config.connection.dispatchWithSequence) {
+			return this._config.connection.dispatchWithSequence(target, action);
+		}
+		this._config.connection.dispatch(target, action);
+		return undefined;
+	}
+
 	private _requireChatURI(chatURI: string | undefined, actionType: string): string {
 		if (!chatURI) {
 			throw new Error(`Cannot dispatch ${actionType} without a resolved AHP chat channel`);
@@ -1520,6 +1572,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let previousQueuedIds: Set<string> | undefined;
 		let previousSteeringId: string | undefined = currentState?.steeringMessage?.id;
 		let previousTitle: string | undefined = currentState?.title;
+		const currentLastTurn = currentState?.turns.at(-1);
+		let resumableTurn = currentLastTurn?.state === TurnState.Error && currentLastTurn.error?.resumable === true ? currentLastTurn : undefined;
 
 		const disposables = new DisposableStore();
 
@@ -1556,11 +1610,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			previousTitle = currentTitle;
 
 			const activeTurn = e.state.activeTurn;
-			if (!activeTurn || activeTurn.id === lastSeenTurnId) {
+			if (!activeTurn) {
+				const lastTurn = e.state.turns.at(-1);
+				resumableTurn = lastTurn?.state === TurnState.Error && lastTurn.error?.resumable === true ? lastTurn : undefined;
+				lastSeenTurnId = undefined;
+				previousQueuedIds = currentQueuedIds;
+				return;
+			}
+			if (activeTurn.id === lastSeenTurnId) {
 				previousQueuedIds = currentQueuedIds;
 				return;
 			}
 			lastSeenTurnId = activeTurn.id;
+			const resumedTurn = resumableTurn?.id === activeTurn.id ? resumableTurn : undefined;
+			resumableTurn = undefined;
 
 			// If we dispatched this turn, the existing _handleTurn flow handles it
 			if (this._clientDispatchedTurnIds.has(activeTurn.id)) {
@@ -1587,10 +1650,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			previousQueuedIds = currentQueuedIds;
 
 			// Signal the session to create a new request+response pair
+			const requestId = resumedTurn ? generateUuid() : activeTurn.id;
+			if (resumedTurn) {
+				this._resumedTurnsByRequest.set(requestId, {
+					sessionResource: sessionResource.toString(),
+					turnId: activeTurn.id,
+				});
+			}
 			chatSession.startServerRequest(
 				activeTurn.message.text,
 				messageToVariableData(activeTurn.message, this._config.connectionAuthority),
 				{
+					requestId,
 					isSystemInitiated: activeTurn.message.origin.kind === MessageKind.SystemNotification,
 					timestamp: parseTimestamp(activeTurn.startedAt),
 					isTerminalRequest: isTerminalCommandPrompt(activeTurn.message.text, this._config.connection.initializeResult.get()?.terminalCommandPrefix),
@@ -1601,7 +1672,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// translation as _handleTurn, but pipe output to progressObs/isCompleteObs
 			const turnStore = new DisposableStore();
 			turnProgressDisposable.value = turnStore;
-			this._trackServerTurnProgress(backendSession, activeTurn.id, chatSession, turnStore);
+			this._trackServerTurnProgress(backendSession, activeTurn.id, chatSession, turnStore, resumedTurn);
 		};
 		disposables.add(sessionSub.onDidChange(onChange));
 		disposables.add(chatSub.onDidChange(onChange));
@@ -1619,6 +1690,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		turnId: string,
 		chatSession: AgentHostChatSession,
 		turnDisposables: DisposableStore,
+		resumedTurn: Turn | undefined,
 	): void {
 		const cts = new CancellationTokenSource();
 		turnDisposables.add(toDisposable(() => cts.dispose(true)));
@@ -1629,6 +1701,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			turnId,
 			sink: parts => chatSession.appendProgress(parts),
 			cancellationToken: cts.token,
+			initialResponsePartCount: resumedTurn?.responseParts.length,
+			suppressInitialResponseParts: resumedTurn !== undefined,
 			onTurnEnded: () => chatSession.isCompleteObs.set(true, undefined),
 		}));
 	}
@@ -1656,6 +1730,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._turnStopWatches.delete(this._turnStopWatchKey(chatURI, turnId));
 	}
 
+	private _protocolTurnIdForRequest(sessionResource: URI, requestId: string): string {
+		const resumedTurn = this._resumedTurnsByRequest.get(requestId);
+		return resumedTurn?.sessionResource === sessionResource.toString() ? resumedTurn.turnId : requestId;
+	}
+
 	// ---- Turn handling (state-driven) ---------------------------------------
 
 	private async _handleTurn(
@@ -1666,6 +1745,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	): Promise<Turn | undefined> {
 		if (cancellationToken.isCancellationRequested) {
 			return;
+		}
+
+		const resumeTurnId = request.acceptedConfirmationData?.find(isResumeTurnConfirmationData)?.agentHostResumeTurnId;
+		if (resumeTurnId) {
+			return this._handleResumedTurn(session, request, progress, cancellationToken, resumeTurnId);
 		}
 
 		const turnId = request.requestId;
@@ -1705,11 +1789,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				};
 				this._config.connection.dispatch(turnChannel, truncateAction);
 			} else {
-				const seenAtIndex = protocolState.turns.findIndex(t => t.id === previousRequest!.id);
+				const previousTurnId = this._protocolTurnIdForRequest(request.sessionResource, previousRequest!.id);
+				const seenAtIndex = protocolState.turns.findIndex(t => t.id === previousTurnId);
 				if (seenAtIndex !== -1 && seenAtIndex < protocolState.turns.length - 1) {
 					const truncateAction: ChatTruncatedAction = {
 						type: ActionType.ChatTruncated,
-						turnId: previousRequest!.id,
+						turnId: previousTurnId,
 					};
 					this._config.connection.dispatch(turnChannel, truncateAction);
 				}
@@ -1771,6 +1856,92 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					resolve(lastTurn);
 				},
 				onFileEdits: (tc) => {
+					const editParts = this._hydrateFileEdits(request.sessionResource, request.requestId, tc);
+					if (editParts.length > 0) {
+						progress(editParts);
+					}
+				},
+			}));
+		});
+	}
+
+	private _handleResumedTurn(
+		session: URI,
+		request: IChatAgentRequest,
+		progress: (parts: IChatProgress[]) => void,
+		cancellationToken: CancellationToken,
+		turnId: string,
+	): Promise<Turn | undefined> {
+		if (cancellationToken.isCancellationRequested) {
+			return Promise.resolve(undefined);
+		}
+
+		const chatURI = this._getChatURI(request.sessionResource);
+		const state = this._getSessionState(session.toString(), chatURI);
+		const failedTurn = state?.turns.at(-1);
+		if (failedTurn?.id !== turnId || failedTurn.state !== TurnState.Error || failedTurn.error?.resumable !== true || !this._supportsResumeTurn()) {
+			this._logService.warn(`[AgentHost] Rejecting stale or unsupported turn resume: session=${session.toString()}, turnId=${turnId}`);
+			throw new Error(localize('agentHost.resumeTurnUnavailable', "This failed request can no longer be retried."));
+		}
+
+		this._clientDispatchedTurnIds.add(turnId);
+		this._resumedTurnsByRequest.set(request.requestId, {
+			sessionResource: request.sessionResource.toString(),
+			turnId,
+		});
+		this._ensureActiveClientForMessage(session);
+		this._customizationService.prepareMcpServersForTurn(request.sessionResource);
+		this._ensureTurnStopWatch(chatURI, turnId);
+		const resumeAction: ChatTurnResumedAction = {
+			type: ActionType.ChatTurnResumed,
+			turnId,
+		};
+		const resumeClientSeq = this._dispatchActionWithSequence(session, resumeAction, chatURI);
+		this._ensureSnapshotController(request.sessionResource)?.ensureRequestCheckpoint(request.requestId);
+
+		return new Promise<Turn | undefined>((resolve, reject) => {
+			const store = new DisposableStore();
+			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
+				cancelSub.dispose();
+				this._logService.info(`[AgentHost] Cancellation requested for resumed turn ${turnId}, dispatching turnCancelled`);
+				this._dispatchAction(session, {
+					type: ActionType.ChatTurnCancelled,
+					turnId,
+					duration: this._turnDuration(chatURI, turnId),
+				}, chatURI);
+			}));
+
+			store.add(this._observeTurn({
+				backendSession: session,
+				sessionResource: request.sessionResource,
+				chatURI,
+				turnId,
+				sink: progress,
+				cancellationToken,
+				initialResponsePartCount: failedTurn.responseParts.length,
+				suppressInitialResponseParts: true,
+				waitForActiveTurn: true,
+				resumeClientSeq,
+				suppressErrorMarkdown: true,
+				onTurnRejected: reason => {
+					const currentState = this._getSessionState(session.toString(), chatURI);
+					if (currentState?.activeTurn?.id === turnId) {
+						this._logService.info(`[AgentHost] Resume ${turnId} was already accepted for another client; continuing to observe it locally`);
+						return;
+					}
+					store.dispose();
+					this._clientDispatchedTurnIds.delete(turnId);
+					this._resumedTurnsByRequest.delete(request.requestId);
+					this._activeSessions.get(request.sessionResource)?.isCompleteObs.set(true, undefined);
+					reject(new Error(reason));
+				},
+				onTurnEnded: lastTurn => {
+					store.dispose();
+					this._clientDispatchedTurnIds.delete(turnId);
+					this._activeSessions.get(request.sessionResource)?.isCompleteObs.set(true, undefined);
+					resolve(lastTurn);
+				},
+				onFileEdits: tc => {
 					const editParts = this._hydrateFileEdits(request.sessionResource, request.requestId, tc);
 					if (editParts.length > 0) {
 						progress(editParts);
@@ -1863,6 +2034,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const sub = this._ensureSessionSubscription(sessionKey);
 		const chatURI = opts.chatURI;
 		const chatSub = this._ensureChatSubscription(sessionKey, chatURI);
+		let seenActive = false;
+		if (opts.onTurnRejected) {
+			store.add(chatSub.onDidApplyAction(envelope => {
+				if (envelope.rejectionReason
+					&& envelope.origin?.clientId === this._config.connection.clientId
+					&& (opts.resumeClientSeq === undefined || envelope.origin.clientSeq === opts.resumeClientSeq)
+					&& envelope.action.type === ActionType.ChatTurnResumed
+					&& envelope.action.turnId === opts.turnId) {
+					opts.onTurnRejected?.(envelope.rejectionReason);
+				}
+			}));
+		}
 
 		const sessionState$ = observableFromSubscription(this, sub);
 		const chatState$ = observableFromSubscription(this, chatSub);
@@ -1886,9 +2069,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 		const responseParts$ = derived(reader => turn$.read(reader)?.responseParts ?? []);
 		const usage$ = derived(reader => turn$.read(reader)?.usage);
+		let stopWatchTurnSeenActive = !opts.waitForActiveTurn;
 		store.add(autorun(reader => {
 			const state = mergedState$.read(reader);
-			if (state?.turns.some(turn => turn.id === opts.turnId)) {
+			if (state?.activeTurn?.id === opts.turnId) {
+				stopWatchTurnSeenActive = true;
+			}
+			if (stopWatchTurnSeenActive && state?.turns.some(turn => turn.id === opts.turnId)) {
 				this._clearTurnStopWatch(opts.chatURI, opts.turnId);
 			}
 		}));
@@ -1955,6 +2142,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							: `other:${responseParts$.get().indexOf(rp)}`,
 			(_key, part$, partStore) => {
 				const initial = part$.get();
+				const initialIndex = responseParts$.get().indexOf(initial);
+				if (opts.suppressInitialResponseParts && initialIndex >= 0 && initialIndex < (opts.initialResponsePartCount ?? 0)) {
+					return;
+				}
 				switch (initial.kind) {
 					case ResponsePartKind.Markdown:
 						// Subagent observers don't forward markdown into the
@@ -1994,9 +2185,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// Per-turn adjuncts skipped for subagent observers.
 		if (opts.subAgentInvocationId === undefined) {
-			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
-			let lastAutoModeResolution: IChatAutoModeResolutionPart | undefined;
 			const modelLookup = this._createTurnModelLookup(opts.sessionResource, undefined);
+			let lastUsage = opts.suppressInitialResponseParts ? usageInfoToChatUsage(usage$.get()) : undefined;
+			let lastAutoModeResolution: IChatAutoModeResolutionPart | undefined = opts.suppressInitialResponseParts
+				? modelLookup.toAutoModeResolution?.(usage$.get())
+				: undefined;
 
 			this._setupMcpAuthPrompt(mcpAuthRequired$, store, opts);
 
@@ -2160,7 +2353,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// we've seen our turn become active at least once before treating
 		// its absence as a terminal transition.
 		let terminated = false;
-		let seenActive = false;
 		const finish = (lastTurn: Turn | undefined) => {
 			if (terminated) {
 				return;
@@ -2195,7 +2387,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// "having seen it", so reconnect / server-initiated paths that
 			// install us against an already-completed turn still finish.
 			const lastTurn = state.turns.find(t => t.id === opts.turnId);
-			if (lastTurn) {
+			if (lastTurn && !opts.waitForActiveTurn) {
 				seenActive = true;
 			}
 			if (!seenActive) {
@@ -3601,7 +3793,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const protocolState = this._getSessionState(backendSession.toString());
 		let turnIndex: number | undefined;
 		if (request) {
-			const requestIdx = protocolState?.turns.findIndex(t => t.id === request.id);
+			if (!request.id) {
+				throw new Error('Cannot fork: request has no id');
+			}
+			const resumedTurn = this._resumedTurnsByRequest.get(request.id);
+			if (resumedTurn?.sessionResource === sessionResource.toString()) {
+				throw new Error(localize('agentHost.cannotForkRetryRequest', "Cannot fork from a retry request."));
+			}
+			const requestTurnId = this._protocolTurnIdForRequest(sessionResource, request.id);
+			const requestIdx = protocolState?.turns.findIndex(t => t.id === requestTurnId);
 			if (requestIdx === undefined || requestIdx < 0) {
 				throw new Error(`Cannot fork: turn for request ${request.id} not found in protocol state`);
 			}
@@ -4746,11 +4946,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return (value && !(value instanceof Error)) ? value : undefined;
 	}
 
+	private _supportsResumeTurn(): boolean {
+		return this._getRootState()?.agents.find(agent => agent.provider === this._config.provider)?.capabilities?.resumeTurn !== undefined;
+	}
+
 	override dispose(): void {
 		for (const [, session] of this._activeSessions) {
 			session.dispose();
 		}
 		this._activeSessions.clear();
+		this._resumedTurnsByRequest.clear();
 		for (const ref of this._sessionSubscriptions.values()) {
 			ref.dispose();
 		}

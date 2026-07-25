@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { replayThreadToTurns } from '../../../node/codex/codexReplayMapper.js';
+import { replayThread, replayThreadToTurns } from '../../../node/codex/codexReplayMapper.js';
 import { ResponsePartKind, TurnState } from '../../../common/state/sessionState.js';
 
 suite('codexReplayMapper', () => {
@@ -42,7 +42,7 @@ suite('codexReplayMapper', () => {
 		assert.strictEqual((part as { content: string }).content, 'hello back');
 	});
 
-	test('failed turn maps to TurnState.Error', () => {
+	test('failed turn restores resumable error details', () => {
 		const turns = replayThreadToTurns({
 			id: 'thr',
 			turns: [{
@@ -56,8 +56,134 @@ suite('codexReplayMapper', () => {
 				startedAt: null, completedAt: null, durationMs: null,
 			}],
 		} as never);
-		assert.strictEqual(turns.length, 1);
-		assert.strictEqual(turns[0].state, TurnState.Error);
+		assert.deepStrictEqual({
+			length: turns.length,
+			state: turns[0].state,
+			error: turns[0].error,
+		}, {
+			length: 1,
+			state: TurnState.Error,
+			error: {
+				errorType: 'CodexError',
+				message: 'oops',
+				resumable: true,
+			},
+		});
+	});
+
+	test('successful empty-input retry merges into the original failed turn', () => {
+		const replay = replayThread({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'fix it', text_elements: [] }] },
+					{ type: 'agentMessage', id: 'a1', text: 'partial', phase: null, memoryCitation: null },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'failed' as never,
+				error: { message: 'first failure' } as never,
+				startedAt: null, completedAt: null, durationMs: null,
+			}, {
+				id: 'turn_b',
+				items: [
+					{ type: 'agentMessage', id: 'a2', text: 'finished', phase: null, memoryCitation: null },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+		const turns = replay.turns;
+
+		assert.deepStrictEqual({
+			length: turns.length,
+			id: turns[0].id,
+			message: turns[0].message.text,
+			content: turns[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : undefined),
+			state: turns[0].state,
+			error: turns[0].error,
+			codexTurnId: replay.codexTurnIdByHostTurnId.get('turn_a'),
+		}, {
+			length: 1,
+			id: 'turn_a',
+			message: 'fix it',
+			content: ['partial', 'finished'],
+			state: TurnState.Complete,
+			error: undefined,
+			codexTurnId: 'turn_b',
+		});
+	});
+
+	test('repeated empty-input failures merge with the latest error', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'fix it', text_elements: [] }] },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'failed' as never,
+				error: { message: 'first failure' } as never,
+				startedAt: null, completedAt: null, durationMs: null,
+			}, {
+				id: 'turn_b',
+				items: [
+					{ type: 'agentMessage', id: 'a2', text: 'retry partial', phase: null, memoryCitation: null },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'failed' as never,
+				error: { message: 'second failure' } as never,
+				startedAt: null, completedAt: null, durationMs: null,
+			}, {
+				id: 'turn_c',
+				items: [],
+				itemsView: { type: 'full' } as never,
+				status: 'failed' as never,
+				error: { message: 'third failure' } as never,
+				startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+
+		assert.deepStrictEqual({
+			length: turns.length,
+			id: turns[0].id,
+			message: turns[0].message.text,
+			content: turns[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : undefined),
+			state: turns[0].state,
+			error: turns[0].error,
+		}, {
+			length: 1,
+			id: 'turn_a',
+			message: 'fix it',
+			content: ['retry partial'],
+			state: TurnState.Error,
+			error: {
+				errorType: 'CodexError',
+				message: 'third failure',
+				resumable: true,
+			},
+		});
+	});
+
+	test('orphan empty-input turn does not create a blank request', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'agentMessage', id: 'a1', text: 'orphan', phase: null, memoryCitation: null },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+
+		assert.deepStrictEqual(turns, []);
 	});
 
 	test('turn with no recognizable items is dropped', () => {

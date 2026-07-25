@@ -57,6 +57,7 @@ import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilo
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
+	readonly sendMessagesRequests: unknown[] = [];
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionAllowAllMode[] = [];
 	permissionModeSetSuccess = true;
@@ -137,6 +138,10 @@ class MockCopilotSession {
 	async disconnect() { }
 
 	readonly rpc = {
+		sendMessages: async (params: unknown) => {
+			this.sendMessagesRequests.push(params);
+			return { messageIds: [] };
+		},
 		mode: {
 			get: async () => ({ mode: 'interactive' as const }),
 			set: async (params: { mode: 'interactive' | 'plan' | 'autopilot' }) => {
@@ -578,6 +583,22 @@ suite('CopilotAgentSession', () => {
 			logService.traces.filter(t => t.message.includes('Unhandled SDK event')).map(t => t.message),
 			['[Copilot:test-session-1] Unhandled SDK event: {"type":"session.title_changed","data":{"title":"A new title"},"id":"evt-title","timestamp":"2026-06-24T00:00:00.000Z","parentId":null,"ephemeral":true}']
 		);
+	});
+
+	test('resumes a turn with zero SDK messages', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.resume('turn-1', 'plan', 'client-1');
+
+		assert.deepStrictEqual({
+			sendRequests: mockSession.sendRequests,
+			sendMessagesRequests: mockSession.sendMessagesRequests,
+			modeSetCalls: mockSession.modeSetCalls,
+		}, {
+			sendRequests: [],
+			sendMessagesRequests: [{ messages: [] }],
+			modeSetCalls: [{ mode: 'plan' }],
+		});
 	});
 
 	test('maps internal attachment URIs to Copilot SDK path fields', async () => {
@@ -3295,6 +3316,53 @@ suite('CopilotAgentSession', () => {
 				assert.strictEqual(action.error.errorType, 'TestError');
 				assert.strictEqual(action.error.message, 'something went wrong');
 			}
+		});
+
+		test('active turn errors are marked resumable', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+			mockSession.fire('session.error', {
+				errorType: 'TestError',
+				message: 'something went wrong',
+				stack: 'Error: something went wrong',
+			} as SessionEventPayload<'session.error'>['data']);
+
+			assert.deepStrictEqual((getActions(signals)[0] as ChatErrorAction).error, {
+				errorType: 'TestError',
+				message: 'something went wrong',
+				stack: 'Error: something went wrong',
+				resumable: true,
+			});
+		});
+
+		test('subagent errors are routed without advertising root-turn resume', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'task-1',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explores',
+			}, { agentId: 'subagent-1' });
+			mockSession.fire('session.error', {
+				errorType: 'TestError',
+				message: 'subagent failed',
+				stack: 'Error: subagent failed',
+			} as SessionEventPayload<'session.error'>['data'], { agentId: 'subagent-1' });
+
+			const errorSignal = signals.find(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatError);
+			assert.ok(errorSignal?.kind === 'action' && errorSignal.action.type === ActionType.ChatError);
+			assert.deepStrictEqual({
+				parentToolCallId: errorSignal.parentToolCallId,
+				error: errorSignal.action.error,
+			}, {
+				parentToolCallId: 'task-1',
+				error: {
+					errorType: 'TestError',
+					message: 'subagent failed',
+					stack: 'Error: subagent failed',
+				},
+			});
 		});
 
 		test('message delta is forwarded', async () => {

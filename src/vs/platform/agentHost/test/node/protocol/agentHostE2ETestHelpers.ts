@@ -250,6 +250,8 @@ export interface IAgentHostE2EProviderConfig {
 	 * shared test prompt doesn't reliably drive it to `ExitPlanMode`.
 	 */
 	readonly supportsPlanMode: boolean;
+	/** Whether the provider advertises the AHP failed-turn resume capability. */
+	readonly supportsResumeTurn?: boolean;
 
 	/**
 	 * The github token to use. If not provided, the test will attempt to resolve it from the environment or `gh auth token`.
@@ -840,6 +842,7 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 			const initial = rootResult.snapshot!.state as RootState;
 			const providerAgent = initial.agents.find(a => a.provider === config.provider);
 			assert.ok(providerAgent, `Expected ${config.provider} agent in root state, got: ${initial.agents.map(a => a.provider).join(', ')}`);
+			assert.strictEqual(providerAgent.capabilities?.resumeTurn !== undefined, config.supportsResumeTurn === true, `Unexpected resumeTurn capability for ${config.provider}`);
 
 			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
 
