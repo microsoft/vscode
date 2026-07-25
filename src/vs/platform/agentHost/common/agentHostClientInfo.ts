@@ -5,8 +5,8 @@
 
 import type { Implementation } from './state/protocol/common/commands.js';
 
-const EDITOR_WINDOW_CLIENT_NAME = 'visual-studio-code-editor-window';
-const AGENTS_WINDOW_CLIENT_NAME = 'visual-studio-code-agents-window';
+const EDITOR_WINDOW_CLIENT_NAME = 'vscode-editor-window';
+const AGENTS_WINDOW_CLIENT_NAME = 'vscode-agents-window';
 
 export const enum AgentHostClientType {
 	EditorWindow = 'editor_window',
@@ -16,12 +16,12 @@ export const enum AgentHostClientType {
 
 export const editorWindowAgentHostClientInfo: Readonly<Implementation> = Object.freeze({
 	name: EDITOR_WINDOW_CLIENT_NAME,
-	title: 'Visual Studio Code',
+	title: 'VS Code',
 });
 
 export const agentsWindowAgentHostClientInfo: Readonly<Implementation> = Object.freeze({
 	name: AGENTS_WINDOW_CLIENT_NAME,
-	title: 'Visual Studio Code Agents Window',
+	title: 'VS Code Agents Window',
 });
 
 export function getAgentHostClientType(clientInfo: Implementation | undefined): AgentHostClientType {
