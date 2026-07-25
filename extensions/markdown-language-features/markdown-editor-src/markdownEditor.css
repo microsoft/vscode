@@ -32,8 +32,8 @@ body {
 .md-plan-review-toolbar {
 	display: flex;
 	align-items: center;
-	gap: var(--vscode-spacing-size20, 2px);
-	padding: var(--vscode-spacing-size20, 2px);
+	gap: var(--vscode-spacing-size40, 4px);
+	padding: var(--vscode-spacing-size40, 4px);
 	border: var(--vscode-strokeThickness, 1px) solid var(--md-readonly-border, var(--vscode-editorWidget-border));
 	border-radius: var(--vscode-cornerRadius-circle, 9999px);
 	background: var(--md-readonly-background, var(--vscode-editorWidget-background));
@@ -47,7 +47,7 @@ body {
 
 .md-plan-review-toolbar button,
 .md-plan-review-overall-feedback {
-	height: 24px;
+	height: 28px;
 	box-sizing: border-box;
 	border: 0;
 	border-radius: var(--vscode-cornerRadius-circle, 9999px);
@@ -58,7 +58,7 @@ body {
 	flex: 0 0 180px;
 	width: 180px;
 	min-width: 180px;
-	padding: 0 var(--vscode-spacing-size80, 8px);
+	padding: 0 var(--vscode-spacing-size100, 10px);
 	background: transparent;
 	color: var(--vscode-input-foreground);
 	font-weight: var(--vscode-fontWeight-regular, 400);
@@ -77,7 +77,7 @@ body {
 .md-plan-review-primary-action {
 	flex: 0 0 auto;
 	max-width: clamp(120px, calc(100vw - 360px), 320px);
-	padding: 0 var(--vscode-spacing-size100, 10px);
+	padding: 0 var(--vscode-spacing-size120, 12px);
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 	cursor: pointer;
@@ -97,7 +97,7 @@ body {
 
 .md-plan-review-reject-action {
 	flex: 0 0 auto;
-	padding: 0 var(--vscode-spacing-size80, 8px);
+	padding: 0 var(--vscode-spacing-size100, 10px);
 	background: transparent;
 	color: var(--md-readonly-foreground, var(--vscode-foreground));
 	cursor: pointer;
@@ -109,7 +109,7 @@ body {
 
 .md-plan-review-action-toggle {
 	position: relative;
-	width: 28px;
+	width: 30px;
 	padding: 0;
 	border-left: var(--vscode-strokeThickness, 1px) solid var(--vscode-button-separator);
 	border-radius: 0 var(--vscode-cornerRadius-circle, 9999px) var(--vscode-cornerRadius-circle, 9999px) 0;
@@ -121,8 +121,8 @@ body {
 .md-plan-review-action-toggle::before {
 	content: '';
 	position: absolute;
-	top: 8px;
-	left: 9px;
+	top: 9px;
+	left: 10px;
 	width: 7px;
 	height: 7px;
 	border-right: 1.5px solid currentColor;
@@ -132,7 +132,7 @@ body {
 
 .md-plan-review-action-menu {
 	position: absolute;
-	top: calc(100% + var(--vscode-spacing-size40, 4px));
+	bottom: calc(100% + var(--vscode-spacing-size40, 4px));
 	right: 0;
 	min-width: 190px;
 	padding: var(--vscode-spacing-size40, 4px);
