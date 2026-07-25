@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as zlib from 'zlib';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { hash } from '../../../../base/common/hash.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -63,13 +64,13 @@ suite('AgentHostTelemetryReporter', () => {
 	const session = 'agent-session://copilot/abc';
 	const tools: ToolDefinition[] = [{ name: 'grep' }, { name: 'edit' }];
 
-	test('assistantMessageReceived emits request.options.tools keyed on the service request id, and no-ops without one or without tools', () => {
+	test('assistantMessageReceived emits request.options.tools keyed on the service request id, and no-ops without one or without tools', async () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		reporter.assistantMessageReceived(session, undefined, tools); // dropped: no service request id
-		reporter.assistantMessageReceived(session, 'svc-1', []); // dropped: no tools
-		reporter.assistantMessageReceived(session, 'svc-1', tools); // emitted
+		await reporter.assistantMessageReceived(session, undefined, tools); // dropped: no service request id
+		await reporter.assistantMessageReceived(session, 'svc-1', []); // dropped: no tools
+		await reporter.assistantMessageReceived(session, 'svc-1', tools); // emitted
 
 		assert.deepStrictEqual(service.enhancedEvents, [{
 			eventName: 'request.options.tools',
@@ -77,16 +78,17 @@ suite('AgentHostTelemetryReporter', () => {
 				headerRequestId: 'svc-1',
 				conversationId: AgentSession.id(session),
 				messagesJson: JSON.stringify(tools),
+				messagesJsonChunk: zlib.gzipSync(Buffer.from(JSON.stringify(tools), 'utf8')).toString('base64'),
 			},
 		}]);
 	});
 
-	test('userMessageText emits conversation.messageText (source=user) to enhanced + internal, and no-ops on empty content', () => {
+	test('userMessageText emits conversation.messageText (source=user) to enhanced + internal, and no-ops on empty content', async () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		reporter.userMessageText(session, '', 3); // dropped: no content
-		reporter.userMessageText(session, 'hello agent', 3); // emitted
+		await reporter.userMessageText(session, '', 3); // dropped: no content
+		await reporter.userMessageText(session, 'hello agent', 3); // emitted
 
 		const expected: IRestrictedCall = {
 			eventName: 'conversation.messageText',
@@ -101,12 +103,12 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.deepStrictEqual(service.internalEvents, [expected]);
 	});
 
-	test('modelMessageText emits conversation.messageText (source=model) with headerRequestId, and no-ops on empty content', () => {
+	test('modelMessageText emits conversation.messageText (source=model) with headerRequestId, and no-ops on empty content', async () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		reporter.modelMessageText(session, '', 3, 'svc-1'); // dropped: no content
-		reporter.modelMessageText(session, 'sure, here you go', 3, 'svc-1'); // emitted
+		await reporter.modelMessageText(session, '', 3, 'svc-1'); // dropped: no content
+		await reporter.modelMessageText(session, 'sure, here you go', 3, 'svc-1'); // emitted
 
 		const expected: IRestrictedCall = {
 			eventName: 'conversation.messageText',
@@ -122,21 +124,21 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.deepStrictEqual(service.internalEvents, [expected]);
 	});
 
-	test('toolCallDetails emits toolCallDetailsExternal + toolCallDetailsInternal aggregate whenever tools were available, and no-ops when none were', () => {
+	test('toolCallDetails emits toolCallDetailsExternal + toolCallDetailsInternal aggregate whenever tools were available, and no-ops when none were', async () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		reporter.toolCallDetails({
+		await reporter.toolCallDetails({
 			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
 			toolCounts: {}, availableTools: [],
 			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
 		}); // dropped: no tools were available
-		reporter.toolCallDetails({
+		await reporter.toolCallDetails({
 			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
 			toolCounts: {}, availableTools: ['grep', 'edit'],
 			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
 		}); // emitted: tools available, even though no tool calls were made
-		reporter.toolCallDetails({
+		await reporter.toolCallDetails({
 			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
 			toolCounts: { grep: 2, edit: 1 }, availableTools: ['grep', 'edit'],
 			numRequests: 2, totalToolCalls: 3, parallelToolCallRounds: 1, parallelToolCallsTotal: 2,
@@ -195,11 +197,11 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.deepStrictEqual(service.internalEvents, [expected]);
 	});
 
-	test('repoInfo gates collection and multiplexes sink-specific properties', () => {
+	test('repoInfo gates collection and multiplexes sink-specific properties', async () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		reporter.reportRepoInfo({
+		await reporter.reportRepoInfo({
 			restrictedTelemetryEnabled: true,
 			trackingId: 'tracking-id',
 			telemetryEndpoint: 'https://telemetry.example/telemetry',
@@ -237,7 +239,7 @@ suite('AgentHostTelemetryReporter', () => {
 					headBranchName: 'feature',
 					fileRelativePaths: JSON.stringify(['src/a.ts']),
 					diffsJSON: 'x'.repeat(8192),
-					diffsJSON_02: 'x',
+					diffsJSONChunk: zlib.gzipSync(Buffer.from('x'.repeat(8193), 'utf8')).toString('base64'),
 					result: 'success',
 					isActiveRepository: 'true',
 					location: 'begin',
@@ -252,7 +254,7 @@ suite('AgentHostTelemetryReporter', () => {
 					repoType: 'github',
 					headCommitHash: 'abc',
 					diffsJSON: 'x'.repeat(8192),
-					diffsJSON_02: 'x',
+					diffsJSONChunk: zlib.gzipSync(Buffer.from('x'.repeat(8193), 'utf8')).toString('base64'),
 					result: 'success',
 					isActiveRepository: 'true',
 					location: 'begin',

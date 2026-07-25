@@ -293,12 +293,12 @@ export class AgentHostTelemetryReporter {
 	 * @param serviceRequestId The model call's `x-copilot-service-request-id`, mapped to the extension's `headerRequestId`. No-ops when absent (e.g. providers that don't surface it).
 	 * @param tools The tool definitions offered to the model for this call.
 	 */
-	assistantMessageReceived(session: string, serviceRequestId: string | undefined, tools: readonly ToolDefinition[]): void {
+	async assistantMessageReceived(session: string, serviceRequestId: string | undefined, tools: readonly ToolDefinition[]): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !serviceRequestId || tools.length === 0) {
 			return;
 		}
-		restricted.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
+		restricted.sendEnhancedGHTelemetryEvent('request.options.tools', await multiplexProperties({
 			headerRequestId: serviceRequestId,
 			conversationId: AgentSession.id(session),
 			messagesJson: JSON.stringify(tools),
@@ -318,12 +318,12 @@ export class AgentHostTelemetryReporter {
 	 * @param content The user's prompt text. No-ops when empty.
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here (a non-numeric id lands empty).
 	 */
-	userMessageText(session: string, content: string, turnIndex: number): void {
+	async userMessageText(session: string, content: string, turnIndex: number): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
 		}
-		const properties = multiplexProperties({
+		const properties = await multiplexProperties({
 			source: 'user',
 			conversationId: AgentSession.id(session),
 			turnIndex: String(turnIndex),
@@ -346,12 +346,12 @@ export class AgentHostTelemetryReporter {
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here.
 	 * @param serviceRequestId The model call's `x-copilot-service-request-id`, mapped to `headerRequestId`.
 	 */
-	modelMessageText(session: string, content: string, turnIndex: number, serviceRequestId: string | undefined): void {
+	async modelMessageText(session: string, content: string, turnIndex: number, serviceRequestId: string | undefined): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
 		}
-		const properties = multiplexProperties({
+		const properties = await multiplexProperties({
 			source: 'model',
 			conversationId: AgentSession.id(session),
 			turnIndex: String(turnIndex),
@@ -376,13 +376,13 @@ export class AgentHostTelemetryReporter {
 	 *
 	 * @param report The per-turn tool-call aggregate.
 	 */
-	toolCallDetails(report: IAgentHostToolCallDetailsReport): void {
+	async toolCallDetails(report: IAgentHostToolCallDetailsReport): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || report.availableTools.length === 0) {
 			return;
 		}
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
-		const properties = multiplexProperties({
+		const properties = await multiplexProperties({
 			conversationId: AgentSession.id(session),
 			requestId: report.turnId,
 			messageId: report.turnId,
@@ -443,7 +443,7 @@ export class AgentHostTelemetryReporter {
 		restricted.sendInternalMSFTTelemetryEvent('skillContentRead', plaintextProps);
 	}
 
-	reportRepoInfo(context: IAgentHostRestrictedTelemetryContext, report: IAgentHostRepoInfoReport): void {
+	async reportRepoInfo(context: IAgentHostRestrictedTelemetryContext, report: IAgentHostRepoInfoReport): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted) {
 			return;
@@ -469,8 +469,12 @@ export class AgentHostTelemetryReporter {
 			repoCount: 1,
 		};
 		const { headBranchName: _, fileRelativePaths: _2, ...internalProperties } = properties;
-		restricted.sendEnhancedGHTelemetryEventForContext(context, 'request.repoInfo', multiplexProperties(properties), measurements);
-		restricted.sendInternalMSFTTelemetryEventForContext(context, 'request.repoInfo', multiplexProperties(internalProperties), measurements);
+		const [enhancedProperties, internalMultiplexedProperties] = await Promise.all([
+			multiplexProperties(properties),
+			multiplexProperties(internalProperties),
+		]);
+		restricted.sendEnhancedGHTelemetryEventForContext(context, 'request.repoInfo', enhancedProperties, measurements);
+		restricted.sendInternalMSFTTelemetryEventForContext(context, 'request.repoInfo', internalMultiplexedProperties, measurements);
 	}
 
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
