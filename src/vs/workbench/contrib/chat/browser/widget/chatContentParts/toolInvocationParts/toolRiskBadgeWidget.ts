@@ -43,6 +43,7 @@ export class ToolRiskBadgeWidget extends Disposable {
 
 		this.domNode = dom.$(`span.${RISK_BADGE_CLASS}`);
 		this._iconEl = dom.$('span.tool-risk-icon');
+		this._iconEl.setAttribute('aria-hidden', 'true');
 		this._textEl = dom.$('span.tool-risk-text');
 		this._detailsIconEl = dom.$('span.tool-risk-details-icon');
 		this._detailsIconEl.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));

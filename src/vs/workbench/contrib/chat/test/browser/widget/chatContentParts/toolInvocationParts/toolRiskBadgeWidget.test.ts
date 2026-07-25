@@ -21,9 +21,11 @@ suite('ToolRiskBadgeWidget', () => {
 
 		const icon = widget.domNode.querySelector('.tool-risk-icon');
 		assert.deepStrictEqual({
+			ariaHidden: icon?.getAttribute('aria-hidden'),
 			className: icon?.className,
 			textContent: icon?.textContent,
 		}, {
+			ariaHidden: 'true',
 			className: 'tool-risk-icon codicon codicon-error',
 			textContent: '',
 		});
