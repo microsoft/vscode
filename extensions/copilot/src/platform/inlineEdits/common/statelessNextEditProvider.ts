@@ -769,5 +769,4 @@ export class StatelessNextEditTelemetryBuilder {
 		this._modelConfig = modelConfig;
 		return this;
 	}
-
 }
