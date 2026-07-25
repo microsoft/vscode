@@ -373,6 +373,22 @@ suite('SessionTypePicker', () => {
 		});
 	});
 
+	test('folder-driven quick-chat mode keeps an available non-default initial pick', () => {
+		const proposed = { providerId: 'agent-host', sessionTypeId: 'copilotcli' };
+		management.setQuickChatSessionTypes([
+			sessionType('fallback', 'fallback', 'Fallback'),
+			sessionType('agent-host', 'copilotcli', 'Copilot CLI'),
+		]);
+		const picker = createPicker(disposables, session, management, storage, { persistSelection: false });
+
+		picker.setQuickChatSource(observableValue('quickChat', true));
+		picker.setFolderSource(observableValue<URI | undefined>('folder', undefined), {
+			initialPick: proposed,
+		});
+
+		assert.deepStrictEqual(picker.selectedPick, proposed);
+	});
+
 	test('quick-chat mode concretizes a provider-less legacy workspace pick', () => {
 		const type = sessionType('agent-host', 'copilotcli', 'Copilot CLI');
 		management.setSessionTypesForFolder(folder, [type]);

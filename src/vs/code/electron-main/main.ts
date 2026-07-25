@@ -73,7 +73,7 @@ import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdenti
 import { UriIdentityService } from '../../platform/uriIdentity/common/uriIdentityService.js';
 import { ILoggerMainService, LoggerMainService } from '../../platform/log/electron-main/loggerService.js';
 import { LogService } from '../../platform/log/common/logService.js';
-import { massageMessageBoxOptions } from '../../platform/dialogs/common/dialogs.js';
+import { massageMessageBoxOptions } from '../../platform/dialogs/electron-main/dialogMainUtils.js';
 import { SaveStrategy, StateService } from '../../platform/state/node/stateService.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';

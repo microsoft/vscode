@@ -36,6 +36,11 @@
 	font-size: 16px;
 }
 
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.dictation.preparing .chat-voice-input-mode-icon.codicon-loading::before {
+	display: inline-block;
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
 /* The Device EQ waveform lives in the voice cell and transforms per state. Thin bars = default (disconnected); thick bars = filled (connected). */
 .chat-voice-input-mode-bars {
 	display: inline-flex;

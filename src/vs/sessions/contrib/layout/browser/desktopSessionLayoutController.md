@@ -81,8 +81,8 @@ When a new session becomes created while staying active — either `isCreated` c
 on the same resource, or the provider replaces the draft with a committed resource — the side pane stays
 as you left it: if it was open it stays open and switches to **Changes**; if it was closed it stays
 closed, but opening it later shows **Changes**. In single-pane detail-panel mode, the submit transition
-also keeps the editor content closed because managed Changes/File tab opens are suppressed; the open side
-pane shows the Changes detail.
+also keeps the editor content closed and activates the Changes tab that was already shown beside Files;
+the open side pane shows the Changes detail.
 
 #### D5 — Maximizing the editor
 While the editor area is maximized, the side pane always shows **Changes**, regardless of the session's
