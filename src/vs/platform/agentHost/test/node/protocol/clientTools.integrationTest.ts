@@ -27,6 +27,7 @@ import {
 	IServerHandle,
 	isActionNotification,
 	startServer,
+	stopServer,
 	TestProtocolClient,
 } from '../serverIntegrationTestHelpers.js';
 
@@ -40,8 +41,9 @@ suite('Protocol WebSocket — Client Tools', function () {
 		server = await startServer();
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
 	});
 
 	setup(async function () {

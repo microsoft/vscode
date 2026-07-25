@@ -24,7 +24,7 @@ import { getSessionReferenceResource } from './sessionReference.js';
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus, ISessionType } from '../common/session.js';
+import { IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
@@ -66,6 +66,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _onDidDiscardNewSession = this._register(new Emitter<ISession>());
 	readonly onDidDiscardNewSession: Event<ISession> = this._onDidDiscardNewSession.event;
+	private readonly _onDidReplaceNewDraftSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+	readonly onDidReplaceNewDraftSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceNewDraftSession.event;
 
 	private _sessionTypes: readonly ISessionType[] = [];
 
@@ -365,7 +367,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		const previousNewSession = this._newSession.get();
 		const session = provider.createNewSession(folderUri, sessionTypeId);
-		this._newSession.set(session, undefined);
 
 		// Providers no longer dispose the previous new session implicitly, so
 		// dispose the one this composer just replaced. Use its own provider
@@ -373,7 +374,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// successful create so a throw above leaves the previous one intact.
 		if (previousNewSession && previousNewSession.sessionId !== session.sessionId) {
 			this._getProvider(previousNewSession)?.deleteNewSession(previousNewSession.sessionId);
+			// Terminal ownership must move before the replacement is published:
+			// publishing eagerly ensures a terminal for the new draft.
+			this._onDidReplaceNewDraftSession.fire({ from: previousNewSession, to: session });
 		}
+		this._newSession.set(session, undefined);
 		return session;
 	}
 
@@ -477,6 +482,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(`Session '${session.sessionId}' does not support forking into a chat`);
 		}
 		return provider.forkChat(session.sessionId, sourceChat, turnId);
+	}
+
+	async createSideChatInSession(session: ISession, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat> {
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw new Error(`Provider '${session.providerId}' not found for session '${session.sessionId}'`);
+		}
+		if (!session.capabilities.get().supportsSideChat) {
+			throw new Error(`Session '${session.sessionId}' does not support side chats`);
+		}
+		return provider.createSideChat(session.sessionId, sourceChat, turnId, selection);
 	}
 
 	/**
@@ -629,8 +645,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				throw new CancellationError();
 			}
 			if (createOptions?.modelId) {
-				await this._waitForRequestedModel(provider, session, createOptions.modelId, token, folderUri);
-				provider.setModel(session.sessionId, createOptions.modelId);
+				const resolvedModelId = await this._waitForRequestedModel(provider, session, createOptions.modelId, token, folderUri);
+				provider.setModel(session.sessionId, resolvedModelId);
 			}
 			if (createOptions?.modeId) {
 				provider.setMode?.(session.sessionId, createOptions.modeId);
@@ -660,11 +676,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	private async _waitForRequestedModel(provider: ISessionsProvider, session: ISession, modelId: string, token: CancellationToken, folderUri?: URI): Promise<void> {
+	private async _waitForRequestedModel(provider: ISessionsProvider, session: ISession, modelId: string, token: CancellationToken, folderUri?: URI): Promise<string> {
 		const resolveCurrent = () => provider.getModelsSnapshot(session.sessionId, modelId).desiredModelResolution;
 		const initial = resolveCurrent();
-		if (initial.kind === 'available' || initial.kind === 'notRequested') {
-			return;
+		if (initial.kind === 'available') {
+			return initial.model.identifier;
+		}
+		if (initial.kind === 'notRequested') {
+			return modelId;
 		}
 		if (initial.kind === 'unavailable') {
 			throw new Error(`Model '${modelId}' is unavailable for sessions provider '${provider.id}'`);
@@ -673,25 +692,27 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new CancellationError();
 		}
 
-		await new Promise<void>((resolve, reject) => {
+		return new Promise<string>((resolve, reject) => {
 			const disposables = new DisposableStore();
 			let settled = false;
-			const finish = (error?: Error) => {
+			const finish = (result: string | Error) => {
 				if (settled) {
 					return;
 				}
 				settled = true;
 				disposables.dispose();
-				if (error) {
-					reject(error);
+				if (result instanceof Error) {
+					reject(result);
 				} else {
-					resolve();
+					resolve(result);
 				}
 			};
 			const check = () => {
 				const resolution = resolveCurrent();
-				if (resolution.kind === 'available' || resolution.kind === 'notRequested') {
-					finish();
+				if (resolution.kind === 'available') {
+					finish(resolution.model.identifier);
+				} else if (resolution.kind === 'notRequested') {
+					finish(modelId);
 				} else if (resolution.kind === 'unavailable') {
 					finish(new Error(`Model '${modelId}' is unavailable for sessions provider '${provider.id}'`));
 				}

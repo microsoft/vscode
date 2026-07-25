@@ -67,6 +67,9 @@ rounds:
       - channel: ${session_0}
         action:
           type: session/changesetsChanged
+      - channel: ${session_0}
+        action:
+          type: session/metaChanged
       - channel: ${chat_0}
         action:
           type: chat/usage
@@ -166,6 +169,9 @@ rounds:
           part:
             kind: markdown
             content: The magic word is **XYLOPHONE**.
+      - channel: ${session_0}
+        action:
+          type: session/metaChanged
       - channel: ${chat_0}
         action:
           type: chat/usage

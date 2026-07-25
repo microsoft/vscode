@@ -285,9 +285,30 @@ export class NewChatWidget extends Disposable {
 		const folderUri = sessionWorkspace?.folders[0]?.root;
 		if (folderUri) {
 			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false });
+			this._replaceDraftOnUnservableHarness(folderUri, activeSession);
 		}
 
 		return true;
+	}
+
+	/**
+	 * Replaces a restored draft whose harness the folder can no longer serve.
+	 * A draft outlives navigation, so it can name a session type that has since
+	 * stopped being advertised — e.g. the extension-host Copilot CLI once
+	 * `chat.agents.copilotCli.hideExtensionHost` is on. Keeping it would leave
+	 * the composer showing, and sending to, an agent the harness picker doesn't
+	 * list. An empty type list means the folder's providers haven't reported yet
+	 * (a late-connecting agent host), so the draft is left alone.
+	 */
+	private _replaceDraftOnUnservableHarness(folderUri: URI, draft: IActiveSession): void {
+		if (draft.isCreated.get()) {
+			return;
+		}
+		const pick = { providerId: draft.providerId, sessionTypeId: draft.sessionType };
+		if (this.sessionsManagementService.getSessionTypesForFolder(folderUri).length === 0 || this._isPreferredServable(folderUri, pick)) {
+			return;
+		}
+		void this._createNewSession(folderUri);
 	}
 
 	private _isPreferredServable(folderUri: URI, pick: IPreferredSessionType): boolean {

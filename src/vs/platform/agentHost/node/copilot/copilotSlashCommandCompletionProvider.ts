@@ -7,10 +7,10 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { AgentSession } from '../../common/agentService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../../common/state/protocol/commands.js';
 import { Customization, CustomizationType, DirectoryCustomization, MessageAttachmentKind, PluginCustomization, SkillCustomization } from '../../common/state/protocol/state.js';
-import { toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
+import { getCompletionAction, toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { getCopilotConfigSlashCommandItems, ICopilotConfigSlashCommandState, isCopilotConfigSlashCommand } from '../../common/copilotConfigSlashCommands.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from '../agentHostCompletions.js';
-import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken } from '../agentHostSlashCompletion.js';
+import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from '../agentHostSlashCompletion.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import type { CopilotSession } from '@github/copilot-sdk';
 
@@ -142,7 +142,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			if (!rubberDuckEnabled && command.name === 'rubber-duck') {
 				continue;
 			}
-			if (typed.length > 0 && !command.name.toLowerCase().startsWith(typedLower) && !command.aliases?.some(alias => alias.toLowerCase().startsWith(typedLower))) {
+			if (!matchesSlashCompletion(typedLower, command.name) && !command.aliases?.some(alias => matchesSlashCompletion(typedLower, alias))) {
 				continue;
 			}
 			// Use structured input choices as options; if there are none, emit a single item for the command and surface any free-text hint as a prompt.
@@ -200,7 +200,6 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			for (const item of getCopilotConfigSlashCommandItems(typed, configState)) {
 				completionItems.push({
 					insertText: item.insertText,
-					label: item.label,
 					rangeStart,
 					rangeEnd,
 					attachment: {
@@ -217,7 +216,10 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			}
 		}
 
-		return completionItems.sort((a, b) => (a.label ?? a.insertText).localeCompare(b.label ?? b.insertText));
+		const getSortText = (item: CompletionItem): string => {
+			return getCompletionAction(item.attachment._meta) ? item.attachment.label : item.insertText;
+		};
+		return completionItems.sort((a, b) => getSortText(a).localeCompare(getSortText(b)));
 	}
 }
 

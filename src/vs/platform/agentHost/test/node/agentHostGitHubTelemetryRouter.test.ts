@@ -115,7 +115,7 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 		const telemetry = new TestRestrictedTelemetry();
 		const router = new AgentHostGitHubTelemetryRouter(telemetry);
 
-		router.route(notification('engine.messages'), internalContext);
+		router.route(notification('engine.messages'), internalContext, { initiatorClientType: 'agents_window' });
 		const existingModelCallId = notification('engine.messages');
 		existingModelCallId.event.properties.modelCallId = 'existing-model-call';
 		router.route(existingModelCallId, internalContext);
@@ -124,7 +124,7 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 			{
 				destination: 'enhancedGH',
 				eventName: 'engine.messages',
-				properties: { existing: 'value', modelCallId: 'model-call-1' },
+				properties: { existing: 'value', modelCallId: 'model-call-1', initiatorClientType: 'agents_window' },
 				measurements: { count: 2 },
 			},
 			{

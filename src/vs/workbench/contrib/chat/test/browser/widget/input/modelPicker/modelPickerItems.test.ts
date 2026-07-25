@@ -11,7 +11,7 @@ import { MarkdownString } from '../../../../../../../../base/common/htmlContent.
 import { ActionListItemKind, IActionListItem } from '../../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { StateType } from '../../../../../../../../platform/update/common/update.js';
-import { buildModelPickerItems, getControlModelsForEntitlement, getModelPickerAccessibilityProvider } from '../../../../../browser/widget/input/modelPicker/modelPickerItems.js';
+import { buildModelPickerItems, getControlModelsForEntitlement, getModelPickerAccessibilityProvider, getModelPickerControlModels } from '../../../../../browser/widget/input/modelPicker/modelPickerItems.js';
 import { filterModelsForSession } from '../../../../../browser/widget/input/chatInputModelUtils.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
@@ -495,6 +495,50 @@ suite('buildModelPickerItems', () => {
 	test('edu entitlement uses free featured control manifest', () => {
 		const manifest = createControlManifest();
 		assert.strictEqual(getControlModelsForEntitlement(manifest, ChatEntitlement.EDU), manifest.free);
+	});
+
+	test('available targeted models remain featured while entitlement is signed out', () => {
+		const auto = createAgentHostModel('auto', 'Auto', { id: 'copilotcli' });
+		const freeFeatured = createAgentHostModel('free-model', 'Free Model', { id: 'copilotcli' });
+		const paidFeatured = createAgentHostModel('paid-model', 'Paid Model', { id: 'copilotcli' });
+		const other = createAgentHostModel('other-model', 'Other Model', { id: 'copilotcli' });
+		const models = [auto, freeFeatured, paidFeatured, other];
+		const controlModels = getModelPickerControlModels(createControlManifest(), ChatEntitlement.Unknown, models);
+		const actions = getActionItems(callBuild(models, {
+			selectedModelId: auto.identifier,
+			controlModels,
+			entitlement: ChatEntitlement.Unknown,
+		}));
+
+		assert.deepStrictEqual(actions.map(action => ({
+			label: action.label,
+			section: action.section,
+			isSectionToggle: action.isSectionToggle,
+		})), [
+			{ label: 'Auto', section: undefined, isSectionToggle: undefined },
+			{ label: 'Free Model', section: undefined, isSectionToggle: undefined },
+			{ label: 'Paid Model', section: undefined, isSectionToggle: undefined },
+			{ label: 'Other Models', section: 'other', isSectionToggle: true },
+			{ label: 'Other Model', section: 'other', isSectionToggle: undefined },
+		]);
+	});
+
+	test('signed-out control models exclude unavailable and BYOK models', () => {
+		const manifest: IModelsControlManifest = {
+			free: {
+				'available-targeted': { label: 'Available Targeted', featured: true, exists: false },
+				'unavailable-targeted': { label: 'Unavailable Targeted', featured: true, exists: false },
+				'byok-model': { label: 'BYOK Model', featured: true, exists: true },
+			},
+			paid: {},
+		};
+		const availableTargeted = createAgentHostModel('available-targeted', 'Available Targeted', { id: 'copilotcli' });
+		const baseByokModel = createAgentHostModel('byok-model', 'BYOK Model', { id: 'custom' });
+		const byokModel = { ...baseByokModel, metadata: { ...baseByokModel.metadata, byokModelIdentifier: 'custom/byok-model' } };
+
+		assert.deepStrictEqual(getModelPickerControlModels(manifest, ChatEntitlement.Unknown, [availableTargeted, byokModel]), {
+			'available-targeted': { label: 'Available Targeted', featured: true, exists: true },
+		});
 	});
 
 	test('featured model not in models list shows as unavailable for free users (upgrade)', () => {
