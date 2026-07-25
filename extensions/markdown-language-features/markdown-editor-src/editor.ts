@@ -198,8 +198,8 @@ class PlanReviewToolbar extends Disposable {
 		const hasFeedback = review.feedbackCount > 0 || this.#overallFeedback.value.trim().length > 0;
 		const selectedAction = review.actions.find(action => action.id === this.#selectedActionId) ?? review.actions[0];
 		const showActionToggle = !hasFeedback && review.actions.length > 1;
-		this.#actionToggle.style.display = showActionToggle ? '' : 'none';
-		this.#primaryGroup.classList.toggle('has-dropdown', showActionToggle);
+		this.#actionToggle.style.visibility = showActionToggle ? '' : 'hidden';
+		this.#primaryGroup.classList.toggle('has-dropdown', review.actions.length > 1);
 		this.#primaryAction.textContent = hasFeedback
 			? review.feedbackCount > 0
 				? review.submitFeedbackWithCountLabel.replace('{0}', String(review.feedbackCount))
