@@ -180,10 +180,6 @@ body {
 	outline-offset: 1px;
 }
 
-.md-plan-review-toolbar.compact {
-	width: calc(100vw - 2 * var(--vscode-spacing-size320, 32px));
-}
-
 .md-plan-review-toolbar.compact .md-plan-review-overall-feedback {
 	flex-basis: 140px;
 }
