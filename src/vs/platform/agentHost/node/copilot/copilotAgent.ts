@@ -326,6 +326,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * token-discovered CAPI endpoint's proxy so we can restart the client.
 	 */
 	private _appliedProxy: string | undefined;
+	/**
+	 * Reasons for a client restart that is parked until every chat is idle. See
+	 * {@link _requestClientRestart}; drained by {@link _applyPendingClientRestart}.
+	 */
+	private readonly _pendingClientRestartReasons = new Set<string>();
 	private _githubToken: string | undefined;
 	private _serverToolHost: IAgentServerToolHost | undefined;
 
@@ -517,9 +522,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Restarts the CLI client when a config value that is only read at client
-	 * startup has changed. Any active sessions are disposed before the client is
-	 * stopped; the latest values are picked up the next time {@link _ensureClient}
-	 * runs. An in-flight start aborts if any startup value changes.
+	 * startup has changed. The restart is deferred while any chat has an
+	 * in-flight turn — see {@link _requestClientRestart} — so the new values are
+	 * picked up at the next quiet point rather than by killing live work.
+	 * An in-flight start aborts if any startup value changes.
 	 */
 	private async _restartClientIfStartupConfigChanged(): Promise<void> {
 		const sessionSync = this._isSessionSyncEnabled();
@@ -542,12 +548,81 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._lastCopilotSdkLogLevelSetting = copilotSdkLogLevelSetting;
 		this._lastEnterpriseHost = enterpriseHost;
 		this._lastSystemProxyEnabled = systemProxyEnabled;
-		if (this._client) {
-			this._logService.info(`[Copilot] Startup config changed (${changed}), restarting CopilotClient`);
-			this._sessions.clearAndDisposeAll();
-			this._mcpNotificationSubs.clearAndDisposeAll();
-			await this._stopClient();
+		await this._requestClientRestart(`startup config changed: ${changed}`);
+	}
+
+	/**
+	 * Requests a CLI client restart, running it immediately when every chat is
+	 * idle and otherwise parking it until the last in-flight turn ends.
+	 *
+	 * Restarting tears the SDK sessions down, and a torn-down session stops
+	 * producing the events that finalize its protocol turn — the client would
+	 * be left with a turn that never completes, cancels, or errors, i.e. a
+	 * session that spins forever. Startup-only values (session sync, the SDK
+	 * log level, the enterprise host, the system proxy) can also change without
+	 * any user action, from an experiment or policy refresh, so this must never
+	 * be paid for with a running turn. The values are read fresh by
+	 * {@link _ensureClient} on the next start, so applying the restart late is
+	 * always correct.
+	 */
+	private async _requestClientRestart(reason: string): Promise<void> {
+		if (this._shutdownPromise || !this._client) {
+			// Nothing running to restart: the next `_ensureClient` starts from
+			// the current values anyway.
+			return;
 		}
+		this._pendingClientRestartReasons.add(reason);
+		const busyChats = this._chatsWithActiveTurn();
+		if (busyChats > 0) {
+			this._logService.info(`[Copilot] Deferring CopilotClient restart (${reason}) until ${busyChats} in-flight turn(s) finish`);
+			return;
+		}
+		await this._applyPendingClientRestart();
+	}
+
+	/**
+	 * Runs a restart parked by {@link _requestClientRestart} once no chat has
+	 * an in-flight turn. No-op while any turn is still running; the next chat
+	 * to go idle drives this again.
+	 */
+	private async _applyPendingClientRestart(): Promise<void> {
+		if (this._pendingClientRestartReasons.size === 0 || this._shutdownPromise || !this._client || this._chatsWithActiveTurn() > 0) {
+			return;
+		}
+		const reason = [...this._pendingClientRestartReasons].join('; ');
+		this._logService.info(`[Copilot] Restarting CopilotClient (${reason})`);
+		this._sessions.clearAndDisposeAll();
+		this._mcpNotificationSubs.clearAndDisposeAll();
+		await this._stopClient();
+	}
+
+	/**
+	 * Called by a {@link CopilotAgentSession} when its turn ends. Scheduled off
+	 * the current stack because the callback fires from inside that session's
+	 * SDK event handling and the restart disposes the session making the call.
+	 */
+	private _onChatTurnEnded(): void {
+		if (this._pendingClientRestartReasons.size === 0) {
+			return;
+		}
+		queueMicrotask(() => {
+			this._applyPendingClientRestart().catch(err =>
+				this._logService.error('[Copilot] Failed to apply deferred client restart', err)
+			);
+		});
+	}
+
+	/** Number of live chats (default or peer, across all sessions) with an in-flight turn. */
+	private _chatsWithActiveTurn(): number {
+		let count = 0;
+		for (const [, entry] of this._sessions) {
+			for (const chatSession of entry.allChatSessions()) {
+				if (chatSession.hasActiveTurn) {
+					count++;
+				}
+			}
+		}
+		return count;
 	}
 
 	protected _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -876,6 +951,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const client = this._client;
 		this._client = undefined;
 		this._clientStarting = undefined;
+		// Any parked restart is satisfied by this stop: the next `_ensureClient`
+		// starts from the current config, so nothing is left to re-apply.
+		this._pendingClientRestartReasons.clear();
 		await client?.stop();
 		// The runtime subprocess is now dead, so it is safe to release the BYOK
 		// proxy handle: the next session launch mints a fresh nonce. See the
@@ -2727,9 +2805,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/**
 	 * When the GitHub token changes, the token-discovered CAPI endpoint (and so
 	 * the resolved proxy) can change. The proxy is baked into the SDK subprocess
-	 * env at client start, so if it would now differ we stop the running client
-	 * here; the next `_ensureClient` re-resolves it against the new token. No-op
-	 * when no client is running/starting or the proxy is unchanged.
+	 * env at client start, so if it would now differ we restart the running
+	 * client here (deferred while a turn is in flight, see
+	 * {@link _requestClientRestart}); the next `_ensureClient` re-resolves it
+	 * against the new token. No-op when no client is running/starting or the
+	 * proxy is unchanged.
 	 */
 	private async _restartClientIfProxyChanged(): Promise<void> {
 		if (!this._client && !this._clientStarting) {
@@ -2749,13 +2829,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// Start failed; nothing running to restart.
 			}
 		}
-		if (!this._client) {
-			return;
-		}
-		this._logService.info(`[Copilot] CAPI proxy changed after token update (${oldProxy ?? '(none)'} -> ${newProxy ?? '(none)'}); restarting CopilotClient`);
-		this._sessions.clearAndDisposeAll();
-		this._mcpNotificationSubs.clearAndDisposeAll();
-		await this._stopClient();
+		await this._requestClientRestart(`CAPI proxy changed after token update (${oldProxy ?? '(none)'} -> ${newProxy ?? '(none)'})`);
 	}
 
 	/**
@@ -2819,6 +2893,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				resolveMcpChildId: name => findMcpChildId(activeClient.pluginController.getCustomizations(), name),
 				serverToolHost: this._serverToolHost,
 				isLaunchTokenCurrent: () => this._githubToken === launchPlan.githubToken,
+				onTurnEnded: () => this._onChatTurnEnded(),
 			},
 		);
 
@@ -2905,6 +2980,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._mcpNotificationSubs.deleteAndDispose(sessionId);
 		this._activeClients.get(sessionUri)?.dispose();
 		this._activeClients.delete(sessionUri);
+		// Disposing a session with a running turn removes the last thing a
+		// parked restart could be waiting on, and a disposed session never
+		// reports its turn ending.
+		await this._applyPendingClientRestart();
 	}
 
 	protected _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
