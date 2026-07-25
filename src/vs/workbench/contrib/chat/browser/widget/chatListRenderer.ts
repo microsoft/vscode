@@ -64,10 +64,12 @@ import { getNWords } from '../../common/model/chatWordCounter.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../common/chatProgressFormatting.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
+import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
 import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
 import { RestoreCheckpointActionId } from '../chatEditing/chatEditingActions.js';
+import { ChatForkActionViewItem } from './chatForkActionViewItem.js';
 import { ChatRestoreCheckpointActionViewItem } from './chatRestoreCheckpointActionViewItem.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
@@ -796,6 +798,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (action instanceof MenuItemAction) {
 					if (action.item.id === RestoreCheckpointActionId) {
 						return this.instantiationService.createInstance(ChatRestoreCheckpointActionViewItem, action, { hoverDelegate: options.hoverDelegate }, (context: unknown) => this.checkpointRestoreNeedsConfirmation(context));
+					}
+					if (action.item.id === ForkConversationActionId) {
+						return this.instantiationService.createInstance(ChatForkActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 					}
 					return this.instantiationService.createInstance(CodiconActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 				}

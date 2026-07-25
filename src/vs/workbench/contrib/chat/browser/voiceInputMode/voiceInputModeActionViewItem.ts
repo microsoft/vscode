@@ -33,6 +33,7 @@ import { IVoiceSessionController } from '../voiceClient/voiceSessionController.j
 import { IMicCaptureService } from '../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../voiceClient/ttsPlaybackService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
+import { getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
 import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkthroughVersion } from './voiceInputMode.js';
 import { SegmentedVoiceInputModePillActive } from './voiceInputModeContextKeys.js';
@@ -506,7 +507,13 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._dictationCell!.classList.toggle('active', isDictating || dictationBusy);
 			this._dictationCell!.classList.toggle('preparing', dictationBusy);
 			this._dictationCell!.setAttribute('aria-pressed', String(isDictating));
-			this._dictationIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(dictationBusy ? Codicon.micDownload : (isDictating ? Codicon.micFilled : Codicon.mic))}`;
+			this._dictationCell!.setAttribute('aria-label', dictationBusy
+				? localize('voiceInputMode.dictationPreparingCancelable', "Cancel Dictation. {0}", getDictationPreparingLabel(this.chatSpeechToTextService))
+				: localize('voiceInputMode.dictation', "Dictation"));
+			const dictationIcon = dictationBusy
+				? this.chatSpeechToTextService.currentBackend === 'mai' ? Codicon.loading : Codicon.micDownload
+				: isDictating ? Codicon.micFilled : Codicon.mic;
+			this._dictationIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(dictationIcon)}`;
 
 			// Voice cell — Device EQ bars that transform:
 			//   disconnected → thin grey bars (click to connect)

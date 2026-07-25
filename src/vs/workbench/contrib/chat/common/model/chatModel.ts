@@ -2327,6 +2327,18 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	/**
+	 * @internal Used by ChatService to atomically replace the pending request queue.
+	 */
+	replacePendingRequests(requests: readonly IChatPendingRequest[]): void {
+		if (this._pendingRequests.length === requests.length && requests.every((request, index) => this._pendingRequests[index] === request)) {
+			return;
+		}
+		this._pendingRequests.length = 0;
+		this._pendingRequests.push(...requests);
+		this._onDidChangePendingRequests.fire();
+	}
+
+	/**
 	 * @internal Used by ChatService to add a request to the queue.
 	 * Steering messages are placed before queued messages.
 	 */

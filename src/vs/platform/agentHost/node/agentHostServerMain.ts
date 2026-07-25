@@ -50,6 +50,7 @@ import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService
 import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
+import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
@@ -361,6 +362,15 @@ async function main(): Promise<void> {
 			logService.error('[AgentHostServer] Failed to load mock agent', err);
 		});
 	}
+
+	// Keep every provider's model catalog fresh. Provider-owned refresh
+	// triggers (authentication, transport flips, client restarts) are all
+	// edge-based, so this periodic tick is the only thing that notices a model
+	// added service-side while the host stays up. Owned here, at process
+	// lifetime, rather than inside `AgentHostService`: a service that arms a
+	// recurring timer in its constructor is one that no faked-timer unit test
+	// can ever drain.
+	disposables.add(instantiationService.createInstance(AgentModelRefreshScheduler, agentService.agents, MODEL_REFRESH_INTERVAL_MS));
 
 	// WebSocket server
 	const wsServer = disposables.add(await WebSocketProtocolServer.create({

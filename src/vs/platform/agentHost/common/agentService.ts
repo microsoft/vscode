@@ -1627,6 +1627,19 @@ export interface IAgent {
 	/** Available models from this provider. */
 	readonly models: IObservable<readonly IAgentModelInfo[]>;
 
+	/**
+	 * Re-enumerate this provider's model list and publish the result to
+	 * {@link models}. Called both on provider-owned triggers (authentication,
+	 * transport changes) and periodically by the host's model-refresh
+	 * scheduler, so implementations MUST coalesce concurrent calls into a
+	 * single backend request and MUST NOT reject: a failed refresh is logged
+	 * and leaves the last known-good list in place.
+	 *
+	 * Optional so providers without a dynamic model catalog (mocks, test
+	 * agents) need not implement it.
+	 */
+	refreshModels?(): Promise<void>;
+
 	/** List persisted sessions from this provider. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 

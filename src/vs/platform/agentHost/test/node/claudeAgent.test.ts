@@ -983,6 +983,61 @@ suite('ClaudeAgent', () => {
 		);
 	});
 
+	test('coalesces concurrent refreshModels calls onto one CAPI models request', async () => {
+		const { agent, api } = createTestContext(disposables);
+		// Block the first request in flight so the second caller has something
+		// to coalesce onto: a periodic scheduler tick landing on top of an
+		// auth-triggered refresh must not double-hit the service.
+		const gate = new DeferredPromise<void>();
+		let modelsCalls = 0;
+		api.models = async () => { modelsCalls++; await gate.p; return [...ALL_MODELS]; };
+		await agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+
+		const first = agent.refreshModels();
+		const second = agent.refreshModels();
+		gate.complete();
+		await Promise.all([first, second]);
+
+		assert.deepStrictEqual({
+			modelsCalls,
+			hasModels: agent.models.get().length > 0,
+		}, {
+			modelsCalls: 1,
+			hasModels: true,
+		});
+	});
+
+	test('keeps the last known-good models when a periodic refresh fails', async () => {
+		const { agent, api } = createTestContext(disposables);
+		api.models = async () => [...ALL_MODELS];
+		await agent.authenticate('https://api.github.com', 'tok');
+		await agent.refreshModels();
+		const modelIds = agent.models.get().map(model => model.id);
+
+		api.models = async () => { throw new Error('transient failure'); };
+		await agent.refreshModels();
+
+		assert.deepStrictEqual(agent.models.get().map(model => model.id), modelIds);
+	});
+
+	test('clears models when enumeration for a replacement token fails', async () => {
+		const { agent, api } = createTestContext(disposables);
+		api.models = async token => {
+			if (token === 'tokB') {
+				throw new Error('token B failure');
+			}
+			return [...ALL_MODELS];
+		};
+		await agent.authenticate('https://api.github.com', 'tokA');
+		await agent.refreshModels();
+
+		await agent.authenticate('https://api.github.com', 'tokB');
+		await agent.refreshModels();
+
+		assert.deepStrictEqual(agent.models.get(), []);
+	});
+
 	test('native transport: models populate from supportedModels() with no proxy start and no CAPI models() call', async () => {
 		const { agent, proxy, api, sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
 		let capiModelsCalls = 0;

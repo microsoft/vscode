@@ -20,6 +20,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditor.js';
@@ -30,7 +31,7 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISess
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
-import { ISessionsManagementService, ICreateNewSessionOptions } from '../../common/sessionsManagement.js';
+import { ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionsPartService } from '../../browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
@@ -156,7 +157,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 
 	override getSessions(): ISession[] { return [this._session]; }
 	override resolveWorkspace(_folderUri: URI): ISessionWorkspace | undefined { return undefined; }
-	override createNewSession(): ISession { return this._session; }
+	override createNewSession(_folderUri?: URI, _sessionTypeId?: string): ISession { return this._session; }
 	override getSessionTypes(_folderUri: URI): ISessionType[] { return [...this.sessionTypes]; }
 	override async renameChat(): Promise<void> { }
 	override getModelsSnapshot(): ISessionModelsSnapshot { return { models: [], desiredModelResolution: { kind: 'notRequested' }, modelTarget: undefined }; }
@@ -964,6 +965,107 @@ suite('SessionsManagementService', () => {
 			() => service.createNewSession(URI.parse('test:///folder'), { providerId: 'test', sessionTypeId: 'missing' }),
 			/does not advertise session type 'missing'/,
 		);
+	});
+
+	test('inheritableSessionTarget drops a harness the folder no longer offers', () => {
+		const folderUri = URI.parse('test:///folder');
+		// The provider still resolves the folder (its existing sessions stay
+		// usable) but no longer advertises the type they were created with —
+		// e.g. the extension-host Copilot CLI once
+		// `chat.agents.copilotCli.hideExtensionHost` is on.
+		const hiddenHarnessSession = stubSession({ sessionId: 's1', providerId: 'test', sessionType: 'copilotcli' });
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(_folderUri: URI): ISessionWorkspace {
+				return { folderUri: _folderUri } as unknown as ISessionWorkspace;
+			}
+			override getSessionTypes(): ISessionType[] {
+				return [{ id: 'test', label: 'Test', icon: Codicon.vm }];
+			}
+		}(hiddenHarnessSession);
+		const { service } = createSessionsManagementService(hiddenHarnessSession, disposables, provider);
+
+		const stillOfferedSession = stubSession({ sessionId: 's2', providerId: 'test', sessionType: 'test' });
+
+		assert.deepStrictEqual({
+			hiddenHarness: inheritableSessionTarget(service, hiddenHarnessSession, folderUri),
+			offeredHarness: inheritableSessionTarget(service, stillOfferedSession, folderUri),
+			noFolder: inheritableSessionTarget(service, stillOfferedSession, undefined),
+			noSession: inheritableSessionTarget(service, undefined, folderUri),
+		}, {
+			hiddenHarness: {},
+			offeredHarness: { providerId: 'test', sessionTypeId: 'test' },
+			noFolder: {},
+			noSession: {},
+		});
+	});
+
+	test('a New Session gesture whose harness is hidden still creates on the fallback provider', async () => {
+		// End-to-end shape of the Agents-window bug: an extension-host session is
+		// open, its harness has since been hidden (`hideExtensionHost`), and the
+		// user presses New. The gesture spreads `inheritableSessionTarget` into
+		// the options, so this also covers the empty-target path at a call site.
+		const folderUri = URI.parse('test:///folder');
+		const extHostSession = stubSession({ sessionId: 'exthost-1', providerId: 'copilot', sessionType: 'copilotcli' });
+		const created: { providerId: string; sessionTypeId: string }[] = [];
+
+		// Still resolves the folder (its existing sessions stay usable) but
+		// advertises nothing for it.
+		const copilot = new class extends TestSessionsProvider {
+			override readonly id = 'copilot';
+			override readonly order = 0;
+			override readonly sessionTypes: readonly ISessionType[] = [];
+			override resolveWorkspace(_folderUri: URI): ISessionWorkspace { return { folderUri: _folderUri } as unknown as ISessionWorkspace; }
+			override getSessionTypes(): ISessionType[] { return []; }
+			override getSessions(): ISession[] { return [extHostSession]; }
+		}(extHostSession);
+
+		// The agent host sorts first (`chat.agentHost.defaultSessionsProvider`).
+		const agentHostSession = stubSession({ sessionId: 'ah-draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilotcli' });
+		const agentHost = new class extends TestSessionsProvider {
+			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override readonly order = -1;
+			override readonly sessionTypes: readonly ISessionType[] = [{ id: 'copilotcli', label: 'Copilot', icon: Codicon.vm }];
+			override resolveWorkspace(_folderUri: URI): ISessionWorkspace { return { folderUri: _folderUri } as unknown as ISessionWorkspace; }
+			override getSessionTypes(): ISessionType[] { return [{ id: 'copilotcli', label: 'Copilot', icon: Codicon.vm }]; }
+			override getSessions(): ISession[] { return []; }
+			override createNewSession(_folderUri: URI, sessionTypeId: string): ISession {
+				created.push({ providerId: this.id, sessionTypeId });
+				return agentHostSession;
+			}
+		}(agentHostSession);
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+		instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([copilot, agentHost]));
+		instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+		instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+		instantiationService.stub(IProgressService, new TestProgressService());
+		instantiationService.stub(IChatService, new TestChatService());
+		instantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
+			override async requestResourcesTrust(): Promise<boolean> { return true; }
+		});
+
+		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+		const view = createView(instantiationService, service, disposables);
+		await view.openSession(extHostSession.resource);
+
+		const active = view.activeSession.get();
+		const result = await view.openNewSession({
+			folderUri,
+			...inheritableSessionTarget(service, active, folderUri),
+		});
+
+		assert.deepStrictEqual({
+			created,
+			resultProviderId: result.session?.providerId,
+			trustDeclined: result.trustDeclined,
+		}, {
+			created: [{ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilotcli' }],
+			resultProviderId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			trustDeclined: false,
+		});
 	});
 
 	test('createAndSendQuickChatRequest uses the quick-chat contract without navigation or repository configuration', async () => {
