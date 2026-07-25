@@ -24,6 +24,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { localize } from '../../../../nls.js';
 import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile, parsePlugin, parseRuleFile, parseSkillFile, PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
+import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
@@ -1090,6 +1091,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
 			env['USE_BUILTIN_RIPGREP'] = 'false';
 			env['COPILOT_MCP_APPS'] = 'true';
+			// Attribute the CLI and everything it spawns (`gh`, …) back to
+			// VS Code. Already inherited via `process.env` (the strip loop only
+			// removes `VSCODE_*`/`ELECTRON_*`); set here as defense in depth.
+			env[AiAgentEnvVar] = AiAgentEnvValue;
 			// Required by the currently bundled SDK to enable its experimental auto-approval judge.
 			env['AUTO_APPROVAL'] = 'true';
 			await this._configureProxyEnv(env);

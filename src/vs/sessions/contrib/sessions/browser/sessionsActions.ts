@@ -255,9 +255,9 @@ registerAction2(class GoBackAction extends Action2 {
 				// Higher than `WorkbenchContrib` so the `Ctrl+Shift+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
 				weight: KeybindingWeight.SessionsContrib,
-				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
+				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 			},
 			menu: [{
@@ -297,9 +297,9 @@ registerAction2(class GoForwardAction extends Action2 {
 				// Higher than `WorkbenchContrib` so the `Ctrl+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
 				weight: KeybindingWeight.SessionsContrib,
-				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyCode.Tab] },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
+				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.WinCtrl | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 			},
 			menu: [{
