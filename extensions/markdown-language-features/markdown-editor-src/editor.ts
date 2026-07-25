@@ -71,6 +71,14 @@ class PlanReviewToolbar extends Disposable {
 		this.#element.appendChild(toolbar);
 		host.appendChild(this.#element);
 		this._register({ dispose: () => this.#element.remove() });
+		const resizeObserver = new ResizeObserver(entries => {
+			const width = entries[0]?.contentRect.width ?? host.clientWidth;
+			toolbar.classList.toggle('compact', width < 760);
+			toolbar.classList.toggle('narrow', width < 480);
+			this.#element.classList.toggle('narrow', width < 480);
+		});
+		resizeObserver.observe(host);
+		this._register({ dispose: () => resizeObserver.disconnect() });
 
 		this.#overallFeedback = document.createElement('input');
 		this.#overallFeedback.className = 'md-plan-review-overall-feedback';

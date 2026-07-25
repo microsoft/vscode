@@ -29,6 +29,10 @@ body {
 	pointer-events: none;
 }
 
+.md-plan-review-toolbar-host.narrow {
+	left: var(--vscode-spacing-size160, 16px);
+}
+
 .md-plan-review-toolbar {
 	display: flex;
 	align-items: center;
@@ -55,9 +59,9 @@ body {
 }
 
 .md-plan-review-overall-feedback {
-	flex: 0 0 180px;
+	flex: 0 2 180px;
 	width: 180px;
-	min-width: 180px;
+	min-width: 100px;
 	padding: 0 var(--vscode-spacing-size100, 10px);
 	background: transparent;
 	color: var(--vscode-input-foreground);
@@ -68,15 +72,18 @@ body {
 	position: relative;
 	display: flex;
 	align-items: stretch;
-	flex: 0 0 auto;
+	flex: 0 1 auto;
+	min-width: 160px;
+	max-width: 320px;
 	border-radius: var(--vscode-cornerRadius-circle, 9999px);
 	background: var(--vscode-button-background);
 	overflow: visible;
 }
 
 .md-plan-review-primary-action {
-	flex: 0 0 auto;
-	max-width: clamp(120px, calc(100vw - 360px), 320px);
+	flex: 1 1 auto;
+	min-width: 0;
+	max-width: 320px;
 	padding: 0 var(--vscode-spacing-size120, 12px);
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
@@ -171,4 +178,34 @@ body {
 .md-plan-review-toolbar :focus-visible {
 	outline: 2px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
+}
+
+.md-plan-review-toolbar.compact {
+	width: calc(100vw - 2 * var(--vscode-spacing-size320, 32px));
+}
+
+.md-plan-review-toolbar.compact .md-plan-review-overall-feedback {
+	flex-basis: 140px;
+}
+
+.md-plan-review-toolbar.compact .md-plan-review-primary-group {
+	flex: 1 1 180px;
+}
+
+.md-plan-review-toolbar.narrow {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	width: calc(100vw - 2 * var(--vscode-spacing-size160, 16px));
+}
+
+.md-plan-review-toolbar.narrow .md-plan-review-overall-feedback {
+	grid-column: 1 / -1;
+	width: 100%;
+	min-width: 0;
+}
+
+.md-plan-review-toolbar.narrow .md-plan-review-primary-group {
+	width: 100%;
+	min-width: 0;
+	max-width: none;
 }
