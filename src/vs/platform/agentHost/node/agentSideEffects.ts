@@ -199,10 +199,8 @@ export class AgentSideEffects extends Disposable {
 			this._publishAgentInfos(agents, reader);
 		}));
 
-		// Server-dispatched ChatToolCallComplete actions (e.g. from
-		// the disconnect timeout in ProtocolServerHandler) bypass
-		// handleAction, so the agent's SDK deferred never resolves.
-		// Listen for these envelopes and notify the agent directly.
+		// Observe envelopes for side effects that must include server-dispatched
+		// actions, which bypass handleAction.
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (isAhpChatChannel(envelope.channel) && isChatAction(envelope.action)) {
 				if (envelope.action.type === ActionType.ChatTurnCancelled) {
@@ -229,6 +227,12 @@ export class AgentSideEffects extends Disposable {
 			}
 			if (envelope.action.type === ActionType.ChatDraftChanged) {
 				this._persistChatDraft(envelope.channel, envelope.action.draft);
+			}
+			if (envelope.action.type === ActionType.SessionConfigChanged) {
+				const values = this._stateManager.getSessionState(envelope.channel)?.config?.values;
+				if (values) {
+					this._persistSessionFlag(envelope.channel, 'configValues', JSON.stringify(values));
+				}
 			}
 		}));
 	}
@@ -1320,13 +1324,8 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionConfigChanged: {
-				// Persist merged values so a future `restoreSession` can re-hydrate
-				// the user's previous selections (e.g. autoApprove).
 				const sessionState = this._stateManager.getSessionState(channel);
 				const values = sessionState?.config?.values;
-				if (values) {
-					this._persistSessionFlag(channel, 'configValues', JSON.stringify(values));
-				}
 				if (this._worktree && sessionState?.lifecycle === SessionLifecycle.Creating) {
 					const sessionId = AgentSession.id(channel);
 					const isolation = values?.[SessionConfigKey.Isolation];
