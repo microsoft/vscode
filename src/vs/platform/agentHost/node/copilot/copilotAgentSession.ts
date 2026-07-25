@@ -3355,9 +3355,10 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 
+			const clientToolAutoApproved = contributor?.kind === ToolCallContributorKind.Client && this._lastAppliedPermissionMode === 'on';
 			const shouldWaitForClientToolReady = contributor?.kind === ToolCallContributorKind.Client
 				&& !isAgentCoordinationTool(e.data.toolName)
-				&& this._lastAppliedPermissionMode !== 'on';
+				&& !clientToolAutoApproved;
 			if (shouldWaitForClientToolReady) {
 				return;
 			}
@@ -3369,6 +3370,7 @@ export class CopilotAgentSession extends Disposable {
 				invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters),
 				toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
 				confirmed: ToolCallConfirmationReason.NotNeeded,
+				...(clientToolAutoApproved ? { _meta: toToolCallMeta({ autoApproveBySetting: true }) } : {}),
 			}, parentToolCallId);
 		}));
 

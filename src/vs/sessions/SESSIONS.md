@@ -53,6 +53,8 @@ Concrete implementations of the core interfaces:
 
 The **view** counterpart, **`SessionsService`** (services, `services/sessions/browser/sessionsService.ts`), owns the canonical `activeSession` and the active-session context keys, the `VisibleSessions` model (slots/arrangement), opening (`openSession`/`openChat`/`openNewSession`/`openNewChatInSession`), `insertAt`, stickiness, `close*`, focus (drives the passive part and honours `openSession(..., { preserveFocus })`), `SessionsNavigation` (Back/Forward), and `restoreVisibleSessions` + per-session view persistence. Living in the **services** layer, it imports the part service and the management service (both services); the concrete `SessionsPart` (core `browser/parts/`) implements `ISessionsPartService`. The active session is simply the wrapper of the active visible slot (`VisibleSessions.activeSession`) — there is no separate model mirror.
 
+In the Agents window, Browser Back/Forward keybindings and mouse back/forward buttons route through `SessionsNavigation` while focus is outside the editor area. Editor focus retains the shared editor-history behavior, and mouse navigation continues to respect `workbench.editor.mouseBackForwardToNavigate`.
+
 #### Model vs View (session services)
 
 | `ISessionsManagementService` (model — `services/sessions`)                                      | `ISessionsService` (view — `services/sessions/browser/`)                                                                                                                                          |
@@ -81,7 +83,7 @@ focus a slot:   part.onDidFocusSession → view.setActive → updates active vis
 
 The Agents-window chat surface also registers the workbench chat pre-submit handlers. These handlers can consume provider-specific client-side commands before the normal send path, while the actual send still routes through the sessions provider model.
 
-The voice bridge can either submit a finalized transcription or prefill it for review. With hands-free mode disabled, stopping listening uses the prefill path so sending remains an explicit user action.
+The Agents-window composer uses the shared dictation toggle semantics: activating dictation again while the speech-to-text model is downloading or loading cancels preparation, while activating it during recording stops and transcribes.
 
 The part (interface `services/sessions/browser/sessionsPartService.ts`; concrete `browser/parts/sessionsPart.ts`) is a **passive renderer**: it injects neither the model nor the view, and only exposes `updateVisibleSessions(visible, active)`, `focusSession`, and `onDidFocusSession`. The view owns the reconcile autorun and focus and wires `part.onDidFocusSession → view.setActive`.
 
@@ -603,6 +605,92 @@ channel that received `ChatToolCallStart`/`ChatToolCallReady`; confirmations sen
 to the parent session URI are invalid and will not resolve the SDK permission
 request.
 
+##### Direct selection invocation (Agents window only)
+
+Besides typing `/btw`, a user can select assistant markdown text in a chat
+response and get an inline "Ask Question" affordance that creates the same
+kind of side chat directly from that selection. This is Agents-window-only —
+it never appears in the regular workbench chat surface — and reuses
+`ISessionsManagementService.createSideChatInSession`/`sendRequest` and
+`ISessionsService.openChat`, the identical plumbing `/btw` uses (see
+`sideChatOrchestration.ts`'s `createAndSendSideChat`/`openAndSendSideChat`
+helpers, shared by both entry points).
+
+`ResponseSelectionSideChatController` (`contrib/chat/browser/`) is owned by
+`ChatView` per chat widget. It listens for `selectionchange` on the widget's
+document and resolves the selection via `resolveResponseSelection`
+(`responseSelectionResolver.ts`), which only accepts a selection when:
+- both selection endpoints fall inside the **same** assistant response
+  (resolved through `IChatWidget.getElementFromNode`, `isResponseVM`), and
+- the selection stays within that response's rendered markdown
+  (`.chat-markdown-part`), excluding any embedded Monaco editor
+  (`.monaco-editor`) or tool-invocation UI (`.chat-tool-invocation-part`).
+
+A resolved selection shows an "Ask Question" input positioned under the
+selection, reusing the same visual/input component as the editor's feedback
+affordance: `FeedbackInputWidget` (`contrib/agentFeedback/browser/
+feedbackInputWidget.ts`), extracted from `AgentFeedbackInputWidget` so both
+consumers share one textarea/action-bar implementation. Submitting creates a
+side chat anchored to the **selected response's turn**
+(`IChatResponseViewModel.requestId`, not the chat's last turn) with
+`selection.text` set to the exact selected text, mirroring `/btw`'s
+"inherits model/agent, immutable selection snapshot" semantics. The same
+runtime capability/status gate as `/btw` applies before creating the side
+chat (`session.capabilities.get().supportsSideChat`, not `Untitled`, not
+archived); failing that gate shows a warning notification instead of
+creating a partially-supported side chat.
+
+Submitting does not eagerly dismiss the overlay: it stays visible with a busy
+state (`FeedbackInputWidget.setBusy(true, statusLabel)` — disabled input,
+hidden action bar, a spinning `Codicon.loading` indicator, `aria-busy` plus an
+`aria.status` announcement) while the create/open/send orchestration is
+in-flight, and duplicate submission is blocked both by the disabled action and
+an explicit `isBusy` guard in `_submit`. Opening the newly-created side chat
+naturally dismisses the overlay via `setChat`, which force-dismisses only when
+the chat's *resource* actually changes: `ChatView` re-invokes `setChat` for the
+same chat on unrelated status/interactivity observable updates, so a
+same-resource call must preserve a visible draft and, critically, a pending
+busy submission rather than clearing it and letting a duplicate race in. On
+failure the busy state clears, the typed question and normal controls are
+restored, and the input is refocused so the user can retry without losing
+their text — the existing warning/error notification and log call are
+unchanged. A completion/error that settles after a genuine chat navigation
+already force-dismissed the overlay (`setChat` with a different chat resource)
+is tracked via a submission generation counter bumped on that force-dismiss,
+so the stale handler no-ops instead of reopening, refocusing, or mutating the
+now-unrelated overlay. Escape, scrolling, and selection invalidation are all
+ignored while a submission is pending so they cannot race the in-flight
+request. The action-bar slot and the spinner that replaces it both size to the
+widget's shared `_LINE_HEIGHT` constant (applied as an inline style to each
+element, matching the textarea's line-height) and center via flex, rather than
+a hardcoded icon height or a positional transform — this keeps both optically
+centered on the input's single line, and still flush to the last line when the
+textarea grows multi-line (the row keeps `align-items: flex-end`).
+
+The `selectionchange` listener ignores events entirely while focus is inside
+the "Ask Question" input (`dom.isAncestorOfActiveElement`): focusing the
+textarea collapses the browser's native document selection as a side effect,
+and without this guard that collapse would dismiss the very input the user
+just focused. The captured selection is treated as an immutable snapshot for
+that reason — it is not re-read from the live DOM selection on submit.
+Escape (or any other dismissal while the input has focus) restores focus to
+the source response via `IChatWidget.focusResponseItem(true)` rather than
+letting it fall through to the document body. Plain Enter submits and
+prevents the default newline; Shift+Enter and Enter during IME composition
+(`e.browserEvent.isComposing`) are left alone so the textarea inserts a
+newline or lets composition finish. The overlay's position clamps
+both horizontally and vertically against the chat widget's own bounds and the
+visible viewport, measured after `FeedbackInputWidget.show()`/`autoSize()` so
+real dimensions are used; when there isn't room below the selection it flips
+above instead, falling back to the nearest in-bounds edge only when neither
+placement fully fits.
+
+`FeedbackInputWidget.setPlaceholder` only derives `aria-label` from the
+placeholder when the widget was constructed without an explicit
+`options.ariaLabel`; a caller (like this controller, which sets a dedicated
+accessible name) keeps its configured `aria-label` untouched across
+placeholder changes.
+
 Agent-host approval levels map to the Copilot SDK allow-all modes before each
 turn: Default approvals uses `off`, Allow all uses `on`, and Assisted permissions
 uses `auto`. Assisted permissions only skips a prompt when the SDK's
@@ -852,7 +940,7 @@ Model-picker-aware chat input notifications also stay input-scoped. Each `NewCha
 
 Core (non-provider) code must **not** branch on a provider's identity or session type to decide provider-specific behavior. Do not write `if (session.sessionType === SessionType.Local)` or `if (providerId === '…')` in the core to special-case a provider. Instead, add a method to `ISessionsProvider` that returns the decision and let each provider answer for itself.
 
-**Example:** the sessions-core model picker presentation (grouping, featured models, the "Manage Models" action) is not decided in core. The core picker asks the active session's provider via `ISessionsProvider.getModelPickerOptions(sessionId)`, which returns an `ISessionModelPickerOptions`. The local provider returns `showManageModelsAction: true`; the others return `false`. Core never inspects the session type to make this choice.
+**Example:** the sessions-core model picker presentation (grouping, featured models, the "Manage Models" action) is not decided in core. The core picker asks the active session's provider via `ISessionsProvider.getModelPickerOptions(sessionId)`, which returns an `ISessionModelPickerOptions`. The local provider returns `showManageModelsAction: true`; the others return `false`. Core never inspects the session type to make this choice. When the workbench entitlement still reports signed out but a provider already exposes targeted non-BYOK models, the shared picker promotes the available models that are featured in either control-manifest tier; it does not surface unavailable manifest entries until entitlement resolves.
 
 Every model-picker trigger identifies the selected model's vendor with a leading provider icon derived from the model metadata (for example OpenAI, Claude, Gemini, or Copilot), including editor chat, active sessions, new sessions, and phone-layout pickers. Auto is provider-agnostic and always uses the Copilot icon, regardless of provider metadata or generic-icon presentation. Standard editor and Agents-window chat inputs collapse the trigger to that provider icon below 280px while retaining the full accessible model label.
 
