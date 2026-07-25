@@ -1336,9 +1336,11 @@ suite('RemoteAgentHostProtocolClient', () => {
 			assert.strictEqual(calls.length, 1);
 		});
 
-		test('connection close disposes implicit read grants', () => {
+		test('connection close disposes implicit read grants', async () => {
+			const didGrant = new DeferredPromise<void>();
 			const revoked: string[] = [];
 			const service = createResourceServiceStub({
+				onGrantImplicitRead: () => didGrant.complete(),
 				onRevokeImplicitRead: (_address, uri) => revoked.push(uri.toString()),
 			});
 			const { client, transport } = createClient(undefined, service);
@@ -1355,6 +1357,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 					],
 				},
 			});
+			await didGrant.p;
 			transport.fireClose();
 
 			assert.deepStrictEqual(revoked, ['file:///attachments/queued.txt']);

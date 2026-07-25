@@ -1273,9 +1273,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			this._state.outbox.length = 0;
 		}
 		this._rejectPendingRequests(error);
-		this._resourceService.connectionClosed(this._address);
 		this._grantedImplicitReadUris.clear();
 		this._implicitReadGrants.clear();
+		this._resourceService.connectionClosed(this._address);
 		this._transitionTo({ kind: AgentHostClientState.Closed, error });
 		this._onDidClose.fire();
 	}
