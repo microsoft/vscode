@@ -72,7 +72,6 @@ export enum ChatConfiguration {
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
-	ChatPersistentProgressEnabled = 'chat.persistentProgress.enabled',
 	ProgressBorder = 'chat.progressBorder.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
@@ -286,11 +285,10 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
  * Returns the effective default session type for a new chat in the VS Code
  * editor window.
  *
- * When the agent host is enabled and `chat.defaultToCopilotHarness` is opted
- * in, Agent Host Copilot CLI is the default so that first-time users land on
- * Copilot instead of the local harness. Otherwise it falls back to
- * {@link localChatSessionType} when local is enabled, or to the first visible
- * non-local provider.
+ * Virtual workspaces always default to {@link localChatSessionType}. Otherwise,
+ * when the agent host is enabled and `chat.defaultToCopilotHarness` is opted in,
+ * Agent Host Copilot CLI is the default. It falls back to the local harness
+ * when enabled, or to the first visible non-local provider.
  */
 export function getComputedDefaultSessionType(
 	configurationService: IConfigurationService,
@@ -298,6 +296,10 @@ export function getComputedDefaultSessionType(
 	workspace: IWorkspace,
 	agentHostEnabled: boolean
 ): string {
+	if (isVirtualWorkspace(workspace)) {
+		return localChatSessionType;
+	}
+
 	if (agentHostEnabled && configurationService.getValue<boolean>(ChatConfiguration.DefaultToCopilotHarness)) {
 		return SessionType.AgentHostCopilot;
 	}
@@ -486,6 +488,7 @@ function getVisibleNonLocalEditorChatSessionTypes(
 }
 
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
+export const CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID = 'workbench.action.chat.openAgentHostChat';
 
 export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openWorkspaceInAgentsWindow';
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';

@@ -1,0 +1,83 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Create the file at ${workdir}/first-peer.txt containing exactly FIRST_PEER.
+    response:
+      content:
+        - type: text
+          text: I'll create that file for you.
+        - type: tool_use
+          id: toolcall_0
+          name: Write
+          input:
+            file_path: ${workdir}/first-peer.txt
+            content: FIRST_PEER
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Create the file at ${workdir}/first-peer.txt containing exactly FIRST_PEER.
+        - role: assistant
+          content:
+            - type: text
+              text: I'll create that file for you.
+            - type: tool_use
+              name: Write
+              input:
+                file_path: ${workdir}/first-peer.txt
+                content: FIRST_PEER
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'File created successfully at: ${workdir}/first-peer.txt (file state is current in your context — no need to Read it back)'
+    response:
+      content: Created `first-peer.txt` containing exactly `FIRST_PEER`.
+      stopReason: end_turn
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Create the file at ${workdir}/second-peer.txt containing exactly SECOND_PEER.
+    response:
+      content:
+        - type: text
+          text: I'll create that file.
+        - type: tool_use
+          id: toolcall_1
+          name: Write
+          input:
+            file_path: ${workdir}/second-peer.txt
+            content: SECOND_PEER
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Create the file at ${workdir}/second-peer.txt containing exactly SECOND_PEER.
+        - role: assistant
+          content:
+            - type: text
+              text: I'll create that file.
+            - type: tool_use
+              name: Write
+              input:
+                file_path: ${workdir}/second-peer.txt
+                content: SECOND_PEER
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'File created successfully at: ${workdir}/second-peer.txt (file state is current in your context — no need to Read it back)'
+    response:
+      content: Created `second-peer.txt` containing exactly `SECOND_PEER`.
+      stopReason: end_turn

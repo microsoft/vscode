@@ -1742,15 +1742,6 @@ var
   RemoveAppxPackageResultCode: Integer;
 begin
   KillContextMenuComSurrogate();
-  // Remove the old context menu package
-  // Following condition can be removed in v1.111.
-  if QualityIsInsiders() and not SessionEndFileExists() and AppxPackageInstalled('Microsoft.VSCodeInsiders', RemoveAppxPackageResultCode) then begin
-    Log('Deleting old appx ' + AppxPackageFullname + ' installation...');
-    ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Remove-AppxPackage -Package ''' + AppxPackageFullname + ''''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
-    Log('Remove-AppxPackage for old appx completed with result code ' + IntToStr(RemoveAppxPackageResultCode) + '.');
-    DeleteFile(ExpandConstant('{app}\appx\code_insiders_explorer_{#Arch}.appx'));
-    DeleteFile(ExpandConstant('{app}\appx\code_insiders_explorer_command.dll'));
-  end;
   if not SessionEndFileExists() and AppxPackageInstalled(ExpandConstant('{#AppxPackageName}'), RemoveAppxPackageResultCode) then begin
     Log('Removing current ' + AppxPackageFullname + ' appx installation...');
 #if "user" == InstallTarget

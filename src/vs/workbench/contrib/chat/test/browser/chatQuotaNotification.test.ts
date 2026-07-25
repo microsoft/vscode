@@ -19,10 +19,12 @@ import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/com
 import { IAssignmentFilter, IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment, IQuotaSnapshot, IRateLimitSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatQuotaNotificationContribution } from '../../browser/chatQuotaNotification.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationCommandAction, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 
 const CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID = 'workbench.action.chat.learnMoreAboutCreditUsage';
+const SWITCH_TO_AUTO_TREATMENT_NAME = 'config.chatQuotaWarningSwitchToAuto';
 const TRAJECTORY_NUDGE_TREATMENT_NAME = 'config.chatQuotaTrajectoryNudge';
 
 // --- Mock IChatEntitlementService -------------------------------------------
@@ -159,7 +161,10 @@ function getCommandAction(notification: IChatInputNotification): IChatInputNotif
 	return action;
 }
 
-function createMockAssignmentService(trajectoryTreatment?: boolean | Promise<boolean | undefined>) {
+function createMockAssignmentService(
+	trajectoryTreatment?: boolean | Promise<boolean | undefined>,
+	switchToAutoTreatment?: boolean | Promise<boolean | undefined>,
+) {
 	const getTreatmentCalls: string[] = [];
 	const service: IWorkbenchAssignmentService = {
 		_serviceBrand: undefined,
@@ -168,6 +173,9 @@ function createMockAssignmentService(trajectoryTreatment?: boolean | Promise<boo
 		addTelemetryAssignmentFilter(_filter: IAssignmentFilter): void { },
 		getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
 			getTreatmentCalls.push(name);
+			if (name === SWITCH_TO_AUTO_TREATMENT_NAME) {
+				return Promise.resolve(switchToAutoTreatment as T | undefined);
+			}
 			if (name === TRAJECTORY_NUDGE_TREATMENT_NAME) {
 				return Promise.resolve(trajectoryTreatment as T | undefined);
 			}
@@ -228,13 +236,16 @@ suite('ChatQuotaNotificationContribution', () => {
 
 	function createContribution(
 		entitlementOpts?: Parameters<typeof createMockEntitlementService>[0],
-		modelOpts?: { vendor?: string; selectedModelId?: string; trajectoryTreatment?: boolean | Promise<boolean | undefined>; telemetryService?: ITelemetryService },
+		modelOpts?: { contextModelId?: string; vendor?: string; selectedModelId?: string; switchToAutoTreatment?: boolean | Promise<boolean | undefined>; trajectoryTreatment?: boolean | Promise<boolean | undefined>; telemetryService?: ITelemetryService },
 		sharedStorageService?: InMemoryStorageService,
 	) {
 		const entitlementMock = createMockEntitlementService(entitlementOpts);
 		const notificationMock = createMockNotificationService();
-		const assignmentMock = createMockAssignmentService(modelOpts?.trajectoryTreatment);
+		const assignmentMock = createMockAssignmentService(modelOpts?.trajectoryTreatment, modelOpts?.switchToAutoTreatment);
 		const contextKeyService = store.add(new MockContextKeyService());
+		if (modelOpts?.contextModelId) {
+			contextKeyService.createKey<string | undefined>(ChatContextKeys.chatModelId.key, undefined).set(modelOpts.contextModelId);
+		}
 		const storageService = sharedStorageService ?? store.add(new InMemoryStorageService());
 		const vendor = modelOpts?.vendor ?? 'copilot';
 		const selectedModelId = modelOpts?.selectedModelId ?? `${vendor}/test-model`;
@@ -514,14 +525,19 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.strictEqual(getCommandAction(notificationMock.getNotification()!).commandId, 'workbench.action.chat.manageAdditionalSpend');
 		});
 
-		test('paid user without overage gets manage budget action', () => {
-			const { notificationMock } = createContribution({
-				entitlement: ChatEntitlement.Pro,
-				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
-			});
+		test('paid user without overage gets manage budget action even in switch-to-Auto treatment', () => {
+			const { assignmentMock, notificationMock } = createContribution(
+				{
+					entitlement: ChatEntitlement.Pro,
+					quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
+				},
+				{ switchToAutoTreatment: true },
+			);
 
 			assert.ok(notificationMock.getNotification());
 			assert.strictEqual(notificationMock.getNotification()!.description, 'Manage your budget to keep building.');
+			assert.strictEqual(getCommandAction(notificationMock.getNotification()!).commandId, 'workbench.action.chat.manageAdditionalSpend');
+			assert.deepStrictEqual(assignmentMock.getTreatmentCalls, []);
 		});
 	});
 
@@ -549,6 +565,71 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			assert.ok(notificationMock.getNotification());
 			assert.strictEqual(notificationMock.getNotification()!.message, 'Credits at 50%');
+		});
+
+		test('treatment suggests switching to Auto when another model is selected', async () => {
+			const { assignmentMock, entitlementMock, notificationMock } = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(60) } },
+				{ switchToAutoTreatment: true },
+			);
+
+			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
+			await flushPromises();
+
+			assert.deepStrictEqual({
+				treatments: assignmentMock.getTreatmentCalls,
+				description: notificationMock.getNotification()?.description,
+				actions: notificationMock.getNotification()?.actions,
+			}, {
+				treatments: [SWITCH_TO_AUTO_TREATMENT_NAME],
+				description: 'Switch to Auto to reduce credit usage.',
+				actions: [{
+					kind: ChatInputNotificationActionKind.SwitchToModel,
+					label: 'Switch to Auto',
+					modelIdentifier: 'copilot/auto',
+				}],
+			});
+		});
+
+		test('does not enroll and suggests managing budget when Auto is already selected', async () => {
+			const { assignmentMock, entitlementMock, notificationMock } = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(60) } },
+				{ selectedModelId: 'copilot/auto', switchToAutoTreatment: true },
+			);
+
+			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
+			await flushPromises();
+
+			assert.strictEqual(notificationMock.getNotification()?.description, 'Set additional budget to cover extra usage.');
+			assert.strictEqual(getCommandAction(notificationMock.getNotification()!).commandId, 'workbench.action.chat.manageAdditionalSpend');
+			assert.deepStrictEqual(assignmentMock.getTreatmentCalls, []);
+		});
+
+		test('recognizes the live short Auto model id before persisted selection updates', async () => {
+			const { assignmentMock, entitlementMock, notificationMock } = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(60) } },
+				{ contextModelId: 'auto', selectedModelId: 'copilot/test-model', switchToAutoTreatment: true },
+			);
+
+			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
+			await flushPromises();
+
+			assert.strictEqual(notificationMock.getNotification()?.description, 'Set additional budget to cover extra usage.');
+			assert.strictEqual(getCommandAction(notificationMock.getNotification()!).commandId, 'workbench.action.chat.manageAdditionalSpend');
+			assert.deepStrictEqual(assignmentMock.getTreatmentCalls, []);
+		});
+
+		test('control suggests managing budget when another model is selected', async () => {
+			const { entitlementMock, notificationMock } = createContribution(
+				{ quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(60) } },
+				{ switchToAutoTreatment: false },
+			);
+
+			updateQuotas(entitlementMock, { premiumChat: makeQuotaSnapshot(50) });
+			await flushPromises();
+
+			assert.strictEqual(notificationMock.getNotification()?.description, 'Set additional budget to cover extra usage.');
+			assert.strictEqual(getCommandAction(notificationMock.getNotification()!).commandId, 'workbench.action.chat.manageAdditionalSpend');
 		});
 
 		test('does not re-show the same threshold', async () => {

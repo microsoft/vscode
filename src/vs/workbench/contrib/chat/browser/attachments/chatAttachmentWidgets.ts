@@ -76,7 +76,7 @@ import { ILanguageModelToolsService, isToolSet } from '../../common/tools/langua
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../chatImageCarouselService.js';
-import { getOrCreateImageThumbnail } from '../chatImageUtils.js';
+import { CHAT_IMAGE_HOVER_THUMBNAIL_MAX_SIZE, getOrCreateImageThumbnail } from '../chatImageUtils.js';
 
 const commonHoverOptions: Partial<IHoverOptions> = {
 	style: HoverStyle.Pointer,
@@ -599,13 +599,48 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 	}
 }
 
-/**
- * Maximum width/height (in pixels) of the downscaled image rendered in the hover
- * preview. The preview is capped at ~350px by CSS, so 768px keeps it crisp on
- * high-DPI displays. The same thumbnail is reused for the pill to avoid decoding
- * and resizing the original bitmap twice.
- */
-const IMAGE_HOVER_THUMBNAIL_MAX_SIZE = 768;
+export function createImageHoverContent(resource: URI | undefined, fullName: string,
+	buffer: ArrayBuffer | Uint8Array,
+	cacheKey: string,
+	onContentsChanged?: () => void,
+	clickHandler?: () => void,
+	onImageUrl?: (url: string, isThumbnail: boolean, image: HTMLImageElement) => void): { readonly element: HTMLElement; readonly disposable: IDisposable } {
+
+	const disposable = new DisposableStore();
+	const hoverElement = dom.$('div.chat-attached-context-hover');
+	const hoverImage = dom.$<HTMLImageElement>('img.chat-attached-context-image', { alt: '' });
+	const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
+	hoverElement.appendChild(imageContainer);
+
+	if (resource) {
+		const urlContainer = clickHandler
+			? dom.$('a.chat-attached-context-url', {}, fullName)
+			: dom.$('div.chat-attached-context-url', {}, fullName);
+		const separator = dom.$('div.chat-attached-context-url-separator');
+		if (clickHandler) {
+			disposable.add(dom.addDisposableListener(urlContainer, 'click', clickHandler));
+		}
+		hoverElement.append(separator, urlContainer);
+	}
+
+	const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+	const previewImageUrl = disposable.add(new MutableDisposable<IDisposable>());
+	const renderPreviewImage = async () => {
+		const thumbnail = await getOrCreateImageThumbnail(cacheKey, data, CHAT_IMAGE_HOVER_THUMBNAIL_MAX_SIZE);
+		if (disposable.isDisposed) {
+			return;
+		}
+		const source = thumbnail ?? new Blob([data as Uint8Array<ArrayBuffer>]);
+		const url = URL.createObjectURL(source);
+		previewImageUrl.value = toDisposable(() => URL.revokeObjectURL(url));
+		hoverImage.onload = () => onContentsChanged?.();
+		hoverImage.src = url;
+		onImageUrl?.(url, !!thumbnail, hoverImage);
+	};
+	void renderPreviewImage();
+
+	return { element: hoverElement, disposable };
+}
 
 function createImageElements(resource: URI | undefined, name: string, fullName: string,
 	element: HTMLElement,
@@ -662,57 +697,31 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			style: HoverStyle.Pointer,
 		}));
 	} else {
-		disposable.add(hoverService.setupDelayedHover(element, {
-			content: hoverElement,
-			style: HoverStyle.Pointer,
-		}));
-
-		const hoverImage = dom.$<HTMLImageElement>('img.chat-attached-context-image', { alt: '' });
-		const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
-		hoverElement.appendChild(imageContainer);
-
-		if (isAutoLanguageModel(currentLanguageModel)) {
-			hoverElement.appendChild(dom.$('div', undefined, localize('chat.autoImageAttachmentHover', "Image support depends on the model selected by Auto.")));
-		}
-
-		if (resource) {
-			const urlContainer = dom.$('a.chat-attached-context-url', {}, omittedState === OmittedState.Partial ? localize('chat.imageAttachmentWarning', "This GIF was partially omitted - current frame will be sent.") : fullName);
-			const separator = dom.$('div.chat-attached-context-url-separator');
-			disposable.add(dom.addDisposableListener(urlContainer, 'click', () => clickHandler()));
-			hoverElement.append(separator, urlContainer);
-		}
-
 		const onImageFailed = () => {
 			// reset to original icon on error or invalid image
 			const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
 			replacePill(pillIcon);
 		};
-
-		const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-
-		// Both the always-visible pill and the hover preview render small. Use one
-		// generated thumbnail for both so the original bytes are decoded and resized
-		// only once, and the UI keeps a small object URL for steady-state rendering.
-		const previewImageUrl = disposable.add(new MutableDisposable<IDisposable>());
-		const renderPreviewImage = async () => {
-			const thumbnail = await getOrCreateImageThumbnail(cacheKey, data, IMAGE_HOVER_THUMBNAIL_MAX_SIZE);
-			if (disposable.isDisposed) {
-				return;
-			}
-			// Fall back to the full-resolution image only if downscaling failed, so
-			// the larger original bytes aren't copied into a Blob in the common case.
-			const source = thumbnail ?? new Blob([data as Uint8Array<ArrayBuffer>]);
-			const url = URL.createObjectURL(source);
-			previewImageUrl.value = toDisposable(() => URL.revokeObjectURL(url));
-			if (thumbnail) {
+		const hoverFullName = omittedState === OmittedState.Partial ? localize('chat.imageAttachmentWarning', "This GIF was partially omitted - current frame will be sent.") : fullName;
+		const hoverContent = createImageHoverContent(resource, hoverFullName, buffer, cacheKey, undefined, resource ? clickHandler : undefined, (url, isThumbnail, hoverImage) => {
+			if (isThumbnail) {
 				const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
 				const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
 				replacePill(pill);
 			}
 			hoverImage.onerror = onImageFailed;
-			hoverImage.src = url;
-		};
-		void renderPreviewImage();
+		});
+		disposable.add(hoverContent.disposable);
+		const hoverElement = hoverContent.element;
+		hoverElement.setAttribute('aria-label', ariaLabel);
+		disposable.add(hoverService.setupDelayedHover(element, {
+			content: hoverElement,
+			style: HoverStyle.Pointer,
+		}));
+
+		if (isAutoLanguageModel(currentLanguageModel)) {
+			hoverElement.appendChild(dom.$('div', undefined, localize('chat.autoImageAttachmentHover', "Image support depends on the model selected by Auto.")));
+		}
 	}
 	return disposable;
 }

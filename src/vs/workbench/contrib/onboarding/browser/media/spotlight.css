@@ -13,6 +13,11 @@
 	z-index: 2600;
 }
 
+/* Expanded pickers and mobile sheets remain above the spotlight blocker. */
+.spotlight-overlay.target-overlay-visible {
+	z-index: 1999;
+}
+
 /* Full-screen click blocker. Transparent; swallows interaction outside the hole. */
 .spotlight-blocker {
 	position: fixed;

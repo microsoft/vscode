@@ -15,19 +15,21 @@ import { IObservable, ISettableObservable, observableValue, constObservable } fr
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction, ClientAnnotationsAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IRemoteWatchHandle } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ComponentToState, RootState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
 
 const REMOTE_NOT_SUPPORTED = (op: string) => new Error(`${op} is not supported when the agent host runs on a remote.`);
 const LOG_PREFIX = '[AgentHost:remote]';
@@ -64,15 +66,16 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	private _connectStarted = false;
 
 	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
 		const enabled = agentHostEnablementService.enabled;
-		const connection = remoteAgentService.getConnection();
+		const connection = this._remoteAgentService.getConnection();
 		this._logService.info(`${LOG_PREFIX} Initializing (enabled=${enabled}, remoteAuthority=${connection?.remoteAuthority ?? 'none'})`);
 
 		if (!enabled) {
@@ -89,10 +92,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		// Create the protocol client eagerly so consumers can subscribe to
 		// rootState etc. before the AHP handshake completes. The transport's
 		// `connect()` will be awaited by `_connect()` below.
-		const channel = connection.getChannel(AgentHostIpcChannels.RemoteProxy);
-		const transport = new AgentHostIpcChannelTransport(channel);
+		const createTransport = () => new AgentHostIpcChannelTransport(connection.getChannel(AgentHostIpcChannels.RemoteProxy));
 		const address = `vscode-remote://${connection.remoteAuthority}`;
-		this._protocolClient = this._register(instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined));
+		const clientInfo = environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo;
+		this._protocolClient = this._register(instantiationService.createInstance(RemoteAgentHostProtocolClient, address, createTransport, undefined, undefined, clientInfo));
 		this._register(this._protocolClient.onDidClose(() => {
 			this._logService.info(`${LOG_PREFIX} Protocol client closed`);
 			this._onAgentHostExit.fire(0);
@@ -110,6 +113,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		}
 		this._connectStarted = true;
 		this._logService.info(`${LOG_PREFIX} Connecting to remote agent host...`);
+		await this._remoteAgentService.getRawEnvironment();
 		await this._protocolClient.connect();
 		this._logService.info(`${LOG_PREFIX} Connected; clientId=${this._protocolClient.clientId}`);
 		this._onAgentHostStart.fire();
@@ -190,11 +194,11 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.getActiveSubscriptions() ?? [];
 	}
 
-	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this._protocolClient?.dispatch(channel, action);
 	}
 
-	dispatchWithSequence(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): number {
+	dispatchWithSequence(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): number {
 		return this._requireClient().dispatchWithSequence(channel, action);
 	}
 
@@ -204,6 +208,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
 		return this._requireClient().getNetworkDiagnosticsInfo();
+	}
+
+	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> {
+		return this._requireClient().getManagedSettingsDiagnostics();
 	}
 
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
