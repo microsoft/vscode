@@ -20,6 +20,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionIsArchivedContext, SessionIsCreatedContext, SessionSupportsSideChatContext } from '../../../common/contextkeys.js';
 import { ISideChatSelection, SessionStatus } from '../../../services/sessions/common/session.js';
+import { openAndSendSideChat } from './sideChatOrchestration.js';
 
 function captureSideChatSelection(widget: IChatWidgetService['lastFocusedWidget']): ISideChatSelection | undefined {
 	if (!widget) {
@@ -109,8 +110,7 @@ export class BtwSlashCommandContribution extends Disposable implements IWorkbenc
 				return;
 			}
 
-			await sessionsService.openChat(session, sideChat.resource);
-			await sessionsManagementService.sendRequest(session, sideChat, { query: remainder });
+			await openAndSendSideChat(sessionsManagementService, sessionsService, session, sideChat, remainder);
 		}));
 	}
 }
