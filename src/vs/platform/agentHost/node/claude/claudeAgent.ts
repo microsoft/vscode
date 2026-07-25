@@ -227,6 +227,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models: IObservable<readonly IAgentModelInfo[]> = this._models;
+	/**
+	 * In-flight {@link refreshModels} call, so overlapping triggers (an auth
+	 * token change, a transport flip, or a periodic tick from the host's
+	 * model-refresh scheduler) collapse into a single enumeration instead of
+	 * racing each other's writes to {@link _models}.
+	 */
+	private _modelRefreshInFlight: Promise<void> | undefined;
 
 	private _githubToken: string | undefined;
 	private _proxyHandle: IClaudeProxyHandle | undefined;
@@ -466,7 +473,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const next = this._resolveTransportMode();
 			if (next !== this._transportMode) {
 				this._transportMode = next;
-				void this._refreshModels();
+				// Proxy and native enumerate different catalogs. Do not retain
+				// models from the previous transport if the replacement cannot
+				// enumerate its own list.
+				this._models.set([], undefined);
+				void this._startModelRefresh();
 				// Flipping into proxy makes GitHub Copilot auth newly required.
 				// If no proxy handle was ever established, proactively ask the
 				// client to authenticate rather than waiting for the next command
@@ -490,7 +501,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// kick off the initial enumeration ourselves. (Transport *flips*
 			// after construction are covered by the `onDidRootConfigChange`
 			// subscription above.) `queueMicrotask` runs it off the ctor stack.
-			queueMicrotask(() => { void this._refreshModels(); });
+			queueMicrotask(() => { void this._startModelRefresh(); });
 		}
 	}
 
@@ -581,7 +592,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._githubToken = token;
 		this._logService.info('[Claude] Auth token updated');
 		oldHandle?.dispose();
-		void this._refreshModels();
+		if (tokenChanged) {
+			// A different account can have different model entitlements. Do
+			// not retain the previous token's catalog if enumeration for the
+			// replacement token fails.
+			this._models.set([], undefined);
+		}
+		void this._startModelRefresh();
 		return true;
 	}
 
@@ -592,6 +609,34 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	private _isProxyEnabled(): boolean {
 		return this._transportMode === 'proxy';
+	}
+
+	/**
+	 * {@link IAgent.refreshModels}. Coalesces onto an in-flight refresh and
+	 * never rejects — {@link _refreshModels} already logs and handles failure.
+	 *
+	 * Only safe for callers with no new input to apply (the host's periodic
+	 * scheduler). Triggers that invalidate the in-flight request — a rotated
+	 * token, a transport flip — must call {@link _startModelRefresh} so they
+	 * are not answered by a refresh bound to the superseded input.
+	 */
+	refreshModels(): Promise<void> {
+		return this._modelRefreshInFlight ?? this._startModelRefresh();
+	}
+
+	/**
+	 * Unconditionally begins a refresh, superseding any in-flight one as the
+	 * coalescing target. The superseded request stays harmless: its own
+	 * stale-write guard drops the result if the token or transport moved on.
+	 */
+	private _startModelRefresh(): Promise<void> {
+		const refresh = this._refreshModels().finally(() => {
+			if (this._modelRefreshInFlight === refresh) {
+				this._modelRefreshInFlight = undefined;
+			}
+		});
+		this._modelRefreshInFlight = refresh;
+		return refresh;
 	}
 
 	private async _refreshModels(): Promise<void> {
@@ -615,9 +660,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._models.set(filtered, undefined);
 		} catch (err) {
 			this._logService.error(err, '[Claude] Failed to refresh models');
-			if (this._isProxyEnabled() === proxyAtStart && (!proxyAtStart || this._githubToken === tokenAtStart)) {
-				this._models.set([], undefined);
-			}
+			// Keep the last known-good catalog. A periodic refresh is advisory;
+			// a transient service failure must not make every model disappear.
+			// Input changes that invalidate the catalog clear it at the point
+			// where that input changes.
 		}
 	}
 
