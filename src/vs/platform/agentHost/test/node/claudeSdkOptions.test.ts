@@ -109,7 +109,7 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 			electronOther: env.ELECTRON_NO_ATTACH_CONSOLE,
 			nodeOptions: env.NODE_OPTIONS,
 			runAsNode: env.ELECTRON_RUN_AS_NODE,
-			// Announces the originating VS Code surface to `git` / `gh`.
+			// Announces the originating VS Code surface to `gh`.
 			aiAgent: env.AI_AGENT,
 		}, {
 			anthropicKey: 'sk-user-key',

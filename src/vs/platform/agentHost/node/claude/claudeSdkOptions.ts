@@ -111,7 +111,7 @@ export async function buildOptions(
 			: {}),
 		CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 		USE_BUILTIN_RIPGREP: '0',
-		// Attribute the CLI's tool subprocesses (`git`, `gh`, …) to VS Code.
+		// Attribute the CLI's tool subprocesses (`gh`, …) to VS Code.
 		// `settings.env` is what the CLI layers onto the commands it runs, so it
 		// needs the marker in addition to the spawn env below. Note the CLI
 		// re-stamps `AI_AGENT` as `claude-code_<version>_agent` for its own Bash
