@@ -54,11 +54,9 @@ export function buildCodexLaunchConfig(
 			`model_providers.vscode-proxy.requires_openai_auth=false`,
 			`model_providers.vscode-proxy.supports_websockets=false`,
 		] : []),
-		// Codex filters its shell tool's environment through
-		// `shell_environment_policy` rather than passing its own env straight
-		// through, so pin the marker there too — otherwise a user-configured
-		// policy (e.g. `inherit = "core"`) silently drops it before `git` / `gh`
-		// ever see it.
+		// Codex filters its shell tool's env through `shell_environment_policy`,
+		// so pin the marker there too — a user policy (e.g. `inherit = "core"`)
+		// would otherwise drop it.
 		`shell_environment_policy.set.${AiAgentEnvVar}="${AiAgentEnvValue}"`,
 		`features.tool_call_mcp_elicitation=false`,
 		...(proxy ? [`features.image_generation=false`] : []),

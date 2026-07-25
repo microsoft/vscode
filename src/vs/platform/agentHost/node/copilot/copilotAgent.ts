@@ -965,8 +965,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			env['USE_BUILTIN_RIPGREP'] = 'false';
 			env['COPILOT_MCP_APPS'] = 'true';
 			// Attribute the CLI and everything it spawns (`git`, `gh`, …) back to
-			// VS Code. Inherited from the agent host process, but re-set explicitly
-			// because the strip loop above rebuilds this env from scratch.
+			// VS Code. Already inherited via `process.env` (the strip loop only
+			// removes `VSCODE_*`/`ELECTRON_*`); set here as defense in depth.
 			env[AiAgentEnvVar] = AiAgentEnvValue;
 			// Required by the currently bundled SDK to enable its experimental auto-approval judge.
 			env['AUTO_APPROVAL'] = 'true';

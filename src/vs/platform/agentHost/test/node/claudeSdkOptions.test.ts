@@ -180,8 +180,8 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 			baseUrl: env.ANTHROPIC_BASE_URL,
 			authToken: env.ANTHROPIC_AUTH_TOKEN,
 			nonessential: env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC,
-			// Layered onto the CLI's own tool subprocesses so `git` / `gh` are
-			// attributed to VS Code.
+			// Projected into `settings.env`; the CLI still re-stamps `AI_AGENT`
+			// for its own Bash tool.
 			aiAgent: env.AI_AGENT,
 		}, {
 			baseUrl: 'http://127.0.0.1:0',

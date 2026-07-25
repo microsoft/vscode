@@ -111,11 +111,11 @@ export async function buildOptions(
 			: {}),
 		CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 		USE_BUILTIN_RIPGREP: '0',
-		// Attribute the CLI's own tool subprocesses (`git`, `gh`, …) to VS Code.
+		// Attribute the CLI's tool subprocesses (`git`, `gh`, …) to VS Code.
 		// `settings.env` is what the CLI layers onto the commands it runs, so it
-		// has to carry the marker in addition to the spawn env below. Claude Code
-		// only overwrites `AI_AGENT` when it is unset or already one of its own
-		// `claude-code_*` values, so this survives into the shell.
+		// needs the marker in addition to the spawn env below. Note the CLI
+		// re-stamps `AI_AGENT` as `claude-code_<version>_agent` for its own Bash
+		// tool, so commands from that tool are not attributed to VS Code.
 		[AiAgentEnvVar]: AiAgentEnvValue,
 		PATH: `${dirname(resolvedRgDiskPath)}${delimiter}${process.env.PATH ?? ''}`,
 	};
@@ -223,8 +223,8 @@ export function buildModelEnumerationOptions(): Options {
  * In both modes the agent host's own `NODE_OPTIONS`, `ELECTRON_*`, and
  * `VSCODE_*` variables are stripped (they break the Electron-node subprocess),
  * `ELECTRON_RUN_AS_NODE=1` is set, and `AI_AGENT` is pinned so the sparse
- * proxied env still announces the originating VS Code surface. Mirror of
- * CopilotAgent's strip pattern at copilotAgent.ts:434-450.
+ * proxied env still announces the originating VS Code surface. Mirror of the
+ * strip pattern in `CopilotAgent._ensureClient()`.
  *
  * Exported for unit testing as a pure function over `process.env`.
  */
