@@ -130,7 +130,6 @@ function computeOutputLineCount(startLine: number, endLine: number): number {
 export function computeSnapshotLineCount(buffer: {
 	readonly baseY: number;
 	readonly cursorY: number;
-	readonly cursorX: number;
 	getLine(y: number): { readonly length: number; getCell(x: number): { getChars(): string } | undefined } | undefined;
 }, lineCount?: number): number {
 	if (lineCount !== undefined) {
@@ -139,8 +138,8 @@ export function computeSnapshotLineCount(buffer: {
 
 	const cursorLineIndex = buffer.baseY + buffer.cursorY;
 	const cursorLine = buffer.getLine(cursorLineIndex);
-	let hasCursorLineContent = buffer.cursorX > 0;
-	if (!hasCursorLineContent && cursorLine) {
+	let hasCursorLineContent = false;
+	if (cursorLine) {
 		for (let x = 0; x < cursorLine.length; x++) {
 			if (cursorLine.getCell(x)?.getChars()) {
 				hasCursorLineContent = true;

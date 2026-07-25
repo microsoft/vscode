@@ -374,7 +374,8 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 				twoWrappedRows: await measure('a'.repeat(81)),
 				threeWrappedRows: await measure('a'.repeat(200)),
 				multilineWithWrapping: await measure(`${'a'.repeat(81)}\r\nnext`),
-				trailingNewline: await measure('line\r\n'),
+				trailingCarriageReturnLineFeed: await measure('line\r\n'),
+				trailingLineFeed: await measure('line\n'),
 			}, {
 				empty: 0,
 				short: 1,
@@ -382,7 +383,8 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 				twoWrappedRows: 2,
 				threeWrappedRows: 3,
 				multilineWithWrapping: 3,
-				trailingNewline: 1,
+				trailingCarriageReturnLineFeed: 1,
+				trailingLineFeed: 1,
 			});
 		});
 
