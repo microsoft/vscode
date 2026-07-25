@@ -35,6 +35,8 @@ import { ChatTreeItem } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import './media/chatPlanReview.css';
 
+const MARKDOWN_EDITOR_ID = 'vscode.markdown.editor';
+
 export interface IChatPlanReviewPartOptions {
 	onSubmit: (result: IChatPlanReviewResult) => void;
 }
@@ -107,7 +109,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			registrationStore.add(this._planReviewFeedbackService.registerPlanReview(planUri, {
 				actions: review.actions,
 				hasOverallFeedback: () => !!this._feedbackTextarea?.value.trim(),
-				submitFeedback: () => this.submitFeedback(),
+				submitFeedback: overallFeedback => this.submitFeedback(overallFeedback),
 				submitAction: action => this.submitApproval(action),
 				reject: () => this.submitRejection(),
 			}));
@@ -423,6 +425,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			resource: uri,
 			options: {
 				pinned: true,
+				override: MARKDOWN_EDITOR_ID,
 				selection: { startLineNumber: line, startColumn: column },
 			},
 		});
@@ -692,7 +695,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			if (this.review.planUri) {
 				await this._editorService.openEditor({
 					resource: URI.revive(this.review.planUri),
-					options: { pinned: true },
+					options: { pinned: true, override: MARKDOWN_EDITOR_ID },
 				});
 			}
 			return;
@@ -778,7 +781,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			if (this.review.planUri) {
 				await this._editorService.openEditor({
 					resource: URI.revive(this.review.planUri),
-					options: { pinned: true },
+					options: { pinned: true, override: MARKDOWN_EDITOR_ID },
 				});
 			} else if (options?.focus) {
 				this.focusFeedbackInput();
@@ -797,7 +800,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		if (this.review.planUri) {
 			await this._editorService.openEditor({
 				resource: URI.revive(this.review.planUri),
-				options: { pinned: true },
+				options: { pinned: true, override: MARKDOWN_EDITOR_ID },
 			});
 		}
 		if (!this.review.planUri && options?.focus !== false) {
@@ -827,11 +830,11 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this._feedbackTextarea?.focus();
 	}
 
-	private async submitFeedback(): Promise<void> {
+	private async submitFeedback(overallFeedback?: string): Promise<void> {
 		if (this._isSubmitted || this._isSubmitting) {
 			return;
 		}
-		const textareaFeedback = this._feedbackTextarea?.value.trim();
+		const textareaFeedback = overallFeedback?.trim() || this._feedbackTextarea?.value.trim();
 
 		const editorFeedbackItems = [...this.getInlineFeedbackItems()];
 

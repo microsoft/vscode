@@ -21,6 +21,21 @@ declare module 'vscode' {
 		readonly author?: string;
 	}
 
+	export interface AgentEditorReview {
+		readonly actions: readonly {
+			readonly id: string;
+			readonly label: string;
+			readonly description?: string;
+			readonly default?: boolean;
+		}[];
+		readonly feedbackCount: number;
+		readonly overallFeedbackLabel: string;
+		readonly rejectLabel: string;
+		readonly submitFeedbackLabel: string;
+		readonly submitFeedbackWithCountLabel: string;
+		readonly approvePlanLabel: string;
+	}
+
 	/**
 	 * A live, disposable view of the agent/session comments for a resource that is
 	 * not necessarily shown in a {@link TextEditor} (for example a document rendered
@@ -45,6 +60,7 @@ declare module 'vscode' {
 		 * Changes to this value are reported through {@link onDidChange}.
 		 */
 		readonly acceptsComments: boolean;
+		readonly review: AgentEditorReview | undefined;
 
 		/**
 		 * An event that fires whenever {@link comments} or {@link acceptsComments}
@@ -70,6 +86,12 @@ declare module 'vscode' {
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		deleteComment(id: string): void;
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		submitFeedback(overallFeedback?: string): Thenable<void>;
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		submitAction(actionId: string): Thenable<void>;
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		reject(): Thenable<void>;
 	}
 
 	export namespace window {

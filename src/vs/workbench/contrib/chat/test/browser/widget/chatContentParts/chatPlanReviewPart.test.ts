@@ -252,6 +252,7 @@ suite('ChatPlanReviewPart', () => {
 			const editorInput = openEditorSpy.firstCall.args[0] as IResourceEditorInput;
 			assert.strictEqual(editorInput.resource?.toString(), 'file:///plan.md');
 			assert.strictEqual(editorInput.options?.pinned, true);
+			assert.strictEqual(editorInput.options?.override, 'vscode.markdown.editor');
 
 			// Feedback section should now be visible.
 			const feedbackSection = getFeedbackSection(widget);

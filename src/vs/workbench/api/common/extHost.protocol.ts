@@ -2208,15 +2208,33 @@ export interface IAgentEditorCommentDto {
 	author?: string;
 }
 
+export interface IAgentEditorReviewDto {
+	actions: readonly {
+		id: string;
+		label: string;
+		description?: string;
+		default?: boolean;
+	}[];
+	feedbackCount: number;
+	overallFeedbackLabel: string;
+	rejectLabel: string;
+	submitFeedbackLabel: string;
+	submitFeedbackWithCountLabel: string;
+	approvePlanLabel: string;
+}
+
 export interface MainThreadAgentEditorCommentsShape extends IDisposable {
 	$createAgentEditorComments(handle: number, uri: UriComponents): Promise<void>;
 	$addComment(handle: number, range: IRange, body: string): Promise<void>;
 	$deleteComment(handle: number, id: string): Promise<void>;
+	$submitAgentEditorFeedback(handle: number, overallFeedback: string | undefined): Promise<void>;
+	$submitAgentEditorAction(handle: number, actionId: string): Promise<void>;
+	$rejectAgentEditorReview(handle: number): Promise<void>;
 	$disposeAgentEditorComments(handle: number): Promise<void>;
 }
 
 export interface ExtHostAgentEditorCommentsShape {
-	$acceptAgentEditorComments(handle: number, comments: IAgentEditorCommentDto[], acceptsComments: boolean): void;
+	$acceptAgentEditorComments(handle: number, comments: IAgentEditorCommentDto[], acceptsComments: boolean, review: IAgentEditorReviewDto | undefined): void;
 }
 
 export interface IDocumentDiffLineChangeDto {

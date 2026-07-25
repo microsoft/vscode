@@ -135,7 +135,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const onChange = diffProvider.onDidChange(postMarkers);
 		// Re-send once the webview has (re)initialized its model, and whenever the
 		// document settles on the version the changes were computed for.
-		const onMessage = webview.onDidReceiveMessage((message) => {
+		const onMessage = webview.onDidReceiveMessage(async (message) => {
 			if (message.type === 'ready') {
 				postMarkers();
 			}
@@ -168,11 +168,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				body: comment.body,
 				author: comment.author,
 			}));
-			webview.postMessage({ type: 'comments', comments, acceptsComments: commentsProvider.acceptsComments });
+			webview.postMessage({ type: 'comments', comments, acceptsComments: commentsProvider.acceptsComments, review: commentsProvider.review });
 		};
 
 		const onChange = commentsProvider.onDidChange(postComments);
-		const onMessage = webview.onDidReceiveMessage((message) => {
+		const onMessage = webview.onDidReceiveMessage(async (message) => {
 			if (message.type === 'ready') {
 				postComments();
 			} else if (message.type === 'addComment') {
@@ -183,6 +183,12 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				commentsProvider.addComment(range, message.text);
 			} else if (message.type === 'deleteComment') {
 				commentsProvider.deleteComment(message.id);
+			} else if (message.type === 'submitFeedback') {
+				await commentsProvider.submitFeedback(message.overallFeedback);
+			} else if (message.type === 'submitAction') {
+				await commentsProvider.submitAction(message.actionId);
+			} else if (message.type === 'rejectReview') {
+				await commentsProvider.reject();
 			}
 		});
 

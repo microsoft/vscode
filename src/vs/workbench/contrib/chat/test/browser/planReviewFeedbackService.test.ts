@@ -436,4 +436,35 @@ suite('PlanReviewFeedbackService - Custom Editor Comments', () => {
 
 		assert.strictEqual(fallbackAddCount, 1);
 	});
+
+	test('bridges review actions and overall feedback', async () => {
+		const bridge = store.add(new AgentEditorCommentsBridge());
+		let submittedOverallFeedback: string | undefined;
+		let submittedAction: string | undefined;
+		let rejected = false;
+		const service = store.add(new PlanReviewFeedbackService(bridge));
+		const planUri = URI.parse('file:///plan.md');
+		store.add(service.registerPlanReview(planUri, createRegistration({
+			actions: [{ id: 'autopilot', label: 'Implement with Autopilot', default: true }],
+			submitFeedback: async overallFeedback => { submittedOverallFeedback = overallFeedback; },
+			submitAction: async action => { submittedAction = action.id; },
+			reject: async () => { rejected = true; },
+		})));
+
+		assert.deepStrictEqual(bridge.getReview(planUri)?.actions, [{
+			id: 'autopilot',
+			label: 'Implement with Autopilot',
+			description: undefined,
+			default: true,
+		}]);
+		await bridge.submitFeedback(planUri, 'Make the approach shorter');
+		await bridge.submitAction(planUri, 'autopilot');
+		await bridge.reject(planUri);
+
+		assert.deepStrictEqual({ submittedOverallFeedback, submittedAction, rejected }, {
+			submittedOverallFeedback: 'Make the approach shorter',
+			submittedAction: 'autopilot',
+			rejected: true,
+		});
+	});
 });

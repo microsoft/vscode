@@ -55,6 +55,27 @@ export class MainThreadAgentEditorComments implements MainThreadAgentEditorComme
 		this._bridge.deleteComment(resource, id);
 	}
 
+	async $submitAgentEditorFeedback(handle: number, overallFeedback: string | undefined): Promise<void> {
+		const resource = this._resources.get(handle);
+		if (resource) {
+			await this._bridge.submitFeedback(resource, overallFeedback);
+		}
+	}
+
+	async $submitAgentEditorAction(handle: number, actionId: string): Promise<void> {
+		const resource = this._resources.get(handle);
+		if (resource) {
+			await this._bridge.submitAction(resource, actionId);
+		}
+	}
+
+	async $rejectAgentEditorReview(handle: number): Promise<void> {
+		const resource = this._resources.get(handle);
+		if (resource) {
+			await this._bridge.reject(resource);
+		}
+	}
+
 	async $disposeAgentEditorComments(handle: number): Promise<void> {
 		this._resources.delete(handle);
 		this._disposables.deleteAndDispose(handle);
@@ -66,7 +87,7 @@ export class MainThreadAgentEditorComments implements MainThreadAgentEditorComme
 			return;
 		}
 		const comments: IAgentEditorCommentDto[] = this._bridge.getComments(resource).map(comment => ({ id: comment.id, range: comment.range, body: comment.body }));
-		this._proxy.$acceptAgentEditorComments(handle, comments, this._bridge.acceptsComments(resource));
+		this._proxy.$acceptAgentEditorComments(handle, comments, this._bridge.acceptsComments(resource), this._bridge.getReview(resource));
 	}
 
 	dispose(): void {

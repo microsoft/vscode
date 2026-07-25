@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { Emitter } from '../../../base/common/event.js';
-import { ExtHostAgentEditorCommentsShape, IAgentEditorCommentDto, IMainContext, MainContext, MainThreadAgentEditorCommentsShape } from './extHost.protocol.js';
+import { ExtHostAgentEditorCommentsShape, IAgentEditorCommentDto, IAgentEditorReviewDto, IMainContext, MainContext, MainThreadAgentEditorCommentsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
 
 class ExtHostAgentEditorCommentsProvider implements vscode.AgentEditorCommentsProvider {
@@ -19,13 +19,16 @@ class ExtHostAgentEditorCommentsProvider implements vscode.AgentEditorCommentsPr
 	private _acceptsComments = false;
 	get acceptsComments(): boolean { return this._acceptsComments; }
 
+	private _review: vscode.AgentEditorReview | undefined;
+	get review(): vscode.AgentEditorReview | undefined { return this._review; }
+
 	constructor(
 		private readonly handle: number,
 		private readonly proxy: MainThreadAgentEditorCommentsShape,
 		private readonly onDispose: (handle: number) => void
 	) { }
 
-	$acceptComments(comments: IAgentEditorCommentDto[], acceptsComments: boolean): void {
+	$acceptComments(comments: IAgentEditorCommentDto[], acceptsComments: boolean, review: IAgentEditorReviewDto | undefined): void {
 		this._comments = comments.map(comment => Object.freeze({
 			id: comment.id,
 			range: typeConvert.Range.to(comment.range),
@@ -33,6 +36,7 @@ class ExtHostAgentEditorCommentsProvider implements vscode.AgentEditorCommentsPr
 			author: comment.author,
 		} satisfies vscode.AgentEditorComment));
 		this._acceptsComments = acceptsComments;
+		this._review = review;
 		this._onDidChange.fire();
 	}
 
@@ -42,6 +46,18 @@ class ExtHostAgentEditorCommentsProvider implements vscode.AgentEditorCommentsPr
 
 	deleteComment(id: string): void {
 		this.proxy.$deleteComment(this.handle, id);
+	}
+
+	submitFeedback(overallFeedback?: string): Thenable<void> {
+		return this.proxy.$submitAgentEditorFeedback(this.handle, overallFeedback);
+	}
+
+	submitAction(actionId: string): Thenable<void> {
+		return this.proxy.$submitAgentEditorAction(this.handle, actionId);
+	}
+
+	reject(): Thenable<void> {
+		return this.proxy.$rejectAgentEditorReview(this.handle);
 	}
 
 	dispose(): void {
@@ -69,7 +85,7 @@ export class ExtHostAgentEditorComments implements ExtHostAgentEditorCommentsSha
 		return provider;
 	}
 
-	$acceptAgentEditorComments(handle: number, comments: IAgentEditorCommentDto[], acceptsComments: boolean): void {
-		this.providers.get(handle)?.$acceptComments(comments, acceptsComments);
+	$acceptAgentEditorComments(handle: number, comments: IAgentEditorCommentDto[], acceptsComments: boolean, review: IAgentEditorReviewDto | undefined): void {
+		this.providers.get(handle)?.$acceptComments(comments, acceptsComments, review);
 	}
 }
