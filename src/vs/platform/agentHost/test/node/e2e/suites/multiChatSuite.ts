@@ -9,10 +9,11 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallReadyAction } from '../../../../common/state/sessionActions.js';
-import { CompletionItemKind, type CompletionsResult, type ListSessionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { ChatSourceKind, CompletionItemKind, type CompletionsResult, type ListSessionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import {
 	buildChatUri,
 	buildDefaultChatUri,
+	ChatOriginKind,
 	isAhpChatChannel,
 	MessageAttachmentKind,
 	MessageKind,
@@ -46,7 +47,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		return { sessionUri, defaultChatUri: buildDefaultChatUri(sessionUri), workspace };
 	}
 
-	async function createPeer(sessionUri: string, id: string, source?: { chat: string; turnId: string }): Promise<string> {
+	async function createPeer(sessionUri: string, id: string, source?: { chat: string; turnId: string; kind: ChatSourceKind }): Promise<string> {
 		const chat = buildChatUri(sessionUri, id);
 		await context.client.call('createChat', {
 			channel: sessionUri,
@@ -222,9 +223,11 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		assert.deepStrictEqual({
 			multipleChats: !!agent?.capabilities?.multipleChats,
 			fork: agent?.capabilities?.multipleChats?.fork ?? false,
+			sideChat: agent?.capabilities?.multipleChats?.sideChat ?? false,
 		}, {
 			multipleChats: config.supportsMultipleChats,
 			fork: config.supportsChatFork,
+			sideChat: config.supportsSideChats ?? false,
 		});
 	});
 
@@ -387,7 +390,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 	hostOnlyTest(context, 'forking an unknown turn creates a fresh empty peer chat', async function () {
 		const { sessionUri, defaultChatUri } = await createSession('unknown-fork');
 
-		const peer = await createPeer(sessionUri, 'fork', { chat: defaultChatUri, turnId: 'missing-turn' });
+		const peer = await createPeer(sessionUri, 'fork', { kind: ChatSourceKind.Fork, chat: defaultChatUri, turnId: 'missing-turn' });
 
 		assert.deepStrictEqual((await chatState(peer)).turns, []);
 	}, config.supportsMultipleChats);
@@ -429,7 +432,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const { sessionUri, defaultChatUri } = await createSession('fork-history');
 		const sourceResponse = await driveTurn(defaultChatUri, 'fork-source', 'Remember the code word FORKCODE. Reply exactly "ready".', 1);
 
-		const peer = await createPeer(sessionUri, 'fork', { chat: defaultChatUri, turnId: 'fork-source' });
+		const peer = await createPeer(sessionUri, 'fork', { kind: ChatSourceKind.Fork, chat: defaultChatUri, turnId: 'fork-source' });
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 		const response = await driveTurn(peer, 'fork-turn', 'What code word did I ask you to remember? Reply with only the code word.', 2);
 		const messages = observedModelMessages(context.observedModelRequestBodies.at(-1) ?? '');
@@ -623,6 +626,41 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		assert.strictEqual(messages.some(message => message.content.includes('DEFAULTSECRET')), false);
 	}, config.supportsMultipleChats && config.provider !== 'claude');
 
+	providerTest('side chat receives bounded source context without copied history', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('side-context');
+		await driveTurn(defaultChatUri, 'turn-source', 'Remember the exact token SIDECHAT42 for a later question. Reply with exactly "ready".', 1);
+
+		const sideChatUri = await createPeer(sessionUri, 'side', {
+			kind: ChatSourceKind.SideChat,
+			chat: defaultChatUri,
+			turnId: 'turn-source',
+		});
+		await context.client.call<SubscribeResult>('subscribe', { channel: sideChatUri });
+
+		const response = await driveTurn(sideChatUri, 'turn-side', 'What exact token did I ask you to remember? Reply with only the token.', 2);
+		const [sourceState, sideState, session] = await Promise.all([
+			chatState(defaultChatUri),
+			chatState(sideChatUri),
+			sessionState(sessionUri),
+		]);
+
+		assert.deepStrictEqual({
+			responseIncludesCode: /SIDECHAT42/i.test(response),
+			sourceTurnCount: sourceState.turns.length,
+			sideTurnCount: sideState.turns.length,
+			origin: session.chats.find(chat => chat.resource === sideChatUri)?.origin,
+			firstMessage: sideState.turns[0]?.message.text,
+			firstAttachments: sideState.turns[0]?.message.attachments ?? [],
+		}, {
+			responseIncludesCode: true,
+			sourceTurnCount: 1,
+			sideTurnCount: 1,
+			origin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 'turn-source' },
+			firstMessage: 'What exact token did I ask you to remember? Reply with only the token.',
+			firstAttachments: [],
+		});
+	}, config.supportsMultipleChats && !!config.supportsSideChats);
+
 	providerTest('two peer chats keep independent provider contexts', async function () {
 		const { sessionUri } = await createSession('two-contexts');
 		const first = await createPeer(sessionUri, 'first');
@@ -682,7 +720,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 	forkProviderTest('unknown-turn fork does not inherit source provider context', async function () {
 		const { sessionUri, defaultChatUri } = await createSession('unknown-fork-context');
 		await driveTurn(defaultChatUri, 'source-secret', 'Remember the code word SOURCE_SECRET. Reply exactly "ready".', 1);
-		const peer = await createPeer(sessionUri, 'fork', { chat: defaultChatUri, turnId: 'missing-turn' });
+		const peer = await createPeer(sessionUri, 'fork', { kind: ChatSourceKind.Fork, chat: defaultChatUri, turnId: 'missing-turn' });
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 
 		await driveTurn(peer, 'fresh-fork-turn', 'Reply exactly "fresh".', 10);

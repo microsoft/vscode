@@ -244,6 +244,21 @@ function pendingConfirmationModel(resource: URI): IChatModel {
 	} as unknown as IChatModel;
 }
 
+function completedResponseModel(markdown: string, errorMessage?: string): IChatModel {
+	const response = {
+		isPendingConfirmation: observableValue('pending', undefined),
+		isIncomplete: observableValue('incomplete', false),
+		response: {
+			value: [],
+			getMarkdown: () => markdown,
+		},
+		result: errorMessage ? { errorDetails: { message: errorMessage } } : undefined,
+	};
+	return {
+		getRequests: () => [{ response }],
+	} as unknown as IChatModel;
+}
+
 class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override readonly onDidChangeFocusedSession = Event.None;
 	override readonly onDidAddWidget = Event.None;
@@ -331,6 +346,21 @@ suite('VoiceSessionController', () => {
 		));
 	}
 
+	test('includes response errors in the summary sent to the voice backend', () => {
+		const controller = createController(new TestVoiceClientService());
+		const getAgentStateInfo = Reflect.get(controller, '_getAgentStateInfo') as (model: IChatModel) => { state: string; last_response_summary?: string };
+
+		assert.deepStrictEqual([
+			getAgentStateInfo.call(controller, completedResponseModel('', 'The branch main was not found.')),
+			getAgentStateInfo.call(controller, completedResponseModel('I could not rebase the branch.', 'The branch main was not found.')),
+			getAgentStateInfo.call(controller, completedResponseModel('The rebase completed.')),
+		], [
+			{ state: 'idle', last_response_summary: 'The branch main was not found.' },
+			{ state: 'idle', last_response_summary: 'I could not rebase the branch.\n\nThe branch main was not found.' },
+			{ state: 'idle', last_response_summary: 'The rebase completed.' },
+		]);
+	});
+
 	test('explicit disconnect clears routing target and pending confirmations and the tracker cannot repopulate them before reconnect', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const chatService = new ControllableChatService();
@@ -381,7 +411,14 @@ suite('VoiceSessionController', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
 		const commandService = new TestCommandService();
-		const controller = createController(voiceClientService, ttsPlaybackService, commandService);
+		const controller = createController(
+			voiceClientService,
+			ttsPlaybackService,
+			commandService,
+			NullTelemetryService,
+			undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }),
+		);
 		await controller.connect(mainWindow);
 
 		voiceClientService.fireAudioResponse({
@@ -679,6 +716,55 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('forced pttDown cancels pending toggle mode and keeps the turn recording instead of finishing it', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		await controller.connect(mainWindow);
+		Reflect.get(controller, '_isConnected').set(true, undefined);
+
+		// Advance off the fake-clock epoch (0) so pttDown records a truthy
+		// `_telemetryPttDownMs`; at time 0 the tap/hold split reads the press as
+		// "no press recorded" (Infinity hold) and never enters toggle mode.
+		clock.setSystemTime(5_000);
+
+		// Press + quick release: a sub-threshold tap enters toggle mode, which keeps
+		// the mic recording until the next tap.
+		controller.pttDown();
+		controller.pttUp();
+		assert.deepStrictEqual({
+			toggle: Reflect.get(controller, '_pttToggleMode'),
+			held: Reflect.get(controller, '_pttHeld'),
+		}, { toggle: true, held: true }, 'short tap enters toggle mode while still recording');
+
+		// A forced press (the hold-to-talk gesture) cancels the pending toggle mode
+		// and keeps recording the same turn, rather than finishing it as a normal
+		// second tap would.
+		controller.pttDown('explicit', true);
+		assert.deepStrictEqual({
+			toggle: Reflect.get(controller, '_pttToggleMode'),
+			held: Reflect.get(controller, '_pttHeld'),
+		}, { toggle: false, held: true }, 'forced pttDown bypasses toggle mode and stays recording');
+	});
+
+	test('forced pttUp finishes a sub-threshold turn instead of entering toggle mode', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		await controller.connect(mainWindow);
+		Reflect.get(controller, '_isConnected').set(true, undefined);
+
+		controller.pttDown();
+		assert.strictEqual(Reflect.get(controller, '_pttHeld'), true, 'pttDown starts recording');
+
+		// A forced release (hold-to-talk release) finishes and sends immediately even
+		// for a short hold, instead of dropping into toggle mode and leaving `_pttHeld`
+		// active with the mic still open.
+		controller.pttUp('explicit', true);
+		assert.deepStrictEqual({
+			toggle: Reflect.get(controller, '_pttToggleMode'),
+			held: Reflect.get(controller, '_pttHeld'),
+		}, { toggle: false, held: false }, 'forced pttUp finishes the turn rather than entering toggle mode');
+	});
+
 	test('restores idle state when solicited narration never starts returning audio', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);
@@ -781,6 +867,47 @@ suite('VoiceSessionController', () => {
 
 		assert.strictEqual(mic.pttDownCalls.length, 1);
 		assert.strictEqual(mic.pttDownCalls[0].passive, true);
+	});
+
+	test('connect only arms listening automatically in hands-free mode', () => {
+		const manualVoiceClientService = new TestVoiceClientService();
+		const manualController = createController(manualVoiceClientService, undefined, undefined, undefined, undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': false }));
+
+		const handsFreeVoiceClientService = new TestVoiceClientService();
+		const handsFreeController = createController(handsFreeVoiceClientService, undefined, undefined, undefined, undefined,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }));
+		const manualShouldArm = Reflect.get(manualController, '_shouldEnterListenOnSessionInit') as (isResuming: boolean) => boolean;
+		const handsFreeShouldArm = Reflect.get(handsFreeController, '_shouldEnterListenOnSessionInit') as (isResuming: boolean) => boolean;
+
+		assert.deepStrictEqual({
+			manualFreshConnect: manualShouldArm.call(manualController, false),
+			handsFreeFreshConnect: handsFreeShouldArm.call(handsFreeController, false),
+			handsFreeResume: handsFreeShouldArm.call(handsFreeController, true),
+		}, {
+			manualFreshConnect: false,
+			handsFreeFreshConnect: true,
+			handsFreeResume: false,
+		});
+	});
+
+	test('stopping listening in manual mode submits the transcript', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const controller = createController(voiceClientService, undefined, commandService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		controller.pttDown();
+		controller.stopListening();
+		voiceClientService.fireToolCall({
+			callId: 'manual-transcription',
+			name: 'send_to_chat',
+			args: { text: 'send this when listening stops' },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual(commandService.acceptedInputs, ['send this when listening stops']);
 	});
 
 	test('auto-listen is skipped when window does not have focus (multi-window hands-free)', () => {

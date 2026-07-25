@@ -1431,6 +1431,8 @@ suite('AgentHostClientTools', () => {
 					agentName: undefined,
 					chatResource: subagentChat,
 					isActive: true,
+					startedAt: Date.parse('2025-01-01T00:00:00.000Z'),
+					duration: undefined,
 				},
 				childCount: 1,
 				childSubAgentInvocationId: parentToolCallId,

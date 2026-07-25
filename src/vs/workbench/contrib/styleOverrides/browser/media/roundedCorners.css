@@ -52,6 +52,10 @@
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
+.style-override .browser-root .browser-url-container {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 /* Select / dropdown controls */
 .style-override .monaco-select-box,
 .style-override .monaco-select-box-dropdown-container {
@@ -135,6 +139,11 @@
 /* Scrollbar sliders (panels, editor, lists — all consistent) */
 .style-override .monaco-scrollable-element > .scrollbar > .slider {
 	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
+/* Match the minimap viewport slider to the adjacent editor scrollbar. */
+.style-override .monaco-editor .minimap-slider .minimap-slider-horizontal {
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /*
@@ -271,6 +280,11 @@
  * ========================================================================== */
 .style-override .monaco-sash:before {
 	border-radius: calc(var(--vscode-sash-hover-size) / 2);
+}
+
+/* Keep the diff editor's bottom boundary from clipping the sash radius. */
+.style-override .monaco-diff-editor > .monaco-sash.vertical:before {
+	height: calc(100% - (var(--vscode-sash-hover-size) / 2));
 }
 
 .style-override .monaco-sash:not(.disabled) > .orthogonal-drag-handle {
