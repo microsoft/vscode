@@ -53,7 +53,7 @@ suite('ClaudeDebugArtifacts', () => {
 		// (exact suffix, not substring) — debug logs can hold sensitive content.
 		await write(fileService, joinPath(logDir, `claude-2026-01-01T00-00-00-000Z-${SESSION_ID}-extra.log`));
 		await write(fileService, joinPath(logDir, `${SESSION_ID}.txt`));
-		assert.deepStrictEqual(await artifacts.refresh(CWD), [{ label: CLAUDE_DEBUG_LOG_LABEL, path: mine.fsPath }]);
+		assert.deepStrictEqual(await artifacts.refresh(CWD), [{ label: CLAUDE_DEBUG_LOG_LABEL, uri: mine.toString() }]);
 	});
 
 	test('refresh numbers multiple runs in chronological (lexical) order', async () => {
@@ -63,8 +63,8 @@ suite('ClaudeDebugArtifacts', () => {
 		await write(fileService, newer);
 		await write(fileService, older);
 		assert.deepStrictEqual(await artifacts.refresh(CWD), [
-			{ label: `${CLAUDE_DEBUG_LOG_LABEL} 1`, path: older.fsPath },
-			{ label: `${CLAUDE_DEBUG_LOG_LABEL} 2`, path: newer.fsPath },
+			{ label: `${CLAUDE_DEBUG_LOG_LABEL} 1`, uri: older.toString() },
+			{ label: `${CLAUDE_DEBUG_LOG_LABEL} 2`, uri: newer.toString() },
 		]);
 	});
 
@@ -75,8 +75,8 @@ suite('ClaudeDebugArtifacts', () => {
 		await write(fileService, log);
 		await write(fileService, transcript);
 		assert.deepStrictEqual(await artifacts.refresh(CWD), [
-			{ label: CLAUDE_DEBUG_LOG_LABEL, path: log.fsPath },
-			{ label: CLAUDE_TRANSCRIPT_LABEL, path: transcript.fsPath },
+			{ label: CLAUDE_DEBUG_LOG_LABEL, uri: log.toString() },
+			{ label: CLAUDE_TRANSCRIPT_LABEL, uri: transcript.toString() },
 		]);
 	});
 
@@ -87,14 +87,14 @@ suite('ClaudeDebugArtifacts', () => {
 		// the scan fallback still finds it by session id.
 		const transcript = joinPath(USER_HOME, '.claude', 'projects', '-some-other-proj', `${SESSION_ID}.jsonl`);
 		await write(fileService, transcript);
-		assert.deepStrictEqual(await artifacts.refresh(CWD), [{ label: CLAUDE_TRANSCRIPT_LABEL, path: transcript.fsPath }]);
+		assert.deepStrictEqual(await artifacts.refresh(CWD), [{ label: CLAUDE_TRANSCRIPT_LABEL, uri: transcript.toString() }]);
 	});
 
 	test('refresh surfaces the transcript alone when no debug log has been written yet', async () => {
 		const { fileService, artifacts } = setup();
 		const transcript = joinPath(transcriptDir, `${SESSION_ID}.jsonl`);
 		await write(fileService, transcript);
-		assert.deepStrictEqual(await artifacts.refresh(CWD), [{ label: CLAUDE_TRANSCRIPT_LABEL, path: transcript.fsPath }]);
+		assert.deepStrictEqual(await artifacts.refresh(CWD), [{ label: CLAUDE_TRANSCRIPT_LABEL, uri: transcript.toString() }]);
 	});
 
 	test('prepareDebugFile creates the log directory and returns this session\'s per-run path', async () => {

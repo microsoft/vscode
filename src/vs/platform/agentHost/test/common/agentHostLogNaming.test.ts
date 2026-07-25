@@ -44,14 +44,14 @@ suite('agentHostLogNaming', () => {
 	test('buildClaudeDebugArtifacts: unnumbered lone log, sorted+numbered multiples, transcript appended last', () => {
 		assert.deepStrictEqual(buildClaudeDebugArtifacts([], undefined), []);
 		assert.deepStrictEqual(buildClaudeDebugArtifacts(['/logs/claude/claude-b.log'], undefined), [
-			{ label: CLAUDE_DEBUG_LOG_LABEL, path: '/logs/claude/claude-b.log' },
+			{ label: CLAUDE_DEBUG_LOG_LABEL, uri: '/logs/claude/claude-b.log' },
 		]);
 		assert.deepStrictEqual(
 			buildClaudeDebugArtifacts(['/logs/claude/claude-b.log', '/logs/claude/claude-a.log'], '/home/.claude/projects/p/s.jsonl'),
 			[
-				{ label: `${CLAUDE_DEBUG_LOG_LABEL} 1`, path: '/logs/claude/claude-a.log' },
-				{ label: `${CLAUDE_DEBUG_LOG_LABEL} 2`, path: '/logs/claude/claude-b.log' },
-				{ label: CLAUDE_TRANSCRIPT_LABEL, path: '/home/.claude/projects/p/s.jsonl' },
+				{ label: `${CLAUDE_DEBUG_LOG_LABEL} 1`, uri: '/logs/claude/claude-a.log' },
+				{ label: `${CLAUDE_DEBUG_LOG_LABEL} 2`, uri: '/logs/claude/claude-b.log' },
+				{ label: CLAUDE_TRANSCRIPT_LABEL, uri: '/home/.claude/projects/p/s.jsonl' },
 			],
 		);
 	});

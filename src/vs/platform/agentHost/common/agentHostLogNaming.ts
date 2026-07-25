@@ -71,20 +71,21 @@ export const CLAUDE_TRANSCRIPT_LABEL = 'Claude transcript';
 
 /**
  * Build the advertised {@link IDebugArtifact} list for a Claude session from its
- * on-disk debug-log paths plus an optional transcript path. A pure projection,
- * so the labeling/numbering is unit-testable without any session state: logs are
- * sorted lexically (their file names embed the timestamp, so this is
- * chronological) and numbered only when there is more than one — keeping the
- * single-log common case clean while ensuring unique export file names.
+ * on-disk debug-log URIs plus an optional transcript URI (each a host-encoded
+ * `file://` string). A pure projection, so the labeling/numbering is unit-testable
+ * without any session state: logs are sorted lexically (their file names embed the
+ * timestamp, so this is chronological) and numbered only when there is more than
+ * one — keeping the single-log common case clean while ensuring unique export
+ * file names.
  */
-export function buildClaudeDebugArtifacts(logPaths: readonly string[], transcriptPath: string | undefined): IDebugArtifact[] {
-	const sorted = [...logPaths].sort();
-	const artifacts: IDebugArtifact[] = sorted.map((path, i) => ({
+export function buildClaudeDebugArtifacts(logUris: readonly string[], transcriptUri: string | undefined): IDebugArtifact[] {
+	const sorted = [...logUris].sort();
+	const artifacts: IDebugArtifact[] = sorted.map((uri, i) => ({
 		label: sorted.length > 1 ? `${CLAUDE_DEBUG_LOG_LABEL} ${i + 1}` : CLAUDE_DEBUG_LOG_LABEL,
-		path,
+		uri,
 	}));
-	if (transcriptPath) {
-		artifacts.push({ label: CLAUDE_TRANSCRIPT_LABEL, path: transcriptPath });
+	if (transcriptUri) {
+		artifacts.push({ label: CLAUDE_TRANSCRIPT_LABEL, uri: transcriptUri });
 	}
 	return artifacts;
 }

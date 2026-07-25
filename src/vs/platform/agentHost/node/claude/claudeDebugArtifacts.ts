@@ -58,17 +58,19 @@ export class ClaudeDebugArtifacts {
 	/**
 	 * Read the two on-disk locations the host/SDK own for this session and return
 	 * the projected artifact set via the pure, unit-tested
-	 * {@link buildClaudeDebugArtifacts}. `cwd` is the session's working directory,
-	 * used to address the transcript directly. Stateless: the truth lives on disk,
-	 * so callers just re-read whenever the set might have changed.
+	 * {@link buildClaudeDebugArtifacts}. Each artifact carries a host-encoded
+	 * `file://` URI string (so the client can wrap it for a remote host without
+	 * knowing the host's platform). `cwd` is the session's working directory, used
+	 * to address the transcript directly. Stateless: the truth lives on disk, so
+	 * callers just re-read whenever the set might have changed.
 	 */
 	async refresh(cwd: URI): Promise<readonly IDebugArtifact[]> {
-		const [logPaths, transcriptPath] = await Promise.all([this._readDebugLogPaths(), this._readTranscriptPath(cwd)]);
-		return buildClaudeDebugArtifacts(logPaths, transcriptPath);
+		const [logUris, transcriptUri] = await Promise.all([this._readDebugLogUris(), this._readTranscriptUri(cwd)]);
+		return buildClaudeDebugArtifacts(logUris, transcriptUri);
 	}
 
-	/** This session's debug-log files (current + prior runs). The host owns `<logsHome>/claude/`, so scanning it is not cross-component path-guessing. */
-	private async _readDebugLogPaths(): Promise<string[]> {
+	/** This session's debug-log files (current + prior runs) as `file://` URI strings. The host owns `<logsHome>/claude/`, so scanning it is not cross-component path-guessing. */
+	private async _readDebugLogUris(): Promise<string[]> {
 		// Match the exact `claude-<timestamp>-<token>.log` shape emitted by
 		// buildClaudeDebugFilePath. A substring `includes(token)` check would also
 		// match another session whose id merely contains this token (e.g. `sess-abc`
@@ -78,27 +80,27 @@ export class ClaudeDebugArtifacts {
 		const suffix = `-${claudeDebugLogSessionToken(this._sessionId)}.log`;
 		try {
 			const stat = await this._fileService.resolve(joinPath(this._logsHome, CLAUDE_LOG_DIR));
-			return (stat.children ?? []).filter(c => !c.isDirectory && c.name.startsWith('claude-') && c.name.endsWith(suffix)).map(c => c.resource.fsPath);
+			return (stat.children ?? []).filter(c => !c.isDirectory && c.name.startsWith('claude-') && c.name.endsWith(suffix)).map(c => c.resource.toString());
 		} catch {
 			return []; // <logsHome>/claude may not exist yet.
 		}
 	}
 
 	/**
-	 * The SDK session transcript JSONL, once written. The CLI stores it at a
-	 * deterministic `~/.claude/projects/<slug>/<sessionId>.jsonl` derived from the
-	 * cwd (see {@link buildClaudeTranscriptPath}), so the fast path is a single
-	 * `stat`. The slug is only a best-effort match, though — a symlinked cwd, an
-	 * unusual path char the encoder gets wrong, or a CLI version change all make it
-	 * miss — so on a miss we fall back to scanning the project dirs for this
+	 * The SDK session transcript JSONL (a `file://` URI string), once written. The
+	 * CLI stores it at a deterministic `~/.claude/projects/<slug>/<sessionId>.jsonl`
+	 * derived from the cwd (see {@link buildClaudeTranscriptPath}), so the fast path
+	 * is a single `stat`. The slug is only a best-effort match, though — a symlinked
+	 * cwd, an unusual path char the encoder gets wrong, or a CLI version change all
+	 * make it miss — so on a miss we fall back to scanning the project dirs for this
 	 * session's file (newest first). `undefined` until the first turn writes it.
 	 */
-	private async _readTranscriptPath(cwd: URI): Promise<string | undefined> {
+	private async _readTranscriptUri(cwd: URI): Promise<string | undefined> {
 		const direct = await this._resolveTranscriptFile(buildClaudeTranscriptPath(this._userHome, cwd.fsPath, this._sessionId));
 		if (direct) {
-			return direct.path;
+			return direct.uri;
 		}
-		let best: { path: string; mtime: number } | undefined;
+		let best: { uri: string; mtime: number } | undefined;
 		try {
 			const stat = await this._fileService.resolve(joinPath(this._userHome, '.claude', 'projects'));
 			for (const child of stat.children ?? []) {
@@ -113,14 +115,14 @@ export class ClaudeDebugArtifacts {
 		} catch {
 			// ~/.claude/projects may not exist yet.
 		}
-		return best?.path;
+		return best?.uri;
 	}
 
-	/** Resolve a candidate transcript file to `{ path, mtime }`, or `undefined` if it is absent or a directory. */
-	private async _resolveTranscriptFile(file: URI): Promise<{ path: string; mtime: number } | undefined> {
+	/** Resolve a candidate transcript file to `{ uri, mtime }` (a `file://` URI string), or `undefined` if it is absent or a directory. */
+	private async _resolveTranscriptFile(file: URI): Promise<{ uri: string; mtime: number } | undefined> {
 		try {
 			const meta = await this._fileService.resolve(file, { resolveMetadata: true });
-			return meta.isDirectory ? undefined : { path: meta.resource.fsPath, mtime: meta.mtime ?? 0 };
+			return meta.isDirectory ? undefined : { uri: meta.resource.toString(), mtime: meta.mtime ?? 0 };
 		} catch {
 			return undefined;
 		}

@@ -15,22 +15,22 @@ suite('Session debug-artifacts meta', () => {
 		assert.strictEqual(readSessionDebugArtifacts(undefined), undefined);
 		assert.strictEqual(readSessionDebugArtifacts({}), undefined);
 		assert.strictEqual(readSessionDebugArtifacts({ [SESSION_META_DEBUG_ARTIFACTS_KEY]: 'nope' }), undefined);
-		// Entries missing a string label/path are dropped; well-formed ones survive.
+		// Entries missing a string label/uri are dropped; well-formed ones survive.
 		assert.deepStrictEqual(
 			readSessionDebugArtifacts({
 				[SESSION_META_DEBUG_ARTIFACTS_KEY]: [
-					{ label: 'debug', path: '/logs/claude/x.log' },
-					{ label: 'no path' },
-					{ path: '/no/label' },
+					{ label: 'debug', uri: '/logs/claude/x.log' },
+					{ label: 'no uri' },
+					{ uri: '/no/label' },
 					'garbage',
 				],
 			}),
-			[{ label: 'debug', path: '/logs/claude/x.log' }],
+			[{ label: 'debug', uri: '/logs/claude/x.log' }],
 		);
 	});
 
 	test('withSessionDebugArtifacts round-trips artifacts and preserves other slots', () => {
-		const artifacts = [{ label: 'Claude debug log', path: '/logs/claude/a.log' }, { label: 'Claude transcript', path: '/home/.claude/projects/p/s.jsonl' }];
+		const artifacts = [{ label: 'Claude debug log', uri: '/logs/claude/a.log' }, { label: 'Claude transcript', uri: '/home/.claude/projects/p/s.jsonl' }];
 		const withOther = withSessionGitHubState(undefined, { owner: 'octo' });
 		const tagged = withSessionDebugArtifacts(withOther, artifacts);
 

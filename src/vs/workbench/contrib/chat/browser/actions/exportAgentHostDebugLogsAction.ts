@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer, streamToBuffer } from '../../../../../base/common/buffer.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { extname, joinPath } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -57,10 +57,10 @@ export interface IActiveAgentHostSessionForExport {
 	readonly isLocal: boolean;
 	/**
 	 * Debug artifacts the host advertised for this session via session `_meta`
-	 * (`agentHost.debugArtifacts`) — host-local absolute paths to provider log /
-	 * transcript files. The export resolves each through the resource proxy
-	 * instead of re-deriving provider-specific on-disk layouts. Omitted when the
-	 * caller can't read the session's `_meta` (e.g. the workbench-side action).
+	 * (`agentHost.debugArtifacts`) — host-encoded `file://` URIs of provider log /
+	 * transcript files. The export parses each and resolves it through the resource
+	 * proxy instead of re-deriving provider-specific on-disk layouts. Omitted when
+	 * the caller can't read the session's `_meta` (e.g. the workbench-side action).
 	 */
 	readonly debugArtifacts?: readonly IDebugArtifact[];
 }
@@ -234,13 +234,14 @@ export async function collectAgentHostDebugLogs(
 	}
 	const artifactAuthority = remoteConnection ? agentHostAuthority(remoteConnection.address) : undefined;
 	for (const artifact of debugArtifacts ?? []) {
-		// `artifact.path` is an absolute path on the agent-host machine. Locally
-		// that's this platform (`URI.file`); remotely it's the remote platform, so
-		// preserve it verbatim via `URI.from` rather than let `URI.file` apply the
-		// client's separator/drive rules to a foreign path.
+		// `artifact.uri` is a `file://` URI encoded on the agent-host machine, so it
+		// already carries the host's drive/UNC/separator form — parse it as-is (a
+		// Windows host's `C:\…` would break a client-side `URI.file`). Locally it is
+		// the resource directly; remotely we wrap it for the connection's authority.
+		const hostUri = URI.parse(artifact.uri);
 		const resource = activeSession?.isLocal
-			? URI.file(artifact.path)
-			: artifactAuthority ? toAgentHostUri(URI.from({ scheme: Schemas.file, path: artifact.path }), artifactAuthority) : undefined;
+			? hostUri
+			: artifactAuthority ? toAgentHostUri(hostUri, artifactAuthority) : undefined;
 		if (!resource) {
 			continue;
 		}
@@ -425,17 +426,27 @@ async function exportFilesToLocalFolder(
 	return true;
 }
 
+/**
+ * Cap for a single remote artifact read. The AHP filesystem provider has no
+ * ranged read, so a remote file is fetched whole into the renderer (and buffered
+ * again as a string); a runaway `--debug` log could exhaust memory. Above this we
+ * export a short note instead of the file.
+ */
+const MAX_REMOTE_ARTIFACT_BYTES = 50 * 1024 * 1024;
+
 async function createDebugLogFile(path: string, resource: URI, fileService: IFileService, size?: number): Promise<IAgentHostDebugLogFile> {
 	if (resource.scheme === Schemas.file) {
 		const observedSize = size ?? (await fileService.resolve(resource, { resolveMetadata: true })).size;
 		return { path, resource, size: observedSize };
 	}
-	// Non-local resources (e.g. remote agent-host logs) can't be streamed from
-	// disk, so read them inline, bounded to the captured size when known.
-	if (size !== undefined) {
-		const stream = await fileService.readFileStream(resource, { length: size });
-		const content = await streamToBuffer(stream.value);
-		return { path, contents: content.toString() };
+	// Non-local resources (remote agent-host logs) can't be streamed from disk, and
+	// the AHP proxy has no ranged read — `readFile` fetches the whole file into the
+	// renderer — so cap by the stat size: above the limit, export a note rather than
+	// slurp (and re-buffer) a huge log. `length` on `readFileStream` would not help;
+	// the provider fetches everything regardless.
+	const observedSize = size ?? (await fileService.resolve(resource, { resolveMetadata: true })).size;
+	if (observedSize > MAX_REMOTE_ARTIFACT_BYTES) {
+		return { path, contents: `[skipped] ${path} is ${observedSize} bytes, over the ${MAX_REMOTE_ARTIFACT_BYTES}-byte remote export cap. Retrieve it directly from the agent host.` };
 	}
 	const content = await fileService.readFile(resource);
 	return { path, contents: content.value.toString() };

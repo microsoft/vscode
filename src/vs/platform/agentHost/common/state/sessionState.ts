@@ -1237,21 +1237,22 @@ export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, git
 /**
  * A single debug artifact the host advertises for a session, carried under
  * {@link SessionMeta} at {@link SESSION_META_DEBUG_ARTIFACTS_KEY}. The
- * {@link path} is an absolute filesystem path **on the agent-host machine**
- * (local host or remote); the client resolves it to a readable resource
- * (`file://` locally, `vscode-agent-host://` remotely) via the resource proxy.
+ * {@link uri} is a serialized `file://` URI **encoded on the agent-host machine**
+ * (so drive letters, UNC roots and separators are the host's, not the client's);
+ * the client parses it and resolves it to a readable resource (`file://` locally,
+ * `vscode-agent-host://` remotely) via the resource proxy.
  */
 export interface IDebugArtifact {
 	/** Human-readable label, used to derive the file name in the export. */
 	readonly label: string;
-	/** Absolute filesystem path of the artifact on the agent-host machine. */
-	readonly path: string;
+	/** Serialized `file://` URI of the artifact, encoded on the agent-host machine. */
+	readonly uri: string;
 }
 
 /**
  * Reads the well-known debug-artifacts payload from a {@link SessionMeta} bag.
  * Returns `undefined` when the key is absent or not an array; entries missing a
- * string `label`/`path` are dropped so partial state still propagates.
+ * string `label`/`uri` are dropped so partial state still propagates.
  */
 export function readSessionDebugArtifacts(meta: SessionMeta | undefined): IDebugArtifact[] | undefined {
 	const value = meta?.[SESSION_META_DEBUG_ARTIFACTS_KEY];
@@ -1262,8 +1263,8 @@ export function readSessionDebugArtifacts(meta: SessionMeta | undefined): IDebug
 	for (const entry of value) {
 		if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
 			const raw = entry as Record<string, unknown>;
-			if (typeof raw['label'] === 'string' && typeof raw['path'] === 'string') {
-				artifacts.push({ label: raw['label'], path: raw['path'] });
+			if (typeof raw['label'] === 'string' && typeof raw['uri'] === 'string') {
+				artifacts.push({ label: raw['label'], uri: raw['uri'] });
 			}
 		}
 	}
