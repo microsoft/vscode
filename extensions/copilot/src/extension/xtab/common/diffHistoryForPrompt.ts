@@ -95,9 +95,6 @@ function mergeRejectionsIntoHistory(xtabHistory: readonly IXtabHistoryEntry[], r
 	const history: (IXtabHistoryEntry | IXtabHistoryRejectedEditEntry)[] = [];
 	let rejectedIndex = 0;
 	for (const entry of xtabHistory) {
-		if (entry.sequence === undefined) {
-			continue;
-		}
 		while (true) {
 			const rejectedEntry = rejectedEditHistory[rejectedIndex];
 			if (rejectedEntry?.sequence === undefined || rejectedEntry.sequence >= entry.sequence) {
