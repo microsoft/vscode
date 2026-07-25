@@ -225,6 +225,7 @@ export class NesXtabHistoryTracker extends Disposable {
 			retainedChars += oldLines.reduce((total, line) => total + line.length, 0);
 			retainedChars += newLines.reduce((total, line) => total + line.length, 0);
 			if (retainedChars > NesXtabHistoryTracker.MAX_REJECTED_EDIT_CHARS) {
+				// Discard the whole entry so rejected edits are not truncated/incomplete in the prompt.
 				return;
 			}
 
