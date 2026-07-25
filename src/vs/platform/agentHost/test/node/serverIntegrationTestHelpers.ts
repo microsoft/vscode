@@ -581,8 +581,7 @@ export interface IServerHandle {
 	capiReplay?: CapiReplayProxy;
 }
 
-const SERVER_GRACEFUL_SHUTDOWN_TIMEOUT_MS = isWindows || process.env['AGENT_HOST_E2E_COVERAGE'] === '1' ? 30_000 : 5_000;
-const SERVER_FORCE_SHUTDOWN_TIMEOUT_MS = 10_000;
+const SERVER_SHUTDOWN_TIMEOUT_MS = isWindows || process.env['AGENT_HOST_E2E_COVERAGE'] === '1' ? 30_000 : 5_000;
 
 /** Gracefully stop an Agent Host test server, killing it if shutdown stalls. */
 export async function stopServer(server: IServerHandle | undefined): Promise<void> {
@@ -591,13 +590,29 @@ export async function stopServer(server: IServerHandle | undefined): Promise<voi
 		return;
 	}
 
-	const serverExit = new Promise<void>(resolve => serverProcess.once('exit', () => resolve()));
-	serverProcess.stdin?.end();
-	if (!await raceTimeout(serverExit.then(() => true), SERVER_GRACEFUL_SHUTDOWN_TIMEOUT_MS)) {
-		serverProcess.kill('SIGKILL');
-		if (!await raceTimeout(serverExit.then(() => true), SERVER_FORCE_SHUTDOWN_TIMEOUT_MS)) {
-			throw new Error('Agent Host test server did not exit after SIGKILL');
+	const serverExit = new Promise<void>(resolve => {
+		const onExit = () => resolve();
+		serverProcess.once('exit', onExit);
+		if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+			serverProcess.removeListener('exit', onExit);
+			resolve();
 		}
+	});
+	serverProcess.stdin?.end();
+	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
+		try {
+			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+				const killed = serverProcess.kill('SIGKILL');
+				if (!killed && serverProcess.exitCode === null && serverProcess.signalCode === null) {
+					throw new Error('Failed to terminate Agent Host test server');
+				}
+			}
+		} catch (error) {
+			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+				throw error;
+			}
+		}
+		await serverExit;
 	}
 }
 

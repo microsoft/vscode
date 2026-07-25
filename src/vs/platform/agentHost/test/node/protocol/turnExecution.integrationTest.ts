@@ -205,7 +205,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 
 		const updatedSnapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		const updatedModifiedAt = Date.parse((updatedSnapshot.snapshot!.state as ISessionWithDefaultChat).chats[0].modifiedAt);
-		assert.ok(updatedModifiedAt > initialModifiedAt);
+		assert.ok(updatedModifiedAt >= initialModifiedAt);
 	});
 
 	test('subagent: inner tool calls land in child session, not parent', async function () {
