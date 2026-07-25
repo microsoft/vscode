@@ -679,7 +679,8 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Free, quotas: {} } as Partial<IChatEntitlementService> as IChatEntitlementService);
 	instantiationService.stub(IChatAgentService, chatAgentService);
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
-	instantiationService.stub(IFileService, TestFileService);
+	const fileService = new TestFileService();
+	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(ILabelService, MockLabelService);
 	instantiationService.stub(IPathService, new class extends mock<IPathService>() {
 		override userHome(options: { preferLocal: true }): URI;
@@ -911,7 +912,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 	instantiationService.stub(IOpenerService, openerService as IOpenerService);
 
-	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService, commandService };
+	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService, commandService, fileService };
 }
 
 function createSessionListStore(disposables: DisposableStore, instantiationService: TestInstantiationService, connection: IAgentHostSessionListConnection): AgentHostSessionListStore {
@@ -924,7 +925,7 @@ function createSessionListController(disposables: DisposableStore, instantiation
 }
 
 function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService> }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride);
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService, fileService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride);
 
 	const listController = createSessionListController(disposables, instantiationService, agentHostService);
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -939,7 +940,7 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
-	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService, instantiationService, openerService, trustController, modelService, workingCopyService };
+	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService, instantiationService, openerService, trustController, modelService, workingCopyService, fileService };
 }
 
 function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string }> = {}): IChatAgentRequest {
@@ -6209,6 +6210,108 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
+		test('uri-only image variable is hydrated into an embedded image attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, fileService } = createContribution(disposables);
+			fileService.setContent('fake-image-bytes');
+			const imageUri = URI.file('/workspace/pic.png');
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'describe this image',
+				variables: {
+					variables: [
+						upcastPartial<IChatRequestVariableEntry>({
+							kind: 'image',
+							id: 'v-img',
+							name: 'pic.png',
+							value: imageUri,
+							mimeType: 'image/png',
+							references: [{ reference: imageUri, kind: 'reference' }],
+						}),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [
+				{
+					type: MessageAttachmentKind.EmbeddedResource,
+					label: 'pic.png',
+					displayKind: 'image',
+					data: encodeBase64(VSBuffer.fromString('fake-image-bytes')),
+					contentType: 'image/png',
+				},
+			]);
+		}));
+
+		test('uri-only image falls back to a resource reference when hydration fails', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, fileService } = createContribution(disposables);
+			fileService.readShouldThrowError = new Error('read failed');
+			const imageUri = URI.file('/workspace/pic.png');
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'describe this image',
+				variables: {
+					variables: [
+						upcastPartial<IChatRequestVariableEntry>({
+							kind: 'image',
+							id: 'v-img',
+							name: 'pic.png',
+							value: imageUri,
+							mimeType: 'image/png',
+							references: [{ reference: imageUri, kind: 'reference' }],
+						}),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [
+				{ type: MessageAttachmentKind.Resource, uri: imageUri.toString(), label: 'pic.png', displayKind: 'image' },
+			]);
+		}));
+
+		test('inline-bytes image is embedded without reading from the file service', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, fileService } = createContribution(disposables);
+			const imageBytes = VSBuffer.fromString('inline image bytes');
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'describe this image',
+				variables: {
+					variables: [
+						upcastPartial<IChatRequestVariableEntry>({
+							kind: 'image',
+							id: 'v-img',
+							name: 'pic.png',
+							value: imageBytes.buffer,
+							mimeType: 'image/png',
+						}),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [
+				{
+					type: MessageAttachmentKind.EmbeddedResource,
+					label: 'pic.png',
+					displayKind: 'image',
+					data: encodeBase64(imageBytes),
+					contentType: 'image/png',
+				},
+			]);
+			// Inline bytes must never trigger a file read.
+			assert.strictEqual(fileService.readOperations.length, 0);
+		}));
+
 		test('browser view variable becomes a model-readable browser attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const browserUri = URI.from({ scheme: 'vscode-browser', path: '/page-1' });
@@ -8383,6 +8486,7 @@ suite('AgentHostChatContribution', () => {
 			const request = upcastPartial<IChatRequestModel>({ id: 'queued-request-1', message: { text, parts: [] } });
 			pendingRequests.push({ request, kind: ChatRequestQueueKind.Queued, sendOptions: {} });
 			chatModel.firePendingRequestsChanged();
+			await timeout(0);
 
 			const action = agentHostService.dispatchedActions.map(d => d.action).find((action): action is Extract<SessionAction, { type: ActionType.ChatPendingMessageSet }> => action.type === ActionType.ChatPendingMessageSet);
 			assert.ok(action, 'queued message should be dispatched to the agent host');
@@ -8556,6 +8660,7 @@ suite('AgentHostChatContribution', () => {
 			}];
 			const chatModel = createPendingChatModel(sessionResource, pendingRequests);
 			chatService.setSession(sessionResource, chatModel.model);
+			await timeout(0);
 
 			const action = agentHostService.dispatchedActions.map(d => d.action).find((action): action is Extract<SessionAction, { type: ActionType.ChatPendingMessageSet }> => action.type === ActionType.ChatPendingMessageSet);
 			assert.ok(action, 'queued message text update should be dispatched to the agent host');

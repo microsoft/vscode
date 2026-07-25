@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
+import { Delayer, disposableTimeout, raceCancellation, ThrottlerByKey } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -45,6 +45,7 @@ import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction,
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { buildSubagentChatUri, ChatOriginKind, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type StringOrMarkdown, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -715,6 +716,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _chatURIsBySessionResource = new ResourceMap<string>();
 	/** Per-session subscription to chat model pending request changes. */
 	private readonly _pendingMessageSubscriptions = this._register(new DisposableResourceMap());
+	/**
+	 * Serializes and coalesces per-session pending-message syncs. Because
+	 * {@link _syncPendingMessages} now awaits file I/O (image hydration) between
+	 * reading its diff baseline and dispatching, concurrent fire-and-forget runs
+	 * could otherwise interleave and dispatch a stale same-id message. The
+	 * throttler guarantees the latest run observes the freshest state and
+	 * dispatches last.
+	 */
+	private readonly _pendingSyncThrottler = this._register(new ThrottlerByKey<string>());
 	/** Per-session debounced sync from chat input state to AHP draft state. */
 	private readonly _draftSyncSubscriptions = this._register(new DisposableResourceMap());
 	/** Per-session subscription watching for server-initiated turns. */
@@ -795,6 +805,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IAgentHostCustomizationService private readonly _customizationService: IAgentHostCustomizationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._config = config;
@@ -1534,7 +1545,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * Diffs the chat model's pending requests against the protocol state in
 	 * `_clientState` and dispatches Set/Removed/Reordered actions as needed.
 	 */
-	private _syncPendingMessages(sessionResource: URI, backendSession: URI): void {
+	private async _syncPendingMessages(sessionResource: URI, backendSession: URI): Promise<void> {
 		const chatModel = this._chatService.getSession(sessionResource);
 		if (!chatModel) {
 			return;
@@ -1552,7 +1563,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const currentQueued: IPendingSnapshot[] = [];
 		for (const p of pending) {
 			const variables = p.request.variableData?.variables ?? [];
-			const messageAttachments = this._variableEntriesToAttachments(variables, sessionResource, p.request.message.text);
+			const messageAttachments = await this._variableEntriesToAttachments(variables, sessionResource, p.request.message.text, true);
 			const attachments = messageAttachments.length > 0 ? messageAttachments : undefined;
 			const snapshot: IPendingSnapshot = { id: p.request.id, message: userOriginMessage(p.request.message.text, attachments) };
 			if (p.kind === ChatRequestQueueKind.Steering) {
@@ -4129,9 +4140,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._applyRemotePendingMessages(sessionResource, backendSession);
 
 			store.add(chatModel.onDidChangePendingRequests(() => {
-				this._syncPendingMessages(sessionResource, backendSession);
+				this._queuePendingMessageSync(sessionResource, backendSession);
 			}));
-			this._syncPendingMessages(sessionResource, backendSession);
+			this._queuePendingMessageSync(sessionResource, backendSession);
 
 			const sessionStr = backendSession.toString();
 			const chatURI = this._chatURIsBySessionResource.get(sessionResource);
@@ -4150,6 +4161,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
 			this._ensurePendingMessageSubscription(sessionResource, backendSession);
 		}));
+	}
+
+	/**
+	 * Schedules a pending-message sync through {@link _pendingSyncThrottler} so
+	 * that rapid changes for the same session are serialized and coalesced (the
+	 * latest run wins), avoiding interleaved dispatches now that the sync awaits
+	 * image-hydration I/O.
+	 */
+	private _queuePendingMessageSync(sessionResource: URI, backendSession: URI): void {
+		this._pendingSyncThrottler.queue(sessionResource.toString(), () => this._syncPendingMessages(sessionResource, backendSession))
+			.catch(err => this._logService.error(`[AgentHost] Failed to sync pending messages: ${sessionResource.toString()}`, err));
 	}
 
 	private _ensureDraftSyncSubscription(sessionResource: URI, backendSession: URI, chatKey: string): void {
@@ -4199,8 +4221,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let lastDraft = this._getSessionState(backendSession.toString(), chatKey)?.draft;
 		store.add(autorun(reader => {
 			const state = inputModel.state.read(reader);
-			delayer.trigger(() => {
-				const draft = this._inputStateToDraft(sessionResource, state);
+			delayer.trigger(async () => {
+				const draft = await this._inputStateToDraft(sessionResource, state);
 				if (equals(lastDraft, draft)) {
 					return;
 				}
@@ -4214,13 +4236,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 	}
 
-	private _inputStateToDraft(sessionResource: URI, state: IChatModelInputState | undefined): Message | undefined {
+	private async _inputStateToDraft(sessionResource: URI, state: IChatModelInputState | undefined): Promise<Message | undefined> {
 		if (!state) {
 			return undefined;
 		}
 		const model = this._createModelSelection(state.selectedModel?.identifier, state.modelConfiguration);
 		const agentUri = state.mode.kind === ChatModeKind.Agent && state.mode.id !== ChatMode.Agent.id ? state.mode.id : undefined;
-		const attachments = this._variableEntriesToAttachments(state.attachments, sessionResource, state.inputText);
+		const attachments = await this._variableEntriesToAttachments(state.attachments, sessionResource, state.inputText);
 		if (!state.inputText && !model && !agentUri && attachments.length === 0) {
 			return undefined;
 		}
@@ -4408,10 +4430,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return !!await this._workspaceTrustRequestService.requestResourcesTrust({ uri: workingDirectory, message });
 	}
 
-	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {
-		const attachments = this._variableEntriesToAttachments(request.variables.variables, request.sessionResource, request.message);
+	private async _convertVariablesToAttachments(request: IChatAgentRequest): Promise<MessageAttachment[]> {
+		const attachments = await this._variableEntriesToAttachments(request.variables.variables, request.sessionResource, request.message, true);
 		const explicitCount = attachments.length;
-		this._appendActiveEditorAttachments(attachments, request);
+		await this._appendActiveEditorAttachments(attachments, request, true);
 		if (attachments.length !== explicitCount) {
 			this._logService.trace(`[AgentHost] Forwarded ${attachments.length - explicitCount} active editor attachment(s); ${attachments.length} total`);
 		}
@@ -4424,7 +4446,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * {@link ChatConfiguration.ImplicitContextActiveEditor} (on by default, off in the Agents window).
 	 * Unsaved handling lives in {@link _convertVariableToAttachment}.
 	 */
-	private _appendActiveEditorAttachments(attachments: MessageAttachment[], request: IChatAgentRequest): void {
+	private async _appendActiveEditorAttachments(attachments: MessageAttachment[], request: IChatAgentRequest, hydrateImageBytes: boolean = false): Promise<void> {
 		if (!this._configurationService.getValue<boolean>(ChatConfiguration.ImplicitContextActiveEditor)) {
 			return;
 		}
@@ -4460,7 +4482,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 				existingKeys.add(key);
 			}
-			const attachment = this._convertVariableToAttachment(entry, request.sessionResource, request.message);
+			const attachment = await this._convertVariableToAttachment(entry, request.sessionResource, request.message, hydrateImageBytes);
 			if (!Array.isArray(attachment) && attachment) {
 				attachments.push(attachment);
 			}
@@ -4575,10 +4597,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return isSelectionEntry ? value as Location : undefined;
 	}
 
-	private _variableEntriesToAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI, messageText?: string): MessageAttachment[] {
+	private async _variableEntriesToAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI, messageText?: string, hydrateImageBytes: boolean = false): Promise<MessageAttachment[]> {
 		const attachments: MessageAttachment[] = [];
 		for (const v of variables) {
-			const attachment = this._convertVariableToAttachment(v, sessionResource, messageText);
+			const attachment = await this._convertVariableToAttachment(v, sessionResource, messageText, hydrateImageBytes);
 			if (Array.isArray(attachment)) {
 				attachments.push(...attachment);
 			} else if (attachment) {
@@ -4591,7 +4613,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return attachments;
 	}
 
-	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI, messageText?: string): MessageAttachment | MessageAttachment[] | undefined {
+	private async _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI, messageText?: string, hydrateImageBytes: boolean = false): Promise<MessageAttachment | MessageAttachment[] | undefined> {
 		const referenceRange = this._toAttachmentReferenceRange(messageText, v.range);
 		// Copilot CLI and Codex can't read unsaved content from disk, so inline the live buffer; drop unreadable schemes.
 		if ((v.kind === 'file' || v.kind === 'implicit') && this._backendInlinesUnsavedEditors()) {
@@ -4627,10 +4649,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (v.kind === 'promptFile' && v.value instanceof URI) {
 			return this._toResourceAttachment(v.value, v.name, 'document', sessionResource, v._meta, referenceRange);
 		}
-		// Image: send inline as base64 when we have the bytes; otherwise fall
-		// back to a file resource reference.
+		// Image: send inline as base64 when we have the bytes; when hydrating a
+		// model-facing conversion, read a uri-only reference into bytes; otherwise
+		// fall back to a file resource reference.
 		if (isImageVariableEntry(v)) {
-			return this._toImageAttachment(v, sessionResource, referenceRange);
+			return this._toImageAttachment(v, sessionResource, referenceRange, hydrateImageBytes);
 		}
 		if (isAgentFeedbackVariableEntry(v)) {
 			return this._toAgentFeedbackAttachment(v);
@@ -4751,7 +4774,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return attachment;
 	}
 
-	private _toImageAttachment(v: IImageVariableEntry, sessionResource: URI, range?: MessageAttachment['range']): MessageAttachment | undefined {
+	private async _toImageAttachment(v: IImageVariableEntry, sessionResource: URI, range?: MessageAttachment['range'], hydrateImageBytes: boolean = false): Promise<MessageAttachment | undefined> {
 		const buffer = coerceImageBuffer(v.value);
 		const contentType = v.mimeType ?? 'image/png';
 		if (buffer) {
@@ -4770,9 +4793,34 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			return attachment;
 		}
-		// No inline bytes — fall back to a file reference if one is available.
+		// No inline bytes. For model-facing conversions, hydrate the referenced
+		// file into embedded bytes so the agent can actually see the image;
+		// otherwise (e.g. draft sync) fall back to a lightweight file reference.
 		const refUri = v.references?.find(r => URI.isUri(r.reference))?.reference;
 		if (URI.isUri(refUri)) {
+			if (hydrateImageBytes) {
+				try {
+					// Read the original (non-rebased) URI; the registered
+					// vscode-agent-host file system provider handles remote reads.
+					const content = await this._fileService.readFile(refUri);
+					const attachment: MessageAttachment = {
+						type: MessageAttachmentKind.EmbeddedResource,
+						label: v.name,
+						displayKind: 'image',
+						data: encodeBase64(content.value),
+						contentType,
+					};
+					if (range) {
+						attachment.range = range;
+					}
+					if (v._meta) {
+						attachment._meta = v._meta;
+					}
+					return attachment;
+				} catch (err) {
+					this._logService.trace(`[AgentHost] Failed to hydrate image bytes for ${refUri.toString()}; falling back to resource reference: ${err}`);
+				}
+			}
 			return this._toResourceAttachment(refUri, v.name, 'image', sessionResource, v._meta, range);
 		}
 		return undefined;
