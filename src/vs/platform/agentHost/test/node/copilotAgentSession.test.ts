@@ -5941,7 +5941,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(await responsePromise, { approved: false });
 		});
 
-		test('abort rejects and clears a pending plan review', async () => {
+		test('abort resolves and clears a pending plan review', async () => {
 			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
 			session.resetTurnState('turn-plan');
 
@@ -5949,11 +5949,12 @@ suite('CopilotAgentSession', () => {
 			const request = getInputRequest(await waitForSignal(s => isAction(s, ActionType.ChatInputRequested)));
 
 			await session.abort();
+			const lateResponseHandled = session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept);
 
 			assert.deepStrictEqual({
 				response: await responsePromise,
 				abortCalls: mockSession.abortCalls,
-				lateResponseHandled: session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept),
+				lateResponseHandled,
 			}, {
 				response: { approved: false },
 				abortCalls: 1,
