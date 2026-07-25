@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { GlobalExtensionEnablementService } from '../../../../platform/extensionManagement/common/extensionEnablementService.js';
@@ -178,7 +179,11 @@ export class ExtensionsResource implements IProfileResource {
 								return;
 							}
 							progress?.(localize('installingExtension', "Installing extension {0}...", installExtensionInfo.extension.displayName ?? installExtensionInfo.extension.identifier.id));
-							await this.extensionManagementService.installFromGallery(installExtensionInfo.extension, installExtensionInfo.options);
+							try {
+								await this.extensionManagementService.installFromGallery(installExtensionInfo.extension, installExtensionInfo.options);
+							} catch (error) {
+								this.logService.error(`Importing Profile (${profile.name}): Failed to install extension.`, installExtensionInfo.extension.identifier.id, getErrorMessage(error));
+							}
 						}
 					} else {
 						await this.extensionManagementService.installGalleryExtensions(installExtensionInfos);
