@@ -14,7 +14,7 @@ import { Registry } from '../../registry/common/platform.js';
 /** @internal Only the enablement service may read this configuration value at runtime. */
 const agentHostEnabledSettingId = 'chat.agentHost.enabled';
 
-/** Context key set by {@link IAgentHostEnablementService}. Use in `when` clauses to gate UI on whether Agent Host features are enabled. */
+/** Context key set by {@link IAgentHostEnablementService}. Use in `when` clauses to gate UI on Agent Host enablement, including `chat.disableAIFeatures`. */
 export const AGENT_HOST_ENABLED_CONTEXT_KEY = new RawContextKey<boolean>('agentHostEnabled', false, { type: 'boolean', description: nls.localize('agentHostEnabled', "Whether Agent Host features are enabled.") });
 
 export const IAgentHostEnablementService = createDecorator<IAgentHostEnablementService>('agentHostEnablementService');
@@ -23,7 +23,7 @@ export interface IAgentHostEnablementService {
 	readonly _serviceBrand: undefined;
 	/**
 	 * Whether Agent Host features are enabled in this runtime.
-	 * Requires `chat.agentHost.enabled`, a non-web runtime, and enabled AI features. This value is fixed at startup and never changes.
+	 * Requires `chat.agentHost.enabled === true`, a non-web runtime, and `chat.disableAIFeatures !== true`. This value is fixed at startup.
 	 */
 	readonly enabled: boolean;
 }

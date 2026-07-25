@@ -63,7 +63,7 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 	) {
 		super();
 		this.enabled = !isWeb
-			&& (configurationService.getValue<boolean>(agentHostEnabledSettingId) ?? false)
+			&& configurationService.getValue<boolean>(agentHostEnabledSettingId) === true
 			&& configurationService.getValue<boolean>(aiFeaturesDisabledSettingId) !== true;
 		AGENT_HOST_ENABLED_CONTEXT_KEY.bindTo(contextKeyService).set(this.enabled);
 	}
