@@ -192,16 +192,35 @@ body {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
 	width: calc(100vw - 2 * var(--vscode-spacing-size160, 16px));
+	border-radius: var(--vscode-cornerRadius-large, 8px);
 }
 
 .md-plan-review-toolbar.narrow .md-plan-review-overall-feedback {
 	grid-column: 1 / -1;
 	width: 100%;
 	min-width: 0;
+	border-radius: var(--vscode-cornerRadius-small, 4px);
 }
 
 .md-plan-review-toolbar.narrow .md-plan-review-primary-group {
 	width: 100%;
 	min-width: 0;
 	max-width: none;
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+}
+
+.md-plan-review-toolbar.narrow .md-plan-review-primary-action {
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+}
+
+.md-plan-review-toolbar.narrow .md-plan-review-primary-group.has-dropdown .md-plan-review-primary-action {
+	border-radius: var(--vscode-cornerRadius-small, 4px) 0 0 var(--vscode-cornerRadius-small, 4px);
+}
+
+.md-plan-review-toolbar.narrow .md-plan-review-action-toggle {
+	border-radius: 0 var(--vscode-cornerRadius-small, 4px) var(--vscode-cornerRadius-small, 4px) 0;
+}
+
+.md-plan-review-toolbar.narrow .md-plan-review-reject-action {
+	border-radius: var(--vscode-cornerRadius-small, 4px);
 }
