@@ -59,8 +59,8 @@ body {
 }
 
 .md-plan-review-overall-feedback {
-	flex: 0 2 180px;
-	width: 180px;
+	flex: 0 2 240px;
+	width: 240px;
 	min-width: 100px;
 	padding: 0 var(--vscode-spacing-size100, 10px);
 	background: transparent;
@@ -181,7 +181,7 @@ body {
 }
 
 .md-plan-review-toolbar.compact .md-plan-review-overall-feedback {
-	flex-basis: 140px;
+	flex-basis: 180px;
 }
 
 .md-plan-review-toolbar.compact .md-plan-review-primary-group {
