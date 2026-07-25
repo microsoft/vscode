@@ -130,24 +130,14 @@ function computeOutputLineCount(startLine: number, endLine: number): number {
 export function computeSnapshotLineCount(buffer: {
 	readonly baseY: number;
 	readonly cursorY: number;
-	getLine(y: number): { readonly length: number; getCell(x: number): { getChars(): string } | undefined } | undefined;
+	getLine(y: number): { translateToString(trimRight?: boolean): string } | undefined;
 }, lineCount?: number): number {
 	if (lineCount !== undefined) {
 		return lineCount;
 	}
 
 	const cursorLineIndex = buffer.baseY + buffer.cursorY;
-	const cursorLine = buffer.getLine(cursorLineIndex);
-	let hasCursorLineContent = false;
-	if (cursorLine) {
-		for (let x = 0; x < cursorLine.length; x++) {
-			if (cursorLine.getCell(x)?.getChars()) {
-				hasCursorLineContent = true;
-				break;
-			}
-		}
-	}
-
+	const hasCursorLineContent = !!buffer.getLine(cursorLineIndex)?.translateToString(true);
 	const endLine = cursorLineIndex + (hasCursorLineContent ? 1 : 0);
 	return computeOutputLineCount(0, endLine);
 }
