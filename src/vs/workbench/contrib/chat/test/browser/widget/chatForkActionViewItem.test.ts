@@ -44,18 +44,22 @@ suite('ChatForkActionViewItem', () => {
 		const runPromise = actionRunner.run(action);
 		const label = container.querySelector<HTMLElement>('.action-label');
 		const icon = label?.querySelector<HTMLElement>('.chat-fork-action-icon');
+		assert.ok(label);
+		assert.ok(icon);
 
 		assert.deepStrictEqual({
 			during: {
-				buttonSpinning: label?.classList.contains('codicon-modifier-spin'),
-				forkIcon: icon?.classList.contains(forkIconClass),
-				loadingIcon: icon?.classList.contains(loadingIconClass),
-				iconSpinning: icon?.classList.contains('codicon-modifier-spin'),
-				busy: label?.getAttribute('aria-busy'),
-				label: label?.getAttribute('aria-label'),
+				buttonCodicon: label.classList.contains('codicon'),
+				buttonSpinning: label.classList.contains('codicon-modifier-spin'),
+				forkIcon: icon.classList.contains(forkIconClass),
+				loadingIcon: icon.classList.contains(loadingIconClass),
+				iconSpinning: icon.classList.contains('codicon-modifier-spin'),
+				busy: label.getAttribute('aria-busy'),
+				label: label.getAttribute('aria-label'),
 			},
 		}, {
 			during: {
+				buttonCodicon: true,
 				buttonSpinning: false,
 				forkIcon: false,
 				loadingIcon: true,
@@ -69,13 +73,15 @@ suite('ChatForkActionViewItem', () => {
 		await runPromise;
 
 		assert.deepStrictEqual({
-			buttonSpinning: label?.classList.contains('codicon-modifier-spin'),
-			forkIcon: icon?.classList.contains(forkIconClass),
-			loadingIcon: icon?.classList.contains(loadingIconClass),
-			iconSpinning: icon?.classList.contains('codicon-modifier-spin'),
-			busy: label?.getAttribute('aria-busy'),
-			label: label?.getAttribute('aria-label'),
+			buttonCodicon: label.classList.contains('codicon'),
+			buttonSpinning: label.classList.contains('codicon-modifier-spin'),
+			forkIcon: icon.classList.contains(forkIconClass),
+			loadingIcon: icon.classList.contains(loadingIconClass),
+			iconSpinning: icon.classList.contains('codicon-modifier-spin'),
+			busy: label.getAttribute('aria-busy'),
+			label: label.getAttribute('aria-label'),
 		}, {
+			buttonCodicon: true,
 			buttonSpinning: false,
 			forkIcon: true,
 			loadingIcon: false,

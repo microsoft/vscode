@@ -13,6 +13,7 @@ import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/
 
 const forkIconClasses = ThemeIcon.asClassNameArray(Codicon.repoForked);
 const spinnerIconClasses = ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin'));
+const labelIconClasses = [...new Set([...forkIconClasses, ...spinnerIconClasses])].filter(className => className !== 'codicon');
 
 export class ChatForkActionViewItem extends CodiconActionViewItem {
 
@@ -46,11 +47,6 @@ export class ChatForkActionViewItem extends CodiconActionViewItem {
 		return this.running
 			? localize('chat.forkConversation.running', "Forking conversation")
 			: super.getTooltip();
-	}
-
-	protected override updateAriaLabel(): void {
-		super.updateAriaLabel();
-		this.label?.setAttribute('aria-label', this.getTooltip());
 	}
 
 	protected override updateClass(): void {
@@ -96,7 +92,7 @@ export class ChatForkActionViewItem extends CodiconActionViewItem {
 			return;
 		}
 
-		this.label.classList.remove(...forkIconClasses, ...spinnerIconClasses);
+		this.label.classList.remove(...labelIconClasses);
 		this.icon.classList.remove(...forkIconClasses, ...spinnerIconClasses);
 		this.icon.classList.add(...(this.running ? spinnerIconClasses : forkIconClasses));
 	}
