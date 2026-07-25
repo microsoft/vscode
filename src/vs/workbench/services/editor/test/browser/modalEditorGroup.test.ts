@@ -22,6 +22,8 @@ import { EditorService } from '../../browser/editorService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { Memento } from '../../../../common/memento.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { EditorPartModalVisibleContext } from '../../../../common/contextkeys.js';
 
 suite('Modal Editor Group', () => {
 
@@ -416,17 +418,36 @@ suite('Modal Editor Group', () => {
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 		const parts = await createEditorParts(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, parts);
+		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
 
 		// No modal initially
-		assert.strictEqual(parts.activeModalEditorPart, undefined);
+		assert.deepStrictEqual({
+			activeModalEditorPart: parts.activeModalEditorPart,
+			modalEditorVisible: EditorPartModalVisibleContext.getValue(contextKeyService),
+		}, {
+			activeModalEditorPart: undefined,
+			modalEditorVisible: false,
+		});
 
 		// Create modal
 		const modalPart = await parts.createModalEditorPart();
-		assert.strictEqual(parts.activeModalEditorPart, modalPart);
+		assert.deepStrictEqual({
+			activeModalEditorPart: parts.activeModalEditorPart,
+			modalEditorVisible: EditorPartModalVisibleContext.getValue(contextKeyService),
+		}, {
+			activeModalEditorPart: modalPart,
+			modalEditorVisible: true,
+		});
 
 		// Close modal
 		await modalPart.close();
-		assert.strictEqual(parts.activeModalEditorPart, undefined);
+		assert.deepStrictEqual({
+			activeModalEditorPart: parts.activeModalEditorPart,
+			modalEditorVisible: EditorPartModalVisibleContext.getValue(contextKeyService),
+		}, {
+			activeModalEditorPart: undefined,
+			modalEditorVisible: false,
+		});
 	});
 
 	test('findGroup returns main part group when modal is active and preferredGroup is not MODAL_GROUP', async () => {

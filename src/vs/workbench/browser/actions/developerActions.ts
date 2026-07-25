@@ -46,13 +46,15 @@ import { IDefaultAccountService } from '../../../platform/defaultAccount/common/
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService } from '../../../platform/policy/common/policy.js';
-import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingResolution, MANAGED_SETTINGS_CHANNELS, ManagedSettingsChannel, ManagedSettingsSource, projectManagedSettings, pickManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingResolution, MANAGED_SETTINGS_CHANNELS, ManagedSettingsChannel, ManagedSettingsSource, normalizeManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingPolicyDefinition, ManagedSettingValue, ManagedSettingsData } from '../../../base/common/policy.js';
 import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 import { adaptManagedSettings, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
 import { isObject } from '../../../base/common/types.js';
 import * as json from '../../../base/common/json.js';
 import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
+import { IAgentHostService } from '../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../platform/agentHost/common/agentHostEnablementService.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -696,6 +698,16 @@ function jsonBlock(value: unknown): string {
 	return '```json\n' + JSON.stringify(value ?? {}, null, 2) + '\n```\n\n';
 }
 
+function managedSettingsPipeline(rawLabel: string, raw: unknown | undefined, normalized: ManagedSettingsData, projected: ManagedSettingsData, rawUnavailableMessage?: string): string {
+	let content = `**${rawLabel}**\n\n`;
+	content += raw === undefined ? `*${rawUnavailableMessage ?? 'Unavailable'}*\n\n` : jsonBlock(raw);
+	content += '**Normalized bag**\n\n';
+	content += jsonBlock(normalized);
+	content += '**VS Code policy projection**\n\n';
+	content += jsonBlock(projected);
+	return content;
+}
+
 /** Render a managed-settings value for a Markdown table cell: compact JSON with pipes escaped, or a dash when absent. */
 function managedValueCell(value: ManagedSettingValue | undefined): string {
 	if (value === undefined) {
@@ -727,6 +739,8 @@ class PolicyDiagnosticsAction extends Action2 {
 		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
 		const policyService = accessor.get(IPolicyService);
 		const accountPolicyGateService = accessor.get(IAccountPolicyGateService);
+		const agentHostService = accessor.get(IAgentHostService);
+		const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
 		// Native MDM is a desktop-only channel, registered in the renderer service collection on
 		// desktop and Agents windows but absent in web. Resolve it now, synchronously, because the
 		// accessor is only valid before the first `await` below.
@@ -844,10 +858,19 @@ class PolicyDiagnosticsAction extends Action2 {
 		const activeManagedSettingSources = new Map<string, ManagedSettingsChannel>();
 		try {
 			const policyData = defaultAccountService.policyData;
-			const serverManagedSettings = policyData?.managedSettings;
+			const serverManagedSettings = policyData?.managedSettings ?? {};
 
-			const nativeManagedSettings: ManagedSettingsData | undefined = nativeManagedSettingsService?.managedSettings;
-			const fileManagedSettings: ManagedSettingsData | undefined = fileManagedSettingsService?.managedSettings;
+			const nativeManagedSettings = nativeManagedSettingsService?.managedSettings ?? {};
+			const fileManagedSettings = fileManagedSettingsService?.managedSettings ?? {};
+			const fileRawManagedSettings = fileManagedSettingsService?.rawManagedSettings;
+
+			const declaredDefinitions: Record<string, IManagedSettingPolicyDefinition> = {};
+			for (const property of [...Object.values(configurationRegistry.getConfigurationProperties()), ...Object.values(configurationRegistry.getExcludedConfigurationProperties())]) {
+				const declared = property.policy?.managedSettings;
+				if (declared) {
+					Object.assign(declaredDefinitions, declared);
+				}
+			}
 
 			// Reuse the exact per-key resolution that policy evaluation applies so this report can
 			// never drift from what AccountPolicyService actually enforces.
@@ -860,9 +883,22 @@ class PolicyDiagnosticsAction extends Action2 {
 			// (adapt, projection, JSON payload) so the report explains *why* a key was dropped.
 			// jsonc-style: accumulate every error instead of failing on the first.
 			const parseErrors: { stage: string; message: string }[] = [];
+			const projectChannel = (channel: ManagedSettingsChannel, values: ManagedSettingsData): ManagedSettingsData => projectManagedSettings(
+				values,
+				declaredDefinitions,
+				message => parseErrors.push({ stage: `${channel}: project`, message })
+			);
 
 			// Whether a channel supplied at least one *winning* key in the per-key resolution.
 			const channelContributes = (channel: ManagedSettingsChannel) => pick.activeSources.includes(channel);
+			const nativeProjected = projectChannel('nativeMdm', nativeManagedSettings);
+			const serverProjected = projectChannel('server', serverManagedSettings);
+			const fileProjected = projectChannel('file', fileManagedSettings);
+			const effective = projectManagedSettings(pick.values, declaredDefinitions, message => parseErrors.push({ stage: 'effective: project', message }));
+
+			content += '### VS Code Managed-Settings Schema\n\n';
+			content += '*Only keys declared here can reach VS Code policy callbacks. Runtime-owned keys may still be enforced by the Copilot runtime even when absent from the projections below.*\n\n';
+			content += jsonBlock(declaredDefinitions);
 
 			// Sections are listed in precedence order (highest first): native MDM wins over the
 			// server endpoint, which in turn wins over the file on disk.
@@ -871,7 +907,8 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += `| Available | ${nativeManagedSettingsService ? 'yes' : 'no'} |\n`;
 			content += `| Contributes winning keys | ${channelContributes('nativeMdm') ? 'yes' : 'no'} |\n\n`;
 			if (nativeManagedSettingsService) {
-				content += jsonBlock(nativeManagedSettings);
+				content += '*The native policy watcher exposes only declared scalar keys, so its source values are already definition-scoped and canonical.*\n\n';
+				content += managedSettingsPipeline('Source values (definition-scoped)', nativeManagedSettings, nativeManagedSettings, nativeProjected);
 			}
 
 			content += '### GitHub Server API\n\n';
@@ -886,24 +923,34 @@ class PolicyDiagnosticsAction extends Action2 {
 			const rawResponse = defaultAccountService.managedSettingsRawResponse;
 			if (isObject(rawResponse)) {
 				adaptManagedSettings(rawResponse as IManagedSettingsResponse, message => parseErrors.push({ stage: 'adapt', message }));
-				content += '**Raw response** (last successful fetch)\n\n';
-				content += jsonBlock(rawResponse);
 			}
-
-			content += '**Normalized bag**\n\n';
-			content += jsonBlock(serverManagedSettings);
+			content += managedSettingsPipeline(
+				'Raw response (last successful fetch)',
+				isObject(rawResponse) ? rawResponse : undefined,
+				serverManagedSettings,
+				serverProjected,
+				'No successful managed-settings response has been captured.'
+			);
 
 			content += '### File (managed-settings.json)\n\n';
 			content += PROPERTY_VALUE_TABLE_HEADER;
 			content += `| Available | ${fileManagedSettingsService ? 'yes' : 'no'} |\n`;
 			content += `| Contributes winning keys | ${channelContributes('file') ? 'yes' : 'no'} |\n\n`;
 			if (fileManagedSettingsService) {
-				content += jsonBlock(fileManagedSettings);
+				if (fileRawManagedSettings) {
+					normalizeManagedSettings(fileRawManagedSettings, message => parseErrors.push({ stage: 'file: normalize', message }));
+				}
+				content += managedSettingsPipeline('Raw parsed file', fileRawManagedSettings, fileManagedSettings, fileProjected);
 			}
 
 			// Per-key resolution: what each channel supplied, which won, and (struck through) which
 			// were overridden — the authoritative "what came from where, what's effective, and why".
-			content += '### Resolution (per key)\n\n';
+			content += '### Effective Resolution\n\n';
+			content += '**Merged normalized bag**\n\n';
+			content += jsonBlock(pick.values);
+			content += '**Effective VS Code policy bag**\n\n';
+			content += jsonBlock(effective);
+			content += '**Per-key precedence**\n\n';
 			if (pick.resolutions.size > 0) {
 				content += '| Key | Effective | Winning Source | Native MDM | Server | File |\n';
 				content += '|-----|-----------|----------------|------------|--------|------|\n';
@@ -926,16 +973,28 @@ class PolicyDiagnosticsAction extends Action2 {
 				content += '*No managed-settings keys are supplied by any channel.*\n\n';
 			}
 
-			// Mirror AccountPolicyService: project the merged bag onto the keys declared by policies
-			// so the report shows exactly what reaches `policy.value(...)`.
-			const declaredDefinitions: Record<string, IManagedSettingPolicyDefinition> = {};
-			for (const property of [...Object.values(configurationRegistry.getConfigurationProperties()), ...Object.values(configurationRegistry.getExcludedConfigurationProperties())]) {
-				const declared = property.policy?.managedSettings;
-				if (declared) {
-					Object.assign(declaredDefinitions, declared);
+			content += '### Agent Runtime Resolution\n\n';
+			content += '*Resolved independently by each provider through its own SDK/runtime. This may include runtime-owned keys that VS Code does not declare as configuration policies.*\n\n';
+			if (!agentHostEnablementService.enabled) {
+				content += '*Agent Host is disabled; runtime managed-settings diagnostics were not queried.*\n\n';
+			} else {
+				try {
+					const runtimeDiagnostics = await agentHostService.getManagedSettingsDiagnostics();
+					if (runtimeDiagnostics.length === 0) {
+						content += '*No agent provider exposes managed-settings diagnostics.*\n\n';
+					}
+					for (const diagnostic of runtimeDiagnostics) {
+						content += `#### ${diagnostic.provider}\n\n`;
+						if (diagnostic.error) {
+							content += `*Probe failed: ${diagnostic.error}*\n\n`;
+						} else {
+							content += jsonBlock(diagnostic.snapshot);
+						}
+					}
+				} catch (error) {
+					content += `*Agent runtime diagnostics unavailable: ${error}*\n\n`;
 				}
 			}
-			const effective = projectManagedSettings(pick.values, declaredDefinitions, message => parseErrors.push({ stage: 'project', message }));
 
 			// Remember which managed-settings keys actually reached policy evaluation, and from which
 			// channel won each, so the Policy-Controlled Settings table can attribute them accurately.
@@ -961,10 +1020,7 @@ class PolicyDiagnosticsAction extends Action2 {
 				}
 			}
 
-			content += '### Effective\n\n';
-			content += jsonBlock(effective);
-
-			content += `### Parse Errors (${parseErrors.length})\n\n`;
+			content += `### Normalization and Parse Issues (${parseErrors.length})\n\n`;
 			if (parseErrors.length > 0) {
 				content += '| Stage | Message |\n';
 				content += '|-------|---------|\n';
@@ -972,6 +1028,8 @@ class PolicyDiagnosticsAction extends Action2 {
 					content += `| ${stage} | ${message.replace(/\|/g, '\\|')} |\n`;
 				}
 				content += '\n';
+			} else {
+				content += '*None.*\n\n';
 			}
 		} catch (error) {
 			content += `*Error rendering managed settings diagnostics: ${error}*\n\n`;

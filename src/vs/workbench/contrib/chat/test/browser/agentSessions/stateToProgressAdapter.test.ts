@@ -14,7 +14,7 @@ import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/age
 import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -302,6 +302,48 @@ suite('stateToProgressAdapter', () => {
 			assertInputOutputDetails(details);
 			assert.strictEqual(details.isError, true);
 			assert.deepStrictEqual(details.output, [{ type: 'embed', value: 'request timed out', isText: true, mimeType: 'text/plain' }]);
+		});
+
+		test('failed MCP App tool call in history remains confirmed', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						toolName: 'GitHub-create_pull_request',
+						toolInput: '{"owner":"microsoft","repo":"vscode"}',
+						success: false,
+						error: { message: 'The pull request form is awaiting submission.' },
+						contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'github-customization' },
+						_meta: {
+							ui: {
+								resourceUri: 'ui://github-mcp-server/pr-write',
+								channel: 'mcp://copilot/session/GitHub',
+							},
+						},
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.deepStrictEqual({
+				isConfirmed: serialized.isConfirmed,
+				toolSpecificData: serialized.toolSpecificData,
+			}, {
+				isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+				toolSpecificData: {
+					kind: 'input',
+					rawInput: { owner: 'microsoft', repo: 'vscode' },
+					mcpAppData: {
+						kind: 'agentHost',
+						resourceUri: 'ui://github-mcp-server/pr-write',
+						serverId: 'github-customization',
+						channel: 'mcp://copilot/session/GitHub',
+					},
+				},
+			});
 		});
 
 		test('generic completed tool call maps embedded resources and resource refs', () => {
@@ -800,6 +842,45 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolCallId, 'tc-42');
 			assert.strictEqual(invocation.toolId, 'my_tool');
 			assert.strictEqual(invocation.source, ToolDataSource.Internal);
+		});
+
+		test('attaches automation result data to live and restored configureAutomation calls', () => {
+			const content: ToolResultContent[] = [{
+				type: ToolResultContentType.Text,
+				text: JSON.stringify({
+					status: 'created',
+					automation: { id: 'automation-1', name: 'Morning review' },
+				}),
+			}];
+			const completed = createCompletedToolCall({
+				toolCallId: 'automation-call',
+				toolName: 'configureAutomation',
+				content,
+			});
+			const restored = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+			const live = toolCallStateToInvocation(createToolCallState({
+				toolCallId: 'automation-call',
+				toolName: 'configureAutomation',
+			}));
+			finalizeToolInvocation(live, completed);
+
+			assert.deepStrictEqual({
+				restored: restored.toolSpecificData,
+				live: live.toolSpecificData,
+			}, {
+				restored: {
+					kind: 'automationConfigured',
+					automationId: 'automation-1',
+					automationName: 'Morning review',
+					operation: 'created',
+				},
+				live: {
+					kind: 'automationConfigured',
+					automationId: 'automation-1',
+					automationName: 'Morning review',
+					operation: 'created',
+				},
+			});
 		});
 
 		test('represents another client tool without surfacing its confirmation', () => {

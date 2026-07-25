@@ -53,6 +53,38 @@ suite('ToolSetsContribution', () => {
 		);
 	});
 
+	test('ClientToolSetsContribution exposes Automations only in the Sessions window', () => {
+		const makeTool = (name: string): IToolData => ({
+			id: name,
+			modelDescription: name,
+			displayName: name,
+			toolReferenceName: name,
+			source: ToolDataSource.Internal,
+		});
+		const createContribution = (isSessionsWindow: boolean) => {
+			const toolsService = createToolsService();
+			for (const tool of ['listAutomations', 'configureAutomation', 'deleteAutomation'].map(makeTool)) {
+				store.add(toolsService.registerToolData(tool));
+			}
+			const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = isSessionsWindow;
+			}();
+			store.add(new ClientToolSetsContribution(toolsService, workspaceService));
+			return toolsService;
+		};
+
+		const sessionsToolsService = createContribution(true);
+		const coreToolsService = createContribution(false);
+
+		assert.deepStrictEqual({
+			sessionsMembers: Array.from(sessionsToolsService.getToolSet('vscode-automations')?.getTools() ?? [], tool => tool.toolReferenceName),
+			coreHasSet: !!coreToolsService.getToolSet('vscode-automations'),
+		}, {
+			sessionsMembers: ['listAutomations', 'configureAutomation', 'deleteAutomation'],
+			coreHasSet: false,
+		});
+	});
+
 	test('getEnabledSelectionReferences keeps enabled tool set references and drops covered tools', () => {
 		const toolsService = createToolsService();
 

@@ -1829,4 +1829,3 @@ suite('CopilotChatSessionsProvider', () => {
 		);
 	});
 });
-

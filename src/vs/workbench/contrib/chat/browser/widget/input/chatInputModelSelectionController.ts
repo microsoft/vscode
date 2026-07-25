@@ -346,12 +346,15 @@ export class ChatInputModelSelectionController extends Disposable {
 		initialize();
 		const restoredModel = this._currentModel.get();
 		const sessionType = this._runtime.getCurrentSessionType();
-		if (restoredModel && isModelValidForSession(restoredModel, this._runtime.getAllModels(), sessionType)) {
+		const models = this._runtime.getModels(sessionType);
+		if (restoredModel && models.some(model => model.identifier === restoredModel.identifier)) {
 			return;
 		}
-		const match = findBestMatchingModel(previousModel, this._runtime.getModels(sessionType));
+		const match = findBestMatchingModel(previousModel, models);
 		if (match) {
 			this._applyModel(match);
+		} else if (models.length === 0) {
+			this._currentModel.set(undefined, undefined);
 		} else {
 			this.selectDefault(sessionType);
 		}
@@ -444,13 +447,7 @@ export class ChatInputModelSelectionController extends Disposable {
 				this._selectionReason = ModelSelectionReason.FirstAvailable;
 				this._applyModel(replacement);
 				this.ensureCurrentModelSupported();
-				if (this._runtime.resolveModelIdentifier(intent.modelId).kind !== 'pending') {
-					this._intent = undefined;
-				}
 				return true;
-			}
-			if (this._runtime.resolveModelIdentifier(intent.modelId).kind !== 'pending') {
-				this._intent = undefined;
 			}
 			return false;
 		}
