@@ -31,7 +31,7 @@ import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, IWorkspaceFolde
 import { AutomationsListWidget } from '../../../browser/aiCustomization/automationsListWidget.js';
 import { IAutomation, IAutomationRun, IAutomationSchedule, AutomationRunTrigger, AutomationTarget } from '../../../common/automations/automation.js';
 import { IAutomationRunner, IAutomationRunOperation } from '../../../common/automations/automationRunner.js';
-import { IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../common/automations/automationService.js';
+import { IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../common/automations/automationService.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../common/automations/automationDialogService.js';
 
 const FOLDER = URI.parse('file:///workspace');
@@ -119,6 +119,14 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		});
 		this._automations.set(this._automations.get().map(a => a.id === id ? updated : a), undefined);
 		return updated;
+	}
+
+	override async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation): Promise<IGuardedAutomationUpdateResult> {
+		const current = this.getAutomation(id);
+		if (current !== expected) {
+			return { kind: 'conflict', current };
+		}
+		return { kind: 'updated', automation: await this.updateAutomation(id, patch) };
 	}
 
 	override async deleteAutomation(id: string): Promise<void> {
@@ -547,6 +555,21 @@ suite('AutomationsListWidget', () => {
 		// Collapse again.
 		widget.toggleExpanded(a.id);
 		assert.strictEqual(widget.getDisplayEntriesForTest()[0].expanded, false);
+	});
+
+	test('focusAutomation reveals and expands the requested automation', async () => {
+		const { widget, service } = setup();
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+
+		assert.deepStrictEqual({
+			found: widget.focusAutomation(automation.id),
+			expanded: widget.getDisplayEntriesForTest()[0].expanded,
+			missing: widget.focusAutomation('missing'),
+		}, {
+			found: true,
+			expanded: true,
+			missing: false,
+		});
 	});
 
 	test('expanded row exposes no runs when there are none', async () => {

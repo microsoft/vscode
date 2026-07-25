@@ -894,7 +894,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			button.classList.toggle('recording', recording && !preparing);
 			button.classList.toggle('preparing', preparing);
 			button.ariaLabel = preparing
-				? getDictationPreparingLabel(sttService)
+				? localize('sessionsStt.cancelPreparing', "Cancel Dictation. {0}", getDictationPreparingLabel(sttService))
 				: (active ? stopLabel : micLabel);
 		};
 		renderState();

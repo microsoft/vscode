@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
 import type { CodexUsageSource } from '../../common/agentHostCustomizationConfig.js';
 import type { ThreadResumeParams } from './protocol/generated/v2/ThreadResumeParams.js';
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
@@ -39,7 +40,7 @@ export function buildCodexLaunchConfig(
 	if ((usageSource === 'copilot') !== (proxy !== undefined)) {
 		throw new Error(`Codex ${usageSource} launch received an invalid proxy configuration`);
 	}
-	const env: NodeJS.ProcessEnv = { ...inheritedEnv };
+	const env: NodeJS.ProcessEnv = { ...inheritedEnv, [AiAgentEnvVar]: AiAgentEnvValue };
 	if (proxy) {
 		env.OPENAI_API_KEY = proxy.nonce;
 	}
@@ -53,6 +54,10 @@ export function buildCodexLaunchConfig(
 			`model_providers.vscode-proxy.requires_openai_auth=false`,
 			`model_providers.vscode-proxy.supports_websockets=false`,
 		] : []),
+		// Codex filters its shell tool's env through `shell_environment_policy`,
+		// so pin the marker there too — a user policy (e.g. `inherit = "core"`)
+		// would otherwise drop it.
+		`shell_environment_policy.set.${AiAgentEnvVar}="${AiAgentEnvValue}"`,
 		`features.tool_call_mcp_elicitation=false`,
 		...(proxy ? [`features.image_generation=false`] : []),
 	];

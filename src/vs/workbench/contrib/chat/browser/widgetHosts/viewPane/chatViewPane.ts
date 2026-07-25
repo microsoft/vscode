@@ -414,14 +414,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					}
 				}
 			}));
-			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', (_accessor, resourceStr: string): boolean => {
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', async (_accessor, resourceStr: string): Promise<boolean> => {
 				if (!resourceStr) {
 					return false;
 				}
 				try {
-					this.viewState.sessionResource = URI.parse(resourceStr);
+					const resource = URI.parse(resourceStr);
+					this.viewState.sessionResource = resource;
 					this.applyModel();
-					return true;
+					await this.restoringSession;
+					const restoredResource = this._widget?.viewModel?.sessionResource;
+					return !!restoredResource && isEqual(restoredResource, resource);
 				} catch {
 					return false;
 				}

@@ -97,17 +97,43 @@ export interface IRefQuery {
 	readonly sort?: 'alphabetically' | 'committerdate' | 'creatordate';
 }
 
+export type Branch = IBranch | IRemoteBranch;
+export type GitRef = IBranch | IRemoteBranch | ITag;
+
+export const enum GitRefType {
+	Head,
+	RemoteHead,
+	DetachedHead,
+	Tag
+}
+
 export interface IBranch {
 	readonly ref: string;
 	readonly name: string;
-	readonly remote?: string;
-	readonly upstream?: IUpstreamBranch;
+	readonly upstream?: {
+		readonly ref: string;
+		readonly name: string;
+		readonly remote: string;
+	};
+	readonly kind: GitRefType.Head;
 }
 
-export interface IUpstreamBranch {
+export interface IRemoteBranch {
 	readonly ref: string;
 	readonly name: string;
 	readonly remote: string;
+	readonly kind: GitRefType.RemoteHead;
+}
+
+export interface ITag {
+	readonly ref: string;
+	readonly name: string;
+	readonly kind: GitRefType.Tag;
+}
+
+export interface IDetachedHead {
+	readonly name: string;
+	readonly kind: GitRefType.DetachedHead;
 }
 
 export interface IDefaultBranch {
@@ -119,7 +145,9 @@ export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
-	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<IBranch[]>;
+	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
+	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
+	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
 	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void>;
