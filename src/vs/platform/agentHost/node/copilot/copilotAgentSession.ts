@@ -1005,7 +1005,15 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _clearActiveTurn(): void {
 		this._currentTurn = undefined;
-		this._onTurnEnded();
+		try {
+			this._onTurnEnded();
+		} catch (err) {
+			// The turn is already cleared, so the session's own state is
+			// consistent. Contain the failure to the agent's bookkeeping rather
+			// than letting it escape into SDK event handling — or, on the
+			// `send()` failure path, replace the error we are propagating.
+			this._logService.error(err, `[Copilot:${this.sessionId}] onTurnEnded callback failed`);
+		}
 	}
 
 	private _getEditFilePaths(parameters: unknown): string[] {
