@@ -292,11 +292,23 @@ box before discovering it is Windows.
 
 POSIX is probed first so the common path stays fast.
 
-**`remoteAgentHostCommand`.** A custom command currently skips detection while
-still performing lockfile operations. Since those operations are platform
-specific, the override path either declares its platform explicitly or opts out
-of managed reuse and cleanup entirely. Silently running POSIX state commands is
-not an option. *Decision required before P4.*
+**`remoteAgentHostCommand`.** A custom command **assumes POSIX** and does not run
+detection. The override is a development-only escape hatch
+(`chat.sshRemoteAgentHostCommand`, tagged experimental) for pointing at a
+locally-built agent host, and multi-platform override support is deliberately
+out of scope; a later change may add it if a scenario demands it.
+
+This keeps the invariants intact rather than weakening them: the path still
+resolves a concrete `PosixRemotePlatform`, so every command it issues — including
+the launch wrapper — is built by a platform, and no shell syntax leaks into the
+service. It also preserves today's behaviour exactly, including the existing test
+asserting that `uname` never runs on this path.
+
+Because the override is POSIX-only, pointing it at a Windows remote fails with a
+raw `bash: The term 'bash' is not recognized` — the same confusing shape as the
+bug this work exists to fix. Two cheap mitigations, neither requiring detection:
+the setting description states the POSIX-only limitation, and a launch failure
+matching that shape is surfaced as a targeted hint instead of a raw shell error.
 
 ---
 
@@ -328,9 +340,14 @@ not an option. *Decision required before P4.*
 - **I1.** No shell syntax outside `node/remotePlatform/`.
 - **I2.** Every command sent to a Windows remote is an `-EncodedCommand`
   invocation. No bare PowerShell reaches a remote command line.
-- **I3.** Platform detection completes before any other remote operation.
-- **I4.** The desktop never writes a PID it inferred itself; process identity
-  originates from the CLI's metadata.
+- **I3.** A platform is *resolved* before any other remote operation — by
+  detection on the managed path, or by the fixed POSIX assumption on the
+  `remoteAgentHostCommand` path. No command is ever issued without one.
+- **I4.** On the managed path the desktop never writes a PID it inferred itself;
+  process identity originates from the CLI's supervisor metadata. The
+  `remoteAgentHostCommand` path retains the echoed-`$$` mechanism, which is
+  correct there: a custom command is typically a foreground dev build that never
+  daemonizes and so publishes no metadata to read.
 - **I5.** No process is terminated without a verified identity match.
 - **I6.** Sensitive payloads never reach logs, errors, or telemetry.
 - **I7.** Remote-supplied paths are validated before re-entering a command.
@@ -343,7 +360,7 @@ not an option. *Decision required before P4.*
 |---|---|---|
 | **P0** | Characterization tests for the launch path: export the launch command builder and assert today's `bash -l -c` string. | The launch command is asserted by a test for the first time. |
 | **P1** | Introduce `IRemotePlatform`; extract current behaviour into `PosixRemotePlatform`; route the service through it. **No behaviour change.** | Existing 154 tests plus P0's pass **unmodified**. |
-| **P2** | Move detection to immediately after connect; single `uname -s -m`; richer error. Decide the `remoteAgentHostCommand` contract. | Detection tests pass; no state operation precedes detection. |
+| **P2** | Move detection to immediately after connect on the managed path; single `uname -s -m`; richer error. Document and hint the override's POSIX-only limitation. | Detection tests pass; no state operation precedes platform resolution. |
 | **P3** | Adopt CLI metadata as the source of process identity; retire desktop-side PID writing; identity-checked termination. | Reuse and cleanup work on POSIX with no `VSCODE_PID` marker. |
 | **P4** | `WindowsRemotePlatform`: envelope, paths, zip install, tree-kill, length guard. Rust-side ACL fix. | Windows builder + connect-flow tests pass; payloads execute under real PowerShell in CI. |
 | **P5** | Validate against a real Windows 11 remote. | Manual checklist green. |
@@ -355,6 +372,12 @@ coverage today and a "pure refactor" could silently change it.
 P3 precedes P4 deliberately — the PID problem is the hardest part of Windows
 support, and solving it by deferring to the CLI's own metadata removes it from
 the Windows work entirely rather than inventing a Windows-specific answer.
+
+The desktop-side PID retired in P3 is not merely redundant: the foreground
+process it records is a child of the SSH session's shell and dies when that
+session drops, while the detached supervisor survives. The recorded PID
+therefore reads as dead on reconnect and a second supervisor is spawned, so P3
+fixes orphan accumulation on POSIX independently of Windows support.
 
 ---
 
