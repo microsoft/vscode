@@ -21,6 +21,7 @@ import { buildAnnotationsUri, isAnnotationsUri } from '../common/annotationsUri.
 import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOptions } from './agentHostChangesetStateCache.js';
 import { ChangesSummary, ChatInteractivity, type ChatOrigin } from '../common/state/protocol/state.js';
 import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
+import { preserveProviderBackedRootConfigValues } from '../common/agentCustomizationSettings.js';
 
 export interface IAgentHostStateManagerOptions {
 	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
@@ -137,7 +138,7 @@ class SessionSummaryNotifier extends Disposable {
 		if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
 		if (current.project !== lastNotified.project) { changes.project = current.project; }
 		if (current.changes !== lastNotified.changes) { changes.changes = current.changes; }
-		if (current.workingDirectory !== lastNotified.workingDirectory) { changes.workingDirectory = current.workingDirectory; }
+		if (current.workingDirectories !== lastNotified.workingDirectories) { changes.workingDirectories = current.workingDirectories; }
 		if (current._meta !== lastNotified._meta) { changes._meta = current._meta; }
 
 		this._lastNotified.set(session, current);
@@ -344,7 +345,7 @@ export class AgentHostStateManager extends Disposable {
 		};
 		if (state.activity !== undefined) { summary.activity = state.activity; }
 		if (state.project !== undefined) { summary.project = state.project; }
-		if (state.workingDirectory !== undefined) { summary.workingDirectory = state.workingDirectory; }
+		if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
 		if (state.annotations !== undefined) { summary.annotations = state.annotations; }
 		if (entry.changes !== undefined) { summary.changes = entry.changes; }
 		if (state._meta !== undefined) { summary._meta = state._meta; }
@@ -361,7 +362,7 @@ export class AgentHostStateManager extends Disposable {
 			&& a.status === b.status
 			&& a.activity === b.activity
 			&& a.project === b.project
-			&& a.workingDirectory === b.workingDirectory
+			&& a.workingDirectories === b.workingDirectories
 			&& a.annotations === b.annotations
 			&& a._meta === b._meta;
 	}
@@ -608,7 +609,7 @@ export class AgentHostStateManager extends Disposable {
 		// directory / project. We don't need to schedule a
 		// `SessionSummaryChanged` flush because the upcoming `SessionAdded`
 		// notification carries the complete summary already.
-		entry.state = { ...entry.state, project: summary.project, workingDirectory: summary.workingDirectory };
+		entry.state = { ...entry.state, project: summary.project, workingDirectories: summary.workingDirectories };
 		entry.modifiedAt = summary.modifiedAt;
 		entry.changes = summary.changes;
 		const full = this._toSummary(key, entry);
@@ -748,7 +749,7 @@ export class AgentHostStateManager extends Disposable {
 	 * peer chat's opaque, agent-owned restore blob (see
 	 * {@link getChatProviderData}); the StateManager never parses it.
 	 */
-	restoreChat(session: URI, chatUri: URI, options: { readonly title?: string; readonly turns: Turn[]; readonly draft?: Message; readonly providerData?: string }): void {
+	restoreChat(session: URI, chatUri: URI, options: { readonly title?: string; readonly turns: Turn[]; readonly draft?: Message; readonly providerData?: string; readonly origin?: ChatOrigin }): void {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] restoreChat for unknown session: ${session}`);
@@ -762,6 +763,7 @@ export class AgentHostStateManager extends Disposable {
 			...createDefaultChatSummary(this._toSummary(session, entry), chatUri),
 			title: options.title ?? '',
 			status: SessionStatus.Idle,
+			origin: options.origin,
 		};
 		this._chatStates.set(chatUri, { ...createChatState(chatSummary), turns: options.turns, draft: options.draft });
 		if (options.providerData !== undefined) {
@@ -1131,10 +1133,36 @@ export class AgentHostStateManager extends Disposable {
 		return this._applyAndEmit(channel, action, origin);
 	}
 
+	/**
+	 * Reject a client-originated action without applying it to state. Emits an
+	 * {@link ActionEnvelope} that carries the original {@link ActionOrigin} and a
+	 * {@link ActionEnvelope.rejectionReason | rejectionReason} so the originating
+	 * client can reconcile (roll back) its optimistic write-ahead action through
+	 * the normal path instead of leaving it pending until reconnect. The reducer
+	 * is deliberately NOT run, so no synchronized state changes.
+	 */
+	rejectClientAction(channel: URI, action: StateAction, origin: ActionOrigin, reason: string): void {
+		const envelope: ActionEnvelope = {
+			channel,
+			action,
+			serverSeq: ++this._serverSeq,
+			origin,
+			rejectionReason: reason,
+		};
+		this._logService.trace(`[AgentHostStateManager] Emitting rejection envelope: seq=${envelope.serverSeq}, channel=${envelope.channel}, type=${action.type}, origin=${origin.clientId}:${origin.clientSeq}, reason=${reason}`);
+		this._onDidEmitEnvelope.fire(envelope);
+	}
+
 	// ---- Internal -----------------------------------------------------------
 
 	private _applyAndEmit(channel: URI, action: StateAction, origin: ActionOrigin | undefined): unknown {
 		let resultingState: unknown = undefined;
+		if (action.type === ActionType.RootConfigChanged && action.replace) {
+			action = {
+				...action,
+				config: preserveProviderBackedRootConfigValues(this._rootState, action.config),
+			};
+		}
 		// Apply to state
 		if (isRootAction(action)) {
 			// `RootConfigChanged` can be a true no-op: the reducer merges/replaces

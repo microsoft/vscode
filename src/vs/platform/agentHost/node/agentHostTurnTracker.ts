@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { StopWatch } from '../../../base/common/stopwatch.js';
-import type { AgentHostTelemetryReporter, AgentHostTurnResult } from './agentHostTelemetryReporter.js';
+import type { AgentHostModelTelemetryKind, AgentHostTelemetryReporter, AgentHostTurnResult, IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
 /** Per-turn timing state, keyed by `session:turnId`. */
 interface ITurnTiming {
@@ -12,6 +12,7 @@ interface ITurnTiming {
 	readonly provider: string;
 	readonly session: string;
 	readonly model: string | undefined;
+	readonly modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	readonly permissionLevel: string | undefined;
 	firstProgressMs: number | undefined;
 }
@@ -32,13 +33,14 @@ export class AgentHostTurnTracker {
 
 	constructor(private readonly _reporter: AgentHostTelemetryReporter) { }
 
-	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, permissionLevel: string | undefined): void {
+	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, permissionLevel: string | undefined): void {
 		const key = this._key(session, turnId);
 		this._turnTimings.set(key, {
 			stopWatch: StopWatch.create(false),
 			provider,
 			session,
 			model,
+			modelTelemetryKind,
 			permissionLevel,
 			firstProgressMs: undefined,
 		});
@@ -51,7 +53,7 @@ export class AgentHostTurnTracker {
 		}
 	}
 
-	turnCompleted(session: string, turnId: string, result: AgentHostTurnResult, errorType?: string): void {
+	turnCompleted(session: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure): void {
 		const key = this._key(session, turnId);
 		const timing = this._turnTimings.get(key);
 		if (!timing) {
@@ -67,8 +69,9 @@ export class AgentHostTurnTracker {
 			totalTime: timing.stopWatch.elapsed(),
 			result,
 			model: timing.model,
+			modelTelemetryKind: timing.modelTelemetryKind,
 			permissionLevel: timing.permissionLevel,
-			errorType,
+			failure,
 		});
 	}
 

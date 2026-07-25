@@ -255,9 +255,9 @@ registerAction2(class GoBackAction extends Action2 {
 				// Higher than `WorkbenchContrib` so the `Ctrl+Shift+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
 				weight: KeybindingWeight.SessionsContrib,
-				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
+				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 			},
 			menu: [{
@@ -297,9 +297,9 @@ registerAction2(class GoForwardAction extends Action2 {
 				// Higher than `WorkbenchContrib` so the `Ctrl+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
 				weight: KeybindingWeight.SessionsContrib,
-				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyCode.Tab] },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
+				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.WinCtrl | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 			},
 			menu: [{
@@ -1183,39 +1183,25 @@ export class SessionNewChatActionViewItemContribution extends Disposable impleme
 	}
 }
 
-// The "Conversations" toolbar entry is a submenu (rendered as a dropdown): it
-// lists every chat in the session with a checkbox. Checked chats are shown as
-// tabs; unchecked chats are closed (hidden from the tab strip). Toggling an entry
-// closes or reopens the corresponding chat. The main chat is always shown and
-// cannot be closed, so its entry is checked and disabled.
+// The "Chats" toolbar entry is a submenu: it lists every chat in the session
+// with a checkbox. Checked chats are shown as tabs; unchecked chats are closed
+// (hidden from the tab strip). Toggling an entry closes or reopens the
+// corresponding chat. The main chat is always shown and cannot be closed, so its
+// entry is checked and disabled.
 //
-// It surfaces in one of two places depending on whether the chat tab strip is
-// shown: when the strip is hidden it lives in the session header toolbar; once the
-// session has more than one open chat (the tab strip is shown) it moves to the
-// chat tab bar action menu at the end of the strip instead (see
-// Menus.SessionChatTabBar below). It also surfaces when the active chat has
-// subagents (a separate group at the bottom lists them), even if that is the only
+// It is always rendered in the session header meta row, after the pills
+// (workspace folder / changes / pull request) as the meta toolbar's default
+// submenu icon, independent of whether the chat tab strip is shown. It surfaces
+// once the session has more than one committed chat, or when the active chat has
+// subagents (a separate group at the bottom lists them) even if that is the only
 // committed chat.
-MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
+MenuRegistry.appendMenuItem(Menus.SessionHeaderMeta, {
 	submenu: Menus.SessionConversations,
 	title: localize2('chatCompositeBar.conversations', "Chats"),
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
-	order: 10,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), ContextKeyExpr.or(SessionHasMultipleCommittedChatsContext, SessionActiveChatHasSubagentsContext), SessionShouldShowChatTabsContext.negate()),
-});
-
-// Mirror of the header Conversations submenu, rendered at the end of the chat tab
-// bar action menu while the tab strip is shown (more than one open chat). The two
-// `when` clauses are mutually exclusive on SessionShouldShowChatTabsContext so
-// the Conversations menu only ever appears in one place at a time.
-MenuRegistry.appendMenuItem(Menus.SessionChatTabBar, {
-	submenu: Menus.SessionConversations,
-	title: localize2('chatCompositeBar.conversations', "Chats"),
-	icon: Codicon.commentDiscussion,
-	group: 'navigation',
-	order: 10,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), ContextKeyExpr.or(SessionHasMultipleCommittedChatsContext, SessionActiveChatHasSubagentsContext), SessionShouldShowChatTabsContext),
+	order: 100,
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate(), ContextKeyExpr.or(ContextKeyExpr.and(SessionSupportsMultipleChatsContext, SessionHasMultipleCommittedChatsContext), SessionActiveChatHasSubagentsContext)),
 });
 
 /**

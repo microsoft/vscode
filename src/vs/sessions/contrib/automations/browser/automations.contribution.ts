@@ -22,12 +22,17 @@ import { AutomationDialogService } from './automationDialogService.js';
 import { AutomationRunner } from './automationRunner.js';
 import { AutomationScheduler } from './automationScheduler.js';
 import { AutomationService } from './automationService.js';
+import { BrowserAutomationStorageService } from './automationStorageService.js';
+import { AutomationToolsContribution } from './automationTools.js';
+import { IAutomationStorageService } from '../common/automationStorageService.js';
 
+registerSingleton(IAutomationStorageService, BrowserAutomationStorageService, InstantiationType.Delayed);
 registerSingleton(IAutomationService, AutomationService, InstantiationType.Delayed);
 registerSingleton(IAutomationRunner, AutomationRunner, InstantiationType.Delayed);
 registerSingleton(IAutomationDialogService, AutomationDialogService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(AutomationScheduler.ID, AutomationScheduler, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(AutomationToolsContribution.ID, AutomationToolsContribution, WorkbenchPhase.Eventually);
 
 AccessibleViewRegistry.register(new AutomationsAccessibilityHelp());
 

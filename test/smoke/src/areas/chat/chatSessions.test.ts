@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Application, Chat, Logger } from '../../../../automation';
-import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
+import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
 import { runInTerminalScenario, shellEchoResponseMatcher, shellEchoScenario } from './shellScenarios';
 
 /**
@@ -57,6 +59,36 @@ const SHELL_SESSIONS: readonly ShellSessionConfig[] = [
 	{ name: 'Claude', command: 'smoketest.openClaudeChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-claude-shell', reply: 'MOCKED_CHAT_SESSIONS_CLAUDE_SHELL_RESPONSE', scenarioFactory: shellEchoScenario },
 	{ name: 'Local', command: 'smoketest.openLocalChat', kind: 'view', scenarioId: 'smoke-chat-sessions-local-terminal', reply: 'MOCKED_CHAT_SESSIONS_LOCAL_TERMINAL_RESPONSE', scenarioFactory: runInTerminalScenario },
 ];
+
+/**
+ * Write all activation-sensitive settings before VS Code starts. Pre-seeding
+ * only the enablement migration can activate Copilot Chat before its mock
+ * endpoints are configured.
+ */
+async function preseedChatSessionProfile(userDataDir: string | undefined, mockServerUrl: string): Promise<void> {
+	if (!userDataDir) {
+		throw new Error('Cannot pre-seed Chat Sessions profile without a user data directory');
+	}
+
+	const settingsPath = path.join(userDataDir, 'User', 'settings.json');
+	fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+	fs.writeFileSync(settingsPath, JSON.stringify({
+		'github.copilot.advanced.debug.overrideProxyUrl': mockServerUrl,
+		'github.copilot.advanced.debug.overrideCapiUrl': mockServerUrl,
+		'github.copilot.advanced.debug.overrideAuthType': 'token',
+		'chat.allowAnonymousAccess': true,
+		'github.copilot.chat.githubMcpServer.enabled': false,
+		'chat.mcp.discovery.enabled': false,
+		'chat.mcp.enabled': false,
+		'chat.disableAIFeatures': false,
+		'github.copilot.chat.backgroundAgent.enabled': true,
+		'github.copilot.chat.claudeAgent.enabled': true,
+		'github.copilot.chat.claudeAgent.useSdkExtension': false,
+		'chat.tools.riskAssessment.enabled': false,
+	}, undefined, '\t'));
+
+	await preseedChatExtensionEnablement(userDataDir);
+}
 
 async function openSession(app: Application, session: { readonly command: string; readonly kind: 'editor' | 'view' }): Promise<void> {
 	await app.workbench.quickaccess.runCommand(session.command);
@@ -130,48 +162,7 @@ export function setup(logger: Logger) {
 					...copilotEnv,
 				},
 			};
-		});
-
-		before(async function () {
-			const app = this.app as Application;
-			logger.log(`[Chat Sessions] writing user settings (mock URL=${mockServer.url}); requestCount=${mockServer.requestCount()}`);
-
-			// overrideProxyUrl/overrideCapiUrl redirect Copilot SDK + CAPI traffic
-			// to the mock server. allowAnonymousAccess skips the token-validation
-			// gate when there is no real GitHub session. The MCP/githubMcpServer
-			// settings prevent real-network MCP connections during the test.
-			await app.workbench.settingsEditor.addUserSettings([
-				['github.copilot.advanced.debug.overrideProxyUrl', JSON.stringify(mockServer.url)],
-				['github.copilot.advanced.debug.overrideCapiUrl', JSON.stringify(mockServer.url)],
-				// Use token auth (not HMAC) so the CLI SDK can call /models and
-				// /models/session against the mock server without HMAC validation.
-				['github.copilot.advanced.debug.overrideAuthType', '"token"'],
-				['chat.allowAnonymousAccess', 'true'],
-				['github.copilot.chat.githubMcpServer.enabled', 'false'],
-				['chat.mcp.discovery.enabled', 'false'],
-				['chat.mcp.enabled', 'false'],
-				// Pre-enable the chat session types that the tests open. Writing
-				// these here (directly to settings.json) instead of from the
-				// smoketest extension avoids racing with copilot-chat registering
-				// its configuration schema — the original cause of the Chat
-				// Sessions smoke test flake.
-				['chat.disableAIFeatures', 'false'],
-				['github.copilot.chat.backgroundAgent.enabled', 'true'],
-				['github.copilot.chat.claudeAgent.enabled', 'true'],
-				// Force the bundled Claude Agent SDK (avoid the experiment that
-				// would route through the ms-vscode.vscode-claude-sdk extension,
-				// which would attempt a network install during the smoke run).
-				['github.copilot.chat.claudeAgent.useSdkExtension', 'false'],
-				// Disable the LLM-generated tool risk assessment. It issues a
-				// separate model request whose mock reply ("OK") never resolves
-				// to a valid Safe/Caution/Review verdict, which would otherwise
-				// leave the terminal confirmation stuck in the "Assessing risk…"
-				// state so its "Allow" button never becomes available. The
-				// shell-tool tests need to click "Allow" to proceed.
-				['chat.tools.riskAssessment.enabled', 'false'],
-			]);
-			logger.log(`[Chat Sessions] user settings written; requestCount=${mockServer.requestCount()}`);
-		});
+		}, app => preseedChatSessionProfile(app.userDataPath, mockServer.url));
 
 		after(async function () {
 			await mockServer?.close();

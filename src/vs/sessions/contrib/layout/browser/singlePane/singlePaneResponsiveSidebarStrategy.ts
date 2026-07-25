@@ -13,6 +13,8 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
+import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -31,6 +33,17 @@ const singlePaneLayoutToggleDetailsOrder = 30;
 
 /** Below this main-container width the sessions list is auto-hidden to free room for the side pane; wider windows have room to keep it open. */
 const SMALL_WINDOW_MAX_WIDTH = 1800;
+
+/** Whether `editor` is real file/diff content that needs editor-area room (vs. a managed tab like the Changes multi-diff or empty Files placeholder). */
+function isRealEditorContent(editor: EditorInput): boolean {
+	if (editor instanceof FileEditorInput || editor instanceof BrowserEditorInput) {
+		return true;
+	}
+	if (editor instanceof DiffEditorInput) {
+		return editor.original instanceof FileEditorInput || editor.modified instanceof FileEditorInput;
+	}
+	return false;
+}
 
 /**
  * [D7 single-pane] Auto-hide the sessions list when the user needs more room for
@@ -63,12 +76,12 @@ export class SinglePaneResponsiveSidebarStrategy extends SinglePaneLayoutStrateg
 		// toggle command.
 		this._register(this._registerToggleDetailsAction());
 
-		// [Scenario 8] Opening a real file/browser editor from the Files or Changes
-		// view needs editor-area room, so auto-hide the sessions list — but only on
-		// a small window, in an existing (created) session, and only when the editor
-		// area is currently closed (this open will reveal it). Managed tabs (the
-		// Changes multi-diff and the empty Files placeholder) are not
-		// FileEditorInput/BrowserEditorInput so they never trigger this; a
+		// [Scenario 8] Opening a real file/browser editor or a single-file diff
+		// from the Files or Changes view needs editor-area room, so auto-hide the
+		// sessions list — but only on a small window, in an existing (created)
+		// session, and only when the editor area is currently closed (this open
+		// will reveal it). Managed tabs (the Changes multi-diff and the empty
+		// Files placeholder) are not real content so they never trigger this; a
 		// session-switch restore is excluded too.
 		this._register(this._editorService.onWillOpenEditor(e => {
 			if (this._ctx.isRestoringSessionLayout || this._ctx.multipleSessionsVisibleObs.get() || this._layoutService.isEditorMaximized()) {
@@ -81,7 +94,7 @@ export class SinglePaneResponsiveSidebarStrategy extends SinglePaneLayoutStrateg
 			if (!activeSession?.isCreated.get() || this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				return;
 			}
-			if (!(e.editor instanceof FileEditorInput || e.editor instanceof BrowserEditorInput)) {
+			if (!isRealEditorContent(e.editor)) {
 				return;
 			}
 			if (this._setSidebarAutoHidden(true)) {

@@ -181,13 +181,59 @@ suite('SpotlightOverlay', () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
 		const target = createTarget(container, 100, 100, 80, 30);
+		const targetButton = $('button');
+		target.appendChild(targetButton);
 		const blockers = () => Array.from(container.getElementsByClassName('spotlight-blocker')) as HTMLElement[];
+		const callout = container.getElementsByClassName('spotlight-callout')[0] as HTMLElement;
 
 		overlay.show(target, content(), { allowTargetInteraction: false });
-		assert.deepStrictEqual(blockers().map(blocker => blocker.style.display), ['', 'none', 'none', 'none']);
+		assert.deepStrictEqual({ blockers: blockers().map(blocker => blocker.style.display), ariaModal: callout.getAttribute('aria-modal') }, {
+			blockers: ['', 'none', 'none', 'none'],
+			ariaModal: 'true',
+		});
 
 		overlay.show(target, content(), { allowTargetInteraction: true });
-		assert.deepStrictEqual(blockers().map(blocker => blocker.style.display), ['', '', '', '']);
+		const [, , next] = getButtons(container);
+		const root = container.getElementsByClassName('spotlight-overlay')[0] as HTMLElement;
+		next.focus();
+		const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true });
+		Object.defineProperty(event, 'keyCode', { get: () => 9 /* Tab */ });
+		next.dispatchEvent(event);
+
+		assert.deepStrictEqual({
+			blockers: blockers().map(blocker => blocker.style.display),
+			targetOverlayVisible: root.classList.contains('target-overlay-visible'),
+			ariaModal: callout.getAttribute('aria-modal'),
+			activeElement: mainWindow.document.activeElement,
+		}, {
+			blockers: ['', '', '', ''],
+			targetOverlayVisible: true,
+			ariaModal: 'false',
+			activeElement: targetButton,
+		});
+	});
+
+	test('hideNext routes target keyboard events through the focus trap', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
+		const target = createTarget(container, 100, 100, 80, 30);
+		target.tabIndex = 0;
+
+		overlay.show(target, content(), { hideNext: true });
+		const [skip, , next] = getButtons(container);
+		const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true });
+		Object.defineProperty(event, 'keyCode', { get: () => 9 /* Tab */ });
+		target.dispatchEvent(event);
+
+		assert.deepStrictEqual({
+			nextHidden: next.style.display === 'none',
+			ariaModal: container.getElementsByClassName('spotlight-callout')[0].getAttribute('aria-modal'),
+			activeElement: mainWindow.document.activeElement,
+		}, {
+			nextHidden: true,
+			ariaModal: 'false',
+			activeElement: skip,
+		});
 	});
 
 	test('observes the target and container for re-layout', () => {

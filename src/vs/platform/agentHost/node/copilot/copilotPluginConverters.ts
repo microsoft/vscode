@@ -505,6 +505,7 @@ export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IPar
 	// We serialize only the essential fields, replacing URIs with strings.
 	const serialize = (plugins: readonly IParsedPlugin[]) => {
 		return JSON.stringify(plugins.map(p => ({
+			format: p.format,
 			hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
 			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration })),
 			skills: p.skills.map(s => ({ uri: s.uri.toString(), name: s.name })),

@@ -1,0 +1,31 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word RESUME_PEER. Reply exactly "ready".
+    response:
+      content: |-
+        I'll remember the code word RESUME_PEER.
+
+        ready
+      stopReason: end_turn
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word RESUME_PEER. Reply exactly "ready".
+        - role: assistant
+          content: |-
+            I'll remember the code word RESUME_PEER.
+
+            ready
+        - role: user
+          content: Reply exactly "resumed".
+    response:
+      content: resumed
+      stopReason: end_turn
