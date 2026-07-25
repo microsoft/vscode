@@ -466,9 +466,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				clientInfo: this._clientInfo,
 				initialSubscriptions: [ROOT_STATE_URI],
 			}, { bypassInitializeQueue: true });
-			this._serverSeq = result.serverSeq;
-
-			this._initializeResult.set(result, undefined);
+			this._applyInitializeResult(result);
 
 			// Hydrate root state from the initial snapshot
 			for (const snapshot of result.snapshots ?? []) {
@@ -477,25 +475,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				}
 			}
 
-			if (result.defaultDirectory) {
-				const dir = result.defaultDirectory;
-				if (typeof dir === 'string') {
-					this._defaultDirectory = URI.parse(dir).path;
-				} else {
-					this._defaultDirectory = URI.revive(dir).path;
-				}
-			}
-
-			this._updateTelemetryLevel();
-			this._updateSessionSyncEnabled();
-			this._updateTerminalAutoApproveEnabled();
-			this._updateGlobalAutoApproveEnabled();
-			this._updateAutoReplyEnabled();
-			this._updatePreferLongContextEnabled();
-			this._updateSystemProxyEnabled();
-			this._updateTerminalAutoApproveRules();
-			this._updateCodexEnabled();
-			this._updateDisableRepoInfoTelemetry();
 			if (isClientTransport(this._transport) && this._state.kind === AgentHostClientState.Connecting) {
 				for (const message of this._state.outbox) {
 					this._transport.send(message);
@@ -689,10 +668,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			clientInfo: this._clientInfo,
 			initialSubscriptions: subscriptions,
 		}, { bypassReconnectGate: true });
-		this._initializeResult.set(initializeResult, undefined);
-		this._serverSeq = initializeResult.serverSeq;
-		if (initializeResult.defaultDirectory) {
-			const directory = initializeResult.defaultDirectory;
+		this._applyInitializeResult(initializeResult);
+		return { type: ReconnectResultType.Snapshot, snapshots: initializeResult.snapshots ?? [] };
+	}
+
+	private _applyInitializeResult(result: CommandMap['initialize']['result']): void {
+		this._initializeResult.set(result, undefined);
+		this._serverSeq = result.serverSeq;
+		if (result.defaultDirectory) {
+			const directory = result.defaultDirectory;
 			this._defaultDirectory = typeof directory === 'string' ? URI.parse(directory).path : URI.revive(directory).path;
 		}
 		this._updateTelemetryLevel();
@@ -705,7 +689,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._updateTerminalAutoApproveRules();
 		this._updateCodexEnabled();
 		this._updateDisableRepoInfoTelemetry();
-		return { type: ReconnectResultType.Snapshot, snapshots: initializeResult.snapshots ?? [] };
 	}
 
 	/**

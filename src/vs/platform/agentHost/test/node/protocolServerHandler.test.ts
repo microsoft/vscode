@@ -107,9 +107,9 @@ class MockAgentService implements IAgentService {
 		this._stateManager = sm;
 	}
 
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, _clientType?: AgentHostClientType): void {
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType?: AgentHostClientType): void {
 		this.handledActions.push(action);
-		this.handledClientTypes.push(_clientType);
+		this.handledClientTypes.push(clientType);
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(channel, action, origin);
 	}

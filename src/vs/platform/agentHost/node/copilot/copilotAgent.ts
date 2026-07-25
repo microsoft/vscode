@@ -344,6 +344,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private readonly _sessions = this._register(new DisposableMap<string, CopilotSessionEntry>());
+	private readonly _sdkSessionsById = new Map<string, CopilotAgentSession>();
 	/**
 	 * Live `chatUri → backing` map for additional (non-default) peer chats,
 	 * keyed by chat channel URI string. Records the SDK chat id (and
@@ -777,17 +778,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _clientTypeForTelemetry(sdkSessionId: string | undefined): AgentHostClientType {
-		if (!sdkSessionId) {
-			return AgentHostClientType.Unknown;
-		}
-		for (const entry of this._sessions.values()) {
-			for (const chat of entry.allChatSessions()) {
-				if (chat.sessionId === sdkSessionId) {
-					return chat.currentTurnClientType;
-				}
-			}
-		}
-		return AgentHostClientType.Unknown;
+		return sdkSessionId
+			? this._sdkSessionsById.get(sdkSessionId)?.currentTurnClientType ?? AgentHostClientType.Unknown
+			: AgentHostClientType.Unknown;
 	}
 
 	private async _refreshModels(attempt = 0): Promise<void> {
@@ -1980,6 +1973,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (entry && activeClient && await activeClient.requiresRestart(entry.appliedSnapshot)) {
 				this._logService.info(`[Copilot:${context.sessionId}] Session config changed (requiresRestart=true), refreshing session. clients=[${[...activeClient.toolSet.clientIds()].join(', ') || '(none)'}]`);
 				// Finish disconnecting before resuming the same SDK session id.
+				this._sdkSessionsById.delete(entry.sessionId);
 				await entry.destroySession();
 				this._sessions.get(context.sessionId)?.clearDefaultChat();
 				entry = undefined;
@@ -2354,6 +2348,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					await agentSession.remapTurnIds(options.fork.turnIdMapping);
 				}
 				this._ensureEntry(sessionId).registerPeerChat(chatKey, new CopilotSessionEntry(agentSession));
+				this._sdkSessionsById.set(agentSession.sessionId, agentSession);
 				// Record the live backing and hand the opaque blob back to the
 				// orchestrator to persist. The agent no longer owns a durable
 				// peer-chat catalog (`copilot.chats` is no longer written).
@@ -2444,6 +2439,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 		this._chatBackings.delete(chatKey);
+		if (sdkSessionId) {
+			this._sdkSessionsById.delete(sdkSessionId);
+		}
 		this._sessions.get(AgentSession.id(session))?.disposePeerChat(chatKey);
 		if (sdkSessionId) {
 			try {
@@ -2588,6 +2586,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: session, chatChannelUri: chat });
 				await agentSession.initializeSession();
 				this._ensureEntry(sessionId).registerPeerChat(chatKey, new CopilotSessionEntry(agentSession));
+				this._sdkSessionsById.set(agentSession.sessionId, agentSession);
 				this._logService.info(`[Copilot] Resumed additional chat ${chatKey} in session ${session.toString()}`);
 				return agentSession;
 			} catch (error) {
@@ -2918,6 +2917,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._sessions.set(sessionId, entry);
 		}
 		entry.setDefaultChat(defaultChatKey, new CopilotSessionEntry(agentSession));
+		this._sdkSessionsById.set(agentSession.sessionId, agentSession);
 	}
 
 	private async _destroyAndDisposeSession(sessionId: string): Promise<void> {
@@ -2935,6 +2935,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * latter reaps the worktree afterwards).
 	 */
 	private async _releaseSessionResources(sessionId: string): Promise<void> {
+		for (const chat of this._sessions.get(sessionId)?.allChatSessions() ?? []) {
+			this._sdkSessionsById.delete(chat.sessionId);
+		}
 		// Tear down any peer chats owned by this session first so their SDK
 		// chats don't leak when the parent is deleted/disposed
 		// without each chat being individually disposed via `disposeChat`.
