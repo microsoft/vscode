@@ -8,7 +8,7 @@ import type * as vscode from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { ICustomInstructionsService, IInstructionIndexFile } from '../../../platform/customInstructions/common/customInstructionsService';
+import { CUSTOMIZATIONS_INDEX_FORMAT_MARKER, ICustomInstructionsService, IInstructionIndexFile } from '../../../platform/customInstructions/common/customInstructionsService';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { RelativePattern } from '../../../platform/filesystem/common/fileTypes';
 import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
@@ -250,21 +250,23 @@ async function isExternalInstructionsFile(normalizedUri: URI, customInstructions
 	return false;
 }
 
-let cachedInstructionIndexFile: { requestId: string; file: IInstructionIndexFile } | undefined;
+let cachedInstructionIndexFile: { requestId: string; content: string; file: IInstructionIndexFile } | undefined;
 
 function getInstructionsIndexFile(buildPromptContext: IBuildPromptContext, customInstructionsService: ICustomInstructionsService): IInstructionIndexFile | undefined {
 	if (!buildPromptContext.requestId) {
 		return undefined;
 	}
 
-	if (cachedInstructionIndexFile?.requestId === buildPromptContext.requestId) {
-		return cachedInstructionIndexFile.file;
-	}
-
 	const indexVariable = buildPromptContext.chatVariables.find(v => isCustomizationsIndex(v.reference));
-	if (indexVariable && isString(indexVariable.value)) {
+	// Only the entity-encoded format is safe to use as an authorization source.
+	// Legacy indexes remain parseable by non-security consumers, but can contain
+	// attacker-controlled elements due to their unescaped text values.
+	if (indexVariable && isString(indexVariable.value) && indexVariable.value.startsWith(CUSTOMIZATIONS_INDEX_FORMAT_MARKER)) {
+		if (cachedInstructionIndexFile?.requestId === buildPromptContext.requestId && cachedInstructionIndexFile.content === indexVariable.value) {
+			return cachedInstructionIndexFile.file;
+		}
 		const indexFile = customInstructionsService.parseInstructionIndexFile(indexVariable.value);
-		cachedInstructionIndexFile = { requestId: buildPromptContext.requestId, file: indexFile };
+		cachedInstructionIndexFile = { requestId: buildPromptContext.requestId, content: indexVariable.value, file: indexFile };
 		return indexFile;
 	}
 	cachedInstructionIndexFile = undefined;

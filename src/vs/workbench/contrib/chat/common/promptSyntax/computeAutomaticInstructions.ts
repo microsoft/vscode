@@ -9,6 +9,7 @@ import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
+import { escape as escapeXml } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -43,6 +44,8 @@ export interface InstructionsCollectionResult {
  * Consumed by debug contributions for logging; not sent as telemetry.
  */
 export let lastInstructionsCollectionResult: InstructionsCollectionResult | undefined;
+
+const CUSTOMIZATIONS_INDEX_FORMAT_MARKER = '<!-- vscode-customizations-index-format: 2 -->';
 
 type InstructionsCollectionClassification = {
 	applyingInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of instructions added via pattern matching.' };
@@ -362,7 +365,7 @@ export class ComputeAutomaticInstructions {
 			entries.push('Here is a list of instruction files that contain rules for working with this codebase.');
 			entries.push('These files are important for understanding the codebase structure, conventions, and best practices.');
 			entries.push('When an instruction file applies to your task (based on its description or applyTo pattern), follow the rules specified in it.');
-			entries.push(`If the file content is not already included in the context, use the ${fileReadTool.variable} tool to read it before proceeding. Use the exact value from the <file> element as-is with the tool; do not add or remove prefixes or otherwise modify it.`);
+			entries.push(`If the file content is not already included in the context, use the ${fileReadTool.variable} tool to read it before proceeding. Decode XML entities in the <file> value exactly once, then use the decoded value as-is with the tool; do not add or remove prefixes or otherwise modify it.`);
 			entries.push('Only load instruction files when they are relevant to the current task. Do not eagerly load all instructions upfront.');
 			entries.push('When modifying or creating files, check for instructions whose applyTo pattern matches the file path and follow them.');
 			let hasContent = false;
@@ -371,12 +374,12 @@ export class ComputeAutomaticInstructions {
 					continue;
 				}
 				entries.push('<instruction>');
-				entries.push(`<file>${filePath(instruction.uri)}</file>`);
+				entries.push(`<file>${escapeXml(filePath(instruction.uri))}</file>`);
 				if (instruction.description) {
-					entries.push(`<description>${instruction.description}</description>`);
+					entries.push(`<description>${escapeXml(instruction.description)}</description>`);
 				}
 				if (instruction.pattern) {
-					entries.push(`<applyTo>${instruction.pattern}</applyTo>`);
+					entries.push(`<applyTo>${escapeXml(instruction.pattern)}</applyTo>`);
 				}
 				entries.push('</instruction>');
 				hasContent = true;
@@ -387,8 +390,8 @@ export class ComputeAutomaticInstructions {
 				const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
 				const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
 				entries.push('<instruction>');
-				entries.push(`<file>${filePath(uri)}</file>`);
-				entries.push(`<description>${description}</description>`);
+				entries.push(`<file>${escapeXml(filePath(uri))}</file>`);
+				entries.push(`<description>${escapeXml(description)}</description>`);
 				entries.push('</instruction>');
 				hasContent = true;
 
@@ -471,11 +474,11 @@ export class ComputeAutomaticInstructions {
 				let truncatedAtIndex = modelInvocableSkills.length;
 				for (let i = 0; i < modelInvocableSkills.length; i++) {
 					const skill = modelInvocableSkills[i];
-					const skillEntry = [`<skill>`, `<name>${skill.name}</name>`];
+					const skillEntry = [`<skill>`, `<name>${escapeXml(skill.name)}</name>`];
 					if (skill.description) {
-						skillEntry.push(`<description>${skill.description}</description>`);
+						skillEntry.push(`<description>${escapeXml(skill.description)}</description>`);
 					}
-					skillEntry.push(`<file>${filePath(skill.uri)}</file>`);
+					skillEntry.push(`<file>${escapeXml(filePath(skill.uri))}</file>`);
 					skillEntry.push(`</skill>`);
 					const entryLength = skillEntry.join('\n').length + 1; // +1 for joining newline
 					if (skillTool && skillCharCount + entryLength > SKILL_DESCRIPTION_CHAR_BUDGET) {
@@ -492,12 +495,13 @@ export class ComputeAutomaticInstructions {
 					const names: string[] = [];
 					let nameListLength = 0;
 					for (const skill of truncatedSkills) {
-						const addition = (names.length > 0 ? 2 : 0) + skill.name.length;
+						const escapedName = escapeXml(skill.name);
+						const addition = (names.length > 0 ? 2 : 0) + escapedName.length;
 						if (nameListLength + addition > TRUNCATED_NAMES_CHAR_BUDGET) {
 							break;
 						}
 						nameListLength += addition;
-						names.push(skill.name);
+						names.push(escapedName);
 					}
 					const remaining = truncatedSkills.length - names.length;
 					const nameList = names.join(', ');
@@ -528,12 +532,12 @@ export class ComputeAutomaticInstructions {
 				for (const agent of agents) {
 					if (canUseAgent(agent)) {
 						entries.push('<agent>');
-						entries.push(`<name>${agent.name}</name>`);
+						entries.push(`<name>${escapeXml(agent.name)}</name>`);
 						if (agent.description) {
-							entries.push(`<description>${agent.description}</description>`);
+							entries.push(`<description>${escapeXml(agent.description)}</description>`);
 						}
 						if (agent.argumentHint) {
-							entries.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
+							entries.push(`<argumentHint>${escapeXml(agent.argumentHint)}</argumentHint>`);
 						}
 						entries.push('</agent>');
 						debugInfo.debugDetails.push({ category: 'custom-agent', name: agent.name, uri: agent.uri });
@@ -551,6 +555,7 @@ export class ComputeAutomaticInstructions {
 			return undefined;
 		}
 
+		entries.unshift(CUSTOMIZATIONS_INDEX_FORMAT_MARKER, 'Dynamic text values in this index are XML-entity encoded; decode XML entities exactly once before using a name or path.', '', '');
 		const content = entries.join('\n');
 		const toolReferences: ChatRequestToolReferenceEntry[] = [];
 		const collectToolReference = (tool: { tool: IToolData; variable: string } | undefined) => {

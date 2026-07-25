@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { CUSTOMIZATIONS_INDEX_FORMAT_MARKER } from '../../../../platform/customInstructions/common/customInstructionsService';
 import { FileType } from '../../../../platform/filesystem/common/fileTypes';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { listRelatedFiles, listRelatedFilesRecursive, parseSkillContext, ReadDirectoryFn, resolveSkillUri } from '../../node/skillTool';
@@ -267,6 +268,7 @@ suite('resolveSkillUri', () => {
 	const skillA = URI.file('/skills/alpha/SKILL.md');
 	const skillB = URI.file('/skills/beta/SKILL.md');
 	const skillC = URI.file('/skills/gamma/SKILL.md');
+	const markedIndex = (content = 'index-content') => `${CUSTOMIZATIONS_INDEX_FORMAT_MARKER}\n${content}`;
 
 	function makeSkillIndex(...uris: URI[]): { readonly skills: Iterable<URI> } {
 		return { skills: uris };
@@ -286,7 +288,7 @@ suite('resolveSkillUri', () => {
 		]);
 		const result = resolveSkillUri(
 			'beta',
-			'index-content',
+			markedIndex(),
 			() => makeSkillIndex(skillA, skillB),
 			makeGetSkillInfo(infoMap),
 		);
@@ -297,7 +299,7 @@ suite('resolveSkillUri', () => {
 		const infoMap = new Map([[skillA.toString(), 'alpha']]);
 		const result = resolveSkillUri(
 			'alpha',
-			'index-content',
+			markedIndex(),
 			() => makeSkillIndex(skillA),
 			makeGetSkillInfo(infoMap),
 		);
@@ -313,7 +315,7 @@ suite('resolveSkillUri', () => {
 		assert.throws(
 			() => resolveSkillUri(
 				'nonexistent',
-				'index-content',
+				markedIndex(),
 				() => makeSkillIndex(skillA, skillB, skillC),
 				makeGetSkillInfo(infoMap),
 			),
@@ -345,7 +347,7 @@ suite('resolveSkillUri', () => {
 		assert.throws(
 			() => resolveSkillUri(
 				'missing',
-				'index-content',
+				markedIndex(),
 				() => makeSkillIndex(),
 				() => undefined,
 			),
@@ -365,7 +367,7 @@ suite('resolveSkillUri', () => {
 		assert.throws(
 			() => resolveSkillUri(
 				'nonexistent',
-				'index-content',
+				markedIndex(),
 				() => makeSkillIndex(skillA, skillB),
 				makeGetSkillInfo(infoMap),
 			),
@@ -383,7 +385,7 @@ suite('resolveSkillUri', () => {
 		const uri2 = URI.file('/skills/b/SKILL.md');
 		const result = resolveSkillUri(
 			'duplicate',
-			'index-content',
+			markedIndex(),
 			() => makeSkillIndex(uri1, uri2),
 			() => ({ skillName: 'duplicate' }),
 		);
@@ -395,11 +397,25 @@ suite('resolveSkillUri', () => {
 		const infoMap = new Map([[skillA.toString(), 'alpha']]);
 		resolveSkillUri(
 			'alpha',
-			'my-special-index-content',
+			markedIndex('my-special-index-content'),
 			(text) => { receivedText = text; return makeSkillIndex(skillA); },
 			makeGetSkillInfo(infoMap),
 		);
-		assert.strictEqual(receivedText, 'my-special-index-content');
+		assert.strictEqual(receivedText, markedIndex('my-special-index-content'));
+	});
+
+	test('does not resolve skills from an unmarked legacy index', () => {
+		let wasCalled = false;
+		assert.throws(
+			() => resolveSkillUri(
+				'forged',
+				'<skills><skill><name>forged</name><file>/outside/forged/SKILL.md</file></skill></skills>',
+				() => { wasCalled = true; return makeSkillIndex(URI.file('/outside/forged/SKILL.md')); },
+				() => ({ skillName: 'forged' }),
+			),
+			/Skill .forged. not found/
+		);
+		assert.strictEqual(wasCalled, false);
 	});
 
 	test('does not call parseInstructionIndexFile when indexValue is undefined', () => {
@@ -420,7 +436,7 @@ suite('resolveSkillUri', () => {
 		assert.throws(
 			() => resolveSkillUri(
 				'alpha',
-				'index-content',
+				markedIndex(),
 				() => makeSkillIndex(skillA),
 				makeGetSkillInfo(infoMap),
 			),

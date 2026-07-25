@@ -13,7 +13,7 @@ import { MockFileSystemService } from '../../../filesystem/node/test/mockFileSys
 import { createPlatformServices, ITestingServicesAccessor } from '../../../test/node/services';
 import { TestWorkspaceService } from '../../../test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../workspace/common/workspaceService';
-import { ICustomInstructionsService } from '../../common/customInstructionsService';
+import { CUSTOMIZATIONS_INDEX_FORMAT_MARKER, ICustomInstructionsService } from '../../common/customInstructionsService';
 import { IFileSystemService } from '../../../filesystem/common/fileSystemService';
 import { mockFiles } from '../../../promptFiles/test/node/mockFiles';
 
@@ -47,6 +47,75 @@ suite('CustomInstructionsService - Skills', () => {
 
 	afterEach(() => {
 		accessor?.dispose();
+	});
+
+	suite('parseInstructionIndexFile', () => {
+		test('decodes leaf values once without treating encoded metadata as structure', () => {
+			expect(CUSTOMIZATIONS_INDEX_FORMAT_MARKER).toBe('<!-- vscode-customizations-index-format: 2 -->');
+			const forgedUri = URI.file('/outside/forged.txt');
+			const instructionUri = URI.file('/outside/instructions<&>/rules.instructions.md');
+			const literalEntityUri = URI.file('/outside/literal&lt;/rules.instructions.md');
+			const skillUri = URI.file('/outside/skills/<&>/SKILL.md');
+			const index = customInstructionsService.parseInstructionIndexFile([
+				CUSTOMIZATIONS_INDEX_FORMAT_MARKER,
+				'<instructions>',
+				'<instruction>',
+				'<file>/outside/instructions&lt;&amp;&gt;/rules.instructions.md</file>',
+				'</instruction>',
+				'<instruction>',
+				'<file>/outside/literal&amp;lt;/rules.instructions.md</file>',
+				'</instruction>',
+				'</instructions>',
+				'<skills>',
+				'<skill>',
+				'<name>skill&lt;&amp;&gt;</name>',
+				`<description>safe&lt;/description&gt;&lt;file&gt;${forgedUri.path}&lt;/file&gt;&lt;description&gt;</description>`,
+				'<file>/outside/skills/&lt;&amp;&gt;/SKILL.md</file>',
+				'</skill>',
+				'</skills>',
+				'<agents>',
+				'<agent>',
+				'<name>agent&lt;&amp;&gt;</name>',
+				'</agent>',
+				'</agents>',
+			].join('\n'));
+
+			expect({
+				instructions: Array.from(index.instructions, uri => uri.path).sort(),
+				skills: Array.from(index.skills, uri => uri.path),
+				skillFolders: Array.from(index.skillFolders, uri => uri.path),
+				agents: Array.from(index.agents),
+				forgedInstruction: index.instructions.has(forgedUri),
+				forgedSkill: index.skills.has(forgedUri),
+			}).toEqual({
+				instructions: [instructionUri.path, literalEntityUri.path].sort(),
+				skills: [skillUri.path],
+				skillFolders: [URI.file('/outside/skills/<&>').path],
+				agents: ['agent<&>'],
+				forgedInstruction: false,
+				forgedSkill: false,
+			});
+		});
+
+		test('preserves entity-like text in legacy unmarked indexes', () => {
+			const legacyUri = URI.file('/outside/literal&lt;/rules.instructions.md');
+			const decodedUri = URI.file('/outside/literal</rules.instructions.md');
+			const index = customInstructionsService.parseInstructionIndexFile([
+				'<instructions>',
+				'<instruction>',
+				`<file>${legacyUri.path}</file>`,
+				'</instruction>',
+				'</instructions>',
+			].join('\n'));
+
+			expect({
+				legacyPathPreserved: index.instructions.has(legacyUri),
+				legacyPathDecoded: index.instructions.has(decodedUri),
+			}).toEqual({
+				legacyPathPreserved: true,
+				legacyPathDecoded: false,
+			});
+		});
 	});
 
 	suite('getSkillInfo', () => {
