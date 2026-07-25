@@ -8,20 +8,26 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { DisposableStore, ImmortalReference, IReference } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
+import { Menus } from '../../../../browser/menus.js';
+import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPRFetcher } from '../../../github/browser/fetchers/githubPRFetcher.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
 import { IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
+import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
 import { IGitHubInfo, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../browser/codeReviewService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import '../../browser/codeReview.contributions.js';
 
 suite('CodeReviewService', () => {
 
@@ -293,6 +299,53 @@ suite('CodeReviewService', () => {
 		assert.deepStrictEqual(
 			state.kind === PRReviewStateKind.Loaded ? state.comments.map(c => c.id) : state.kind,
 			['thread-200'],
+		);
+	});
+});
+
+suite('Code Review Contributions', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Run Code Review is shown in the single-pane Changes header only for created sessions with changes', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderPrimary)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'sessions.codeReview.run');
+
+		assert.ok(item, 'expected Run Code Review action on the single-pane Changes editor header');
+		const when = item.when?.serialize() ?? '';
+		assert.deepStrictEqual({
+			group: item.group,
+			order: item.order,
+			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
+			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditorInput.EDITOR_ID),
+			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
+			hasTopRightEditorGroupGate: when.includes(IsTopRightEditorGroupContext.key),
+			hasChangesGate: when.includes(SessionHasChangesContext.key),
+			hasCreatedGate: when.includes(SessionIsCreatedContext.key),
+		}, {
+			group: '1_codeReview',
+			order: 1,
+			hasSessionsWindowGate: true,
+			hasActiveEditorGate: true,
+			hasSinglePaneLayoutGate: true,
+			hasAuxiliaryWindowGate: true,
+			hasTopRightEditorGroupGate: true,
+			hasChangesGate: true,
+			hasCreatedGate: true,
+		});
+	});
+
+	test('Run Code Review is shown in the classic Changes toolbar only for created sessions', () => {
+		const item = MenuRegistry.getMenuItems(MenuId.AgentsChangesToolbar)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'sessions.codeReview.run');
+
+		assert.ok(item, 'expected Run Code Review action on the classic Changes toolbar');
+		assert.strictEqual(
+			item.when?.serialize().includes(SessionIsCreatedContext.key),
+			true,
 		);
 	});
 });

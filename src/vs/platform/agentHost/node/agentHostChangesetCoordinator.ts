@@ -6,9 +6,9 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agentService.js';
-import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
+import { buildBranchChangesetUri, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
@@ -44,7 +44,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	private readonly _changesetFileMonitor: ChangesetFileMonitorCoordinator;
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostChangesetOperationService private readonly _changesetOperationService: IAgentHostChangesetOperationService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
@@ -53,22 +53,15 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	) {
 		super();
 
-		this._changesetFileMonitor = this._register(instantiationService.createInstance(ChangesetFileMonitorCoordinator, this._stateManager));
+		this._changesetFileMonitor = this._register(instantiationService.createInstance(ChangesetFileMonitorCoordinator));
 		this._register(gitStateService.onDidRefreshSessionGitState(sessionStr => this.onDidRunSessionGitStateRefresh(sessionStr)));
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
 
 	/**
-	 * Called at session create time. Registers the static changeset URIs
-	 * on the state manager so client subscriptions resolve to a
-	 * `status: computing` snapshot before the first compute pass.
-	 *
-	 * The catalogue summary (`summary.changesets`) is seeded synchronously
-	 * by `_buildInitialSummary` in {@link AgentService} via
-	 * {@link buildDefaultChangesetCatalogue}; this method only registers
-	 * the backing per-changeset state. Both halves run before
-	 * `SessionReady` is dispatched.
+	 * Seeds the create-time catalogue and registers its backing changeset state
+	 * before `SessionReady` is dispatched.
 	 */
 	onSessionCreated(sessionStr: string): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);
@@ -146,14 +139,11 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		const parsed = parseChangesetUri(resourceStr);
 
 		if (!parsed && !isAhpChatChannel(resourceStr) && this._stateManager.getSessionState(resourceStr)) {
-			// Plain session-URI subscription (Agents Window list / detail
-			// observing the session). Track the session URI itself as a
-			// subscription marker so a later git-state change /
-			// materialization recompute (driven from the exposed
-			// subscription list) re-refreshes the static changesets, then
-			// refresh both now so the catalogue chip doesn't show a stale
-			// value just because no turn has run since process start.
-			this._addSubscription(resourceStr, resourceStr);
+			// For the session URI, we add a subscription for the branch
+			// changeset since this is the changeset that is being used to
+			// track the changes that are being used to calculate the diff
+			// statistics for the session changes.
+			this._addSubscription(resourceStr, buildBranchChangesetUri(resourceStr));
 			this._changesets.refreshBranchChangeset(resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
 

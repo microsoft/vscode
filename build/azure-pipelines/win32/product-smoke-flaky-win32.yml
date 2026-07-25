@@ -50,6 +50,12 @@ jobs:
       - powershell: npm run compile --prefix test/smoke
         displayName: Compile smoke tests
 
+      # Guarantee the artifact directories exist so the 1ES output publishing
+      # never fails on a missing path. The smoke runner writes logs under
+      # .build/logs and crash dumps under .build/crashes (only on a crash).
+      - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
+        displayName: Ensure artifact directories exist
+
       # Run the Electron smoke test once per iteration. continueOnError lets every
       # iteration run even if some fail, and gives each run its own timeline record
       # so the SmokeFlaky function can tally passes vs. failures.

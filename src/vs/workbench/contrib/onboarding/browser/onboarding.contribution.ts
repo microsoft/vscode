@@ -59,7 +59,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[ONBOARDING_ENABLED_CONFIG]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			description: localize('onboarding.enabled', "When enabled, onboarding tours and hints may appear automatically to highlight features. Disabling this does not affect tours you start manually.")
 		}
 	}

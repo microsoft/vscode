@@ -71,6 +71,7 @@ import './services/configurationResolver/browser/configurationResolverService.js
 import '../platform/extensionResourceLoader/browser/extensionResourceLoaderService.js';
 import './services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import './services/power/browser/powerService.js';
+import './services/localTranscription/browser/localTranscriptionService.js';
 import '../platform/sandbox/browser/sandboxHelperService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
@@ -105,6 +106,7 @@ import { IAgentHostService } from '../platform/agentHost/common/agentService.js'
 import { EditorRemoteAgentHostServiceClient } from './services/agentHost/browser/editorRemoteAgentHostServiceClient.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
 import { BrowserAgentHostDebugLogsExportService, IAgentHostDebugLogsExportService } from './contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
+import '../platform/agentHost/browser/agentHostEnablementService.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);

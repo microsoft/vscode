@@ -135,6 +135,10 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
+      - name: Verify native optional dependency binaries
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+
       - name: Save node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         uses: ./.github/actions/save-node-modules
@@ -190,6 +194,10 @@ jobs:
           # on macOS.
           GYP_DEFINES: "kerberos_use_rtld=false"
 
+      - name: Verify native optional dependency binaries
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+
       - name: Save node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         uses: ./.github/actions/save-node-modules
@@ -244,6 +252,10 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
+
+      - name: Verify native optional dependency binaries
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
 
       - name: Save node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit != 'true'

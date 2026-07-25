@@ -211,6 +211,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				return 'extension';
 			case PromptsStorage.plugin:
 				return 'plugin';
+			case PromptsStorage.builtIn:
+				return 'builtin';
 		}
 	}
 

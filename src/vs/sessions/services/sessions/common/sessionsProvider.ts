@@ -8,7 +8,8 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
+import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -27,6 +28,8 @@ export interface ISendRequestOptions {
 	readonly query: string;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
+	/** Optional display title for the new session. */
+	readonly title?: string;
 }
 
 /**
@@ -53,6 +56,13 @@ export interface ISessionModelPickerOptions {
 	 * picker or offering Auto.
 	 */
 	readonly showAutoModel?: boolean;
+}
+
+export interface ISessionModelsSnapshot {
+	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
+	readonly desiredModelResolution: ModelIdentifierResolution;
+	/** Concrete chat session type targeted by this model pool, or undefined for the shared pool. */
+	readonly modelTarget: string | undefined;
 }
 
 /**
@@ -138,6 +148,21 @@ export interface ISessionsProvider {
 	readonly supportsLocalWorkspaces?: boolean;
 
 	/**
+	 * Whether this provider can create **quick chats**: workspace-less sessions
+	 * that are not scoped to any folder (`ISession.workspace` is `undefined`).
+	 * When `true`, the provider must implement {@link createQuickChat}.
+	 * Defaults to falsy (quick chats not supported). Providers that do change
+	 * this at runtime should signal it via {@link onDidChangeCapabilities}.
+	 */
+	readonly supportsQuickChats?: boolean;
+
+	/**
+	 * Optional. Fires when a capability flag that consumers gate UI on (e.g.
+	 * {@link supportsQuickChats}) changes at runtime, so they can re-evaluate.
+	 */
+	readonly onDidChangeCapabilities?: Event<void>;
+
+	/**
 	 * Resolve a workspace for the given repository URI.
 	 * Returns `undefined` when the provider cannot handle the given URI
 	 * (e.g. wrong scheme or authority).
@@ -155,6 +180,19 @@ export interface ISessionsProvider {
 	 * @param sessionTypeId The ID of the session type to create.
 	 */
 	createNewSession(workspaceUri: URI, sessionTypeId: string): ISession;
+
+	/**
+	 * Create a new **quick chat**: a workspace-less session not scoped to any
+	 * folder (`ISession.workspace` resolves to `undefined`). Like
+	 * {@link createNewSession}, the returned session is an untitled draft that
+	 * the provider must not add to its session list until the first request is
+	 * sent, and that is disposed via {@link deleteNewSession} if abandoned.
+	 *
+	 * Callers must gate on {@link supportsQuickChats}; providers that do not
+	 * support quick chats must throw.
+	 * @param sessionTypeId The ID of the session type to create.
+	 */
+	createQuickChat(sessionTypeId: string): ISession;
 
 	/**
 	 * Delete a new (untitled, not-yet-sent) session previously created via
@@ -188,18 +226,10 @@ export interface ISessionsProvider {
 	renameSession(sessionId: string, title: string): Promise<void>;
 
 	/**
-	 * Get the language models that can be selected for a session. The sessions
-	 * core renders these in a single {@link ModelPickerActionItem}-based picker
-	 * and persists the user's choice per provider per session type. Returns an
-	 * empty array when the session has no selectable models (e.g. the underlying
-	 * runtime does not expose model selection).
-	 *
-	 * Providers backed by registered language models return them directly;
-	 * providers whose models come from another source (e.g. extension-host
-	 * option groups for cloud sessions) synthesize equivalent metadata.
-	 * @param sessionId The ID of the session.
+	 * Get selectable models and the current resolution of `desiredModelId`.
+	 * Callers wait for {@link onDidChangeModels} while the requested model is pending.
 	 */
-	getModels(sessionId: string): readonly ILanguageModelChatMetadataAndIdentifier[];
+	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot;
 
 	/**
 	 * Get the presentation options for the sessions-core model picker for the
@@ -211,7 +241,7 @@ export interface ISessionsProvider {
 	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions;
 
 	/**
-	 * Event that fires when the set of models returned by {@link getModels}
+	 * Event that fires when the snapshot returned by {@link getModelsSnapshot}
 	 * may have changed (e.g. language models finished loading, or the backend
 	 * advertised a new option group). The core model picker re-reads the model
 	 * list when this fires. Has no payload — consumers re-query per session.
@@ -226,6 +256,34 @@ export interface ISessionsProvider {
 	setModel(sessionId: string, modelId: string): void;
 
 	/**
+	 * Set the chat mode for a session.
+	 * @param sessionId The ID of the session.
+	 * @param modeId The mode identifier to set.
+	 */
+	setMode?(sessionId: string, modeId: string): void;
+
+	/**
+	 * Set the permission level for a session.
+	 * @param sessionId The ID of the session.
+	 * @param level The permission level to set.
+	 */
+	setPermissionLevel?(sessionId: string, level: string): void;
+
+	/**
+	 * Set the isolation mode for a session.
+	 * @param sessionId The ID of the session.
+	 * @param mode The isolation mode to set.
+	 */
+	setIsolationMode?(sessionId: string, mode: string): Promise<void>;
+
+	/**
+	 * Set the git branch for a session.
+	 * @param sessionId The ID of the session.
+	 * @param branch The branch name to set.
+	 */
+	setBranch?(sessionId: string, branch: string): Promise<void>;
+
+	/**
 	 * Archive a session.
 	 * @param sessionId The ID of the session to archive.
 	 */
@@ -236,6 +294,15 @@ export interface ISessionsProvider {
 	 * @param sessionId The ID of the session to unarchive.
 	 */
 	unarchiveSession(sessionId: string): Promise<void>;
+
+	/**
+	 * Set the read/unread state of a session. The provider owns and persists
+	 * this state (e.g. via its backend protocol or chat model) and is expected
+	 * to reflect it through the session's {@link ISession.isRead} observable.
+	 * @param sessionId The ID of the session.
+	 * @param isRead `true` to mark the session read, `false` to mark it unread.
+	 */
+	setSessionReadState(sessionId: string, isRead: boolean): Promise<void>;
 
 	/**
 	 * Delete a session.
@@ -278,6 +345,16 @@ export interface ISessionsProvider {
 	 * @param turnId The ID of the last turn (request) to include in the fork.
 	 */
 	forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat>;
+
+	/**
+	 * Create a side chat from an existing chat's turn, inheriting the source
+	 * chat's model/agent selection. Unlike {@link forkChat}, a side chat is for
+	 * a tangential follow-up rather than continuing the same line of work.
+	 * @param sessionId The ID of the session containing the source chat.
+	 * @param sourceChat The resource URI of the chat to branch from.
+	 * @param turnId The ID of the turn to branch from.
+	 */
+	createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat>;
 
 	/**
 	 * Send a request for a chat within a session.

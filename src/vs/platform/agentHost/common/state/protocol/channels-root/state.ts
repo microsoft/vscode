@@ -83,6 +83,94 @@ export interface AgentInfo {
 	 * into the session's `customizations` list.
 	 */
 	customizations?: Customization[];
+	/**
+	 * Static capabilities the agent advertises about itself. Clients use these
+	 * to gate features (multi-chat, fork) instead of switching on the provider
+	 * id.
+	 */
+	capabilities?: AgentCapabilities;
+}
+
+/**
+ * Static capabilities an {@link AgentInfo} advertises. Modelled after MCP
+ * capabilities: each field is opt-in and its presence (an empty object `{}`)
+ * signals support, while absence means the feature is unsupported and the
+ * corresponding client commands MUST NOT be used. Sub-fields carry
+ * per-capability options.
+ *
+ * @category Root State
+ */
+export interface AgentCapabilities {
+	/**
+	 * The agent can host more than one concurrent chat per session. When absent,
+	 * clients MUST NOT call `createChat` to open chats beyond the default one the
+	 * session starts with. An empty object `{}` advertises multi-chat without
+	 * source-based creation; set {@link MultipleChatsCapability.fork} or
+	 * {@link MultipleChatsCapability.sideChat} to allow the corresponding mode.
+	 */
+	multipleChats?: MultipleChatsCapability;
+	/**
+	 * The session's agent can be granted tool access to more than one working
+	 * directory. The directories are treated as equal peers except where the
+	 * agent advertises {@link MultipleWorkingDirectoriesCapability.requiresPrimary}
+	 * (some backends need one directory designated as a primary root).
+	 *
+	 * When absent, clients MUST NOT mutate a session's or chat's working-directory
+	 * set and MUST NOT set more than one entry in
+	 * {@link CreateSessionParams.workingDirectories}.
+	 */
+	multipleWorkingDirectories?: MultipleWorkingDirectoriesCapability;
+}
+
+/**
+ * Options for the {@link AgentCapabilities.multipleChats} capability.
+ *
+ * @category Root State
+ */
+export interface MultipleChatsCapability {
+	/**
+	 * The agent can fork a chat from a specific turn. When absent or `false`,
+	 * clients MUST NOT pass a {@link ChatSource} with `kind: "fork"` to
+	 * `createChat`.
+	 * Forking always implies multi-chat support.
+	 */
+	fork?: boolean;
+	/**
+	 * The agent can create a side chat from a specific turn. When absent or
+	 * `false`, clients MUST NOT pass a {@link ChatSource} with
+	 * `kind: "sideChat"` to `createChat`.
+	 *
+	 * A side chat receives the source turn as context without copying the source
+	 * transcript into its own visible history. The source is identified by a
+	 * stable `turnId`, which the host resolves against the source chat's current
+	 * `activeTurn` or retained history. When it names the current active turn,
+	 * the host snapshots the available partial assistant response at creation
+	 * time. Side-chat support always implies multi-chat support.
+	 */
+	sideChat?: boolean;
+}
+
+/**
+ * Options for the {@link AgentCapabilities.multipleWorkingDirectories} capability.
+ *
+ * @category Root State
+ */
+export interface MultipleWorkingDirectoriesCapability {
+	/**
+	 * The agent requires each chat to designate one of its working directories as
+	 * the **primary** — a distinguished root the chat is centered on (e.g. the
+	 * agent's process root for that chat, the default location for relative
+	 * paths). Primary is a **per-chat** notion, fixed at chat creation. When
+	 * `true`, a client SHOULD supply {@link CreateChatParams.primaryWorkingDirectory}
+	 * (and {@link CreateSessionParams.primaryWorkingDirectory}, which seeds the
+	 * session's default chat); a host MAY reject creation that omits it, or fall
+	 * back to the first entry of the chat's working directories. The chosen
+	 * primary is reported (read-only) on {@link ChatState.primaryWorkingDirectory}.
+	 *
+	 * When absent or `false`, the agent has no primary — all directories are
+	 * equal peers and clients need not designate one.
+	 */
+	requiresPrimary?: boolean;
 }
 
 /**

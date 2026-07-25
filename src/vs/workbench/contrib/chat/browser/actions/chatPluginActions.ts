@@ -81,8 +81,8 @@ class InstallFromSourceAction extends Action2 {
 
 		const store = new DisposableStore();
 		const inputBox = store.add(quickInputService.createInputBox());
-		inputBox.placeholder = localize('pluginSourcePlaceholder', "owner/repo or git clone URL");
-		inputBox.prompt = localize('pluginSourcePrompt', "Enter a GitHub repository or git URL to install a plugin from");
+		inputBox.placeholder = localize('pluginSourcePlaceholder', "owner/repo, git URL, or local folder path");
+		inputBox.prompt = localize('pluginSourcePrompt', "Enter a GitHub repository, git URL, or local folder path to install a plugin from");
 		inputBox.ignoreFocusOut = true;
 		inputBox.show();
 
@@ -122,7 +122,7 @@ class InstallFromSourceAction extends Action2 {
 					// Hide the input box so it doesn't conflict with trust/progress dialogs.
 					inputBox.hide();
 
-					const result = await pluginInstallService.installPluginFromValidatedSource(source);
+					const result = await pluginInstallService.installPluginFromSource(source);
 					if (!result.success) {
 						if (result.message) {
 							// Re-open with the error so the user can correct their input.

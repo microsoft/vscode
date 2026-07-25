@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../base/common/event.js';
+import { alert } from '../../base/browser/ui/aria/aria.js';
 import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
 import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
@@ -47,6 +48,7 @@ import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IAuxiliaryWindowService } from '../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { CodeWindow, mainWindow } from '../../base/browser/window.js';
+import { localize } from '../../nls.js';
 
 //#region Layout Implementation
 
@@ -102,7 +104,16 @@ enum LayoutClasses {
 	MAXIMIZED = 'maximized',
 	WINDOW_BORDER = 'border',
 	NO_SHADOWS = 'no-shadows',
-	FLOATING_PANELS = 'floating-panels'
+	FLOATING_PANELS = 'floating-panels',
+	// Presentation class for the Modern UI Update experiment, owned/toggled at
+	// runtime by `StyleOverridesContribution`. It is *also* applied here at render
+	// time (see `getLayoutClasses`) because parts read it back during layout (e.g.
+	// the 32px vs 35px part title height in `PartLayout`, and the editor tab
+	// height) via `.closest('.style-override')`. The contribution runs in the
+	// `Restored` phase — after the first layout — so without this early
+	// application the first layout would size parts against the default (35px)
+	// title and leave them mismatched until the next relayout.
+	STYLE_OVERRIDE = 'style-override'
 }
 
 interface IPathToOpen extends IPath {
@@ -1903,6 +1914,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
 			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
+			// Also seed the style-override class here (see `LayoutClasses.STYLE_OVERRIDE`).
+			this.isFloatingPanelsEnabled() ? LayoutClasses.STYLE_OVERRIDE : undefined,
 			`panel-position-${positionToString(this.getPanelPosition())}`,
 			`panel-alignment-${this.getPanelAlignment()}`
 		]);
@@ -2306,6 +2319,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case Parts.PANEL_PART:
 				return this.setPanelHidden(hidden);
 		}
+	}
+
+	toggleSecondarySideBar(): void {
+		const visible = !this.isSecondarySideBarVisible();
+		this.setPartHidden(!visible, Parts.AUXILIARYBAR_PART);
+		alert(visible
+			? localize('auxiliaryBarVisible', "Secondary Side Bar shown")
+			: localize('auxiliaryBarHidden', "Secondary Side Bar hidden"));
+	}
+
+	isSecondarySideBarVisible(): boolean {
+		return this.isVisible(Parts.AUXILIARYBAR_PART);
 	}
 
 	hasMainWindowBorder(): boolean {

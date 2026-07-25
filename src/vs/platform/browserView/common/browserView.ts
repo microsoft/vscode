@@ -123,6 +123,14 @@ export interface IBrowserViewWindowConfiguration {
 	 * workspace folder paths.
 	 */
 	readonly trustedFileRoots: readonly string[];
+	/**
+	 * Whether Workspace Trust is disabled entirely
+	 * (`security.workspace.trust.enabled: false`) for this window. When
+	 * `true`, every `file://` request is allowed regardless of
+	 * {@link trustedFileRoots} since there is no meaningful notion of an
+	 * untrusted folder to enforce.
+	 */
+	readonly trustAllFiles: boolean;
 }
 
 export interface IBrowserViewBounds {

@@ -1,0 +1,71 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Delete delete-me.txt.
+            origin:
+              kind: user
+    serverToClient:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Delete delete-me.txt.
+            origin:
+              kind: user
+      - channel: ${session_0}
+        action:
+          type: session/titleChanged
+      - method: root/sessionAdded
+      - channel: ${session_0}
+        action:
+          type: session/ready
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          toolName: Bash
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          result:
+            success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: The file contains a placeholder value (`DELETE_VALUE`), consistent with its name. Deleting it.
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_1}
+          toolName: Bash
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_1}
+          result:
+            success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: Done — `delete-me.txt` is deleted.
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}

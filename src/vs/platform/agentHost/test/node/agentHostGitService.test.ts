@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatGitError, parseChangedPaths, parseDefaultBranchRef, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { formatGitError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
-import { EMPTY_TREE_OBJECT, getBranchCompletions } from '../../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
 
 suite('AgentHostGitService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -153,6 +153,27 @@ suite('AgentHostGitService', () => {
 			const out = 'origin\thttps://gitlab.com/foo/bar.git (fetch)\n';
 			assert.strictEqual(parseGitHubRepoFromRemote(out), undefined);
 		});
+	});
+
+	test('orders fetch remote URLs with origin first and excludes push URLs', () => {
+		assert.deepStrictEqual(parseFetchRemoteUrls([
+			'upstream\tgit@github.com:microsoft/vscode.git (fetch)',
+			'origin\thttps://github.com/me/vscode.git (push)',
+			'origin\thttps://github.com/me/vscode.git (fetch)',
+		].join('\n')), [
+			'https://github.com/me/vscode.git',
+			'git@github.com:microsoft/vscode.git',
+		]);
+	});
+
+	test('prefers the branch upstream remote before origin', () => {
+		assert.deepStrictEqual(parseFetchRemoteUrls([
+			'origin\thttps://github.com/me/vscode.git (fetch)',
+			'upstream\thttps://github.com/microsoft/vscode.git (fetch)',
+		].join('\n'), 'upstream'), [
+			'https://github.com/microsoft/vscode.git',
+			'https://github.com/me/vscode.git',
+		]);
 	});
 
 	suite('parseUntrackedPaths', () => {
@@ -387,6 +408,39 @@ suite('AgentHostGitService', () => {
 			const result = summarizeStderrForError(long);
 			assert.strictEqual(result.length, 200);
 			assert.ok(result.endsWith('…'), 'expected trailing ellipsis');
+		});
+	});
+
+	suite('resolveDiffBaseBranchName', () => {
+		test('prefers the persisted base branch, then git state, then undefined', () => {
+			assert.deepStrictEqual(
+				[
+					resolveDiffBaseBranchName('persisted', 'gitState'),
+					resolveDiffBaseBranchName(undefined, 'gitState'),
+					resolveDiffBaseBranchName('persisted', undefined),
+					resolveDiffBaseBranchName(undefined, undefined),
+				],
+				['persisted', 'gitState', 'persisted', undefined],
+			);
+		});
+	});
+
+	suite('parseSingleLsTreeEntry', () => {
+		test('parses mode/oid and treats empty output as absent', () => {
+			assert.deepStrictEqual(
+				[
+					parseSingleLsTreeEntry('100644 blob e69de29bb2d1d6434b8b29ae775ad8c2e48c5391\ta.txt\x00'),
+					parseSingleLsTreeEntry('100755 blob abc123\tdir/with space.txt\x00'),
+					parseSingleLsTreeEntry(''),
+					parseSingleLsTreeEntry(undefined),
+				],
+				[
+					{ mode: '100644', oid: 'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391' },
+					{ mode: '100755', oid: 'abc123' },
+					undefined,
+					undefined,
+				],
+			);
 		});
 	});
 });

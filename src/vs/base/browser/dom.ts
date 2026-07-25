@@ -958,9 +958,9 @@ export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): bool
 	return false;
 }
 
-export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
+export function findParentWithClass(node: HTMLElement, clazz: string | readonly string[], stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
 	while (node && node.nodeType === node.ELEMENT_NODE) {
-		if (node.classList.contains(clazz)) {
+		if (typeof clazz === 'string' ? node.classList.contains(clazz) : clazz.every(candidate => node.classList.contains(candidate))) {
 			return node;
 		}
 
@@ -982,7 +982,7 @@ export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClaz
 	return null;
 }
 
-export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): boolean {
+export function hasParentWithClass(node: HTMLElement, clazz: string | readonly string[], stopAtClazzOrNode?: string | HTMLElement): boolean {
 	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
 }
 

@@ -187,6 +187,22 @@ export function toSessionEditorCommentId(source: SessionEditorCommentSource, sou
 	return `${source}:${sourceId}`;
 }
 
+/**
+ * Inverse of {@link toSessionEditorCommentId}. Returns `undefined` when the id
+ * does not match the `${source}:${sourceId}` shape produced above.
+ */
+export function fromSessionEditorCommentId(id: string): { readonly source: SessionEditorCommentSource; readonly sourceId: string } | undefined {
+	const separatorIndex = id.indexOf(':');
+	if (separatorIndex === -1) {
+		return undefined;
+	}
+	const source = id.slice(0, separatorIndex);
+	if (source !== SessionEditorCommentSource.AgentFeedback && source !== SessionEditorCommentSource.PRReview) {
+		return undefined;
+	}
+	return { source, sourceId: id.slice(separatorIndex + 1) };
+}
+
 export function getAcceptedAgentFeedbackCommentCount(comments: readonly ISessionEditorComment[]): number {
 	let count = 0;
 	for (const comment of comments) {

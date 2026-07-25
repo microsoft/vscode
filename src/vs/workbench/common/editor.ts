@@ -83,6 +83,15 @@ export interface IEditorDescriptor<T extends IEditorPane> {
 }
 
 /**
+ * Declares that an editor hosts the full-width group header (rendered by the
+ * editor group below the tab bar, using the group's configured header menus).
+ */
+export interface IEditorHeaderActions {
+	/** Editor-scoped instantiation service so the header toolbars' `when` clauses see the editor's context. */
+	readonly instantiationService: IInstantiationService;
+}
+
+/**
  * The editor pane is the container for workbench editors.
  */
 export interface IEditorPane extends IComposite {
@@ -175,6 +184,15 @@ export interface IEditorPane extends IComposite {
 	 * `IEditorOptions.viewState` to be applied when opening.
 	 */
 	getViewState(): object | undefined;
+
+	/**
+	 * An optional method to declare that this editor hosts the full-width group
+	 * header (rendered by the editor group below the tab bar using the group's
+	 * configured header menus), providing the editor-scoped instantiation service
+	 * so the header actions' `when` clauses evaluate in the editor's context.
+	 * Return `undefined` for no header (the default).
+	 */
+	getHeaderActions?(): IEditorHeaderActions | undefined;
 
 	/**
 	 * An optional method to return the current selection in
@@ -862,7 +880,14 @@ export const enum EditorInputCapabilities {
 	 * part. This is honored unless the user has explicitly opted
 	 * out of modal editors via `workbench.editor.useModal: 'off'`.
 	 */
-	RequiresModal = 1 << 11
+	RequiresModal = 1 << 11,
+
+	/**
+	 * Signals that the editor is exempt from the opened editors
+	 * limit (`workbench.editor.limit`): it never counts towards the
+	 * limit and is never auto-closed to satisfy it.
+	 */
+	ExcludeFromEditorLimit = 1 << 12
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;

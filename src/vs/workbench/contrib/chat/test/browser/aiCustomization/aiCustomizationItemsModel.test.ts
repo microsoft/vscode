@@ -13,6 +13,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
@@ -103,7 +104,9 @@ suite('AICustomizationItemsModel', () => {
 				onDidChangeSkills: Event.None,
 				onDidChangeHooks: Event.None,
 				onDidChangeInstructions: Event.None,
+				onDidChangeAgentInstructions: Event.None,
 				listPromptFiles: async (type: PromptsType) => listPromptFilesResult.filter(f => f.type === type),
+				listPromptFilesForStorage: async () => [],
 				getCustomAgents: async () => listPromptFilesResult.filter(f => f.type === PromptsType.agent).map(customAgentFromPromptPath),
 				findAgentSkills: async () => [],
 				getHooks: async () => undefined,
@@ -153,6 +156,7 @@ suite('AICustomizationItemsModel', () => {
 		function createLocalPlugin(name: string): IAgentPlugin {
 			return {
 				uri: URI.parse(`plugin-test://${name}`),
+				format: PluginFormat.Copilot,
 				label: name,
 				enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
 				remove: () => { },
@@ -549,7 +553,9 @@ suite('AICustomizationItemsModel', () => {
 				onDidChangeSkills: Event.None,
 				onDidChangeHooks: Event.None,
 				onDidChangeInstructions: Event.None,
+				onDidChangeAgentInstructions: Event.None,
 				listPromptFiles: async () => [],
+				listPromptFilesForStorage: async () => [],
 				getCustomAgents: async () => [],
 				findAgentSkills: async () => [],
 				getHooks: async () => undefined,
@@ -598,6 +604,7 @@ suite('AICustomizationItemsModel', () => {
 		function localPlugin(name: string): IAgentPlugin {
 			return {
 				uri: URI.parse(`plugin-test://${name}`),
+				format: PluginFormat.Copilot,
 				label: name,
 				enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
 				remove: () => { },
@@ -788,7 +795,9 @@ suite('AICustomizationItemsModel', () => {
 				onDidChangeSkills: Event.None,
 				onDidChangeHooks: Event.None,
 				onDidChangeInstructions: Event.None,
+				onDidChangeAgentInstructions: Event.None,
 				listPromptFiles: async () => [],
+				listPromptFilesForStorage: async () => [],
 				getCustomAgents: async () => [],
 				findAgentSkills: async () => [],
 				getHooks: async () => undefined,

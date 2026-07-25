@@ -322,6 +322,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
 				override readonly onDidChange = Event.None;
 				override getActiveNotification() { return undefined; }
+				override announceRendered() { }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly onDidChangeSlashCommands = Event.None;

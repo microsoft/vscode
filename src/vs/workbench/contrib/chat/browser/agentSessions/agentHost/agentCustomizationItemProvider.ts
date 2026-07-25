@@ -19,6 +19,7 @@ import { AICustomizationSource, AICustomizationSources } from '../../../common/a
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
+import { type ISyncedCustomizationOrigin } from './syncedCustomizationBundler.js';
 import { IAgentSource, ICustomAgent, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { localize } from '../../../../../../nls.js';
@@ -42,6 +43,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	constructor(
 		private readonly _connectionAuthority: string,
 		private readonly _getItemActions: ((customization: PluginCustomization, clientId: string | undefined) => ICustomizationItemAction[] | undefined) | undefined,
+		private readonly _resolveSyncedOrigin: ((syncedUri: URI) => ISyncedCustomizationOrigin | undefined) | undefined,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostCustomizationService private readonly _customAgentsService: IAgentHostCustomizationService,
@@ -268,9 +270,13 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		for (let i = 0; i < plugins.length; i++) {
 			const p = plugins[i];
 			for (const child of expansions[i]) {
+				// Files flattened into the synthetic bundle lost their original
+				// provenance; recover it (extension/plugin/built-in and source
+				// location) so the item reflects where it actually came from.
+				const enriched = p.isBundleItem ? this._applySyncedOrigin(child) : child;
 				// Children inherit the parent plugin's status/enabled state.
-				items.set(`${p.item.itemKey ?? p.item.uri.toString()}::${child.type}::${child.name}`, {
-					...child,
+				items.set(`${p.item.itemKey ?? p.item.uri.toString()}::${enriched.type}::${enriched.name}`, {
+					...enriched,
 					status: p.status,
 					statusMessage: p.statusMessage,
 					enabled: p.enabled,
@@ -293,6 +299,31 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}
 		return [...items.values()];
+	}
+
+	/**
+	 * Rewrites a bundle child item to reflect the original source location of
+	 * the flattened file, when it can be recovered from the synthetic bundle's
+	 * reverse map. The synced (in-memory) URI is replaced with the real local
+	 * URI so the item points at its true origin, and the source/extension/plugin
+	 * metadata is restored. Returns the item unchanged when no origin is known.
+	 */
+	private _applySyncedOrigin(child: ICustomizationItem): ICustomizationItem {
+		const origin = this._resolveSyncedOrigin?.(child.uri);
+		if (!origin) {
+			return child;
+		}
+		return {
+			...child,
+			uri: origin.uri,
+			source: origin.source,
+			extensionId: origin.extensionId,
+			pluginUri: origin.pluginUri,
+			// Drop the synthetic bundle's `remote-client` group so the recovered
+			// source drives grouping (extension/plugin/built-in). Otherwise the
+			// item would keep rendering under the "Local" group.
+			groupKey: undefined,
+		};
 	}
 
 	/**

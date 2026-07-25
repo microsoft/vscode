@@ -48,18 +48,19 @@ described delivery slots (native MDM, server-managed, and file-based).
 |---------|-----------------|----------------|----------|
 | **Native MDM** (Windows registry / macOS plist) | OS managed preferences | `NativeManagedSettingsService` (`src/vs/platform/policy/node/nativeManagedSettingsService.ts`) via `@vscode/policy-watcher` | `INativeManagedSettingsService.managedSettings` |
 | **Server-managed** (`/copilot_internal/managed_settings`) | GitHub endpoint; per the code comment in `managedSettings.ts`, it returns the enterprise's `.github/copilot/settings.json` content | `adaptManagedSettings` (`src/vs/workbench/services/accounts/browser/managedSettings.ts`) → `DefaultAccountService.policyData` | `accountPolicyData.managedSettings` |
-| **File-based** (`managed-settings.json`) | well-known per-OS disk path (e.g. `/Library/Application Support/GitHubCopilot/` on macOS), read in the main process and exposed to renderer windows over IPC | `FileManagedSettingsService` (`src/vs/platform/policy/common/fileManagedSettingsService.ts`) | `IFileManagedSettingsService.managedSettings` |
+| **File-based** (`managed-settings.json`) | well-known per-OS disk path (e.g. `/Library/Application Support/GitHubCopilot/` on macOS), read in the main process and exposed to renderer windows over IPC | `FileManagedSettingsService` (`src/vs/platform/policy/common/fileManagedSettingsService.ts`) | `IFileManagedSettingsService.rawManagedSettings` + `.managedSettings` |
 
 All three VS Code channels converge in `AccountPolicyService.getPolicyData()`.
 
 **Precedence: native MDM managed settings win over the server-delivered channel, which in
-turn wins over the file-based channel** (`selectManagedSettings` in `copilotManagedSettings.ts`).
-There is a single authoritative source at any point in time — the channels are **not**
-merged. The highest-precedence non-empty channel wins outright and the rest are ignored.
-Rationale: the server is harder to bypass than local MDM, and a local file is the most
-easily tampered with, so admins need one authoritative source to reason about. The
-winning channel is then projected onto the declared schema (see below). Client-side
-merging still happens *within* the winning channel (e.g. `enabledPlugins`,
+turn wins over the file-based channel** (`pickManagedSettings` in `copilotManagedSettings.ts`).
+Precedence is resolved **per key**: for each key the highest-precedence channel that supplies
+it wins, but a key that the higher channels leave unset is still filled in by a lower channel.
+A value an admin locks via native MDM therefore cannot be overwritten by the server or a file,
+while keys the higher channels never set remain available to lower ones. Rationale for the
+order: the server is harder to bypass than local MDM, and a local file is the most easily
+tampered with. The merged bag is then projected onto the declared schema (see below).
+Client-side merging still happens *within* a channel's value (e.g. `enabledPlugins`,
 `extraKnownMarketplaces`).
 
 ## Schema source of truth
@@ -201,7 +202,7 @@ delivery slot for the managed value.
 | `collectManagedSettingsDefinitions(policyDefinitions)` | Aggregates every policy's `managedSettings` into one `key → { type }` map. **Single source of truth** for which keys (and types) are honored; drives both the MDM watcher and the server projection. |
 | `hasManagedSettingsDefinitions(policyDefinitions)` | Cheap short-circuiting existence check (does *any* policy declare a managed key?) — used to decide whether the native MDM watcher is needed at all, without building the full aggregate. |
 | `projectManagedSettings(values, definitions, onWarn?)` | Keeps only declared keys whose runtime value **matches the declared type**. Undeclared keys and type mismatches are **dropped (validated, never coerced)**, with an optional warning. |
-| `selectManagedSettings(nativeMdm, server, file)` | Picks the single authoritative channel by precedence (native MDM → server → file); never merges. **The extension point when adding a new channel** — extend the `ManagedSettingsSource` union and this function together. |
+| `pickManagedSettings(nativeMdm, server, file)` | Merges the channels **per key** by precedence (native MDM → server → file): the highest-precedence channel that sets a key wins, lower channels fill in keys the higher ones leave unset, and every contribution is recorded for provenance. **The extension point when adding a new channel** — extend the `ManagedSettingsChannel` union, the `MANAGED_SETTINGS_CHANNELS` order, and this function together. |
 | `managedSettingValue(key)` | Builds the standard pass-through `value` callback `policyData => policyData.managedSettings?.[key]`. Use for the common "lock to the managed value, else fall through" case (see [Declaring a managed setting](#declaring-a-managed-setting-on-a-policy)). |
 
 ### Normalization: the structured-key descriptor table
@@ -267,7 +268,28 @@ The **file-based** channel is wired the same way (`src/vs/code/electron-main/mai
 `NullFileManagedSettingsService` when no path applies. It is exposed to the renderer over IPC
 via `FileManagedSettingsChannel` / `FileManagedSettingsChannelClient`
 (`fileManagedSettingsIpc.ts`), registered as the `fileManagedSettings` channel in `app.ts`,
-and `AccountPolicyService` subscribes to its `onDidChangeManagedSettings` too.
+and `AccountPolicyService` subscribes to its `onDidChangeManagedSettings` too. The service also
+retains the parsed source object as `rawManagedSettings` with a separate change event. That raw
+snapshot is diagnostics-only; policy evaluation continues to consume the normalized
+`managedSettings` bag.
+
+## Diagnostics pipeline
+
+**Developer: Policy Diagnostics** shows each delivery channel as a pipeline:
+
+1. Source input (the server response, parsed file, or definition-scoped native watcher values).
+2. Canonical normalized bag from `normalizeManagedSettings`.
+3. VS Code policy projection from `projectManagedSettings`.
+
+It then shows per-key channel precedence, the merged normalized bag, and the final bag delivered to
+VS Code policy callbacks. Runtime-owned settings can therefore remain visible in a raw source even
+when VS Code has no corresponding policy declaration and the projected bag is empty.
+
+The report separately queries capable Agent Host providers for their own effective managed-settings
+snapshot. Copilot uses the platform runtime package's public `sdk/index.js#getManagedSettings()`
+API, which returns the same payload as `session.managed_settings_resolved` without requiring an
+active session. This runtime snapshot is not treated as another VS Code delivery channel because
+the runtime owns its schema and authority resolution independently.
 
 ## Adding a brand-new managed-settings key (checklist)
 

@@ -31,6 +31,27 @@ export interface IAutomationSchedule {
 	readonly scheduleDay: number;
 }
 
+/** Repository isolation for a workspace-backed Automation target. */
+export type AutomationWorkspaceIsolation =
+	| { readonly kind: 'default' }
+	| { readonly kind: 'folder' }
+	| { readonly kind: 'worktree'; readonly branch: string };
+
+/** The mutually exclusive execution targets an Automation can use. */
+export type AutomationTarget =
+	| {
+		readonly kind: 'workspace';
+		readonly folderUri: URI;
+		readonly providerId?: string;
+		readonly sessionTypeId?: string;
+		readonly isolation: AutomationWorkspaceIsolation;
+	}
+	| {
+		readonly kind: 'quickChat';
+		readonly providerId: string;
+		readonly sessionTypeId: string;
+	};
+
 /**
  * A single scheduled automation. Identity is the immutable `id`; everything
  * else may be edited by the user.
@@ -41,18 +62,8 @@ export interface IAutomation {
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
 
-	/** Workspace folder for the spawned session. Required. */
-	readonly folderUri: URI;
-
-	/**
-	 * Sessions provider for the scheduled run (e.g. `local-agent-host`). Omitted
-	 * on automations predating the picker; the runner then falls back to the
-	 * workspace default provider.
-	 */
-	readonly providerId?: string;
-
-	/** Session type to create within {@link providerId}, captured alongside it. */
-	readonly sessionTypeId?: string;
+	/** Explicit workspace-backed or workspace-less execution target. */
+	readonly target: AutomationTarget;
 
 	/** Optional language model identifier to seed the new session with. */
 	readonly modelId?: string;
@@ -62,12 +73,6 @@ export interface IAutomation {
 
 	/** Optional permission level (`default`/`autoApprove`/`autopilot`). Overrides only for scheduled runs; defaults to provider's default. */
 	readonly permissionLevel?: string;
-
-	/** Optional worktree isolation mode (`worktree` or `workspace`). */
-	readonly isolationMode?: string;
-
-	/** Optional git branch for isolated runs. */
-	readonly branch?: string;
 
 	readonly enabled: boolean;
 
@@ -80,6 +85,11 @@ export interface IAutomation {
 	readonly nextRunAt?: string;
 }
 
+/**
+ * Lifecycle of an automation run. A run stays `running` while its agent session
+ * is active or needs input, and becomes terminal when that session completes or
+ * fails, or when tracking is cancelled or times out while the session may remain active.
+ */
 export type AutomationRunStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 /**
@@ -94,8 +104,8 @@ export interface IAutomationRun {
 	readonly status: AutomationRunStatus;
 	readonly trigger: AutomationRunTrigger;
 
-	/** Session identifier assigned by ISessionsManagementService, if any. */
-	readonly sessionId?: string;
+	/** Session resource URI (stringified), recorded as soon as the committed session is available. */
+	readonly sessionResource?: string;
 
 	readonly startedAt: string;
 	readonly completedAt?: string;

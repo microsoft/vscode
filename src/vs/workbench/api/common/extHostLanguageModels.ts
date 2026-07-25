@@ -244,6 +244,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					statusIcon: m.statusIcon,
 					targetChatSessionType: m.targetChatSessionType,
 					configurationSchema: m.configurationSchema as IJSONSchema | undefined,
+					warningText: m.warningText,
+					promo: m.promo,
 					capabilities: m.capabilities ? {
 						vision: m.capabilities.imageInput,
 						editTools: m.capabilities.editTools,

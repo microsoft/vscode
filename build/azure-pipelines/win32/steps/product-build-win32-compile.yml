@@ -41,6 +41,10 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
+  - template: ../../common/apply-sdk-canary.yml@self
+    parameters:
+      windows: true
+
   - pwsh: |
       mkdir .build -ea 0
       node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash
@@ -66,13 +70,13 @@ steps:
       exec { npm config set registry "$env:NPM_REGISTRY" }
       $NpmrcPath = (npm config get userconfig)
       echo "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM
 
   - task: npmAuthenticate@0
     inputs:
       workingFile: $(NPMRC_PATH)
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
   - powershell: |
@@ -103,7 +107,7 @@ steps:
     displayName: Create node_modules archive
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - pwsh: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
+    - pwsh: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli=WindowsCLI_${{ upper(parameters.VSCODE_ARCH) }}" unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI artifact (background)
@@ -124,6 +128,10 @@ steps:
   - template: ../../common/install-builtin-extensions.yml@self
 
   - template: ../../common/agent-sdk-produce.yml@self
+    parameters:
+      vscodePlatform: win32
+
+  - template: ../../common/dictation-runtime-produce.yml@self
     parameters:
       vscodePlatform: win32
 
@@ -225,6 +233,10 @@ steps:
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Build server
 
+  - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+    - powershell: node build/azure-pipelines/common/smokeTestAgentHost.ts "$(Agent.BuildDirectory)\vscode-server-win32-$(VSCODE_ARCH)"
+      displayName: 🧪 Smoke test packaged Agent Host
+
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
@@ -241,7 +253,7 @@ steps:
     displayName: Build server (web)
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - pwsh: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
+    - pwsh: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli=WindowsCLI_${{ upper(parameters.VSCODE_ARCH) }}" unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI artifact

@@ -5,16 +5,20 @@
 
 import assert from 'assert';
 import { isHTMLElement } from '../../../../../../../base/browser/dom.js';
-import { Event } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
+import { BaseObservable } from '../../../../../../../base/common/observableInternal/observables/baseObservable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatSubagentContentPart } from '../../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { IChatMarkdownContent, IChatSubagentToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
+import { ChatResponseModelChangeReason } from '../../../../common/model/chatModel.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
@@ -28,6 +32,8 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { RunSubagentTool } from '../../../../common/tools/builtinTools/runSubagentTool.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
+import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 
 suite('ChatSubagentContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -90,6 +96,18 @@ suite('ChatSubagentContentPart', () => {
 					parameters,
 					confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
 					progress: observableValue('progress', { message: undefined, progress: undefined })
+				};
+			case IChatToolInvocation.StateKind.WaitingForAuthentication:
+				return {
+					type: IChatToolInvocation.StateKind.WaitingForAuthentication,
+					parameters,
+					confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					server: {
+						id: 'server',
+						name: 'MCP server',
+						resource: 'https://mcp.example.com',
+					},
+					cancel: () => { },
 				};
 			case IChatToolInvocation.StateKind.WaitingForConfirmation:
 				return {
@@ -229,6 +247,9 @@ suite('ChatSubagentContentPart', () => {
 			showManagedHover: () => { }
 		};
 		instantiationService.stub(IHoverService, mockHoverService);
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced(): boolean { return false; }
+		}());
 
 		// Mock list pool and editor pool
 		mockListPool = {} as CollapsibleListPool;
@@ -265,12 +286,7 @@ suite('ChatSubagentContentPart', () => {
 
 
 	function getCollapseButton(part: ChatSubagentContentPart): HTMLElement | undefined {
-		const label = part.domNode.firstElementChild;
-		if (!isHTMLElement(label)) {
-			return undefined;
-		}
-
-		const button = label.firstElementChild;
+		const button = part.domNode.querySelector('.chat-used-context-label > .monaco-button');
 		return isHTMLElement(button) ? button : undefined;
 	}
 
@@ -285,8 +301,19 @@ suite('ChatSubagentContentPart', () => {
 	}
 
 	function getWrapperElement(part: ChatSubagentContentPart): HTMLElement | undefined {
-		const wrapper = part.domNode.lastElementChild;
+		const wrapper = part.domNode.querySelector('.chat-thinking-collapsible');
 		return isHTMLElement(wrapper) ? wrapper : undefined;
+	}
+
+	function getOpenChatContext(part: ChatSubagentContentPart): { chatResource: string; confirmationCount: number; confirmationActive?: boolean; startedAt?: number; duration?: number } | undefined {
+		return (part as unknown as { _openChatToolbar?: { actionBar?: { context?: { chatResource: string; confirmationCount: number; confirmationActive?: boolean; startedAt?: number; duration?: number } } } })._openChatToolbar?.actionBar?.context;
+	}
+
+	function setOpenChatOnlyMode(part: ChatSubagentContentPart, enabled: boolean): void {
+		const toolbar = (part as unknown as { _openChatToolbar?: { getItemsLength(): number } })._openChatToolbar;
+		assert.ok(toolbar);
+		toolbar.getItemsLength = () => enabled ? 1 : 0;
+		(part as unknown as { _updateOpenChatOnlyMode(): void })._updateOpenChatOnlyMode();
 	}
 
 	suite('Basic rendering', () => {
@@ -299,6 +326,116 @@ suite('ChatSubagentContentPart', () => {
 			assert.ok(part.domNode.classList.contains('chat-thinking-box'), 'Should have chat-thinking-box class');
 			assert.ok(part.domNode.classList.contains('chat-subagent-part'), 'Should have chat-subagent-part class');
 			assert.ok(part.domNode.classList.contains('chat-thinking-fixed-mode'), 'Should have chat-thinking-fixed-mode class');
+			assert.ok(part.domNode.classList.contains('chat-collapsible-content-animatable'), 'Should prepare expandable content for animation');
+			assert.strictEqual(part.domNode.classList.contains('chat-collapsible-content-animated'), false, 'Should preserve the collapsed streaming preview at rest');
+		});
+
+		test('should render the open-chat toolbar beside the collapse button', () => {
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Test subagent description',
+					chatResource: 'ahp-chat://subagent/test/tool-call',
+				}
+			}), createMockRenderContext(false));
+			const header = part.domNode.querySelector('.chat-used-context-label');
+			const toolbar = header?.querySelector('.chat-subagent-open-chat-toolbar');
+			const collapseButton = getCollapseButton(part);
+
+			assert.deepStrictEqual({
+				hasChatClass: part.domNode.classList.contains('chat-subagent-has-chat'),
+				toolbarParentIsHeader: toolbar?.parentElement === header,
+				toolbarPrecedesCollapseButton: toolbar?.nextElementSibling === collapseButton,
+			}, {
+				hasChatClass: true,
+				toolbarParentIsHeader: true,
+				toolbarPrecedesCollapseButton: true,
+			});
+		});
+
+		test('should hide the complete collapsible surface when the open-chat action is available', () => {
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Test subagent description',
+					chatResource: 'ahp-chat://subagent/test/tool-call',
+				}
+			}), createMockRenderContext(false));
+			setOpenChatOnlyMode(part, true);
+
+			const collapseButton = getCollapseButton(part);
+			const animationContainer = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation');
+			assert.ok(collapseButton);
+			assert.ok(animationContainer);
+			assert.deepStrictEqual({
+				openChatOnlyClass: part.domNode.classList.contains('chat-subagent-open-chat-only'),
+				collapseButtonDisplay: collapseButton.style.display,
+				animationDisplay: animationContainer.style.display,
+			}, {
+				openChatOnlyClass: true,
+				collapseButtonDisplay: 'none',
+				animationDisplay: 'none',
+			});
+		});
+
+		test('should keep collapsed animated content out of keyboard navigation', () => {
+			const toolInvocation = createMockToolInvocation();
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+			const animationContainer = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation');
+			const animationContent = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation-inner');
+			const chevron = part.domNode.querySelector('.chat-collapsible-hover-chevron');
+			const button = getCollapseButton(part);
+			assert.ok(animationContainer);
+			assert.ok(animationContent);
+			assert.ok(chevron);
+			assert.ok(button);
+
+			const collapsedInert = animationContent.inert;
+			const collapsedChevronExpanded = chevron.classList.contains('expanded');
+			button.click();
+			const animationEnabledDuringToggle = part.domNode.classList.contains('chat-collapsible-content-animated');
+			const transitionEnd = new mainWindow.Event('transitionend');
+			Object.defineProperty(transitionEnd, 'propertyName', { value: 'grid-template-rows' });
+			animationContainer.dispatchEvent(transitionEnd);
+			const animationEnabledAfterToggle = part.domNode.classList.contains('chat-collapsible-content-animated');
+			animationContent.dispatchEvent(new mainWindow.CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
+
+			assert.deepStrictEqual({
+				collapsedInert,
+				collapsedChevronExpanded,
+				animationEnabledDuringToggle,
+				animationEnabledAfterToggle,
+				nestedToggleIgnored: !part.domNode.classList.contains('chat-collapsible-content-animated'),
+				expandedInert: animationContent.inert,
+				expandedChevronExpanded: chevron.classList.contains('expanded'),
+			}, {
+				collapsedInert: true,
+				collapsedChevronExpanded: false,
+				animationEnabledDuringToggle: true,
+				animationEnabledAfterToggle: false,
+				nestedToggleIgnored: true,
+				expandedInert: false,
+				expandedChevronExpanded: true,
+			});
+		});
+
+		test('should restore the streaming preview when an animation is canceled', async () => {
+			const part = createPart(createMockToolInvocation(), createMockRenderContext(false));
+			const animationContainer = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation');
+			const button = getCollapseButton(part);
+			assert.ok(animationContainer);
+			assert.ok(button);
+
+			button.click();
+			animationContainer.getAnimations = () => [];
+			const transitionCancel = new mainWindow.Event('transitioncancel');
+			Object.defineProperty(transitionCancel, 'propertyName', { value: 'grid-template-rows' });
+			animationContainer.dispatchEvent(transitionCancel);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			assert.strictEqual(part.domNode.classList.contains('chat-collapsible-content-animated'), false);
 		});
 
 		test('should shimmer for an in-progress subagent even when the response is complete', () => {
@@ -529,7 +666,103 @@ suite('ChatSubagentContentPart', () => {
 
 			part.markAsInactive();
 
-			assert.strictEqual(part.getIsActive(), false, 'Should be inactive after markAsInactive');
+			assert.deepStrictEqual({
+				isActive: part.getIsActive(),
+				animationEnabled: part.domNode.classList.contains('chat-collapsible-content-animated'),
+			}, {
+				isActive: false,
+				animationEnabled: true,
+			});
+		});
+
+		test('forced inactive state freezes timing for a terminal parent response', () => {
+			const toolSpecificData: IChatSubagentToolInvocationData = {
+				kind: 'subagent',
+				isActive: true,
+				description: 'Working on task',
+				chatResource: 'ahp-chat://subagent/test/tool-call',
+				startedAt: Date.now() - 5000,
+			};
+			const part = createPart(createMockToolInvocation({ toolSpecificData }), createMockRenderContext(false));
+
+			part.markAsInactive(true);
+
+			assert.deepStrictEqual({
+				isActive: toolSpecificData.isActive,
+				hasDuration: typeof toolSpecificData.duration === 'number' && toolSpecificData.duration >= 5000,
+				contextDuration: getOpenChatContext(part)?.duration,
+			}, {
+				isActive: false,
+				hasDuration: true,
+				contextDuration: toolSpecificData.duration,
+			});
+		});
+
+		test('forced inactive state freezes serialized subagent timing', () => {
+			const toolSpecificData: IChatSubagentToolInvocationData = {
+				kind: 'subagent',
+				isActive: true,
+				description: 'Restored task',
+				chatResource: 'ahp-chat://subagent/test/restored',
+				startedAt: Date.now() - 5000,
+			};
+			const part = createPart(createMockSerializedToolInvocation({
+				toolSpecificData,
+				isComplete: true,
+			}), createMockRenderContext(true));
+
+			part.markAsInactive(true);
+
+			assert.deepStrictEqual({
+				isActive: toolSpecificData.isActive,
+				hasDuration: typeof toolSpecificData.duration === 'number' && toolSpecificData.duration >= 5000,
+				contextDuration: getOpenChatContext(part)?.duration,
+			}, {
+				isActive: false,
+				hasDuration: true,
+				contextDuration: toolSpecificData.duration,
+			});
+		});
+
+		test('stops immediately when the parent response becomes terminal', () => {
+			const onDidChange = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+			let isComplete = false;
+			const baseContext = createMockRenderContext(false);
+			const baseElement = baseContext.element as IChatResponseViewModel;
+			const context: IChatContentPartRenderContext = {
+				...baseContext,
+				element: {
+					...baseElement,
+					model: {
+						...baseElement.model,
+						onDidChange: onDidChange.event,
+					} as IChatResponseViewModel['model'],
+					get isComplete() { return isComplete; },
+					get isCanceled() { return false; },
+					setVote: () => { },
+				},
+			};
+			const toolSpecificData: IChatSubagentToolInvocationData = {
+				kind: 'subagent',
+				isActive: true,
+				description: 'Working on task',
+				chatResource: 'ahp-chat://subagent/test/tool-call',
+				startedAt: Date.now() - 5000,
+			};
+			const part = createPart(createMockToolInvocation({ toolSpecificData }), context);
+
+			isComplete = true;
+			onDidChange.fire({ reason: 'completedRequest' });
+
+			assert.deepStrictEqual({
+				isActive: part.getIsActive(),
+				toolIsActive: toolSpecificData.isActive,
+				hasDuration: typeof toolSpecificData.duration === 'number' && toolSpecificData.duration >= 5000,
+			}, {
+				isActive: false,
+				toolIsActive: false,
+				hasDuration: true,
+			});
 		});
 
 		test('markAsInactive should remove streaming class', () => {
@@ -1299,6 +1532,7 @@ suite('ChatSubagentContentPart', () => {
 					agentName: 'TestAgent'
 				}
 			});
+
 			const context = createMockRenderContext(false);
 
 			const part = createPart(toolInvocation, context);
@@ -1329,6 +1563,116 @@ suite('ChatSubagentContentPart', () => {
 			// Should auto-expand when tool needs confirmation
 			assert.strictEqual(part.domNode.classList.contains('chat-used-context-collapsed'), false,
 				'Should auto-expand when tool needs confirmation');
+		});
+
+		test('should publish the pending confirmation count to the open-chat pill', () => {
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					chatResource: 'ahp-chat://subagent/test/tool-call',
+				}
+			}), createMockRenderContext(false));
+			const state = observableValue('state', createState(IChatToolInvocation.StateKind.Executing));
+			const childTool = { ...createMockToolInvocation({ toolId: 'first' }), state };
+			part.enableCarouselMode(() => { }, () => { }, (_tool, currentState) => currentState.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+			part.trackToolState(childTool);
+
+			state.set(createState(IChatToolInvocation.StateKind.WaitingForConfirmation), undefined);
+			const pending = getOpenChatContext(part)?.confirmationCount;
+			state.set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.deepStrictEqual({
+				pending,
+				afterConfirmation: getOpenChatContext(part)?.confirmationCount,
+			}, {
+				pending: 1,
+				afterConfirmation: 0,
+			});
+		});
+
+		test('should distinguish the active confirmation from pending confirmations', () => {
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					chatResource: 'ahp-chat://subagent/test/tool-call',
+				}
+			}), createMockRenderContext(false));
+
+			part.setConfirmationActive(true);
+			const active = getOpenChatContext(part)?.confirmationActive;
+			part.setConfirmationActive(false);
+
+			assert.deepStrictEqual({
+				active,
+				inactive: getOpenChatContext(part)?.confirmationActive,
+			}, {
+				active: true,
+				inactive: false,
+			});
+		});
+
+		test('should refresh the open-chat timing when the subagent stops', () => {
+			const toolSpecificData: IChatSubagentToolInvocationData = {
+				kind: 'subagent',
+				description: 'Working on task',
+				chatResource: 'ahp-chat://subagent/test/tool-call',
+				isActive: true,
+				startedAt: 1000,
+			};
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData,
+				stateType: IChatToolInvocation.StateKind.Executing,
+			});
+			const state = observableValue('state', toolInvocation.state.get());
+			(toolInvocation as unknown as { state: typeof state }).state = state;
+			const part = createPart(toolInvocation, createMockRenderContext(false));
+
+			toolSpecificData.isActive = false;
+			toolSpecificData.duration = 5000;
+			state.set({ ...state.get() }, undefined);
+
+			assert.deepStrictEqual(getOpenChatContext(part), {
+				chatResource: 'ahp-chat://subagent/test/tool-call',
+				confirmationCount: 0,
+				confirmationActive: false,
+				startedAt: 1000,
+				duration: 5000,
+			});
+		});
+
+		test('should stop tracking a tool invocation once it reaches a terminal state', async () => {
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					agentName: 'TestAgent'
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			const stateObservable = observableValue('state', createState(IChatToolInvocation.StateKind.Executing));
+			const childTool: IChatToolInvocation = {
+				...createMockToolInvocation({
+					toolId: 'readFile',
+					subAgentInvocationId: toolInvocation.subAgentInvocationId
+				}),
+				state: stateObservable,
+				invocationMessage: 'Reading file'
+			};
+
+			part.trackToolState(childTool);
+			const observerCount = () => (stateObservable as unknown as BaseObservable<IChatToolInvocation.State>).debugGetObservers().size;
+			assert.strictEqual(observerCount(), 1, 'Tracking autorun should observe the tool state');
+
+			// Complete the tool; disposal of the tracking autorun is deferred via a microtask.
+			stateObservable.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+			await Promise.resolve();
+
+			assert.strictEqual(observerCount(), 0, 'Tracking autorun should be disposed once the tool reaches a terminal state');
 		});
 
 		test('should auto-collapse when confirmation is addressed', () => {

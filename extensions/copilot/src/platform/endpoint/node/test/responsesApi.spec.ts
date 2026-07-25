@@ -21,7 +21,7 @@ import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryS
 import { createFakeStreamResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
 import type { ThinkingData } from '../../../thinking/common/thinking';
-import { CustomDataPartMimeTypes } from '../../common/endpointTypes';
+import { CacheType, CustomDataPartMimeTypes } from '../../common/endpointTypes';
 import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging } from '../responsesApi';
 
 const testEndpoint: IChatEndpoint = {
@@ -369,59 +369,6 @@ describe('responseApiInputToRawMessagesForLogging', () => {
 });
 
 describe('createResponsesRequestBody', () => {
-	it('enables persistent CoT on initial requests for hidden model M when the experiment is enabled', () => {
-		const services = createPlatformServices();
-		const accessor = services.createTestingAccessor();
-		const instantiationService = accessor.get(IInstantiationService);
-		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, true);
-		const endpoint = { ...testEndpoint, family: 'ember-alpha', supportsReasoningEffort: ['low', 'medium', 'high'] };
-
-		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions([], false), endpoint.model, endpoint));
-
-		expect(body.reasoning).toEqual({ effort: 'medium', context: 'all_turns' });
-
-		accessor.dispose();
-		services.dispose();
-	});
-
-	it('does not enable persistent CoT when the experiment is disabled or the family is unsupported', () => {
-		const services = createPlatformServices();
-		const accessor = services.createTestingAccessor();
-		const instantiationService = accessor.get(IInstantiationService);
-		const emberEndpoint = { ...testEndpoint, family: 'ember-alpha' };
-		const unsupportedEndpoint = { ...testEndpoint, model: 'ember-alpha', family: 'other-family' };
-
-		const disabledBody = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions([], false), emberEndpoint.model, emberEndpoint));
-		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, true);
-		const unsupportedBody = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions([], false), unsupportedEndpoint.model, unsupportedEndpoint));
-
-		expect(disabledBody.reasoning?.context).toBeUndefined();
-		expect(unsupportedBody.reasoning?.context).toBeUndefined();
-
-		accessor.dispose();
-		services.dispose();
-	});
-
-	it('keeps persistent CoT enabled when continuing from a previous response', () => {
-		const services = createPlatformServices();
-		const accessor = services.createTestingAccessor();
-		const instantiationService = accessor.get(IInstantiationService);
-		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, true);
-		const endpoint = { ...testEndpoint, family: 'ember-alpha' };
-		const messages: Raw.ChatMessage[] = [
-			createStatefulMarkerMessage(endpoint.model, 'resp-prev'),
-			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'continue' }] },
-		];
-
-		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
-
-		expect(body.previous_response_id).toBe('resp-prev');
-		expect(body.reasoning?.context).toBe('all_turns');
-
-		accessor.dispose();
-		services.dispose();
-	});
-
 	it('extracts compaction threshold from request body context management', () => {
 		expect(getResponsesApiCompactionThresholdFromBody({
 			context_management: [{
@@ -480,6 +427,7 @@ describe('createResponsesRequestBody', () => {
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
 
 		expect(body.input?.[0]).toMatchObject({
+			type: 'message',
 			role: 'user',
 			content: [{
 				type: 'input_file',
@@ -514,6 +462,7 @@ describe('createResponsesRequestBody', () => {
 
 		expect(body.input?.[1]).toMatchObject({ type: 'function_call_output', call_id: 'call_pdf', output: '' });
 		expect(body.input?.[2]).toMatchObject({
+			type: 'message',
 			role: 'user',
 			content: [
 				{ type: 'input_text', text: 'PDF associated with the above tool call:' },
@@ -588,6 +537,7 @@ describe('createResponsesRequestBody', () => {
 			encrypted_content: 'enc_ws',
 		});
 		expect(webSocketBody.input).toContainEqual({
+			type: 'message',
 			role: 'user',
 			content: [{ type: 'input_text', text: 'after marker' }],
 		});
@@ -812,6 +762,7 @@ describe('createResponsesRequestBody', () => {
 			encrypted_content: 'enc_http',
 		});
 		expect(body.input).toContainEqual({
+			type: 'message',
 			role: 'user',
 			content: [{ type: 'input_text', text: 'after marker' }],
 		});
@@ -981,6 +932,225 @@ describe('createResponsesRequestBody', () => {
 
 		accessor.dispose();
 		services.dispose();
+	});
+});
+
+describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
+	const expectedPromptCacheBreakpoint = { mode: 'explicit' };
+	const cacheBreakpointEndpoint: IChatEndpoint = { ...testEndpoint, family: 'gpt-5.6-sol' };
+
+	const cacheBreakpoint = (): Raw.ChatCompletionContentPart => ({
+		type: Raw.ChatCompletionContentPartKind.CacheBreakpoint,
+		cacheType: CacheType,
+	});
+
+	const buildBody = (messages: Raw.ChatMessage[], endpoint = cacheBreakpointEndpoint, enablePromptCacheBreakpoint = true) => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		if (enablePromptCacheBreakpoint) {
+			accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, true);
+		}
+		const instantiationService = accessor.get(IInstantiationService);
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
+		accessor.dispose();
+		services.dispose();
+		return body;
+	};
+
+	it('does not attach prompt_cache_breakpoint by default when the experiment flag is disabled', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages, cacheBreakpointEndpoint, false);
+
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
+	});
+
+	it('attaches prompt_cache_breakpoint to the last content block of a user message', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'first' },
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'second' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.[0]).toMatchObject({
+			type: 'message',
+			role: 'user',
+			content: [
+				{ type: 'input_text', text: 'first' },
+				{ type: 'input_text', text: 'second', prompt_cache_breakpoint: expectedPromptCacheBreakpoint },
+			],
+		});
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
+	});
+
+	it('attaches prompt_cache_breakpoint to the last content block of a system message', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.System,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'be concise' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.[0]).toMatchObject({
+			type: 'message',
+			role: 'system',
+			content: [{ type: 'input_text', text: 'be concise', prompt_cache_breakpoint: expectedPromptCacheBreakpoint }],
+		});
+	});
+
+	it('attaches prompt_cache_breakpoint to the last output_text of a terminal assistant message', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.Assistant,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'final answer' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.[0]).toMatchObject({
+			role: 'assistant',
+			type: 'message',
+			content: [{ type: 'output_text', text: 'final answer', prompt_cache_breakpoint: expectedPromptCacheBreakpoint }],
+		});
+	});
+
+	it('attaches prompt_cache_breakpoint at item level to a tool result (function_call_output)', () => {
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{}' } }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_1',
+				content: [
+					{ type: Raw.ChatCompletionContentPartKind.Text, text: 'result' },
+					cacheBreakpoint(),
+				],
+			},
+		];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.[1]).toMatchObject({
+			type: 'function_call_output',
+			call_id: 'call_1',
+			output: 'result',
+			prompt_cache_breakpoint: expectedPromptCacheBreakpoint,
+		});
+	});
+
+	it('attaches prompt_cache_breakpoint at item level to the last function_call when the assistant has tool calls', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.Assistant,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'calling' },
+				cacheBreakpoint(),
+			],
+			toolCalls: [
+				{ id: 'call_a', type: 'function', function: { name: 'tool_a', arguments: '{}' } },
+				{ id: 'call_b', type: 'function', function: { name: 'tool_b', arguments: '{}' } },
+			],
+		}];
+
+		const body = buildBody(messages);
+		const input = body.input as OpenAI.Responses.ResponseInputItem[];
+
+		const lastCall = input.find(item => isFunctionCallInputItem(item, 'tool_b'));
+		expect(lastCall).toMatchObject({ prompt_cache_breakpoint: expectedPromptCacheBreakpoint });
+
+		const firstCall = input.find(item => isFunctionCallInputItem(item, 'tool_a'));
+		expect(firstCall).not.toHaveProperty('prompt_cache_breakpoint');
+
+		const messageItem = input.find(item => (item as { type?: string }).type === 'message');
+		expect((messageItem as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
+	});
+
+	it('attaches prompt_cache_breakpoint to the trailing image item of a tool result with images', () => {
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_img', type: 'function', function: { name: 'screenshot', arguments: '{}' } }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_img',
+				content: [
+					{ type: Raw.ChatCompletionContentPartKind.Text, text: 'see image' },
+					{ type: Raw.ChatCompletionContentPartKind.Image, imageUrl: { url: 'data:image/png;base64,abc', detail: 'auto' } },
+					cacheBreakpoint(),
+				],
+			},
+		];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.at(-1)).toMatchObject({
+			type: 'message',
+			role: 'user',
+			content: [
+				{ type: 'input_text', text: 'Image associated with the above tool call:' },
+				{ type: 'input_image', prompt_cache_breakpoint: expectedPromptCacheBreakpoint },
+			],
+		});
+		expect(body.input?.[1]).not.toHaveProperty('prompt_cache_breakpoint');
+	});
+
+	it('does not synthesize a whitespace text block when the marked message has no other content', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [cacheBreakpoint()],
+		}];
+
+		const body = buildBody(messages);
+
+		expect(body.input?.[0]).toMatchObject({
+			role: 'user',
+			content: [],
+		});
+	});
+
+	it('does not attach prompt_cache_breakpoint when the message has no breakpoint', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }],
+		}];
+
+		const body = buildBody(messages);
+
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
+	});
+
+	it('does not attach prompt_cache_breakpoint when the model does not support cache breakpoints', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages, testEndpoint);
+
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
 });
 
@@ -1751,6 +1921,30 @@ describe('processResponseFromChatEndpoint terminal events', () => {
 			code: 0,
 			message: 'something broke',
 			metadata: { code: 'internal_error' },
+		});
+	});
+
+	it('maps a raw error stream event to a terminal ServerError completion', async () => {
+		// Root cause of #322209: a raw Responses API `error` stream event is only
+		// surfaced as a `copilotErrors` progress delta and never yields a terminal
+		// completion. With no completion, the downstream chat fetcher falls through
+		// to the generic `RESPONSE_CONTAINED_NO_CHOICES` ("Response contained no
+		// choices") instead of a meaningful server-error message.
+		const errorEvent = {
+			type: 'error',
+			code: 'server_error',
+			message: 'The server had an error while processing your request.',
+			param: null,
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(errorEvent)}\n\n`);
+
+		expect(completion).toBeDefined();
+		expect(completion.finishReason).toBe(FinishedCompletionReason.ServerError);
+		expect(completion.error).toEqual({
+			code: 0,
+			message: 'The server had an error while processing your request.',
+			metadata: { code: 'server_error' },
 		});
 	});
 });

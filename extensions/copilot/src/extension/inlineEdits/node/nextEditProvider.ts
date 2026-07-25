@@ -12,7 +12,7 @@ import { RootedLineEdit } from '../../../platform/inlineEdits/common/dataTypes/r
 import { SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext, type MarkdownLoggable } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
-import { IStatelessNextEditProvider, IStatelessNextEditTelemetry, NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StatelessNextEditResult } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
+import { IStatelessNextEditModelTelemetry, IStatelessNextEditProvider, IStatelessNextEditTelemetry, NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StatelessNextEditResult, StreamedEdit } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { autorunWithChanges } from '../../../platform/inlineEdits/common/utils/observable';
 import { DocumentHistory, HistoryContext, IHistoryContextProvider } from '../../../platform/inlineEdits/common/workspaceEditTracker/historyContextProvider';
 import { IXtabHistoryEditEntry, IXtabHistoryEntry, NesXtabHistoryTracker } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
@@ -33,7 +33,7 @@ import { mapObservableArrayCached, runOnChange } from '../../../util/vs/base/com
 import { StopWatch } from '../../../util/vs/base/common/stopwatch';
 import { assertType } from '../../../util/vs/base/common/types';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
-import { LineEdit, LineReplacement } from '../../../util/vs/editor/common/core/edits/lineEdit';
+import { LineEdit } from '../../../util/vs/editor/common/core/edits/lineEdit';
 import { StringEdit, StringReplacement } from '../../../util/vs/editor/common/core/edits/stringEdit';
 import { Position } from '../../../util/vs/editor/common/core/position';
 import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
@@ -92,14 +92,42 @@ function convertLineEditToEdit(nextLineEdit: LineEdit, document: StringText): St
 	return suggestedEdit;
 }
 
-function createDocStateLookupMap(projectedDocuments: readonly ProcessedDoc[], xtabEditHistory: readonly IXtabHistoryEntry[]): CachedFunction<DocumentId, {
-	baseDocState: StringText;
+function getModelTelemetry(telemetry: IStatelessNextEditTelemetry): IStatelessNextEditModelTelemetry {
+	return {
+		modelName: telemetry.modelName,
+		modelConfig: telemetry.modelConfig,
+	};
+}
+
+interface DocState {
+	readonly baseDocState: StringText;
 	docContents: StringText;
 	editsSoFar: StringEdit;
-	nextEdits: StringReplacement[];
-	patchIndices: (number | undefined)[];
-	docId: DocumentId;
-}> {
+	readonly nextEdits: StringReplacement[];
+	readonly patchIndices: (number | undefined)[];
+	readonly docId: DocumentId;
+}
+
+/** Arguments for {@link NextEditProvider._rebaseAndCacheStreamedEdit}. */
+interface RebaseAndCacheStreamedEditArgs {
+	readonly statePerDoc: CachedFunction<DocumentId, DocState>;
+	readonly streamedEdit: StreamedEdit;
+	/** Zero-based index of this edit within the stream. */
+	readonly ithEdit: number;
+	/** The document the stream was requested for (the cache/cross-file key document). */
+	readonly activeDoc: {
+		readonly id: DocumentId;
+		readonly contents: StringText;
+		readonly cursorOffset: number | undefined;
+	};
+	/** User edits to track the first cached entry against for rebasing; `undefined` for speculative. */
+	readonly userEditSince: StringEdit | undefined;
+	readonly modelTelemetry: IStatelessNextEditModelTelemetry;
+	readonly source: NextEditFetchRequest;
+	readonly logger: ILogger;
+}
+
+function createDocStateLookupMap(projectedDocuments: readonly ProcessedDoc[], xtabEditHistory: readonly IXtabHistoryEntry[]): CachedFunction<DocumentId, DocState> {
 	const statePerDoc = new CachedFunction((id: DocumentId) => {
 		const doc = projectedDocuments.find(d => d.nextEditDoc.id === id);
 		if (!doc) {
@@ -407,6 +435,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			}
 			telemetryBuilder.setHeaderRequestId(req.headerRequestId);
 			telemetryBuilder.setIsFromCache();
+			telemetryBuilder.setCachedModelTelemetry(cachedEdit.modelTelemetry);
 			telemetryBuilder.setSubsequentEditOrder(cachedEdit.rebasedEditIndex ?? cachedEdit.subsequentN);
 			// Attribute the served edit to its originating model patch.
 			telemetryBuilder.setSourcePatchIndex(getSourcePatchIndex(cachedEdit));
@@ -542,6 +571,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		nextEdit: StringReplacement,
 		streamedEdit: { readonly isFromCursorJump: boolean; readonly originalWindow?: OffsetRange; readonly patchIndex?: number },
 		source: NextEditFetchRequest,
+		modelTelemetry: IStatelessNextEditModelTelemetry,
 	): boolean {
 		if (ithEdit !== 0 || targetDocId === activeDocId) {
 			return false; // only the first streamed edit, and only when it targets a different document
@@ -555,7 +585,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			undefined, // no bundled edits: served by exact content match only
 			undefined, // no userEditSince: never tracked/rebased (edit is in target-doc coords)
 			source,
-			{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, patchIndex: streamedEdit.patchIndex, targetDocId, targetDocumentBeforeEdit: targetDocContents }
+			{ isFromCursorJump: streamedEdit.isFromCursorJump, modelTelemetry, originalEditWindow: streamedEdit.originalWindow, patchIndex: streamedEdit.patchIndex, targetDocId, targetDocumentBeforeEdit: targetDocContents }
 		);
 		return true;
 	}
@@ -728,6 +758,66 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		}
 	}
 
+	/**
+	 * Shared core of both the regular ({@link _executeNewNextEditRequest}) and speculative
+	 * ({@link _runSpeculativeProviderCall}) stream loops: rebases a single streamed edit onto
+	 * the edits applied so far for its target document, populates the cache, stores any
+	 * cross-file association, and advances the target document's running contents. Returns
+	 * `undefined` when the edit could not be rebased.
+	 *
+	 * The full per-edit state transition (including advancing `docContents`) is owned here;
+	 * `docContentsBeforeEdit` is returned so callers can log the first edit against the
+	 * pre-edit contents. Orchestration that differs between the two paths (resolving
+	 * `firstEdit`, stream-end handling) stays with the callers.
+	 */
+	private _rebaseAndCacheStreamedEdit(args: RebaseAndCacheStreamedEditArgs): { lineEdit: LineEdit; rebasedEdit: StringEdit; docContentsBeforeEdit: StringText; cachedEdit: CachedOrRebasedEdit | undefined; crossFileCached: boolean } | undefined {
+		const { statePerDoc, streamedEdit, ithEdit, activeDoc, userEditSince, modelTelemetry, source, logger } = args;
+
+		const targetDocState = statePerDoc.get(streamedEdit.targetDocument);
+
+		const lineEdit = new LineEdit([streamedEdit.edit]);
+		const edit = convertLineEditToEdit(lineEdit, targetDocState.baseDocState);
+		const rebasedEdit = edit.tryRebase(targetDocState.editsSoFar);
+
+		if (rebasedEdit === undefined) {
+			return undefined;
+		}
+
+		targetDocState.editsSoFar = targetDocState.editsSoFar.compose(rebasedEdit);
+
+		// The cache is keyed by the pre-edit contents; snapshot them before advancing below.
+		const docContentsBeforeEdit = targetDocState.docContents;
+
+		let cachedEdit: CachedOrRebasedEdit | undefined;
+		let crossFileCached = false;
+		if (rebasedEdit.replacements.length === 0 || rebasedEdit.replacements.length > 1) {
+			logger.trace(`WARNING: ${ithEdit} has ${rebasedEdit.replacements.length} edits, but expected only 1`);
+		} else {
+			// populate the cache
+			const nextEditReplacement = rebasedEdit.replacements[0];
+			targetDocState.nextEdits.push(nextEditReplacement);
+			targetDocState.patchIndices.push(streamedEdit.patchIndex);
+			cachedEdit = this._nextEditCache.setKthNextEdit(
+				targetDocState.docId,
+				docContentsBeforeEdit,
+				ithEdit === 0 ? streamedEdit.window : undefined,
+				nextEditReplacement,
+				ithEdit,
+				ithEdit === 0 ? targetDocState.nextEdits : undefined,
+				ithEdit === 0 ? userEditSince : undefined,
+				source,
+				{ isFromCursorJump: streamedEdit.isFromCursorJump, modelTelemetry, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === activeDoc.id ? activeDoc.cursorOffset : undefined, patchIndex: streamedEdit.patchIndex, patchIndices: ithEdit === 0 ? targetDocState.patchIndices : undefined }
+			);
+			crossFileCached = this._maybeCacheCrossFileEditUnderActiveDoc(ithEdit, activeDoc.id, activeDoc.contents, streamedEdit.window, targetDocState.docId, docContentsBeforeEdit, nextEditReplacement, streamedEdit, source, modelTelemetry);
+			logger.trace(`populated cache for ${ithEdit}`);
+		}
+
+		// Advance the running contents now that the cache has been populated against the pre-edit state.
+		targetDocState.docContents = rebasedEdit.applyOnText(docContentsBeforeEdit);
+
+		return { lineEdit, rebasedEdit, docContentsBeforeEdit, cachedEdit, crossFileCached };
+	}
+
 	private async _executeNewNextEditRequest(
 		req: NextEditFetchRequest,
 		doc: IObservableDocument,
@@ -843,7 +933,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		// that would clobber the cross-file entry stored under the same key.
 		let didCacheCrossFileActiveDocEntry = false;
 
-		const processEdit = (streamedEdit: { readonly edit: LineReplacement; readonly isFromCursorJump: boolean; readonly window?: OffsetRange; readonly originalWindow?: OffsetRange; readonly targetDocument?: DocumentId; readonly patchIndex?: number }, telemetry: IStatelessNextEditTelemetry): CachedOrRebasedEdit | undefined => {
+		const processEdit = (streamedEdit: StreamedEdit, telemetry: IStatelessNextEditTelemetry): CachedOrRebasedEdit | undefined => {
 			++ithEdit;
 			const myLogger = logger.createSubLogger('processEdit');
 			myLogger.trace(`processing edit #${ithEdit} (starts at 0)`);
@@ -852,14 +942,18 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			myLogger.trace('resetting shouldExpandEditWindow to false due to receiving an edit');
 			this._shouldExpandEditWindow = false;
 
-			const targetDocState = statePerDoc.get(streamedEdit.targetDocument ?? curDocId);
+			const cached = this._rebaseAndCacheStreamedEdit({
+				statePerDoc,
+				streamedEdit,
+				ithEdit,
+				activeDoc: { id: curDocId, contents: nextEditRequest.documentBeforeEdits, cursorOffset: activeDocSelection?.start },
+				userEditSince: nextEditRequest.intermediateUserEdit,
+				modelTelemetry: getModelTelemetry(telemetry),
+				source: req,
+				logger: myLogger,
+			});
 
-			const singleLineEdit = streamedEdit.edit;
-			const lineEdit = new LineEdit([singleLineEdit]);
-			const edit = convertLineEditToEdit(lineEdit, targetDocState.baseDocState);
-			const rebasedEdit = edit.tryRebase(targetDocState.editsSoFar);
-
-			if (rebasedEdit === undefined) {
+			if (cached === undefined) {
 				myLogger.trace(`edit ${ithEdit} is undefined after rebasing`);
 				if (!firstEdit.isSettled) {
 					firstEdit.complete(Result.error(new NoNextEditReason.Uncategorized(new Error('Rebased edit is undefined'))));
@@ -867,41 +961,14 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 				return undefined;
 			}
 
-			targetDocState.editsSoFar = targetDocState.editsSoFar.compose(rebasedEdit);
-
-			let cachedEdit: CachedOrRebasedEdit | undefined;
-			if (rebasedEdit.replacements.length === 0) {
-				myLogger.trace(`WARNING: ${ithEdit} has no edits`);
-			} else if (rebasedEdit.replacements.length > 1) {
-				myLogger.trace(`WARNING: ${ithEdit} has ${rebasedEdit.replacements.length} edits, but expected only 1`);
-			} else {
-				// populate the cache
-				const nextEditReplacement = rebasedEdit.replacements[0];
-				targetDocState.nextEdits.push(nextEditReplacement);
-				targetDocState.patchIndices.push(streamedEdit.patchIndex);
-				cachedEdit = this._nextEditCache.setKthNextEdit(
-					targetDocState.docId,
-					targetDocState.docContents,
-					ithEdit === 0 ? streamedEdit.window : undefined,
-					nextEditReplacement,
-					ithEdit,
-					ithEdit === 0 ? targetDocState.nextEdits : undefined,
-					ithEdit === 0 ? nextEditRequest.intermediateUserEdit : undefined,
-					req,
-					{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? activeDocSelection?.start : undefined, patchIndex: streamedEdit.patchIndex, patchIndices: ithEdit === 0 ? targetDocState.patchIndices : undefined }
-				);
-				myLogger.trace(`populated cache for ${ithEdit}`);
-
-				didCacheCrossFileActiveDocEntry = this._maybeCacheCrossFileEditUnderActiveDoc(ithEdit, curDocId, nextEditRequest.documentBeforeEdits, streamedEdit.window, targetDocState.docId, targetDocState.docContents, nextEditReplacement, streamedEdit, req) || didCacheCrossFileActiveDocEntry;
-			}
+			const { lineEdit, docContentsBeforeEdit, cachedEdit } = cached;
+			didCacheCrossFileActiveDocEntry = cached.crossFileCached || didCacheCrossFileActiveDocEntry;
 
 			if (!firstEdit.isSettled) {
 				myLogger.trace('resolving firstEdit promise');
-				logContext.setResult(new RootedLineEdit(targetDocState.docContents, lineEdit)); // this's correct without rebasing because this's the first edit
+				logContext.setResult(new RootedLineEdit(docContentsBeforeEdit, lineEdit)); // this's correct without rebasing because this's the first edit
 				firstEdit.complete(cachedEdit ? Result.ok(cachedEdit) : Result.error(new NoNextEditReason.Unexpected(new Error('No cached edit'))));
 			}
-
-			targetDocState.docContents = rebasedEdit.applyOnText(targetDocState.docContents);
 
 			return cachedEdit;
 		};
@@ -925,7 +992,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 				if (completionReason instanceof NoNextEditReason.NoSuggestions && !didCacheCrossFileActiveDocEntry) {
 					const { documentBeforeEdits, window } = completionReason;
 					const reducedWindow = window ? computeReducedWindow(window, activeDocSelection, documentBeforeEdits) : undefined;
-					this._nextEditCache.setNoNextEdit(curDocId, documentBeforeEdits, reducedWindow, req);
+					this._nextEditCache.setNoNextEdit(curDocId, documentBeforeEdits, reducedWindow, req, getModelTelemetry(lastTelemetry));
 				}
 			}
 
@@ -1414,42 +1481,27 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 						++ithEdit;
 						const streamedEdit = res.value.v;
 
-						const targetDocState = statePerDoc.get(streamedEdit.targetDocument ?? curDocId);
+						const cached = this._rebaseAndCacheStreamedEdit({
+							statePerDoc,
+							streamedEdit,
+							ithEdit,
+							activeDoc: { id: curDocId, contents: nextEditRequest.documentBeforeEdits, cursorOffset },
+							userEditSince: undefined,
+							modelTelemetry: getModelTelemetry(res.value.telemetryBuilder),
+							source: req,
+							logger,
+						});
 
-						const singleLineEdit = streamedEdit.edit;
-						const lineEdit = new LineEdit([singleLineEdit]);
-						const edit = convertLineEditToEdit(lineEdit, targetDocState.baseDocState);
-						const rebasedEdit = edit.tryRebase(targetDocState.editsSoFar);
-
-						if (rebasedEdit === undefined) {
+						if (cached === undefined) {
 							logger.trace(`speculative edit ${ithEdit} rebasing failed`);
 							res = await editStream.next();
 							continue;
 						}
 
-						targetDocState.editsSoFar = targetDocState.editsSoFar.compose(rebasedEdit);
+						const { rebasedEdit, cachedEdit } = cached;
 
-						if (rebasedEdit.replacements.length === 1) {
-							const nextEditReplacement = rebasedEdit.replacements[0];
-							targetDocState.nextEdits.push(nextEditReplacement);
-							targetDocState.patchIndices.push(streamedEdit.patchIndex);
-
-							// Populate the cache with the speculative result
-							const cachedEdit = this._nextEditCache.setKthNextEdit(
-								targetDocState.docId,
-								targetDocState.docContents,
-								ithEdit === 0 ? streamedEdit.window : undefined,
-								nextEditReplacement,
-								ithEdit,
-								ithEdit === 0 ? targetDocState.nextEdits : undefined,
-								undefined, // no userEditSince for speculative
-								req,
-								{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? cursorOffset : undefined, patchIndex: streamedEdit.patchIndex, patchIndices: ithEdit === 0 ? targetDocState.patchIndices : undefined }
-							);
-
-							this._maybeCacheCrossFileEditUnderActiveDoc(ithEdit, curDocId, nextEditRequest.documentBeforeEdits, streamedEdit.window, targetDocState.docId, targetDocState.docContents, nextEditReplacement, streamedEdit, req);
-
-							if (!nextEditRequest.firstEdit.isSettled && cachedEdit) {
+						if (cachedEdit) {
+							if (!nextEditRequest.firstEdit.isSettled) {
 								nextEditRequest.firstEdit.complete(Result.ok(cachedEdit));
 								nextEditRequest.setResult(
 									new StatelessNextEditResult(
@@ -1457,13 +1509,10 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 										res.value.telemetryBuilder
 									)
 								);
-								logContext.setResponseResults([nextEditReplacement]);
+								logContext.setResponseResults([rebasedEdit.replacements[0]]);
 							}
-
 							logger.trace(`cached speculative edit ${ithEdit}`);
 						}
-
-						targetDocState.docContents = rebasedEdit.applyOnText(targetDocState.docContents);
 
 						res = await editStream.next();
 					}

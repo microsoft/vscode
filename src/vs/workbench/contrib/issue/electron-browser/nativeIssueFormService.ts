@@ -75,11 +75,11 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		// the editor pane, so it does not depend on arch/release/type here.
 		const input = this.instantiationService.createInstance(IssueReporterEditorInput, data);
 
-		// In the Agents window, editors open in a floating modal editor part by
-		// default (`workbench.editor.useModal: 'all'`). The issue reporter needs to
-		// sit alongside the rest of the app so the user can capture screenshots and
-		// recordings, so target the main editor part's active group explicitly to
-		// open it docked in the editor area instead of as a modal overlay.
+		// When editors are forced modal (`workbench.editor.useModal: 'all'`), the
+		// issue reporter still needs to sit alongside the rest of the app so the
+		// user can capture screenshots and recordings. In the Agents window, target
+		// the main editor part's active group explicitly to open it docked in the
+		// editor area instead of as a modal overlay.
 		const preferredGroup = data.isSessionsWindow ? this.editorGroupService.mainPart.activeGroup : undefined;
 		await this.editorService.openEditor(input, { pinned: true }, preferredGroup);
 	}

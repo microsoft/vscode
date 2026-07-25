@@ -1076,6 +1076,38 @@ describe('AutomodeService', () => {
 			});
 		});
 
+		it('should emit candidateModel from chosen_model, not candidate_models[0]', async () => {
+			enableRouter();
+			const codexEndpoint = createEndpoint('gpt-5.3-codex', 'OpenAI');
+			const miniEndpoint = createEndpoint('gpt-5.4-mini', 'OpenAI');
+
+			// Server re-ranked the pick: candidate_models[0] is gpt-5.3-codex but the
+			// authoritative chosen_model is gpt-5.4-mini. The telemetry candidateModel
+			// must reflect chosen_model so router-pick vs actual comparisons are valid.
+			mockRouterResponse(
+				['gpt-5.3-codex', 'gpt-5.4-mini'],
+				{ chosen_model: 'gpt-5.4-mini', candidate_models: ['gpt-5.3-codex', 'gpt-5.4-mini'] }
+			);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'refactor this function',
+				sessionId: 'session-telemetry-chosen-model'
+			};
+
+			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [codexEndpoint, miniEndpoint]);
+
+			const telemetryCalls = mockTelemetryService.sendMSFTTelemetryEvent.mock.calls;
+			const selectionEvent = telemetryCalls.find((call: unknown[]) => call[0] === 'automode.routerModelSelection');
+			expect(selectionEvent).toBeDefined();
+			expect(selectionEvent![1]).toMatchObject({
+				candidateModel: 'gpt-5.4-mini',
+				actualModel: 'gpt-5.4-mini',
+				overrideReason: 'none',
+			});
+		});
+
 		it('should emit overrideReason=clientOverride when vision fallback changes the model', async () => {
 			enableRouter();
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI', { supportsVision: true });
@@ -1234,13 +1266,15 @@ describe('AutomodeService', () => {
 			);
 		});
 
-		it('should iterate all candidate_models when first candidate has no endpoint', async () => {
+		it('should fall back to candidate_models when chosen_model has no endpoint', async () => {
 			enableRouter();
 			const gpt41Endpoint = createEndpoint('gpt-4.1', 'OpenAI');
 
+			// chosen_model is not in knownEndpoints, so selection falls back to
+			// the ordered candidate_models list and picks the first resolvable one.
 			mockRouterResponse(
 				['gpt-4.1'],
-				{ chosen_model: 'gpt-4.1', candidate_models: ['unknown-new-model', 'gpt-4.1'] }
+				{ chosen_model: 'unknown-new-model', candidate_models: ['unknown-new-model', 'gpt-4.1'] }
 			);
 
 			automodeService = createService();
@@ -1252,6 +1286,57 @@ describe('AutomodeService', () => {
 
 			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt41Endpoint]);
 			expect(result.model).toBe('gpt-4.1');
+		});
+
+		it('should prefer chosen_model over candidate_models[0]', async () => {
+			enableRouter();
+			const codexEndpoint = createEndpoint('gpt-5.3-codex', 'OpenAI');
+			const miniEndpoint = createEndpoint('gpt-5.4-mini', 'OpenAI');
+
+			// Server re-ranked the pick (e.g. Cost Sorting experiment): chosen_model
+			// is gpt-5.4-mini even though candidate_models[0] is gpt-5.3-codex. The
+			// client must send the chosen_model, per the auto-intent-service contract.
+			mockRouterResponse(
+				['gpt-5.3-codex', 'gpt-5.4-mini'],
+				{ chosen_model: 'gpt-5.4-mini', candidate_models: ['gpt-5.3-codex', 'gpt-5.4-mini'] }
+			);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'refactor this function',
+				sessionId: 'session-chosen-model'
+			};
+
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [codexEndpoint, miniEndpoint]);
+			expect(result.model).toBe('gpt-5.4-mini');
+		});
+
+		it('should surface chosen_model in the routing decision the UI displays', async () => {
+			enableRouter();
+			const codexEndpoint = createEndpoint('gpt-5.3-codex', 'OpenAI');
+			const miniEndpoint = createEndpoint('gpt-5.4-mini', 'OpenAI');
+
+			// The "Routed to <model>" explainability label reads the routing
+			// decision surfaced via consumeLastRoutingDecision(). It must match the
+			// served endpoint (chosen_model), otherwise the label diverges from the
+			// model shown in the response footer (candidate_models[0]).
+			mockRouterResponse(
+				['gpt-5.3-codex', 'gpt-5.4-mini'],
+				{ chosen_model: 'gpt-5.4-mini', candidate_models: ['gpt-5.3-codex', 'gpt-5.4-mini'] }
+			);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'refactor this function',
+				sessionId: 'session-routing-decision'
+			};
+
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [codexEndpoint, miniEndpoint]);
+			const decision = automodeService.consumeLastRoutingDecision();
+			expect(decision?.resolvedModel).toBe('gpt-5.4-mini');
+			expect(decision?.resolvedModel).toBe(result.model);
 		});
 
 		it('should fall back to first known endpoint when all available_models are unknown', async () => {

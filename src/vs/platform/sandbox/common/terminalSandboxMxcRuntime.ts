@@ -28,7 +28,7 @@ export const IWindowsMxcTerminalSandboxRuntime = createDecorator<IWindowsMxcTerm
 export interface IWindowsMxcTerminalSandboxRuntime {
 	readonly _serviceBrand: undefined;
 
-	getExecutablePath(appRoot: string, arch: string | undefined): string;
+	getExecutablePath(appRoot: string, nativeModulesDir: string, arch: string | undefined): string;
 	getRuntimeReadPaths(appRoot: string | undefined, executablePath: string | undefined): string[];
 	createConfig(options: IWindowsMxcConfigOptions, buildSandboxPayload: IWindowsMxcBuildSandboxPayload): Promise<IWindowsMxcConfig>;
 	wrapCommand(executablePath: string, configPath: string): string;
@@ -47,9 +47,9 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 
 	private readonly _configVersion = '0.6.0-alpha';
 
-	getExecutablePath(appRoot: string, arch: string | undefined): string {
+	getExecutablePath(appRoot: string, nativeModulesDir: string, arch: string | undefined): string {
 		const binArch = arch === 'arm64' ? 'arm64' : 'x64';
-		return win32.join(appRoot, 'node_modules', '@microsoft', 'mxc-sdk', 'bin', binArch, 'wxc-exec.exe');
+		return win32.join(appRoot, nativeModulesDir, '@microsoft', 'mxc-sdk', 'bin', binArch, 'wxc-exec.exe');
 	}
 
 	getRuntimeReadPaths(appRoot: string | undefined, executablePath: string | undefined): string[] {

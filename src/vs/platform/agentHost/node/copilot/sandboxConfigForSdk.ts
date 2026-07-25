@@ -59,7 +59,7 @@ export interface ISdkSandboxConfig {
  * opaque `sandboxConfig` shape the Copilot SDK forwards to the runtime
  * via `session.options.update`.
  *
- * Used when {@link AgentHostConfigKey.EnableCustomTerminalTool} is OFF — the
+ * Used when {@link CopilotCliConfigKey.EnableCustomTerminalTool} is OFF — the
  * SDK's built-in shell tool runs the user's commands, so we have to push the
  * sandbox policy down into the SDK itself. When the custom terminal tool is
  * ON, the AgentHost's own {@link TerminalSandboxEngine} wraps commands and

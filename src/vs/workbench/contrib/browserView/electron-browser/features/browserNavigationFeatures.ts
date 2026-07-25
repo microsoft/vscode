@@ -23,7 +23,6 @@ import { BrowserViewCommandId } from '../../../../../platform/browserView/common
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
-import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import {
@@ -34,7 +33,6 @@ import {
 	getBrowserSearchEngineLabel,
 	resolveAddressBarInputType,
 } from '../../common/browserSearch.js';
-import { AgentHostChatToolsEnabledSettingId } from '../browserViewWorkbenchService.js';
 import {
 	BROWSER_EDITOR_ACTIVE,
 	BrowserActionCategory,
@@ -538,12 +536,7 @@ class OpenBrowserSettingsAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const preferencesService = accessor.get(IPreferencesService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const ids = ['workbench.browser.*'];
-		if (IsSessionsWindowContext.getValue(contextKeyService)) {
-			ids.push(AgentHostChatToolsEnabledSettingId);
-		}
-		await preferencesService.openSettings({ query: `@id:${ids.join(',')}` });
+		await preferencesService.openSettings({ query: `@id:workbench.browser.*` });
 	}
 }
 

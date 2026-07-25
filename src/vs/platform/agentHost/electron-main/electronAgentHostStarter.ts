@@ -9,6 +9,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { IpcMainEvent } from 'electron';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/electron-main/ipc.mp.js';
+import { AiAgentEnvValue, AiAgentEnvVar } from '../../chat/common/aiAgentEnv.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { parseAgentHostDebugPort } from '../../environment/node/environmentService.js';
@@ -19,9 +20,10 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostOTelSettings, sanitizeAgentHostOTelPolicySettings } from '../common/agentService.js';
+import { buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '../common/agentHostTelemetryEnv.js';
+import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostOTelSettings, sanitizeAgentHostOTelPolicySettings } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
-import '../common/agentHost.config.contribution.js';
+import '../common/agentHostEnablementService.js';
 import '../common/agentHostStarter.config.contribution.js';
 
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
@@ -44,6 +46,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	private _otelPolicyFromRenderer: IAgentHostOTelSettings | undefined = undefined;
 
 	constructor(
+		private readonly _telemetryIds: IAgentHostForwardedTelemetryIds,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentMainService private readonly _environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
@@ -94,6 +97,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			codexBinaryArgs: this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId),
 			claudeAgentEnabled: this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId),
 			codexAgentEnabled: this._configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId),
+			byokModelsEnabled: this._configurationService.getValue<boolean>(AgentHostByokModelsEnabledSettingId),
 		}, process.env);
 
 		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
@@ -133,6 +137,11 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			args.push('--disable-telemetry');
 		}
 
+		// Forward the host's resolved telemetry identifiers so the agent host
+		// reuses the same persisted machineId/sqmId/devDeviceId instead of
+		// recomputing them live (which can diverge). See `agentHostTelemetryEnv`.
+		const telemetryIdEnv = buildAgentHostTelemetryIdEnv(this._telemetryIds);
+
 		this.utilityProcess.start({
 			type: 'agentHost',
 			name: 'agent-host',
@@ -142,11 +151,16 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			env: {
 				...deepClone(process.env),
 				...shellEnv,
+				// Announce that everything spawned below this process is driven by
+				// VS Code's agent, so `gh` inherits it. Set after the inherited
+				// env so it wins.
+				[AiAgentEnvVar]: AiAgentEnvValue,
 				VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true',
 				...sdkEnv,
 				...otelEnv,
+				...telemetryIdEnv,
 			}
 		});
 

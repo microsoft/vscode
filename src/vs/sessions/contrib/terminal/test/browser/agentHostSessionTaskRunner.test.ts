@@ -66,7 +66,7 @@ function makeSession(opts: { providerId: string; cwd?: URI }): ISession {
 		description: observableValue('description', undefined),
 		chats: observableValue('chats', [chat]),
 		mainChat: constObservable(chat),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
 

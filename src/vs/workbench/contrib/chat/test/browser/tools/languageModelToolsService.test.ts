@@ -4985,4 +4985,96 @@ suite('LanguageModelToolsService', () => {
 			assert.deepStrictEqual(receivedParameters, { command: 'safe-command' });
 		});
 	});
+
+	suite('preApproved (out-of-band auto-approval)', () => {
+		let preApprovedService: LanguageModelToolsService;
+		let preApprovedChatService: MockChatService;
+
+		setup(() => {
+			const setup = createTestToolsService(store);
+			preApprovedService = setup.service;
+			preApprovedChatService = setup.chatService;
+		});
+
+		test('a confirmable tool with dto.preApproved never enters WaitingForConfirmation', async () => {
+			let invokeCompleted = false;
+			const tool = registerToolForTest(preApprovedService, store, 'preApprovedTool', {
+				invoke: async () => {
+					invokeCompleted = true;
+					return { content: [{ kind: 'text', value: 'success' }] };
+				},
+				prepareToolInvocation: async () => ({
+					confirmationMessages: {
+						title: 'Confirm this action?',
+						message: 'This tool would normally require confirmation',
+						allowAutoConfirm: true,
+					},
+				}),
+			});
+
+			const capture: { invocation?: ChatToolInvocation } = {};
+			stubGetSession(preApprovedChatService, 'pre-approved', { requestId: 'req1', capture });
+
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'pre-approved' });
+			dto.preApproved = { type: ToolConfirmKind.Setting, id: 'autoApprove' };
+
+			// Start the invocation without awaiting so the state at publish time is
+			// observable: an auto-approved call must be published already executing
+			// and must never surface a confirmation prompt (which would flicker
+			// "needs input" in the sessions list).
+			const invokePromise = preApprovedService.invokeTool(dto, async () => 0, CancellationToken.None);
+			const invocation = await waitForPublishedInvocation(capture);
+			const publishedState = invocation.state.get().type;
+
+			// If the fix regressed, the call would be stuck awaiting confirmation;
+			// confirm it so the promise resolves and the assertion below (rather
+			// than a test timeout) reports the failure.
+			if (publishedState === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+				IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction });
+			}
+			const result = await invokePromise;
+
+			assert.deepStrictEqual(
+				{
+					invokeCompleted,
+					value: (result.content[0] as IToolResultTextPart).value,
+					publishedWaitingForConfirmation: publishedState === IChatToolInvocation.StateKind.WaitingForConfirmation,
+				},
+				{
+					invokeCompleted: true,
+					value: 'success',
+					publishedWaitingForConfirmation: false,
+				},
+			);
+		});
+
+		test('dto.preApproved does not override a preToolUse hook that returned ask', async () => {
+			const tool = registerToolForTest(preApprovedService, store, 'preApprovedAskTool', {
+				invoke: async () => ({ content: [{ kind: 'text', value: 'success' }] }),
+				prepareToolInvocation: async () => ({
+					confirmationMessages: {
+						title: 'Confirm this action?',
+						message: 'This tool requires confirmation',
+						allowAutoConfirm: true,
+					},
+				}),
+			});
+
+			const capture: { invocation?: ChatToolInvocation } = {};
+			stubGetSession(preApprovedChatService, 'pre-approved-ask', { requestId: 'req1', capture });
+
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'pre-approved-ask' });
+			dto.preApproved = { type: ToolConfirmKind.Setting, id: 'autoApprove' };
+			dto.preToolUseResult = { permissionDecision: 'ask', permissionDecisionReason: 'Requires user confirmation' };
+
+			const invokePromise = preApprovedService.invokeTool(dto, async () => 0, CancellationToken.None);
+			const invocation = await waitForPublishedInvocation(capture);
+
+			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation,
+				'preApproved must not override an explicit hook ask');
+
+			IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction });
+			await invokePromise;
+		});
+	});
 });

@@ -58,7 +58,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		this._clientToolOwner = clientToolOwner;
 	}
 
-	async handle(message: SDKMessage, turnId: string | undefined): Promise<void> {
+	async handle(message: SDKMessage, turnId: string | undefined, turnDuration?: number): Promise<void> {
 		if (message.type === 'assistant') {
 			this._editObserver.observeAssistant(message);
 		} else if (message.type === 'user' && turnId !== undefined) {
@@ -76,6 +76,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 				this._logService,
 				this._subagents,
 				this._clientToolOwner,
+				turnDuration,
 			);
 			for (const signal of signals) {
 				this._onDidProduceSignal.fire(signal);

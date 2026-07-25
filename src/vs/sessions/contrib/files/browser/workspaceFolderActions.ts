@@ -16,12 +16,13 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
-import { SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
+import { SessionHasWorkspaceContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
@@ -45,7 +46,7 @@ class OpenFilesViewAction extends Action2 {
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
 				order: -10,
-				when: SessionHasWorkspaceContext
+				when: ContextKeyExpr.and(SessionHasWorkspaceContext, IsQuickChatSessionContext.negate())
 			},
 		});
 	}

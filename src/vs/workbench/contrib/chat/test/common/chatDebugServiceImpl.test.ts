@@ -8,6 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { errorHandler } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugLogProvider, IChatDebugModelTurnEvent, IChatDebugResolvedEventContent, IChatDebugToolCallEvent } from '../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../common/chatDebugServiceImpl.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
@@ -27,7 +28,7 @@ suite('ChatDebugServiceImpl', () => {
 	const claudeCodeSession = URI.parse('claude-code:/test-session-id');
 
 	setup(() => {
-		service = disposables.add(new ChatDebugServiceImpl());
+		service = disposables.add(new ChatDebugServiceImpl(new TestConfigurationService()));
 	});
 
 	suite('addEvent and getEvents', () => {
@@ -333,6 +334,32 @@ suite('ChatDebugServiceImpl', () => {
 	});
 
 	suite('invokeProviders', () => {
+		test('re-invocation that returns undefined should preserve previously loaded events', async () => {
+			// A provider that succeeds once and then transiently fails (e.g. an
+			// Agent Host session's events.jsonl is mid-rewrite by the external
+			// CLI) must not wipe the events currently shown.
+			let succeed = true;
+			const provider: IChatDebugLogProvider = {
+				provideChatDebugLog: async () => succeed ? [{
+					kind: 'generic',
+					sessionResource: sessionGeneric,
+					created: new Date(),
+					name: 'provider-event',
+					level: ChatDebugLogLevel.Info,
+				}] : undefined,
+			};
+
+			disposables.add(service.registerProvider(provider));
+
+			await service.invokeProviders(sessionGeneric);
+			assert.strictEqual(service.getEvents(sessionGeneric).length, 1);
+
+			// Second invocation fails (returns undefined) — events are kept.
+			succeed = false;
+			await service.invokeProviders(sessionGeneric);
+			assert.strictEqual(service.getEvents(sessionGeneric).length, 1);
+		});
+
 		test('should invoke multiple providers and merge events', async () => {
 			const providerA: IChatDebugLogProvider = {
 				provideChatDebugLog: async () => [{

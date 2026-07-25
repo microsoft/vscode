@@ -1031,7 +1031,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
  * Groups feedback items and creates combined widgets for nearby items.
  * Widgets start collapsed and expand when navigated to.
  */
-class AgentFeedbackEditorWidgetContribution extends Disposable implements IEditorContribution {
+export class AgentFeedbackEditorWidgetContribution extends Disposable implements IEditorContribution {
 
 	static readonly ID = 'agentFeedback.editorWidgetContribution';
 

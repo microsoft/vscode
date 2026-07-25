@@ -19,6 +19,7 @@ import { IAgentPluginService } from '../../../common/plugins/agentPluginService.
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { resolveCustomizationRefs } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
@@ -28,9 +29,16 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
 
-/** The exposed `syncProvider` is the same instance the service uses to resolve customizations; the contribution wires it into its harness so opt-out toggles propagate. */
+/**
+ * The exposed `syncProvider` is the same instance the service uses to resolve
+ * customizations; the contribution wires it into its harness so opt-out toggles
+ * propagate. The `bundler` is exposed so the contribution can recover the
+ * original provenance of files flattened into the synthetic synced bundle (via
+ * {@link SyncedCustomizationBundler.getOrigin}).
+ */
 export interface IAgentRegistration extends IDisposable {
 	readonly syncProvider: ICustomizationSyncProvider;
+	readonly bundler: SyncedCustomizationBundler;
 }
 
 export interface IAgentHostActiveClientService {
@@ -82,6 +90,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileService private readonly _fileService: IFileService,
 		@IMcpService private readonly _mcpService: IMcpService,
+		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IAgentHostToolSetEnablementService private readonly _toolSetEnablementService: IAgentHostToolSetEnablementService,
 	) {
 		super();
@@ -101,7 +110,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		const updateCustomizations = async () => {
 			const seq = ++updateSeq;
 			try {
-				const refs = await resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, this._mcpService, bundler, sessionType);
+				const refs = await resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, this._mcpService, this._configurationResolverService, bundler, sessionType);
 				if (seq !== updateSeq) {
 					return;
 				}
@@ -139,6 +148,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		store.add(this._setCustomizations(sessionType, customizations));
 		return {
 			syncProvider,
+			bundler,
 			dispose: () => store.dispose(),
 		};
 	}

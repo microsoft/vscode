@@ -7,7 +7,6 @@ import './media/extensionActions.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { IAction, Action, Separator, SubmenuAction, IActionChangeEvent } from '../../../../base/common/actions.js';
 import { Delayer, Promises, Throttler } from '../../../../base/common/async.js';
-import * as DOM from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import * as json from '../../../../base/common/json.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -75,6 +74,7 @@ import { IAuthenticationUsageService } from '../../../services/authentication/br
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { getWorkbenchMenuMotionContextMenuOptions } from '../../../browser/actions/menuMotion.js';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -1222,10 +1222,8 @@ export class DropDownExtensionActionViewItem extends ActionViewItem {
 	public showMenu(menuActionGroups: IAction[][]): void {
 		if (this.element) {
 			const actions = this.getActions(menuActionGroups);
-			const elementPosition = DOM.getDomNodePagePosition(this.element);
-			const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+				...getWorkbenchMenuMotionContextMenuOptions(this.element),
 				getActions: () => actions,
 				actionRunner: this.actionRunner,
 				onHide: () => disposeIfDisposable(actions)

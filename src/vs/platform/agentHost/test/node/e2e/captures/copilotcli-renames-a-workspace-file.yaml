@@ -1,0 +1,98 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Rename before.txt to after.txt without changing its contents.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: bash
+          input:
+            command: find / -maxdepth 4 -name "before.txt" 2>/dev/null; pwd; ls -la
+            description: Locate before.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Rename before.txt to after.txt without changing its contents.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -maxdepth 4 -name "before.txt" 2>/dev/null; pwd; ls -la
+                description: Locate before.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                ${workdir}/ahp-coverage-rename-${temp}
+                total 8
+                drwx------@    3 ${user}  staff      96 ${timestamp} .
+                drwx------@ 3668 ${user}  staff  117376 ${timestamp} ..
+                -rw-r--r--@    1 ${user}  staff      12 ${timestamp} before.txt
+                <shellId: 0 completed with exit code 0>
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: bash
+          input:
+            command: cd ${workdir}/ahp-coverage-rename-${temp} && mv before.txt after.txt && ls -la && cat after.txt
+            description: Rename before.txt to after.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Rename before.txt to after.txt without changing its contents.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -maxdepth 4 -name "before.txt" 2>/dev/null; pwd; ls -la
+                description: Locate before.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                ${workdir}/ahp-coverage-rename-${temp}
+                total 8
+                drwx------@    3 ${user}  staff      96 ${timestamp} .
+                drwx------@ 3668 ${user}  staff  117376 ${timestamp} ..
+                -rw-r--r--@    1 ${user}  staff      12 ${timestamp} before.txt
+                <shellId: 0 completed with exit code 0>
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: cd ${workdir}/ahp-coverage-rename-${temp} && mv before.txt after.txt && ls -la && cat after.txt
+                description: Rename before.txt to after.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                total 8
+                drwx------@    3 ${user}  staff      96 ${timestamp} .
+                drwx------@ 3668 ${user}  staff  117376 ${timestamp} ..
+                -rw-r--r--@    1 ${user}  staff      12 ${timestamp} after.txt
+                RENAME_VALUE
+                <shellId: 1 completed with exit code 0>
+    response:
+      content: Renamed `before.txt` to `after.txt` — contents (`RENAME_VALUE`) unchanged.
+      stopReason: end_turn

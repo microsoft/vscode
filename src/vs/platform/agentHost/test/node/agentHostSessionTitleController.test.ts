@@ -33,6 +33,8 @@ class TestCopilotApiService implements ICopilotApiService {
 	async countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used'); }
 	async models(): Promise<CCAModel[]> { return []; }
 	async responses(): Promise<Response> { throw new Error('not used'); }
+	async resolveRestrictedTelemetryContext() { return { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }; }
+	async resolveApiEndpoint() { return undefined; }
 	async utilityChatCompletion(githubToken: string, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
 		this.utilityCalls.push({ token: githubToken, request, options });
 		if (this.error) {
@@ -183,6 +185,108 @@ suite('AgentHostSessionTitleController', () => {
 			title: 'Forked: Source title',
 			titles: [],
 			persistedTitle: undefined,
+		});
+	});
+
+	test('seedProvisionalTitle titles the session from the suggestion without generating', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session, db, titleActions } = setup(copilotApiService);
+
+		controller.seedProvisionalTitle(session.toString(), 'ls -la');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'ls -la', 'provisional title should be persisted');
+
+		assert.deepStrictEqual({
+			title: stateManager.getSessionState(session.toString())?.title,
+			titles: titleActions,
+			persistedTitle: await db.getMetadata('customTitle'),
+			utilityCalls: copilotApiService.utilityCalls.length,
+		}, {
+			title: 'ls -la',
+			titles: ['ls -la'],
+			persistedTitle: 'ls -la',
+			utilityCalls: 0,
+		});
+	});
+
+	test('seedProvisionalTitle refreshes a provisional title with a later suggestion', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session, db } = setup(copilotApiService);
+
+		controller.seedProvisionalTitle(session.toString(), 'ls -la');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'ls -la', 'first provisional title should be persisted');
+		controller.seedProvisionalTitle(session.toString(), 'git status');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'git status', 'second provisional title should be persisted');
+
+		assert.deepStrictEqual({
+			title: stateManager.getSessionState(session.toString())?.title,
+			utilityCalls: copilotApiService.utilityCalls.length,
+		}, {
+			title: 'git status',
+			utilityCalls: 0,
+		});
+	});
+
+	test('seedProvisionalTitle does not clobber a changed title', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session, db, titleActions } = setup(copilotApiService);
+
+		controller.seedProvisionalTitle(session.toString(), 'ls -la');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'ls -la', 'provisional title should be persisted');
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Manual title' });
+		controller.seedProvisionalTitle(session.toString(), 'git status');
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			title: stateManager.getSessionState(session.toString())?.title,
+			titles: titleActions,
+		}, {
+			title: 'Manual title',
+			titles: ['ls -la', 'Manual title'],
+		});
+	});
+
+	test('seedTitleFromFirstMessage replaces a provisional title with a generated title', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.response = 'Explain the build';
+		const { controller, stateManager, session, db, titleActions } = setup(copilotApiService);
+
+		// A `!command` seeds a provisional title and records a (local) turn.
+		controller.seedProvisionalTitle(session.toString(), 'ls -la');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'ls -la', 'provisional title should be persisted');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('!ls -la', [])]);
+
+		// The first real request supersedes it with a generated title.
+		controller.seedTitleFromFirstMessage(session.toString(), 'Explain how the build works');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Explain the build', 'generated title should replace the provisional title');
+
+		assert.deepStrictEqual({
+			title: stateManager.getSessionState(session.toString())?.title,
+			titles: titleActions,
+			persistedTitle: await db.getMetadata('customTitle'),
+		}, {
+			title: 'Explain the build',
+			titles: ['ls -la', 'Explain how the build works', 'Explain the build'],
+			persistedTitle: 'Explain the build',
+		});
+	});
+
+	test('seedTitleFromFirstMessage persists its fallback when replacing a provisional title', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.error = new Error('Title generation unavailable');
+		const { controller, stateManager, session, db } = setup(copilotApiService);
+
+		controller.seedProvisionalTitle(session.toString(), 'ls -la');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'ls -la', 'provisional title should be persisted');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('!ls -la', [])]);
+		controller.seedTitleFromFirstMessage(session.toString(), 'Explain how the build works');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Explain how the build works', 'fallback title should replace the provisional title');
+
+		assert.deepStrictEqual({
+			title: stateManager.getSessionState(session.toString())?.title,
+			persistedTitle: await db.getMetadata('customTitle'),
+		}, {
+			title: 'Explain how the build works',
+			persistedTitle: 'Explain how the build works',
 		});
 	});
 
