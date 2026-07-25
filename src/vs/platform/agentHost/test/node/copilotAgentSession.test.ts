@@ -71,6 +71,7 @@ class MockCopilotSession {
 	readonly experimentalModeUpdates: boolean[] = [];
 	experimentalModeUpdateSuccess = true;
 	abortCalls = 0;
+	abortGate: Promise<void> | undefined;
 	readonly compactCalls: unknown[] = [];
 	readonly commandListCalls: unknown[] = [];
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
@@ -150,7 +151,10 @@ class MockCopilotSession {
 		this.sendRequests.push(request);
 		return `message-${this.sendRequests.length}`;
 	}
-	async abort() { this.abortCalls++; }
+	async abort() {
+		this.abortCalls++;
+		await this.abortGate;
+	}
 	async setModel() { }
 	async getEvents(): Promise<SessionEvent[]> { return this.messages; }
 	async disconnect() { }
@@ -2525,6 +2529,72 @@ suite('CopilotAgentSession', () => {
 			await session.abort();
 			const result = await resultPromise;
 			assert.strictEqual(result.kind, 'reject');
+		});
+
+		test('interactive callbacks are cancelled while abort is in progress', async () => {
+			const { session, runtime, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('turn-aborting');
+			const pendingUserInput = runtime.handleUserInputRequest(
+				{ question: 'Existing question' },
+				{ sessionId: 'test-session-1' },
+			);
+			const pendingElicitation = runtime.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Existing elicitation',
+				mode: 'form',
+				requestedSchema: { type: 'object', properties: {} },
+			});
+			const abortGate = new DeferredPromise<void>();
+			mockSession.abortGate = abortGate.p;
+
+			const abortPromise = session.abort();
+			assert.strictEqual(mockSession.abortCalls, 1);
+
+			const permission = await runtime.handlePermissionRequest({
+				kind: 'write',
+				toolCallId: 'tc-during-abort',
+			});
+			const userInput = await runtime.handleUserInputRequest(
+				{ question: 'New question' },
+				{ sessionId: 'test-session-1' },
+			);
+			const elicitation = await runtime.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'New elicitation',
+				mode: 'form',
+				requestedSchema: { type: 'object', properties: {} },
+			});
+			const planReview = await runtime.handleExitPlanModeRequest({
+				actions: ['interactive'],
+				recommendedAction: 'interactive',
+				summary: 'Plan',
+			}, { sessionId: 'test-session-1' });
+			const mcpAuth = await runtime.handleMcpAuthRequest({
+				requestId: 'auth-during-abort',
+				serverName: 'test-server',
+				serverUrl: 'https://mcp.example.com',
+				reason: 'initial',
+			}, { sessionId: 'test-session-1' });
+
+			abortGate.complete();
+			await abortPromise;
+			assert.deepStrictEqual({
+				pendingUserInput: await pendingUserInput,
+				pendingElicitation: await pendingElicitation,
+				permission,
+				userInput,
+				elicitation,
+				planReview,
+				mcpAuth,
+			}, {
+				pendingUserInput: { answer: '', wasFreeform: true },
+				pendingElicitation: { action: 'cancel' },
+				permission: { kind: 'reject' },
+				userInput: { answer: '', wasFreeform: true },
+				elicitation: { action: 'cancel' },
+				planReview: { approved: false },
+				mcpAuth: { kind: 'cancelled' },
+			});
 		});
 
 		test('respondToPermissionRequest returns false for unknown id', async () => {

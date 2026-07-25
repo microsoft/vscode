@@ -396,6 +396,11 @@ export interface ICopilotAgentSessionOptions {
  */
 type CopilotTurnState = 'pending' | 'running' | 'completed' | 'aborted';
 
+const enum CopilotAbortState {
+	Idle,
+	Aborting,
+}
+
 /**
  * Encapsulates all per-turn bookkeeping for a single protocol turn, plus an
  * explicit lifecycle {@link CopilotTurn.state}. Holding this state on one
@@ -537,6 +542,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingAutoApprovals = new Map<string, DeferredPromise<PermissionAutoApproval | undefined>>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new Map<string, DeferredPromise<PermissionRequestResult>>();
+	/** Lifecycle of an SDK abort and its late callbacks. */
+	private _abortState = CopilotAbortState.Idle;
 	/**
 	 * Signatures ({@link safeStringify}) of user-approved `read`/`write`
 	 * permission requests, keyed by tool call id. The Copilot CLI runtime emits
@@ -814,12 +821,7 @@ export class CopilotAgentSession extends Disposable {
 			}));
 		}
 		this._register(toDisposable(() => this._cancelPendingClientToolCalls()));
-		this._register(toDisposable(() => {
-			for (const pending of this._pendingAutoApprovals.values()) {
-				pending.complete(undefined);
-			}
-			this._pendingAutoApprovals.clear();
-		}));
+		this._register(toDisposable(() => this._cancelPendingAutoApprovals()));
 	}
 
 	// ---- AgentSignal helpers ------------------------------------------------
@@ -1098,6 +1100,9 @@ export class CopilotAgentSession extends Disposable {
 					defer: 'never',
 					skipPermission: true,
 					handler: async (_args: Record<string, unknown>, invocation) => {
+						if (this._abortState === CopilotAbortState.Aborting) {
+							return this._toolSearchFailure('Tool call cancelled: session is aborting');
+						}
 						try {
 							const candidates = this._toToolSearchCandidates(invocation.availableTools);
 							const clientResult = await this._pendingClientToolCalls.registerAndFire(
@@ -1121,6 +1126,9 @@ export class CopilotAgentSession extends Disposable {
 				parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
 				defer,
 				handler: async (_args: Record<string, unknown>, { toolCallId }) => {
+					if (this._abortState === CopilotAbortState.Aborting) {
+						return this._toolSearchFailure('Tool call cancelled: session is aborting');
+					}
 					try {
 						return await this._pendingClientToolCalls.register(toolCallId);
 					} catch (error) {
@@ -1134,6 +1142,23 @@ export class CopilotAgentSession extends Disposable {
 
 	private _isToolSearchActive(): boolean {
 		return this._toolSearchActive;
+	}
+
+	private _setAbortState(state: CopilotAbortState): void {
+		if (this._abortState === state) {
+			return;
+		}
+		this._abortState = state;
+		if (state === CopilotAbortState.Aborting) {
+			this._cancelPendingAutoApprovals();
+			this._denyPendingPermissions();
+			this._cancelPendingUserInputs();
+			this._cancelPendingElicitations();
+			this._cancelPendingPlanReviews();
+			this._cancelPendingMcpAuthRequests();
+			this._cancelPendingMcpSamplings();
+			this._cancelPendingClientToolCalls();
+		}
 	}
 
 	private _clientToolName(toolName: string): string {
@@ -1353,9 +1378,15 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _handleMcpAuthRequest(request: McpAuthRequest): Promise<McpAuthResult | null | undefined> {
+		if (this._abortState === CopilotAbortState.Aborting) {
+			return { kind: 'cancelled' };
+		}
 		const githubToken = request.reason === 'initial' && this._scopesFromChallenge(request.wwwAuthenticateParams?.scope).length === 0
 			? await this._initialGitHubMcpToken(request)
 			: undefined;
+		if (this._abortState === CopilotAbortState.Aborting) {
+			return { kind: 'cancelled' };
+		}
 		if (githubToken) {
 			this._logService.info(`[Copilot:${this.sessionId}] Reusing the existing GitHub token for initial GitHub MCP authentication`);
 			return { kind: 'token', accessToken: githubToken };
@@ -1506,6 +1537,7 @@ export class CopilotAgentSession extends Disposable {
 	// ---- session operations -------------------------------------------------
 
 	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string): Promise<void> {
+		this._setAbortState(CopilotAbortState.Idle);
 		if (turnId && this._currentTurn?.id !== turnId) {
 			// Establish the `pending` turn for this message. Callers normally
 			// call `resetTurnState` just before `send()`; this covers the
@@ -1903,9 +1935,14 @@ export class CopilotAgentSession extends Disposable {
 
 	async abort(): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Aborting session...`);
-		this._denyPendingPermissions();
+		this._setAbortState(CopilotAbortState.Aborting);
 		this._drainPendingSteeringFlips();
-		await this._wrapper.session.abort();
+		try {
+			await this._wrapper.session.abort();
+		} catch (error) {
+			this._setAbortState(CopilotAbortState.Idle);
+			throw error;
+		}
 	}
 
 	/**
@@ -2139,6 +2176,10 @@ export class CopilotAgentSession extends Disposable {
 		request: ITypedPermissionRequest,
 	): Promise<PermissionRequestResult> {
 		try {
+			if (this._abortState === CopilotAbortState.Aborting) {
+				this._logService.info(`[Copilot:${this.sessionId}] Rejecting permission request received while aborting`);
+				return { kind: 'reject' };
+			}
 			const toolCallId = request.toolCallId;
 			if (!toolCallId) {
 				// TODO: handle permission requests without a toolCallId by creating a synthetic tool call
@@ -2149,6 +2190,9 @@ export class CopilotAgentSession extends Disposable {
 			const autoApproval = this._lastAppliedPermissionMode === 'auto'
 				? await this._takeAutoApproval(toolCallId)
 				: undefined;
+			if (this._abortState === CopilotAbortState.Aborting) {
+				return { kind: 'reject' };
+			}
 			const recommendation = autoApproval?.recommendation;
 			if (recommendation === 'approve' && !request.requestSandboxBypass) {
 				if (request.kind === 'custom-tool'
@@ -2623,6 +2667,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean> {
+		if (this._abortState === CopilotAbortState.Aborting) {
+			return false;
+		}
 		const deferred = new DeferredPromise<PermissionRequestResult>();
 		this._pendingPermissions.set(request.toolCallId, deferred);
 
@@ -2671,6 +2718,9 @@ export class CopilotAgentSession extends Disposable {
 		request: UserInputRequest,
 		_invocation: { sessionId: string },
 	): Promise<UserInputResponse> {
+		if (this._abortState === CopilotAbortState.Aborting) {
+			return { answer: '', wasFreeform: true };
+		}
 		const isAutopilot = this._isAutopilotMode();
 		if (isAutopilot || this._isAutoReplyEnabled()) {
 			return {
@@ -2763,6 +2813,9 @@ export class CopilotAgentSession extends Disposable {
 	 * be misleading to the MCP server.
 	 */
 	private async _handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult> {
+		if (this._abortState === CopilotAbortState.Aborting) {
+			return { action: 'cancel' };
+		}
 		const isAutopilot = this._isAutopilotMode();
 		if (isAutopilot) {
 			return { action: 'cancel' };
@@ -3467,6 +3520,9 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onIdle(e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
+			if (e.data.aborted) {
+				this._setAbortState(CopilotAbortState.Idle);
+			}
 			if (this._hasActivity) {
 				this._hasActivity = false;
 				this._emitAction({
@@ -4074,6 +4130,9 @@ export class CopilotAgentSession extends Disposable {
 	 * `currentMode` so the model can continue with implementation.
 	 */
 	private async _handleExitPlanModeRequest(data: ExitPlanModeRequest, _invocation: { sessionId: string }): Promise<IExitPlanModeResponse> {
+		if (this._abortState === CopilotAbortState.Aborting) {
+			return { approved: false };
+		}
 		const turnId = this._currentTurn?.id;
 		if (!turnId) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Rejecting plan review request without an active turn`);
@@ -4089,6 +4148,9 @@ export class CopilotAgentSession extends Disposable {
 			planPath = planRead.path ?? null;
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] rpc.plan.read failed for exit_plan_mode: ${err instanceof Error ? err.message : String(err)}`);
+		}
+		if (this._abortState === CopilotAbortState.Aborting) {
+			return { approved: false };
 		}
 		if (this._currentTurn?.id !== turnId) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Rejecting plan review request after its turn ended`);
@@ -4540,6 +4602,14 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	// ---- cleanup ------------------------------------------------------------
+
+	private _cancelPendingAutoApprovals(): void {
+		for (const pending of this._pendingAutoApprovals.values()) {
+			pending.complete(undefined);
+		}
+		this._pendingAutoApprovals.clear();
+		this._autoApprovals.clear();
+	}
 
 	private _denyPendingPermissions(): void {
 		for (const [toolCallId, deferred] of this._pendingPermissions) {
