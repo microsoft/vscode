@@ -47,7 +47,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		return { sessionUri, defaultChatUri: buildDefaultChatUri(sessionUri), workspace };
 	}
 
-	async function createPeer(sessionUri: string, id: string, source?: { chat: string; turnId: string; kind: ChatSourceKind }): Promise<string> {
+	async function createPeer(sessionUri: string, id: string, source?: { chat: string; turnId: string; kind: ChatSourceKind; selection?: { text: string; responsePartId?: string } }): Promise<string> {
 		const chat = buildChatUri(sessionUri, id);
 		await context.client.call('createChat', {
 			channel: sessionUri,
@@ -630,14 +630,17 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const { sessionUri, defaultChatUri } = await createSession('side-context');
 		await driveTurn(defaultChatUri, 'turn-source', 'Remember the exact token SIDECHAT42 for a later question. Reply with exactly "ready".', 1);
 
+		const selection = { text: 'MOONVALE99', responsePartId: 'response-part-source-1' };
 		const sideChatUri = await createPeer(sessionUri, 'side', {
 			kind: ChatSourceKind.SideChat,
 			chat: defaultChatUri,
 			turnId: 'turn-source',
+			selection,
 		});
 		await context.client.call<SubscribeResult>('subscribe', { channel: sideChatUri });
 
-		const response = await driveTurn(sideChatUri, 'turn-side', 'What exact token did I ask you to remember? Reply with only the token.', 2);
+		const question = 'Reply with the exact remembered token, then a space, then the exact selected text given to you as context — nothing else.';
+		const response = await driveTurn(sideChatUri, 'turn-side', question, 2);
 		const [sourceState, sideState, session] = await Promise.all([
 			chatState(defaultChatUri),
 			chatState(sideChatUri),
@@ -645,18 +648,20 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		]);
 
 		assert.deepStrictEqual({
-			responseIncludesCode: /SIDECHAT42/i.test(response),
+			responseIncludesRememberedToken: /SIDECHAT42/i.test(response),
+			responseIncludesSelectedText: /MOONVALE99/i.test(response),
 			sourceTurnCount: sourceState.turns.length,
 			sideTurnCount: sideState.turns.length,
 			origin: session.chats.find(chat => chat.resource === sideChatUri)?.origin,
 			firstMessage: sideState.turns[0]?.message.text,
 			firstAttachments: sideState.turns[0]?.message.attachments ?? [],
 		}, {
-			responseIncludesCode: true,
+			responseIncludesRememberedToken: true,
+			responseIncludesSelectedText: true,
 			sourceTurnCount: 1,
 			sideTurnCount: 1,
-			origin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 'turn-source' },
-			firstMessage: 'What exact token did I ask you to remember? Reply with only the token.',
+			origin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 'turn-source', selection },
+			firstMessage: question,
 			firstAttachments: [],
 		});
 	}, config.supportsMultipleChats && !!config.supportsSideChats);

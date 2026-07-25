@@ -601,6 +601,79 @@ channel that received `ChatToolCallStart`/`ChatToolCallReady`; confirmations sen
 to the parent session URI are invalid and will not resolve the SDK permission
 request.
 
+##### Direct selection invocation (Agents window only)
+
+Besides typing `/btw`, a user can select assistant markdown text in a chat
+response and get an inline "Ask Question" affordance that creates the same
+kind of side chat directly from that selection. This is Agents-window-only —
+it never appears in the regular workbench chat surface — and reuses
+`ISessionsManagementService.createSideChatInSession`/`sendRequest` and
+`ISessionsService.openChat`, the identical plumbing `/btw` uses (see
+`sideChatOrchestration.ts`'s `createAndSendSideChat`/`openAndSendSideChat`
+helpers, shared by both entry points).
+
+`ResponseSelectionSideChatController` (`contrib/chat/browser/`) is owned by
+`ChatView` per chat widget. It listens for `selectionchange` on the widget's
+document and resolves the selection via `resolveResponseSelection`
+(`responseSelectionResolver.ts`), which only accepts a selection when:
+- both selection endpoints fall inside the **same** assistant response
+  (resolved through `IChatWidget.getElementFromNode`, `isResponseVM`), and
+- the selection stays within that response's rendered markdown
+  (`.chat-markdown-part`), excluding any embedded Monaco editor
+  (`.monaco-editor`) or tool-invocation UI (`.chat-tool-invocation-part`).
+
+A resolved selection shows an "Ask Question" input positioned under the
+selection, reusing the same visual/input component as the editor's feedback
+affordance: `FeedbackInputWidget` (`contrib/agentFeedback/browser/
+feedbackInputWidget.ts`), extracted from `AgentFeedbackInputWidget` so both
+consumers share one textarea/action-bar implementation. Submitting creates a
+side chat anchored to the **selected response's turn**
+(`IChatResponseViewModel.requestId`, not the chat's last turn) with
+`selection.text` set to the exact selected text, mirroring `/btw`'s
+"inherits model/agent, immutable selection snapshot" semantics. The same
+runtime capability/status gate as `/btw` applies before creating the side
+chat (`session.capabilities.get().supportsSideChat`, not `Untitled`, not
+archived); failing that gate shows a warning notification instead of
+creating a partially-supported side chat.
+
+Submitting does not eagerly dismiss the overlay: it stays visible with a busy
+state (`FeedbackInputWidget.setBusy(true, statusLabel)` — disabled input,
+hidden action bar, a spinning `Codicon.loading` indicator, `aria-busy` plus an
+`aria.status` announcement) while the create/open/send orchestration is
+in-flight, and duplicate submission is blocked both by the disabled action and
+an explicit `isBusy` guard in `_submit`. Opening the newly-created side chat
+naturally dismisses the overlay via `setChat`, which force-dismisses only when
+the chat's *resource* actually changes: `ChatView` re-invokes `setChat` for the
+same chat on unrelated status/interactivity observable updates, so a
+same-resource call must preserve a visible draft and, critically, a pending
+busy submission rather than clearing it and letting a duplicate race in. On
+failure the busy state clears, the typed question and normal controls are
+restored, and the input is refocused so the user can retry without losing
+their text — the existing warning/error notification and log call are
+unchanged. Escape, scrolling, and selection invalidation are all ignored while
+a submission is pending so they cannot race the in-flight request. The
+action-bar slot and the spinner that replaces it both size to a shared
+`--agent-feedback-line-height` CSS custom property (set once on the widget
+root, matching the textarea's line-height) and center via flex, rather than a
+hardcoded icon height or a positional transform — this keeps both optically
+centered on the input's single line, and still flush to the last line when the
+textarea grows multi-line (the row keeps `align-items: flex-end`).
+
+The `selectionchange` listener ignores events entirely while focus is inside
+the "Ask Question" input (`dom.isAncestorOfActiveElement`): focusing the
+textarea collapses the browser's native document selection as a side effect,
+and without this guard that collapse would dismiss the very input the user
+just focused. The captured selection is treated as an immutable snapshot for
+that reason — it is not re-read from the live DOM selection on submit.
+Escape (or any other dismissal while the input has focus) restores focus to
+the source response via `IChatWidget.focusResponseItem(true)` rather than
+letting it fall through to the document body. The overlay's position clamps
+both horizontally and vertically against the chat widget's own bounds and the
+visible viewport, measured after `FeedbackInputWidget.show()`/`autoSize()` so
+real dimensions are used; when there isn't room below the selection it flips
+above instead, falling back to the nearest in-bounds edge only when neither
+placement fully fits.
+
 Agent-host approval levels map to the Copilot SDK allow-all modes before each
 turn: Default approvals uses `off`, Allow all uses `on`, and Assisted permissions
 uses `auto`. Assisted permissions only skips a prompt when the SDK's
