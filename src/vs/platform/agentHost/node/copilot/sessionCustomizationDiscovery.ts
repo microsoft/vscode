@@ -1010,6 +1010,13 @@ export class SessionCustomizationDiscovery extends Disposable {
 						if (skillStat.isFile && !seen.has(skillFile)) {
 							seen.add(skillFile);
 							files.push({ uri: skillFile, etag: skillStat.etag });
+							// Watch the skill subdirectory directly for SKILL.md content changes.
+							// The recursive watcher on rootUri is sufficient for structural changes
+							// (skill directories added/deleted), but on some platforms (e.g. macOS VMs)
+							// a recursive watcher may not reliably fire for content-only changes deep
+							// in the tree. Adding an explicit non-recursive watcher on each skill's
+							// subdirectory ensures SKILL.md modifications are always detected.
+							addWatch(watchRootUris, child.resource, false, skillFile);
 						}
 					} catch {
 						// SKILL.md missing — skip this skill directory.

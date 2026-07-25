@@ -435,12 +435,18 @@ suite('SessionCustomizationDiscovery', () => {
 		assert.strictEqual(watched.get(URI.joinPath(workspace, '.claude').toString()), false);
 		assert.strictEqual(watched.get(URI.joinPath(workspace, '.github', 'agents').toString()), false);
 		assert.strictEqual(watched.get(URI.joinPath(workspace, '.github', 'skills').toString()), true);
+		// Each discovered skill subdirectory is also watched non-recursively so that
+		// content changes to SKILL.md are detected even when the recursive watcher
+		// on the skills root does not fire reliably (e.g. on macOS VMs).
+		assert.strictEqual(watched.get(URI.joinPath(workspace, '.github', 'skills', 'bar').toString()), false);
 		assert.strictEqual(watched.get(URI.joinPath(workspace, '.github', 'instructions').toString()), true);
 		assert.strictEqual(watched.get(URI.joinPath(workspace, '.github', 'hooks').toString()), true);
 		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot').toString()), false);
 		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot', 'agents').toString()), false);
 		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot', 'skills').toString()), true);
+		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot', 'skills', 'copilot-user-skill').toString()), false);
 		assert.strictEqual(watched.get(URI.joinPath(userHome, '.agents', 'skills').toString()), true);
+		assert.strictEqual(watched.get(URI.joinPath(userHome, '.agents', 'skills', 'user-skill').toString()), false);
 		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot', 'instructions').toString()), true);
 		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot', 'hooks').toString()), true);
 	});
@@ -516,6 +522,32 @@ suite('SessionCustomizationDiscovery', () => {
 		await raceTimeout(fired.p, 500);
 
 		assert.strictEqual(changeCount, 1, 'expected onDidChange to fire when an existing agent file is modified');
+	});
+
+	test('fires onDidChange when an existing SKILL.md file is modified', async () => {
+		// Skill files live two levels deep (skillsDir/skill-name/SKILL.md), so a
+		// recursive watcher on the skills root is the primary detection mechanism.
+		// An explicit non-recursive watcher on each skill subdirectory is also added
+		// as a more reliable secondary trigger for content-only changes.
+		await seed('/workspace/.github/skills/my-skill/SKILL.md', 'skill body');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome, URI.file));
+		await discovery.scan(CancellationToken.None);
+		await timeout(50);
+
+		let changeCount = 0;
+		const fired = new DeferredPromise<void>();
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+			fired.complete();
+		}));
+
+		// Overwrite the skill file to produce an UPDATED event via the non-recursive
+		// watcher on the skill subdirectory (`my-skill/`).
+		await seed('/workspace/.github/skills/my-skill/SKILL.md', 'skill body (updated)');
+		await raceTimeout(fired.p, 500);
+
+		assert.strictEqual(changeCount, 1, 'expected onDidChange to fire when an existing SKILL.md is modified');
 	});
 
 	test('fires onDidChange when an existing agent file is deleted under a non-recursively watched root', async () => {
