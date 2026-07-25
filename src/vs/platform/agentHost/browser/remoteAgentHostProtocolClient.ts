@@ -271,6 +271,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Uses URI-aware comparison to dedupe repeat sends and is cleared with the connection.
 	 */
 	private readonly _grantedImplicitReadUris = new ResourceSet();
+	private readonly _implicitReadGrants = this._register(new DisposableStore());
 
 	get clientId(): string {
 		return this._clientId;
@@ -1093,8 +1094,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			return;
 		}
 		this._grantedImplicitReadUris.add(uri);
-		// The resource service also revokes these grants in connectionClosed.
-		this._resourceService.grantImplicitRead(this._address, uri);
+		this._implicitReadGrants.add(this._resourceService.grantImplicitRead(this._address, uri));
 	}
 
 	/**
@@ -1273,8 +1273,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			this._state.outbox.length = 0;
 		}
 		this._rejectPendingRequests(error);
-		this._resourceService.connectionClosed(this._address);
 		this._grantedImplicitReadUris.clear();
+		this._implicitReadGrants.clear();
+		this._resourceService.connectionClosed(this._address);
 		this._transitionTo({ kind: AgentHostClientState.Closed, error });
 		this._onDidClose.fire();
 	}

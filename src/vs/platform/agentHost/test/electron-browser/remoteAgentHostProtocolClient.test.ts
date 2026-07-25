@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -147,6 +147,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 		granted?: (address: string, uri: URI, mode: AgentHostPermissionMode) => boolean;
 		onRequest?: (address: string, params: { uri: string; read?: boolean; write?: boolean }) => Promise<void>;
 		onGrantImplicitRead?: (address: string, uri: URI) => void;
+		/** Test hook that observes disposal of the implicit-read grant. */
+		onRevokeImplicitRead?: (address: string, uri: URI) => void;
 		readBytes?: VSBuffer;
 	}
 
@@ -189,7 +191,10 @@ suite('RemoteAgentHostProtocolClient', () => {
 			pendingFor: () => empty,
 			allPending: empty,
 			findPending: () => undefined,
-			grantImplicitRead: (address, uri) => { opts.onGrantImplicitRead?.(address, uri); return Disposable.None; },
+			grantImplicitRead: (address, uri) => {
+				opts.onGrantImplicitRead?.(address, uri);
+				return opts.onRevokeImplicitRead ? toDisposable(() => opts.onRevokeImplicitRead?.(address, uri)) : Disposable.None;
+			},
 			connectionClosed: () => { },
 		};
 	}
@@ -1329,6 +1334,33 @@ suite('RemoteAgentHostProtocolClient', () => {
 			client.dispatch(sessionUri.toString(), action);
 
 			assert.strictEqual(calls.length, 1);
+		});
+
+		test('connection close disposes implicit read grants', async () => {
+			const didGrant = new DeferredPromise<void>();
+			const revoked: string[] = [];
+			const service = createResourceServiceStub({
+				onGrantImplicitRead: () => didGrant.complete(),
+				onRevokeImplicitRead: (_address, uri) => revoked.push(uri.toString()),
+			});
+			const { client, transport } = createClient(undefined, service);
+
+			client.dispatch('copilot-chat:/test', {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Queued,
+				id: 'queued-1',
+				message: {
+					text: 'Review this attachment',
+					origin: { kind: MessageKind.User },
+					attachments: [
+						{ type: MessageAttachmentKind.Resource, uri: 'file:///attachments/queued.txt', label: 'queued.txt' },
+					],
+				},
+			});
+			await didGrant.p;
+			transport.fireClose();
+
+			assert.deepStrictEqual(revoked, ['file:///attachments/queued.txt']);
 		});
 
 		test('active client removal does not crash', () => {

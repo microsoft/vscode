@@ -154,4 +154,5 @@ suite('ChatSpeechToTextService', () => {
 			}
 		);
 	});
+
 });
