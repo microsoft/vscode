@@ -6,7 +6,8 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { extUriBiasedIgnorePathCase, toLocalResource } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -358,8 +359,14 @@ export class AgentHostSessionListStore extends Disposable {
 		if (!workingDirectory) {
 			return false;
 		}
-		const workingDirectoryUri = fromAgentHostUri(typeof workingDirectory === 'string' ? URI.parse(workingDirectory) : workingDirectory);
-		return folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectoryUri, folder.uri));
+		const workingDirectoryUri = typeof workingDirectory === 'string' ? URI.parse(workingDirectory) : workingDirectory;
+		const unwrappedWorkingDirectoryUri = fromAgentHostUri(workingDirectoryUri);
+		return folders.some(folder => {
+			const comparableWorkingDirectoryUri = unwrappedWorkingDirectoryUri.scheme === Schemas.file && folder.uri.scheme === Schemas.vscodeRemote
+				? toLocalResource(unwrappedWorkingDirectoryUri, folder.uri.authority, folder.uri.scheme)
+				: unwrappedWorkingDirectoryUri;
+			return extUriBiasedIgnorePathCase.isEqualOrParent(comparableWorkingDirectoryUri, folder.uri);
+		});
 	}
 
 	private _toRemoval(entry: IAgentHostSessionListEntry): IAgentHostSessionListRemoval {

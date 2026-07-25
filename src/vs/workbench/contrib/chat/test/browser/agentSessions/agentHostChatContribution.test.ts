@@ -2554,7 +2554,7 @@ suite('AgentHostChatContribution', () => {
 				onDidChangeWorkspaceFolders: Event.None,
 			});
 
-			const workingDirectory = toAgentHostUri(URI.joinPath(workspaceFolder, 'sub'), 'remote');
+			const workingDirectory = toAgentHostUri(URI.file('/workspace/root/sub'), 'remote');
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'remote'), startTime: 1000, modifiedTime: 2000, summary: 'Remote workspace', workingDirectory });
 
 			const listController = createSessionListController(disposables, instantiationService, agentHostService);
