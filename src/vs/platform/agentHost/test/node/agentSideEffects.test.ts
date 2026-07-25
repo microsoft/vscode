@@ -3695,6 +3695,17 @@ suite('AgentSideEffects', () => {
 			sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 		});
 
+		async function waitForMetadata(key: string): Promise<string> {
+			for (let attempt = 0; attempt < 100; attempt++) {
+				const value = await sessionDb.getMetadata(key);
+				if (value !== undefined) {
+					return value;
+				}
+				await timeout(10);
+			}
+			throw new Error(`Session metadata '${key}' was not persisted`);
+		}
+
 		teardown(async () => {
 			await sessionDb.close();
 		});
@@ -3726,10 +3737,7 @@ suite('AgentSideEffects', () => {
 				title: 'Custom Title',
 			});
 
-			// Wait for the async persistence
-			await new Promise(r => setTimeout(r, 50));
-
-			assert.strictEqual(await sessionDb.getMetadata('customTitle'), 'Custom Title');
+			assert.strictEqual(await waitForMetadata('customTitle'), 'Custom Title');
 		});
 
 		test('handleListSessions returns persisted custom title', async () => {
@@ -3847,11 +3855,8 @@ suite('AgentSideEffects', () => {
 				config: { autoApprove: 'autoApprove' },
 			});
 
-			await new Promise(r => setTimeout(r, 50));
-
-			const persisted = await sessionDb.getMetadata('configValues');
-			assert.ok(persisted);
-			assert.deepStrictEqual(JSON.parse(persisted!), { autoApprove: 'autoApprove' });
+			const persisted = await waitForMetadata('configValues');
+			assert.deepStrictEqual(JSON.parse(persisted), { autoApprove: 'autoApprove' });
 		});
 
 		test('server-dispatched SessionConfigChanged persists merged config values to the database', async () => {
@@ -3882,11 +3887,8 @@ suite('AgentSideEffects', () => {
 				config: { mode: 'interactive' },
 			});
 
-			await new Promise(r => setTimeout(r, 50));
-
-			const persisted = await sessionDb.getMetadata('configValues');
-			assert.ok(persisted);
-			assert.deepStrictEqual(JSON.parse(persisted!), { mode: 'interactive', autoApprove: 'default' });
+			const persisted = await waitForMetadata('configValues');
+			assert.deepStrictEqual(JSON.parse(persisted), { mode: 'interactive', autoApprove: 'default' });
 		});
 
 		test('SessionConfigChanged notifies the agent with the post-reducer merged values', async () => {
