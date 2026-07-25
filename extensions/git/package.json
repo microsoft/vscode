@@ -4106,7 +4106,7 @@
           "type": "number",
           "default": 7,
           "minimum": 7,
-          "maximum": 40,
+          "maximum": 64,
           "markdownDescription": "%config.commitShortHashLength%",
           "scope": "resource"
         },
