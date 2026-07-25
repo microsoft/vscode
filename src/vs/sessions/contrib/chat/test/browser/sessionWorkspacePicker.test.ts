@@ -675,6 +675,24 @@ suite('WorkspacePicker - Connection Status', () => {
 		assert.strictEqual(checkedEntries[0].uri.path, '/local/project', 'The local entry should be checked');
 	});
 
+	test('programmatic workspace initialization can avoid persisting recents', () => {
+		const localProvider = createMockProvider('local-1');
+		const storage = disposables.add(new TestStorageService());
+		providersService.setProviders([localProvider]);
+		const picker = createTestPicker(disposables, providersService, storage);
+		const folder = URI.file('/local/proposed');
+
+		picker.setSelectedWorkspace(folder, { fireEvent: false, persist: false });
+
+		assert.deepStrictEqual({
+			selected: picker.selectedFolderUri?.toString(),
+			stored: storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE),
+		}, {
+			selected: folder.toString(),
+			stored: undefined,
+		});
+	});
+
 	test('local provider is never treated as unavailable', () => {
 		const localProvider = createMockProvider('local-1');
 
@@ -831,6 +849,43 @@ suite('AutomationsWorkspacePicker', () => {
 				isQuickChat: false,
 				folderUri: folderUri.toString(),
 			},
+		});
+	});
+
+	test('user workspace selections do not update recent workspaces', async () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1');
+		const originalFolder = URI.file('/local/original');
+		const proposedFolder = URI.file('/local/proposed');
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [
+			{ uri: originalFolder, providerId: provider.id, checked: true },
+			{ uri: proposedFolder, providerId: provider.id, checked: false },
+		]);
+		providersService.setProviders([provider]);
+		const before = storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			storage,
+			new TestNotificationService(),
+			TestAutomationsWorkspacePicker,
+		) as TestAutomationsWorkspacePicker;
+		picker.setTargetModel(new AutomationIsolationModel({
+			isQuickChat: false,
+			folderUri: originalFolder,
+			isolationMode: 'workspace',
+			branch: undefined,
+		}));
+
+		await picker.select('local/proposed');
+
+		assert.deepStrictEqual({
+			selected: picker.selectedFolderUri?.toString(),
+			storageUnchanged: storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE) === before,
+		}, {
+			selected: proposedFolder.toString(),
+			storageUnchanged: true,
 		});
 	});
 
