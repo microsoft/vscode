@@ -76,10 +76,11 @@ export class AgentModelRefreshScheduler extends Disposable {
 			if (!agent.refreshModels) {
 				continue;
 			}
-			this._logService.trace(`[AgentHost] Periodic model refresh for ${agent.getDescriptor().provider}`);
+			const provider = agent.getDescriptor().provider;
+			this._logService.trace(`[AgentHost] Periodic model refresh for ${provider}`);
 			// `refreshModels` is contractually non-rejecting, but a provider bug
 			// must not take down the tick for the providers after it.
-			agent.refreshModels().catch(err => this._logService.error(err, '[AgentHost] Periodic model refresh failed'));
+			agent.refreshModels().catch(err => this._logService.error(err, `[AgentHost] Periodic model refresh failed for ${provider}`));
 		}
 	}
 }

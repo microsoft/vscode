@@ -1021,6 +1021,23 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual(agent.models.get().map(model => model.id), modelIds);
 	});
 
+	test('clears models when enumeration for a replacement token fails', async () => {
+		const { agent, api } = createTestContext(disposables);
+		api.models = async token => {
+			if (token === 'tokB') {
+				throw new Error('token B failure');
+			}
+			return [...ALL_MODELS];
+		};
+		await agent.authenticate('https://api.github.com', 'tokA');
+		await agent.refreshModels();
+
+		await agent.authenticate('https://api.github.com', 'tokB');
+		await agent.refreshModels();
+
+		assert.deepStrictEqual(agent.models.get(), []);
+	});
+
 	test('native transport: models populate from supportedModels() with no proxy start and no CAPI models() call', async () => {
 		const { agent, proxy, api, sdk } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
 		let capiModelsCalls = 0;

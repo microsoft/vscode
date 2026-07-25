@@ -592,6 +592,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._githubToken = token;
 		this._logService.info('[Claude] Auth token updated');
 		oldHandle?.dispose();
+		if (tokenChanged) {
+			// A different account can have different model entitlements. Do
+			// not retain the previous token's catalog if enumeration for the
+			// replacement token fails.
+			this._models.set([], undefined);
+		}
 		void this._startModelRefresh();
 		return true;
 	}

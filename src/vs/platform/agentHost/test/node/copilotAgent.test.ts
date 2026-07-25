@@ -11,7 +11,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, type DisposableStore, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -358,6 +358,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	};
 	startCallCount = 0;
 	stopCallCount = 0;
+	startGate: Promise<void> | undefined;
 	listSessionCallCount = 0;
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
 	readonly modelListErrors: Error[] = [];
@@ -376,6 +377,7 @@ class TestCopilotClient implements ITestCopilotClient {
 
 	async start(): Promise<void> {
 		this.startCallCount++;
+		await this.startGate;
 	}
 	async stop(): ReturnType<ITestCopilotClient['stop']> {
 		this.stopCallCount++;
@@ -1355,6 +1357,63 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('does not publish an in-flight model refresh after shutdown', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'initial',
+			name: 'Initial',
+		}]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await waitForState(agent.models, models => models.some(model => model.id === 'initial'));
+			await Promise.resolve();
+
+			const gate = new DeferredPromise<void>();
+			client.modelListGates.push(gate.p);
+			client.modelListResponses.push([{ id: 'late', name: 'Late' }]);
+			const requestsBefore = client.modelListRequests.length;
+			const refresh = agent.refreshModels();
+			for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
+				await timeout(1);
+			}
+			assert.strictEqual(client.modelListRequests.length, requestsBefore + 1, 'expected the gated model request to start');
+
+			await agent.shutdown();
+			gate.complete();
+			await refresh;
+
+			assert.deepStrictEqual(agent.models.get().map(model => model.id), ['initial']);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('stops a client that finishes starting after shutdown begins', async () => {
+		const client = new TestCopilotClient([]);
+		const startGate = new DeferredPromise<void>();
+		client.startGate = startGate.p;
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			const listPromise = agent.listSessions();
+			await Promise.resolve();
+			const shutdownPromise = agent.shutdown();
+			startGate.complete();
+
+			await assert.rejects(listPromise, CancellationError);
+			await shutdownPromise;
+
+			assert.deepStrictEqual({
+				starts: client.startCallCount,
+				stops: client.stopCallCount,
+			}, {
+				starts: 1,
+				stops: 1,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('createSession infers workspace-less from an omitted workingDirectory and uses a stable scratch dir', async () => {
 		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-home-`));
 		const agent = createTestAgent(disposables, { userHome });
@@ -1429,8 +1488,14 @@ suite('CopilotAgent', () => {
 
 		class StopCountingClient extends TestCopilotClient {
 			stopCount = 0;
+			stopGate: Promise<void> | undefined;
+			stopError: Error | undefined;
 			override async stop(): ReturnType<ITestCopilotClient['stop']> {
 				this.stopCount++;
+				await this.stopGate;
+				if (this.stopError) {
+					throw this.stopError;
+				}
 				return super.stop();
 			}
 		}
@@ -1558,6 +1623,93 @@ suite('CopilotAgent', () => {
 					stopCount: 1,
 					refreshesAfterRestart: 1,
 				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('coalesces concurrent token and startup-config refresh triggers', async () => {
+			const client = new StopCountingClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			const stopGate = new DeferredPromise<void>();
+			try {
+				await agent.authenticate('https://api.github.com', 'token-a');
+				await agent.listSessions();
+				await waitForState(agent.models, models => models.length > 0);
+				await Promise.resolve();
+				const requestsBefore = client.modelListRequests.length;
+				client.stopGate = stopGate.p;
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				await agent.authenticate('https://api.github.com', 'token-b');
+				await timeout(10);
+				assert.strictEqual(client.modelListRequests.length, requestsBefore, 'model refresh must wait for the old client to stop');
+				stopGate.complete();
+				for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
+					await timeout(1);
+				}
+				await Promise.resolve();
+
+				assert.deepStrictEqual({
+					stopCount: client.stopCount,
+					refreshes: client.modelListRequests.length - requestsBefore,
+					lastToken: client.modelListRequests.at(-1)?.gitHubToken,
+				}, {
+					stopCount: 1,
+					refreshes: 1,
+					lastToken: 'token-b',
+				});
+			} finally {
+				stopGate.complete();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not start a replacement client while the previous client is stopping', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			const stopGate = new DeferredPromise<void>();
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+				client.stopGate = stopGate.p;
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				const listPromise = agent.listSessions();
+				await timeout(10);
+				assert.strictEqual(client.startCallCount, 1, 'replacement client must wait for the old client to stop');
+
+				stopGate.complete();
+				await listPromise;
+				assert.deepStrictEqual({
+					starts: client.startCallCount,
+					stops: client.stopCount,
+				}, {
+					starts: 2,
+					stops: 1,
+				});
+			} finally {
+				stopGate.complete();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('a failed client stop does not poison later model refreshes', async () => {
+			const client = new StopCountingClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, models => models.length > 0);
+				await agent.listSessions();
+				const requestsBefore = client.modelListRequests.length;
+				client.stopError = new Error('stop failed');
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				await timeout(10);
+				client.stopError = undefined;
+				await agent.refreshModels();
+
+				assert.strictEqual(client.modelListRequests.length, requestsBefore + 1);
 			} finally {
 				await disposeAgent(agent);
 			}
