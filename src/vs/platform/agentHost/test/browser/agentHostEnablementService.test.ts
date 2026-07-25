@@ -7,10 +7,9 @@ import assert from 'assert';
 import { isWeb } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { getSingletonServiceDescriptors } from '../../../instantiation/common/extensions.js';
 import { MockContextKeyService } from '../../../keybinding/test/common/mockKeybindingService.js';
 import { AgentHostEnablementService } from '../../browser/agentHostEnablementService.js';
-import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../../common/agentHostEnablementService.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../common/agentHostEnablementService.js';
 
 suite('AgentHostEnablementService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,11 +39,5 @@ suite('AgentHostEnablementService', () => {
 			{ enabled: false, contextKey: false },
 			{ enabled: false, contextKey: false },
 		]);
-	});
-
-	test('defers enablement until window configuration is restored', () => {
-		const descriptor = getSingletonServiceDescriptors().find(([id]) => id === IAgentHostEnablementService)?.[1];
-
-		assert.strictEqual(descriptor?.supportsDelayedInstantiation, true);
 	});
 });

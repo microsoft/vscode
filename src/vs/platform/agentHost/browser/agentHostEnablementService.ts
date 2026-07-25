@@ -69,5 +69,4 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 	}
 }
 
-// Defer the snapshot until window-scoped workspace configuration has been restored.
-registerSingleton(IAgentHostEnablementService, AgentHostEnablementService, InstantiationType.Delayed);
+registerSingleton(IAgentHostEnablementService, AgentHostEnablementService, InstantiationType.Eager);
