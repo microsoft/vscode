@@ -13,19 +13,16 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { AGENTS_VOICE_DISABLE_COMMAND_ID } from '../../../agentsVoice/common/agentsVoice.js';
 
 /** Command that opens the microphone picker shared by dictation and Voice Mode. */
 export const SELECT_MICROPHONE_COMMAND = 'workbench.action.chat.selectSpeechToTextMicrophone';
 /** Command that cancels the active/preparing dictation session. */
 const CANCEL_DICTATION_COMMAND = 'workbench.action.chat.cancelSpeechToText';
-/** Command that tears down an active Voice Mode session. */
-const VOICE_DISCONNECT_COMMAND = 'agentsVoice.disconnect';
 /** Command that opens the Voice Mode settings; the affordance that used to live behind the toolbar gear. */
 const VOICE_OPEN_SETTINGS_COMMAND = 'agentsVoice.openSettings';
 /** Setting that enables dictation; toggled off by "Disable Dictation". */
 const DICTATION_ENABLED_SETTING = 'dictation.enabled';
-/** Setting that enables Voice Mode; toggled off by "Disable Voice Mode". */
-const VOICE_ENABLED_SETTING = 'agents.voice.enabled';
 
 /**
  * "Select Microphone" entry shared by every dictation / Voice Mode mic button
@@ -60,14 +57,11 @@ function createDisableDictationAction(commandService: ICommandService, configura
  * the setting doesn't leave the microphone capturing while the toolbar
  * affordance disappears, then turns off the feature setting.
  */
-function createDisableVoiceModeAction(commandService: ICommandService, configurationService: IConfigurationService): IAction {
+function createDisableVoiceModeAction(commandService: ICommandService): IAction {
 	return toAction({
 		id: 'chat.voiceMode.disable',
 		label: localize('voiceMode.disable', "Disable Voice Mode"),
-		run: async () => {
-			await commandService.executeCommand(VOICE_DISCONNECT_COMMAND);
-			await configurationService.updateValue(VOICE_ENABLED_SETTING, false);
-		},
+		run: () => commandService.executeCommand(AGENTS_VOICE_DISABLE_COMMAND_ID),
 	});
 }
 
@@ -105,12 +99,12 @@ function createVoiceModeSettingsAction(commandService: ICommandService): IAction
  * affordances that used to live behind the toolbar gear button.
  * `keybindingCommandId` is the stable command the keybinding entry targets.
  */
-export function getVoiceModeContextMenuActions(commandService: ICommandService, configurationService: IConfigurationService, keybindingService: IKeybindingService, keybindingCommandId: string): IAction[] {
+export function getVoiceModeContextMenuActions(commandService: ICommandService, keybindingService: IKeybindingService, keybindingCommandId: string): IAction[] {
 	return [
 		createConfigureKeybindingAction(commandService, keybindingService, keybindingCommandId),
 		createVoiceModeSettingsAction(commandService),
 		createSelectMicrophoneAction(commandService),
-		createDisableVoiceModeAction(commandService, configurationService),
+		createDisableVoiceModeAction(commandService),
 	];
 }
 

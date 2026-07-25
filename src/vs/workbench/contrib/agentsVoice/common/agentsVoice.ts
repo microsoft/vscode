@@ -17,6 +17,8 @@ import './agentsVoiceColors.js'; // Register custom voice theme colors
 export const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
 export const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
 export const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
+export const AGENTS_VOICE_DISABLE_COMMAND_ID = 'agentsVoice.disable';
+export const AGENTS_VOICE_PREVIEW_COMMAND_ID = 'agentsVoice.previewVoice';
 
 /**
  * Default dimensions for the Agents Voice floating window.

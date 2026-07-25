@@ -20,6 +20,7 @@ import './transcriptsView/voiceTranscripts.contribution.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { FileAccess } from '../../../../base/common/network.js';
 import * as nls from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -33,13 +34,14 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
+import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_DISABLE_COMMAND_ID, AGENTS_VOICE_LISTENING, AGENTS_VOICE_PREVIEW_COMMAND_ID } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import {
 	VoiceEnabledClassification, VoiceEnabledEvent,
 	VoiceDisabledClassification, VoiceDisabledEvent,
+	VoiceOnboardingCompletedClassification, VoiceOnboardingCompletedEvent,
 } from '../../chat/browser/voiceClient/voiceTelemetry.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -47,6 +49,9 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IBannerService } from '../../../services/banner/browser/bannerService.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 
 // --- Context Keys ---
 
@@ -111,6 +116,75 @@ class AgentsVoiceTelemetryContribution extends Disposable implements IWorkbenchC
 }
 
 registerWorkbenchContribution2(AgentsVoiceTelemetryContribution.ID, AgentsVoiceTelemetryContribution, WorkbenchPhase.AfterRestored);
+
+// --- First-use banner ---
+
+const AGENTS_VOICE_ONBOARDING_BANNER_ID = 'agentsVoice.onboarding';
+
+class AgentsVoiceOnboardingBannerContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.agentsVoiceOnboardingBanner';
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IBannerService private readonly bannerService: IBannerService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+	) {
+		super();
+
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration('agents.voice.enabled')) {
+				this.updateBanner();
+			}
+		}));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, AgentsVoiceStorageKeys.OnboardingCompleted, this._store)(() => this.updateBanner()));
+		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.updateBanner()));
+		this.updateBanner();
+	}
+
+	private updateBanner(): void {
+		const sentiment = this.chatEntitlementService.sentiment;
+		const shouldShow = this.configurationService.getValue<boolean>('agents.voice.enabled') === true
+			&& !this.storageService.getBoolean(AgentsVoiceStorageKeys.OnboardingCompleted, StorageScope.PROFILE, false)
+			&& !sentiment.hidden
+			&& !sentiment.disabled;
+
+		if (!shouldShow) {
+			this.bannerService.hide(AGENTS_VOICE_ONBOARDING_BANNER_ID);
+			return;
+		}
+
+		const message = nls.localize('agentsVoice.onboardingBanner.message', "Voice Mode is ready. Configure it, preview the selected voice, or turn it off.");
+		this.bannerService.show({
+			id: AGENTS_VOICE_ONBOARDING_BANNER_ID,
+			icon: Codicon.voiceMode,
+			message,
+			ariaLabel: nls.localize('agentsVoice.onboardingBanner.ariaLabel', "{0} Use the banner actions to configure settings, preview the voice, or disable Voice Mode.", message),
+			actions: [
+				{
+					label: nls.localize('agentsVoice.onboardingBanner.configure', "Configure Settings"),
+					href: 'command:agentsVoice.openSettings',
+				},
+				{
+					label: nls.localize('agentsVoice.onboardingBanner.preview', "Preview Voice"),
+					href: `command:${AGENTS_VOICE_PREVIEW_COMMAND_ID}`,
+				},
+				{
+					label: nls.localize('agentsVoice.onboardingBanner.disable', "Disable Voice Mode"),
+					href: `command:${AGENTS_VOICE_DISABLE_COMMAND_ID}`,
+				},
+			],
+			closeLabel: nls.localize('agentsVoice.onboardingBanner.dismiss', "Dismiss Voice Mode Setup"),
+			onClose: () => {
+				this.storageService.store(AgentsVoiceStorageKeys.OnboardingCompleted, true, StorageScope.PROFILE, StorageTarget.USER);
+				this.telemetryService.publicLog2<VoiceOnboardingCompletedEvent, VoiceOnboardingCompletedClassification>('voiceOnboardingCompleted', {});
+			},
+		});
+	}
+}
+
+registerWorkbenchContribution2(AgentsVoiceOnboardingBannerContribution.ID, AgentsVoiceOnboardingBannerContribution, WorkbenchPhase.AfterRestored);
 
 // --- Voice mode button in Chat toolbar ---
 // Shows the voice mode icon in both idle and active states.
@@ -375,6 +449,78 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		await commandService.executeCommand('workbench.action.openSettings', { query: 'agents.voice' });
+	}
+});
+
+const voicePreviewFiles = {
+	victoria_neutral: 'victoria_neutral.mp3',
+	kevin_neutral: 'kevin_neutral.mp3',
+	maya_neutral: 'maya_neutral.mp3',
+	daniel_neutral: 'daniel_neutral.mp3',
+} as const;
+
+type VoicePreview = keyof typeof voicePreviewFiles;
+
+function isVoicePreview(voice: string): voice is VoicePreview {
+	return voice in voicePreviewFiles;
+}
+
+class PreviewVoiceAction extends Action2 {
+	private static currentAudio: HTMLAudioElement | undefined;
+
+	constructor() {
+		super({
+			id: AGENTS_VOICE_PREVIEW_COMMAND_ID,
+			title: nls.localize2('agentsVoice.previewVoice', "Voice Mode: Preview Voice"),
+			f1: true,
+			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const notificationService = accessor.get(INotificationService);
+		const configuredVoice = configurationService.getValue<string>('agents.voice.voice') ?? 'maya_neutral';
+		const voice = isVoicePreview(configuredVoice) ? configuredVoice : 'maya_neutral';
+
+		PreviewVoiceAction.currentAudio?.pause();
+
+		const audio = new mainWindow.Audio(FileAccess.asBrowserUri(`vs/workbench/contrib/agentsVoice/browser/media/${voicePreviewFiles[voice]}`).toString(true));
+		PreviewVoiceAction.currentAudio = audio;
+		audio.onended = () => {
+			if (PreviewVoiceAction.currentAudio === audio) {
+				PreviewVoiceAction.currentAudio = undefined;
+			}
+		};
+
+		try {
+			await audio.play();
+		} catch {
+			if (PreviewVoiceAction.currentAudio === audio) {
+				PreviewVoiceAction.currentAudio = undefined;
+				notificationService.error(nls.localize('agentsVoice.previewVoiceFailed', "Unable to preview the selected Voice Mode voice."));
+			}
+		}
+	}
+}
+
+registerAction2(PreviewVoiceAction);
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: AGENTS_VOICE_DISABLE_COMMAND_ID,
+			title: nls.localize2('agentsVoice.disable', "Voice Mode: Disable"),
+			f1: true,
+			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const configurationService = accessor.get(IConfigurationService);
+		await commandService.executeCommand('agentsVoice.disconnect');
+		await configurationService.updateValue('agents.voice.enabled', false);
 	}
 });
 

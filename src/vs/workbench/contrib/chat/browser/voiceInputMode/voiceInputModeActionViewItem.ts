@@ -373,7 +373,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}));
 		this._register(addMicButtonContextMenuListener(
 			this._voiceCell,
-			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
+			() => getVoiceModeContextMenuActions(this.commandService, this.keybindingService, VOICE_START_COMMAND_ID),
 			this.contextMenuService,
 		));
 		// Pause the audio-reactive bars while hovering so the CSS "silent" preview shows.
@@ -394,7 +394,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._listenIcon = dom.append(this._listenCell, dom.$('span.chat-voice-input-mode-icon'));
 		this._register(addMicButtonContextMenuListener(
 			this._listenCell,
-			() => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, VOICE_START_COMMAND_ID),
+			() => getVoiceModeContextMenuActions(this.commandService, this.keybindingService, VOICE_START_COMMAND_ID),
 			this.contextMenuService,
 		));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._listenCell,

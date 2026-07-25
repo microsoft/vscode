@@ -214,7 +214,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 				const anchor = new StandardMouseEvent(getWindow(e.target as Node ?? auxiliaryWindow.container), e);
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
-					getActions: () => getVoiceModeContextMenuActions(this.commandService, this.configurationService, this.keybindingService, 'agentsVoice.pushToTalk'),
+					getActions: () => getVoiceModeContextMenuActions(this.commandService, this.keybindingService, 'agentsVoice.pushToTalk'),
 				});
 			},
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),

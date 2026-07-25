@@ -7,7 +7,6 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -35,7 +34,6 @@ export class VoiceModeActionViewItem extends MenuEntryActionViewItem {
 		action: MenuItemAction,
 		options: IMenuEntryActionViewItemOptions | undefined,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -51,7 +49,7 @@ export class VoiceModeActionViewItem extends MenuEntryActionViewItem {
 
 		this._register(addMicButtonContextMenuListener(
 			container,
-			() => getVoiceModeContextMenuActions(this._commandService, this._configurationService, this._keybindingService, VOICE_START_COMMAND),
+			() => getVoiceModeContextMenuActions(this._commandService, this._keybindingService, VOICE_START_COMMAND),
 			this._contextMenuService,
 		));
 	}
