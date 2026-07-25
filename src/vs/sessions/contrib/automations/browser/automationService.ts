@@ -382,7 +382,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 			const newValue = JSON.stringify(serialized);
 			const writeResult = await this.automationStorageService.compareAndSwap(raw, newValue);
 			if (writeResult.swapped) {
-				this.acceptLedger(ledger, revision);
+				this.setLedger(ledger, revision);
 				return mutation.result;
 			}
 			if (writeResult.currentValue === raw) {
@@ -396,6 +396,10 @@ export class AutomationService extends Disposable implements IAutomationService 
 		if (revision < this._lastSeenRevision) {
 			return;
 		}
+		this.setLedger(ledger, revision);
+	}
+
+	private setLedger(ledger: ILedger, revision: number): void {
 		this._lastSeenRevision = revision;
 		transaction(tx => {
 			this._automations.set(ledger.automations, tx);
