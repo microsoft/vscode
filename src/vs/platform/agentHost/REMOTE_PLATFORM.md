@@ -262,6 +262,14 @@ platforms:
 - `$ErrorActionPreference = 'Stop'` and an explicit `exit <n>`; predicates emit
   an explicit exit code rather than relying on output (`Test-Path` prints `False`
   and exits `0`).
+- **`$ProgressPreference = 'SilentlyContinue'`.** With stderr redirected — which
+  it always is over an SSH exec channel — Windows PowerShell serialises every
+  progress record as CLIXML onto stderr, and `-UseBasicParsing` does not suppress
+  it. Measured on the real CLI artifact (9.5 MB): default progress took 13,125 ms
+  and pushed **342 KB of CLIXML** back over the channel; with progress silenced,
+  844 ms and zero stderr. A 15x cost, paid on exactly the slow first connect §13
+  worries about. This belongs in the envelope rather than the install payload,
+  because progress records fire for unrelated cmdlets too.
 - **Native executables propagate their own exit code.** `$ErrorActionPreference`
   governs cmdlets and does *not* turn a failing `.exe` into a PowerShell error,
   so any payload invoking a native binary ends with `exit $LASTEXITCODE`.
@@ -283,7 +291,26 @@ currently reaches.
 | `isExecutableFile` | `Test-Path -PathType Leaf` + explicit `exit` |
 | `touchFile` | `(Get-Item -LiteralPath …).LastWriteTime = Get-Date` |
 | `versionCheck` | invoke the binary, `exit $LASTEXITCODE` |
-| `pruneOldClis` | `Get-ChildItem \| Sort-Object LastWriteTime -Descending \| Select-Object -Skip <keep> \| Remove-Item -Force` |
+| `pruneOldClis` | enumerate, sort by `LastWriteTime`, skip the newest `<keep>`, delete the rest **per-item best-effort** |
+
+`pruneOldClis` is the one operation that must not honour the envelope's
+`ErrorActionPreference = 'Stop'`. A naive
+`… | Select-Object -Skip <keep> | Remove-Item -Force` pipeline raises a
+terminating error on the first locked binary and abandons every candidate after
+it — measured with six commit-keyed binaries and `keep = 2`, with the fourth
+running: exit code 1, and two binaries that should have been deleted survived
+permanently, leaking ~10 MB per desktop build thereafter.
+
+This is reachable in the design's own steady state, not a corner case: §4 makes
+the supervisor long-lived, so it holds its own (older, commit-keyed) binary
+mapped while the desktop rotates builds. The `touchFile` mtime guard does not
+help — setting `LastWriteTime` on a running executable succeeds, so prune runs
+anyway. POSIX has no equivalent problem: `rm` of a running binary succeeds, and
+the command is deliberately written as `xargs -I{} rm -f -- {} 2>/dev/null; true`
+and invoked with `ignoreExitCode`.
+
+The payload therefore deletes each candidate individually with the error
+suppressed and ends with `exit 0`, matching the POSIX best-effort contract.
 
 ### 5.4 CLI install
 
@@ -297,11 +324,29 @@ has no analogue:
 | Executable bit | `chmod +x` | not applicable |
 
 Sequence: create the install root, download into a temp directory beneath it
-(`Invoke-WebRequest -UseBasicParsing -OutFile`), `Expand-Archive -Force`,
-`Move-Item -Force` to the commit-keyed name, remove the temp directory.
-Extracting into a sibling temp directory preserves the same-volume atomic-rename
-property. The archive contains exactly one flat entry, `code-insiders.exe`, so
-nothing has to be flattened.
+(`Invoke-WebRequest -UseBasicParsing -OutFile`), `Expand-Archive -Force`, then
+replace the commit-keyed destination and remove the temp directory. The archive
+contains exactly one flat entry, `code-insiders.exe`, so nothing has to be
+flattened.
+
+**The replace must actually be atomic.** `Move-Item -Force` is *not* an atomic
+replace on Windows: it deletes the destination and then moves, so there is a
+window in which the destination does not exist, and it fails outright when the
+destination cannot be deleted. Measured: with the destination held open,
+`Move-Item -Force` raises `Cannot create a file when that file already exists`
+and leaves both source and destination in place — which also proves the
+delete-then-move implementation. `Remove-Item` on a running `.exe` likewise
+fails with access denied.
+
+The POSIX path depends on rename atomicity for concurrency safety and says so:
+"Concurrent SSH sessions racing here both end up with a valid binary for the same
+commit" (`sshRemoteAgentHostService.ts:1443-1446`). Windows therefore uses a
+genuine atomic replace (`File.Replace`, or `MoveFileEx` with
+`MOVEFILE_REPLACE_EXISTING`), and treats "destination already exists and passes
+its version check" as success rather than an error. Reachable concurrently:
+two windows or profiles on one desktop installing the same commit, a supervisor
+already launched from the destination binary, an antivirus scanner holding it, or
+Remote-SSH working in the shared install root.
 
 **Naming.** The extension belongs to the *file*, not the archive stem, so the
 commit-keyed name is `code-insiders-<40hex>.exe` — never
@@ -433,9 +478,22 @@ than the `0600`/`0700` the POSIX path enforces.
   error — when they are readable beyond the owner. Otherwise a world-writable
   legacy lockfile could also redirect the desktop to an endpoint chosen by
   another local account.
-  Note the two files live under different roots — the token under
-  `--cli-data-dir`, the metadata under the canonical agent-host root
-  (`cli/src/state.rs`) — so the validation must resolve both explicitly.
+- **The validator must resolve the *supervisor's* token file, not its own.**
+  This is the subtle part. The metadata lives under a canonical agent-host root
+  that ignores `--cli-data-dir` (`cli/src/state.rs`), but the token is written
+  under `--cli-data-dir` itself. The invoking process only knows *its own*
+  data dir, and `AgentHostMetadata` records neither the launcher root nor the
+  token path — so when a supervisor was started with a different data dir, the
+  validator would happily check a stale file belonging to a dead supervisor,
+  pass, and never look at the live one's token at all.
+  That divergence is not hypothetical: the desktop passes
+  `--cli-data-dir ~/<serverDataFolderName>/cli`, while `code tunnel` and a bare
+  `code agent host` use the default root — and cross-tool reuse is precisely the
+  scenario §4 is built around.
+  The lockfile therefore records the supervisor's launcher root, and validation
+  resolves the token path from that record. If the recorded root is absent — an
+  older supervisor — reuse is refused with an actionable error rather than
+  silently trusting an unvalidated token.
 - **The install boundary is protected.** We execute the binary we install, so
   another local account with modify rights on a permissive install root could
   replace it between install and launch; `--version` proves it runs, not that it
@@ -604,8 +662,16 @@ Run against a real Windows 11 remote (§11).
    surfaces a retryable error.
 8. **ACL**: metadata and token files are owner-only, verified against a parent
    granting `Everyone`; a pre-existing insecure supervisor is refused with an
-   actionable error rather than silently trusted.
-9. **Failure output** carries no secrets and no raw wire commands.
-10. **Slow first connect** does not hit the desktop timeout while the CLI is
-    still downloading.
-11. **POSIX regression**: a Linux remote still connects and reconnects.
+   actionable error rather than silently trusted. Verify with a **divergent
+   `--cli-data-dir`** — reuse a supervisor started by `code tunnel` — so the
+   validator is proven to resolve *that* supervisor's token file, not its own.
+9. **Retention survives a locked binary**: with the running supervisor's own
+   commit-keyed binary among the prune candidates, older ones are still removed
+   and the operation reports success.
+10. **Concurrent install**: two connects installing the same commit at once both
+    end with a working binary and no error.
+11. **Failure output** carries no secrets and no raw wire commands.
+12. **Slow first connect** does not hit the desktop timeout while the CLI is
+    still downloading, and the install does not flood stderr with progress
+    CLIXML.
+13. **POSIX regression**: a Linux remote still connects and reconnects.
