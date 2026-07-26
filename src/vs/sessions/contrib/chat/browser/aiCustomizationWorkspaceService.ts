@@ -103,6 +103,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Plugins,
 		AICustomizationManagementSection.Tools,
+		AICustomizationManagementSection.HarnessSettings,
 	];
 
 	readonly isSessionsWindow = true;

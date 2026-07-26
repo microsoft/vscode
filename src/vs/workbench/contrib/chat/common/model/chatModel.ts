@@ -1143,6 +1143,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private _vote?: ChatAgentVoteDirection;
 	private _result?: IChatAgentResult;
 	private readonly _usageObs = observableValue<IChatUsage | undefined>(this, undefined);
+	private _parentUsage: IChatUsage | undefined;
+	private readonly _subagentCopilotCredits = new Map<string, number>();
 	private readonly _completionTokenCountObs = observableValue<number | undefined>(this, undefined);
 	private _shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	public readonly isCompleteAddedRequest: boolean;
@@ -1504,13 +1506,40 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	setUsage(usage: IChatUsage): void {
+		this._parentUsage = usage;
+		this._setUsage(this._withSubagentCopilotCredits(usage), true);
+	}
+
+	setSubagentCopilotCredits(subagentCallId: string, copilotCredits: number): void {
+		const currentCredits = this._subagentCopilotCredits.get(subagentCallId);
+		if (!Number.isFinite(copilotCredits) || copilotCredits < 0 || (currentCredits !== undefined && copilotCredits <= currentCredits)) {
+			return;
+		}
+		this._subagentCopilotCredits.set(subagentCallId, copilotCredits);
+		const usage = this._parentUsage ?? { kind: 'usage', promptTokens: 0, completionTokens: 0 };
+		this._setUsage(this._withSubagentCopilotCredits(usage), false);
+	}
+
+	private _withSubagentCopilotCredits(usage: IChatUsage): IChatUsage {
+		let subagentCopilotCredits = 0;
+		for (const credits of this._subagentCopilotCredits.values()) {
+			subagentCopilotCredits += credits;
+		}
+		return subagentCopilotCredits === 0
+			? usage
+			: { ...usage, copilotCredits: (usage.copilotCredits ?? 0) + subagentCopilotCredits };
+	}
+
+	private _setUsage(usage: IChatUsage, countCompletionTokens: boolean): void {
 		if (this.isSameUsage(usage)) {
 			return;
 		}
 
 		this._usageObs.set(usage, undefined);
-		const previousCompletionTokens = this._completionTokenCountObs.get() ?? 0;
-		this._completionTokenCountObs.set(previousCompletionTokens + usage.completionTokens, undefined);
+		if (countCompletionTokens) {
+			const previousCompletionTokens = this._completionTokenCountObs.get() ?? 0;
+			this._completionTokenCountObs.set(previousCompletionTokens + usage.completionTokens, undefined);
+		}
 		this._onDidChange.fire(defaultChatResponseModelChangeReason);
 	}
 
@@ -2298,6 +2327,18 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	/**
+	 * @internal Used by ChatService to atomically replace the pending request queue.
+	 */
+	replacePendingRequests(requests: readonly IChatPendingRequest[]): void {
+		if (this._pendingRequests.length === requests.length && requests.every((request, index) => this._pendingRequests[index] === request)) {
+			return;
+		}
+		this._pendingRequests.length = 0;
+		this._pendingRequests.push(...requests);
+		this._onDidChangePendingRequests.fire();
+	}
+
+	/**
 	 * @internal Used by ChatService to add a request to the queue.
 	 * Steering messages are placed before queued messages.
 	 */
@@ -2752,11 +2793,11 @@ export class ChatModel extends Disposable implements IChatModel {
 				codeBlockInfos: raw.responseMarkdownInfo?.map<ICodeBlockInfo>(info => ({ suggestionId: info.suggestionId })),
 			});
 			request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
-			if (typeof raw.completionTokens === 'number') {
+			if (typeof raw.completionTokens === 'number' || typeof raw.promptTokens === 'number' || typeof raw.copilotCredits === 'number') {
 				request.response.setUsage({
 					kind: 'usage',
 					promptTokens: raw.promptTokens ?? 0,
-					completionTokens: raw.completionTokens,
+					completionTokens: raw.completionTokens ?? 0,
 					outputBuffer: raw.outputBuffer,
 					promptTokenDetails: raw.promptTokenDetails,
 					copilotCredits: raw.copilotCredits,

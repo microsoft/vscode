@@ -7,14 +7,14 @@ import { addDisposableListener, EventType, getWindow } from '../../../../base/br
 import { IMouseWheelEvent, StandardWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidget } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatWidgetContrib, ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
-import { MIN_PROMPTS, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_RAIL_SETTING, PROMPT_TIMELINE_STICKY_HEADER_SETTING } from '../common/promptTimeline.js';
+import { MIN_PROMPTS, PromptTimelineRailStyle, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_RAIL_SETTING, PROMPT_TIMELINE_STICKY_HEADER_SETTING } from '../common/promptTimeline.js';
 import { PromptTimelineModel } from './promptTimelineModel.js';
+import { PromptTimelineDockRail } from './promptTimelineDockRail.js';
 import { IPromptTimelineRail } from './promptTimelineRail.js';
 import { PromptTimelineRulerRail } from './promptTimelineRulerRail.js';
 import { PromptTimelineStickyHeader } from './promptTimelineStickyHeader.js';
@@ -43,7 +43,6 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 		private readonly widget: IChatWidget,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -65,10 +64,10 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	private _update(): void {
 		this._enablement.clear();
 		this._rail = undefined;
-		const railEnabled = this.configurationService.getValue<boolean>(PROMPT_TIMELINE_RAIL_SETTING) === true;
+		const railStyle = this.configurationService.getValue<PromptTimelineRailStyle>(PROMPT_TIMELINE_RAIL_SETTING);
 		const stickyEnabled = this.configurationService.getValue<boolean>(PROMPT_TIMELINE_STICKY_HEADER_SETTING) === true;
-		if (railEnabled || stickyEnabled) {
-			this._createFeature(railEnabled, stickyEnabled);
+		if (railStyle !== 'off' || stickyEnabled) {
+			this._createFeature(railStyle, stickyEnabled);
 		}
 	}
 
@@ -77,7 +76,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	 * are enabled: the rail beside the transcript and/or the sticky header at the top. Each is
 	 * independently toggleable, so header-only and rail-only configurations both work.
 	 */
-	private _createFeature(railEnabled: boolean, stickyEnabled: boolean): void {
+	private _createFeature(railStyle: PromptTimelineRailStyle, stickyEnabled: boolean): void {
 		// CONTRIBS always constructs contribs with the concrete widget.
 		const model = this._enablement.add(this.instantiationService.createInstance(PromptTimelineModel, this.widget as ChatWidget));
 
@@ -97,18 +96,24 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 			this._enablement.add(toDisposable(() => observer.disconnect()));
 		}
 
-		if (railEnabled) {
-			this._createRail(model, host);
+		if (railStyle !== 'off') {
+			this._createRail(model, host, railStyle);
 		}
 		if (stickyEnabled) {
 			this._createStickyHeader(model);
 		}
 	}
 
-	private _createRail(model: PromptTimelineModel, host: HTMLElement): void {
-		const rail: IPromptTimelineRail = this._enablement.add(new PromptTimelineRulerRail());
+	private _createRail(model: PromptTimelineModel, host: HTMLElement, railStyle: PromptTimelineRailStyle): void {
+		const rail: IPromptTimelineRail = this._enablement.add(
+			railStyle === 'dock' ? new PromptTimelineDockRail() : new PromptTimelineRulerRail()
+		);
 		this._rail = rail;
-		host.classList.add('prompt-timeline-with-rail');
+		// The ruler reserves room beside the transcript's right scrollbar; the dock lives in the
+		// existing left gutter and needs no reservation, so only the ruler marks the host.
+		if (railStyle === 'ruler') {
+			host.classList.add('prompt-timeline-with-rail');
+		}
 		host.appendChild(rail.domNode);
 		this._enablement.add(toDisposable(() => rail.domNode.remove()));
 
@@ -117,9 +122,12 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 		this._enablement.add(rail.onDidReview(tick => { void model.reviewChanges(tick); }));
 		this._enablement.add(rail.onDidReviewFile(e => { void model.reviewChanges(e.tick, e.file); }));
 
-		// A deliberate hard/fast scroll reveals the fan; capture phase so it is seen before the
+		// A deliberate hard/fast scroll reveals the ruler's fan; capture phase so it is seen before the
 		// transcript's ScrollableElement consumes the wheel mid-content (see `_registerHardWheelDetector`).
-		this._enablement.add(this._registerHardWheelDetector(rail));
+		// The dock is a static list with no scroll-driven bloom, so it does not need this.
+		if (railStyle === 'ruler') {
+			this._enablement.add(this._registerHardWheelDetector(rail));
+		}
 
 		// Keep the rail above the input part so it only spans the transcript.
 		const inputPart = this.widget.inputPart;
@@ -127,8 +135,14 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 			rail.domNode.style.setProperty('--prompt-timeline-bottom', `${inputPart.height.read(reader)}px`);
 		}));
 
+		// The dock lists every prompt as its own entry (unbucketed/uncapped) and highlights the exact
+		// prompt scrolled to the top; the ruler uses the recency-bucketed, capped ticks and their
+		// representative active id.
+		const ticksObs = railStyle === 'dock' ? model.promptTicks : model.ticks;
+		const activeObs = railStyle === 'dock' ? model.activePromptId : model.activeRequestId;
+
 		this._enablement.add(autorun(reader => {
-			const ticks = model.ticks.read(reader);
+			const ticks = ticksObs.read(reader);
 			// Toggle visibility before rendering so the rail's fit measurement in
 			// setTicks runs against the displayed (non-zero height) element.
 			rail.domNode.classList.toggle('hidden', ticks.length < MIN_PROMPTS);
@@ -136,7 +150,7 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 		}));
 
 		this._enablement.add(autorun(reader => {
-			rail.setActive(model.activeRequestId.read(reader));
+			rail.setActive(activeObs.read(reader));
 		}));
 
 		// Supply proportional scroll positions for the marks.
@@ -151,17 +165,12 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	/**
 	 * Mounts the flat sticky header that pins the current prompt to the top of the transcript. It shows
 	 * only once that prompt's row has scrolled above the viewport (via {@link PromptTimelineModel.activePinned}).
-	 * Its previous/next toolbar actions step through prompts; activating the label opens Go to Symbol
-	 * (`@`), whose built-in chat support lists this transcript's prompts so any of them can be jumped to.
+	 * Its previous/next toolbar actions step through prompts; activating the label jumps straight to the
+	 * prompt it names (scrolling it to the top of the transcript).
 	 */
 	private _createStickyHeader(model: PromptTimelineModel): void {
 		const sticky = this._enablement.add(this.instantiationService.createInstance(PromptTimelineStickyHeader, this.widget.domNode));
-		this._enablement.add(sticky.onDidActivate(() => {
-			// Launch the standard Go to Symbol command. Its built-in chat handling lists the focused
-			// chat's prompts (the sticky header lives inside the chat, so it holds focus on click), and
-			// it opens with `ItemActivation.NONE` so nothing is previewed/revealed until the user picks.
-			void this.commandService.executeCommand('workbench.action.gotoSymbol');
-		}));
+		this._enablement.add(sticky.onDidActivate(() => model.revealActivePrompt()));
 		this._enablement.add(sticky.onDidNavigate(delta => model.navigate(delta)));
 		this._enablement.add(autorun(reader => {
 			// Drive the header from the unbucketed active prompt so the label and N/M position match

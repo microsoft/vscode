@@ -5,6 +5,7 @@
 
 import { ChildProcess, fork } from 'child_process';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
+import { raceTimeout } from '../../../../base/common/async.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
 import { mkdirSync } from 'fs';
@@ -58,12 +59,20 @@ import {
 	type ProtocolMessage,
 } from '../../common/state/sessionProtocol.js';
 import { AhpSnapshotRecorder, type IAhpSnapshotNormalization, type IAhpSnapshotOptions } from './e2e/harness/ahpSnapshot.js';
+import { isWindows } from '../../../../base/common/platform.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
 interface IPendingCall {
 	resolve: (result: unknown) => void;
 	reject: (err: Error) => void;
+}
+
+function getProtocolOperationTimeout(): number {
+	if (process.env['AGENT_HOST_E2E_COVERAGE'] === '1') {
+		return 30_000;
+	}
+	return isWindows ? 8_000 : 5_000;
 }
 
 type ReverseRequestMethod =
@@ -112,6 +121,7 @@ export class TestProtocolClient {
 	private readonly _notifications: AhpNotification[] = [];
 	private readonly _notifWaiters: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void; dispose: () => void }[] = [];
 	private _nextWatchId = 1;
+	private _closed = false;
 
 	constructor(
 		port: number,
@@ -410,11 +420,10 @@ export class TestProtocolClient {
 	}
 
 	/** Send a JSON-RPC request and await the response. */
-	call<T>(method: string, params?: unknown, timeoutMs = 5000): Promise<T> {
+	call<T>(method: string, params?: unknown, timeoutMs = getProtocolOperationTimeout()): Promise<T> {
 		const id = this._nextId++;
 		const message: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
 		this._ahpSnapshot.record('c2s', message);
-		this._ws.send(JSON.stringify(message));
 		return new Promise<T>((resolve, reject) => {
 			const timer = setTimeout(() => {
 				this._pendingCalls.delete(id);
@@ -425,11 +434,18 @@ export class TestProtocolClient {
 				resolve: result => { clearTimeout(timer); resolve(result as T); },
 				reject: err => { clearTimeout(timer); reject(err); },
 			});
+			try {
+				this._ws.send(JSON.stringify(message));
+			} catch (error) {
+				this._pendingCalls.delete(id);
+				clearTimeout(timer);
+				reject(error);
+			}
 		});
 	}
 
 	/** Wait for a server notification matching a predicate. */
-	waitForNotification(predicate: (n: AhpNotification) => boolean, timeoutMs = 5000): Promise<AhpNotification> {
+	waitForNotification(predicate: (n: AhpNotification) => boolean, timeoutMs = getProtocolOperationTimeout()): Promise<AhpNotification> {
 		const existing = this._notifications.find(predicate);
 		if (existing) {
 			return Promise.resolve(existing);
@@ -485,7 +501,7 @@ export class TestProtocolClient {
 	}
 
 	/** Wait for the next raw message from the server. */
-	waitForRawMessage(timeoutMs = 5000): Promise<unknown> {
+	waitForRawMessage(timeoutMs = getProtocolOperationTimeout()): Promise<unknown> {
 		return new Promise((resolve, reject) => {
 			const timer = setTimeout(() => {
 				cleanup();
@@ -505,6 +521,10 @@ export class TestProtocolClient {
 	}
 
 	close(): void {
+		if (this._closed) {
+			return;
+		}
+		this._closed = true;
 		for (const w of this._notifWaiters) {
 			w.dispose();
 			w.reject(new Error('Client closed'));
@@ -561,6 +581,41 @@ export interface IServerHandle {
 	capiReplay?: CapiReplayProxy;
 }
 
+const SERVER_SHUTDOWN_TIMEOUT_MS = isWindows || process.env['AGENT_HOST_E2E_COVERAGE'] === '1' ? 30_000 : 5_000;
+
+/** Gracefully stop an Agent Host test server, killing it if shutdown stalls. */
+export async function stopServer(server: IServerHandle | undefined): Promise<void> {
+	const serverProcess = server?.process;
+	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+		return;
+	}
+
+	const serverExit = new Promise<void>(resolve => {
+		const onExit = () => resolve();
+		serverProcess.once('exit', onExit);
+		if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+			serverProcess.removeListener('exit', onExit);
+			resolve();
+		}
+	});
+	serverProcess.stdin?.end();
+	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
+		try {
+			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+				const killed = serverProcess.kill('SIGKILL');
+				if (!killed && serverProcess.exitCode === null && serverProcess.signalCode === null) {
+					throw new Error('Failed to terminate Agent Host test server');
+				}
+			}
+		} catch (error) {
+			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+				throw error;
+			}
+		}
+		await serverExit;
+	}
+}
+
 interface IMockLlmServerHandle {
 	readonly url: string;
 	requestCount(): number;
@@ -585,8 +640,8 @@ export interface IMockScenario {
 
 const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
 
-export function getAgentHostE2ETestTimeout(normalTimeoutMs: number, coverageTimeoutMs: number): number {
-	return AGENT_HOST_E2E_COVERAGE ? coverageTimeoutMs : normalTimeoutMs;
+export function getAgentHostE2ETestTimeout(normalTimeoutMs: number, extendedTimeoutMs: number): number {
+	return AGENT_HOST_E2E_COVERAGE || isWindows ? extendedTimeoutMs : normalTimeoutMs;
 }
 
 function withAgentHostCoverage(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -727,10 +782,17 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			...(options?.homeDir ? {
 				HOME: options.homeDir,
 				USERPROFILE: options.homeDir,
+				APPDATA: join(options.homeDir, 'AppData', 'Roaming'),
+				LOCALAPPDATA: join(options.homeDir, 'AppData', 'Local'),
 				XDG_CONFIG_HOME: join(options.homeDir, '.config'),
 				COPILOT_HOME: join(options.homeDir, '.copilot'),
+				COPILOT_SKILLS_DIRS: undefined,
 				CLAUDE_CONFIG_DIR: undefined,
 				CODEX_HOME: undefined,
+				...(isWindows && options.homeDir.match(/^[A-Za-z]:[\\/]/) ? {
+					HOMEDRIVE: options.homeDir.slice(0, 2),
+					HOMEPATH: options.homeDir.slice(2).replace(/\//g, '\\'),
+				} : {}),
 			} : {}),
 			// Codex defaults to disabled; opt it in for the agent host e2e suite when a
 			// codex SDK root is supplied so the provider actually registers.
@@ -859,7 +921,7 @@ export function getActionEnvelope(n: AhpNotification): ActionEnvelope {
 export async function createAndSubscribeSession(c: TestProtocolClient, clientId: string, workingDirectory?: string): Promise<string> {
 	await c.call('initialize', { channel: 'ahp-root://', protocolVersions: [PROTOCOL_VERSION], clientId });
 
-	await c.call('createSession', { channel: nextSessionUri(), provider: 'mock', workingDirectory });
+	await c.call('createSession', { channel: nextSessionUri(), provider: 'mock', workingDirectories: workingDirectory ? [workingDirectory] : undefined });
 
 	const notif = await c.waitForNotification(n =>
 		n.method === 'root/sessionAdded'
