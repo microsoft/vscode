@@ -191,6 +191,13 @@ export interface IChatViewOpenOptions {
 	 * but explicit tool exclusions always win.
 	 */
 	toolsExclude?: string[];
+
+	/**
+	 * Submits `query` without taking over the input box, keeping any draft the user
+	 * has typed and omitting its attachments from the request. For maintenance
+	 * commands such as `/compact` that are not user messages.
+	 */
+	preserveInput?: boolean;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -382,8 +389,13 @@ abstract class OpenChatGlobalAction extends Action2 {
 					await Event.toPromise(chatWidget.onDidChangeViewModel);
 				}
 				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentModeKind);
-				chatWidget.setInput(opts.query); // wait until the model is restored before setting the input, or it will be cleared when the model is restored
-				resp = chatWidget.acceptInput();
+				if (opts.preserveInput) {
+					// Submit the query directly so the user's draft is never overwritten.
+					resp = chatWidget.acceptInput(opts.query, { preserveInput: true });
+				} else {
+					chatWidget.setInput(opts.query); // wait until the model is restored before setting the input, or it will be cleared when the model is restored
+					resp = chatWidget.acceptInput();
+				}
 			}
 		}
 
@@ -1118,7 +1130,8 @@ export function registerChatActions() {
 		}
 
 		async run(_accessor: ServicesAccessor, widget?: IChatWidget): Promise<void> {
-			await widget?.acceptInput('/compact');
+			// Compaction is a maintenance command, so keep any draft the user typed (#314664).
+			await widget?.acceptInput('/compact', { preserveInput: true });
 		}
 	});
 

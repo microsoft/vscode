@@ -521,6 +521,50 @@ suite('Agent Summarization', () => {
 		}
 	});
 
+	test('foreground compaction strips the <analysis> scratchpad and <summary> wrapper #321200', async () => {
+		chatResponse[0] = '<analysis>\nChronological review scratchpad that must not be kept.\n</analysis>\n<summary>\n1. Conversation Overview: the real summary.\n</summary>';
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		const result = await renderer.render();
+
+		const summaryMeta = result.metadata.get(SummarizedConversationHistoryMetadata);
+		expect(summaryMeta!.text).toBe('1. Conversation Overview: the real summary.');
+	});
+
+	test('foreground compaction keeps the raw response when the model omits <summary> tags #321200', async () => {
+		chatResponse[0] = 'A bare summary with no tags at all.';
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		const result = await renderer.render();
+
+		const summaryMeta = result.metadata.get(SummarizedConversationHistoryMetadata);
+		expect(summaryMeta!.text).toBe('A bare summary with no tags at all.');
+	});
+
+	test('summarization request explicitly opts out of the stateful marker #323554', async () => {
+		// Call-site contract only: MockEndpoint skips ChatEndpoint's defaulting, which is
+		// itself why this must be explicit (true on ChatEndpoint, false on OpenAIEndpoint).
+		chatResponse[0] = '<summary>summarized successfully!</summary>';
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const capturedRequests: IMakeChatRequestOptions[] = [];
+		const originalMakeChatRequest2 = endpoint.makeChatRequest2.bind(endpoint);
+		endpoint.makeChatRequest2 = (options, token) => {
+			capturedRequests.push(options);
+			return originalMakeChatRequest2(options, token);
+		};
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		await renderer.render();
+
+		expect(capturedRequests.length).toBeGreaterThan(0);
+		for (const request of capturedRequests) {
+			expect(request.ignoreStatefulMarker).toBe(true);
+		}
+	});
+
 	test('failed summarization does not set round.summary', async () => {
 		chatResponse[0] = 'summary that is definitely too large for one token';
 		const { instaService, endpoint, toolCallRounds, historyProps } = createSummarizationTestContext();
