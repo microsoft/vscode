@@ -602,7 +602,9 @@ class ConversationHistorySummarizer {
 		this.progress?.report(new ChatResponseProgressPart2(l10n.t('Compacting conversation...'), async () => {
 			try {
 				await summaryPromise;
-			} catch { }
+			} catch {
+				return l10n.t('Could not compact conversation');
+			}
 			return l10n.t('Compacted conversation');
 		}));
 
@@ -838,13 +840,9 @@ class ConversationHistorySummarizer {
 			throw new Error('Summarization request failed');
 		}
 
-		// Unwrap before the budget check so the size counted here is the text that is
-		// actually stored — the `<analysis>` scratchpad would otherwise push an
-		// acceptable summary over budget and fail compaction.
+		// Count what is actually stored: the <analysis> block would otherwise blow the budget.
 		const summaryText = this.unwrapSummary(response.value);
-		// An empty summary is stored but ignored by the truthy `round.summary` checks
-		// on the next render, so compaction would silently reclaim nothing while
-		// reporting success. Fail instead so the Simple-mode fallback runs.
+		// Empty summaries are ignored by the truthy round.summary checks, so fail into the Simple-mode fallback.
 		if (!summaryText.trim()) {
 			this.sendSummarizationTelemetry('empty', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage, 'summary was empty after extraction');
 			this.logInfo('Summarization produced an empty summary', mode);

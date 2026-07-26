@@ -2722,7 +2722,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}
 
-		this._onDidAcceptInput.fire();
+		if (!options.preserveInput) {
+			// Would stop dictation the preserved draft may still be using.
+			this._onDidAcceptInput.fire();
+		}
 		this.listWidget.setScrollLock(this.isLockedToCodingAgent || !!checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll));
 
 		const requestInputs: IChatRequestInputOptions = {
@@ -2797,9 +2800,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// process the prompt command
-		// `preserveInput` means the draft is not this request: `parsedInput` derives
-		// from the draft, so this would apply the draft prompt file's agent, model and
-		// tools to the query — and an agent switch can clear the session.
+		// Skipped for preserveInput: parsedInput is the draft, and an agent switch can clear the session.
 		if (!options.preserveInput) {
 			const promptApplied = await this._applyPromptFileIfSet(requestInputs, this.viewModel.sessionResource);
 			if (!promptApplied) {
@@ -2904,8 +2905,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus, options?.preserveInput);
 
 		if (!options.preserveInput) {
-			// Not a user goal: this would cancel the current goal banner and spend an
-			// LLM call summarizing the maintenance command.
+			// A maintenance command is not the user's goal.
 			this._maybeStartGoalSummary(requestInputs.input);
 		}
 
@@ -2915,10 +2915,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (!options.preserveInput) {
-			// Not a user submission: listeners would repopulate the draft, record the
-			// agent as a user choice, and mark the draft's feedback attachments as
-			// sent even though they were excluded from this request. Side effect:
-			// an editor-hosted chat is not pinned by a maintenance command.
+			// Not a user submission; listeners would consume draft state. Also skips editor pinning.
 			this._onDidSubmitAgent.fire({ agent: sent.data.agent, slashCommand: sent.data.slashCommand });
 		}
 		this.handleDelegationExitIfNeeded(this._lockedAgent, sent.data.agent);

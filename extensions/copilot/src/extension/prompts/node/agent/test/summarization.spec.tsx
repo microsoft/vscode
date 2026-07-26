@@ -580,8 +580,7 @@ suite('Agent Summarization', () => {
 	});
 
 	test('empty <summary> fails rather than silently compacting to nothing', async () => {
-		// An empty summary is ignored by the truthy round.summary checks on the next
-		// render, so it must fail instead of reporting a successful compaction.
+		// Empty summaries are ignored by the truthy round.summary checks on the next render.
 		chatResponse[0] = '<analysis>reasoning</analysis>\n<summary>   </summary>';
 		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
 
