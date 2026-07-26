@@ -194,12 +194,25 @@ export interface IRemotePlatform {
 
 	/** Launch */
 	buildLaunchCommand(spec: IRemoteLaunchSpec): string;
+
+	/**
+	 * Wrap a raw, user-supplied command (`remoteAgentHostCommand`) for
+	 * execution on the remote, including whatever PID-reporting the platform
+	 * uses. Separate from `buildLaunchCommand` because the input is an opaque
+	 * command string rather than an executable plus arguments, and because it
+	 * carries an explicit POSIX-only shell contract (§6).
+	 *
+	 * It exists on the interface rather than in the service so that I1 holds:
+	 * the `bash -l -c` wrapper is shell syntax and must not live outside a
+	 * platform. `WindowsRemotePlatform` rejects it (§6).
+	 */
+	buildRawLaunchCommand(command: string): string;
 }
 ```
 
 A user-supplied `remoteAgentHostCommand` is *not* a launch spec: it is an
-arbitrary command string with an explicit POSIX shell contract, modelled
-separately (§6).
+arbitrary command string, so it is rendered by `buildRawLaunchCommand` under the
+POSIX-only contract described in §6.
 
 ---
 
@@ -233,8 +246,13 @@ invocations, the 40-hex commit glob, the `umask 077` subshell, and the
 `code agent host` is not a single process. The foreground invocation re-execs
 itself detached with `VSCODE_AGENT_HOST_SUPERVISOR` set
 (`cli/src/commands/agent_host.rs`), and that **detached supervisor** binds the
-listener, prints `__VSCODE_AGENT_HOST_READY__`, and outlives the invoking shell.
-Without `--detach` the foreground process then streams the supervisor's output.
+listener, prints `__VSCODE_AGENT_HOST_READY__`, and then redirects its own stdio
+to null.
+
+The foreground process **always exits as soon as the supervisor reports ready**.
+There is no streaming mode and no `--detach` flag — stale doc comments in the
+source still mention one, but no such argument exists. The desktop therefore has
+exactly one window in which to scrape the banner: before the foreground returns.
 
 The supervisor writes the canonical metadata file itself — PID, port and token —
 via `write_agent_host_metadata` (`cli/src/tunnels/agent_host_metadata.rs`), at
@@ -292,9 +310,15 @@ Therefore:
   surfaces a retryable connection error.
 - **Identity is required to kill.** `isProcessAlive` and `killProcessTree` take an
   `IRemoteProcessIdentity` and verify `startToken`. If identity cannot be proven
-  (older CLI, missing field), reuse is still permitted but destructive cleanup is
-  **prohibited**: the metadata is removed only once the endpoint is proven dead,
-  so a live-but-unverifiable supervisor is never stranded.
+  (older CLI, missing field), reuse is still permitted but killing is
+  **prohibited**.
+- **Removing the record requires the process to be gone, not the endpoint.** A
+  refused loopback connection proves the *listener* is unreachable, not that the
+  process exited — a supervisor with a stale recorded port is exactly the state
+  D1 leaves behind (§12). Metadata is therefore removed only once the process
+  itself is observed absent. If the process is alive but unverifiable, nothing is
+  killed *and* nothing is deleted; the failure is surfaced instead. Deleting the
+  record of a live supervisor would strand it precisely as §4.6 forbids.
 - Termination reaps the tree (`kill_tree` on POSIX, `taskkill /T /F` on Windows)
   or the detached supervisor is orphaned.
 
@@ -307,12 +331,13 @@ so a bump would make the desktop treat valid remote metadata as invalid and
 delete it.
 
 The resulting duplicate supervisor would *function* — `--port 0` auto-assigns, so
-it binds a free port and mints its own token, and the desktop connects to it
-successfully. The cost is a leak rather than a malfunction: the previous
-supervisor is left running with nothing referencing it, since a single metadata
-file per quality now names the newer one. That is still worth avoiding, but it
-is why the field is additive rather than versioned — the cheaper option is
-simply not to create the situation.
+it binds a free port, reuses the persisted connection token (the desktop passes
+no `--connection-token`, so `mint_connection_token` reads the existing token file
+back), and the desktop connects to it successfully. The cost is a leak rather
+than a malfunction: the previous supervisor is left running with nothing
+referencing it, since a single metadata file per quality now names the newer one.
+That is still worth avoiding, but it is why the field is additive rather than
+versioned — the cheaper option is simply not to create the situation.
 
 Skew is therefore two-way and must both degrade to "reuse, never kill":
 
@@ -322,10 +347,17 @@ Skew is therefore two-way and must both degrade to "reuse, never kill":
 | new | old (no `startToken`) | Reuse permitted; destructive cleanup refused |
 | old | new | Extra field ignored; unchanged behaviour |
 
-The Rust destructive consumers are PID-only today (`commands/agent_kill.rs`,
-`commands/agent.rs`, `tunnels/agent_host.rs`, `commands/agent_host.rs`) and are
-gated the same way, so invariant I5 holds system-wide rather than in the desktop
-alone. See §4.6 for the user-visible consequence.
+The Rust paths that terminate a supervisor from a metadata PID are
+`commands/agent_kill.rs` and `replace_existing` in `commands/agent_host.rs`;
+both are gated the same way, so invariant I5 holds system-wide rather than in the
+desktop alone. See §4.6 for the user-visible consequence.
+
+Two files that look like consumers are deliberately **not** in scope:
+`commands/agent.rs` sends no signal at all — its metadata PID is used only for a
+liveness check — and `tunnels/agent_host.rs` kills only its own direct child
+process handle, not a PID read from metadata, so neither has a recycled-PID
+hazard. Gating them would be a no-op at best, and for the supervisor's own
+shutdown path actively harmful.
 
 After launch the desktop reads **one canonical metadata snapshot** — PID,
 identity, host, port, token — and validates any banner-scraped value against it,
@@ -359,11 +391,11 @@ absent.
 
 ### 4.6 Identity gating in the CLI
 
-Identity checking applies to every consumer that terminates an agent host, not
-only the desktop, so that invariant I5 holds system-wide rather than in one
-client. The affected Rust paths are `commands/agent_kill.rs`, `commands/agent.rs`,
-`tunnels/agent_host.rs`, and `commands/agent_host.rs`, all of which terminate by
-PID alone.
+Identity checking applies to every consumer that terminates an agent host from a
+metadata PID, not only the desktop, so that invariant I5 holds system-wide rather
+than in one client. Those are `commands/agent_kill.rs` and `replace_existing` in
+`commands/agent_host.rs` (§4.4 explains why the two other candidates are out of
+scope).
 
 `code agent kill` is user-facing, so the change is observable: when the metadata
 carries no `startToken` — because it was written by a CLI of unknown vintage
@@ -512,10 +544,13 @@ locally-built agent host, and multi-platform override support is deliberately
 out of scope; a later change may add it if a scenario demands it.
 
 This keeps the invariants intact rather than weakening them: the path still
-resolves a concrete `PosixRemotePlatform`, so every command it issues — including
-the launch wrapper — is built by a platform, and no shell syntax leaks into the
-service. It preserves the existing behaviour exactly, including the test
-asserting that `uname` never runs on this path.
+resolves a concrete `PosixRemotePlatform`, and the launch is rendered by that
+platform's `buildRawLaunchCommand` (§2) — which owns the
+`bash -l -c 'echo VSCODE_PID=$$ && exec …'` wrapper and its echoed-`$$` identity
+mechanism — so every command it issues is built by a platform and no shell syntax
+leaks into the service. `WindowsRemotePlatform` does not implement a raw launch
+and rejects the call. It also preserves the existing behaviour exactly, including
+the test asserting that `uname` never runs on this path.
 
 Because the override is POSIX-only, pointing it at a Windows remote fails with a
 raw `bash: The term 'bash' is not recognized` — the same confusing shape as the
@@ -593,35 +628,39 @@ Windows than the `0600`/`0700` the POSIX path deliberately enforces.
 ### 7.3 Diagnostics must not leak the token
 
 `redactToken` only rewrites `?tkn=` inside URLs
-(`sshRemoteAgentHostHelpers.ts:264-266`), so it misses a token embedded in
-metadata JSON — and base64 encoding is not redaction. The failure path is
-concrete: `sshExec` rejects with
+(`sshRemoteAgentHostHelpers.ts:264-266`), so it would miss a token embedded in
+metadata JSON.
 
-```
-SSH command failed (exit ${code}): ${command}\nstderr: ${stderr}
-```
+No such leak exists on the POSIX path today, and the design must not claim one:
+the single token-bearing command — the metadata write — is issued with
+`{ ignoreExitCode: true }` (`sshRemoteAgentHostHelpers.ts:419`), so `sshExec`
+resolves instead of rejecting (`sshRemoteAgentHostService.ts:293`) and its
+command-quoting error message is never constructed for it. The failure is
+reported by a `logService.warn` that records the path and stderr but not the
+command.
 
-which embeds the command verbatim. That message is user-visible — it is the text
-quoted in issue #327469.
+The exposure is **introduced by this design**, on Windows. Every Windows command
+becomes an `-EncodedCommand` payload, and the metadata write is one of them — so
+for the first time a token-bearing command string exists that a generic error
+path could quote verbatim. Two properties are needed at once:
 
-The naive fix, suppressing commands for sensitive operations, trades one problem
-for another: the state-write failure becomes undiagnosable, and on Windows every
-message degrades to an opaque base64 blob.
+- the token must never reach a log, error, or telemetry event, and
+- the payload must stay diagnosable, or every Windows failure degrades to an
+  opaque base64 blob, which is strictly worse than the POSIX status quo.
 
-Instead, redaction is **structural**. Operations declare their own secret
-substitutions when they build a payload, so redaction knows exactly which spans
-are secret rather than guessing by pattern, and the decoded PowerShell is logged
-in place of the base64:
+Redaction is therefore **structural**: operations declare their own secret
+substitutions when building a payload, so redaction knows exactly which spans are
+secret rather than guessing by pattern, and the decoded PowerShell is logged in
+place of the base64.
 
-| | Before | After |
+| | Wire form | Logged form |
 |---|---|---|
-| POSIX state write | `printf %s '{"pid":42,…,"connectionToken":"a1b2c3…"}' > ~/…` | `printf %s '{"pid":42,…,"connectionToken":"***"}' > ~/…` |
-| Windows any command | `powershell … -EncodedCommand UwB0AGEAcgB0AC0A…` | `[ps] Set-Content -LiteralPath '…' -Value '{"connectionToken":"***"}'` |
+| Windows metadata write | `powershell … -EncodedCommand UwB0AGEAcgB0AC0A…` | `[ps] Set-Content -LiteralPath '…' -Value '{"connectionToken":"***"}'` |
+| Windows any other command | `powershell … -EncodedCommand RwBlAHQALQBQAHIA…` | `[ps] Get-Process -Id 4242` |
 
-This keeps full diagnostic value — including the readable Windows payload, which
-the wire form does not offer — while the token never reaches a log, error, or
-telemetry event. `ISshExec` carries the redaction context so `sshExec` honours it
-at the point the error is constructed.
+This keeps full diagnostic value — including the readable payload, which the wire
+form does not offer — while the token never appears. `ISshExec` carries the
+redaction context so errors are constructed with it in place.
 - **Injection surface.** Base64 secures only the outer shell; in-payload
   interpolation is escaped by the platform. Remote-supplied paths re-entering a
   command remain gated by `parseFallbackCliPath`, which yields a usable path only
@@ -796,14 +835,15 @@ desktop overwrites that metadata with the foreground PID
 (`sshRemoteAgentHostService.ts:762-768`), captured via `echo VSCODE_PID=$$`
 (`:330`).
 
-The recorded process is therefore already gone. The reuse probe reads the
-metadata, finds a dead PID, and starts a fresh agent host even though a live
-supervisor is present — so supervisors accumulate across reconnects.
+The recorded process is therefore already gone — the foreground always exits at
+the readiness sentinel (§4.1). The reuse probe reads the metadata, finds a dead
+PID, and starts a fresh agent host even though a live supervisor is present, so
+supervisors accumulate across reconnects.
 
 The consequence is a resource leak rather than a malfunction: the new supervisor
-binds a free port (`--port 0`) and mints its own token, so sessions work
-normally, while the previous supervisor is left running with nothing referencing
-it.
+binds a free port (`--port 0`) and reuses the persisted connection token, so
+sessions work normally, while the previous supervisor is left running with
+nothing referencing it.
 
 This is derived from reading the code, not from an observed failure. It is not
 separately validated because doing so would mean deliberately reproducing the
