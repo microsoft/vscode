@@ -548,12 +548,20 @@ export function isPromptingStrategy(value: string): value is PromptingStrategy {
 }
 
 export function isAggressionPromptingStrategy(options: PromptOptions): boolean {
-	return options.eagernessPrompt !== undefined
-		|| options.promptingStrategy === PromptingStrategy.XtabAggressiveness
-		|| options.promptingStrategy === PromptingStrategy.Xtab275Aggressiveness
-		|| options.promptingStrategy === PromptingStrategy.Xtab275AggressivenessHighLow
-		|| options.promptingStrategy === PromptingStrategy.Xtab275EditIntent
-		|| options.promptingStrategy === PromptingStrategy.Xtab275EditIntentShort;
+	if (options.promptingStrategy === undefined) {
+		return false;
+	}
+	return (options.eagernessPrompt !== undefined && [
+		PromptingStrategy.PatchBased02,
+		PromptingStrategy.PatchBased02WithRecentLineNumbers,
+		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
+	].includes(options.promptingStrategy)) // eagerness prompt option is only supported for patch-based strategies
+		|| [PromptingStrategy.XtabAggressiveness,
+		PromptingStrategy.Xtab275Aggressiveness,
+		PromptingStrategy.Xtab275AggressivenessHighLow,
+		PromptingStrategy.Xtab275EditIntent,
+		PromptingStrategy.Xtab275EditIntentShort,
+		].includes(options.promptingStrategy); // first-class aggressiveness strategies
 }
 
 export enum ResponseFormat {
