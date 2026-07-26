@@ -493,15 +493,15 @@ suite('ChatPlanReviewPart', () => {
 			assert.ok(widget.domNode.classList.contains('chat-plan-review-used'));
 		});
 
-		test('editor toolbar submits an overall comment without inline comments', async () => {
+		test('editor toolbar submits its own overall comment without inline comments', async () => {
 			const review = createMockReviewWithPlan();
 			createWidget(review);
 
 			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
-			textarea.value = 'Please simplify the rollout';
+			textarea.value = 'Widget draft remains local';
 			textarea.dispatchEvent(new Event('input'));
 
-			await lastFeedbackService!.submitAllFeedback(URI.revive(review.planUri!));
+			await lastFeedbackService!.getPlanReview(URI.revive(review.planUri!))!.submitFeedback('Please simplify the rollout');
 
 			assert.deepStrictEqual(lastSubmitResult, {
 				rejected: false,
@@ -509,23 +509,18 @@ suite('ChatPlanReviewPart', () => {
 				feedbackOverall: 'Please simplify the rollout',
 				feedbackInlineMarkdown: undefined,
 			});
+			assert.strictEqual(textarea.value, 'Widget draft remains local');
 		});
 
-		test('restored overall feedback is available when the plan registers', () => {
+		test('restored overall feedback remains in the widget', () => {
 			const review = createReviewDataWithPlan();
 			review.draftFeedback = 'Restored draft';
 			createWidget(review);
 
-			assert.deepStrictEqual({
-				registeredFeedback: lastFeedbackService!.getPlanReview(URI.revive(review.planUri!))?.getOverallFeedback(),
-				textareaFeedback: (widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement).value,
-			}, {
-				registeredFeedback: 'Restored draft',
-				textareaFeedback: 'Restored draft',
-			});
+			assert.strictEqual((widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement).value, 'Restored draft');
 		});
 
-		test('submission uses feedback changes made while the plan save is pending', async () => {
+		test('source editor submission uses shared comment changes but not the widget draft', async () => {
 			const review = createMockReviewWithPlan();
 			createWidget(review);
 			const planUri = URI.revive(review.planUri!);
@@ -547,10 +542,11 @@ suite('ChatPlanReviewPart', () => {
 
 			assert.deepStrictEqual(lastSubmitResult, {
 				rejected: false,
-				feedback: 'After save\n\nInline comments on `plan.md`:\n- **Line 7:** New comment',
-				feedbackOverall: 'After save',
+				feedback: 'Inline comments on `plan.md`:\n- **Line 7:** New comment',
+				feedbackOverall: undefined,
 				feedbackInlineMarkdown: 'Inline comments on `plan.md`:\n- **Line 7:** New comment',
 			});
+			assert.strictEqual(textarea.value, 'After save');
 		});
 
 		test('inline comments auto-promote into review mode even before Review button is clicked', () => {

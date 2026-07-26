@@ -261,11 +261,9 @@ class PlanReviewFeedbackOverlayWidget implements IOverlayWidget {
 		this._showStore.add(addCommentButton.onDidClick(() => this._onDidRequestAddComment.fire()));
 
 		const review = this._planReviewFeedbackService.getPlanReview(planUri);
-		if (feedbackCount > 0 || review?.getOverallFeedback()?.trim()) {
+		if (feedbackCount > 0) {
 			const submitButton = this._showStore.add(new Button(this._decisionActionsNode, { ...defaultButtonStyles, supportIcons: true }));
-			submitButton.label = feedbackCount > 0
-				? localize('planReviewFeedback.submitWithCount', 'Submit Feedback ({0})', feedbackCount)
-				: localize('planReviewFeedback.submit', 'Submit Feedback');
+			submitButton.label = localize('planReviewFeedback.submitWithCount', 'Submit Feedback ({0})', feedbackCount);
 			this._showStore.add(submitButton.onDidClick(() => void this._planReviewFeedbackService.submitAllFeedback(planUri)));
 		} else {
 			if (!review || review.actions.length === 0) {

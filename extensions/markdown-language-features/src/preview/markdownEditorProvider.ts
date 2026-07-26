@@ -194,7 +194,6 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (message.type !== 'addComment'
 				&& message.type !== 'updateCommentRange'
 				&& message.type !== 'deleteComment'
-				&& message.type !== 'updateOverallFeedback'
 				&& message.type !== 'submitFeedback'
 				&& message.type !== 'submitAction'
 				&& message.type !== 'rejectReview') {
@@ -219,8 +218,6 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					);
 				} else if (message.type === 'deleteComment') {
 					commentsProvider.deleteComment(message.id);
-				} else if (message.type === 'updateOverallFeedback') {
-					commentsProvider.updateOverallFeedback(message.overallFeedback);
 				} else if (message.type === 'submitFeedback') {
 					await commentsProvider.submitFeedback(message.overallFeedback);
 				} else if (message.type === 'submitAction') {

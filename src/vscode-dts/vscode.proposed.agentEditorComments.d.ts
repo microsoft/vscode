@@ -29,7 +29,6 @@ declare module 'vscode' {
 			readonly default?: boolean;
 		}[];
 		readonly feedbackCount: number;
-		readonly overallFeedback?: string;
 		readonly activeFeedbackId?: string;
 		readonly activeFeedbackRequestId: number;
 		readonly overallFeedbackLabel: string;
@@ -91,8 +90,6 @@ declare module 'vscode' {
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		deleteComment(id: string): void;
-		// eslint-disable-next-line local/vscode-dts-provider-naming
-		updateOverallFeedback(overallFeedback: string): void;
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		submitFeedback(overallFeedback?: string): Thenable<void>;
 		// eslint-disable-next-line local/vscode-dts-provider-naming

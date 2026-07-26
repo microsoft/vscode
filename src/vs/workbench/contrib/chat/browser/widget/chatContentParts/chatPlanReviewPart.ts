@@ -110,9 +110,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			const registrationStore = new DisposableStore();
 			registrationStore.add(this._planReviewFeedbackService.registerPlanReview(planUri, {
 				actions: review.actions,
-				getOverallFeedback: () => this._feedbackTextarea?.value ?? (review instanceof ChatPlanReviewData ? review.draftFeedback : undefined),
-				setOverallFeedback: value => this.setOverallFeedback(value),
-				submitFeedback: overallFeedback => this.submitFeedback(overallFeedback),
+				submitFeedback: overallFeedback => this.submitFeedback(overallFeedback, false),
 				submitAction: action => this.submitApproval(action),
 				reject: () => this.submitRejection(),
 			}));
@@ -326,9 +324,6 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			this._messageScrollable.scanDomNode();
 			if (this.review instanceof ChatPlanReviewData) {
 				this.review.draftFeedback = textarea.value;
-			}
-			if (this.review.planUri) {
-				this._planReviewFeedbackService.notifyFeedbackChanged(URI.revive(this.review.planUri));
 			}
 			// Update the cached Submit button rather than re-rendering the
 			// whole button row on every keystroke.
@@ -842,20 +837,11 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this._feedbackTextarea?.focus();
 	}
 
-	private setOverallFeedback(value: string): void {
-		const textarea = this._feedbackTextarea;
-		if (!textarea || textarea.value === value) {
-			return;
-		}
-		textarea.value = value;
-		textarea.dispatchEvent(new (dom.getWindow(textarea).Event)(dom.EventType.INPUT));
-	}
-
-	private async submitFeedback(overallFeedback?: string): Promise<void> {
+	private async submitFeedback(overallFeedback?: string, useWidgetFeedback = true): Promise<void> {
 		if (this._isSubmitted || this._isSubmitting) {
 			return;
 		}
-		if (!overallFeedback?.trim() && !this._feedbackTextarea?.value.trim() && this.getInlineFeedbackItems().length === 0) {
+		if (!(useWidgetFeedback ? this._feedbackTextarea?.value : overallFeedback)?.trim() && this.getInlineFeedbackItems().length === 0) {
 			return;
 		}
 		this._isSubmitting = true;
@@ -864,7 +850,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 				return;
 			}
 
-			const textareaFeedback = this._feedbackTextarea ? this._feedbackTextarea.value.trim() : overallFeedback?.trim();
+			const textareaFeedback = (useWidgetFeedback ? this._feedbackTextarea?.value : overallFeedback)?.trim();
 			const editorFeedbackItems = [...this.getInlineFeedbackItems()];
 			if (!textareaFeedback && editorFeedbackItems.length === 0) {
 				return;

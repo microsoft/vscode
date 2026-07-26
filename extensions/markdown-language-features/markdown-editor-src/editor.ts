@@ -40,7 +40,6 @@ interface PlanReview {
 		readonly default?: boolean;
 	}[];
 	readonly feedbackCount: number;
-	readonly overallFeedback?: string;
 	readonly activeFeedbackId?: string;
 	readonly activeFeedbackRequestId: number;
 	readonly overallFeedbackLabel: string;
@@ -129,12 +128,9 @@ class PlanReviewToolbar extends Disposable {
 		this.#rejectAction.type = 'button';
 		toolbar.appendChild(this.#rejectAction);
 
-		const updateOverallFeedback = () => {
-			this.#updatePrimaryAction();
-			postMessage({ type: 'updateOverallFeedback', overallFeedback: this.#overallFeedback.value });
-		};
-		this.#overallFeedback.addEventListener('input', updateOverallFeedback);
-		this._register({ dispose: () => this.#overallFeedback.removeEventListener('input', updateOverallFeedback) });
+		const updatePrimaryAction = () => this.#updatePrimaryAction();
+		this.#overallFeedback.addEventListener('input', updatePrimaryAction);
+		this._register({ dispose: () => this.#overallFeedback.removeEventListener('input', updatePrimaryAction) });
 
 		const submitPrimaryAction = () => {
 			const review = this.#review;
@@ -209,9 +205,6 @@ class PlanReviewToolbar extends Disposable {
 		this.#element.querySelector('[role="toolbar"]')?.setAttribute('aria-label', review.approvePlanLabel);
 		this.#overallFeedback.placeholder = review.overallFeedbackLabel;
 		this.#overallFeedback.setAttribute('aria-label', review.overallFeedbackLabel);
-		if (this.#overallFeedback.value !== (review.overallFeedback ?? '')) {
-			this.#overallFeedback.value = review.overallFeedback ?? '';
-		}
 		this.#actionToggle.setAttribute('aria-label', review.approvePlanLabel);
 		this.#rejectAction.textContent = review.rejectLabel;
 		this.#selectedActionId = review.actions.find(action => action.default)?.id ?? review.actions[0]?.id ?? '';

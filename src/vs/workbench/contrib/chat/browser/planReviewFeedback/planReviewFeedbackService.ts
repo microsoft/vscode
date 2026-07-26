@@ -24,8 +24,6 @@ export interface IPlanReviewFeedbackItem {
 
 export interface IPlanReviewFeedbackRegistration {
 	readonly actions: readonly IChatPlanApprovalAction[];
-	readonly getOverallFeedback: () => string | undefined;
-	readonly setOverallFeedback: (value: string) => void;
 	readonly submitFeedback: (overallFeedback?: string) => Promise<void>;
 	readonly submitAction: (action: IChatPlanApprovalAction) => Promise<void>;
 	readonly reject: () => Promise<void>;
@@ -43,7 +41,6 @@ export interface IPlanReviewFeedbackService {
 	registerPlanReview(planUri: URI, registration: IPlanReviewFeedbackRegistration): IDisposable;
 	isActivePlanReview(uri: URI): boolean;
 	getPlanReview(uri: URI): IPlanReviewFeedbackRegistration | undefined;
-	notifyFeedbackChanged(planUri: URI): void;
 	addFeedback(planUri: URI, line: number, column: number, text: string): string;
 	addFeedbackForRange(planUri: URI, range: IRange, text: string): string;
 	removeFeedback(planUri: URI, feedbackId: string): void;
@@ -106,12 +103,6 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 
 	getPlanReview(uri: URI): IPlanReviewFeedbackRegistration | undefined {
 		return this._registrations.get(uri.toString())?.review;
-	}
-
-	notifyFeedbackChanged(planUri: URI): void {
-		if (this.isActivePlanReview(planUri)) {
-			this._onDidChangeFeedback.fire(planUri);
-		}
 	}
 
 	addFeedback(planUri: URI, line: number, column: number, text: string): string {
@@ -278,7 +269,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	submitAllFeedback(planUri: URI): Promise<void> {
 		const key = planUri.toString();
 		const registration = this._registrations.get(key);
-		if (!registration || (registration.items.length === 0 && !registration.review.getOverallFeedback()?.trim())) {
+		if (!registration || registration.items.length === 0) {
 			return Promise.resolve();
 		}
 
@@ -335,7 +326,6 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 				default: action.default,
 			})),
 			feedbackCount: registration.items.length,
-			overallFeedback: registration.review.getOverallFeedback(),
 			activeFeedbackId: registration.navigationAnchor,
 			activeFeedbackRequestId: registration.navigationRequestId,
 			overallFeedbackLabel: localize('planReviewFeedback.overallFeedback', 'Overall Feedback'),
@@ -344,10 +334,6 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 			submitFeedbackWithCountLabel: localize('planReviewFeedback.submitFeedbackWithCount', 'Submit Feedback ({0})'),
 			approvePlanLabel: localize('planReviewFeedback.approvePlan', 'Approve Plan'),
 		};
-	}
-
-	updateOverallFeedback(resource: URI, overallFeedback: string): void {
-		this._registrations.get(resource.toString())?.review.setOverallFeedback(overallFeedback);
 	}
 
 	submitFeedback(resource: URI, overallFeedback: string | undefined): Promise<void> {

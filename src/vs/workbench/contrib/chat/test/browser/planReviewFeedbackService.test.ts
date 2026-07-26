@@ -18,8 +18,6 @@ function feedbackSummary(items: readonly { line: number; column: number }[]): st
 function createRegistration(overrides?: Partial<IPlanReviewFeedbackRegistration>): IPlanReviewFeedbackRegistration {
 	return {
 		actions: [{ id: 'approve', label: 'Approve', default: true }],
-		getOverallFeedback: () => undefined,
-		setOverallFeedback: () => { },
 		submitFeedback: async () => { },
 		submitAction: async () => { },
 		reject: async () => { },
@@ -373,19 +371,6 @@ suite('PlanReviewFeedbackService - Submit', () => {
 		assert.strictEqual(called, false);
 	});
 
-	test('submitAllFeedback delegates when only overall feedback exists', async () => {
-		const planUri = URI.parse('file:///plan.md');
-		let called = false;
-		store.add(service.registerPlanReview(planUri, createRegistration({
-			getOverallFeedback: () => 'draft',
-			submitFeedback: async () => { called = true; },
-		})));
-
-		await service.submitAllFeedback(planUri);
-
-		assert.strictEqual(called, true);
-	});
-
 	test('submitPlanAction delegates the selected action', async () => {
 		const planUri = URI.parse('file:///plan.md');
 		const action = { id: 'autopilot', label: 'Implement with Autopilot' };
@@ -477,9 +462,8 @@ suite('PlanReviewFeedbackService - Custom Editor Comments', () => {
 		assert.strictEqual(fallbackAddCount, 1);
 	});
 
-	test('bridges review actions and overall feedback', async () => {
+	test('bridges review actions and submitted overall feedback', async () => {
 		const bridge = store.add(new AgentEditorCommentsBridge());
-		let overallFeedback = 'Existing draft';
 		let submittedOverallFeedback: string | undefined;
 		let submittedAction: string | undefined;
 		let rejected = false;
@@ -487,8 +471,6 @@ suite('PlanReviewFeedbackService - Custom Editor Comments', () => {
 		const planUri = URI.parse('file:///plan.md');
 		store.add(service.registerPlanReview(planUri, createRegistration({
 			actions: [{ id: 'autopilot', label: 'Implement with Autopilot', default: true }],
-			getOverallFeedback: () => overallFeedback,
-			setOverallFeedback: value => { overallFeedback = value; },
 			submitFeedback: async overallFeedback => { submittedOverallFeedback = overallFeedback; },
 			submitAction: async action => { submittedAction = action.id; },
 			reject: async () => { rejected = true; },
@@ -498,7 +480,6 @@ suite('PlanReviewFeedbackService - Custom Editor Comments', () => {
 		service.setNavigationAnchor(planUri, commentId);
 		assert.deepStrictEqual({
 			actions: bridge.getReview(planUri)?.actions,
-			overallFeedback: bridge.getReview(planUri)?.overallFeedback,
 			activeFeedbackId: bridge.getReview(planUri)?.activeFeedbackId,
 			activeFeedbackRequestId: bridge.getReview(planUri)?.activeFeedbackRequestId,
 		}, {
@@ -508,7 +489,6 @@ suite('PlanReviewFeedbackService - Custom Editor Comments', () => {
 				description: undefined,
 				default: true,
 			}],
-			overallFeedback: 'Existing draft',
 			activeFeedbackId: commentId,
 			activeFeedbackRequestId: 1,
 		});
@@ -519,20 +499,17 @@ suite('PlanReviewFeedbackService - Custom Editor Comments', () => {
 			endColumn: 4,
 		});
 		service.setNavigationAnchor(planUri, commentId);
-		bridge.updateOverallFeedback(planUri, 'Updated in Markdown');
 		await bridge.submitFeedback(planUri, 'Make the approach shorter');
 		await bridge.submitAction(planUri, 'autopilot');
 		await bridge.reject(planUri);
 
 		assert.deepStrictEqual({
-			overallFeedback,
 			commentRange: bridge.getComments(planUri)[0].range,
 			activeFeedbackRequestId: bridge.getReview(planUri)?.activeFeedbackRequestId,
 			submittedOverallFeedback,
 			submittedAction,
 			rejected,
 		}, {
-			overallFeedback: 'Updated in Markdown',
 			commentRange: {
 				startLineNumber: 6,
 				startColumn: 2,
