@@ -2797,8 +2797,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// process the prompt command
-		// `preserveInput` means the draft is not this request, so its prompt-file
-		// metadata (agent, model, tools) must not be applied to the query.
+		// `preserveInput` means the draft is not this request: `parsedInput` derives
+		// from the draft, so this would apply the draft prompt file's agent, model and
+		// tools to the query — and an agent switch can clear the session.
 		if (!options.preserveInput) {
 			const promptApplied = await this._applyPromptFileIfSet(requestInputs, this.viewModel.sessionResource);
 			if (!promptApplied) {
@@ -2902,7 +2903,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.updateChatViewVisibility();
 		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus, options?.preserveInput);
 
-		this._maybeStartGoalSummary(requestInputs.input);
+		if (!options.preserveInput) {
+			// Not a user goal: this would cancel the current goal banner and spend an
+			// LLM call summarizing the maintenance command.
+			this._maybeStartGoalSummary(requestInputs.input);
+		}
 
 		const sent = ChatSendResult.isQueued(result) ? await result.deferred : result;
 		if (!ChatSendResult.isSent(sent)) {
@@ -2910,10 +2915,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (!options.preserveInput) {
-			// The input box did not source this request: firing would repopulate the
-			// draft with the query, record it as a user agent choice, and let
-			// listeners treat the draft's attachments as sent (agent feedback marks
-			// itself submitted) even though they were excluded from it.
+			// Not a user submission: listeners would repopulate the draft, record the
+			// agent as a user choice, and mark the draft's feedback attachments as
+			// sent even though they were excluded from this request. Side effect:
+			// an editor-hosted chat is not pinned by a maintenance command.
 			this._onDidSubmitAgent.fire({ agent: sent.data.agent, slashCommand: sent.data.slashCommand });
 		}
 		this.handleDelegationExitIfNeeded(this._lockedAgent, sent.data.agent);
