@@ -36,6 +36,7 @@ export type ChatPhoneInputPresenterRequest =
 	| {
 		readonly kind: 'session';
 		readonly getSessionContext: () => IChatPhoneInputSessionContext | undefined;
+		readonly selectModel: (modelIdentifier: string) => boolean;
 	};
 
 /**
@@ -211,8 +212,8 @@ export class MobileChatInputCombinedPickerActionItem extends BaseActionViewItem 
 		}
 
 		const currentModel = this._modelDelegate.currentModel.get();
-		if (currentModel) {
-			dom.append(trigger, renderIcon(getModelProviderIcon(currentModel, this._modelDelegate.useGenericModelIcon?.())));
+		if (currentModel && this._modelDelegate.getPresentationOptions().showModelIcon) {
+			dom.append(trigger, renderIcon(getModelProviderIcon(currentModel)));
 		}
 		const labelText = currentModel?.metadata.name
 			?? localize('chatPhoneInput.autoLabel', "Auto");

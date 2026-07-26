@@ -326,6 +326,14 @@ export class ToolsService extends BaseToolsService {
 					return false;
 				}
 
+				// For semantic_search (codebase) tool, allow experimentally disabling it entirely.
+				if (
+					tool.name === ToolName.Codebase
+					&& this._configurationService.getExperimentBasedConfig(ConfigKey.DisableSemanticSearchTool, this._experimentationService)
+				) {
+					return false;
+				}
+
 				// 0. Check if the tool was disabled via the tool picker. If so, it must be disabled here
 				const toolPickerSelection = requestToolsByName.get(getContributedToolName(tool.name));
 				if (toolPickerSelection === false) {
@@ -344,12 +352,6 @@ export class ToolsService extends BaseToolsService {
 					if (usedTool?.tags.includes(`enable_other_tool_${tool.name}`)) {
 						return true;
 					}
-				}
-
-				// 3. If this tool is neither enabled nor disabled, then consumer didn't have opportunity to enable/disable it.
-				// This can happen when a tool is added during another tool call (e.g. installExt tool installs an extension that contributes tools).
-				if (toolPickerSelection === undefined && tool.tags.includes('extension_installed_by_tool')) {
-					return true;
 				}
 
 				// Tool was enabled via tool picker

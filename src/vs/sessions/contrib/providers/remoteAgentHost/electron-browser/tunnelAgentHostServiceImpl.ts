@@ -27,6 +27,7 @@ import {
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { TunnelRelayTransport } from '../../../../../platform/agentHost/electron-browser/tunnelRelayTransport.js';
 
 const LOG_PREFIX = '[TunnelAgentHost]';
@@ -118,7 +119,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			) : undefined;
 			const transport = new TunnelRelayTransport(result.connectionId, this._mainService, logger);
 			protocolClient = this._instantiationService.createInstance(
-				RemoteAgentHostProtocolClient, result.address, transport, undefined,
+				RemoteAgentHostProtocolClient, result.address, transport, undefined, undefined, agentsWindowAgentHostClientInfo,
 			);
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Connection setup failed`, err);

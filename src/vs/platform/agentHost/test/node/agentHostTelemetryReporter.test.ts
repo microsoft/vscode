@@ -9,8 +9,9 @@ import { hash } from '../../../../base/common/hash.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agentService.js';
 import type { ToolDefinition } from '../../common/state/protocol/state.js';
-import { IAgentHostRestrictedTelemetry, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
+import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 
 interface IRestrictedCall {
 	eventName: string;
@@ -42,11 +43,15 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
 		this.enhancedEvents.push({ eventName, properties });
 	}
-	sendEnhancedGHTelemetryEventForContext(): void { }
+	sendEnhancedGHTelemetryEventForContext(_context: IAgentHostRestrictedTelemetryContext, eventName: string, properties?: TelemetryProps): void {
+		this.enhancedEvents.push({ eventName, properties });
+	}
 	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
 		this.internalEvents.push({ eventName, properties });
 	}
-	sendInternalMSFTTelemetryEventForContext(): void { }
+	sendInternalMSFTTelemetryEventForContext(_context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps): void {
+		this.internalEvents.push({ eventName, properties });
+	}
 	setCopilotTrackingId(): void { }
 	setRestrictedTelemetryEndpoint(): void { }
 	setRestrictedTelemetryEnabled(): void { }
@@ -63,15 +68,16 @@ suite('AgentHostTelemetryReporter', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		reporter.assistantMessageReceived(session, undefined, tools); // dropped: no service request id
-		reporter.assistantMessageReceived(session, 'svc-1', []); // dropped: no tools
-		reporter.assistantMessageReceived(session, 'svc-1', tools); // emitted
+		reporter.assistantMessageReceived(session, AgentHostClientType.AgentsWindow, undefined, tools); // dropped: no service request id
+		reporter.assistantMessageReceived(session, AgentHostClientType.AgentsWindow, 'svc-1', []); // dropped: no tools
+		reporter.assistantMessageReceived(session, AgentHostClientType.AgentsWindow, 'svc-1', tools); // emitted
 
 		assert.deepStrictEqual(service.enhancedEvents, [{
 			eventName: 'request.options.tools',
 			properties: {
 				headerRequestId: 'svc-1',
 				conversationId: AgentSession.id(session),
+				initiatorClientType: 'agents_window',
 				messagesJson: JSON.stringify(tools),
 			},
 		}]);
@@ -81,14 +87,15 @@ suite('AgentHostTelemetryReporter', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		reporter.userMessageText(session, '', 3); // dropped: no content
-		reporter.userMessageText(session, 'hello agent', 3); // emitted
+		reporter.userMessageText(session, AgentHostClientType.EditorWindow, '', 3); // dropped: no content
+		reporter.userMessageText(session, AgentHostClientType.EditorWindow, 'hello agent', 3); // emitted
 
 		const expected: IRestrictedCall = {
 			eventName: 'conversation.messageText',
 			properties: {
 				source: 'user',
 				conversationId: AgentSession.id(session),
+				initiatorClientType: 'editor_window',
 				turnIndex: '3',
 				messageText: 'hello agent',
 			},
@@ -101,14 +108,15 @@ suite('AgentHostTelemetryReporter', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		reporter.modelMessageText(session, '', 3, 'svc-1'); // dropped: no content
-		reporter.modelMessageText(session, 'sure, here you go', 3, 'svc-1'); // emitted
+		reporter.modelMessageText(session, AgentHostClientType.AgentsWindow, '', 3, 'svc-1'); // dropped: no content
+		reporter.modelMessageText(session, AgentHostClientType.AgentsWindow, 'sure, here you go', 3, 'svc-1'); // emitted
 
 		const expected: IRestrictedCall = {
 			eventName: 'conversation.messageText',
 			properties: {
 				source: 'model',
 				conversationId: AgentSession.id(session),
+				initiatorClientType: 'agents_window',
 				turnIndex: '3',
 				headerRequestId: 'svc-1',
 				messageText: 'sure, here you go',
@@ -123,17 +131,17 @@ suite('AgentHostTelemetryReporter', () => {
 		const reporter = new AgentHostTelemetryReporter(service);
 
 		reporter.toolCallDetails({
-			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
+			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.Unknown, model: 'gpt-x', responseType: 'success',
 			toolCounts: {}, availableTools: [],
 			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
 		}); // dropped: no tools were available
 		reporter.toolCallDetails({
-			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
+			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.EditorWindow, model: 'gpt-x', responseType: 'success',
 			toolCounts: {}, availableTools: ['grep', 'edit'],
 			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
 		}); // emitted: tools available, even though no tool calls were made
 		reporter.toolCallDetails({
-			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
+			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.AgentsWindow, model: 'gpt-x', responseType: 'success',
 			toolCounts: { grep: 2, edit: 1 }, availableTools: ['grep', 'edit'],
 			numRequests: 2, totalToolCalls: 3, parallelToolCallRounds: 1, parallelToolCallsTotal: 2,
 		}); // emitted
@@ -144,6 +152,7 @@ suite('AgentHostTelemetryReporter', () => {
 				conversationId: AgentSession.id(session),
 				requestId: 'a1b2c3d4-0000-4000-8000-000000000000',
 				messageId: 'a1b2c3d4-0000-4000-8000-000000000000',
+				initiatorClientType: 'editor_window',
 				responseType: 'success',
 				model: 'gpt-x',
 				toolCounts: JSON.stringify({}),
@@ -155,6 +164,7 @@ suite('AgentHostTelemetryReporter', () => {
 				conversationId: AgentSession.id(session),
 				requestId: 'a1b2c3d4-0000-4000-8000-000000000000',
 				messageId: 'a1b2c3d4-0000-4000-8000-000000000000',
+				initiatorClientType: 'agents_window',
 				responseType: 'success',
 				model: 'gpt-x',
 				toolCounts: JSON.stringify({ grep: 2, edit: 1 }),
@@ -191,6 +201,73 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.deepStrictEqual(service.internalEvents, [expected]);
 	});
 
+	test('repoInfo gates collection and multiplexes sink-specific properties', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.reportRepoInfo({
+			restrictedTelemetryEnabled: true,
+			trackingId: 'tracking-id',
+			telemetryEndpoint: 'https://telemetry.example/telemetry',
+			isInternal: true,
+			userName: 'octocat',
+			isVscodeTeamMember: true,
+		}, {
+			telemetryMessageId: 'turn-1',
+			location: 'begin',
+			remoteUrl: 'https://github.com/microsoft/vscode',
+			repoId: 'microsoft/vscode',
+			repoType: 'github',
+			headCommitHash: 'abc',
+			headBranchName: 'feature',
+			fileRelativePaths: JSON.stringify(['src/a.ts']),
+			diffsJSON: 'x'.repeat(8193),
+			result: 'success',
+			isActiveRepository: 'true',
+			workspaceFileCount: 10,
+			changedFileCount: 1,
+			diffSizeBytes: 8193,
+		});
+
+		assert.deepStrictEqual({
+			enhanced: service.enhancedEvents[0],
+			internal: service.internalEvents[0],
+		}, {
+			enhanced: {
+				eventName: 'request.repoInfo',
+				properties: {
+					remoteUrl: 'https://github.com/microsoft/vscode',
+					repoId: 'microsoft/vscode',
+					repoType: 'github',
+					headCommitHash: 'abc',
+					headBranchName: 'feature',
+					fileRelativePaths: JSON.stringify(['src/a.ts']),
+					diffsJSON: 'x'.repeat(8192),
+					diffsJSON_02: 'x',
+					result: 'success',
+					isActiveRepository: 'true',
+					location: 'begin',
+					telemetryMessageId: 'turn-1',
+				},
+			},
+			internal: {
+				eventName: 'request.repoInfo',
+				properties: {
+					remoteUrl: 'https://github.com/microsoft/vscode',
+					repoId: 'microsoft/vscode',
+					repoType: 'github',
+					headCommitHash: 'abc',
+					diffsJSON: 'x'.repeat(8192),
+					diffsJSON_02: 'x',
+					result: 'success',
+					isActiveRepository: 'true',
+					location: 'begin',
+					telemetryMessageId: 'turn-1',
+				},
+			},
+		});
+	});
+
 	test('skillContentRead drops the version when no plugin name is known, matching the extension', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
@@ -202,4 +279,3 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.strictEqual(service.enhancedEvents[0].properties?.skillExtensionVersion, '');
 	});
 });
-

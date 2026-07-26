@@ -313,19 +313,21 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 	}
 
 	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		// A rejected envelope must never mutate confirmed state — it only rolls
+		// back the originating client's matching optimistic action. Guarding all
+		// apply branches also prevents a broadcast rejection from leaking the
+		// rejected action into a non-origin client's state.
 		if (isOwnAction && envelope.origin) {
 			const idx = this._pendingActions.findIndex(p => p.clientSeq === envelope.origin!.clientSeq);
 			if (idx !== -1) {
-				if (envelope.rejectionReason) {
-					this._pendingActions.splice(idx, 1);
-				} else {
+				if (!envelope.rejectionReason) {
 					this._confirmedApply(envelope.action);
-					this._pendingActions.splice(idx, 1);
 				}
-			} else {
+				this._pendingActions.splice(idx, 1);
+			} else if (!envelope.rejectionReason) {
 				this._confirmedApply(envelope.action);
 			}
-		} else {
+		} else if (!envelope.rejectionReason) {
 			this._confirmedApply(envelope.action);
 		}
 		this._recomputeOptimistic();
@@ -457,19 +459,21 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 	}
 
 	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		// A rejected envelope must never mutate confirmed state — it only rolls
+		// back the originating client's matching optimistic action. Guarding all
+		// apply branches also prevents a broadcast rejection from leaking the
+		// rejected action into a non-origin client's state.
 		if (isOwnAction && envelope.origin) {
 			const idx = this._pendingActions.findIndex(p => p.clientSeq === envelope.origin!.clientSeq);
 			if (idx !== -1) {
-				if (envelope.rejectionReason) {
-					this._pendingActions.splice(idx, 1);
-				} else {
+				if (!envelope.rejectionReason) {
 					this._confirmedApply(envelope.action);
-					this._pendingActions.splice(idx, 1);
 				}
-			} else {
+				this._pendingActions.splice(idx, 1);
+			} else if (!envelope.rejectionReason) {
 				this._confirmedApply(envelope.action);
 			}
-		} else {
+		} else if (!envelope.rejectionReason) {
 			this._promotePendingTurnStartIfTerminal(envelope.action);
 			this._confirmedApply(envelope.action);
 		}

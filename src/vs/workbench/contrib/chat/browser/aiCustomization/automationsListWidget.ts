@@ -157,9 +157,12 @@ class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAut
 		templateData.sep1.textContent = '·';
 		templateData.nextEl.textContent = formatNextRun(automation);
 		templateData.sepFolder.textContent = '·';
-		const folderLabel = this.widget.formatFolderLabel(automation.folderUri);
-		templateData.folderEl.textContent = localize('automationFolderLabel', "in {0}", folderLabel);
-		templateData.folderEl.title = automation.folderUri.toString();
+		templateData.folderEl.textContent = this.widget.formatTargetLabel(automation);
+		if (automation.target.kind === 'quickChat') {
+			templateData.folderEl.title = localize('automationQuickChatTitle', "Runs as a workspace-less chat");
+		} else {
+			templateData.folderEl.title = automation.target.folderUri.toString();
+		}
 
 		if (automation.lastRunAt) {
 			templateData.sep2.textContent = '·';
@@ -193,6 +196,7 @@ class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAut
 			this.renderHistoryPanel(templateData, automation, runs);
 		}
 		templateData.historyPanel.style.display = expanded ? '' : 'none';
+		templateData.container.classList.toggle('automations-row-wrapper-expanded', expanded);
 	}
 
 	private renderActions(templateData: IAutomationRowTemplateData, automation: IAutomation, expanded: boolean, inFlight: boolean): void {
@@ -370,8 +374,9 @@ export class AutomationsListWidget extends Disposable {
 
 	private lastHeight = 0;
 	private lastWidth = 0;
-	private _layoutDeferred = false;
-	private readonly _layoutRAF = this._register(new MutableDisposable());
+	private visible = false;
+	private listDirty = false;
+	private remeasureOnNextLayout = false;
 
 	constructor(
 		@IAutomationService private readonly automationService: IAutomationService,
@@ -437,10 +442,7 @@ export class AutomationsListWidget extends Disposable {
 				horizontalScrolling: false,
 				accessibilityProvider: {
 					getAriaLabel: (element: IAutomationListEntry) => {
-						const a = element.automation;
-						return a.enabled
-							? localize('automationAriaLabel', "{0}, {1}", a.name, formatSchedule(a))
-							: localize('automationAriaLabelDisabled', "{0}, disabled", a.name);
+						return this.formatAriaLabel(element.automation);
 					},
 					getWidgetAriaLabel() {
 						return localize('automationsListAriaLabel', "Automations");
@@ -464,11 +466,12 @@ export class AutomationsListWidget extends Disposable {
 	private updateList(items: readonly IAutomation[]): void {
 		if (items.length === 0) {
 			this.element.classList.add('automations-empty');
+			this.displayEntries = [];
+			this.listDirty = true;
+			this.commitList();
 			this.emptyContainer.style.display = '';
 			this.listContainer.style.display = 'none';
 			this.renderEmptyState();
-			this.displayEntries = [];
-			this.list.splice(0, this.list.length, []);
 			return;
 		}
 
@@ -485,7 +488,20 @@ export class AutomationsListWidget extends Disposable {
 			inFlight: this.runInFlight.has(automation.id),
 		}));
 
+		this.listDirty = true;
+		this.commitList();
+		if (this.visible && this.lastHeight > 0 && this.lastWidth > 0) {
+			this.layout(this.lastHeight, this.lastWidth);
+		}
+	}
+
+	private commitList(): void {
+		if (!this.visible || !this.listDirty) {
+			return;
+		}
+
 		this.list.splice(0, this.list.length, this.displayEntries);
+		this.listDirty = false;
 	}
 
 	private renderEmptyState(): void {
@@ -598,7 +614,12 @@ export class AutomationsListWidget extends Disposable {
 			return;
 		}
 		try {
-			await this.automationService.updateAutomation(result.id, result.value);
+			const updateResult = await this.automationService.updateAutomationIfUnchanged(result.id, result.value, automation);
+			if (updateResult.kind === 'conflict') {
+				throw new Error(updateResult.current
+					? localize('automationChangedDuringEdit', "This automation changed while the dialog was open. Reopen it to review the latest values.")
+					: localize('automationDeletedDuringEdit', "This automation was deleted while the dialog was open."));
+			}
 			status(localize('automationUpdatedStatus', "Updated automation {0}", automation.name));
 		} catch (err) {
 			this.logService.error('[Automations] Failed to update automation', err);
@@ -617,6 +638,21 @@ export class AutomationsListWidget extends Disposable {
 		}
 		const segments = folderUri.path.split('/').filter(s => s.length > 0);
 		return segments[segments.length - 1] ?? folderUri.toString();
+	}
+
+	formatTargetLabel(automation: IAutomation): string {
+		if (automation.target.kind === 'quickChat') {
+			return localize('automationQuickChatLabel', "without a workspace");
+		}
+		return localize('automationFolderLabel', "in {0}", this.formatFolderLabel(automation.target.folderUri));
+	}
+
+	formatAriaLabel(automation: IAutomation): string {
+		const schedule = formatSchedule(automation);
+		const target = this.formatTargetLabel(automation);
+		return automation.enabled
+			? localize('automationAriaLabel', "{0}, {1}, {2}", automation.name, schedule, target)
+			: localize('automationAriaLabelDisabled', "{0}, disabled, {1}, {2}", automation.name, schedule, target);
 	}
 
 	private _isEnabled(): boolean {
@@ -661,24 +697,36 @@ export class AutomationsListWidget extends Disposable {
 
 		this.element.style.height = `${height}px`;
 
-		// Measure the header to calculate the list height.
-		// When offsetHeight returns 0 the container may have just become visible
-		// after display:none and the browser hasn't reflowed yet. Defer layout
-		// once so measurements are accurate. Only retry once to avoid an endless
-		// loop when the widget is created while permanently hidden.
+		if (!this.visible || this.displayEntries.length === 0 || height <= 0 || width <= 0) {
+			return;
+		}
+
 		const headerHeight = this.headerEl.offsetHeight;
-		if (headerHeight === 0 && !this._layoutDeferred) {
-			this._layoutDeferred = true;
-			this._layoutRAF.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.element), () => {
-				this._layoutDeferred = false;
-				this.layout(this.lastHeight, this.lastWidth);
-			});
+		if (headerHeight === 0) {
 			return;
 		}
 		const listHeight = Math.max(0, height - headerHeight);
 
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight, width);
+		if (this.remeasureOnNextLayout) {
+			this.remeasureOnNextLayout = false;
+			this.list.rerender();
+		}
+	}
+
+	setVisible(visible: boolean): void {
+		if (this.visible === visible) {
+			return;
+		}
+
+		this.visible = visible;
+		if (!visible) {
+			return;
+		}
+
+		this.commitList();
+		this.remeasureOnNextLayout = this.list.length > 0;
 	}
 
 	fireItemCount(): void {
@@ -698,6 +746,22 @@ export class AutomationsListWidget extends Disposable {
 	 */
 	getDisplayEntriesForTest(): readonly IAutomationListEntry[] {
 		return this.displayEntries;
+	}
+
+	/**
+	 * Expands, reveals, and moves keyboard focus to an automation.
+	 */
+	focusAutomation(automationId: string): boolean {
+		const index = this.displayEntries.findIndex(entry => entry.automation.id === automationId);
+		if (index < 0) {
+			return false;
+		}
+		this.expandedRows.add(automationId);
+		this.updateList(this.automationService.automations.get());
+		this.list.reveal(index);
+		this.list.setFocus([index]);
+		this.list.domFocus();
+		return true;
 	}
 
 	focus(): void {

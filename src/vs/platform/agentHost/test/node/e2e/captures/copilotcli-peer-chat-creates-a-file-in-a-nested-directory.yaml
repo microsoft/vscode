@@ -1,0 +1,80 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create the file at ${workdir}/peer-output/report.txt containing exactly PEER_NESTED.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: bash
+          input:
+            command: mkdir -p ${workdir}/peer-output
+            description: Create peer-output directory
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create the file at ${workdir}/peer-output/report.txt containing exactly PEER_NESTED.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: mkdir -p ${workdir}/peer-output
+                description: Create peer-output directory
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<shellId: 0 completed with exit code 0>'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: create
+          input:
+            path: ${workdir}/peer-output/report.txt
+            file_text: PEER_NESTED
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create the file at ${workdir}/peer-output/report.txt containing exactly PEER_NESTED.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: mkdir -p ${workdir}/peer-output
+                description: Create peer-output directory
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<shellId: 0 completed with exit code 0>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/peer-output/report.txt
+                file_text: PEER_NESTED
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: Created file ${workdir}/peer-output/report.txt with 11 characters
+    response:
+      content: Created the file with exactly `PEER_NESTED` (no trailing newline) at [report.txt](${workdir}/peer-output/report.txt).
+      stopReason: end_turn

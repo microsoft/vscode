@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import type { IMcpServerDefinition, IParsedPlugin, IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
+import { PluginFormat, type IMcpServerDefinition, type IParsedPlugin, type IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../mcp/common/mcpPlatformTypes.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import { CustomizationType, McpServerStatus, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
@@ -31,7 +31,7 @@ suite('codexClientCustomizations', () => {
 	}
 
 	function parsed(overrides: Partial<IParsedPlugin> = {}): IParsedPlugin {
-		return { hooks: [], mcpServers: [], skills: [], agents: [], instructions: [], ...overrides };
+		return { format: PluginFormat.Copilot, hooks: [], mcpServers: [], skills: [], agents: [], instructions: [], ...overrides };
 	}
 
 	function plugin(id: string, pluginDir: string | undefined, p: IParsedPlugin | undefined): ICodexClientPlugin {

@@ -131,12 +131,12 @@ so mirror the blue-listening / purple-speaking glow here. `voice-active` /
 }
 
 /* Purple when speaking */
-.new-chat-input-area.voice-active:not(.voice-listening) .action-label.codicon-voice-mode {
+.new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode {
 	--sessions-voice-icon-glow-color: rgba(163, 113, 247, 0.65);
 	color: var(--vscode-charts-purple, #a371f7) !important;
 	border-radius: 50%;
 }
 
-.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active:not(.voice-listening) .action-label.codicon-voice-mode {
+.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode {
 	animation: sessionsVoiceIconGlow 1.4s ease-in-out infinite;
 }

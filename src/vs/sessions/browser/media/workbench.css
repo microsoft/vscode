@@ -142,7 +142,7 @@
 }
 
 .agent-sessions-workbench .part.sessionspart {
-	margin: 0 5px 0 0;
+	margin: 0 var(--vscode-agents-layout-floatingPanelGap) 0 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: var(--vscode-cornerRadius-large);
@@ -176,7 +176,7 @@
 }
 
 .agent-sessions-workbench .part.panel {
-	margin: 5px 0px 0px 0px;
+	margin: var(--vscode-agents-layout-floatingPanelGap) 0 0 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: var(--vscode-cornerRadius-large);
@@ -195,6 +195,71 @@
 
 .agent-sessions-workbench .monaco-sash:not(.disabled) > .orthogonal-drag-handle {
 	border-radius: var(--vscode-sash-size);
+}
+
+/*
+ * SplitView centers each sash on its logical boundary, but the card margins put
+ * the Sessions/Editor gap before that boundary and the Panel gap after it.
+ * Grow the hit area to at least the visual gap, then shift it toward that gap
+ * without moving the split itself. `max()` preserves larger configured sashes.
+ */
+.agent-sessions-workbench:not(.noeditorpane) .monaco-split-view2.horizontal:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.vertical:first-child {
+	width: max(var(--vscode-sash-size), var(--vscode-agents-layout-floatingPanelGap));
+	transform: translateX(calc((var(--vscode-sash-size) - max(var(--vscode-sash-size), var(--vscode-agents-layout-floatingPanelGap)) - var(--vscode-agents-layout-floatingPanelGap)) / 2));
+}
+
+.agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal {
+	height: max(var(--vscode-sash-size), var(--vscode-agents-layout-floatingPanelGap));
+	transform: translateY(calc((var(--vscode-sash-size) - max(var(--vscode-sash-size), var(--vscode-agents-layout-floatingPanelGap)) + var(--vscode-agents-layout-floatingPanelGap)) / 2));
+}
+
+/*
+ * Match the standard workbench's persistent three-dot sash gripper. The center
+ * dot is the pseudo-element and box shadows draw the outer dots; hide all three
+ * while the full hover/drag highlight communicates the active resize target.
+ */
+.agent-sessions-workbench:not(.noeditorpane) .monaco-split-view2.horizontal:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.vertical:first-child:not(.disabled)::after,
+.agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: var(--vscode-spacing-size20);
+	height: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
+	color: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
+	opacity: 0.5;
+	pointer-events: none;
+	transform: translate(-50%, -50%);
+}
+
+.agent-sessions-workbench:not(.noeditorpane) .monaco-split-view2.horizontal:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.vertical:first-child:not(.disabled)::after {
+	box-shadow: 0 calc(-1 * var(--vscode-agents-layout-floatingPanelGap)) currentColor, 0 var(--vscode-agents-layout-floatingPanelGap) currentColor;
+}
+
+.agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
+	box-shadow: calc(-1 * var(--vscode-agents-layout-floatingPanelGap)) 0 currentColor, var(--vscode-agents-layout-floatingPanelGap) 0 currentColor;
+}
+
+.agent-sessions-workbench:not(.noeditorpane) .monaco-split-view2.horizontal:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.vertical:first-child:is(.hover, .active)::after,
+.agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:is(.hover, .active)::after {
+	opacity: 0;
+}
+
+.monaco-enable-motion .agent-sessions-workbench:not(.noeditorpane) .monaco-split-view2.horizontal:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.vertical:first-child:not(.disabled)::after,
+.monaco-enable-motion .agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
+	transition: opacity 0.1s ease-out;
+}
+
+@media (forced-colors: active) {
+
+	.agent-sessions-workbench:not(.noeditorpane) .monaco-split-view2.horizontal:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.vertical:first-child:not(.disabled)::after,
+	.agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
+		background: CanvasText;
+		color: CanvasText;
+		opacity: 1;
+	}
 }
 
 /* ---- Docked Detail Panel ---- */

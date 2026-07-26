@@ -107,7 +107,7 @@ steps:
     displayName: Create node_modules archive
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - pwsh: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli=Windows CLI (${{ upper(parameters.VSCODE_ARCH) }})" unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
+    - pwsh: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli=WindowsCLI_${{ upper(parameters.VSCODE_ARCH) }}" unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI artifact (background)
@@ -128,6 +128,10 @@ steps:
   - template: ../../common/install-builtin-extensions.yml@self
 
   - template: ../../common/agent-sdk-produce.yml@self
+    parameters:
+      vscodePlatform: win32
+
+  - template: ../../common/dictation-runtime-produce.yml@self
     parameters:
       vscodePlatform: win32
 
@@ -249,7 +253,7 @@ steps:
     displayName: Build server (web)
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - pwsh: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli=Windows CLI (${{ upper(parameters.VSCODE_ARCH) }})" unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
+    - pwsh: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli=WindowsCLI_${{ upper(parameters.VSCODE_ARCH) }}" unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI artifact

@@ -1405,7 +1405,7 @@ sees the deltas it can act on.
 
 | IAgent surface | SDK primitive(s) | What it does |
 |---|---|---|
-| `setPendingMessages?(session, steeringMessage, queuedMessages)` (optional) | Yield an `SDKUserMessage` with `priority: 'now'` into the prompt iterable that was passed to `query()` ([sdk.d.ts:3067-3086](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L3067-L3086)) | Notifies the agent that the session's pending-message state changed. The agent reacts by yielding the steering content as an `SDKUserMessage` whose `priority` is `'now'`, which the SDK treats as "preempt the current turn and run me first." |
+| `setPendingMessages?(chat, steeringMessage, queuedMessages)` (optional) | Yield an `SDKUserMessage` with `priority: 'now'` into the prompt iterable that was passed to `query()` ([sdk.d.ts:3067-3086](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L3067-L3086)) | Notifies the agent that the chat's pending-message state changed. The agent reacts by yielding the steering content as an `SDKUserMessage` whose `priority` is `'now'`, which the SDK treats as "preempt the current turn and run me first." |
 | (outbound signal) `AgentSignal { kind: 'steering_consumed', session, id }` | n/a (host-emitted on SDK ack) | Agent fires this signal when the SDK confirms the steering message was delivered to the model. Host then dispatches `SessionPendingMessageRemoved` so the client clears the pending pill. |
 
 ##### Pending-message taxonomy (locked at the protocol layer)
@@ -1425,7 +1425,7 @@ agent boundary:
 
 ```ts
 setPendingMessages?(
-    session: URI,
+    chat: URI,
     steeringMessage: PendingMessage | undefined,
     queuedMessages: readonly PendingMessage[]
 ): void;

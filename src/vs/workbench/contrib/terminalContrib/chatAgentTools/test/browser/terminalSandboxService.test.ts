@@ -5,6 +5,7 @@
 
 import { deepStrictEqual, strictEqual, ok } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { IChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -15,7 +16,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
+import { IRemoteAgentConnection, IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
@@ -30,6 +31,7 @@ import { testWorkspace } from '../../../../../../platform/workspace/test/common/
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../../../../../platform/sandbox/common/terminalSandboxMxcRuntime.js';
+import { getTerminalSandboxReadAllowListForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxReadAllowList.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxRuntimeConfigurationPerOperation.js';
 
 suite('TerminalSandboxService - network domains', () => {
@@ -72,6 +74,7 @@ suite('TerminalSandboxService - network domains', () => {
 	}
 
 	class MockRemoteAgentService {
+		connection: IRemoteAgentConnection | null = null;
 		remoteEnvironment: IRemoteAgentEnvironment | null = {
 			os: OperatingSystem.Linux,
 			tmpDir: URI.file('/tmp'),
@@ -97,8 +100,8 @@ suite('TerminalSandboxService - network domains', () => {
 			isUnsupportedGlibc: false
 		};
 
-		getConnection() {
-			return null;
+		getConnection(): IRemoteAgentConnection | null {
+			return this.connection;
 		}
 
 		async getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
@@ -330,6 +333,109 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Bubblewrap);
 		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction]);
 		strictEqual(result.detail, 'No permissions to create namespace');
+	});
+
+	test('should install sandbox dependencies with the detected package manager', async () => {
+		sandboxHelperService.status = {
+			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
+			socatInstalled: false,
+			dependencyInstallCommand: 'sudo apt-get update && sudo apt-get install -y',
+		};
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		let sentCommand: string | undefined;
+		const commandFinishedEmitter = store.add(new Emitter<{ exitCode: number | undefined }>());
+		const terminal: ISandboxDependencyInstallTerminal = {
+			sendText: async command => {
+				sentCommand = command;
+				commandFinishedEmitter.fire({ exitCode: 0 });
+			},
+			focus: () => { },
+			capabilities: {
+				get: () => ({ onCommandFinished: commandFinishedEmitter.event }),
+				onDidAddCapability: Event.None,
+			},
+			onDidInputData: Event.None,
+			onDisposed: Event.None,
+		};
+
+		const result = await sandboxService.installMissingSandboxDependencies(['bubblewrap', 'socat'], undefined, CancellationToken.None, {
+			createTerminal: async () => terminal,
+			focusTerminal: async () => { },
+		});
+
+		strictEqual(result.exitCode, 0);
+		strictEqual(sentCommand, `sudo apt-get update && sudo apt-get install -y 'bubblewrap' 'socat'`);
+	});
+
+	test('should install sandbox dependencies with the remote host package manager', async () => {
+		sandboxHelperService.status = {
+			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
+			socatInstalled: false,
+			dependencyInstallCommand: 'sudo apt-get install -y',
+		};
+		const remoteStatus: ISandboxDependencyStatus = {
+			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
+			socatInstalled: false,
+			dependencyInstallCommand: 'sudo pacman -S --needed --noconfirm',
+		};
+		const channel: IChannel = {
+			call: async <T>(command: string): Promise<T> => {
+				strictEqual(command, 'checkSandboxDependencies');
+				return remoteStatus as T;
+			},
+			listen: () => Event.None,
+		};
+		remoteAgentService.connection = {
+			withChannel: async <T extends IChannel, R>(_channelName: string, callback: (channel: T) => Promise<R>): Promise<R> => callback(channel as T),
+		} as IRemoteAgentConnection;
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		let sentCommand: string | undefined;
+		const commandFinishedEmitter = store.add(new Emitter<{ exitCode: number | undefined }>());
+		const terminal: ISandboxDependencyInstallTerminal = {
+			sendText: async command => {
+				sentCommand = command;
+				commandFinishedEmitter.fire({ exitCode: 0 });
+			},
+			focus: () => { },
+			capabilities: {
+				get: () => ({ onCommandFinished: commandFinishedEmitter.event }),
+				onDidAddCapability: Event.None,
+			},
+			onDidInputData: Event.None,
+			onDisposed: Event.None,
+		};
+
+		const result = await sandboxService.installMissingSandboxDependencies(['bubblewrap'], undefined, CancellationToken.None, {
+			createTerminal: async () => terminal,
+			focusTerminal: async () => { },
+		});
+
+		strictEqual(result.exitCode, 0);
+		strictEqual(sentCommand, `sudo pacman -S --needed --noconfirm 'bubblewrap'`);
+	});
+
+	test('should not create a terminal without a supported package manager', async () => {
+		sandboxHelperService.status = {
+			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
+			socatInstalled: true,
+		};
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		let terminalCreated = false;
+
+		const result = await sandboxService.installMissingSandboxDependencies(['bubblewrap'], undefined, CancellationToken.None, {
+			createTerminal: async () => {
+				terminalCreated = true;
+				throw new Error('Unexpected terminal creation');
+			},
+			focusTerminal: async () => { },
+		});
+
+		strictEqual(result.exitCode, undefined);
+		strictEqual(terminalCreated, false);
 	});
 
 	test('should run the approved bubblewrap remediation command', async () => {
@@ -761,6 +867,8 @@ suite('TerminalSandboxService - network domains', () => {
 			const config = await getConfigAfterWrap(command, [{ keyword: 'git', args }]);
 			ok(config.filesystem.allowRead.includes('/home/user/.gnupg'), `${command} should include GPG read allow-list paths`);
 			ok(config.filesystem.allowWrite.includes('/home/user/.gnupg'), `${command} should include GPG write allow-list paths`);
+			ok(config.filesystem.allowRead.includes('/home/user/.ssh'), `${command} should include SSH read allow-list paths`);
+			ok(!config.filesystem.allowWrite.includes('/home/user/.ssh'), `${command} should not include SSH write allow-list paths`);
 			ok(config.filesystem.allowRead.includes('/home/user/.gitconfig'), `${command} should still include generic Git read allow-list paths`);
 			ok(config.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), `${command} should include the GitHub CLI config`);
 			ok(!config.filesystem.allowWrite.includes('/home/user/.config/gh/config.yml'), `${command} should not make the GitHub CLI config writable`);
@@ -770,6 +878,18 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(gpgConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'GPG commands should include GPG read allow-list paths');
 		ok(!gpgConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'GPG commands should not include GPG write allow-list paths');
 		ok(!gpgConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'GPG commands should not include generic git read allow-list paths');
+		ok(!gpgConfig.filesystem.allowRead.includes('/home/user/.ssh'), 'GPG commands should not include SSH read allow-list paths');
+
+		for (const command of [
+			{ keyword: 'ssh', args: ['example.com'] },
+			{ keyword: 'scp', args: ['file.txt', 'example.com:/tmp'] },
+			{ keyword: 'sftp', args: ['example.com'] },
+			{ keyword: 'rsync', args: ['file.txt', 'example.com:/tmp'] },
+		]) {
+			const config = await getConfigAfterWrap(`${command.keyword} ${command.args.join(' ')}`, [command]);
+			ok(config.filesystem.allowRead.includes('/home/user/.ssh'), `${command.keyword} should include SSH read allow-list paths`);
+			ok(!config.filesystem.allowWrite.includes('/home/user/.ssh'), `${command.keyword} should not include SSH write allow-list paths`);
+		}
 
 		const chainedGitConfig = await getConfigAfterWrap('git rebase main && npm install', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'npm', args: ['install'] }]);
 		ok(chainedGitConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Chained Git commands should include GPG read allow-list paths');
@@ -782,10 +902,31 @@ suite('TerminalSandboxService - network domains', () => {
 		const npmConfig = await getConfigAfterWrap('npm install', [{ keyword: 'npm', args: ['install'] }]);
 		ok(!npmConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Commands without a matching GPG rule should not include GPG read allow-list paths');
 		ok(!npmConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Commands without a matching GPG rule should not include GPG write allow-list paths');
+		ok(!npmConfig.filesystem.allowRead.includes('/home/user/.ssh'), 'Commands without a matching SSH rule should not include SSH read allow-list paths');
+		ok(!npmConfig.filesystem.allowWrite.includes('/home/user/.ssh'), 'Commands without a matching SSH rule should not include SSH write allow-list paths');
 
 		const echoConfig = await getConfigAfterWrap('echo "git commit"', [{ keyword: 'echo', args: ['git commit'] }]);
 		ok(!echoConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Quoted command text should not include GPG read allow-list paths');
 		ok(!echoConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Quoted command text should not include GPG write allow-list paths');
+		ok(!echoConfig.filesystem.allowRead.includes('/home/user/.ssh'), 'Quoted command text should not include SSH read allow-list paths');
+		ok(!echoConfig.filesystem.allowWrite.includes('/home/user/.ssh'), 'Quoted command text should not include SSH write allow-list paths');
+	});
+
+	test('should add SSH read allow-list paths only for supported commands on Linux and macOS', () => {
+		for (const os of [OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+			for (const keyword of ['git', 'ssh', 'scp', 'sftp', 'rsync']) {
+				const paths = getTerminalSandboxReadAllowListForCommands(os, [], [{ keyword, args: [] }]);
+				ok(paths.includes('~/.ssh'), `${keyword} should include SSH read access on ${os}`);
+			}
+			for (const keyword of ['gpg', 'npm', 'curl']) {
+				const paths = getTerminalSandboxReadAllowListForCommands(os, [], [{ keyword, args: [] }]);
+				ok(!paths.includes('~/.ssh'), `${keyword} should not include SSH read access on ${os}`);
+			}
+		}
+	});
+
+	test('should add GnuPG read allow-list paths for gpg command keywords', () => {
+		deepStrictEqual(getTerminalSandboxReadAllowListForCommands(OperatingSystem.Linux, ['gpg']), ['~/.gnupg']);
 	});
 
 	test('should not rewrite sandbox config when the parsed command details produce unchanged allow-lists', async () => {

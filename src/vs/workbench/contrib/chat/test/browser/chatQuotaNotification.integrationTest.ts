@@ -119,7 +119,7 @@ suite('ChatQuotaNotificationContribution integration', () => {
 		const entitlementService = createEntitlementService(opts);
 		const commandService = new TestCommandService();
 		const storageService = instantiationService.get(IStorageService);
-		storageService.store('chat.currentLanguageModel.panel', 'copilot/test-model', StorageScope.APPLICATION, StorageTarget.USER);
+		storageService.store('chat.currentLanguageModel.panel', 'copilot/test-model', StorageScope.PROFILE, StorageTarget.USER);
 
 		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(IChatEntitlementService, entitlementService.service);

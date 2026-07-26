@@ -370,6 +370,12 @@ export const enum ChatOriginKind {
 	Tool = 'tool',
 	User = 'user',
 	Fork = 'fork',
+	SideChat = 'sideChat',
+}
+
+export interface ISideChatSelection {
+	readonly text: string;
+	readonly responsePartId?: string;
 }
 
 export interface IChatOrigin {
@@ -380,6 +386,7 @@ export interface IChatOrigin {
 	 * resource of the chat that spawned it. Undefined for user-originated chats.
 	 */
 	readonly parentChat?: URI;
+	readonly selection?: ISideChatSelection;
 }
 
 /**
@@ -495,6 +502,8 @@ export interface ISession {
 	readonly createdAt: Date;
 	/** Workspace this session operates on. */
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+	/** Whether the session has a usable Git repository. Providers may refine this beyond workspace metadata. */
+	readonly hasGitRepository?: IObservable<boolean>;
 	/** Whether this is a workspace-less "quick chat". Only quick-chat-capable providers set this; absent means `false`. */
 	readonly isQuickChat?: IObservable<boolean>;
 
@@ -574,6 +583,13 @@ export interface ISessionCapabilities {
 	 * it. Defaults to falsy (no fork) when omitted.
 	 */
 	readonly supportsFork?: boolean;
+	/**
+	 * Whether this session supports creating a side chat from a turn (via
+	 * `/btw`). Side chats inherit the source chat's model/agent and are shown
+	 * as ordinary peer chats in the session's standard chat tabs. Defaults to
+	 * falsy (no side chat) when omitted.
+	 */
+	readonly supportsSideChat?: boolean;
 	/**
 	 * Whether this session's title can be renamed. The agents-window UI
 	 * (session header inline edit, sessions-list `Rename...` action) gates

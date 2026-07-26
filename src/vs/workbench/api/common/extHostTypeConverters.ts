@@ -3092,6 +3092,7 @@ export namespace ChatToolInvocationPart {
 				agentName: data.agentName,
 				prompt: data.prompt,
 				result: data.result,
+				modelName: data.modelName,
 			};
 		}
 		return data;

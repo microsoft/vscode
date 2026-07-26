@@ -13,6 +13,7 @@ const FOLDER_B = URI.file('/workspace/b');
 
 function createState(overrides?: Partial<IAutomationIsolationFormState>): IAutomationIsolationFormState {
 	return {
+		isQuickChat: false,
 		folderUri: FOLDER_A,
 		isolationMode: 'workspace',
 		branch: undefined,
@@ -36,6 +37,19 @@ suite('AutomationIsolationModel', () => {
 			displayBranch: 'main',
 			persistedBranch: undefined,
 			stateBranch: undefined,
+		});
+	});
+
+	test('provider-default isolation displays Folder without selecting it explicitly', () => {
+		const state = createState({ isolationMode: undefined });
+		const model = new AutomationIsolationModel(state);
+
+		assert.deepStrictEqual({
+			displayMode: model.isolationMode,
+			persistedMode: state.isolationMode,
+		}, {
+			displayMode: 'workspace',
+			persistedMode: undefined,
 		});
 	});
 
@@ -158,6 +172,74 @@ suite('AutomationIsolationModel', () => {
 			selected: false,
 			mode: 'workspace',
 			pickerAvailable: false,
+		});
+	});
+
+	test('workspace-less mode clears repository state and returns to Folder mode explicitly', () => {
+		const state = createState({ isolationMode: 'worktree', branch: 'feature/saved' });
+		const model = new AutomationIsolationModel(state);
+		model.setSupportsWorktreeConfiguration(true);
+		model.setHeadBranch('main');
+
+		model.setQuickChat(true);
+		const quickChatState = {
+			isQuickChat: model.isQuickChat,
+			folderUri: model.folderUri,
+			isolationMode: state.isolationMode,
+			branch: model.persistedBranch,
+		};
+		model.setQuickChat(false, FOLDER_B);
+
+		assert.deepStrictEqual({
+			quickChatState,
+			workspaceState: {
+				isQuickChat: model.isQuickChat,
+				folderUri: model.folderUri?.toString(),
+				isolationMode: model.isolationMode,
+				branch: model.persistedBranch,
+			},
+		}, {
+			quickChatState: {
+				isQuickChat: true,
+				folderUri: undefined,
+				isolationMode: undefined,
+				branch: undefined,
+			},
+			workspaceState: {
+				isQuickChat: false,
+				folderUri: FOLDER_B.toString(),
+				isolationMode: 'workspace',
+				branch: undefined,
+			},
+		});
+	});
+
+	test('ignores hidden workspace updates while workspace-less mode is active', () => {
+		const state = createState({ isQuickChat: true, folderUri: undefined });
+		const model = new AutomationIsolationModel(state);
+
+		const accepted = model.setWorkspace(FOLDER_B);
+
+		assert.deepStrictEqual({
+			accepted,
+			state: {
+				isQuickChat: state.isQuickChat,
+				folderUri: state.folderUri,
+			},
+			observables: {
+				isQuickChat: model.isQuickChatObs.get(),
+				folderUri: model.folderUriObs.get(),
+			},
+		}, {
+			accepted: false,
+			state: {
+				isQuickChat: true,
+				folderUri: undefined,
+			},
+			observables: {
+				isQuickChat: true,
+				folderUri: undefined,
+			},
 		});
 	});
 

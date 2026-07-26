@@ -11,7 +11,6 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { observableContextKey } from '../../../../../../platform/observable/common/platformObservableUtils.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../../workbench/common/contributions.js';
@@ -29,7 +28,7 @@ import { ISessionsProvidersService } from '../../../../../services/sessions/brow
 import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { isWellKnownModeSchema, isWellKnownModeValue } from '../agentHostPermissionPickerDelegate.js';
-import { normalizeModelPickerOptions, selectAvailableSessionModel } from '../../../../chat/browser/modelPickerSelection.js';
+import { normalizeModelPickerOptions } from '../../../../chat/browser/sessionModelSelectionModel.js';
 import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPhoneInputTarget, matchesChatPhoneInputTarget } from './mobileChatPhoneInputTarget.js';
 
 /**
@@ -66,7 +65,6 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
@@ -252,7 +250,11 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 				break;
 			case 'agentHostModel':
 				if (session && agentHostProvider) {
-					selectAvailableSessionModel(session, agentHostProvider, this._storageService, action.model.identifier);
+					if (request.kind === 'delegates') {
+						request.modelDelegate.setModel(action.model);
+					} else {
+						request.selectModel(action.model.identifier);
+					}
 				}
 				break;
 		}

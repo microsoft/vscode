@@ -19,6 +19,7 @@ import {
 	SessionSupportsDeleteContext,
 	SessionSupportsMultipleChatsContext,
 	SessionSupportsForkContext,
+	SessionSupportsSideChatContext,
 	SessionSupportsRenameContext,
 	SessionTypeContext,
 	SessionWorkspaceIsVirtualContext,
@@ -29,6 +30,7 @@ import {
 	SessionActiveChatIsClosableContext,
 	SessionActiveChatIsDeletableContext,
 	SessionActiveChatHasSubagentsContext,
+	SessionHasGitRepositoryContext,
 } from '../../../common/contextkeys.js';
 import { ChatOriginKind, getChatCapabilities, ISession, SessionStatus } from './session.js';
 import { IActiveSession } from './sessionsManagement.js';
@@ -44,9 +46,11 @@ interface ISessionContextKeys {
 	readonly isRead: IContextKey<boolean>;
 	readonly supportsMultipleChats: IContextKey<boolean>;
 	readonly supportsFork: IContextKey<boolean>;
+	readonly supportsSideChat: IContextKey<boolean>;
 	readonly supportsRename: IContextKey<boolean>;
 	readonly supportsDelete: IContextKey<boolean>;
 	readonly workspaceIsVirtual: IContextKey<boolean>;
+	readonly hasGitRepository: IContextKey<boolean>;
 	readonly hasChanges: IContextKey<boolean>;
 	readonly hasPullRequest: IContextKey<boolean>;
 	readonly hasWorkspace: IContextKey<boolean>;
@@ -82,9 +86,11 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			isRead: SessionIsReadContext.bindTo(contextKeyService),
 			supportsMultipleChats: SessionSupportsMultipleChatsContext.bindTo(contextKeyService),
 			supportsFork: SessionSupportsForkContext.bindTo(contextKeyService),
+			supportsSideChat: SessionSupportsSideChatContext.bindTo(contextKeyService),
 			supportsRename: SessionSupportsRenameContext.bindTo(contextKeyService),
 			supportsDelete: SessionSupportsDeleteContext.bindTo(contextKeyService),
 			workspaceIsVirtual: SessionWorkspaceIsVirtualContext.bindTo(contextKeyService),
+			hasGitRepository: SessionHasGitRepositoryContext.bindTo(contextKeyService),
 			hasChanges: SessionHasChangesContext.bindTo(contextKeyService),
 			hasPullRequest: SessionHasPullRequestContext.bindTo(contextKeyService),
 			hasWorkspace: SessionHasWorkspaceContext.bindTo(contextKeyService),
@@ -127,9 +133,12 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	const capabilities = session?.capabilities.read(reader);
 	keys.supportsMultipleChats.set(capabilities?.supportsMultipleChats ?? false);
 	keys.supportsFork.set(capabilities?.supportsFork ?? false);
+	keys.supportsSideChat.set(capabilities?.supportsSideChat ?? false);
 	keys.supportsRename.set(capabilities?.supportsRename ?? false);
 	keys.supportsDelete.set(capabilities?.supportsDelete ?? false);
-	keys.workspaceIsVirtual.set(session?.workspace.read(reader)?.isVirtualWorkspace ?? true);
+	const workspace = session?.workspace.read(reader);
+	keys.workspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
+	keys.hasGitRepository.set(session?.hasGitRepository?.read(reader) ?? workspace?.folders.some(folder => folder.gitRepository !== undefined) ?? false);
 
 	// Mirror the changes pill: the default changeset, falling back to the session's changes.
 	const defaultChangeset = session?.changesets.read(reader)?.find(c => c.isDefault.read(reader));
@@ -150,6 +159,7 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	// `workspace === undefined` (which is also transiently true for a
 	// still-resolving workspace session).
 	keys.isQuickChat.set(!!session && (session.isQuickChat?.read(reader) ?? false));
+
 }
 
 /**

@@ -14,6 +14,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -22,7 +23,7 @@ import { TestStorageService } from '../../../../../../workbench/test/common/work
 import { ChatAgentLocation } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { IChatModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatModelReference, IChatService, IChatSessionStartOptions, IChatSessionTiming } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -190,6 +191,48 @@ suite('LocalChatSessionsProvider', () => {
 
 		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
 		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), [LocalSessionType.id]);
+	});
+
+	test('keeps empty Copilot resolution pending until live Copilot models arrive', () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService } = createFixture(store);
+		const models = new Map<string, ILanguageModelChatMetadata>();
+		instantiationService.stub(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
+			override getLanguageModelIds(): string[] { return [...models.keys()]; }
+			override lookupLanguageModel(identifier: string): ILanguageModelChatMetadata | undefined { return models.get(identifier); }
+			override hasResolvedVendor(): boolean { return true; }
+		}());
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+		const emptyCopilot = provider.getModelsSnapshot('session', 'copilot/remembered');
+		const emptyByok = provider.getModelsSnapshot('session', 'ollama/remembered');
+
+		models.set('copilot/other', {
+			extension: new ExtensionIdentifier('test.extension'),
+			id: 'other',
+			name: 'Other',
+			vendor: 'copilot',
+			version: '1.0',
+			family: 'other',
+			maxInputTokens: 1,
+			maxOutputTokens: 1,
+			isUserSelectable: true,
+			isDefaultForLocation: {},
+		});
+		const liveCopilot = provider.getModelsSnapshot('session', 'copilot/remembered');
+
+		assert.deepStrictEqual({
+			emptyCopilot: emptyCopilot.desiredModelResolution,
+			emptyByok: emptyByok.desiredModelResolution,
+			liveCopilot: liveCopilot.desiredModelResolution,
+			models: liveCopilot.models.map(model => model.identifier),
+			modelTarget: liveCopilot.modelTarget,
+		}, {
+			emptyCopilot: { kind: 'pending', identifier: 'copilot/remembered' },
+			emptyByok: { kind: 'unavailable', identifier: 'ollama/remembered' },
+			liveCopilot: { kind: 'unavailable', identifier: 'copilot/remembered' },
+			models: ['copilot/other'],
+			modelTarget: undefined,
+		});
 	});
 
 	test('resolveWorkspace handles only file uris', () => {

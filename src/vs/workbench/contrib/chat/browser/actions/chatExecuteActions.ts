@@ -41,7 +41,6 @@ import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } fr
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
-import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
 import { CreateRemoteAgentJobAction } from './chatContinueInAction.js';
 
 export interface IVoiceChatExecuteActionContext {
@@ -987,7 +986,6 @@ export class CancelAction extends Action2 {
 		const logService = accessor.get(ILogService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		const voiceController = accessor.get(IVoiceSessionController);
 		if (!widget) {
 			telemetryService.publicLog2<ChatStopCancellationNoopEvent, ChatStopCancellationNoopClassification>(ChatStopCancellationNoopEventName, {
 				source: 'cancelAction',
@@ -1010,11 +1008,6 @@ export class CancelAction extends Action2 {
 				pendingRequests: 0,
 			});
 			logService.info('ChatCancelAction#run: Canceled chat widget has no view model');
-		}
-		// Also disconnect voice session if active
-
-		if (voiceController.isConnected.get()) {
-			voiceController.disconnect();
 		}
 	}
 }

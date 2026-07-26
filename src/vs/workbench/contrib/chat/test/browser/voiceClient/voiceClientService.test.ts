@@ -12,7 +12,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
-import { IVoiceBargeIn } from '../../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
 
 class TestWebSocket {
 	static instance: TestWebSocket | undefined;
@@ -42,6 +42,11 @@ function createTestWindow(language = 'en-US'): Window & typeof globalThis {
 		get(target, property, receiver) {
 			if (property === 'WebSocket') {
 				return TestWebSocket;
+			}
+			// Native timer methods are branded to their owning `window` and throw
+			// "Illegal invocation" when called with a Proxy as `this`; bind to the real target.
+			if (property === 'setInterval' || property === 'clearInterval') {
+				return target[property].bind(target);
 			}
 			if (property === 'navigator') {
 				return new Proxy(target.navigator, {
@@ -120,6 +125,115 @@ suite('VoiceClientService', () => {
 		}]);
 	});
 
+	test('preserves the backend turn ID when audio has a narration ID', async () => {
+		const { service } = createService();
+		const events: IVoiceAudioResponse[] = [];
+		store.add(service.onAudioResponse(event => events.push(event)));
+
+		await service.connect(createTestWindow());
+		const webSocket = socket();
+		if (!webSocket.onmessage) {
+			throw new Error('Voice WebSocket was not created');
+		}
+		webSocket.onmessage(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({
+				type: 'audio_response',
+				audio: 'audio',
+				is_first_chunk: true,
+				is_final: false,
+				turn_id: 'backend-turn',
+				narration_id: 'client-narration',
+			}),
+		}));
+
+		assert.deepStrictEqual(events, [{
+			audio: 'audio',
+			isFirstChunk: true,
+			isFinal: false,
+			codingSessionId: undefined,
+			transcript: undefined,
+			turnId: 'backend-turn',
+			responseId: 'client-narration',
+		}]);
+	});
+
+	test('validates and translates scoped transcription metadata', async () => {
+		const productService: IProductService = {
+			_serviceBrand: undefined,
+			...product,
+			voiceWsUrl: 'ws://voice.test/realtime/voice',
+		};
+		const service = store.add(new VoiceClientService(
+			new TestConfigurationService(),
+			new NullLogService(),
+			productService,
+		));
+		const events: IVoiceTranscription[] = [];
+		store.add(service.onTranscription(event => events.push(event)));
+
+		await service.connect(createTestWindow());
+		const socket = TestWebSocket.instance;
+		if (!socket?.onmessage) {
+			throw new Error('Voice WebSocket was not created');
+		}
+		socket.onmessage(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({
+				type: 'transcription',
+				text: 'create a file',
+				status: 'partial',
+				committed: 'create ',
+				turn_id: 'turn-1',
+				revision: 3,
+			}),
+		}));
+
+		assert.deepStrictEqual(events, [{
+			text: 'create a file',
+			status: 'partial',
+			committed: 'create ',
+			turnId: 'turn-1',
+			revision: 3,
+		}]);
+	});
+
+	test('rejects invalid transcription status and revision', async () => {
+		const productService: IProductService = {
+			_serviceBrand: undefined,
+			...product,
+			voiceWsUrl: 'ws://voice.test/realtime/voice',
+		};
+		const service = store.add(new VoiceClientService(
+			new TestConfigurationService(),
+			new NullLogService(),
+			productService,
+		));
+		const events: IVoiceTranscription[] = [];
+		store.add(service.onTranscription(event => events.push(event)));
+
+		await service.connect(createTestWindow());
+		const socket = TestWebSocket.instance;
+		if (!socket?.onmessage) {
+			throw new Error('Voice WebSocket was not created');
+		}
+		for (const message of [
+			{ type: 'transcription', text: 'invalid status', status: 'pending' },
+			{ type: 'transcription', text: 'unscoped revision', status: 'partial', revision: 1 },
+			{ type: 'transcription', text: 'invalid revision', status: 'partial', turn_id: 'turn-1', revision: 1.5 },
+			{ type: 'transcription', text: 'negative revision', status: 'partial', turn_id: 'turn-1', revision: -1 },
+			{ type: 'transcription', text: 'legacy final' },
+		]) {
+			socket.onmessage(new mainWindow.MessageEvent('message', { data: JSON.stringify(message) }));
+		}
+
+		assert.deepStrictEqual(events, [{
+			text: 'legacy final',
+			status: 'final',
+			committed: '',
+			turnId: undefined,
+			revision: undefined,
+		}]);
+	});
+
 	test('sends microphone audio using the PTT protocol', async () => {
 		const { service } = createService();
 
@@ -132,6 +246,21 @@ suite('VoiceClientService', () => {
 			{ type: 'ptt_start', turn_id: 'turn-1' },
 			{ type: 'ptt_audio_chunk', audio: 'cGNt' },
 			{ type: 'ptt_end' },
+		]);
+	});
+
+	test('flags a passive ptt_start for hands-free barge-in listens', async () => {
+		const { service } = createService();
+
+		await service.connect(createTestWindow());
+		service.sendPttStart('turn-passive', true);
+		service.sendPttStart('turn-real', false);
+		service.sendPttStart('turn-default');
+
+		assert.deepStrictEqual(socket().sent, [
+			{ type: 'ptt_start', turn_id: 'turn-passive', passive: true },
+			{ type: 'ptt_start', turn_id: 'turn-real' },
+			{ type: 'ptt_start', turn_id: 'turn-default' },
 		]);
 	});
 
@@ -296,5 +425,60 @@ suite('VoiceClientService', () => {
 				voice: 'daniel_neutral',
 			}],
 		});
+	});
+
+	test('adopts the server session id and clears isResuming on session_init, even after a failed resume', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({ type: 'session_init', session_id: 'session-1' }),
+		}));
+		assert.strictEqual(service.currentSessionId, 'session-1');
+		assert.strictEqual(service.isResuming, false);
+
+		// Simulate a reconnect attempt: the socket opens (marking us as
+		// resuming the prior session id) but the server can't resume and
+		// starts a brand new session instead.
+		socket().onopen?.();
+		assert.strictEqual(service.isResuming, true);
+
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({ type: 'session_init', session_id: 'session-2' }),
+		}));
+
+		assert.strictEqual(service.currentSessionId, 'session-2');
+		assert.strictEqual(service.isResuming, false);
+	});
+
+	test('adopts the server session id and clears isResuming on session_resumed', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({ type: 'session_init', session_id: 'session-1' }),
+		}));
+		socket().onopen?.();
+		assert.strictEqual(service.isResuming, true);
+
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({ type: 'session_resumed', session_id: 'session-1' }),
+		}));
+
+		assert.strictEqual(service.currentSessionId, 'session-1');
+		assert.strictEqual(service.isResuming, false);
+	});
+
+	test('resets isResuming on cleanup (terminal disconnect)', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({ type: 'session_init', session_id: 'session-1' }),
+		}));
+		socket().onopen?.();
+		assert.strictEqual(service.isResuming, true);
+
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 1000, wasClean: true }));
+
+		assert.strictEqual(service.isResuming, false);
+		assert.strictEqual(service.currentSessionId, undefined);
 	});
 });
