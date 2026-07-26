@@ -46,7 +46,7 @@ import { IToolResultCompressor } from '../../../../chat/common/tools/toolResultC
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import type { ICommandLinePresenter } from '../../browser/tools/commandLinePresenter/commandLinePresenter.js';
-import { createRunInTerminalToolData, RunInTerminalTool, shouldAutomaticallyRetryAllowNetworkInSandboxed, shouldAutomaticallyRetryUnsandboxed, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
+import { createRunInTerminalToolData, outputLooksBubblewrapHostRestricted, RunInTerminalTool, shouldAutomaticallyRetryAllowNetworkInSandboxed, shouldAutomaticallyRetryUnsandboxed, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
@@ -69,6 +69,9 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	get sessionTerminalInstances() { return this._sessionTerminalInstances; }
 	get profileFetcher() { return this._profileFetcher; }
 	get commandLinePresenters(): ICommandLinePresenter[] { return (this as unknown as Record<string, ICommandLinePresenter[]>)['_commandLinePresenters']; }
+	getBubblewrapHostRestrictedResult(): IToolResult {
+		return (this as unknown as Record<string, () => IToolResult>)['_getBubblewrapHostRestrictedResult']();
+	}
 
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
@@ -553,7 +556,7 @@ suite('RunInTerminalTool', () => {
 			strictEqual(createTerminalCallCount, 0);
 		});
 
-		test('should show repair choices when bubblewrap is installed but unusable on Linux', async () => {
+		test('should automatically schedule AppArmor remediation without a repair prompt', async () => {
 			sandboxPrereqResult = {
 				enabled: true,
 				sandboxConfigPath: '/tmp/sandbox.json',
@@ -564,8 +567,7 @@ suite('RunInTerminalTool', () => {
 			const result = await executeToolTest({ command: 'echo hello' });
 			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 
-			ok(result?.confirmationMessages, 'Expected confirmation messages for bubblewrap repair');
-			strictEqual(result?.confirmationMessages?.customOptions?.length, 2, 'Expected repair and cancel choices');
+			strictEqual(result?.confirmationMessages, undefined, 'Expected no repair confirmation');
 			strictEqual(terminalData?.sandboxRemediations?.length, 1, 'Expected one repair option in terminal invocation data');
 			strictEqual(terminalData?.missingSandboxDependencies, undefined, 'Should not classify unusable bubblewrap as missing');
 		});
@@ -619,21 +621,58 @@ suite('RunInTerminalTool', () => {
 			ok((result.content[0] as { value?: string }).value?.includes('If the issue persists, reload the window and try running the command again'), 'Expected conditional reload and retry guidance');
 		});
 
-		test('should suggest reloading and retrying when bubblewrap remains unavailable after repair', async () => {
-			terminalSandboxService.checkForSandboxingPrereqs = async () => ({
+		test('should automatically repair AppArmor, probe again, and execute', async () => {
+			let forceRefreshCalled = false;
+			terminalSandboxService.checkForSandboxingPrereqs = async forceRefresh => {
+				forceRefreshCalled ||= forceRefresh === true;
+				return forceRefresh ? {
+					enabled: true,
+					sandboxConfigPath: '/tmp/sandbox.json',
+					failedCheck: undefined,
+				} : {
+					enabled: true,
+					sandboxConfigPath: '/tmp/sandbox.json',
+					failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
+					remediations: [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction],
+				};
+			};
+			let remediationCalled = false;
+			terminalSandboxService.runSandboxRemediation = async () => {
+				remediationCalled = true;
+				return { exitCode: 0 };
+			};
+
+			const result = await invokeToolTest({ command: 'echo hello' });
+
+			strictEqual(remediationCalled, true);
+			strictEqual(forceRefreshCalled, true, 'Expected a probe after AppArmor remediation');
+			strictEqual(createTerminalCallCount, 1, 'Expected the original command to execute');
+			ok(result.content.length > 0);
+		});
+
+		test('should report sandboxing unsupported when bubblewrap repair execution fails or is indeterminate', async () => {
+			sandboxPrereqResult = {
 				enabled: true,
 				sandboxConfigPath: '/tmp/sandbox.json',
 				failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
 				remediations: [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction],
-			});
+			};
 
-			const result = await invokeToolTest(
-				{ command: 'echo hello' },
-				TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction,
-			);
+			let previousMessage: string | undefined;
+			for (const exitCode of [1, undefined] as const) {
+				terminalSandboxService.runSandboxRemediation = async () => ({ exitCode });
+				const result = await invokeToolTest({ command: 'echo hello' });
 
-			strictEqual(createTerminalCallCount, 0, 'Expected the original command not to execute');
-			ok((result.content[0] as { value?: string }).value?.includes('Reload the window and try running the command again'), 'Expected reload and retry guidance after unsuccessful repair');
+				strictEqual(createTerminalCallCount, 0, 'Expected the original command not to execute');
+				const message = (result.content[0] as { value?: string }).value ?? '';
+				ok(message.includes('Sandboxing is not supported in this environment'), 'Expected unsupported environment guidance after repair execution failure');
+				ok(message.includes('chat.agent.sandbox.enabled'), 'Expected guidance to identify the sandbox setting');
+				if (previousMessage !== undefined) {
+					strictEqual(message, previousMessage, 'Expected the same message irrespective of the remediation exit code');
+				}
+				previousMessage = message;
+				ok(typeof result.toolResultMessage !== 'string' && result.toolResultMessage?.value.includes('command:workbench.action.openSettings'), 'Expected a settings command link in the user-facing message');
+			}
 		});
 
 		test('should not execute when bubblewrap is unusable and no supported remediation is available', async () => {
@@ -854,6 +893,19 @@ suite('RunInTerminalTool', () => {
 
 		test('should retry completed foreground sandbox commands when output indicates sandbox block', () => {
 			strictEqual(shouldAutomaticallyRetryUnsandboxed(baseRetryOptions), true);
+		});
+
+		test('should detect bubblewrap host restrictions across wrapped output lines', () => {
+			strictEqual(outputLooksBubblewrapHostRestricted('bwrap: No permissions to create new\nnamespace'), true);
+			strictEqual(outputLooksBubblewrapHostRestricted('bwrap: failed to bind mount'), false);
+		});
+
+		test('should direct the user to disable sandboxing when bubblewrap is restricted by the host', () => {
+			const result = runInTerminalTool.getBubblewrapHostRestrictedResult();
+
+			ok((result.content[0] as { value?: string }).value?.includes(AgentSandboxSettingId.AgentSandboxEnabled));
+			ok((result.content[0] as { value?: string }).value?.includes('retry the command'));
+			ok(typeof result.toolResultMessage !== 'string' && result.toolResultMessage?.value.includes('command:workbench.action.openSettings'));
 		});
 
 		test('should not retry when unsandboxed commands are disabled', () => {
