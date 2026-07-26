@@ -31,11 +31,8 @@ import {
 import type { IRelayMessage } from '../common/relayTransport.js';
 import {
 	buildCLIDownloadUrl,
-	cleanupRemoteAgentHost,
 	extractAgentHostWebSocketURL,
-	findRunningAgentHost,
 	redactToken,
-	writeAgentHostState,
 	type ISshExec,
 } from './sshRemoteAgentHostHelpers.js';
 import { PosixRemotePlatform } from './remotePlatform/posixRemotePlatform.js';
@@ -711,101 +708,50 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			let cliBin: string | undefined;
 			let cliDataDir: string | undefined;
 			let resolvedPlatform: IRemotePlatform | undefined;
-			let cliResolved = false;
-			// Resolve the remote CLI lazily: platform detection and CLI
-			// install/refresh only run when we're actually about to spawn
-			// an agent host. Reconnects that reuse a live AH via the
-			// lockfile skip this work entirely, since the running AH was
-			// spawned from whatever CLI was current at the time.
-			const ensureCliResolved = async (): Promise<void> => {
-				if (cliResolved) {
-					return;
-				}
-				cliResolved = true;
-				if (config.remoteAgentHostCommand) {
-					this._logService.info(`${LOG_PREFIX} Using custom agent host command: ${config.remoteAgentHostCommand}`);
-					return;
-				}
-				const platform = await detectRemotePlatform(bindSshExec(sshClient!));
+
+			// 2. Resolve the CLI and launch the agent host. The CLI foreground
+			//    itself classifies its lockfile and either reuses the live
+			//    supervisor or spawns a fresh one; both paths print the same
+			//    `ws://127.0.0.1:PORT[?tkn=TOKEN]` banner we parse. The
+			//    desktop therefore neither reads, writes nor cleans up remote
+			//    lifecycle state — the CLI owns it. See REMOTE_PLATFORM.md section 4.
+			if (config.remoteAgentHostCommand) {
+				this._logService.info(`${LOG_PREFIX} Using custom agent host command: ${config.remoteAgentHostCommand}`);
+			} else {
+				const platform = await detectRemotePlatform(bindSshExec(sshClient));
 				this._logService.info(`${LOG_PREFIX} Remote platform: ${platform.info.os}-${platform.info.arch}`);
 				reportProgress(localize('sshProgressInstallingCLI', "Checking remote CLI installation..."));
 				resolvedPlatform = platform;
 				cliDataDir = platform.cliDataDir(this._serverDataFolderName);
-				cliBin = await this._ensureCLIInstalled(sshClient!, platform, reportProgress);
-			};
-
-			// 2. Check for an already-running agent host on the remote first.
-			//    This prevents accumulating orphaned processes when the SSH
-			//    connection drops and we reconnect — and avoids paying for
-			//    platform detection + CLI install on every reconnect.
-			let remoteHost: string = '127.0.0.1';
-			let remotePort: number | undefined;
-			let connectionToken: string | undefined;
-			let agentStream: SSHChannel | undefined;
-
-			reportProgress(localize('sshProgressCheckingAgent', "Checking for existing agent host..."));
-			const exec = bindSshExec(sshClient);
-			const existingAH = await findRunningAgentHost(exec, this._logService, this._serverDataFolderName, this._quality);
-			if (existingAH.kind === 'compatible') {
-				remoteHost = existingAH.host;
-				remotePort = existingAH.port;
-				connectionToken = existingAH.connectionToken;
+				cliBin = await this._ensureCLIInstalled(sshClient, platform, reportProgress);
 			}
 
-			if (remotePort === undefined) {
-				// 3. Need to spawn fresh: resolve the CLI now.
-				await ensureCliResolved();
+			reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
+			const result = await this._startRemoteAgentHost(sshClient, cliBin, cliDataDir, config.remoteAgentHostCommand, resolvedPlatform);
+			const remotePort = result.port;
+			const connectionToken = result.connectionToken;
+			const agentStream = result.stream;
+			// The CLI's human banner always reports loopback, so we dial
+			// loopback. A machine-readable endpoint line from the CLI will
+			// later carry a non-loopback or IPv6 dial host — see
+			// REMOTE_PLATFORM.md section 4.
+			const remoteHost = '127.0.0.1';
 
-				// 4. Start agent-host and capture port/token
-				reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
-				const result = await this._startRemoteAgentHost(sshClient, cliBin, cliDataDir, config.remoteAgentHostCommand, resolvedPlatform);
-				remotePort = result.port;
-				connectionToken = result.connectionToken;
-				agentStream = result.stream;
-
-				// Record state for future reuse
-				await writeAgentHostState(exec, this._logService, this._serverDataFolderName, this._quality, result.pid, remotePort, connectionToken);
-			}
-
-			// 6. Connect to remote agent host via WebSocket relay (no local TCP port)
+			// 3. Connect to remote agent host via WebSocket relay (no local
+			//    TCP port). A relay failure surfaces to the caller instead
+			//    of killing anything and retrying: the supervisor is shared
+			//    with `code tunnel`, WSL and other desktops, so tearing it
+			//    down is unsafe.
 			reportProgress(localize('sshProgressForwarding', "Connecting to remote agent host..."));
 			const connectionId = connectionKey;
 			let conn: SSHConnection | undefined; // eslint-disable-line prefer-const
-			let relay: { send: (data: string) => void; close: () => void };
-			try {
-				relay = await this._createWebSocketRelay(
-					sshClient, remoteHost, remotePort, connectionToken,
-					(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
-					() => { conn?.dispose(); },
-				);
-			} catch (relayErr) {
-				if (existingAH.kind !== 'compatible') {
-					throw relayErr;
-				}
-				// The reused agent host is not connectable — kill it and start fresh.
-				// Resolve the CLI now (we skipped it on the reuse path).
-				const relayErrorMessage = relayErr instanceof Error ? relayErr.message : String(relayErr);
-				this._logService.warn(`${LOG_PREFIX} Failed to connect to reused agent host on ${remoteHost}:${remotePort}: ${relayErrorMessage}. Starting fresh`);
-				await cleanupRemoteAgentHost(exec, this._logService, this._serverDataFolderName, this._quality);
-				await ensureCliResolved();
+			const relay = await this._createWebSocketRelay(
+				sshClient, remoteHost, remotePort, connectionToken,
+				(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
+				() => { conn?.dispose(); },
+			);
 
-				reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
-				const result = await this._startRemoteAgentHost(sshClient, cliBin, cliDataDir, config.remoteAgentHostCommand, resolvedPlatform);
-				remoteHost = '127.0.0.1';
-				remotePort = result.port;
-				connectionToken = result.connectionToken;
-				agentStream = result.stream;
-				await writeAgentHostState(exec, this._logService, this._serverDataFolderName, this._quality, result.pid, remotePort, connectionToken);
-
-				reportProgress(localize('sshProgressForwarding', "Connecting to remote agent host..."));
-				relay = await this._createWebSocketRelay(
-					sshClient, remoteHost, remotePort, connectionToken,
-					(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
-					() => { conn?.dispose(); },
-				);
-			}
-
-			// 7. Create connection object
+			// 4. Create connection object
 			const address = connectionKey;
 			conn = new SSHConnection(
 				config,
