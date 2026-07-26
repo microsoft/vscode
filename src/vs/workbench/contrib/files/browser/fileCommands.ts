@@ -5,7 +5,7 @@
 
 import * as nls from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
-import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, EditorsOrder, EditorInputCapabilities } from '../../../common/editor.js';
+import { EditorResourceAccessor, IEditorCommandsContext, isEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, EditorsOrder, EditorInputCapabilities } from '../../../common/editor.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from '../../../../platform/window/common/window.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -363,13 +363,37 @@ CommandsRegistry.registerCommand({
 
 // Save / Save As / Save All / Revert
 
-async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions): Promise<void> {
+function getEditorsFromCommandArgs(accessor: ServicesAccessor, commandArgs?: unknown[]): IEditorIdentifier[] | undefined {
+	if (!commandArgs?.some(arg => isEditorCommandsContext(arg))) {
+		return undefined; // only respect the arguments if they contain an explicit editor context
+	}
+
+	const resolvedContext = resolveCommandsContext(commandArgs, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
+
+	const editors: IEditorIdentifier[] = [];
+	for (const { group, editors: groupEditors } of resolvedContext.groupedEditors) {
+		for (const editor of groupEditors) {
+			editors.push({ groupId: group.id, editor });
+		}
+	}
+
+	return editors.length ? editors : undefined;
+}
+
+async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions, commandArgs?: unknown[]): Promise<void> {
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const textFileService = accessor.get(ITextFileService);
 
+	// Retrieve the editors from the command arguments if they contain an explicit
+	// editor context (e.g. when invoked from the editor tab context menu) because
+	// the editor the command was triggered for may not be the active editor
+	let editors = getEditorsFromCommandArgs(accessor, commandArgs);
+
 	// Retrieve selected or active editor
-	let editors = getOpenEditorsViewMultiSelection(accessor);
+	if (!editors) {
+		editors = getOpenEditorsViewMultiSelection(accessor);
+	}
 	if (!editors) {
 		const activeGroup = editorGroupService.activeGroup;
 		if (activeGroup.activeEditor) {
@@ -466,8 +490,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyCode.KeyS,
 	id: SAVE_FILE_COMMAND_ID,
-	handler: accessor => {
-		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ });
+	handler: (accessor, ...args: unknown[]) => {
+		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ }, args);
 	}
 });
 
@@ -487,8 +511,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS,
-	handler: accessor => {
-		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, saveAs: true });
+	handler: (accessor, ...args: unknown[]) => {
+		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, saveAs: true }, args);
 	}
 });
 
