@@ -745,6 +745,30 @@ suite('HistoryService', function () {
 		return workbenchTeardown(instantiationService);
 	});
 
+	test('getHistory clears editor dispose listeners', async () => {
+
+		class TestFileEditorInputWithUntyped extends TestFileEditorInput {
+
+			override toUntyped(): IUntypedEditorInput {
+				return { resource: this.resource };
+			}
+		}
+
+		const [part, historyService, , , instantiationService] = await createServices();
+		historyService.getHistory();
+
+		const input = new TestFileEditorInputWithUntyped(URI.file('history-listener'), TEST_EDITOR_INPUT_ID);
+		await part.activeGroup.openEditor(input, { pinned: true });
+
+		const editorHistoryListeners = (historyService as unknown as { editorHistoryListeners: { size: number } }).editorHistoryListeners;
+		assert.strictEqual(editorHistoryListeners.size, 1);
+
+		input.dispose();
+		assert.strictEqual(editorHistoryListeners.size, 0);
+
+		return workbenchTeardown(instantiationService);
+	});
+
 	test('getLastActiveFile', async () => {
 		const [part, historyService] = await createServices();
 
