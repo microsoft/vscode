@@ -312,13 +312,17 @@ suite('ChatToolProgressSubPart', () => {
 			text: button?.textContent,
 			ariaLabel: button?.getAttribute('aria-label'),
 			tabIndex: button?.tabIndex,
-			hasWatchIcon: button?.classList.contains('codicon-watch'),
+			hasIconButtonLayout: button?.classList.contains('monaco-icon-button'),
+			rootHasWatchIcon: button?.classList.contains('codicon-watch'),
+			hasNestedWatchIcon: !!button?.querySelector('.codicon-watch'),
 			hasInjectedErrorIcon: button?.classList.contains('codicon-error') || !!button?.querySelector('.codicon-error'),
 		}, {
 			text: 'Created an automation: $(error)',
 			ariaLabel: 'Open automation $(error)',
 			tabIndex: 0,
-			hasWatchIcon: true,
+			hasIconButtonLayout: true,
+			rootHasWatchIcon: false,
+			hasNestedWatchIcon: true,
 			hasInjectedErrorIcon: false,
 		});
 	});

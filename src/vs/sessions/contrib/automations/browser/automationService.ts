@@ -118,6 +118,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 
 	private _lastSeenRevision = 0;
+	private _storageChangeGeneration = 0;
 
 	readonly automations: IObservable<readonly IAutomation[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
@@ -143,6 +144,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 		this.runs = this._runs;
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, AUTOMATION_STORAGE_KEY, this._store)(() => {
+			this._storageChangeGeneration++;
 			this.refreshFromStorage();
 		}));
 	}
@@ -384,13 +386,35 @@ export class AutomationService extends Disposable implements IAutomationService 
 			mutationGuard?.();
 			const writeResult = await this.automationStorageService.compareAndSwap(raw, newValue);
 			if (writeResult.swapped) {
-				this.setLedger(ledger, revision);
+				await this.acceptSuccessfulMutation(ledger, revision, newValue);
 				return mutation.result;
 			}
 			if (writeResult.currentValue === raw) {
 				throw new Error('Automation storage rejected an unchanged compare-and-swap value.');
 			}
 			raw = writeResult.currentValue;
+		}
+	}
+
+	private async acceptSuccessfulMutation(ledger: ILedger, revision: number, serialized: string): Promise<void> {
+		while (true) {
+			const storageChangeGeneration = this._storageChangeGeneration;
+			const raw = await this.automationStorageService.read();
+			if (storageChangeGeneration !== this._storageChangeGeneration) {
+				continue;
+			}
+			if (raw === serialized) {
+				this.setLedger(ledger, revision);
+				return;
+			}
+
+			const result = this.readLedger(raw);
+			if (result.kind === 'ledger' && result.revision >= revision) {
+				this.setLedger(result.ledger, result.revision);
+			} else {
+				this.setLedger(ledger, revision);
+			}
+			return;
 		}
 	}
 

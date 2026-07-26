@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
-import { Button } from '../../../../../../../base/browser/ui/button/button.js';
+import { ButtonWithIcon } from '../../../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../../nls.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
@@ -39,7 +39,7 @@ export class ChatAutomationConfiguredResultSubPart extends BaseChatToolInvocatio
 		const label = data.operation === 'created'
 			? localize('automationConfigured.created', "Created an automation: {0}", data.automationName)
 			: localize('automationConfigured.updated', "Edited an automation: {0}", data.automationName);
-		const button = this._register(new Button(this.domNode, {
+		const button = this._register(new ButtonWithIcon(this.domNode, {
 			...defaultButtonStyles,
 			secondary: true,
 			title: localize('automationConfigured.open', "Open automation {0}", data.automationName),
