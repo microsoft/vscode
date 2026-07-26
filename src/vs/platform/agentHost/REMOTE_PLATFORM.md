@@ -194,8 +194,32 @@ through `dialAgentHostHost`.
 The CLI therefore emits a **single machine-readable line** alongside the banner,
 carrying the dial host, port and token, on both the fresh-spawn and reuse paths.
 That keeps "consume the output" as the protocol while restoring the information
-the metadata read used to supply, and it handles IPv6 literals rather than
-assuming loopback.
+the metadata read used to supply.
+
+That line is a cross-language wire format and is specified as one: a version tag
+so an older desktop can reject what it does not understand, a defined channel and
+encoding, and a defined redaction rule — it carries a token, and the existing
+`redactToken` only recognises `?tkn=` in URLs, so a JSON-shaped line would leak
+into trace logs. Machine lines are structurally redacted before logging.
+
+**IPv6 does not compose today**, so promising an IPv6-capable endpoint means
+fixing the consumers rather than just the producer: the WebSocket URL is built by
+string concatenation that yields an invalid authority for a bare IPv6 literal
+(`sshRemoteAgentHostService.ts:427-429`), `SSHConnection` stores only port and
+token rather than the host (`:495-505`), relay-only reconnect hardcodes
+`127.0.0.1` (`:618-646`), and the Rust side maps the `::` wildcard to IPv4
+loopback instead of `::1` (`cli/src/commands/agent_host.rs:653-658`). The
+endpoint must be stored whole, IPv6 authorities bracketed, and both initial and
+relay-only reconnect covered by tests.
+
+**The CLI's metadata write must become fatal before readiness.** The supervisor
+currently only warns when the write fails and then prints the sentinel and
+detaches (`cli/src/tunnels/agent_host.rs:1042-1051`,
+`cli/src/commands/agent_host.rs:286-315`). Under the previous design the desktop
+wrote its own record, so that was survivable; now the supervisor's record is the
+*only* one, and a successful-but-untracked supervisor means the next invocation
+spawns another while the desktop is forbidden from cleaning either up. "Ready"
+must imply "discoverable", proven by fault injection.
 
 Consequences, which are the point of this design:
 
@@ -219,11 +243,15 @@ several SSH round trips rather than one command. That is the price of not
 maintaining a second, divergent copy of the CLI's lifecycle logic, and it is paid
 on an already-established connection.
 
-**Timeouts must agree.** The desktop currently gives the launch 60 seconds
-(`sshRemoteAgentHostService.ts:343-348`) while the CLI allows five minutes for the
-supervisor to report ready and does network work before printing anything. On a
-first connect over a slow link the desktop would give up while the CLI is still
-working. The desktop's budget is raised to match the CLI's.
+**Timeouts must agree, and the desktop's must be the outer one.** The desktop
+gives the launch 60 seconds (`sshRemoteAgentHostService.ts:343-348`) while the
+CLI allows five minutes for supervisor readiness
+(`cli/src/commands/agent_host.rs:49-51`). Simply matching the two would still
+race: the desktop's timer starts earlier, before remote PowerShell startup and
+the supervisor spawn, so equal budgets let the desktop give up while the CLI is
+legitimately still inside its own. The desktop budget is therefore the CLI's plus
+a margin, or the CLI owns readiness timing outright and the desktop only guards
+against a dead channel.
 
 ---
 
@@ -329,24 +357,33 @@ replace the commit-keyed destination and remove the temp directory. The archive
 contains exactly one flat entry, `code-insiders.exe`, so nothing has to be
 flattened.
 
-**The replace must actually be atomic.** `Move-Item -Force` is *not* an atomic
-replace on Windows: it deletes the destination and then moves, so there is a
-window in which the destination does not exist, and it fails outright when the
-destination cannot be deleted. Measured: with the destination held open,
-`Move-Item -Force` raises `Cannot create a file when that file already exists`
-and leaves both source and destination in place — which also proves the
-delete-then-move implementation. `Remove-Item` on a running `.exe` likewise
-fails with access denied.
+**Commit-keyed binaries are immutable; publication never overwrites.** The
+earlier prescription — `File.Replace` or `MoveFileEx(MOVEFILE_REPLACE_EXISTING)`
+— does not solve the case it was meant to. Windows refuses to delete a *mapped*
+executable image even with no ordinary handle open, and `ReplaceFile` opens the
+destination with `DELETE`; it also preserves the replaced file's DACL, which
+could carry an insecure ACL forward. That fails in exactly the race it was
+introduced for: installer A publishes and launches, then installer B tries to
+replace the now-mapped destination.
 
-The POSIX path depends on rename atomicity for concurrency safety and says so:
-"Concurrent SSH sessions racing here both end up with a valid binary for the same
-commit" (`sshRemoteAgentHostService.ts:1443-1446`). Windows therefore uses a
-genuine atomic replace (`File.Replace`, or `MoveFileEx` with
-`MOVEFILE_REPLACE_EXISTING`), and treats "destination already exists and passes
-its version check" as success rather than an error. Reachable concurrently:
-two windows or profiles on one desktop installing the same commit, a supervisor
-already launched from the destination binary, an antivirus scanner holding it, or
-Remote-SSH working in the shared install root.
+Because the destination is keyed on commit, any existing file *is* the same
+build, so replacement is never necessary:
+
+1. validate the extracted temporary executable,
+2. rename into place **without overwrite**,
+3. on "destination exists", validate the winner and discard the temporary,
+4. if the winner is invalid and locked, fail with a clear error rather than
+   attempting to replace it.
+
+`Move-Item -Force` is unusable regardless: it deletes then moves, so there is a
+window with no destination, and it fails outright on a held destination —
+measured, raising `Cannot create a file when that file already exists` and
+leaving both files in place. The concurrency test must launch the winner *before*
+the loser publishes, so the destination is genuinely mapped rather than merely
+present.
+
+The non-commit-keyed dev path (no product commit) has no such immutability and
+needs its own stated policy.
 
 **Naming.** The extension belongs to the *file*, not the archive stem, so the
 commit-keyed name is `code-insiders-<40hex>.exe` — never
@@ -479,21 +516,21 @@ than the `0600`/`0700` the POSIX path enforces.
   legacy lockfile could also redirect the desktop to an endpoint chosen by
   another local account.
 - **The validator must resolve the *supervisor's* token file, not its own.**
-  This is the subtle part. The metadata lives under a canonical agent-host root
-  that ignores `--cli-data-dir` (`cli/src/state.rs`), but the token is written
-  under `--cli-data-dir` itself. The invoking process only knows *its own*
-  data dir, and `AgentHostMetadata` records neither the launcher root nor the
-  token path — so when a supervisor was started with a different data dir, the
-  validator would happily check a stale file belonging to a dead supervisor,
-  pass, and never look at the live one's token at all.
-  That divergence is not hypothetical: the desktop passes
-  `--cli-data-dir ~/<serverDataFolderName>/cli`, while `code tunnel` and a bare
-  `code agent host` use the default root — and cross-tool reuse is precisely the
-  scenario §4 is built around.
-  The lockfile therefore records the supervisor's launcher root, and validation
-  resolves the token path from that record. If the recorded root is absent — an
-  older supervisor — reuse is refused with an actionable error rather than
-  silently trusting an unvalidated token.
+  The metadata lives under a canonical agent-host root that ignores
+  `--cli-data-dir` (`cli/src/state.rs`), but the token is written under
+  `--cli-data-dir` — and `--connection-token-file` can place it anywhere at all
+  (`cli/src/commands/args.rs:249-254`). Recording only the launcher root is
+  therefore still insufficient: the validator could inspect a stale default-root
+  file, pass, and never see the live supervisor's token.
+  The lockfile records the **exact token-file path**. For metadata predating that
+  field: a tokenless supervisor has no token file, so validating the metadata ACL
+  alone is correct and reuse proceeds; a token-bearing one is matched against a
+  finite set of known legacy roots, requiring both an exact token-content match
+  and a secure ACL, and only an unresolved case produces the actionable restart
+  error. A blanket refusal would strand users behind a supervisor that §4 forbids
+  the desktop from killing.
+  A token found under a broad ACL is **not** reused after tightening it — it may
+  already have leaked; the supervisor is refused instead.
 - **The install boundary is protected.** We execute the binary we install, so
   another local account with modify rights on a permissive install root could
   replace it between install and launch; `--version` proves it runs, not that it
