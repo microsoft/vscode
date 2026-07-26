@@ -111,7 +111,7 @@
 
 .agent-sessions-workbench .part.sessionspart .interactive-session .chat-edit-input-container .interactive-input-part,
 .agent-sessions-workbench .chat-editor-relative .interactive-session .chat-edit-input-container .interactive-input-part {
-	padding: 4px 0;
+	padding: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40);
 }
 
 .agent-sessions-workbench .interactive-session .chat-input-toolbars .chat-sessionPicker-container {

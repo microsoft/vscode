@@ -52,6 +52,10 @@
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
+.style-override .browser-root .browser-url-container {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 /* Select / dropdown controls */
 .style-override .monaco-select-box,
 .style-override .monaco-select-box-dropdown-container {
@@ -276,6 +280,11 @@
  * ========================================================================== */
 .style-override .monaco-sash:before {
 	border-radius: calc(var(--vscode-sash-hover-size) / 2);
+}
+
+/* Keep the diff editor's bottom boundary from clipping the sash radius. */
+.style-override .monaco-diff-editor > .monaco-sash.vertical:before {
+	height: calc(100% - (var(--vscode-sash-hover-size) / 2));
 }
 
 .style-override .monaco-sash:not(.disabled) > .orthogonal-drag-handle {
