@@ -11,7 +11,8 @@ import { ExtensionIdentifier } from '../../../../../../../platform/extensions/co
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { getEffectiveImageOmittedState } from '../../../../browser/attachments/chatAttachmentWidgets.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
+import { getEffectiveImageOmittedState, ImageAttachmentWidget } from '../../../../browser/attachments/chatAttachmentWidgets.js';
 import { ChatAttachmentsContentPart } from '../../../../browser/widget/chatContentParts/chatAttachmentsContentPart.js';
 import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, OmittedState, toAgentHostCompletionVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
@@ -394,6 +395,35 @@ suite('ChatAttachmentsContentPart', () => {
 				});
 
 				assert.deepStrictEqual(reads, []);
+			});
+
+			test('should keep delete hint after loading hydrated image bytes', async () => {
+				const resource = URI.file('/test/pasted-image.png');
+				const container = mainWindow.document.createElement('div');
+				mainWindow.document.body.appendChild(container);
+				disposables.add(toDisposable(() => container.remove()));
+				const contextResourceLabels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+				const widget = disposables.add(instantiationService.createInstance(
+					ImageAttachmentWidget,
+					resource,
+					{
+						kind: 'image',
+						id: 'hydrated-image-with-delete',
+						name: 'pasted-image.png',
+						value: resource,
+						mimeType: 'image/png',
+						isURL: true,
+						references: [{ kind: 'reference', reference: resource }]
+					},
+					undefined,
+					{ shouldFocusClearButton: false, supportsDeletion: true },
+					container,
+					contextResourceLabels
+				));
+
+				await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+				assert.strictEqual(widget.element.ariaLabel, 'Attached image, pasted-image.png (Delete)');
 			});
 		});
 	});

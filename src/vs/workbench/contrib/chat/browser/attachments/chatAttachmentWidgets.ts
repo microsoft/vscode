@@ -542,17 +542,16 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const imageElements = this._register(new MutableDisposable<IDisposable>());
 		const renderImageElements = (buffer: Uint8Array) => {
 			imageElements.value = createImageElements(resource, attachment.name, fullName, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState);
+			// createImageElements resets the label; restore the deletion hint after each render.
+			this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 		};
 		renderImageElements(imageData ?? new Uint8Array());
 
-		// Hydrated image attachments (e.g. after a window reload or session resume) arrive as a
-		// resource reference without inline bytes. Load the bytes from disk so the preview renders
-		// the actual image instead of falling back to a generic file icon.
+		// Hydrated attachments need disk bytes so the preview does not fall back to a generic file icon.
 		if (!imageData && resource && omittedState !== OmittedState.Full && omittedState !== OmittedState.ImageLimitExceeded) {
 			void this.loadImageBytes(resource, renderImageElements);
 		}
 		this.attachSaveButton(resource, imageData, attachment.name, options.supportsDeletion);
-		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
 		// Wire up click + keyboard (Enter/Space) open handlers
 		const canOpenCarousel = !!imageData && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled);
@@ -750,8 +749,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		}
 	}
 
-	// Remove the pill and label from the DOM when disposed so the widget can safely re-render
-	// (e.g. after lazily loading the image bytes for a hydrated attachment).
+	// Remove old DOM so the widget can safely re-render after hydrated bytes load.
 	disposable.add(toDisposable(() => {
 		currentPill.remove();
 		textLabel.remove();
