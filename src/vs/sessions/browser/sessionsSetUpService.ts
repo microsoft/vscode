@@ -41,6 +41,7 @@ export const ISessionsSetUpService = createDecorator<ISessionsSetUpService>('ses
 
 export interface ISessionsSetUpService {
 	readonly _serviceBrand: undefined;
+	readonly initialSignInDialogShown: boolean;
 	/**
 	 * Resolves when the welcome/setup flow has completed (or immediately
 	 * if it is not currently active). Use this to defer work until after
@@ -69,12 +70,14 @@ class SessionsSetUpWidget extends Disposable {
 
 	private readonly dialogRef = this._register(new MutableDisposable<DisposableStore>());
 	private readonly watcherRef = this._register(new MutableDisposable());
+	private _initialSetupFlow = true;
 
 	// Non-service params must come before @-decorated service params
 	constructor(
 		private readonly onCompleted: () => void,
 		private readonly serviceWhenSetupDone: () => Promise<boolean>,
 		private readonly serviceMarkDone: () => void,
+		private readonly onInitialSignInDialogShown: () => void,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -105,7 +108,7 @@ class SessionsSetUpWidget extends Disposable {
 		}
 
 		if (isWeb) {
-			this._checkWebAuth();
+			void this._checkWebAuth().finally(() => this._initialSetupFlow = false);
 			this._watchWebAuth();
 			return;
 		}
@@ -113,9 +116,9 @@ class SessionsSetUpWidget extends Disposable {
 		const isFirstLaunch = !this.storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false);
 
 		if (isFirstLaunch) {
-			this._showWelcome(true);
+			void this._showWelcome(true).finally(() => this._initialSetupFlow = false);
 		} else {
-			this._watchSignInState();
+			void this._watchSignInState().finally(() => this._initialSetupFlow = false);
 		}
 	}
 
@@ -300,6 +303,9 @@ class SessionsSetUpWidget extends Disposable {
 	}
 
 	private async _showSignInDialog(): Promise<void> {
+		if (this._initialSetupFlow) {
+			this.onInitialSignInDialogShown();
+		}
 		this.logService.info('[sessions welcome] Showing sign-in dialog');
 
 		const signingInDialogRef = new MutableDisposable<DisposableStore>();
@@ -401,6 +407,11 @@ export class SessionsSetUpService extends Disposable implements ISessionsSetUpSe
 
 	private readonly _initPromise: Promise<void>;
 	private readonly _welcomeDoneDeferred = new DeferredPromise<void>();
+	private _initialSignInDialogShown = false;
+
+	get initialSignInDialogShown(): boolean {
+		return this._initialSignInDialogShown;
+	}
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -417,7 +428,8 @@ export class SessionsSetUpService extends Disposable implements ISessionsSetUpSe
 			SessionsSetUpWidget,
 			() => this._welcomeDoneDeferred.complete(),
 			() => this.whenSetupDone(),
-			() => this.markDone()
+			() => this.markDone(),
+			() => this._initialSignInDialogShown = true
 		));
 	}
 
