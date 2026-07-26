@@ -461,6 +461,10 @@ export interface IChatWidget {
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
+	/**
+	 * Returns the currently rendered chat item containing the node, if any.
+	 */
+	getElementFromNode(node: HTMLElement): ChatTreeItem | undefined;
 	clear(targetSessionType?: string): Promise<void>;
 	getViewState(): IChatModelInputState | undefined;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string, agentHostProviderId?: string): void;

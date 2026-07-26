@@ -14,11 +14,13 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILabelService, type ResourceLabelFormatter } from '../../../label/common/label.js';
-import { RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
+import { AgentsWindowRemoteAgentHostService, RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
 import { parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, entryToRawEntry, type IRawRemoteAgentHostEntry, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
+import type { Implementation } from '../../common/state/protocol/common/commands.js';
+import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 
 // ---- Mock transport ---------------------------------------------------------
 
@@ -137,6 +139,7 @@ suite('RemoteAgentHostService', () => {
 	const disposables = new DisposableStore();
 	let configService: TestConfigurationService;
 	let createdClients: MockProtocolClient[];
+	let createdClientInfos: (Implementation | undefined)[];
 	let registeredFormatters: ResourceLabelFormatter[];
 	let instantiationService: TestInstantiationService;
 	let service: RemoteAgentHostService;
@@ -146,6 +149,7 @@ suite('RemoteAgentHostService', () => {
 		disposables.add(toDisposable(() => configService.dispose()));
 
 		createdClients = [];
+		createdClientInfos = [];
 
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
@@ -178,6 +182,7 @@ suite('RemoteAgentHostService', () => {
 					return disposables.add(new MockTransport());
 				}
 				const client = new MockProtocolClient(args[0] as string);
+				createdClientInfos.push(args[4] as Implementation | undefined);
 				disposables.add(client);
 				createdClients.push(client);
 				return client;
@@ -233,9 +238,23 @@ suite('RemoteAgentHostService', () => {
 		await waitForConnected();
 
 		const connected = service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status));
-		assert.strictEqual(connected.length, 1);
-		assert.strictEqual(connected[0].address, 'host1:8080');
-		assert.strictEqual(connected[0].name, 'Host 1');
+		assert.deepStrictEqual({
+			connection: connected.map(({ address, name }) => ({ address, name })),
+			clientInfo: createdClientInfos,
+		}, {
+			connection: [{ address: 'host1:8080', name: 'Host 1' }],
+			clientInfo: [editorWindowAgentHostClientInfo],
+		});
+	});
+
+	test('agents window service identifies its protocol client', async () => {
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(AgentsWindowRemoteAgentHostService));
+		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
+		createdClients[0].connectDeferred.complete();
+		await waitForConnected();
+
+		assert.deepStrictEqual(createdClientInfos, [agentsWindowAgentHostClientInfo]);
 	});
 
 	test('getConnection returns client after successful connect', async () => {

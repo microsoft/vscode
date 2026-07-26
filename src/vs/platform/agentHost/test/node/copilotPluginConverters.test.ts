@@ -16,7 +16,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedHookGroup, IParsedPlugin, IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
+import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
 function stubMcpCustomization(name = 'test'): McpServerCustomization {
@@ -94,6 +94,7 @@ suite('copilotPluginConverters', () => {
 					headers: { 'Authorization': 'Bearer token' },
 				},
 			});
+
 		});
 
 		test('handles empty definitions', () => {
@@ -539,6 +540,7 @@ suite('copilotPluginConverters', () => {
 
 		function makePlugin(overrides?: Partial<IParsedPlugin>): IParsedPlugin {
 			return {
+				format: PluginFormat.Copilot,
 				hooks: [],
 				mcpServers: [],
 				skills: [],
@@ -578,6 +580,13 @@ suite('copilotPluginConverters', () => {
 			const a = makePlugin({ skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a', customization: stubSkillCustomization('a') } satisfies IParsedSkill] });
 			const b = makePlugin({ skills: [{ uri: URI.file('/b/SKILL.md'), name: 'b', customization: stubSkillCustomization('b') } satisfies IParsedSkill] });
 			assert.strictEqual(parsedPluginsEqual([a], [b]), false);
+		});
+
+		test('returns false for different plugin formats', () => {
+			assert.strictEqual(parsedPluginsEqual(
+				[makePlugin({ format: PluginFormat.AgentPlugin })],
+				[makePlugin({ format: PluginFormat.OpenPlugin })],
+			), false);
 		});
 
 		test('returns false for different lengths', () => {

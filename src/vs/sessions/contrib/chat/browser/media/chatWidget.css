@@ -239,7 +239,7 @@
 	justify-content: center;
 }
 
-/* Pickers row - two equal halves */
+/* Pickers row */
 .session-workspace-picker {
 	display: flex;
 	flex-direction: row;
@@ -250,6 +250,15 @@
 	width: 100%;
 	box-sizing: border-box;
 	padding: 0;
+}
+
+.new-chat-widget-container .new-session-workspace-picker-container .sessions-chat-workspace-picker {
+	max-width: 400px;
+}
+
+.new-chat-widget-container .sessions-chat-session-type-picker,
+.new-chat-widget-container .new-chat-session-type-picker-host {
+	max-width: 200px;
 }
 
 .session-workspace-picker:empty {

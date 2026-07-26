@@ -140,8 +140,8 @@ export interface IVoiceSessionController {
 	connect(window: Window & typeof globalThis): Promise<void>;
 	disconnect(source?: 'explicit' | 'internal'): void;
 
-	pttDown(source?: 'explicit' | 'auto' | 'connect'): void;
-	pttUp(source?: 'explicit' | 'internal'): void;
+	pttDown(source?: 'explicit' | 'auto' | 'connect', forceNewTurn?: boolean): void;
+	pttUp(source?: 'explicit' | 'internal', forceFinish?: boolean): void;
 
 	/**
 	 * Stop the current recording / auto-listen loop without disconnecting.
@@ -1461,16 +1461,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._statusText.set('Hold to speak...', undefined);
 				this._voiceState.set('idle', undefined);
 
-				// Enter listening as soon as a fresh session is ready. Starting
-				// voice mode always begins the first turn listening, regardless
-				// of `handsFree` (which only controls whether we RE-listen after
-				// the assistant speaks). We wait for the backend `session_init`
-				// ack (see onSessionInit below) rather than acting here, because
-				// the mic/handshake isn't settled yet at connection time.
-				// Previously this was deferred until a welcome greeting finished
-				// playing, but the greeting was removed. A short fallback timer
-				// covers backends that don't emit `session_init`.
-				this._enterListenOnSessionInit = !isResuming;
+				// Wait for the backend session ack before opening the hands-free mic.
+				this._enterListenOnSessionInit = this._shouldEnterListenOnSessionInit(isResuming);
 				this.logService.trace(`[voice] connected: isResuming=${isResuming} handsFree=${this._isHandsFreeEnabled()} armListen=${this._enterListenOnSessionInit}`);
 				if (this._enterListenOnSessionInit) {
 					this._voiceEventDisposables.add(disposableTimeout(() => {
@@ -2200,7 +2192,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	pttDown(source: 'explicit' | 'auto' | 'connect' = 'explicit'): void {
+	pttDown(source: 'explicit' | 'auto' | 'connect' = 'explicit', forceNewTurn = false): void {
 		if (!this._isConnected.get()) { this.logService.trace('[voice] pttDown ignored: not connected'); return; }
 
 		// A press is passive when the mic opened without a deliberate user gesture
@@ -2213,8 +2205,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._suppressSendToChatUntil = 0;
 		this._setPinnedSubmitSession(undefined);
 
-		// Toggle mode: second tap finishes recording
-		if (this._pttToggleMode) {
+		// Toggle mode: second tap finishes recording. A forced new turn (e.g.
+		// hold-to-talk press) cancels any pending toggle mode and records fresh.
+		if (forceNewTurn) {
+			this._pttToggleMode = false;
+		} else if (this._pttToggleMode) {
 			this.logService.trace('[voice] pttDown: toggle-mode second tap -> finishing turn');
 			this._pttToggleMode = false;
 			this._finishPtt();
@@ -2339,14 +2334,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}, VoiceSessionController._PTT_MAX_DURATION_MS);
 	}
 
-	pttUp(source: 'explicit' | 'internal' = 'explicit'): void {
+	pttUp(source: 'explicit' | 'internal' = 'explicit', forceFinish = false): void {
 		if (!this._pttHeld) { return; }
 
 		// Short tap: enter toggle mode — keep recording until next tap
-		const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : Infinity;
-		if (holdMs < VoiceSessionController._PTT_TOGGLE_THRESHOLD_MS) {
-			this._pttToggleMode = true;
-			return;
+		if (!forceFinish) {
+			const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : Infinity;
+			if (holdMs < VoiceSessionController._PTT_TOGGLE_THRESHOLD_MS) {
+				this._pttToggleMode = true;
+				return;
+			}
 		}
 
 		this._finishPtt('local', source);
@@ -2532,6 +2529,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// resolves to the `handsFree` default (`true`). Only an explicit `false`
 		// disables it.
 		return this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
+	}
+
+	private _shouldEnterListenOnSessionInit(isResuming: boolean): boolean {
+		return !isResuming && this._isHandsFreeEnabled();
 	}
 
 	private _isLiveTranscriptEnabled(): boolean {
@@ -2749,8 +2750,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	/**
 	 * Send transcription text to the target session or active chat.
-	 * If a target session is selected, sends directly via chatService.
-	 * Otherwise sends to whatever is currently active via the view pane command.
 	 */
 	private async _sendTranscriptionToChat(text: string): Promise<void> {
 		// A focus-change submit pins routing to the session the user was
@@ -5429,7 +5428,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return { state: 'thinking' };
 		}
 
-		const responseText = lastRequest?.response?.response.getMarkdown().trim() ?? '';
+		const responseText = [
+			lastRequest?.response?.response.getMarkdown().trim(),
+			lastRequest?.response?.result?.errorDetails?.message.trim(),
+		].filter(value => !!value).join('\n\n');
 		return { state: 'idle', ...(responseText ? { last_response_summary: responseText } : {}) };
 	}
 

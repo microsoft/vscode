@@ -1014,6 +1014,13 @@ export class ChatListWidget extends Disposable {
 	}
 
 	/**
+	 * Returns the currently rendered chat item containing the node.
+	 */
+	getElementFromNode(node: HTMLElement): ChatTreeItem | undefined {
+		return this._renderer.getElementFromNode(node);
+	}
+
+	/**
 	 * Update renderer options.
 	 */
 	updateRendererOptions(options: IChatListItemRendererOptions): void {

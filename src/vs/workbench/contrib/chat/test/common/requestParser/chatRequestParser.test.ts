@@ -159,9 +159,22 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const text = '    /fix';
+		const text = '    /fix   keep indentation';
 		const result = parser.parseChatRequest(testSessionUri, text);
-		await assertSnapshot(result);
+		assert.deepStrictEqual({
+			parts: result.parts.map(part => ({
+				kind: part.kind,
+				range: part.range ? { start: part.range.start, endExclusive: part.range.endExclusive } : undefined,
+			})),
+			promptText: getPromptText(result),
+		}, {
+			parts: [
+				{ kind: 'text', range: { start: 0, endExclusive: 4 } },
+				{ kind: 'slash', range: { start: 4, endExclusive: 8 } },
+				{ kind: 'text', range: { start: 8, endExclusive: 27 } },
+			],
+			promptText: { message: '/fix   keep indentation', diff: 4 },
+		});
 	});
 
 	test('prompt slash command', async () => {
