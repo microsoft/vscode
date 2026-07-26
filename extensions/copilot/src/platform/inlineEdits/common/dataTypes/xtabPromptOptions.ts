@@ -547,7 +547,7 @@ export function isPromptingStrategy(value: string): value is PromptingStrategy {
 	return (Object.values(PromptingStrategy) as string[]).includes(value);
 }
 
-export function isAggressionPromptingStrategy(options: PromptOptions): boolean {
+export function isEagernessPrompt(options: PromptOptions): boolean {
 	if (options.promptingStrategy === undefined) {
 		return false;
 	}

@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { ImportChanges } from '../../common/dataTypes/importFilteringOptions';
-import { applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, isAggressionPromptingStrategy, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy } from '../../common/dataTypes/xtabPromptOptions';
+import { applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, isEagernessPrompt, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy } from '../../common/dataTypes/xtabPromptOptions';
 
 function baseConfig(overrides: Partial<ModelConfiguration> = {}): ModelConfiguration {
 	return {
@@ -109,10 +109,10 @@ describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 	});
 });
 
-describe('isAggressionPromptingStrategy', () => {
+describe('isEagernessPrompt', () => {
 	it('recognizes the PatchBased02 aggression prompt option', () => {
-		expect(isAggressionPromptingStrategy({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02, eagernessPrompt: 'aggressionHighLow' })).toBe(true);
-		expect(isAggressionPromptingStrategy({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02 })).toBe(false);
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02, eagernessPrompt: 'aggressionHighLow' })).toBe(true);
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02 })).toBe(false);
 	});
 });
 
