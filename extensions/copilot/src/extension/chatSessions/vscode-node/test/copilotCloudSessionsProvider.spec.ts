@@ -132,11 +132,12 @@ describe('copilotCloudSessionsProvider helpers', () => {
 
 	it('includes the task branch in PR-less cloud session metadata', () => {
 		expect(getCloudSessionItemMetadata(
-			{ owner: 'microsoft', name: 'vscode' },
+			{ owner: 'microsoft', name: 'vscode', host: 'github.com' },
 			{ owner: 'microsoft', repo: 'vscode', baseRef: 'main', headRef: 'copilot/task-branch' },
 		)).toEqual({
 			owner: 'microsoft',
 			name: 'vscode',
+			host: 'github.com',
 			branch: 'copilot/task-branch',
 		});
 	});
@@ -731,7 +732,7 @@ describe('isActiveTaskState / isFailedTaskState', () => {
 
 describe('parseRepoFromTaskUrl', () => {
 	it('extracts owner and name from a task html_url', () => {
-		expect(parseRepoFromTaskUrl('https://github.com/octocat/hello-world/agents/tasks/abc')).toEqual({ owner: 'octocat', name: 'hello-world' });
+		expect(parseRepoFromTaskUrl('https://github.example.com/octocat/hello-world/agents/tasks/abc')).toEqual({ owner: 'octocat', name: 'hello-world', host: 'github.example.com' });
 	});
 
 	it('returns undefined for an unparseable URL', () => {

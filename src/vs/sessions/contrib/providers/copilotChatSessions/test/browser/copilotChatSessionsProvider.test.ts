@@ -181,6 +181,7 @@ class TestGitHubService extends mock<IGitHubService>() {
 	private readonly _pullRequestModel: GitHubPullRequestModel;
 
 	lookupCalls = 0;
+	pullRequestModelReferenceCalls = 0;
 
 	constructor(private readonly _pullRequestNumber?: number) {
 		super();
@@ -195,7 +196,10 @@ class TestGitHubService extends mock<IGitHubService>() {
 		return this._pullRequestNumber;
 	};
 
-	override createPullRequestModelReference = () => new ImmortalReference(this._pullRequestModel);
+	override createPullRequestModelReference = () => {
+		this.pullRequestModelReferenceCalls++;
+		return new ImmortalReference(this._pullRequestModel);
+	};
 
 	setPullRequest(pullRequest: IGitHubPullRequest): void {
 		this._pullRequest.set(pullRequest, undefined);
@@ -923,9 +927,10 @@ suite('CopilotChatSessionsProvider', () => {
 		model.addSession(createMockAgentSession(resource, {
 			providerType: AgentSessionProviders.Cloud,
 			metadata: {
-				owner: 'owner',
-				name: 'repo',
+				owner: 'wrong-owner',
+				name: 'wrong-repo',
 				branch: 'feature',
+				pullRequestNumber: 7,
 				pullRequestUrl: prUri.toString(),
 				pullRequestState: GitHubPullRequestState.Open,
 			},
@@ -943,6 +948,7 @@ suite('CopilotChatSessionsProvider', () => {
 				icon: gitHubInfo.pullRequest.icon,
 			},
 			lookupCalls: gitHubService.lookupCalls,
+			pullRequestModelReferenceCalls: gitHubService.pullRequestModelReferenceCalls,
 		}, {
 			owner: 'owner',
 			repo: 'repo',
@@ -952,6 +958,83 @@ suite('CopilotChatSessionsProvider', () => {
 				icon: cachedIcon,
 			},
 			lookupCalls: 0,
+			pullRequestModelReferenceCalls: 1,
+		});
+	});
+
+	test('cloud session accepts pull request URL-only metadata without creating an invalid workspace URI', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' });
+		const gitHubService = new TestGitHubService();
+		model.addSession(createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud,
+			metadata: {
+				pullRequestUrl: 'https://github.com/owner/repo/pull/42',
+				pullRequestState: GitHubPullRequestState.Open,
+			},
+		}));
+
+		const provider = createProvider(disposables, model, { gitHubService });
+		const workspace = provider.getSessions()[0].workspace.get();
+		const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.get();
+
+		assert.deepStrictEqual({
+			workspaceRoot: workspace?.folders[0]?.root.toString(),
+			owner: gitHubInfo?.owner,
+			repo: gitHubInfo?.repo,
+			pullRequest: gitHubInfo?.pullRequest && {
+				number: gitHubInfo.pullRequest.number,
+				uri: gitHubInfo.pullRequest.uri.toString(),
+			},
+		}, {
+			workspaceRoot: URI.parse('unknown:///').toString(),
+			owner: 'owner',
+			repo: 'repo',
+			pullRequest: {
+				number: 42,
+				uri: 'https://github.com/owner/repo/pull/42',
+			},
+		});
+	});
+
+	test('cloud session keeps provider-reported enterprise PR identity without public GitHub polling', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' });
+		const gitHubService = new TestGitHubService(7);
+		model.addSession(createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud,
+			metadata: {
+				owner: 'wrong-owner',
+				name: 'wrong-repo',
+				host: 'github.example.com',
+				branch: 'feature',
+				pullRequestNumber: 7,
+				pullRequestUrl: 'https://github.example.com/owner/repo/pull/42',
+				pullRequestState: GitHubPullRequestState.Open,
+			},
+		}));
+
+		const provider = createProvider(disposables, model, { gitHubService });
+		const gitHubInfo = provider.getSessions()[0].workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
+
+		assert.deepStrictEqual({
+			owner: gitHubInfo?.owner,
+			repo: gitHubInfo?.repo,
+			pullRequest: gitHubInfo?.pullRequest && {
+				number: gitHubInfo.pullRequest.number,
+				uri: gitHubInfo.pullRequest.uri.toString(),
+				icon: gitHubInfo.pullRequest.icon,
+			},
+			lookupCalls: gitHubService.lookupCalls,
+			pullRequestModelReferenceCalls: gitHubService.pullRequestModelReferenceCalls,
+		}, {
+			owner: 'owner',
+			repo: 'repo',
+			pullRequest: {
+				number: 42,
+				uri: 'https://github.example.com/owner/repo/pull/42',
+				icon: computePullRequestIcon(GitHubPullRequestState.Open),
+			},
+			lookupCalls: 0,
+			pullRequestModelReferenceCalls: 0,
 		});
 	});
 

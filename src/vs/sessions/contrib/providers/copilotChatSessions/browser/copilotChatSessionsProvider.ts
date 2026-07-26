@@ -1087,6 +1087,9 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			if (!pullRequest) {
 				return info;
 			}
+			if (pullRequest.uri.authority.toLowerCase() !== 'github.com') {
+				return info;
+			}
 			return {
 				...info,
 				pullRequest: {
@@ -1217,18 +1220,14 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			return undefined;
 		}
 
-		const { owner, repo } = this._extractOwnerRepo(session);
+		const pullRequestUri = this._extractPullRequestUri(session);
+		const pullRequestIdentity = pullRequestUri ? this._extractPullRequestIdentity(pullRequestUri) : undefined;
+		const { owner, repo } = pullRequestIdentity ?? this._extractOwnerRepo(session);
 		if (!owner || !repo) {
 			return undefined;
 		}
 
-		const pullRequestUri = this._extractPullRequestUri(session);
-		if (!pullRequestUri) {
-			return { owner, repo };
-		}
-
-		const prNumber = this._extractPullRequestNumber(session, pullRequestUri);
-		if (prNumber === undefined) {
+		if (!pullRequestUri || !pullRequestIdentity) {
 			return { owner, repo };
 		}
 
@@ -1241,7 +1240,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			owner,
 			repo,
 			pullRequest: {
-				number: prNumber,
+				number: pullRequestIdentity.number,
 				uri: pullRequestUri,
 				icon,
 				baseRefOid,
@@ -1254,19 +1253,22 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		if (session.providerType !== AgentSessionProviders.Cloud) {
 			return undefined;
 		}
+		if (typeof session.metadata?.host === 'string' && session.metadata.host.toLowerCase() !== 'github.com') {
+			return undefined;
+		}
 		return typeof session.metadata?.branch === 'string' ? session.metadata.branch : undefined;
 	}
 
-	private _extractPullRequestNumber(session: IAgentSession, pullRequestUri: URI): number | undefined {
-		const metadata = session.metadata;
-		if (typeof metadata?.pullRequestNumber === 'number') {
-			return metadata.pullRequestNumber as number;
+	private _extractPullRequestIdentity(pullRequestUri: URI): { readonly owner: string; readonly repo: string; readonly number: number } | undefined {
+		const match = /^\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(pullRequestUri.path);
+		if (!match?.groups) {
+			return undefined;
 		}
-		const match = /\/pull\/(\d+)/.exec(pullRequestUri.path);
-		if (match) {
-			return parseInt(match[1], 10);
-		}
-		return undefined;
+		return {
+			owner: decodeURIComponent(match.groups.owner),
+			repo: decodeURIComponent(match.groups.repo),
+			number: parseInt(match.groups.number, 10),
+		};
 	}
 
 	private _extractOwnerRepo(session: IAgentSession): { owner: string | undefined; repo: string | undefined } {
@@ -1294,14 +1296,6 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			const parts = repoUri.path.split('/').filter(Boolean);
 			if (parts.length >= 2) {
 				return { owner: decodeURIComponent(parts[0]), repo: decodeURIComponent(parts[1]) };
-			}
-		}
-
-		// Parse from pullRequestUrl
-		if (typeof metadata.pullRequestUrl === 'string') {
-			const match = /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/.exec(metadata.pullRequestUrl as string);
-			if (match) {
-				return { owner: match[1], repo: match[2] };
 			}
 		}
 
@@ -1450,6 +1444,9 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		}
 
 		if (session.providerType === AgentSessionProviders.Cloud) {
+			if (typeof metadata.owner !== 'string' || typeof metadata.name !== 'string') {
+				return {};
+			}
 			const branch = typeof metadata.branch === 'string' ? metadata.branch : 'HEAD';
 			const repositoryUri = URI.from({
 				scheme: GITHUB_REMOTE_FILE_SCHEME,

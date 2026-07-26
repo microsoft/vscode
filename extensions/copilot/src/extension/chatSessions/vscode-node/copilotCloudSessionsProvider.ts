@@ -141,13 +141,14 @@ export function normalizeInitialSessionOptions(initialOptions: unknown, logServi
 	return [];
 }
 
-export function getCloudSessionItemMetadata(repo: CloudSessionData['repo'], diffRefs: CloudSessionData['diffRefs']): { readonly owner: string; readonly name: string; readonly branch?: string } | undefined {
+export function getCloudSessionItemMetadata(repo: CloudSessionData['repo'], diffRefs: CloudSessionData['diffRefs']): { readonly owner: string; readonly name: string; readonly host?: string; readonly branch?: string } | undefined {
 	if (!repo) {
 		return undefined;
 	}
 	return {
 		owner: repo.owner,
 		name: repo.name,
+		...(repo.host ? { host: repo.host } : {}),
 		...(diffRefs?.headRef ? { branch: diffRefs.headRef } : {}),
 	};
 }
