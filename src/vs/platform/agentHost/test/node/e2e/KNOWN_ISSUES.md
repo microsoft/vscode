@@ -25,6 +25,12 @@ Capability skips are tracked separately from suspected bugs. A provider that doe
 
 Distinct from individually disabled tests: whole areas where a platform or contract has no E2E coverage at all. These do not show up as skipped tests, so they are easy to miss.
 
+### Snapshot text is not normalized for line endings
+
+`normalizeSnapshotText` in `ahpSnapshot.ts` rewrites working directories, home directories, user names, shell ids, and `ls -l` listing columns, but does nothing about line endings. Most snapshots are unaffected because the `behavior` profile records no tool output, but a few carry literal `content: |-` blocks.
+
+Any such block recorded on macOS or Linux will mismatch on Windows if the text is produced with CRLF, for a reason unrelated to the behavior under test — and it will be easy to misread as a product bug. Collapsing `\r\n` to `\n` (and trimming trailing whitespace per line) during snapshot normalization removes a whole class of confusing Windows-only failures for two lines of code. Worth doing before enabling more Windows coverage, not after.
+
 ### Windows has no permission, shell, or worktree coverage
 
 `shellToolReplayEnabled` is computed as `!isWindows && ...` — an *unconditional* Windows exclusion, not a per-provider or per-capture one. Everything downstream of it is therefore untested on Windows for every provider, including `tool call triggers permission request and can be approved`, which is the only E2E test of the permission-approval flow.
@@ -32,6 +38,25 @@ Distinct from individually disabled tests: whole areas where a platform or contr
 The individual rows in [Windows shell and filesystem behavior](#windows-shell-and-filesystem-behavior) each look like a small portable-shell problem. Collectively they mean the Windows CI leg validates strictly less of the product than the macOS and Linux legs, in the areas most likely to be platform-specific. That is the inverse of what a cross-platform matrix is for.
 
 Reducing this does not require making the recorded POSIX commands portable. Permission approval, worktree resolution, and terminal lifecycle can be exercised with host-executed commands (bang commands) and conformance-tier tests that do not depend on what the model chose to type into a shell.
+
+Where a scenario genuinely needs to run a command, prefer one that behaves the same under `cmd`/PowerShell and POSIX shells. `node -e "…"` (or a `.js` file seeded into the workspace and invoked as `node script.js`) is always available, since the suite already runs under Node. That keeps the real terminal tool, sandbox, streaming, and exit-code paths under test while removing the platform coupling.
+
+### Recorded model requests are never asserted
+
+`CapiReplayProxy` matches purely ordinally: the Nth request to a given `(method, path)` replays the Nth recorded response. The recorded `request:` block in a capture is normalized on write (for review and diff stability) but is never read back — `exchange.request` is only touched by `_writeFixture`. Replay is therefore driven entirely by the recorded responses.
+
+Ordinal routing is the right choice for *selecting* a response: request bodies carry volatile fields (dates, request ids, uuids) and matching on them would produce brittle cache misses. It also keeps the agent loop on rails, so a tool failure surfaces as a behavioral difference rather than a confusing desync.
+
+The gap is that nothing *asserts* the request. The request body is the host's own product — prompt assembly, conversation history retention, truncation, attachment marshalling, and how tool results are handed back to the model. A regression in any of those would still replay green, because the proxy serves response N regardless of what was asked. The committed `request:` block only changes when someone re-records, at which point a regression is silently promoted to the new expected value. Several `multiChat` tests already hand-roll assertions over `observedModelRequestBodies` to compensate for this.
+
+The fix is to assert the recorded request as a **projection**, mirroring the existing `protocol` / `behavior` profiles in `ahpSnapshot.ts`:
+
+- **Assert** host-authored structure: message roles and ordering, retained history, system prompt shape, attachment blocks, and `tool_use_id` wiring.
+- **Elide** environment-derived content, primarily the `tool_result` text payload.
+
+That split is the point. Asserting raw tool output would re-introduce exactly the platform coupling described above — command output, line endings, and `ls`-style listings all differ per OS — and would require a large per-tool normalizer layer to hold stable. Eliding it yields a platform-independent assertion on the part that is actually host behavior. The tool result's presence and wiring is worth asserting; its text is not.
+
+Sequencing: do this *after* the recorded commands are made portable. Turning request assertions on first would simply freeze today's POSIX-flavored requests into the expected values.
 
 ## Suspected product bugs
 
