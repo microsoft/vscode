@@ -237,11 +237,14 @@ them the need for process identity, liveness probing, tree-kill and metadata
 schema changes. It also fixes two pre-existing defects by deletion rather than by
 adding machinery to make them safe.
 
-**Cost.** Reconnects that previously reused a live agent host skipped platform
-detection and the CLI install check entirely. They no longer do, so the saving is
-several SSH round trips rather than one command. That is the price of not
-maintaining a second, divergent copy of the CLI's lifecycle logic, and it is paid
-on an already-established connection.
+**Cost, accepted deliberately.** Reconnects that previously reused a live agent
+host skipped platform detection and the CLI install check; they no longer do, so
+a full reconnect costs a few more round trips and a desktop commit change can
+re-download the CLI even when a healthy supervisor is serving. This is accepted:
+reconnects are rare, the work happens on an already-established connection, and
+no kill switch or fallback path is warranted for it. Maintaining a second,
+divergent copy of the CLI's lifecycle logic to avoid it would cost far more than
+it saves.
 
 **Timeouts must agree, and the desktop's must be the outer one.** The desktop
 gives the launch 60 seconds (`sshRemoteAgentHostService.ts:343-348`) while the
