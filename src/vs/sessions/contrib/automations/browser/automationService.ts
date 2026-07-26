@@ -18,6 +18,7 @@ import {
 	IAutomationRun,
 } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import {
+	type AutomationMutationGuard,
 	IAutomationService,
 	ICreateAutomationOptions,
 	IGuardedAutomationUpdateResult,
@@ -164,7 +165,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 		return cached;
 	}
 
-	async createAutomation(options: ICreateAutomationOptions): Promise<IAutomation> {
+	async createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomation> {
 		const now = this._now();
 		const nowIso = now.toISOString();
 		const nextRun = computeNextRunAt(options.schedule, now);
@@ -187,7 +188,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 			kind: 'commit',
 			ledger: { automations: [automation, ...ledger.automations], runs: ledger.runs },
 			result: undefined,
-		}));
+		}), mutationGuard);
 		publishAutomationCreated(this.telemetryService, automation);
 		return automation;
 	}
@@ -213,7 +214,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 		return result.updated;
 	}
 
-	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation): Promise<IGuardedAutomationUpdateResult> {
+	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
 		const now = this._now();
 		let previous: IAutomation | undefined;
 		const result = await this.mutateLedger<IGuardedAutomationUpdateResult>(ledger => {
@@ -235,7 +236,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 				},
 				result: { kind: 'updated', automation: updated } as const,
 			};
-		});
+		}, mutationGuard);
 		if (result.kind === 'conflict' || !previous) {
 			return result;
 		}
@@ -244,7 +245,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 		return result;
 	}
 
-	async deleteAutomation(id: string): Promise<void> {
+	async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
 		const existing = await this.mutateLedger(ledger => {
 			const automation = ledger.automations.find(automation => automation.id === id);
 			if (!automation) {
@@ -258,7 +259,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 				},
 				result: automation,
 			};
-		});
+		}, mutationGuard);
 		if (!existing) {
 			return;
 		}
@@ -354,7 +355,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 
 	//#region Persistence
 
-	private async mutateLedger<T>(mutate: (ledger: ILedger) => ILedgerMutation<T>): Promise<T> {
+	private async mutateLedger<T>(mutate: (ledger: ILedger) => ILedgerMutation<T>, mutationGuard?: AutomationMutationGuard): Promise<T> {
 		let raw = await this.automationStorageService.read();
 		while (true) {
 			const readResult = this.readLedger(raw);
@@ -380,9 +381,10 @@ export class AutomationService extends Disposable implements IAutomationService 
 				runs: [...ledger.runs],
 			};
 			const newValue = JSON.stringify(serialized);
+			mutationGuard?.();
 			const writeResult = await this.automationStorageService.compareAndSwap(raw, newValue);
 			if (writeResult.swapped) {
-				this.acceptLedger(ledger, revision);
+				this.setLedger(ledger, revision);
 				return mutation.result;
 			}
 			if (writeResult.currentValue === raw) {
@@ -396,6 +398,10 @@ export class AutomationService extends Disposable implements IAutomationService 
 		if (revision < this._lastSeenRevision) {
 			return;
 		}
+		this.setLedger(ledger, revision);
+	}
+
+	private setLedger(ledger: ILedger, revision: number): void {
 		this._lastSeenRevision = revision;
 		transaction(tx => {
 			this._automations.set(ledger.automations, tx);
