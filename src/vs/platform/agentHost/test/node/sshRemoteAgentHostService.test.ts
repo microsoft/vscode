@@ -417,8 +417,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		// First connect: uname, CLI check, findRunningAgentHost (no state), write state
 		service.execResponses = [
 			{ stdout: '', code: 1 },               // cat state file (not found)
-			{ stdout: 'Linux\n', code: 0 },      // uname -s
-			{ stdout: 'x86_64\n', code: 0 },      // uname -m
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },       // CLI --version (already installed)
 			{ stdout: '', code: 0 },               // echo state file (write)
 		];
@@ -444,8 +443,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		// First connect: uname, CLI check, findRunningAgentHost (no state), write state
 		service.execResponses = [
 			{ stdout: '', code: 1 },               // cat state file (not found)
-			{ stdout: 'Linux\n', code: 0 },      // uname -s
-			{ stdout: 'x86_64\n', code: 0 },      // uname -m
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },       // CLI --version (already installed)
 			{ stdout: '', code: 0 },               // echo state file (write)
 		];
@@ -466,8 +464,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('reconnect does not fire onDidRelayClose for superseded relay', async () => {
 		service.execResponses = [
 			{ stdout: '', code: 1 },
-			{ stdout: 'Linux\n', code: 0 },
-			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
 			{ stdout: '', code: 0 },
 		];
@@ -490,8 +487,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('reconnect suppresses synchronous close from old relay during replacement', async () => {
 		service.execResponses = [
 			{ stdout: '', code: 1 },
-			{ stdout: 'Linux\n', code: 0 },
-			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
 			{ stdout: '', code: 0 },
 		];
@@ -513,8 +509,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('uses sshConfigHost as connection key when present', async () => {
 		service.execResponses = [
 			{ stdout: '', code: 1 },
-			{ stdout: 'Linux\n', code: 0 },
-			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
 			{ stdout: '', code: 0 },
 		];
@@ -560,9 +555,9 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	});
 
 	test('agent-host reuse skips platform detection and CLI install', async () => {
-		// Regression: on the AH-reuse path we must not pay for `uname -s`,
-		// `uname -m`, `--version`, install, or cleanup — those are only
-		// needed when we're actually about to spawn a fresh agent host.
+		// Regression: on the AH-reuse path we must not pay for `uname -s -m`,
+		// `--version`, install, or cleanup — those are only needed when
+		// we're actually about to spawn a fresh agent host.
 		const existingState = stateJson(1234, 7777, 'existing-tok');
 		service.execResponses = [
 			{ stdout: existingState, code: 0 },    // cat state file (found)
@@ -584,8 +579,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			{ stdout: staleState, code: 0 },       // cat state file
 			{ stdout: '', code: 1 },               // kill -0 (PID dead)
 			{ stdout: '', code: 0 },               // rm -f state file
-			{ stdout: 'Linux\n', code: 0 },       // uname -s
-			{ stdout: 'x86_64\n', code: 0 },      // uname -m
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },       // CLI --version
 			{ stdout: '', code: 0 },               // echo state file (write new)
 		];
@@ -607,8 +601,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			{ stdout: existingState, code: 0 },
 			{ stdout: '', code: 0 },
 			{ stdout: '', code: 0 },
-			{ stdout: 'Linux\n', code: 0 },       // uname -s
-			{ stdout: 'x86_64\n', code: 0 },      // uname -m
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },       // CLI --version
 			// write new state file after fresh start
 			{ stdout: '', code: 0 },
@@ -637,8 +630,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		service.execResponses = [
 			{ stdout: legacyState, code: 0 }, // cat lockfile (no schemaVersion)
 			{ stdout: '', code: 0 },           // rm -f corrupt lockfile
-			{ stdout: 'Linux\n', code: 0 },
-			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
 			{ stdout: '', code: 0 },           // write new lockfile
 		];
@@ -653,8 +645,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('does not retry when relay fails on freshly started agent', async () => {
 		service.execResponses = [
 			{ stdout: '', code: 1 },               // no state file
-			{ stdout: 'Linux\n', code: 0 },
-			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
 			{ stdout: '', code: 0 },               // write state
 		];
@@ -671,8 +662,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('cleans up SSH client on error', async () => {
 		service.execResponses = [
 			{ stdout: '', code: 1 },
-			{ stdout: 'Linux\n', code: 0 },
-			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
 			{ stdout: '', code: 0 },
 		];
@@ -922,8 +912,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('reconnect after disconnect establishes a new SSH connection', async () => {
 		service.execResponses = [
 			{ stdout: '', code: 1 },
-			{ stdout: 'Linux\n', code: 0 },
-			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
 			{ stdout: '', code: 0 },
 		];
@@ -934,8 +923,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		service.execResponses = [
 			{ stdout: '', code: 1 },
-			{ stdout: 'Linux\n', code: 0 },
-			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
 			{ stdout: '', code: 0 },
 		];
@@ -951,8 +939,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('fires progress events during connect', async () => {
 		service.execResponses = [
 			{ stdout: '', code: 1 },
-			{ stdout: 'Linux\n', code: 0 },
-			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
 			{ stdout: '', code: 0 },
 		];
@@ -1036,8 +1023,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('skips CLI download when CLI is already installed', async () => {
 		service.execResponses = [
 			{ stdout: '', code: 1 },               // cat state file (not found)
-			{ stdout: 'Linux\n', code: 0 },       // uname -s
-			{ stdout: 'x86_64\n', code: 0 },      // uname -m
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },       // CLI --version succeeds
 			{ stdout: '', code: 0 },               // echo state file (write)
 		];
@@ -1053,8 +1039,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('downloads CLI when version check fails', async () => {
 		service.execResponses = [
 			{ stdout: '', code: 1 },               // cat state file (not found)
-			{ stdout: 'Linux\n', code: 0 },       // uname -s
-			{ stdout: 'x86_64\n', code: 0 },      // uname -m
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '', code: 127 },             // CLI --version fails (not found)
 			{ stdout: '', code: 0 },               // curl | tar install
 			{ stdout: '', code: 0 },               // echo state file (write)
@@ -1093,8 +1078,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		test('always invokes cleanup of old commit-keyed CLIs', async () => {
 			pinnedService.execResponses = [
 				{ stdout: '', code: 1 },               // cat state (none)
-				{ stdout: 'Linux\n', code: 0 },
-				{ stdout: 'x86_64\n', code: 0 },
+				{ stdout: 'Linux x86_64\n', code: 0 },
 				{ stdout: '', code: 0 },               // test -x cliBin → present
 				{ stdout: '', code: 0 },               // touch cliBin (refresh mtime on reuse)
 				{ stdout: '', code: 0 },               // cleanup (runs after reuse decision)
@@ -1111,8 +1095,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		test('reuses existing commit-keyed CLI without re-downloading', async () => {
 			pinnedService.execResponses = [
 				{ stdout: '', code: 1 },               // cat state (none)
-				{ stdout: 'Linux\n', code: 0 },
-				{ stdout: 'x86_64\n', code: 0 },
+				{ stdout: 'Linux x86_64\n', code: 0 },
 				{ stdout: '', code: 0 },               // test -x cliBin → 0 (present)
 				{ stdout: '', code: 0 },               // touch cliBin
 				{ stdout: '', code: 0 },               // cleanup
@@ -1131,8 +1114,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		test('downloads from commit-pinned URL when CLI is missing', async () => {
 			pinnedService.execResponses = [
 				{ stdout: '', code: 1 },               // cat state (none)
-				{ stdout: 'Linux\n', code: 0 },
-				{ stdout: 'x86_64\n', code: 0 },
+				{ stdout: 'Linux x86_64\n', code: 0 },
 				{ stdout: '', code: 1 },               // test -x → missing
 				{ stdout: '', code: 0 },               // mkdir+mktemp+curl|tar+mv+chmod+rm
 				{ stdout: '1.0.0\n', code: 0 },       // <cliBin> --version validation
@@ -1155,8 +1137,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			const fallbackBin = `~/.vscode-insiders/code-insiders-0000000000000000000000000000000000000000`;
 			pinnedService.execResponses = [
 				{ stdout: '', code: 1 },               // cat state (none)
-				{ stdout: 'Linux\n', code: 0 },
-				{ stdout: 'x86_64\n', code: 0 },
+				{ stdout: 'Linux x86_64\n', code: 0 },
 				{ stdout: '', code: 1 },               // test -x → missing
 				{ stdout: '', code: 7 },               // install fails (curl exit 7)
 				{ stdout: `${fallbackBin}\n`, code: 0 }, // fallback finder lists old commit-keyed
@@ -1178,8 +1159,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		test('propagates install error when no fallback CLI exists', async () => {
 			pinnedService.execResponses = [
 				{ stdout: '', code: 1 },               // cat state (none)
-				{ stdout: 'Linux\n', code: 0 },
-				{ stdout: 'x86_64\n', code: 0 },
+				{ stdout: 'Linux x86_64\n', code: 0 },
 				{ stdout: '', code: 1 },               // test -x → missing
 				{ stdout: '', code: 7 },               // install fails
 				{ stdout: '', code: 0 },               // fallback finder returns nothing
@@ -1223,8 +1203,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('reconnect preserves connection token and address', async () => {
 		service.execResponses = [
 			{ stdout: '', code: 1 },
-			{ stdout: 'Linux\n', code: 0 },
-			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
 			{ stdout: '', code: 0 },
 		];
@@ -1242,8 +1221,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('messages from superseded relay still arrive (only close is suppressed)', async () => {
 		service.execResponses = [
 			{ stdout: '', code: 1 },
-			{ stdout: 'Linux\n', code: 0 },
-			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
 			{ stdout: '', code: 0 },
 		];
@@ -1273,8 +1251,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('reconnect cleans up SSH client when relay recreation fails', async () => {
 		service.execResponses = [
 			{ stdout: '', code: 1 },
-			{ stdout: 'Linux\n', code: 0 },
-			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
 			{ stdout: '', code: 0 },
 		];
@@ -1314,8 +1291,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		// reload, since the shared-process state survives.
 		service.execResponses = [
 			{ stdout: '', code: 1 },
-			{ stdout: 'Linux\n', code: 0 },
-			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
 			{ stdout: '', code: 0 },
 		];
@@ -1352,8 +1328,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('reconnect removes old close/error listeners from shared SSH client', async () => {
 		service.execResponses = [
 			{ stdout: '', code: 1 },
-			{ stdout: 'Linux\n', code: 0 },
-			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: 'Linux x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
 			{ stdout: '', code: 0 },
 		];
@@ -1373,6 +1348,122 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		// Listener count should not grow — old ones removed, new ones added
 		assert.strictEqual(client.closeListenerCount, closeListenersBefore);
 		assert.strictEqual(client.errorListenerCount, errorListenersBefore);
+	});
+});
+
+/**
+ * Windows-remote coverage for the connect flow. Proves that when the POSIX
+ * probe fails (as it does on Win32-OpenSSH, which has no `uname`), detection
+ * falls through to the encoded PowerShell probe and every subsequent
+ * CLI-install command is rendered by {@link WindowsRemotePlatform} rather
+ * than the POSIX shell strings that used to be inlined here.
+ */
+suite('SSHRemoteAgentHostMainService - Windows remote', () => {
+
+	const disposables = new DisposableStore();
+	let service: TestableSSHRemoteAgentHostMainService;
+
+	setup(() => {
+		const logService = new NullLogService();
+		const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'dataFolderName' | 'serverDataFolderName'> = {
+			_serviceBrand: undefined,
+			quality,
+			dataFolderName,
+			serverDataFolderName: '.vscode-insiders',
+		};
+		service = new TestableSSHRemoteAgentHostMainService(
+			logService,
+			productService as IProductService,
+		);
+		disposables.add(service);
+	});
+
+	teardown(() => disposables.clear());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	// Prefix that WindowsRemotePlatform.buildPowerShellCommand emits for every
+	// exec issued through the platform (detection, version check, install,
+	// prune, fallback discovery). Test uses this to assert commands were
+	// rendered by WindowsRemotePlatform rather than POSIX helpers.
+	const PS_PREFIX = 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ';
+
+	test('connects to a Windows remote via the encoded PowerShell probe', async () => {
+		service.execResponses = [
+			{ stdout: '', code: 1 },                                                // cat state (none)
+			{ stdout: '', code: 1 },                                                // uname -s -m fails on Windows
+			{ stdout: 'VSCODE_REMOTE_OS=win32 VSCODE_REMOTE_ARCH=x64\r\n', code: 0 }, // Windows detection probe
+			{ stdout: '1.0.0\r\n', code: 0 },                                       // WindowsRemotePlatform.versionCheck succeeds → reuse
+			{ stdout: '', code: 0 },                                                // writeAgentHostState
+		];
+
+		const result = await service.connect(makeConfig({ sshConfigHost: 'win-host' }));
+
+		assert.strictEqual(result.connectionId, 'ssh:win-host');
+		assert.strictEqual(service.startCalled, 1);
+		assert.strictEqual(service.relayCalled, 1);
+
+		const execCalls = service.mockClients[0].execCalls;
+		// Detection ran the single combined POSIX probe first, then the
+		// encoded Windows probe — proving the fix landed and the regression
+		// (two `uname` calls) cannot slip back in.
+		const posixProbeIdx = execCalls.findIndex(c => c === 'uname -s -m');
+		assert.ok(posixProbeIdx >= 0, `combined uname probe missing; saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(execCalls[posixProbeIdx + 1].startsWith(PS_PREFIX),
+			`Windows probe must follow the POSIX probe; saw: ${JSON.stringify(execCalls)}`);
+		// The version check (only CLI-install command on the reuse path) is
+		// also rendered by WindowsRemotePlatform.
+		assert.ok(execCalls[posixProbeIdx + 2].startsWith(PS_PREFIX),
+			`version check must be encoded PS; saw: ${JSON.stringify(execCalls)}`);
+		// Regression guards: the old two-call form and POSIX CLI-install
+		// helpers must not appear.
+		assert.ok(!execCalls.some(c => c === 'uname -s'), `bare uname -s must not run; saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(!execCalls.some(c => c === 'uname -m'), `bare uname -m must not run; saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(!execCalls.some(c => c.includes('test -x')), `POSIX test -x must not run on Windows; saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(!execCalls.some(c => c.includes('curl')), `POSIX curl must not run on Windows; saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(!execCalls.some(c => c.includes('tar ')), `POSIX tar must not run on Windows; saw: ${JSON.stringify(execCalls)}`);
+	});
+
+	test('installs the CLI via PowerShell when the Windows version check fails', async () => {
+		service.execResponses = [
+			{ stdout: '', code: 1 },                                                // cat state (none)
+			{ stdout: '', code: 127 },                                              // uname -s -m fails
+			{ stdout: 'VSCODE_REMOTE_OS=win32 VSCODE_REMOTE_ARCH=arm64\r\n', code: 0 }, // Windows detection probe
+			{ stdout: '', code: 1 },                                                // versionCheck fails → download
+			{ stdout: '', code: 0 },                                                // installCli succeeds
+			{ stdout: '', code: 0 },                                                // writeAgentHostState
+		];
+
+		await service.connect(makeConfig({ sshConfigHost: 'win-arm-host' }));
+
+		const execCalls = service.mockClients[0].execCalls;
+		// Detection + versionCheck + installCli are all encoded PS payloads;
+		// no POSIX shell strings should slip through.
+		const psCalls = execCalls.filter(c => c.startsWith(PS_PREFIX));
+		assert.strictEqual(psCalls.length, 3,
+			`expected 3 encoded-PS calls (detect, version, install); saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(!execCalls.some(c => c.includes('curl')), `POSIX curl must not run; saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(!execCalls.some(c => c.includes('test -x')), `POSIX test -x must not run; saw: ${JSON.stringify(execCalls)}`);
+	});
+
+	test('rejects with a diagnostic quoting both probes when neither parses', async () => {
+		service.execResponses = [
+			{ stdout: '', code: 1 },                            // cat state (none)
+			{ stdout: 'FreeBSD amd64\n', code: 0 },             // uname -s -m: unrecognised OS
+			{ stdout: 'noise line\r\n', code: 0 },              // Windows probe: no marker line
+		];
+
+		await assert.rejects(
+			() => service.connect(makeConfig({ sshConfigHost: 'weird-host' })),
+			(err: Error) => {
+				const msg = err.message;
+				return msg.includes('Could not detect remote platform')
+					&& msg.includes('POSIX probe')
+					&& msg.includes('"FreeBSD amd64"')
+					&& msg.includes('Windows probe')
+					&& msg.includes('"noise line"');
+			},
+		);
 	});
 });
 

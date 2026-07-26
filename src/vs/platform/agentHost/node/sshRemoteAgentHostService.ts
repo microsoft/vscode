@@ -35,12 +35,12 @@ import {
 	extractAgentHostWebSocketURL,
 	findRunningAgentHost,
 	redactToken,
-	resolveRemotePlatform,
 	writeAgentHostState,
 	type ISshExec,
 } from './sshRemoteAgentHostHelpers.js';
 import { PosixRemotePlatform } from './remotePlatform/posixRemotePlatform.js';
-import { _asRemotePath, type IRemotePlatform, type IRemotePlatformInfo } from './remotePlatform/remotePlatform.js';
+import { detectRemotePlatform } from './remotePlatform/remotePlatformDetection.js';
+import { _asRemotePath, type IRemotePlatform } from './remotePlatform/remotePlatform.js';
 import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 
@@ -303,20 +303,6 @@ function sshExec(client: SSHClient, command: string, opts?: { ignoreExitCode?: b
 /** Create a bound exec function for the given SSH client. */
 function bindSshExec(client: SSHClient): ISshExec {
 	return (command, opts) => sshExec(client, command, opts);
-}
-
-/**
- * Bridge from the loose `{os, arch}` shape returned by
- * {@link resolveRemotePlatform} to a concrete {@link IRemotePlatform}. Only
- * POSIX platforms are reachable today because detection still rejects
- * non-POSIX remotes; the cast on `info` is validated by that same detection
- * layer against the {@link RemoteOS}/{@link RemoteArch} whitelists.
- */
-function toRemotePlatform(info: { os: string; arch: string }): IRemotePlatform {
-	return new PosixRemotePlatform({
-		os: info.os as IRemotePlatformInfo['os'],
-		arch: info.arch as IRemotePlatformInfo['arch'],
-	});
 }
 
 function startRemoteAgentHost(
@@ -740,15 +726,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					this._logService.info(`${LOG_PREFIX} Using custom agent host command: ${config.remoteAgentHostCommand}`);
 					return;
 				}
-				const { stdout: unameS } = await sshExec(sshClient!, 'uname -s');
-				const { stdout: unameM } = await sshExec(sshClient!, 'uname -m');
-				const platformInfo = resolveRemotePlatform(unameS, unameM);
-				if (!platformInfo) {
-					throw new Error(`${LOG_PREFIX} Unsupported remote platform: ${unameS.trim()} ${unameM.trim()}`);
-				}
-				this._logService.info(`${LOG_PREFIX} Remote platform: ${platformInfo.os}-${platformInfo.arch}`);
+				const platform = await detectRemotePlatform(bindSshExec(sshClient!));
+				this._logService.info(`${LOG_PREFIX} Remote platform: ${platform.info.os}-${platform.info.arch}`);
 				reportProgress(localize('sshProgressInstallingCLI', "Checking remote CLI installation..."));
-				const platform = toRemotePlatform(platformInfo);
 				resolvedPlatform = platform;
 				cliDataDir = platform.cliDataDir(this._serverDataFolderName);
 				cliBin = await this._ensureCLIInstalled(sshClient!, platform, reportProgress);
