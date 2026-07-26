@@ -414,7 +414,7 @@ matching that shape is surfaced as a targeted hint instead of a raw shell error.
 - **I1.** No shell syntax outside `node/remotePlatform/` **on the SSH path**.
   WSL composes its own single bootstrap script and drives a `wsl.exe` child
   rather than an SSH channel; it is out of scope here and migrates separately
-  (§11).
+  (§10).
 - **I2.** Every command sent to a Windows remote is an `-EncodedCommand`
   invocation. No bare PowerShell reaches a remote command line.
 - **I3.** A platform is *resolved* before any other remote operation — by
@@ -470,7 +470,7 @@ therefore fixes orphan accumulation on POSIX independently of Windows support.
 
 ---
 
-## 11. Out of scope
+## 10. Out of scope
 
 - **WSL migration.** WSL drives a `wsl.exe` child and composes one bootstrap
   script rather than issuing discrete SSH commands, so its lifecycle differs
@@ -482,7 +482,7 @@ therefore fixes orphan accumulation on POSIX independently of Windows support.
 
 ---
 
-## 10. Test strategy
+## 11. Test strategy
 
 Existing SSH tests drive a fake executor with a scripted response queue and
 assert on the literal command strings issued. That design carries over: a
@@ -517,3 +517,44 @@ limits are exactly the failures that string assertions cannot catch, and
 discovering them in P5 by hand would be too late. P5 remains a manual
 end-to-end checklist against a real remote, optionally backed by an opt-in
 `.integrationTest.ts` gated on `VSCODE_TEST_SSH_WINDOWS_HOST`.
+
+---
+
+## 12. Pre-existing defects addressed
+
+Two defects in the current implementation are corrected by P3. Both are
+independent of Windows support and affect Linux and macOS today; they are
+recorded here because they widen this work's blast radius and its review
+surface.
+
+### D1 — The desktop overwrites supervisor metadata with a dead PID
+
+`code agent host` daemonizes a supervisor, which writes its own metadata. The
+foreground process exits once the readiness sentinel arrives, after which the
+desktop overwrites that metadata with the foreground PID
+(`sshRemoteAgentHostService.ts:762-768`), captured via `echo VSCODE_PID=$$`
+(`:330`).
+
+The recorded process is therefore already gone. The reuse probe reads the
+lockfile, finds a dead PID, and starts a fresh agent host even though a live
+supervisor is present — so supervisors accumulate across reconnects.
+
+Corrected by taking identity from the supervisor's own metadata (§4.2).
+
+### D2 — Relay failure can terminate a supervisor shared with other features
+
+The supervisor is shared and outlives any individual invocation
+(`cli/src/commands/agent_host.rs`); `code tunnel`, WSL, and other desktops reuse
+it. When the WebSocket relay fails to connect, the current fallback kills
+whatever the lockfile names (`sshRemoteAgentHostService.ts:782-800`).
+
+D1 masks this: the PID on record is usually dead, so the kill is usually a
+no-op. Fixing D1 alone would make this reliably destructive — a transient relay
+failure would tear down an agent host another consumer is actively using. The
+two defects must therefore be fixed together, which is why §4.3 requires an
+independently proven-dead endpoint and a verified identity before any
+termination.
+
+Whether these warrant separate issues and a standalone fix ahead of the platform
+work is revisited once the rest of the plan is implemented, when their nuances
+are better understood.
