@@ -327,8 +327,28 @@ detached supervisor with it, moments after it printed its endpoint.
 The supervisor spawn therefore becomes job-aware, adding
 `CREATE_BREAKAWAY_FROM_JOB` where the job permits it. The repository already has
 exactly this pattern for the server child, including the probe for whether
-breakaway is allowed (`cli/src/tunnels/code_server.rs:641-649,942-950`), so this
-is reuse rather than invention.
+breakaway is allowed (`cli/src/tunnels/code_server.rs:641-649,942-950`) — the
+probe is a test spawn of `cmd /C echo ok` carrying the flag, since
+`CreateProcess` fails with access denied when the job lacks
+`JOB_OBJECT_LIMIT_BREAKAWAY_OK`.
+
+**That precedent is necessary but not sufficient here.** When breakaway is
+forbidden, the existing code simply omits the flag and accepts living inside the
+job — acceptable for the server child, fatal for a supervisor that must outlive
+the channel that started it. This design is not yet settled on the fallback. The
+candidates, in preference order:
+
+1. spawn outside the job by another route (a `Win32_Process.Create` style
+   mechanism parents the new process elsewhere, escaping the caller's job), or
+2. detect the condition at connect time and fail with an actionable error rather
+   than letting the agent host die seconds later for no visible reason.
+
+**Both the premise and the fallback are unverified.** That Win32-OpenSSH places
+exec channels in a job is inference from the precedent above, not a measurement.
+This is cheap to settle empirically — enable `sshd`, connect to `localhost`, and
+check `IsProcessInJob` plus whether a breakaway spawn succeeds — and it should be
+settled *before* the Windows work is scheduled, since the answer decides whether
+§5.6 is a two-line change or a redesign of how the supervisor is started.
 
 This failure mode is invisible to unit tests and to a local PowerShell run: it
 requires a real Win32-OpenSSH exec channel. §13 covers it explicitly, and it is
