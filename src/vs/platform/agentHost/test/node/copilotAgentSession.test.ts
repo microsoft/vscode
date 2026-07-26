@@ -25,10 +25,11 @@ import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUt
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
+import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
-import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, mergeSessionWithDefaultChat, readUsageInfoMeta, SessionStatus, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
@@ -91,6 +92,17 @@ class MockCopilotSession {
 	} = { commands: [] };
 	commandInvokeResult: { kind: 'text'; text: string; markdown?: boolean } | { kind: 'completed'; message?: string } | { kind: 'agent-prompt'; prompt: string; displayPrompt: string; mode?: 'interactive' | 'plan' | 'autopilot' } = { kind: 'text', text: '' };
 	messages: SessionEvent[] = [];
+	usageMetricsResult = {
+		totalPremiumRequestCost: 0,
+		totalUserRequests: 0,
+		totalApiDurationMs: 0,
+		sessionStartTime: new Date().toISOString(),
+		codeChanges: { linesAdded: 0, linesRemoved: 0, filesModifiedCount: 0, filesModified: [] },
+		modelMetrics: {},
+		currentModel: undefined as string | undefined,
+		lastCallInputTokens: 0,
+		lastCallOutputTokens: 0,
+	};
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
 	private readonly _allHandlers = new Set<SessionEventHandler>();
@@ -227,6 +239,9 @@ class MockCopilotSession {
 				}
 				return this.getInstructionSourcesResult;
 			},
+		},
+		usage: {
+			getMetrics: async () => this.usageMetricsResult,
 		},
 	};
 
@@ -366,6 +381,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	restrictedTelemetryContext?: IRestrictedTelemetryContext;
 	restrictedTelemetryContextError?: Error;
 	isLaunchTokenCurrent?: () => boolean;
+	onTurnEnded?: () => void;
 	modelId?: string;
 }): Promise<{
 	session: CopilotAgentSession;
@@ -374,6 +390,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	signals: AgentSignal[];
 	waitForSignal: (predicate: (signal: AgentSignal) => boolean) => Promise<AgentSignal>;
 	terminalManager: TestAgentHostTerminalManager;
+	dispatchedActions: readonly StateAction[];
 	sessionConfigUpdates: ReadonlyArray<{ session: string; patch: Record<string, unknown> }>;
 	setConfigValue: (key: string, value: unknown) => void;
 	setRootValue: (key: string, value: unknown) => void;
@@ -496,6 +513,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	};
 	services.set(IAgentConfigurationService, fakeConfigurationService);
 	const stateManager = disposables.add(new class extends AgentHostStateManager {
+		readonly dispatchedActions: StateAction[] = [];
+		override dispatchServerAction(channel: string, action: StateAction): void {
+			this.dispatchedActions.push(action);
+			super.dispatchServerAction(channel, action);
+		}
 		override getSessionState(session: string) {
 			if (!options?.sessionCustomizations || session !== sessionUri.toString()) {
 				return undefined;
@@ -541,6 +563,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			serverToolHost: options?.serverToolHost,
 			platform: options?.platform ?? 'linux',
 			isLaunchTokenCurrent: options?.isLaunchTokenCurrent,
+			onTurnEnded: options?.onTurnEnded,
 		},
 	));
 
@@ -554,6 +577,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		signals,
 		waitForSignal,
 		terminalManager,
+		dispatchedActions: stateManager.dispatchedActions,
 		sessionConfigUpdates,
 		setConfigValue: (key, value) => { configValues[key] = value; },
 		setRootValue: (key, value) => { rootValues[key] = value; },
@@ -612,6 +636,35 @@ suite('CopilotAgentSession', () => {
 			logService.traces.filter(t => t.message.includes('Unhandled SDK event')).map(t => t.message),
 			['[Copilot:test-session-1] Unhandled SDK event: {"type":"session.title_changed","data":{"title":"A new title"},"id":"evt-title","timestamp":"2026-06-24T00:00:00.000Z","parentId":null,"ephemeral":true}']
 		);
+	});
+
+	test('logs managed settings resolution and enforcement', async () => {
+		const logService = new CapturingLogService();
+		const { mockSession } = await createAgentSession(disposables, { logService });
+
+		mockSession.fire('session.managed_settings_resolved', {
+			source: 'server',
+			serverManaged: true,
+			deviceManaged: false,
+			managedKeys: ['permissions'],
+			bypassPermissionsDisabled: true,
+			failClosed: false,
+		} as SessionEventPayload<'session.managed_settings_resolved'>['data']);
+		mockSession.fire('session.managed_settings_enforced', {
+			action: 'bypass_permissions_blocked',
+			escalation: 'allow_all',
+			setting: 'permissions.disableBypassPermissionsMode',
+			failClosed: false,
+			message: 'Bypass permissions mode is disabled by enterprise policy.',
+		} as SessionEventPayload<'session.managed_settings_enforced'>['data']);
+
+		assert.deepStrictEqual({
+			infos: logService.infos.map(entry => entry.message).filter(message => message.includes('Managed settings')),
+			warnings: logService.warnings.map(entry => entry.message).filter(message => message.includes('Managed settings')),
+		}, {
+			infos: ['[Copilot:test-session-1] Managed settings resolved: source=server, managedKeys=permissions, bypassPermissionsDisabled=true, failClosed=false'],
+			warnings: ['[Copilot:test-session-1] Managed settings enforced: action=bypass_permissions_blocked, setting=permissions.disableBypassPermissionsMode, escalation=allow_all, failClosed=false, message=Bypass permissions mode is disabled by enterprise policy.'],
+		});
 	});
 
 	test('maps internal attachment URIs to Copilot SDK path fields', async () => {
@@ -1077,6 +1130,20 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('a failed send releases the turn so the chat does not look busy forever', async () => {
+		// Nothing closes a turn whose send rejected: the SDK loop never starts,
+		// so no `session.idle` arrives. The host finalizes the protocol turn with
+		// a ChatError, and the session must drop its handle to match — a chat
+		// stuck `busy` blocks idle eviction and parks deferred client restarts.
+		let turnEndCount = 0;
+		const { session, mockSession } = await createAgentSession(disposables, { onTurnEnded: () => turnEndCount++ });
+		mockSession.send = async () => { throw new Error('send failed'); };
+
+		await assert.rejects(() => session.send('hello', undefined, 'turn-failed'), /send failed/);
+
+		assert.deepStrictEqual({ hasActiveTurn: session.hasActiveTurn, turnEndCount }, { hasActiveTurn: false, turnEndCount: 1 });
+	});
+
 	test('`/env` runs the runtime command when listed and emits markdown output', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = {
@@ -1376,6 +1443,55 @@ suite('CopilotAgentSession', () => {
 				},
 			},
 		]);
+	});
+
+	test('updates prompt cache expiration from main-agent usage only', async () => {
+		const { mockSession, dispatchedActions } = await createAgentSession(disposables);
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 100,
+			outputTokens: 10,
+			cacheExpiresAt: '2026-07-24T12:00:00.000Z',
+		});
+		mockSession.fire('assistant.usage', {
+			model: 'claude-haiku-4.5',
+			inputTokens: 50,
+			outputTokens: 5,
+			cacheExpiresAt: '2026-07-24T12:10:00.000Z',
+			parentToolCallId: 'subagent-tool-call',
+		});
+
+		const promptCaches = dispatchedActions
+			.filter(action => action.type === ActionType.SessionMetaChanged)
+			.map(action => readSessionPromptCacheState(action._meta))
+			.filter(cache => cache !== undefined);
+		assert.deepStrictEqual(promptCaches, [{
+			modelId: 'claude-opus-4.8',
+			cacheExpiresAt: '2026-07-24T12:00:00.000Z',
+		}]);
+	});
+
+	test('clears prompt cache expiration when the main agent model does not report one', async () => {
+		const { mockSession, dispatchedActions } = await createAgentSession(disposables);
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 100,
+			outputTokens: 10,
+			cacheExpiresAt: '2026-07-24T12:00:00.000Z',
+		});
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.4',
+			inputTokens: 50,
+			outputTokens: 5,
+		});
+
+		const promptCaches = dispatchedActions
+			.filter(action => action.type === ActionType.SessionMetaChanged)
+			.map(action => readSessionPromptCacheState(action._meta));
+		assert.deepStrictEqual(promptCaches, [{
+			modelId: 'claude-opus-4.8',
+			cacheExpiresAt: '2026-07-24T12:00:00.000Z',
+		}, undefined]);
 	});
 
 	test('forwards Auto model resolution on live usage metadata', async () => {
@@ -3743,6 +3859,33 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 0);
 		});
 
+		test('reports the turn ending on both normal completion and abort', async () => {
+			// The agent parks work that must not interrupt a live turn (notably a
+			// CLI client restart) until this fires, so every path out of an
+			// in-flight turn has to report it — otherwise that work is stranded
+			// and the session spins forever.
+			let turnEndCount = 0;
+			const { session, mockSession } = await createAgentSession(disposables, { onTurnEnded: () => turnEndCount++ });
+
+			session.resetTurnState('turn-completed');
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			const afterCompletion = turnEndCount;
+
+			session.resetTurnState('turn-aborted');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				afterCompletion,
+				afterAbort: turnEndCount,
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				afterCompletion: 1,
+				afterAbort: 2,
+				hasActiveTurn: false,
+			});
+		});
+
 		test('drops and logs a markdown delta emitted with no active turn', async () => {
 			// A delta should only arrive while a turn is active. With none, we
 			// can't persist the part id (so every delta would allocate a fresh
@@ -4922,11 +5065,13 @@ suite('CopilotAgentSession', () => {
 				toolCallId: readyAction.toolCallId,
 				toolInput: readyAction.toolInput === undefined ? undefined : JSON.parse(readyAction.toolInput),
 				confirmed: readyAction.confirmed,
+				autoApproveBySetting: readToolCallMeta(readyAction).autoApproveBySetting,
 			}, {
 				permissionModeSetCalls: ['on'],
 				toolCallId: 'tc-allow-all',
 				toolInput: { file: 'test.ts' },
 				confirmed: ToolCallConfirmationReason.NotNeeded,
+				autoApproveBySetting: true,
 			});
 
 			const handlerPromise = invokeClientToolHandler(runtime.createClientSdkTools()[0], 'tc-allow-all', { file: 'test.ts' });
@@ -5837,6 +5982,27 @@ suite('CopilotAgentSession', () => {
 			session.respondToUserInputRequest(getInputRequest(signal).id, ChatInputResponseKind.Decline);
 
 			assert.deepStrictEqual(await responsePromise, { approved: false });
+		});
+
+		test('abort resolves and clears a pending plan review', async () => {
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
+
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
+			const request = getInputRequest(await waitForSignal(s => isAction(s, ActionType.ChatInputRequested)));
+
+			await session.abort();
+			const lateResponseHandled = session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept);
+
+			assert.deepStrictEqual({
+				response: await responsePromise,
+				abortCalls: mockSession.abortCalls,
+				lateResponseHandled,
+			}, {
+				response: { approved: false },
+				abortCalls: 1,
+				lateResponseHandled: false,
+			});
 		});
 
 		test('exit_only resolves as approved + interactive without autoApproveEdits', async () => {

@@ -38,6 +38,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
+import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
 import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { McpListWidget } from './mcpListWidget.js';
@@ -76,6 +77,7 @@ import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEdito
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -91,6 +93,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IExtension } from '../../../extensions/common/extensions.js';
@@ -292,6 +295,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private automationsContentContainer: HTMLElement | undefined;
 	private modelsContentContainer: HTMLElement | undefined;
 	private toolsContentContainer: HTMLElement | undefined;
+	private readonly contributedSectionContainers = new Map<AICustomizationManagementSection, HTMLElement>();
+	private readonly contributedSectionWidgets = new Map<AICustomizationManagementSection, IAICustomizationManagementSectionWidget>();
 	private modelsFooterElement: HTMLElement | undefined;
 
 	// Embedded editor state
@@ -329,10 +334,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail' = 'list';
 	private migrationContentContainer: HTMLElement | undefined;
 	private migrationListContainer: HTMLElement | undefined;
+	private migrationListScrollable: DomScrollableElement | undefined;
 	private migrationMigrateButton: Button | undefined;
 	private migrationSearchInput: InputBox | undefined;
 	private migrationDescriptionElement: HTMLElement | undefined;
 	private migrationSearchQuery = '';
+	private readonly collapsedPromptMigrationGroups = new Set<string>();
 	private selectedPromptMigrationUris = new ResourceSet();
 	private readonly migrationPageDisposables = this._register(new DisposableStore());
 
@@ -441,10 +448,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			[AICustomizationManagementSection.Models]: { label: localize('models', "Models"), icon: Codicon.vm, description: localize('modelsDesc', "Configure and manage language models available for use.") },
 			[AICustomizationManagementSection.Tools]: { label: localize('tools', "Tools"), icon: toolsIcon, description: localize('toolsDesc', "Enable or disable groups of language model tools available to chat.") },
 		};
+		const activeHarnessId = this.harnessService.activeHarness.get();
 		for (const id of this.workspaceService.managementSections) {
-			const info = sectionInfo[id];
+			const contribution = aiCustomizationManagementSectionRegistry.get(id, activeHarnessId) ?? aiCustomizationManagementSectionRegistry.getDefault(id);
+			const info = contribution ?? sectionInfo[id];
 			if (info) {
-				this.allSections.push({ id, ...info, count: 0 });
+				this.allSections.push({ id, label: info.label, icon: info.icon, description: info.description, count: 0 });
 			}
 		}
 		this.rebuildVisibleSections();
@@ -460,6 +469,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	protected override createEditor(parent: HTMLElement): void {
 		this.editorDisposables.clear();
+		this.contributedSectionContainers.clear();
+		this.contributedSectionWidgets.clear();
 		this.container = DOM.append(parent, $('.ai-customization-management-editor'));
 
 		this.createSplitView();
@@ -579,8 +590,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.sections.length = 0;
 		for (const s of this.allSections) {
-			if (!hidden.has(s.id)) {
-				this.sections.push(s);
+			const contribution = aiCustomizationManagementSectionRegistry.get(s.id, activeId);
+			const contributed = aiCustomizationManagementSectionRegistry.has(s.id);
+			if (!hidden.has(s.id) && (!contributed || !!contribution)) {
+				this.sections.push(contribution ? { ...s, label: contribution.label, icon: contribution.icon, description: contribution.description } : s);
 			}
 		}
 
@@ -658,6 +671,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 			// count refresh completes. Only reset when the active harness
 			// actually changed to avoid flicker on harness registration events.
 			if (this._previousActiveHarnessId !== undefined && this._previousActiveHarnessId !== activeId) {
+				for (const [section, widget] of this.contributedSectionWidgets) {
+					this.editorDisposables.delete(widget);
+					this.contributedSectionContainers.get(section)?.replaceChildren();
+				}
+				this.contributedSectionWidgets.clear();
 				for (const section of this.sections) {
 					this.updateSectionCount(section.id, 0);
 				}
@@ -871,7 +889,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 			void this.migratePromptFiles(selectedPromptFiles);
 		}));
 
-		this.migrationListContainer = DOM.append(this.migrationContentContainer, $('.prompt-migration-list.list-container'));
+		this.migrationListContainer = $('.prompt-migration-list.list-container');
+		this.migrationListScrollable = this.editorDisposables.add(new DomScrollableElement(this.migrationListContainer, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			useShadows: false,
+		}));
+		const migrationListScrollableNode = this.migrationListScrollable.getDomNode();
+		migrationListScrollableNode.classList.add('prompt-migration-list-scrollable');
+		this.migrationContentContainer.appendChild(migrationListScrollableNode);
+		const targetWindow = DOM.getWindow(this.migrationContentContainer);
+		const migrationResizeObserver = this.editorDisposables.add(new DOM.DisposableResizeObserver(
+			'AICustomizationManagementEditor.promptMigrationListScrollable',
+			() => this.migrationListScrollable?.scanDomNode(),
+			targetWindow,
+		));
+		this.editorDisposables.add(migrationResizeObserver.observe(migrationListScrollableNode));
 		this.renderPromptMigrationPage();
 	}
 
@@ -999,6 +1032,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.automationsContentContainer = DOM.append(contentInner, $('.automations-content-container'));
 			this.automationsListWidget = this.editorDisposables.add(this.instantiationService.createInstance(AutomationsListWidget));
 			this.automationsContentContainer.appendChild(this.automationsListWidget.element);
+		}
+
+		for (const section of this.workspaceService.managementSections) {
+			if (!aiCustomizationManagementSectionRegistry.has(section)) {
+				continue;
+			}
+			const container = DOM.append(contentInner, $('.contributed-section-container'));
+			this.contributedSectionContainers.set(section, container);
 		}
 
 		// Embedded editor container
@@ -1235,6 +1276,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const emptyMessage = DOM.append(this.migrationListContainer, $('p.prompt-migration-empty'));
 			emptyMessage.textContent = localize('promptMigrationPageEmpty', "No prompt files are available to migrate.");
 			this.migrationMigrateButton.enabled = false;
+			this.migrationListScrollable?.scanDomNode();
 			return;
 		}
 
@@ -1251,6 +1293,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const emptyMessage = DOM.append(this.migrationListContainer, $('p.prompt-migration-empty'));
 			emptyMessage.textContent = localize('promptMigrationSearchEmpty', "No prompt files match your search.");
 			this.updatePromptMigrationActionState();
+			this.migrationListScrollable?.scanDomNode();
 			return;
 		}
 
@@ -1314,7 +1357,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}));
 		};
 
-		const renderGroup = (groupLabel: string, promptFiles: readonly IPromptPath[]): void => {
+		const renderGroup = (groupKey: string, groupLabel: string, promptFiles: readonly IPromptPath[]): void => {
 			if (promptFiles.length === 0) {
 				return;
 			}
@@ -1336,25 +1379,53 @@ export class AICustomizationManagementEditor extends EditorPane {
 				}
 				this.renderPromptMigrationPage();
 			}));
-			const groupLabelGroup = DOM.append(groupHeader, $('.group-label-group'));
+			const groupToggle = DOM.append(groupHeader, $('button.prompt-migration-group-toggle')) as HTMLButtonElement;
+			groupToggle.type = 'button';
+			const groupId = `prompt-migration-group-${groupKey}`;
+			const collapsed = this.collapsedPromptMigrationGroups.has(groupId);
+			groupToggle.setAttribute('aria-controls', `${groupId}-items`);
+			groupToggle.setAttribute('aria-expanded', String(!collapsed));
+			const chevron = DOM.append(groupToggle, $('span.group-chevron'));
+			chevron.setAttribute('aria-hidden', 'true');
+			const groupLabelGroup = DOM.append(groupToggle, $('.group-label-group'));
 			const label = DOM.append(groupLabelGroup, $('span.group-label'));
 			label.textContent = groupLabel;
-			const count = DOM.append(groupLabelGroup, $('span.group-count'));
+			const count = DOM.append(groupToggle, $('span.group-count'));
 			count.textContent = String(promptFiles.length);
+			const groupItems = DOM.append(group, $('.prompt-migration-group-items'));
+			groupItems.id = `${groupId}-items`;
+			const setGroupCollapsed = (collapsed: boolean): void => {
+				groupItems.style.display = collapsed ? 'none' : '';
+				chevron.className = 'group-chevron';
+				chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+				groupToggle.setAttribute('aria-expanded', String(!collapsed));
+				this.migrationListScrollable?.scanDomNode();
+			};
+			setGroupCollapsed(collapsed);
+			this.migrationPageDisposables.add(DOM.addDisposableListener(groupToggle, 'click', () => {
+				if (this.collapsedPromptMigrationGroups.has(groupId)) {
+					this.collapsedPromptMigrationGroups.delete(groupId);
+					setGroupCollapsed(false);
+				} else {
+					this.collapsedPromptMigrationGroups.add(groupId);
+					setGroupCollapsed(true);
+				}
+			}));
 
 			for (const promptFile of promptFiles) {
-				renderItem(group, promptFile);
+				renderItem(groupItems, promptFile);
 			}
 		};
 
-		renderGroup(localize('promptMigrationWorkspaceGroup', "Workspace"), workspacePromptFiles);
-		renderGroup(localize('promptMigrationUserGroup', "User"), userPromptFiles);
+		renderGroup(PromptsStorage.local, localize('promptMigrationWorkspaceGroup', "Workspace"), workspacePromptFiles);
+		renderGroup(PromptsStorage.user, localize('promptMigrationUserGroup', "User"), userPromptFiles);
 
 		for (const promptFile of filteredPromptFiles.filter(file => file.storage !== PromptsStorage.local && file.storage !== PromptsStorage.user)) {
 			renderItem(this.migrationListContainer, promptFile);
 		}
 
 		this.updatePromptMigrationActionState();
+		this.migrationListScrollable?.scanDomNode();
 	}
 
 	private updatePromptMigrationPageDescription(): void {
@@ -1723,6 +1794,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.toolsDetailContainer) {
 			this.toolsDetailContainer.style.display = isToolsDetailMode ? '' : 'none';
 		}
+		for (const [section, container] of this.contributedSectionContainers) {
+			const visible = !isEditorMode && !isMigrationMode && !isDetailMode && this.selectedSection === section;
+			container.style.display = visible ? '' : 'none';
+			if (visible) {
+				this.ensureContributedSectionWidget(section);
+			}
+		}
 		if (this.editorContentContainer) {
 			this.editorContentContainer.style.display = isEditorMode ? '' : 'none';
 		}
@@ -1734,6 +1812,25 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.layout(this.dimension);
 			}
 		}
+	}
+
+	private ensureContributedSectionWidget(section: AICustomizationManagementSection): IAICustomizationManagementSectionWidget | undefined {
+		const existing = this.contributedSectionWidgets.get(section);
+		if (existing) {
+			return existing;
+		}
+		const contribution = aiCustomizationManagementSectionRegistry.get(section, this.harnessService.activeHarness.get());
+		const container = this.contributedSectionContainers.get(section);
+		if (!contribution || !container) {
+			return undefined;
+		}
+		const widget = contribution.create(this.instantiationService, container);
+		this.contributedSectionWidgets.set(section, widget);
+		this.editorDisposables.add(widget);
+		if (this.dimension) {
+			widget.layout?.(this.dimension);
+		}
+		return widget;
 	}
 
 	private updateAutomationsContentVisibility(sectionVisible: boolean): void {
@@ -1937,7 +2034,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.splitViewContainer.style.height = `${dimension.height}px`;
 			this.splitView.layout(dimension.width, dimension.height);
 		}
+		for (const widget of this.contributedSectionWidgets.values()) {
+			widget.layout?.(dimension);
+		}
 		this.migrationSearchInput?.layout();
+		this.migrationListScrollable?.scanDomNode();
 	}
 
 	override focus(): void {
@@ -1968,6 +2069,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.toolsListWidget?.focusSearch();
 		} else if (this.selectedSection === AICustomizationManagementSection.Automations) {
 			this.automationsListWidget?.focus();
+		} else if (this.selectedSection && this.contributedSectionContainers.has(this.selectedSection)) {
+			this.ensureContributedSectionWidget(this.selectedSection)?.focus?.();
 		} else {
 			this.listWidget?.focusSearch();
 		}
@@ -2020,6 +2123,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Moves focus to a specific automation in the Automations section.
+	 */
+	public focusAutomation(automationId: string): void {
+		this.automationsListWidget?.focusAutomation(automationId);
 	}
 
 	public showPromptMigrationPage(): void {

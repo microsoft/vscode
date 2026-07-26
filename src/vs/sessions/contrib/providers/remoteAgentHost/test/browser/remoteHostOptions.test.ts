@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { getStatusHover, getStatusLabel } from '../../browser/remoteHostOptions.js';
+import { getStatusHover, getStatusLabel, hasUpgradeReconnectStarted } from '../../browser/remoteHostOptions.js';
 
 suite('remoteHostOptions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -43,5 +43,12 @@ suite('remoteHostOptions', () => {
 		const hover = getStatusHover(status);
 		assert.ok(hover.includes('Some reason'));
 		assert.ok(!hover.includes('Address'), 'hover should not include an address line when none is given');
+	});
+
+	test('upgrade reconnect status ignores a passive disconnect', () => {
+		assert.strictEqual(hasUpgradeReconnectStarted(RemoteAgentHostConnectionStatus.disconnected), false);
+		assert.strictEqual(hasUpgradeReconnectStarted(RemoteAgentHostConnectionStatus.incompatible('reason', ['0.1.0'])), false);
+		assert.strictEqual(hasUpgradeReconnectStarted(RemoteAgentHostConnectionStatus.connecting), true);
+		assert.strictEqual(hasUpgradeReconnectStarted(RemoteAgentHostConnectionStatus.connected), true);
 	});
 });

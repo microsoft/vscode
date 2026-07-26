@@ -14,6 +14,8 @@ import { PolicyDefinition } from './policy.js';
 
 export type { ManagedSettingsData } from '../../../base/common/policy.js';
 
+export type RawManagedSettingsData = Readonly<Record<string, unknown>>;
+
 /** Windows registry root for GitHub Copilot policies. */
 export const GITHUB_COPILOT_WIN32_REGISTRY_PATH = 'SOFTWARE\\Policies\\GitHubCopilot';
 
@@ -578,12 +580,16 @@ export const IFileManagedSettingsService = createDecorator<IFileManagedSettingsS
 
 export interface IFileManagedSettingsService {
 	readonly _serviceBrand: undefined;
+	readonly rawManagedSettings: RawManagedSettingsData;
 	readonly managedSettings: ManagedSettingsData;
+	readonly onDidChangeRawManagedSettings: Event<RawManagedSettingsData>;
 	readonly onDidChangeManagedSettings: Event<ManagedSettingsData>;
 }
 
 export class NullFileManagedSettingsService implements IFileManagedSettingsService {
 	readonly _serviceBrand: undefined;
+	readonly rawManagedSettings: RawManagedSettingsData = {};
 	readonly managedSettings: ManagedSettingsData = {};
+	readonly onDidChangeRawManagedSettings = Event.None;
 	readonly onDidChangeManagedSettings = Event.None;
 }

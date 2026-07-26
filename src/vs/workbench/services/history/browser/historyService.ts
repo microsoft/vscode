@@ -9,7 +9,7 @@ import { IResourceEditorInput, IEditorOptions } from '../../../../platform/edito
 import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent, GroupModelChangeKind } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../editor/common/editorService.js';
-import { GoFilter, GoScope, IHistoryService } from '../common/history.js';
+import { GoFilter, GoScope, IHistoryService, MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../common/history.js';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from '../../../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { Disposable, DisposableStore, IDisposable, DisposableMap } from '../../../../base/common/lifecycle.js';
@@ -61,7 +61,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly MOUSE_NAVIGATION_SETTING = 'workbench.editor.mouseBackForwardToNavigate';
 	private static readonly NAVIGATION_SCOPE_SETTING = 'workbench.editor.navigationScope';
 
 	private readonly activeEditorListeners = this._register(new DisposableStore());
@@ -148,7 +147,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const handleMouseBackForwardSupport = () => {
 			mouseBackForwardSupportListener.clear();
 
-			if (this.configurationService.getValue(HistoryService.MOUSE_NAVIGATION_SETTING)) {
+			if (this.configurationService.getValue(MOUSE_BACK_FORWARD_NAVIGATION_SETTING)) {
 				this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
 					const eventDisposables = disposables.add(new DisposableStore());
 					eventDisposables.add(addDisposableListener(container, EventType.MOUSE_DOWN, e => this.onMouseDownOrUp(e, true)));
@@ -160,7 +159,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(HistoryService.MOUSE_NAVIGATION_SETTING)) {
+			if (event.affectsConfiguration(MOUSE_BACK_FORWARD_NAVIGATION_SETTING)) {
 				handleMouseBackForwardSupport();
 			}
 		}));

@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { IChannel, IServerChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -69,6 +72,7 @@ class DeferredRemoteAgentService extends TestRemoteAgentService {
 
 suite('EditorRemoteAgentHostServiceClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
 
 	test('waits for the remote environment before connecting to Agent Host', async () => {
 		const channel: IChannel = {
@@ -87,9 +91,11 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			[IRemoteAgentService, remoteAgentService],
 			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: true }],
 			[ILogService, new NullLogService()],
+			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
 		)));
 		instantiationService.stubInstance(RemoteAgentHostProtocolClient, protocolClient);
 		instantiationService.set(IInstantiationService, instantiationService);
+		const createInstanceSpy = sinon.spy(instantiationService, 'createInstance');
 
 		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
 		const started = Event.toPromise(service.onAgentHostStart);
@@ -98,6 +104,15 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		remoteAgentService.environmentReady.complete(null);
 		await started;
 
-		assert.deepStrictEqual({ beforeReady, afterReady: connectCalls }, { beforeReady: 0, afterReady: 1 });
+		const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === RemoteAgentHostProtocolClient);
+		assert.deepStrictEqual({
+			beforeReady,
+			afterReady: connectCalls,
+			clientInfo: protocolClientCall?.args[5],
+		}, {
+			beforeReady: 0,
+			afterReady: 1,
+			clientInfo: editorWindowAgentHostClientInfo,
+		});
 	});
 });

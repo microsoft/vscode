@@ -8,10 +8,11 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AutomationService } from '../../browser/automationService.js';
 import { AutomationTarget, AutomationWorkspaceIsolation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { createAutomationService } from './automationTestUtils.js';
 
 const FOLDER = URI.parse('file:///workspace');
 
@@ -23,13 +24,26 @@ function dailySchedule(hour = 9, minute = 0): IAutomationSchedule {
 	return { interval: 'daily', scheduleHour: hour, scheduleMinute: minute, scheduleDay: 0 };
 }
 
+function serializeLedgerAutomation(id: string, name: string) {
+	return {
+		id,
+		name,
+		prompt: 'p',
+		schedule: dailySchedule(),
+		target: { kind: 'workspace', folderUri: FOLDER.toJSON(), isolation: { kind: 'default' } },
+		enabled: true,
+		createdAt: '2026-01-01T00:00:00.000Z',
+		updatedAt: '2026-01-01T00:00:00.000Z',
+	};
+}
+
 suite('AutomationService', () => {
 
 	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createService(storage?: InMemoryStorageService): { service: AutomationService; storage: InMemoryStorageService } {
 		const sharedStorage = teardown.add(storage ?? new InMemoryStorageService());
-		const service = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const service = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		return { service, storage: sharedStorage };
 	}
 
@@ -181,7 +195,7 @@ suite('AutomationService', () => {
 
 	test('deleteAutomation removes the entry and orphan runs are dropped on reload', async () => {
 		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const firstService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
 		await firstService.recordRunStart(a.id, 'manual', 1);
 		assert.strictEqual(firstService.runs.get().length, 1);
@@ -192,7 +206,7 @@ suite('AutomationService', () => {
 		assert.strictEqual(firstService.runs.get().length, 0);
 		firstService.dispose();
 
-		const secondService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const secondService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		assert.deepStrictEqual(secondService.automations.get(), []);
 		assert.strictEqual(secondService.runs.get().length, 0);
 	});
@@ -308,12 +322,12 @@ suite('AutomationService', () => {
 
 	test('persists across service restarts via shared storage', async () => {
 		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const firstService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
 		await firstService.recordRunStart(a.id, 'manual', 7);
 		firstService.dispose();
 
-		const secondService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const secondService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		assert.strictEqual(secondService.automations.get().length, 1);
 		assert.strictEqual(secondService.automations.get()[0].id, a.id);
 		assert.strictEqual(secondService.runs.get().length, 1);
@@ -321,7 +335,7 @@ suite('AutomationService', () => {
 
 	test('round-trips and clears Worktree branch configuration', async () => {
 		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const firstService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		const created = await firstService.createAutomation({
 			name: 'A',
 			prompt: 'p',
@@ -330,7 +344,7 @@ suite('AutomationService', () => {
 		});
 		firstService.dispose();
 
-		const secondService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const secondService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		const restored = secondService.getAutomation(created.id);
 		const updated = await secondService.updateAutomation(created.id, { target: workspaceTarget(FOLDER, { kind: 'folder' }) });
 
@@ -345,7 +359,7 @@ suite('AutomationService', () => {
 
 	test('round-trips target changes without carrying repository configuration into quick-chat mode', async () => {
 		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const firstService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		const created = await firstService.createAutomation({
 			name: 'A',
 			prompt: 'p',
@@ -357,7 +371,7 @@ suite('AutomationService', () => {
 		});
 		firstService.dispose();
 
-		const secondService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const secondService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		const restored = secondService.getAutomation(created.id);
 		const workspace = await secondService.updateAutomation(created.id, {
 			target: workspaceTarget(FOLDER, { kind: 'worktree', branch: 'main' }),
@@ -376,8 +390,8 @@ suite('AutomationService', () => {
 
 	test('two services on the same storage stay in sync via onDidChangeValue', async () => {
 		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const windowA = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const windowB = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const windowA = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const windowB = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 
 		assert.deepStrictEqual(windowB.automations.get(), []);
 		const created = await windowA.createAutomation({ name: 'X', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
@@ -388,12 +402,100 @@ suite('AutomationService', () => {
 		assert.strictEqual(windowB.automations.get()[0].id, created.id);
 	});
 
+	test('mutations preserve unrelated application storage values', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		storage.store('unrelated', 'sentinel', StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
+
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
+		await service.updateAutomation(automation.id, { name: 'Updated' });
+		await service.recordRunStart(automation.id, 'manual', 1);
+		await service.deleteAutomation(automation.id);
+
+		assert.strictEqual(storage.get('unrelated', StorageScope.APPLICATION), 'sentinel');
+	});
+
+	test('guarded update rejects a concurrent editable change', async () => {
+		const sharedStorage = teardown.add(new InMemoryStorageService());
+		const windowA = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const windowB = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const reviewed = await windowA.createAutomation({ name: 'Original', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
+
+		await windowB.updateAutomation(reviewed.id, { prompt: 'concurrent edit' });
+		const result = await windowA.updateAutomationIfUnchanged(reviewed.id, { name: 'Reviewed edit' }, reviewed);
+
+		assert.deepStrictEqual(result.kind === 'conflict' ? {
+			kind: result.kind,
+			currentName: result.current?.name,
+			currentPrompt: result.current?.prompt,
+		} : result, {
+			kind: 'conflict',
+			currentName: 'Original',
+			currentPrompt: 'concurrent edit',
+		});
+	});
+
+	test('guarded update tolerates concurrent runtime metadata changes', async () => {
+		const sharedStorage = teardown.add(new InMemoryStorageService());
+		const windowA = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const windowB = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		windowA.setClockForTesting(() => new Date('2025-06-01T00:00:00Z'));
+		const reviewed = await windowA.createAutomation({ name: 'Original', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
+
+		windowB.setClockForTesting(() => new Date('2025-06-01T10:00:00Z'));
+		const run = await windowB.recordRunStart(reviewed.id, 'schedule', 2);
+		const runtimeState = windowB.getAutomation(reviewed.id);
+		const result = await windowA.updateAutomationIfUnchanged(reviewed.id, { name: 'Reviewed edit' }, reviewed);
+
+		assert.deepStrictEqual(result.kind === 'updated' ? {
+			kind: result.kind,
+			name: result.automation.name,
+			lastRunAt: result.automation.lastRunAt,
+			nextRunAt: result.automation.nextRunAt,
+			runIds: windowA.runs.get().map(candidate => candidate.id),
+		} : result, {
+			kind: 'updated',
+			name: 'Reviewed edit',
+			lastRunAt: runtimeState?.lastRunAt,
+			nextRunAt: runtimeState?.nextRunAt,
+			runIds: [run.id],
+		});
+	});
+
+	test('concurrent create, edit, run, and delete mutations converge without lost updates', async () => {
+		const sharedStorage = teardown.add(new InMemoryStorageService());
+		const windowA = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const windowB = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const edited = await windowA.createAutomation({ name: 'Edit me', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
+		const deleted = await windowA.createAutomation({ name: 'Delete me', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
+
+		const [, run, , created] = await Promise.all([
+			windowA.updateAutomation(edited.id, { name: 'Edited' }),
+			windowB.recordRunStart(edited.id, 'schedule', 2),
+			windowA.deleteAutomation(deleted.id),
+			windowB.createAutomation({ name: 'Created', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() }),
+		]);
+
+		assert.deepStrictEqual({
+			automations: windowA.automations.get()
+				.map(automation => ({ id: automation.id, name: automation.name }))
+				.sort((a, b) => a.name.localeCompare(b.name)),
+			runs: windowA.runs.get().map(candidate => ({ id: candidate.id, automationId: candidate.automationId })),
+		}, {
+			automations: [
+				{ id: created.id, name: 'Created' },
+				{ id: edited.id, name: 'Edited' },
+			],
+			runs: [{ id: run.id, automationId: edited.id }],
+		});
+	});
+
 	test('reading a ledger with a future schema version freezes observables and refuses to write', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const futureLedger = JSON.stringify({ schemaVersion: 999, revision: 7, automations: [], runs: [] });
 		// StorageScope.APPLICATION is -1
 		storage.store('chat.automations.ledger', futureLedger, -1, 1);
-		const service = teardown.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
 
 		// Observables remain empty (no prior in-memory state to preserve)
 		// but the service is now in read-only mode.
@@ -416,7 +518,7 @@ suite('AutomationService', () => {
 
 	test('refreshFromStorage preserves in-memory state when storage flips to an unsupported schema', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
-		const service = teardown.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
 		await service.createAutomation({ name: 'Local', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
 		assert.strictEqual(service.automations.get().length, 1);
 
@@ -429,7 +531,7 @@ suite('AutomationService', () => {
 
 	test('persist bumps the revision counter on every write', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
-		const service = teardown.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
 		await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
 		const rev1 = JSON.parse(storage.get('chat.automations.ledger', -1)!).revision;
 		await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
@@ -440,7 +542,7 @@ suite('AutomationService', () => {
 
 	test('persist absorbs a higher on-disk revision (concurrent-write detection)', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
-		const service = teardown.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
 		await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
 		const baseline = JSON.parse(storage.get('chat.automations.ledger', -1)!);
 		// Simulate another window having advanced the revision behind our
@@ -451,10 +553,49 @@ suite('AutomationService', () => {
 		assert.ok(after.revision > 5000, `expected revision > 5000, got ${after.revision}`);
 	});
 
+	test('successful CAS accepts a restored lower revision without accepting stale notifications', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		storage.store('chat.automations.ledger', JSON.stringify({
+			schemaVersion: 3,
+			revision: 40,
+			automations: [serializeLedgerAutomation('newer', 'Before restore')],
+			runs: [],
+		}), -1, 1);
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
+		const restoredLedger = JSON.stringify({
+			schemaVersion: 3,
+			revision: 1,
+			automations: [serializeLedgerAutomation('restored', 'Restored')],
+			runs: [],
+		});
+		storage.store('chat.automations.ledger', restoredLedger, -1, 1);
+
+		const created = await service.createAutomation({
+			name: 'After restore',
+			prompt: 'p',
+			schedule: dailySchedule(),
+			target: workspaceTarget(),
+		});
+		const persisted = JSON.parse(storage.get('chat.automations.ledger', -1)!);
+		storage.store('chat.automations.ledger', restoredLedger, -1, 1);
+
+		assert.deepStrictEqual({
+			createdName: created.name,
+			persistedRevision: persisted.revision,
+			persistedNames: persisted.automations.map((automation: { name: string }) => automation.name),
+			inMemoryNames: service.automations.get().map(automation => automation.name),
+		}, {
+			createdName: 'After restore',
+			persistedRevision: 2,
+			persistedNames: ['After restore', 'Restored'],
+			inMemoryNames: ['After restore', 'Restored'],
+		});
+	});
+
 	test('reading a corrupt ledger leaves observables empty without throwing', () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		storage.store('chat.automations.ledger', 'not json', -1, 1);
-		const service = teardown.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
 		assert.deepStrictEqual(service.automations.get(), []);
 	});
 
@@ -480,7 +621,7 @@ suite('AutomationService', () => {
 			],
 		}), -1, 1);
 
-		const service = teardown.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
 		assert.deepStrictEqual({
 			automationIds: service.automations.get().map(automation => automation.id),
 			runIds: service.runs.get().map(run => run.id),
@@ -508,7 +649,7 @@ suite('AutomationService', () => {
 			],
 		};
 		storage.store('chat.automations.ledger', JSON.stringify(ledger), -1, 1);
-		const service = teardown.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
 		assert.deepStrictEqual({
 			automations: service.automations.get().map(automation => ({ id: automation.id, targetKind: automation.target.kind })),
 			runs: service.runs.get().map(run => run.id),
@@ -552,7 +693,7 @@ suite('AutomationService', () => {
 			runs: [],
 		}), -1, 1);
 
-		const service = teardown.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
 		assert.deepStrictEqual(service.automations.get().map(automation => automation.target), [
 			workspaceTarget(FOLDER, { kind: 'worktree', branch: 'feature/saved' }),
 			workspaceTarget(FOLDER, { kind: 'default' }),
@@ -566,11 +707,11 @@ suite('AutomationService', () => {
 
 	test('round-trips a folderUri through persistence', async () => {
 		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const firstService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		const uri = URI.parse('file:///workspace/project');
 		await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget(uri) });
 
-		const secondService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const secondService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		const reloaded = secondService.automations.get()[0];
 		assert.deepStrictEqual(reloaded.target, workspaceTarget(uri));
 	});
@@ -581,7 +722,7 @@ suite('AutomationService', () => {
 		// leaked-disposable assertion at suite teardown.
 		const store = new DisposableStore();
 		const storage = store.add(new InMemoryStorageService());
-		const service = store.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
+		const service = store.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
 		assert.deepStrictEqual(service.automations.get(), []);
 		store.dispose();
 	});
