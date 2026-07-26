@@ -23,6 +23,7 @@ import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileSystemProvider, agentHostUri } from '../../common/agentHostFileSystemProvider.js';
+import { agentsWindowAgentHostClientInfo, type AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
 
@@ -83,6 +84,7 @@ class CountingLogService extends NullLogService {
 class MockAgentService implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 	readonly handledActions: (SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction)[] = [];
+	readonly handledClientTypes: (AgentHostClientType | undefined)[] = [];
 	readonly browsedUris: URI[] = [];
 	readonly browseErrors = new Map<string, Error>();
 	readonly readErrors = new Map<string, Error>();
@@ -105,8 +107,9 @@ class MockAgentService implements IAgentService {
 		this._stateManager = sm;
 	}
 
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType?: AgentHostClientType): void {
 		this.handledActions.push(action);
+		this.handledClientTypes.push(clientType);
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(channel, action, origin);
 	}
@@ -259,12 +262,13 @@ suite('ProtocolServerHandler', () => {
 		};
 	}
 
-	function connectClient(clientId: string, initialSubscriptions?: readonly string[]): MockProtocolTransport {
+	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: { readonly name: string }): MockProtocolTransport {
 		const transport = new MockProtocolTransport();
 		server.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', {
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId,
+			clientInfo,
 			initialSubscriptions,
 		}));
 		return transport;
@@ -971,6 +975,51 @@ suite('ProtocolServerHandler', () => {
 		if (result.type === 'replay') {
 			assert.strictEqual(result.actions.length, 2);
 		}
+	});
+
+	test('reconnect rejects a client the server no longer remembers', async () => {
+		const transport = new MockProtocolTransport();
+		server.simulateConnection(transport);
+		const responsePromise = waitForResponse(transport, 1);
+		transport.simulateMessage(request(1, 'reconnect', {
+			clientId: 'forgotten-client',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+
+		const response = await responsePromise;
+		assert.deepStrictEqual((response as { error: { code: number; message: string } }).error, {
+			code: AhpErrorCodes.NotFound,
+			message: 'Reconnect client not found: forgotten-client',
+		});
+		transport.simulateClose();
+	});
+
+	test('retains client info for action attribution across reconnect', async () => {
+		const transport1 = connectClient('client-attribution', undefined, agentsWindowAgentHostClientInfo);
+		transport1.simulateMessage(notification('dispatchAction', {
+			channel: 'ahp-root://',
+			clientSeq: 1,
+			action: { type: ActionType.RootConfigChanged, config: {} },
+		}));
+		transport1.simulateClose();
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 2);
+		transport2.simulateMessage(request(2, 'reconnect', {
+			clientId: 'client-attribution',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+		}));
+		await reconnectRespPromise;
+		transport2.simulateMessage(notification('dispatchAction', {
+			channel: 'ahp-root://',
+			clientSeq: 2,
+			action: { type: ActionType.RootConfigChanged, config: {} },
+		}));
+
+		assert.deepStrictEqual(agentService.handledClientTypes, ['agents_window', 'agents_window']);
 	});
 
 	test('reconnect replays missed changeset actions to changeset subscribers', async () => {

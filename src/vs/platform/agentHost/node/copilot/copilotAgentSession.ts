@@ -68,6 +68,7 @@ import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents
 import { addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { McpAuthRequiredReason, McpServerStatus, type McpAuthRequirement, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
@@ -378,6 +379,16 @@ export interface ICopilotAgentSessionOptions {
 	readonly isLaunchTokenCurrent?: () => boolean;
 
 	/**
+	 * Invoked whenever this chat's in-flight turn ends — normal completion,
+	 * abort, or error — leaving the chat idle. Lets the agent run work that
+	 * must not interrupt a live turn, notably a CLI client restart deferred
+	 * while the turn was running. Called synchronously from the session's SDK
+	 * event handling, so the agent must schedule anything that could dispose
+	 * this session off the current stack.
+	 */
+	readonly onTurnEnded?: () => void;
+
+	/**
 	 * Platform used to compute the SDK sandbox policy. Defaults to
 	 * `process.platform`; injectable so tests can exercise the per-OS gating
 	 * (notably that the sandbox is ignored on Windows) deterministically.
@@ -490,7 +501,12 @@ class CopilotTurn {
 	/** Model of the most recent round, reported as the turn's model. */
 	lastModel: string | undefined;
 
-	constructor(readonly id: string, readonly ordinal: number, readonly senderClientId: string | undefined) { }
+	constructor(
+		readonly id: string,
+		readonly ordinal: number,
+		readonly senderClientId: string | undefined,
+		readonly clientType: AgentHostClientType,
+	) { }
 
 	get state(): CopilotTurnState { return this._state; }
 	get isPending(): boolean { return this._state === 'pending'; }
@@ -604,6 +620,7 @@ export class CopilotAgentSession extends Disposable {
 	 * non-destructive idle release to avoid disconnecting mid-turn.
 	 */
 	get hasActiveTurn(): boolean { return this._currentTurn !== undefined; }
+	get currentTurnClientType(): AgentHostClientType { return this._currentTurn?.clientType ?? AgentHostClientType.Unknown; }
 	/**
 	 * Last model id seen on the SDK's per-LLM-call `Usage` event (or a
 	 * direct {@link setModel} call). We rely on the
@@ -662,6 +679,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionLauncher: ICopilotSessionLauncher;
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
 	private readonly _isLaunchTokenStillCurrent: () => boolean;
+	/** Notifies the agent that this chat's turn ended. See {@link ICopilotAgentSessionOptions.onTurnEnded}. */
+	private readonly _onTurnEnded: () => void;
 	private readonly _shellManager: ShellManager | undefined;
 	/** Streams runtime-executed shell output into output-only (non-pty) terminal channels. */
 	private readonly _nonPtyShellTerminals: NonPtyShellTerminalStreams;
@@ -741,6 +760,7 @@ export class CopilotAgentSession extends Disposable {
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
 		this._isLaunchTokenStillCurrent = options.isLaunchTokenCurrent ?? (() => true);
+		this._onTurnEnded = options.onTurnEnded ?? (() => { });
 		this._shellManager = options.shellManager;
 		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri));
 		this._workingDirectory = options.workingDirectory;
@@ -943,8 +963,8 @@ export class CopilotAgentSession extends Disposable {
 	 * from a previous turn so the next text/reasoning chunk allocates a new
 	 * response part. The turn becomes `running` on the first SDK event.
 	 */
-	resetTurnState(turnId: string, senderClientId?: string): void {
-		this._currentTurn = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId);
+	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown): void {
+		this._currentTurn = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientType);
 	}
 
 	private _completeActiveTurn(): void {
@@ -959,6 +979,7 @@ export class CopilotAgentSession extends Disposable {
 		this._telemetryReporter.toolCallDetails({
 			session: this.sessionUri.toString(),
 			turnId: turn.id,
+			clientType: turn.clientType,
 			model: turn.lastModel,
 			responseType: 'success',
 			toolCounts: Object.fromEntries(turn.toolCounts),
@@ -973,7 +994,26 @@ export class CopilotAgentSession extends Disposable {
 			turnId: turn.id,
 			duration: turn.duration,
 		});
+		this._clearActiveTurn();
+	}
+
+	/**
+	 * Drops the active turn and reports that this chat is now idle. Every
+	 * transition out of an in-flight turn must go through here so work the
+	 * agent defers while a turn runs — notably a pending CLI client restart —
+	 * is not stranded waiting on a turn that already ended.
+	 */
+	private _clearActiveTurn(): void {
 		this._currentTurn = undefined;
+		try {
+			this._onTurnEnded();
+		} catch (err) {
+			// The turn is already cleared, so the session's own state is
+			// consistent. Contain the failure to the agent's bookkeeping rather
+			// than letting it escape into SDK event handling — or, on the
+			// `send()` failure path, replace the error we are propagating.
+			this._logService.error(err, `[Copilot:${this.sessionId}] onTurnEnded callback failed`);
+		}
 	}
 
 	private _getEditFilePaths(parameters: unknown): string[] {
@@ -1505,13 +1545,31 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- session operations -------------------------------------------------
 
-	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string): Promise<void> {
+	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
 		if (turnId && this._currentTurn?.id !== turnId) {
 			// Establish the `pending` turn for this message. Callers normally
 			// call `resetTurnState` just before `send()`; this covers the
 			// direct-send path and is a no-op when the turn already exists.
-			this.resetTurnState(turnId, senderClientId);
+			this.resetTurnState(turnId, senderClientId, clientType);
 		}
+		const turn = this._currentTurn;
+		try {
+			await this._send(prompt, attachments, mode);
+		} catch (err) {
+			// A rejected send never reaches the SDK's agentic loop, so no
+			// `session.idle` will ever arrive to close this turn. The host turns
+			// the rejection into a `ChatError` that finalizes the protocol turn,
+			// so drop our handle to match: leaving it set makes the chat look
+			// busy forever, which blocks idle eviction and parks any deferred
+			// client restart for the rest of the process's life.
+			if (turn && this._currentTurn === turn) {
+				this._clearActiveTurn();
+			}
+			throw err;
+		}
+	}
+
+	private async _send(prompt: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
 		const slashCommand = parseLeadingSlashCommand(prompt);
@@ -1904,6 +1962,7 @@ export class CopilotAgentSession extends Disposable {
 	async abort(): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Aborting session...`);
 		this._denyPendingPermissions();
+		this._cancelPendingPlanReviews();
 		this._drainPendingSteeringFlips();
 		await this._wrapper.session.abort();
 	}
@@ -3153,9 +3212,10 @@ export class CopilotAgentSession extends Disposable {
 			// Main agent only: `_appliedSnapshot.tools` is the session's tool set, which does not
 			// describe a subagent's model call, so subagent messages (mapped or dropped) are skipped.
 			if (!e.agentId) {
-				this._telemetryReporter.assistantMessageReceived(this.sessionUri.toString(), e.data.serviceRequestId, this._appliedSnapshot.tools);
+				const clientType = this._currentTurn?.clientType ?? AgentHostClientType.Unknown;
+				this._telemetryReporter.assistantMessageReceived(this.sessionUri.toString(), clientType, e.data.serviceRequestId, this._appliedSnapshot.tools);
 				// Restricted `conversation.messageText` (source=model): the model's raw response text.
-				this._telemetryReporter.modelMessageText(this.sessionUri.toString(), e.data.content, this._turnOrdinal, e.data.serviceRequestId);
+				this._telemetryReporter.modelMessageText(this.sessionUri.toString(), clientType, e.data.content, this._turnOrdinal, e.data.serviceRequestId);
 				// Accumulate the per-turn tool-call aggregate for the restricted `toolCallDetails` event.
 				// Every main-agent `assistant.message` is one model-call round (matches the extension's
 				// `numRequests = toolCallRounds.length`, which counts the final tool-free response round
@@ -3497,7 +3557,7 @@ export class CopilotAgentSession extends Disposable {
 				if (turn.isRunning) {
 					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; tearing down running turn ${turn.id}`);
 					turn.markAborted();
-					this._currentTurn = undefined;
+					this._clearActiveTurn();
 				} else {
 					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; leaving ${turn.state} turn ${turn.id} open`);
 				}
@@ -4354,7 +4414,7 @@ export class CopilotAgentSession extends Disposable {
 			// and SDK-injected synthetic messages (skill/harness injections carry a non-`user` source,
 			// matching `isSyntheticUserMessage`) so injected content is not reported as the user's prompt.
 			if (!e.agentId && (!e.data.source || e.data.source.toLowerCase() === 'user')) {
-				this._telemetryReporter.userMessageText(this.sessionUri.toString(), e.data.content, this._turnOrdinal);
+				this._telemetryReporter.userMessageText(this.sessionUri.toString(), this._currentTurn?.clientType ?? AgentHostClientType.Unknown, e.data.content, this._turnOrdinal);
 			}
 		}));
 

@@ -46,6 +46,14 @@ export interface IDictationShortcutContext {
 	readonly logService: ILogService;
 }
 
+/** Resolves a toggle invocation against the current dictation lifecycle. */
+export function getDictationShortcutOperation(dictating: boolean, state: ChatSpeechToTextState, preparingModel: boolean): 'start' | 'stop' | 'cancel' | undefined {
+	if (dictating) {
+		return preparingModel ? 'cancel' : 'stop';
+	}
+	return state === ChatSpeechToTextState.Idle ? 'start' : undefined;
+}
+
 /**
  * Run the dictation shortcut for `editor`. Shared by the main chat input toggle
  * action and the Agents composer's Cmd/Ctrl+I command so both behave
@@ -59,15 +67,15 @@ export interface IDictationShortcutContext {
 export async function runDictationShortcut(context: IDictationShortcutContext, commandId: string, editor: ICodeEditor): Promise<void> {
 	const { speechService, keybindingService, logService } = context;
 
-	// A second invocation while dictating always stops (toggles off). This is the
-	// tap-again-to-stop path and also how the toolbar stop button behaves.
-	if (isDictating()) {
-		await stopDictation();
-		return;
-	}
-
-	if (speechService.state !== ChatSpeechToTextState.Idle) {
-		return;
+	switch (getDictationShortcutOperation(isDictating(), speechService.state, speechService.isPreparingModel)) {
+		case 'cancel':
+			cancelDictation();
+			return;
+		case 'stop':
+			await stopDictation();
+			return;
+		case undefined:
+			return;
 	}
 
 	const window = getWindow(editor.getDomNode()) ?? getActiveWindow();

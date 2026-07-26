@@ -43,7 +43,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentChatUri, ChatOriginKind, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type StringOrMarkdown, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, ChatOriginKind, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type StringOrMarkdown, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -67,7 +67,7 @@ import {
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, SessionType, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
@@ -1547,14 +1547,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const prevQueued = protocolState?.queuedMessages ?? [];
 
 		// Compute current state from chat model
-		interface IPendingSnapshot { id: string; text: string; attachments?: MessageAttachment[] }
+		interface IPendingSnapshot { id: string; message: Message }
 		let currentSteering: IPendingSnapshot | undefined;
 		const currentQueued: IPendingSnapshot[] = [];
 		for (const p of pending) {
 			const variables = p.request.variableData?.variables ?? [];
 			const messageAttachments = this._variableEntriesToAttachments(variables, sessionResource, p.request.message.text);
 			const attachments = messageAttachments.length > 0 ? messageAttachments : undefined;
-			const snapshot: IPendingSnapshot = { id: p.request.id, text: p.request.message.text, attachments };
+			const snapshot: IPendingSnapshot = { id: p.request.id, message: userOriginMessage(p.request.message.text, attachments) };
 			if (p.kind === ChatRequestQueueKind.Steering) {
 				currentSteering = snapshot;
 			} else {
@@ -1564,12 +1564,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// --- Steering ---
 		if (currentSteering) {
-			if (currentSteering.id !== prevSteering?.id || currentSteering.text !== prevSteering.message.text) {
+			if (currentSteering.id !== prevSteering?.id || !equals(currentSteering.message, prevSteering.message)) {
 				this._dispatchAction(backendSession, {
 					type: ActionType.ChatPendingMessageSet,
 					kind: PendingMessageKind.Steering,
 					id: currentSteering.id,
-					message: userOriginMessage(currentSteering.text, currentSteering.attachments),
+					message: currentSteering.message,
 				}, chatURI);
 			}
 		} else if (prevSteering) {
@@ -1596,12 +1596,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const prevQueuedById = new Map(prevQueued.map(q => [q.id, q]));
 		for (const q of currentQueued) {
 			const prev = prevQueuedById.get(q.id);
-			if (!prev || q.text !== prev.message.text) {
+			if (!prev || !equals(q.message, prev.message)) {
 				this._dispatchAction(backendSession, {
 					type: ActionType.ChatPendingMessageSet,
 					kind: PendingMessageKind.Queued,
 					id: q.id,
-					message: userOriginMessage(q.text, q.attachments),
+					message: q.message,
 				}, chatURI);
 			}
 		}
@@ -1620,6 +1620,41 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}, chatURI);
 			}
 		}
+	}
+
+	/**
+	 * Projects protocol pending messages into the chat model.
+	 * The protocol is authoritative, so matching local state is a no-op.
+	 */
+	private _applyRemotePendingMessages(sessionResource: URI, backendSession: URI): void {
+		if (!this._chatService.getSession(sessionResource)) {
+			return;
+		}
+		const chatURI = this._chatURIsBySessionResource.get(sessionResource);
+		if (!chatURI) {
+			return;
+		}
+		const state = this._getSessionState(backendSession.toString(), chatURI);
+		if (!state) {
+			return;
+		}
+
+		const toRemote = (pending: PendingMessage, kind: ChatRequestQueueKind): IRemotePendingRequest => ({
+			id: pending.id,
+			kind,
+			message: pending.message.text,
+			variableData: messageToVariableData(pending.message, this._config.connectionAuthority),
+		});
+
+		const remote: IRemotePendingRequest[] = [];
+		if (state.steeringMessage) {
+			remote.push(toRemote(state.steeringMessage, ChatRequestQueueKind.Steering));
+		}
+		for (const queued of state.queuedMessages ?? []) {
+			remote.push(toRemote(queued, ChatRequestQueueKind.Queued));
+		}
+
+		this._chatService.syncPendingRequestsFromRemote(sessionResource, remote);
 	}
 
 	private _dispatchAction(channel: URI, action: ClientSessionAction | ClientChatAction, chatURI?: string): void {
@@ -4078,8 +4113,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
-	 * Ensures that the chat model's pending request changes are synced to the
-	 * protocol for a given session. No-ops if already subscribed.
+	 * Keeps chat model and protocol pending messages synchronized in both directions.
+	 * No-ops if already subscribed.
 	 */
 	private _ensurePendingMessageSubscription(sessionResource: URI, backendSession: URI): void {
 		if (this._pendingMessageSubscriptions.has(sessionResource)) {
@@ -4087,10 +4122,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const chatModel = this._chatService?.getSession(sessionResource);
 		if (chatModel) {
-			this._pendingMessageSubscriptions.set(sessionResource, chatModel.onDidChangePendingRequests(() => {
+			const store = new DisposableStore();
+			this._pendingMessageSubscriptions.set(sessionResource, store);
+
+			// Hydrate first so the initial outbound diff cannot remove another client's messages.
+			this._applyRemotePendingMessages(sessionResource, backendSession);
+
+			store.add(chatModel.onDidChangePendingRequests(() => {
 				this._syncPendingMessages(sessionResource, backendSession);
 			}));
 			this._syncPendingMessages(sessionResource, backendSession);
+
+			const sessionStr = backendSession.toString();
+			const chatURI = this._chatURIsBySessionResource.get(sessionResource);
+			if (chatURI) {
+				const onRemoteChange = () => this._applyRemotePendingMessages(sessionResource, backendSession);
+				store.add(this._ensureSessionSubscription(sessionStr).onDidChange(onRemoteChange));
+				store.add(this._ensureChatSubscription(sessionStr, chatURI).onDidChange(onRemoteChange));
+			}
 			return;
 		}
 

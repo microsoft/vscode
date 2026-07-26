@@ -12,7 +12,7 @@ import { execSync } from 'child_process';
 import { mkdtempSync, rmSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
-import { raceTimeout, timeout } from '../../../../../../base/common/async.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -30,7 +30,7 @@ import {
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { CapiReplayMode } from './capiReplayProxy.js';
 import {
-	getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient,
+	getActionEnvelope, isActionNotification, IServerHandle, startRealServer, stopServer, TestProtocolClient,
 } from '../../serverIntegrationTestHelpers.js';
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
 import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario } from './ahpSnapshot.js';
@@ -45,7 +45,6 @@ import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario } from './ahpSnapsh
 const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateSnapshotsEnvVar] === '1';
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || UPDATE_SNAPSHOTS;
 const REPLAY_MODE: CapiReplayMode = RECORD ? 'record' : 'replay';
-const SERVER_SHUTDOWN_TIMEOUT_MS = 30_000;
 
 /**
  * Upper bound on tests served by a single shared replay server before it is
@@ -57,20 +56,6 @@ const TEMP_DIR_CLEANUP_TIMEOUT_MS = 30_000;
 /** A synthetic token used on replay (no real credential needed). */
 export const REPLAY_PLACEHOLDER_TOKEN = 'replay-no-token';
 export type AgentHostE2EModelTraffic = 'recorded' | 'none';
-
-async function stopServer(server: IServerHandle | undefined): Promise<void> {
-	const serverProcess = server?.process;
-	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
-		return;
-	}
-
-	const serverExit = new Promise<void>(resolve => serverProcess.once('exit', () => resolve()));
-	serverProcess.stdin?.end();
-	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
-		serverProcess.kill();
-		await serverExit;
-	}
-}
 
 export async function removeTempDirs(tempDirs: string[]): Promise<void> {
 	const pendingDirs = tempDirs.splice(0);
