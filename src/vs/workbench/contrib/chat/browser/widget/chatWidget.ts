@@ -2727,7 +2727,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const requestInputs: IChatRequestInputOptions = {
 			input: inputValue,
-			attachedContext: options?.enableImplicitContext === false ? this.input.getAttachedContext() : this.input.getAttachedAndImplicitContext(),
+			// preserveInput means the input box holds an unrelated draft, so its
+			// attachments belong to that draft and must not be sent with this query.
+			attachedContext: options?.preserveInput
+				? new ChatRequestVariableSet()
+				: options?.enableImplicitContext === false ? this.input.getAttachedContext() : this.input.getAttachedAndImplicitContext(),
 		};
 
 		if (this.viewModel.model.requestInProgress.get() && await this._executeSlashCommandDuringRequest(requestInputs.input, isUserQuery, options.preserveFocus)) {
@@ -2892,7 +2896,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// visibility sync before firing events to hide the welcome view
 		this.updateChatViewVisibility();
-		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus);
+		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus, options?.preserveInput);
 
 		this._maybeStartGoalSummary(requestInputs.input);
 

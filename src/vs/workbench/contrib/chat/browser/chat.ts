@@ -354,6 +354,8 @@ export interface IChatAcceptInputOptions {
 	 */
 	cancelCurrentRequest?: boolean;
 	preserveFocus?: boolean;
+	/** Keeps the input box contents and attachments after submitting a programmatic query, and omits them from it. */
+	preserveInput?: boolean;
 }
 
 export interface IChatWidgetViewModelChangeEvent {
