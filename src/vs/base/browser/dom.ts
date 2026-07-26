@@ -1912,11 +1912,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 		}, true));
 
 		disposables.add(addDisposableListener(window, 'blur', () => {
-			// The window also blurs when focus moves into an embedded iframe
-			// such as a webview. In that case the document still has focus and
-			// key events are forwarded back to the window, keeping our state in
-			// sync, so the key status must not be reset (#199998). Check after
-			// a timeout so that the new focus state has settled.
+			// Defer the reset so iframe focus is reflected by document.hasFocus() (#199998).
 			window.setTimeout(() => {
 				if (!window.document.hasFocus()) {
 					this.resetKeyStatus();
