@@ -719,7 +719,7 @@ describe('getUserPrompt', () => {
 		expect(prompt).not.toContain('previous suggestions the developer rejected');
 	});
 
-	test('explains rejection annotations when the model postscript is disabled', () => {
+	test('does not explain rejection annotations when the model postscript is disabled', () => {
 		const pieces = createTestPromptPieces({
 			cursorLine: 2,
 			cursorColumn: 9,
@@ -730,7 +730,7 @@ describe('getUserPrompt', () => {
 		const { prompt } = getUserPrompt(pieces);
 
 		expect(prompt).toContain('<|rejected/|>');
-		expect(prompt).toContain('are previous suggestions the developer rejected');
+		expect(prompt).not.toContain('are previous suggestions the developer rejected');
 		expect(prompt).not.toContain('Output a modified diff format');
 	});
 
