@@ -15,6 +15,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
+import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -1185,7 +1186,7 @@ export interface IAgentChats {
 	 * Send a user message into `chat`; on first send, the host passes the resolved
 	 * working directory (or `undefined` for workspace-less sessions).
 	 */
-	sendMessage(chat: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void>;
+	sendMessage(chat: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void>;
 
 	/** Abort the in-flight turn for `chat`. */
 	abort(chat: URI): Promise<void>;
@@ -1994,7 +1995,7 @@ export interface IAgentService {
 	 * rather than {@link URI} objects so that authority-less scheme URIs
 	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType?: AgentHostClientType): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.

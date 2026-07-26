@@ -12,6 +12,7 @@ import { AgentSession } from '../../common/agentService.js';
 import type { ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 
 interface IRestrictedCall {
 	eventName: string;
@@ -68,15 +69,16 @@ suite('AgentHostTelemetryReporter', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		await reporter.assistantMessageReceived(session, undefined, tools); // dropped: no service request id
-		await reporter.assistantMessageReceived(session, 'svc-1', []); // dropped: no tools
-		await reporter.assistantMessageReceived(session, 'svc-1', tools); // emitted
+		await reporter.assistantMessageReceived(session, AgentHostClientType.AgentsWindow, undefined, tools); // dropped: no service request id
+		await reporter.assistantMessageReceived(session, AgentHostClientType.AgentsWindow, 'svc-1', []); // dropped: no tools
+		await reporter.assistantMessageReceived(session, AgentHostClientType.AgentsWindow, 'svc-1', tools); // emitted
 
 		assert.deepStrictEqual(service.enhancedEvents, [{
 			eventName: 'request.options.tools',
 			properties: {
 				headerRequestId: 'svc-1',
 				conversationId: AgentSession.id(session),
+				initiatorClientType: 'agents_window',
 				messagesJson: JSON.stringify(tools),
 				messagesJsonChunk: zlib.gzipSync(Buffer.from(JSON.stringify(tools), 'utf8')).toString('base64'),
 			},
@@ -87,14 +89,15 @@ suite('AgentHostTelemetryReporter', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		await reporter.userMessageText(session, '', 3); // dropped: no content
-		await reporter.userMessageText(session, 'hello agent', 3); // emitted
+		await reporter.userMessageText(session, AgentHostClientType.EditorWindow, '', 3); // dropped: no content
+		await reporter.userMessageText(session, AgentHostClientType.EditorWindow, 'hello agent', 3); // emitted
 
 		const expected: IRestrictedCall = {
 			eventName: 'conversation.messageText',
 			properties: {
 				source: 'user',
 				conversationId: AgentSession.id(session),
+				initiatorClientType: 'editor_window',
 				turnIndex: '3',
 				messageText: 'hello agent',
 			},
@@ -107,14 +110,15 @@ suite('AgentHostTelemetryReporter', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		await reporter.modelMessageText(session, '', 3, 'svc-1'); // dropped: no content
-		await reporter.modelMessageText(session, 'sure, here you go', 3, 'svc-1'); // emitted
+		await reporter.modelMessageText(session, AgentHostClientType.AgentsWindow, '', 3, 'svc-1'); // dropped: no content
+		await reporter.modelMessageText(session, AgentHostClientType.AgentsWindow, 'sure, here you go', 3, 'svc-1'); // emitted
 
 		const expected: IRestrictedCall = {
 			eventName: 'conversation.messageText',
 			properties: {
 				source: 'model',
 				conversationId: AgentSession.id(session),
+				initiatorClientType: 'agents_window',
 				turnIndex: '3',
 				headerRequestId: 'svc-1',
 				messageText: 'sure, here you go',
@@ -129,17 +133,17 @@ suite('AgentHostTelemetryReporter', () => {
 		const reporter = new AgentHostTelemetryReporter(service);
 
 		await reporter.toolCallDetails({
-			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
+			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.Unknown, model: 'gpt-x', responseType: 'success',
 			toolCounts: {}, availableTools: [],
 			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
 		}); // dropped: no tools were available
 		await reporter.toolCallDetails({
-			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
+			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.EditorWindow, model: 'gpt-x', responseType: 'success',
 			toolCounts: {}, availableTools: ['grep', 'edit'],
 			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
 		}); // emitted: tools available, even though no tool calls were made
 		await reporter.toolCallDetails({
-			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
+			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.AgentsWindow, model: 'gpt-x', responseType: 'success',
 			toolCounts: { grep: 2, edit: 1 }, availableTools: ['grep', 'edit'],
 			numRequests: 2, totalToolCalls: 3, parallelToolCallRounds: 1, parallelToolCallsTotal: 2,
 		}); // emitted
@@ -150,6 +154,7 @@ suite('AgentHostTelemetryReporter', () => {
 				conversationId: AgentSession.id(session),
 				requestId: 'a1b2c3d4-0000-4000-8000-000000000000',
 				messageId: 'a1b2c3d4-0000-4000-8000-000000000000',
+				initiatorClientType: 'editor_window',
 				responseType: 'success',
 				model: 'gpt-x',
 				toolCounts: JSON.stringify({}),
@@ -161,6 +166,7 @@ suite('AgentHostTelemetryReporter', () => {
 				conversationId: AgentSession.id(session),
 				requestId: 'a1b2c3d4-0000-4000-8000-000000000000',
 				messageId: 'a1b2c3d4-0000-4000-8000-000000000000',
+				initiatorClientType: 'agents_window',
 				responseType: 'success',
 				model: 'gpt-x',
 				toolCounts: JSON.stringify({ grep: 2, edit: 1 }),
@@ -275,4 +281,3 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.strictEqual(service.enhancedEvents[0].properties?.skillExtensionVersion, '');
 	});
 });
-
