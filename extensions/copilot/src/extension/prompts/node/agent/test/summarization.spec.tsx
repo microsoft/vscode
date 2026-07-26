@@ -565,6 +565,20 @@ suite('Agent Summarization', () => {
 		}
 	});
 
+	test('large <analysis> block does not push an in-budget summary over the token limit #321200', async () => {
+		// The budget check must count the extracted summary, not the raw response.
+		chatResponse[0] = `<analysis>${'verbose scratchpad '.repeat(200)}</analysis>\n<summary>short summary</summary>`;
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, {
+			...historyProps,
+			maxSummaryTokens: 20,
+		});
+		const result = await renderer.render();
+
+		expect(result.metadata.get(SummarizedConversationHistoryMetadata)!.text).toBe('short summary');
+	});
+
 	test('failed summarization does not set round.summary', async () => {
 		chatResponse[0] = 'summary that is definitely too large for one token';
 		const { instaService, endpoint, toolCallRounds, historyProps } = createSummarizationTestContext();

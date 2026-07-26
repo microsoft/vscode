@@ -196,6 +196,10 @@ export interface IChatViewOpenOptions {
 	 * Submits `query` without taking over the input box, keeping any draft the user
 	 * has typed and omitting its attachments from the request. For maintenance
 	 * commands such as `/compact` that are not user messages.
+	 *
+	 * Mutually exclusive with `attachScreenshot`, `attachFiles`,
+	 * `attachHistoryItemChanges` and `toolIds`: those attach context via the input
+	 * box, which this option deliberately excludes from the request.
 	 */
 	preserveInput?: boolean;
 }

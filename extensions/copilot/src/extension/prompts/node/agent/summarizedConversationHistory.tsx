@@ -609,7 +609,7 @@ class ConversationHistorySummarizer {
 		const summary = await summaryPromise;
 		const { numRounds, numRoundsSinceLastSummarization } = computeSummarizationRoundCounts(this.props.promptContext.history, this.props.promptContext.toolCallRounds);
 		return {
-			summary: this.appendTranscriptHint(this.unwrapSummary(summary.result.value)),
+			summary: this.appendTranscriptHint(summary.result.value),
 			toolCallRoundId: propsInfo.summarizedToolCallRoundId,
 			thinking: propsInfo.summarizedThinking,
 			usage: summary.result.usage,
@@ -838,7 +838,11 @@ class ConversationHistorySummarizer {
 			throw new Error('Summarization request failed');
 		}
 
-		const summarySize = await this.sizing.countTokens(response.value);
+		// Unwrap before the budget check so the size counted here is the text that is
+		// actually stored — the `<analysis>` scratchpad would otherwise push an
+		// acceptable summary over budget and fail compaction.
+		const summaryText = this.unwrapSummary(response.value);
+		const summarySize = await this.sizing.countTokens(summaryText);
 		const effectiveBudget =
 			!!this.props.maxSummaryTokens
 				? Math.min(this.sizing.tokenBudget, this.props.maxSummaryTokens)
@@ -851,7 +855,7 @@ class ConversationHistorySummarizer {
 
 		this.sendSummarizationTelemetry('success', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage, undefined, promptTypes);
 		this.logInfo(`Summarization usage: prompt=${response.usage?.prompt_tokens ?? '?'}, cached=${response.usage?.prompt_tokens_details?.cached_tokens ?? '?'}, completion=${response.usage?.completion_tokens ?? '?'}`, mode);
-		return response;
+		return { ...response, value: summaryText };
 	}
 
 	/**
