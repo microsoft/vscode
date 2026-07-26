@@ -138,6 +138,12 @@ export interface IRemotePlatform {
 }
 ```
 
+Every operation supplies a **safe description** — a short, secret-free string
+naming what it was doing — which `ISshExec` carries and errors are constructed
+from. This is what replaces quoting the raw command (§7.3), and it must exist on
+the execution contract rather than being bolted on later, since `sshExec` builds
+its rejection message at the transport.
+
 There is deliberately no metadata, liveness or termination operation. See §4.
 
 ---
@@ -174,8 +180,22 @@ one (`cli/src/commands/agent_host.rs`). **Both paths print the same banner** —
 `output::print_network_lines`, emitting the `ws://127.0.0.1:PORT[?tkn=TOKEN]`
 line the desktop already parses (`extractAgentHostWebSocketURL`).
 
-**The desktop therefore invokes `code agent host` and consumes the banner.** That
-is the whole protocol.
+**The desktop therefore invokes `code agent host` and consumes its machine-readable
+output.** That is the whole protocol.
+
+The human banner alone is *not* a sufficient contract. It always prints
+`ws://localhost:<port>` regardless of what the supervisor actually bound to
+(`cli/src/commands/output.rs`), and the desktop's parser normalises that to
+`127.0.0.1` — so reusing a supervisor started with `--host ::1` or a specific
+address would leave the desktop dialling the wrong endpoint forever. The metadata
+file carried a `host` field for exactly this reason, and the desktop read it
+through `dialAgentHostHost`.
+
+The CLI therefore emits a **single machine-readable line** alongside the banner,
+carrying the dial host, port and token, on both the fresh-spawn and reuse paths.
+That keeps "consume the output" as the protocol while restoring the information
+the metadata read used to supply, and it handles IPv6 literals rather than
+assuming loopback.
 
 Consequences, which are the point of this design:
 
@@ -187,19 +207,23 @@ Consequences, which are the point of this design:
   and other desktops reuse it. Killing on a relay failure can tear down an agent
   host another consumer is using. A relay failure now surfaces a retryable error
   and destroys nothing.
-- **Restart is delegated.** When a user explicitly asks to restart a remote agent
-  host, the CLI is asked to replace it; the CLI holds the live handle and reaps
-  its own process tree correctly.
 
 This removes the desktop-side lockfile read, write and cleanup paths, and with
 them the need for process identity, liveness probing, tree-kill and metadata
 schema changes. It also fixes two pre-existing defects by deletion rather than by
 adding machinery to make them safe.
 
-**Cost.** Every connect invokes `code agent host` over SSH rather than peeking at
-a metadata file. That is one command on an already-established connection, and it
-is the price of not maintaining a second, divergent copy of the CLI's lifecycle
-logic.
+**Cost.** Reconnects that previously reused a live agent host skipped platform
+detection and the CLI install check entirely. They no longer do, so the saving is
+several SSH round trips rather than one command. That is the price of not
+maintaining a second, divergent copy of the CLI's lifecycle logic, and it is paid
+on an already-established connection.
+
+**Timeouts must agree.** The desktop currently gives the launch 60 seconds
+(`sshRemoteAgentHostService.ts:343-348`) while the CLI allows five minutes for the
+supervisor to report ready and does network work before printing anything. On a
+first connect over a slow link the desktop would give up while the CLI is still
+working. The desktop's budget is raised to match the CLI's.
 
 ---
 
@@ -290,6 +314,27 @@ Paths are built from `$env:USERPROFILE` with backslash separators. The
 `validateShellToken` / `validateCommit` guards apply unchanged and remain
 security-critical.
 
+### 5.6 The supervisor must survive the exec channel
+
+This is the one change without which nothing else on Windows matters.
+
+The supervisor is spawned with `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`
+(`cli/src/util/command.rs:181`). Neither flag escapes a **Windows Job Object**.
+Win32-OpenSSH runs each exec channel's process tree in a job, and the foreground
+`code agent host` exits at readiness — so the job can be torn down and take the
+detached supervisor with it, moments after it printed its endpoint.
+
+The supervisor spawn therefore becomes job-aware, adding
+`CREATE_BREAKAWAY_FROM_JOB` where the job permits it. The repository already has
+exactly this pattern for the server child, including the probe for whether
+breakaway is allowed (`cli/src/tunnels/code_server.rs:641-649,942-950`), so this
+is reuse rather than invention.
+
+This failure mode is invisible to unit tests and to a local PowerShell run: it
+requires a real Win32-OpenSSH exec channel. §13 covers it explicitly, and it is
+the first thing to verify on a real host, because every other Windows behaviour
+depends on the supervisor still being alive.
+
 ---
 
 ## 6. Detection and ordering
@@ -350,8 +395,19 @@ than the `0600`/`0700` the POSIX path enforces.
   directory as the POSIX `0700` does.
 - **Both files are token-bearing.** The metadata file carries `connection_token`
   in the same struct as the separate token file, so both are covered.
-- **Legacy files are repaired on reuse**, since `mint_connection_token` returns an
-  existing token before rewriting it (`cli/src/commands/agent_host.rs:720-725`).
+- **Legacy files are repaired before they are trusted, not merely on write.**
+  `mint_connection_token` returns an existing token before rewriting it
+  (`cli/src/commands/agent_host.rs:720-725`), but more importantly the **reuse
+  path returns before either writer runs**: a supervisor started before this
+  change keeps its inherited ACL for as long as it lives, and repairing only in
+  the writers would never reach it. Reuse therefore validates the ACLs of the
+  metadata and token files first, and refuses to reuse — reporting an actionable
+  error — when they are readable beyond the owner. Otherwise a world-writable
+  legacy lockfile could also redirect the desktop to an endpoint chosen by
+  another local account.
+  Note the two files live under different roots — the token under
+  `--cli-data-dir`, the metadata under the canonical agent-host root
+  (`cli/src/state.rs`) — so the validation must resolve both explicitly.
 - **The install boundary is protected.** We execute the binary we install, so
   another local account with modify rights on a permissive install root could
   replace it between install and launch; `--version` proves it runs, not that it
@@ -385,8 +441,10 @@ token at all.
   `-EncodedCommand` invocation.
 - **I3.** No operation other than detection itself runs before the platform is
   resolved.
-- **I4.** The desktop never writes agent host metadata and never terminates a
-  remote process.
+- **I4.** On the managed path the desktop never writes agent host metadata and
+  never terminates a remote process. The `remoteAgentHostCommand` override is
+  exempt: it launches an arbitrary process that implements none of this protocol,
+  and is dev-only (§6).
 - **I5.** Raw wire commands never reach logs, errors or telemetry; secrets never
   appear in either.
 - **I6.** Remote-supplied paths are validated by `parseFallbackCliPath` before
@@ -402,8 +460,8 @@ The work lands as a **single pull request**; phases sequence the commits.
 |---|---|---|
 | **P0** | Characterize the launch path (SSH managed launch, raw override, WSL bootstrap) by driving the real launcher against the mock client. Make the fake executor fail loudly on unexpected or exhausted responses. | Launch commands asserted for the first time. |
 | **P1** | Introduce `IRemotePlatform`; extract POSIX behaviour; re-export the primitives WSL and `agentHostLockfile.ts` import. **No behaviour change.** | Existing assertions hold; WSL and local-lockfile suites and typecheck green. |
-| **P2** | Detection before managed operations, including the Windows encoder foundation the probe needs. Delegate the lifecycle to the CLI: remove desktop-side metadata write, reuse-probe and cleanup-kill paths. | POSIX connect, reconnect and restart work with no desktop-written metadata. |
-| **P3** | `WindowsRemotePlatform`: paths, zip install, envelope. Rust ACL fix with native Windows tests. Diagnostics (§11). Payloads executed under real `powershell.exe`, via `cmd.exe /c` as well as directly. | Windows tests pass; ACL asserted against a permissive parent. |
+| **P2** | Detection before managed operations, including the Windows encoder foundation the probe needs. Delegate the lifecycle to the CLI: add its machine-readable endpoint line, remove desktop-side metadata write, reuse probe and cleanup-kill, and align the launch timeout. | POSIX connect and reconnect work with no desktop-written metadata, dialling the endpoint the CLI reports. |
+| **P3** | `WindowsRemotePlatform`: paths, zip install, envelope. Job-object breakaway for the supervisor (§5.6). Rust ACL fix with native Windows tests. Diagnostics (§12). Payloads executed under real `powershell.exe`, via `cmd.exe /c` as well as directly. | Windows tests pass; ACL asserted against a permissive parent. |
 | **P4** | Validate against a real Windows 11 remote using the §12 checklist. | Checklist green. |
 
 P0 precedes P1 because P1's safety claim depends on it: the harness stubs
@@ -424,8 +482,29 @@ never has to implement metadata, liveness or termination at all.
   separate change.
 - **Multi-platform `remoteAgentHostCommand`** (§6).
 - **Desktop-side agent host reuse without invoking the CLI.** A read-only
-  metadata fast path would avoid one command per connect; it is not worth a
-  second copy of the CLI's lifecycle rules.
+  metadata fast path would avoid several round trips per reconnect; it is not
+  worth a second copy of the CLI's lifecycle rules.
+- **Restarting a remote agent host from the desktop.** `--replace` exists in the
+  CLI, but no service API exposes restart, and running it over the *current* SSH
+  client would kill the supervisor, close the relay, and dispose the client that
+  issued the command. Doing this properly needs a separate connection and a
+  defined sequence. "Reconnect" replaces the relay only, and server update goes
+  through the existing upgrade RPC, so nothing regresses by leaving this out.
+- **PID-reuse hardening inside the CLI.** `classify_agent_host_lockfile` treats
+  any live PID as the supervisor (`cli/src/tunnels/agent_host.rs`), so a recycled
+  PID can be reused or, under `--replace`, killed. The desktop's own liveness
+  check was equally weak, so this design depends on an existing limitation rather
+  than introducing one — but it is now the only such check, and worth fixing in
+  the CLI separately.
+- **Serialising concurrent first connects.** Classification and spawn are not
+  interlocked, so two simultaneous first connects can each spawn a supervisor and
+  race on the metadata write, which is only warned about on failure. Pre-existing
+  and CLI-internal; a startup lock belongs with the PID-reuse fix.
+- **Capability gating of unsupported launchers.** A fallback CLI is accepted on a
+  bare `--version` success, so a sufficiently old binary need not implement the
+  machine-readable output §4 relies on. The desktop must degrade to the human
+  banner and report clearly rather than assume; a version or capability gate is
+  the durable fix.
 
 ---
 
@@ -482,15 +561,23 @@ hint for `remoteAgentHostCommand` (§6). The
 
 Run against a real Windows 11 remote (§11).
 
-1. **First connect**, no CLI present: detection, download, extract, launch,
+1. **Supervisor survives the exec channel.** Connect, confirm the agent host is
+   still running after the launching command has exited, and that the relay stays
+   usable. This is §5.6 and is the first thing to check — every other item
+   assumes it.
+2. **First connect**, no CLI present: detection, download, extract, launch,
    session usable.
-2. **Reconnect**: the CLI reuses its supervisor; no second one appears.
-3. **Default shell `cmd.exe`** and **default shell PowerShell** both work.
-4. **Profile path containing a space and an apostrophe** installs and launches.
-5. **Relay failure** with a healthy agent host leaves the supervisor running and
+3. **Reconnect**: the CLI reuses its supervisor; no second one appears.
+4. **Reuse reports the real endpoint**: a supervisor bound to a non-loopback or
+   IPv6 address is dialled correctly, not assumed to be `127.0.0.1`.
+5. **Default shell `cmd.exe`** and **default shell PowerShell** both work.
+6. **Profile path containing a space and an apostrophe** installs and launches.
+7. **Relay failure** with a healthy agent host leaves the supervisor running and
    surfaces a retryable error.
-6. **Explicit restart** replaces the agent host via the CLI.
-7. **ACL**: metadata and token files are owner-only, verified against a parent
-   granting `Everyone`.
-8. **Failure output** carries no secrets and no raw wire commands.
-9. **POSIX regression**: a Linux remote still connects and reconnects.
+8. **ACL**: metadata and token files are owner-only, verified against a parent
+   granting `Everyone`; a pre-existing insecure supervisor is refused with an
+   actionable error rather than silently trusted.
+9. **Failure output** carries no secrets and no raw wire commands.
+10. **Slow first connect** does not hit the desktop timeout while the CLI is
+    still downloading.
+11. **POSIX regression**: a Linux remote still connects and reconnects.
