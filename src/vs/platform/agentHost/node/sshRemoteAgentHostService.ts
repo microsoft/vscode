@@ -83,6 +83,17 @@ const LOG_PREFIX = '[SSHRemoteAgentHost]';
 const RECONNECT_RELAY_TIMEOUT_MS = 60_000;
 
 /**
+ * How long to wait for `code agent host` to report its endpoint.
+ *
+ * This must be the *outer* budget. The CLI allows itself five minutes for the
+ * supervisor to become ready, and our timer starts earlier still — before the
+ * remote shell starts, before the CLI is even invoked. An equal budget would
+ * let us give up while the CLI is legitimately still within its own, which on a
+ * slow link means abandoning a first connect that was about to succeed.
+ */
+const AGENT_HOST_START_TIMEOUT_MS = 6 * 60_000;
+
+/**
  * One entry in the queue of authentication attempts handed to ssh2's
  * `authHandler`. Each attempt corresponds to one of the auth method shapes
  * documented at https://www.npmjs.com/package/ssh2#client-methods.
@@ -342,7 +353,7 @@ function startRemoteAgentHost(
 					resolved = true;
 					reject(new Error(`${LOG_PREFIX} Timed out waiting for agent host to start.\noutput so far: ${redactToken(outputBuf)}`));
 				}
-			}, 60_000);
+			}, AGENT_HOST_START_TIMEOUT_MS);
 
 			const checkForOutput = () => {
 				const clean = removeAnsiEscapeCodes(outputBuf);
