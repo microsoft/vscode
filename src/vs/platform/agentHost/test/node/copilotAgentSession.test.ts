@@ -381,6 +381,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	restrictedTelemetryContext?: IRestrictedTelemetryContext;
 	restrictedTelemetryContextError?: Error;
 	isLaunchTokenCurrent?: () => boolean;
+	onTurnEnded?: () => void;
 	modelId?: string;
 }): Promise<{
 	session: CopilotAgentSession;
@@ -562,6 +563,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			serverToolHost: options?.serverToolHost,
 			platform: options?.platform ?? 'linux',
 			isLaunchTokenCurrent: options?.isLaunchTokenCurrent,
+			onTurnEnded: options?.onTurnEnded,
 		},
 	));
 
@@ -1126,6 +1128,20 @@ suite('CopilotAgentSession', () => {
 			responseParts: [{ turnId: 'turn-compact', kind: ResponsePartKind.Markdown, content: 'Compaction completed' }],
 			turnComplete: ['turn-compact'],
 		});
+	});
+
+	test('a failed send releases the turn so the chat does not look busy forever', async () => {
+		// Nothing closes a turn whose send rejected: the SDK loop never starts,
+		// so no `session.idle` arrives. The host finalizes the protocol turn with
+		// a ChatError, and the session must drop its handle to match — a chat
+		// stuck `busy` blocks idle eviction and parks deferred client restarts.
+		let turnEndCount = 0;
+		const { session, mockSession } = await createAgentSession(disposables, { onTurnEnded: () => turnEndCount++ });
+		mockSession.send = async () => { throw new Error('send failed'); };
+
+		await assert.rejects(() => session.send('hello', undefined, 'turn-failed'), /send failed/);
+
+		assert.deepStrictEqual({ hasActiveTurn: session.hasActiveTurn, turnEndCount }, { hasActiveTurn: false, turnEndCount: 1 });
 	});
 
 	test('`/env` runs the runtime command when listed and emits markdown output', async () => {
@@ -3841,6 +3857,33 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
 
 			assert.strictEqual(signals.length, 0);
+		});
+
+		test('reports the turn ending on both normal completion and abort', async () => {
+			// The agent parks work that must not interrupt a live turn (notably a
+			// CLI client restart) until this fires, so every path out of an
+			// in-flight turn has to report it — otherwise that work is stranded
+			// and the session spins forever.
+			let turnEndCount = 0;
+			const { session, mockSession } = await createAgentSession(disposables, { onTurnEnded: () => turnEndCount++ });
+
+			session.resetTurnState('turn-completed');
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			const afterCompletion = turnEndCount;
+
+			session.resetTurnState('turn-aborted');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				afterCompletion,
+				afterAbort: turnEndCount,
+				hasActiveTurn: session.hasActiveTurn,
+			}, {
+				afterCompletion: 1,
+				afterAbort: 2,
+				hasActiveTurn: false,
+			});
 		});
 
 		test('drops and logs a markdown delta emitted with no active turn', async () => {
