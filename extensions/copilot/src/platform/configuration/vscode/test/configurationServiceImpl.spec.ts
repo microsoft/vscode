@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const { mockConfigStore } = vi.hoisted(() => ({
-	mockConfigStore: { user: {} as Record<string, unknown>, defaults: {} as Record<string, unknown> },
+	mockConfigStore: { user: {} as Record<string, unknown>, workspace: {} as Record<string, unknown>, workspaceFolder: {} as Record<string, unknown>, defaults: {} as Record<string, unknown> },
 }));
 
 vi.mock('vscode', () => {
@@ -15,6 +15,12 @@ vi.mock('vscode', () => {
 		return {
 			get<T>(k: string): T | undefined {
 				const fk = fullKey(k);
+				if (fk in mockConfigStore.workspaceFolder) {
+					return mockConfigStore.workspaceFolder[fk] as T;
+				}
+				if (fk in mockConfigStore.workspace) {
+					return mockConfigStore.workspace[fk] as T;
+				}
 				if (fk in mockConfigStore.user) {
 					return mockConfigStore.user[fk] as T;
 				}
@@ -29,6 +35,8 @@ vi.mock('vscode', () => {
 					key: fk,
 					defaultValue: mockConfigStore.defaults[fk] as T | undefined,
 					globalValue: (fk in mockConfigStore.user ? mockConfigStore.user[fk] : undefined) as T | undefined,
+					workspaceValue: (fk in mockConfigStore.workspace ? mockConfigStore.workspace[fk] : undefined) as T | undefined,
+					workspaceFolderValue: (fk in mockConfigStore.workspaceFolder ? mockConfigStore.workspaceFolder[fk] : undefined) as T | undefined,
 				};
 			},
 		};
@@ -49,6 +57,13 @@ const fakeTokenStore: ICopilotTokenStore = {
 	copilotToken: undefined,
 	onDidStoreUpdate: () => ({ dispose() { } }),
 } as any;
+
+beforeEach(() => {
+	mockConfigStore.user = {};
+	mockConfigStore.workspace = {};
+	mockConfigStore.workspaceFolder = {};
+	mockConfigStore.defaults = {};
+});
 
 describe('ConfigurationServiceImpl - migrated chat.advanced setting fallback', () => {
 	test('reads the user-set OLD key when only the OLD key is configured', () => {
@@ -71,5 +86,59 @@ describe('ConfigurationServiceImpl - migrated chat.advanced setting fallback', (
 		const value = svc.getConfig(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration);
 
 		expect(value).toEqual(userValue);
+	});
+});
+
+describe('ConfigurationServiceImpl - user-scoped endpoint overrides', () => {
+	test('ignores workspace values for the ADO code search endpoint override', () => {
+		const key = ConfigKey.Advanced.WorkspacePrototypeAdoCodeSearchEndpointOverride;
+		const legacyKey = key.fullyQualifiedOldId!;
+
+		mockConfigStore.defaults = { [key.fullyQualifiedId]: '' };
+		mockConfigStore.workspace = {
+			[key.fullyQualifiedId]: 'https://workspace.example/current',
+			[legacyKey]: 'https://workspace.example/legacy',
+		};
+		mockConfigStore.workspaceFolder = {
+			[key.fullyQualifiedId]: 'https://workspace-folder.example/current',
+			[legacyKey]: 'https://workspace-folder.example/legacy',
+		};
+
+		const service = new ConfigurationServiceImpl(fakeTokenStore);
+
+		expect(service.getConfig(key)).toBe('');
+	});
+
+	test('uses a user-scoped ADO code search endpoint override', () => {
+		const key = ConfigKey.Advanced.WorkspacePrototypeAdoCodeSearchEndpointOverride;
+
+		mockConfigStore.defaults = { [key.fullyQualifiedId]: '' };
+		mockConfigStore.user = { [key.fullyQualifiedId]: 'https://user.example/current' };
+		mockConfigStore.workspace = { [key.fullyQualifiedId]: 'https://workspace.example/current' };
+		mockConfigStore.workspaceFolder = { [key.fullyQualifiedId]: 'https://workspace-folder.example/current' };
+
+		const service = new ConfigurationServiceImpl(fakeTokenStore);
+
+		expect(service.getConfig(key)).toBe('https://user.example/current');
+	});
+
+	test('preserves the user-scoped legacy ADO code search endpoint override', () => {
+		const key = ConfigKey.Advanced.WorkspacePrototypeAdoCodeSearchEndpointOverride;
+		const legacyKey = key.fullyQualifiedOldId!;
+
+		mockConfigStore.defaults = { [key.fullyQualifiedId]: '' };
+		mockConfigStore.user = { [legacyKey]: 'https://user.example/legacy' };
+		mockConfigStore.workspace = {
+			[key.fullyQualifiedId]: 'https://workspace.example/current',
+			[legacyKey]: 'https://workspace.example/legacy',
+		};
+		mockConfigStore.workspaceFolder = {
+			[key.fullyQualifiedId]: 'https://workspace-folder.example/current',
+			[legacyKey]: 'https://workspace-folder.example/legacy',
+		};
+
+		const service = new ConfigurationServiceImpl(fakeTokenStore);
+
+		expect(service.getConfig(key)).toBe('https://user.example/legacy');
 	});
 });
