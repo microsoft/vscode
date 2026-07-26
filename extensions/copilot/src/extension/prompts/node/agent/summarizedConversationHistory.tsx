@@ -842,6 +842,14 @@ class ConversationHistorySummarizer {
 		// actually stored — the `<analysis>` scratchpad would otherwise push an
 		// acceptable summary over budget and fail compaction.
 		const summaryText = this.unwrapSummary(response.value);
+		// An empty summary is stored but ignored by the truthy `round.summary` checks
+		// on the next render, so compaction would silently reclaim nothing while
+		// reporting success. Fail instead so the Simple-mode fallback runs.
+		if (!summaryText.trim()) {
+			this.sendSummarizationTelemetry('empty', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage, 'summary was empty after extraction');
+			this.logInfo('Summarization produced an empty summary', mode);
+			throw new Error('Summarization request failed');
+		}
 		const summarySize = await this.sizing.countTokens(summaryText);
 		const effectiveBudget =
 			!!this.props.maxSummaryTokens
