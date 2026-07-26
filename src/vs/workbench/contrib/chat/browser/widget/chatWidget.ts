@@ -78,6 +78,7 @@ import { IChatAttachmentResolveService } from '../attachments/chatAttachmentReso
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
+import { getRandomChatInputPlaceholder, installRotatingChatPlaceholder } from './input/chatInputPlaceholderRotation.js';
 import { IChatListItemTemplate } from './chatListRenderer.js';
 import { ChatListWidget } from './chatListWidget.js';
 import { ChatEditorOptions } from './chatOptions.js';
@@ -346,6 +347,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _goalSummaryTokenSource: CancellationTokenSource | undefined;
 	private _goalBannerDismissedForCurrentRequest = false;
 	private readonly _goalBannerDismissListener = this._register(new MutableDisposable<IDisposable>());
+
+	// Rotating placeholder for the agent host empty-session state.
+	private readonly _rotatingPlaceholder = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
@@ -2294,14 +2298,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.setViewModel(this.viewModel);
 
 		if (this._lockedAgent) {
-			let placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
-			if (!placeholder) {
-				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
+			const contributedPlaceholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
+			const staticPlaceholder = contributedPlaceholder ?? localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
+			this.viewModel.setInputPlaceholder(staticPlaceholder);
+
+			// For an empty agent host session, rotate through friendly placeholders
+			// with a shimmer transition. Once a conversation has started (or for any
+			// non-agent-host locked agent, or when a custom placeholder is
+			// contributed) show the static placeholder instead.
+			const isEmptyAgentHostSession = !!this._lockedAgent.agentHostProviderId && !contributedPlaceholder && model.getRequests().length === 0;
+			if (isEmptyAgentHostSession) {
+				this.inputEditor.updateOptions({ placeholder: getRandomChatInputPlaceholder() });
+				this._rotatingPlaceholder.value = installRotatingChatPlaceholder(this.inputEditor);
+			} else {
+				this._rotatingPlaceholder.clear();
+				this.inputEditor.updateOptions({ placeholder: staticPlaceholder });
 			}
-			this.viewModel.setInputPlaceholder(placeholder);
-			this.inputEditor.updateOptions({ placeholder });
-		} else if (this.viewModel.inputPlaceholder) {
-			this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+		} else {
+			this._rotatingPlaceholder.clear();
+			if (this.viewModel.inputPlaceholder) {
+				this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+			}
 		}
 
 		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange), (events => {
@@ -2315,16 +2332,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.updateWorkingProgressBorder();
 
 			// Update the editor's placeholder text when it changes in the view model
-			if (events?.some(e => e?.kind === 'changePlaceholder')) {
+			// (unless the placeholder is currently rotating for an empty session).
+			if (events?.some(e => e?.kind === 'changePlaceholder') && !this._rotatingPlaceholder.value) {
 				this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
 			}
 
 			this.onDidChangeItems();
-			if (events?.some(e => e?.kind === 'addRequest') && this.visible) {
-				this.listWidget.scrollToEnd();
+			if (events?.some(e => e?.kind === 'addRequest')) {
+				// A conversation has started: stop rotating the placeholder and
+				// restore the static one ("Chat with Copilot").
+				if (this._rotatingPlaceholder.value) {
+					this._rotatingPlaceholder.clear();
+					this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+				}
+				if (this.visible) {
+					this.listWidget.scrollToEnd();
+				}
 			}
 		})));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
+			this._rotatingPlaceholder.clear();
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
 			if (this.viewModel?.editing) {
 				this.finishedEditing();
@@ -2496,6 +2523,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.renderWelcomeViewContentIfNeeded();
 
 		// Reset to default placeholder
+		this._rotatingPlaceholder.clear();
 		if (this.viewModel) {
 			this.viewModel.resetInputPlaceholder();
 		}
