@@ -579,6 +579,15 @@ suite('Agent Summarization', () => {
 		expect(result.metadata.get(SummarizedConversationHistoryMetadata)!.text).toBe('short summary');
 	});
 
+	test('empty <summary> fails rather than silently compacting to nothing', async () => {
+		// Empty summaries are ignored by the truthy round.summary checks on the next render.
+		chatResponse[0] = '<analysis>reasoning</analysis>\n<summary>   </summary>';
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		await expect(renderer.render()).rejects.toThrow();
+	});
+
 	test('failed summarization does not set round.summary', async () => {
 		chatResponse[0] = 'summary that is definitely too large for one token';
 		const { instaService, endpoint, toolCallRounds, historyProps } = createSummarizationTestContext();

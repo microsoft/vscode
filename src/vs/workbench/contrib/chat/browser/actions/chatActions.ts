@@ -198,8 +198,9 @@ export interface IChatViewOpenOptions {
 	 * commands such as `/compact` that are not user messages.
 	 *
 	 * Mutually exclusive with `attachScreenshot`, `attachFiles`,
-	 * `attachHistoryItemChanges` and `toolIds`: those attach context via the input
-	 * box, which this option deliberately excludes from the request.
+	 * `attachHistoryItemChanges`, `attachHistoryItemChangeRanges` and `toolIds`:
+	 * those attach context via the input box, which this option deliberately
+	 * excludes from the request.
 	 */
 	preserveInput?: boolean;
 }
