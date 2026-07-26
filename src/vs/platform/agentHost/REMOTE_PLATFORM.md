@@ -80,10 +80,19 @@ export interface IRemotePlatformInfo {
  * A bare PID is insufficient: PIDs are recycled, and a stale lockfile plus a
  * recycled PID would otherwise let us kill an unrelated process.
  *
- * `startToken` is an opaque, platform-defined value derived from native
- * process-creation data (POSIX: the `starttime` field in jiffies; Windows:
- * the raw `CreationTime` FILETIME) — never a formatted date, whose precision
- * and timezone rendering vary per host.
+ * `startToken` is an opaque, **versioned and OS-specific** identity token
+ * derived from native process-creation data. It is never a formatted date, and
+ * never a bare `/proc` value: `starttime` jiffies are measured from boot, so a
+ * PID plus jiffies can repeat after a reboot, and macOS has no `/proc` at all.
+ *
+ *   - Linux:   boot ID + PID-namespace identity + `/proc/<pid>/stat` starttime
+ *   - Darwin:  exact process creation timestamp from `kinfo_proc`
+ *   - Windows: raw `GetProcessTimes` creation `FILETIME`
+ *
+ * The token carries its own scheme tag so a reader can refuse to compare
+ * tokens it does not understand rather than comparing them wrongly. The
+ * supervisor computes its own token immediately before writing metadata; no
+ * other party derives it on its behalf.
  *
  * It is **optional**: not every CLI writes it. When the commit-pinned download
  * fails, the installer falls back to any usable CLI already present on the
@@ -167,6 +176,17 @@ export interface IRemotePlatform {
 	touchFile(exec: ISshExec, path: IRemotePath): Promise<boolean>;
 	isProcessAlive(exec: ISshExec, identity: IRemoteProcessIdentity): Promise<boolean>;
 	killProcessTree(exec: ISshExec, identity: IRemoteProcessIdentity): Promise<void>;
+	/**
+	 * Probe the agent host's loopback endpoint *on the remote*, independently
+	 * of the SSH relay, so a relay problem is never mistaken for a dead agent
+	 * host (§4.3).
+	 *
+	 * `indeterminate` is a first-class result and the safe default: only a
+	 * definitive connection refusal proves death. Timeouts, authentication
+	 * failures, protocol errors and probe-execution failures all yield
+	 * `indeterminate`, which preserves the supervisor.
+	 */
+	probeEndpoint(exec: ISshExec, host: string, port: number): Promise<'alive' | 'dead' | 'indeterminate'>;
 	versionCheck(exec: ISshExec, cliBin: IRemotePath): Promise<boolean>;
 	installCli(exec: ISshExec, options: { url: string; installRoot: IRemotePath; cliBin: IRemotePath }): Promise<void>;
 	pruneOldClis(exec: ISshExec, serverDataFolderName: string, quality: string, keep: number): Promise<void>;
@@ -235,11 +255,14 @@ This also removes the `echo VSCODE_PID=$$` marker and the whole class of
 "how do I capture a PID in this shell" problems — which is precisely the problem
 that has no clean PowerShell answer.
 
-> **Spike (blocking P4).** Confirm the supervisor's metadata is written and
-> readable before the desktop needs it on both families, and confirm the
-> foreground process streams the banner identically on Windows. If metadata
-> lands too late, the fallback is to keep scraping the banner for the port and
-> read identity from metadata on the next round trip.
+> **Metadata must exist by readiness.** The supervisor currently only *warns*
+> when the metadata write fails and continues serving
+> (`cli/src/tunnels/agent_host.rs:1049-1051`), which can leave a running but
+> undiscoverable supervisor — invisible to `agent ps`, to tunnel reuse, and to
+> the desktop, which would then launch another one on every connect. A failed
+> metadata write therefore aborts the supervisor **before** it prints the
+> readiness sentinel, so "ready" implies "discoverable". Missing, corrupt,
+> delayed and banner-mismatched metadata are all covered by tests.
 
 ### 4.3 The supervisor is shared — termination rules
 
@@ -261,14 +284,17 @@ actively using.
 
 Therefore:
 
-- **A relay failure alone never justifies killing anything.** The remote loopback
-  endpoint must be independently proven dead — probed on the remote, separately
-  from the SSH relay — before any termination. Otherwise the supervisor is
-  preserved and a retryable connection error is surfaced.
+- **A relay failure alone never justifies killing anything.** The agent host's
+  loopback endpoint must be independently proven dead via `probeEndpoint`, run
+  on the remote and separate from the SSH relay. Only a definitive connection
+  refusal (`dead`) permits cleanup; `indeterminate` — timeout, auth failure,
+  protocol error, or a probe that could not run — preserves the supervisor and
+  surfaces a retryable connection error.
 - **Identity is required to kill.** `isProcessAlive` and `killProcessTree` take an
   `IRemoteProcessIdentity` and verify `startToken`. If identity cannot be proven
   (older CLI, missing field), reuse is still permitted but destructive cleanup is
-  **prohibited**: stale metadata is removed without killing.
+  **prohibited**: the metadata is removed only once the endpoint is proven dead,
+  so a live-but-unverifiable supervisor is never stranded.
 - Termination reaps the tree (`kill_tree` on POSIX, `taskkill /T /F` on Windows)
   or the detached supervisor is orphaned.
 
@@ -344,13 +370,19 @@ carries no `startToken` — because it was written by a CLI of unknown vintage
 (§4.5) — the identity cannot be proven and an unconditional kill would be exactly
 the recycled-PID hazard I5 exists to prevent.
 
-The command therefore reports that it cannot verify the process, removes the
-stale metadata so the entry stops being offered for reuse, and leaves the process
-alone. **`--force` skips the identity check** and restores the previous
-behaviour, so a user who knows what they are killing is never stranded.
+The command therefore **fails with a non-zero exit and changes nothing**,
+reporting that it cannot verify the process and directing the user to
+`--force`, which skips the identity check and restores the previous behaviour.
+
+Crucially it does **not** remove the metadata. The metadata file is the only
+handle anything has on that supervisor — `code agent ps` resolves through it, as
+does tunnel reuse (`cli/src/commands/agent_host.rs`) — so discarding it while
+leaving the process running would strand an orphan that nothing can find, and
+would leave a subsequent `--force` with no PID to act on. Recovery must never
+destroy the only record of the thing being recovered.
 
 The same rule applies wherever the CLI reaps a supervisor internally: no
-identity, no kill.
+identity, no kill, and no silent discard of the record.
 
 ---
 
@@ -385,6 +417,12 @@ contract is identical across platforms:
 - `$ErrorActionPreference = 'Stop'` and an explicit `exit <n>`; predicates emit
   an explicit exit code rather than relying on cmdlet output (`Test-Path` prints
   `False` and exits `0`).
+- **Native executables propagate their own exit code.**
+  `$ErrorActionPreference` governs cmdlets and does *not* turn a failing native
+  process into a PowerShell error, so any payload invoking `taskkill`, the CLI
+  itself, or any other `.exe` ends with `exit $LASTEXITCODE`. Without this a
+  failed kill or a failed `--version` check reports success. Tests cover a
+  failing `taskkill` and a failing `--version` specifically.
 - `[Console]::OutputEncoding` pinned to UTF-8 so `stdout` is decodable by the
   transport, which assumes UTF-8 text.
 - Machine-readable single-line markers (`VSCODE_REMOTE_*=`) for any value the
@@ -431,8 +469,15 @@ Sequence: create the install root, download into a temp directory beneath it
 (`Invoke-WebRequest -UseBasicParsing -OutFile`), `Expand-Archive -Force`,
 `Move-Item -Force` to the commit-keyed name, remove the temp directory.
 Extracting into a sibling temp directory preserves the same-volume atomic-rename
-property. `cliArchiveName` gains `.exe`; `parseFallbackCliPath` matches the
-Windows shapes.
+property. The archive contains exactly one flat entry, `code-insiders.exe`, so
+no directory nesting has to be flattened.
+
+**Naming.** The extension is a suffix of the *file*, not of the archive stem, so
+the commit-keyed name is `code-insiders-<40hex>.exe` — never
+`code-insiders.exe-<40hex>`. `cliArchiveName` returns the stem
+(`code-insiders`) and the platform appends its own extension when it renders a
+path, so construction and parsing stay symmetrical. `parseFallbackCliPath`
+matches the Windows shapes accordingly.
 
 ### 5.5 Paths
 
@@ -527,7 +572,18 @@ Windows than the `0600`/`0700` the POSIX path deliberately enforces.
 - **Legacy files are repaired on reuse.** `mint_connection_token` returns an
   existing token before rewriting it (`cli/src/commands/agent_host.rs:720-725`),
   so a file created before this change would otherwise keep its inherited ACL
-  forever.
+  forever. This applies to the **metadata file too**, which carries
+  `connection_token` in the same struct
+  (`cli/src/tunnels/agent_host_metadata.rs`): a reused legacy lockfile is
+  equally token-bearing, so its ACL is validated and repaired before reuse, not
+  only on creation.
+- **The install root and the binary are protected.** The downloaded CLI is
+  executed by us, so another local account with modify or delete-child rights on
+  a permissive install root could replace it between install and launch. The
+  `--version` check proves the binary runs, not that it is ours. The install
+  root, the extraction temp directory, and the final executable are therefore
+  owner-protected on creation. (Authenticode verification before execution would
+  be stronger still, and is the natural hardening if this proves insufficient.)
 - **Testing this requires new CI.** `cargo test` runs only on Linux
   (`.github/workflows/pr-linux-cli-test.yml`); the Windows CLI pipeline builds
   but never tests. Native Windows `cargo test` execution is added, asserting
@@ -613,9 +669,9 @@ bisect lands on a coherent state.
 | **P0** | Characterization tests for the launch path (SSH **and** WSL bootstrap: pinned, loose, override). Drive one launch through the real launcher against the mock client so production wiring is covered, not just a builder. Migrate the fake executor to command-matched responses. | Launch commands asserted for the first time; unexpected commands fail loudly. |
 | **P1** | Introduce `IRemotePlatform`; extract SSH behaviour into `PosixRemotePlatform`; re-export the naming/validation primitives WSL and `agentHostLockfile.ts` import. **No behaviour change.** | Existing assertions all still hold (see §11 on the harness migration); WSL and local-lockfile tests and typecheck green. |
 | **P2** | Detection before all operations on the managed path. **Includes the Windows encoder/envelope foundation**, since the Windows probe is itself an `-EncodedCommand`. Extend `ISshExec` with a sensitive/description contract and stop embedding full commands in errors. | Detection tests pass; no state operation precedes platform resolution; error redaction tested. |
-| **P3** | Metadata-timing spike (blocking, see §4.2), then CLI-metadata identity as an additive v1 field, endpoint-liveness probe before any kill, identity-checked tree-kill, and the matching Rust destructive-consumer updates. | Reuse and cleanup correct on POSIX; a second consumer's supervisor survives a relay failure. |
-| **P4** | `WindowsRemotePlatform`: paths, zip install, tree-kill, chunked oversized-script path. Rust ACL fix plus native Windows `cargo test` in CI. Payloads executed under real `powershell.exe`, invoked through `cmd.exe /c` as well as directly. | Windows tests pass; ACL asserted against a permissive parent. |
-| **P5** | Validate against a real Windows 11 remote. | Manual checklist green. |
+| **P3** | Metadata write becomes fatal before readiness (§4.2), CLI-metadata identity as an additive v1 field, endpoint probe, identity-checked tree-kill, and the matching Rust consumer updates including `code agent kill` (§4.6). Windows `cargo test` is enabled here, not in P4, because P3 already changes cross-platform Rust. | Reuse and cleanup correct on POSIX **and** Darwin identity tested; a second consumer's supervisor survives a relay failure; Rust suites green on Linux and Windows. |
+| **P4** | `WindowsRemotePlatform`: paths, zip install, tree-kill, chunked oversized-script path. Rust ACL fix. Payloads executed under real `powershell.exe`, invoked through `cmd.exe /c` as well as directly. User-facing diagnostics (§13). | Windows tests pass; ACL asserted against a permissive parent. |
+| **P5** | Validate against a real Windows 11 remote using the §14 checklist. | Checklist green. |
 
 P0 precedes P1 because P1's safety claim depends on it: the existing harness
 stubs `_startRemoteAgentHost` wholesale, so the launch command has **no**
@@ -776,3 +832,55 @@ Both defects are fixed as part of this work rather than split out. They are not
 separable in practice — D1 masks D2, and correcting either alone is unsafe — and
 the platform work has to touch this exact code anyway, so a standalone fix would
 mean rewriting the same call sites twice.
+
+---
+
+## 13. Diagnostics, telemetry and strings
+
+A Windows remote is a first-time path, so failures must say what went wrong and
+where. Each stage produces a distinct, localized message rather than a raw shell
+error:
+
+| Stage | Failure surfaced as |
+|---|---|
+| Detection | Remote OS could not be determined; both probes' output quoted |
+| PowerShell missing | `powershell.exe` not found on the remote |
+| Download / extract | CLI download or unpack failed, with the URL but never the token |
+| Metadata | Agent host started but did not publish metadata |
+| Launch | Agent host exited before becoming ready |
+
+All new user-facing strings go through `nls.localize`, including the
+POSIX-only hint for `remoteAgentHostCommand` (§6).
+
+CLIXML on Windows stderr is **decoded** into readable text rather than discarded,
+so the underlying error survives into the message.
+
+Telemetry is low-cardinality and carries no hostnames, paths, commands, tokens
+or usernames: remote OS and architecture, the stage that failed, and a failure
+category. It follows the existing classification rules — `SystemMetaData` with
+`FeatureInsight`, or `CallstackOrException` with `PerformanceAndHealth` for
+errors.
+
+Settings and documentation touched: the `chat.sshRemoteAgentHostCommand`
+description gains its POSIX-only limitation (§6).
+
+---
+
+## 14. P5 validation checklist
+
+Run against a real Windows 11 remote. No automated substitute exists (§11).
+
+1. **First connect**, no CLI present: detection, download, extract, launch,
+   session usable.
+2. **Reconnect**: the existing supervisor is reused; no second one appears.
+3. **Default shell `cmd.exe`** and **default shell PowerShell** both work.
+4. **Profile path containing a space and an apostrophe** installs and launches.
+5. **Old-CLI skew**: metadata without `startToken` permits reuse and refuses
+   destructive cleanup.
+6. **`code agent kill`** without identity fails non-zero, changes nothing, and
+   `--force` then succeeds.
+7. **Relay failure** with a healthy agent host leaves the supervisor running.
+8. **ACL**: metadata and token files are owner-only; verified against a parent
+   directory granting `Everyone`.
+9. **Failure output** carries no token, in logs, errors, or notifications.
+10. **POSIX regression**: a Linux remote still connects, reuses and cleans up.
