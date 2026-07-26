@@ -325,35 +325,43 @@ Win32-OpenSSH runs each exec channel's process tree in a job, and the foreground
 detached supervisor with it, moments after it printed its endpoint.
 
 The supervisor spawn therefore becomes job-aware, adding
-`CREATE_BREAKAWAY_FROM_JOB` where the job permits it. The repository already has
-exactly this pattern for the server child, including the probe for whether
-breakaway is allowed (`cli/src/tunnels/code_server.rs:641-649,942-950`) — the
-probe is a test spawn of `cmd /C echo ok` carrying the flag, since
-`CreateProcess` fails with access denied when the job lacks
-`JOB_OBJECT_LIMIT_BREAKAWAY_OK`.
+`CREATE_BREAKAWAY_FROM_JOB`. The repository already has exactly this pattern for
+the server child, including a probe for whether breakaway is allowed
+(`cli/src/tunnels/code_server.rs:641-649,942-950`) — the probe is a test spawn of
+`cmd /C echo ok` carrying the flag, since `CreateProcess` fails with access
+denied when the job lacks `JOB_OBJECT_LIMIT_BREAKAWAY_OK`.
 
-**That precedent is necessary but not sufficient here.** When breakaway is
-forbidden, the existing code simply omits the flag and accepts living inside the
-job — acceptable for the server child, fatal for a supervisor that must outlive
-the channel that started it. This design is not yet settled on the fallback. The
-candidates, in preference order:
+**This is measured, not inferred.** Against a Win32-OpenSSH *exec* channel:
 
-1. spawn outside the job by another route (a `Win32_Process.Create` style
-   mechanism parents the new process elsewhere, escaping the caller's job), or
-2. detect the condition at connect time and fail with an actionable error rather
-   than letting the agent host die seconds later for no visible reason.
+```
+in_job=True   limit_flags=0x00002800
+flag_breakaway_ok=True   flag_silent_breakaway_ok=False   flag_kill_on_job_close=True
+```
 
-**Both the premise and the fallback are unverified.** That Win32-OpenSSH places
-exec channels in a job is inference from the precedent above, not a measurement.
-This is cheap to settle empirically — enable `sshd`, connect to `localhost`, and
-check `IsProcessInJob` plus whether a breakaway spawn succeeds — and it should be
-settled *before* the Windows work is scheduled, since the answer decides whether
-§5.6 is a two-line change or a redesign of how the supervisor is started.
+and, after the channel closed, of two children spawned `DETACHED_PROCESS` with
+their std handles on `NUL`:
+
+```
+child_plain      DEAD    <- reaped with the job
+child_breakaway  ALIVE
+```
+
+Two consequences follow. **Detachment alone does not save a process** — the plain
+child was fully detached and still died, so redirecting stdio and daemonizing, as
+the supervisor already does, is not sufficient. And because
+`SILENT_BREAKAWAY_OK` is clear while `BREAKAWAY_OK` is set, the flag has to be
+passed explicitly; nothing happens automatically.
+
+The job permits breakaway, so this is the two-line change and no fallback is
+required. Should a remote ever be configured with breakaway denied, the probe
+above returns false and the correct response is to fail the connection with an
+actionable error rather than let the agent host die seconds later for no visible
+reason.
 
 This failure mode is invisible to unit tests and to a local PowerShell run: it
-requires a real Win32-OpenSSH exec channel. §13 covers it explicitly, and it is
-the first thing to verify on a real host, because every other Windows behaviour
-depends on the supervisor still being alive.
+requires a real Win32-OpenSSH exec channel, which is how it went unnoticed
+through five design reviews. §13 verifies it first, because every other Windows
+behaviour depends on the supervisor still being alive.
 
 ---
 
