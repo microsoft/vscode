@@ -5941,6 +5941,27 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(await responsePromise, { approved: false });
 		});
 
+		test('abort resolves and clears a pending plan review', async () => {
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
+
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
+			const request = getInputRequest(await waitForSignal(s => isAction(s, ActionType.ChatInputRequested)));
+
+			await session.abort();
+			const lateResponseHandled = session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept);
+
+			assert.deepStrictEqual({
+				response: await responsePromise,
+				abortCalls: mockSession.abortCalls,
+				lateResponseHandled,
+			}, {
+				response: { approved: false },
+				abortCalls: 1,
+				lateResponseHandled: false,
+			});
+		});
+
 		test('exit_only resolves as approved + interactive without autoApproveEdits', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 			session.resetTurnState('turn-plan');

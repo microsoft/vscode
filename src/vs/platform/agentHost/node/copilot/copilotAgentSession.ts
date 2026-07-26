@@ -1912,6 +1912,7 @@ export class CopilotAgentSession extends Disposable {
 	async abort(): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Aborting session...`);
 		this._denyPendingPermissions();
+		this._cancelPendingPlanReviews();
 		this._drainPendingSteeringFlips();
 		await this._wrapper.session.abort();
 	}
