@@ -28,6 +28,12 @@ jobs:
           isProduction: false
           condition: succeededOrFailed()
     steps:
+      # Smoke tests do not exercise on-device dictation, and packaged builds
+      # fetch its native runtime from the VS Code CDN on demand. Avoid the SDK's
+      # redundant install-time NuGet download, which is blocked on this pool.
+      - powershell: node build/azure-pipelines/common/disableFoundryLocalInstall.ts
+        displayName: Disable Foundry Local Native Install
+
       # Build VS Code from source. No VSCODE_RUN_*_TESTS flags are passed, so the
       # compile template builds the client/server but skips compiling the test
       # suites and skips the unit/integration/smoke test template entirely — we
