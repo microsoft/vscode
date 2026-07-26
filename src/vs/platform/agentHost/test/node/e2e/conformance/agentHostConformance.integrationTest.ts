@@ -53,4 +53,4 @@ const REFERENCE_CONFIG: IAgentHostE2EProviderConfig = {
 	stableNewScenarioResponse: true,
 };
 
-defineAgentHostConformanceTests(REFERENCE_CONFIG, 'Agent Host E2E — Conformance');
+defineAgentHostConformanceTests(REFERENCE_CONFIG);

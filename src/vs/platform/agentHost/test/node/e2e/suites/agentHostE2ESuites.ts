@@ -123,6 +123,6 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig, tar
  * contracts. Called **once per target**, not once per provider — the reference
  * provider only exists so sessions can be materialized.
  */
-export function defineAgentHostConformanceTests(config: IAgentHostE2EProviderConfig, suiteTitle: string, target?: IAgentHostTarget): void {
-	defineSuite(config, { tier: 'conformance', suiteTitle, target });
+export function defineAgentHostConformanceTests(config: IAgentHostE2EProviderConfig, target?: IAgentHostTarget): void {
+	defineSuite(config, { tier: 'conformance', suiteTitle: config.suiteTitle, target });
 }

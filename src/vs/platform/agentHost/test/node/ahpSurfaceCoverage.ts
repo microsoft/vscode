@@ -39,6 +39,7 @@ const observed: Record<AhpSurfaceKind, Set<string>> = {
 
 let outputPath: string | undefined;
 let enabled: boolean | undefined;
+let warned = false;
 
 function isEnabled(): boolean {
 	if (enabled === undefined) {
@@ -88,7 +89,13 @@ function flush(): void {
 		const path = resolveOutputPath();
 		mkdirSync(dirname(path), { recursive: true });
 		writeFileSync(path, `${JSON.stringify(payload, undefined, '\t')}\n`);
-	} catch {
-		// Coverage recording must never fail a test run.
+	} catch (error) {
+		// Coverage recording must never fail a test run, but a silent failure
+		// here surfaces much later as the coverage script reporting a missing
+		// observation file. Warn once so the real cause is in the same log.
+		if (!warned) {
+			warned = true;
+			console.warn(`[ahp-surface-coverage] failed to write protocol surface observations to ${resolveOutputPath()}: ${error}`);
+		}
 	}
 }
