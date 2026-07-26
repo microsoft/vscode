@@ -85,9 +85,12 @@ export interface IRemotePlatformInfo {
  * the raw `CreationTime` FILETIME) — never a formatted date, whose precision
  * and timezone rendering vary per host.
  *
- * It is **optional**: an older CLI, or one selected by the fallback installer
- * (`sshRemoteAgentHostService.ts:1471-1483`), writes no such field. Absence
- * permits reuse but forbids destructive cleanup (§4.3).
+ * It is **optional**: not every CLI writes it. When the commit-pinned download
+ * fails, the installer falls back to any usable CLI already present on the
+ * remote (`sshRemoteAgentHostService.ts:1470-1485`) — a binary of unknown
+ * vintage, possibly installed by an older desktop build or by Remote-SSH, which
+ * shares the same install root. Absence permits reuse but forbids destructive
+ * cleanup (§4.3).
  */
 export interface IRemoteProcessIdentity {
 	readonly pid: number;
@@ -301,6 +304,32 @@ system.
 After launch the desktop reads **one canonical metadata snapshot** — PID,
 identity, host, port, token — and validates any banner-scraped value against it,
 rather than merging two sources of truth.
+
+### 4.5 Why CLI vintage is not controlled
+
+The desktop pins the CLI to its own commit and installs it at a commit-keyed
+path. That pin is **best-effort, not guaranteed** — which is why `startToken`
+must be optional.
+
+When the pinned download fails (offline, proxy, a 404 for a purged or
+unpublished artifact, or a post-install `--version` check failure), the
+installer does not refuse to connect. It searches the remote for any usable CLI
+already present and runs the newest one that answers `--version`
+(`sshRemoteAgentHostService.ts:1470-1485`), logging that it "does not match
+desktop commit". Candidates, newest by mtime first:
+
+1. other commit-keyed binaries in the shared install root, and
+2. the legacy single-binary paths from the previous installer layout
+   (`~/.vscode-cli{,-<quality>}/<archive>`).
+
+Such a binary is of **unknown vintage rather than merely old**: it could predate
+this desktop build, or postdate it if the user rotates between builds, and the
+install root is deliberately shared with Remote-SSH, so it may have been placed
+there by a different feature entirely.
+
+The desktop therefore cannot assume any particular CLI version at runtime, and
+every field it reads from CLI-written metadata must degrade gracefully when
+absent.
 
 ---
 
@@ -608,8 +637,8 @@ therefore fixes orphan accumulation on POSIX independently of Windows support.
   readiness sentinel, and printing its PID and port there too would let the
   desktop skip the metadata round trip on both families. It is deferred rather
   than rejected: it requires a Rust change that only newer CLIs would carry,
-  while the desktop must keep working against the older CLIs the fallback
-  installer can deliberately select (`sshRemoteAgentHostService.ts:1471-1483`).
+  installer can fall back to a pre-existing CLI of unknown vintage whenever the
+  commit-pinned download fails (`sshRemoteAgentHostService.ts:1470-1485`).
   The metadata read is therefore needed regardless, and adding the banner field
   now would mean building and maintaining both paths. It becomes attractive once
   a CLI floor can be assumed.
@@ -629,7 +658,7 @@ Windows connect flow is testable end-to-end with no Windows machine.
 | **Detection tests** | POSIX outputs map correctly; unknown output errors; the Windows probe runs **only** when the POSIX probe fails; no operation precedes detection. |
 | **Identity tests** | Liveness and termination respect `startToken`; a recycled PID is never killed; missing identity permits reuse but refuses cleanup; a relay failure alone never kills. |
 | **Coexistence test** | Two consumers share one supervisor; a relay failure in one must leave the other's agent host running. |
-| **Skew tests** | New desktop / old CLI (no `startToken`) and old desktop / new CLI both behave per §4.4, including after the fallback installer selects an older CLI. |
+| **Skew tests** | New desktop / old CLI (no `startToken`) and old desktop / new CLI both behave per §4.4, including when the commit-pinned install fails and a pre-existing CLI of unknown vintage is used instead. |
 | **Remote-SSH contract tests** | The shared install root is used by Remote-SSH too: pin the exact Windows filename shape (`code-insiders-<40hex>.exe`), the cleanup and fallback globs, and legacy paths. Cleanup must never match beyond exact quality + 40-hex + extension, and must tolerate an in-use or racing destination. |
 | **Connect-flow tests** | A Windows-remote variant of the existing scripted-exec tests asserting no POSIX command is ever emitted, mirroring the existing `assert.ok(!execCalls.some(c => c.includes('uname')))` style. |
 | **Regression** | The full existing suite, unmodified, throughout P1 — plus WSL and local-lockfile suites, which share the refactored module. |
