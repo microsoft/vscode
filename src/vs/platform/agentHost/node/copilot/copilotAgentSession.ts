@@ -956,7 +956,7 @@ export class CopilotAgentSession extends Disposable {
 		// Emit the restricted per-turn tool-call aggregate before the turn is cleared. Main agent
 		// only: `_appliedSnapshot.tools` and this turn's accumulator describe the main session's turn.
 		// No-ops (in the reporter) when the turn made no tool calls.
-		this._telemetryReporter.toolCallDetails({
+		void this._telemetryReporter.toolCallDetails({
 			session: this.sessionUri.toString(),
 			turnId: turn.id,
 			model: turn.lastModel,
@@ -967,7 +967,7 @@ export class CopilotAgentSession extends Disposable {
 			totalToolCalls: turn.totalToolCalls,
 			parallelToolCallRounds: turn.parallelToolCallRounds,
 			parallelToolCallsTotal: turn.parallelToolCallsTotal,
-		});
+		}).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 		this._emitAction({
 			type: ActionType.ChatTurnComplete,
 			turnId: turn.id,
@@ -3153,9 +3153,9 @@ export class CopilotAgentSession extends Disposable {
 			// Main agent only: `_appliedSnapshot.tools` is the session's tool set, which does not
 			// describe a subagent's model call, so subagent messages (mapped or dropped) are skipped.
 			if (!e.agentId) {
-				this._telemetryReporter.assistantMessageReceived(this.sessionUri.toString(), e.data.serviceRequestId, this._appliedSnapshot.tools);
+				void this._telemetryReporter.assistantMessageReceived(this.sessionUri.toString(), e.data.serviceRequestId, this._appliedSnapshot.tools).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 				// Restricted `conversation.messageText` (source=model): the model's raw response text.
-				this._telemetryReporter.modelMessageText(this.sessionUri.toString(), e.data.content, this._turnOrdinal, e.data.serviceRequestId);
+				void this._telemetryReporter.modelMessageText(this.sessionUri.toString(), e.data.content, this._turnOrdinal, e.data.serviceRequestId).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 				// Accumulate the per-turn tool-call aggregate for the restricted `toolCallDetails` event.
 				// Every main-agent `assistant.message` is one model-call round (matches the extension's
 				// `numRequests = toolCallRounds.length`, which counts the final tool-free response round
@@ -4354,7 +4354,7 @@ export class CopilotAgentSession extends Disposable {
 			// and SDK-injected synthetic messages (skill/harness injections carry a non-`user` source,
 			// matching `isSyntheticUserMessage`) so injected content is not reported as the user's prompt.
 			if (!e.agentId && (!e.data.source || e.data.source.toLowerCase() === 'user')) {
-				this._telemetryReporter.userMessageText(this.sessionUri.toString(), e.data.content, this._turnOrdinal);
+				void this._telemetryReporter.userMessageText(this.sessionUri.toString(), e.data.content, this._turnOrdinal).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 			}
 		}));
 

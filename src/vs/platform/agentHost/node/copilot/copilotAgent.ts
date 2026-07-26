@@ -778,14 +778,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		if (!notification.restricted) {
-			router.route(notification);
+			await router.route(notification);
 			return;
 		}
 
 		const sessionId = notification.sessionId;
 		const githubToken = this._githubToken;
 		if (!githubToken) {
-			router.route(notification);
+			await router.route(notification);
 			return;
 		}
 
@@ -794,7 +794,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (this._githubToken !== githubToken) {
 				return;
 			}
-			router.route(notification, {
+			await router.route(notification, {
 				restrictedTelemetryEnabled: context.restrictedTelemetryEnabled,
 				trackingId: context.trackingId,
 				telemetryEndpoint: toRestrictedTelemetryEndpoint(context.telemetryEndpoint),
@@ -1172,7 +1172,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				telemetry,
 				logLevel: copilotSdkLogLevelAtStartup,
 				enableRemoteSessions: sessionSyncAtStartup,
-				onGitHubTelemetry: notification => this._routeGitHubTelemetry(notification),
+				onGitHubTelemetry: notification => { void this._routeGitHubTelemetry(notification).catch(err => this._logService.trace(`[Copilot] GitHub telemetry routing failed: ${err instanceof Error ? err.message : String(err)}`)); },
 			};
 			const client = this._createCopilotClient(clientOptions);
 			await client.start();
