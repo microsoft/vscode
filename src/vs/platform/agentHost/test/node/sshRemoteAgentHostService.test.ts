@@ -371,6 +371,25 @@ class KeyboardInteractiveConnectTestService extends SSHRemoteAgentHostMainServic
 	}
 }
 
+/**
+ * Exercises the *real* launch path.
+ *
+ * `TestableSSHRemoteAgentHostMainService` overrides `_startRemoteAgentHost`
+ * wholesale, so the command that actually launches the agent host is never
+ * built by any test. This subclass deliberately does not override it: the
+ * production command builder runs and the mock client records what it issued.
+ */
+class LaunchCommandTestService extends SSHRemoteAgentHostMainService {
+	startForTest(
+		client: MockSSHClient,
+		cliBin: string | undefined,
+		cliDataDir: string | undefined,
+		commandOverride?: string,
+	) {
+		return this._startRemoteAgentHost(client as never, cliBin, cliDataDir, commandOverride);
+	}
+}
+
 suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	const disposables = new DisposableStore();
@@ -1730,5 +1749,103 @@ suite('SSHRemoteAgentHostMainService - makeAuthHandler', () => {
 		assert.deepStrictEqual(calls, [
 			{ type: 'publickey', username: 'u', key: KEY, passphrase: 'passphrase' },
 		]);
+	});
+});
+
+suite('SSHRemoteAgentHostMainService - launch command', () => {
+
+	const disposables = new DisposableStore();
+	let service: LaunchCommandTestService;
+
+	setup(() => {
+		const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'dataFolderName'> = {
+			_serviceBrand: undefined,
+			quality,
+			dataFolderName,
+		};
+		service = new LaunchCommandTestService(new NullLogService(), productService as IProductService);
+		disposables.add(service);
+	});
+
+	teardown(() => disposables.clear());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** Banner the CLI prints once the agent host is listening. */
+	function readyBanner(pid: number, port: number, token: string): string {
+		return `VSCODE_PID=${pid}\nws://127.0.0.1:${port}?tkn=${token}\n`;
+	}
+
+	test('managed launch wraps the CLI in a login shell and reports the PID', async () => {
+		const client = new MockSSHClient([{ stdout: readyBanner(4242, 9999, 'tok-abc'), code: 0 }]);
+
+		const result = await service.startForTest(client, '~/.vscode-server/code-insiders-abc', '~/.vscode-server/cli');
+
+		assert.deepStrictEqual({
+			command: client.execCalls[0],
+			port: result.port,
+			connectionToken: result.connectionToken,
+			pid: result.pid,
+		}, {
+			command: `bash -l -c 'echo VSCODE_PID=$$ && exec ~/.vscode-server/code-insiders-abc --cli-data-dir ~/.vscode-server/cli agent host --port 0'`,
+			port: 9999,
+			connectionToken: 'tok-abc',
+			pid: 4242,
+		});
+	});
+
+	test('raw override is passed through verbatim inside the same wrapper', async () => {
+		const client = new MockSSHClient([{ stdout: readyBanner(7, 5555, 'tok-x'), code: 0 }]);
+
+		const result = await service.startForTest(client, undefined, undefined, '/custom/agent --port 0');
+
+		assert.deepStrictEqual({
+			command: client.execCalls[0],
+			port: result.port,
+		}, {
+			command: `bash -l -c 'echo VSCODE_PID=$$ && exec /custom/agent --port 0'`,
+			port: 5555,
+		});
+	});
+
+	test('single quotes in a raw override are escaped, not injected', async () => {
+		const client = new MockSSHClient([{ stdout: readyBanner(8, 6666, 't'), code: 0 }]);
+
+		await service.startForTest(client, undefined, undefined, `/bin/x --name 'a b'`);
+
+		assert.strictEqual(
+			client.execCalls[0],
+			`bash -l -c 'echo VSCODE_PID=$$ && exec /bin/x --name '\\''a b'\\'''`,
+		);
+	});
+
+	test('rejects when neither a CLI pair nor an override is supplied', async () => {
+		const client = new MockSSHClient([]);
+
+		await assert.rejects(
+			() => service.startForTest(client, undefined, undefined, undefined),
+			/requires either a cliBin\+cliDataDir pair or a commandOverride/,
+		);
+		assert.strictEqual(client.execCalls.length, 0);
+	});
+
+	test('rejects when the agent host exits before printing a banner', async () => {
+		const client = new MockSSHClient([{ stdout: '', code: 3 }]);
+
+		await assert.rejects(
+			() => service.startForTest(client, '~/.vscode-server/code-insiders-abc', '~/.vscode-server/cli'),
+			/exited with code 3 before becoming ready/,
+		);
+	});
+
+	test('redacts the connection token from the failure output', async () => {
+		// Deliberately not a parseable `ws://` banner: the launch must fail so
+		// the output is quoted into the error, which is what we want redacted.
+		const client = new MockSSHClient([{ stdout: 'startup failed, endpoint ?tkn=super-secret\n', code: 9 }]);
+
+		await assert.rejects(
+			() => service.startForTest(client, '~/.vscode-server/code-insiders-abc', '~/.vscode-server/cli'),
+			(err: Error) => !err.message.includes('super-secret') && err.message.includes('tkn=***'),
+		);
 	});
 });
