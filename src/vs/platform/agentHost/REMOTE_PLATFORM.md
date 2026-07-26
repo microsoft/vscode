@@ -298,8 +298,8 @@ Skew is therefore two-way and must both degrade to "reuse, never kill":
 
 The Rust destructive consumers are PID-only today (`commands/agent_kill.rs`,
 `commands/agent.rs`, `tunnels/agent_host.rs`, `commands/agent_host.rs`) and are
-updated alongside, or invariant I5 holds only in the desktop and not in the
-system.
+gated the same way, so invariant I5 holds system-wide rather than in the desktop
+alone. See §4.6 for the user-visible consequence.
 
 After launch the desktop reads **one canonical metadata snapshot** — PID,
 identity, host, port, token — and validates any banner-scraped value against it,
@@ -330,6 +330,27 @@ there by a different feature entirely.
 The desktop therefore cannot assume any particular CLI version at runtime, and
 every field it reads from CLI-written metadata must degrade gracefully when
 absent.
+
+### 4.6 Identity gating in the CLI
+
+Identity checking applies to every consumer that terminates an agent host, not
+only the desktop, so that invariant I5 holds system-wide rather than in one
+client. The affected Rust paths are `commands/agent_kill.rs`, `commands/agent.rs`,
+`tunnels/agent_host.rs`, and `commands/agent_host.rs`, all of which terminate by
+PID alone.
+
+`code agent kill` is user-facing, so the change is observable: when the metadata
+carries no `startToken` — because it was written by a CLI of unknown vintage
+(§4.5) — the identity cannot be proven and an unconditional kill would be exactly
+the recycled-PID hazard I5 exists to prevent.
+
+The command therefore reports that it cannot verify the process, removes the
+stale metadata so the entry stops being offered for reuse, and leaves the process
+alone. **`--force` skips the identity check** and restores the previous
+behaviour, so a user who knows what they are killing is never stranded.
+
+The same rule applies wherever the CLI reaps a supervisor internally: no
+identity, no kill.
 
 ---
 
@@ -571,7 +592,8 @@ for shapes we recognise.
   daemonizes and so publishes no metadata to read.
 - **I5.** No process is terminated without a verified identity match, and never
   on relay failure alone (§4.3). Unproven identity permits reuse but forbids
-  destructive cleanup.
+  destructive cleanup. This holds **system-wide**, not only in the desktop: the
+  Rust consumers that terminate agent hosts are gated the same way (§4.6).
 - **I6.** Sensitive payloads never reach logs, errors, or telemetry.
 - **I7.** Remote-supplied paths are validated before re-entering a command.
 - **I8.** Process identity is an optional additive field within metadata schema
@@ -580,6 +602,11 @@ for shapes we recognise.
 ---
 
 ## 9. Delivery phases
+
+The work lands as a **single pull request**. The phases below sequence the
+implementation and are reflected in the commit history; they are not separate
+pull requests. Each phase's exit criteria must hold before the next begins, so a
+bisect lands on a coherent state.
 
 | Phase | Scope | Exit criteria |
 |---|---|---|
