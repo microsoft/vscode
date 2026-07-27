@@ -76,7 +76,7 @@ async fn run_foreground(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 	let started = Instant::now();
 	let lockfile_path = ctx.paths.agent_host_lockfile();
 
-	let decision = classify_agent_host_lockfile(&ctx.log, &lockfile_path);
+	let decision = classify_agent_host_lockfile(&ctx.log, &lockfile_path, ctx.paths.root());
 
 	if let AgentHostLockfileDecision::RefuseInsecure { reason } = &decision {
 		ctx.log.result(format!(
@@ -292,6 +292,16 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		.map(|t| format!("?tkn={t}"))
 		.unwrap_or_default();
 
+	// Emitted before the banner: a consumer scanning the stream must never
+	// see the banner's `ws://localhost:<port>` — which is printed regardless
+	// of the real bind address — without this line already present, or it
+	// would settle for loopback.
+	output::print_agent_host_endpoint_line(
+		dial_host(args.host.as_deref()),
+		bound_port,
+		args.connection_token.as_deref(),
+	);
+
 	output::print_banner_header(&format!("{product} Agent Host"), started.elapsed());
 	if let (Some(base), Some(name)) = (constants::EDITOR_WEB_URL, &tunnel_name) {
 		output::print_banner_line("Tunnel", &format!("{base}/agents/tunnel/{name}"));
@@ -307,11 +317,6 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	output::print_network_lines(bound_port, banner_listen_ip, &token_suffix);
 	output::print_banner_line("Manage", "code agent ps  |  code agent kill");
 	output::print_banner_footer();
-	output::print_agent_host_endpoint_line(
-		dial_host(args.host.as_deref()),
-		bound_port,
-		args.connection_token.as_deref(),
-	);
 	let _ = std::io::stdout().flush();
 
 	// Signal readiness to the foreground parent (if any) and then sever
@@ -369,6 +374,8 @@ fn print_reuse_banner(
 ) {
 	let product = constants::QUALITYLESS_PRODUCT_NAME;
 	let token_suffix = token.map(|t| format!("?tkn={t}")).unwrap_or_default();
+	// Before the banner; see the note in `run_supervisor`.
+	output::print_agent_host_endpoint_line(dial_host(host), port, token);
 	output::print_banner_header(&format!("{product} Agent Host"), started.elapsed());
 	if let (Some(base), Some(name)) = (constants::EDITOR_WEB_URL, tunnel_name) {
 		output::print_banner_line("Tunnel", &format!("{base}/agents/tunnel/{name}"));
@@ -383,7 +390,6 @@ fn print_reuse_banner(
 	output::print_network_lines(port, banner_listen_ip, &token_suffix);
 	output::print_banner_line("Manage", "code agent ps  |  code agent kill");
 	output::print_banner_footer();
-	output::print_agent_host_endpoint_line(dial_host(host), port, token);
 	let _ = std::io::stdout().flush();
 	log.result(format!(
 		"Agent host supervisor already running (PID {pid}). \
@@ -538,7 +544,7 @@ pub async fn ensure_supervisor_running(
 	log: &log::Logger,
 ) -> Result<ActiveAgentHost, AnyError> {
 	let lockfile_path = launcher_paths.agent_host_lockfile();
-	match classify_agent_host_lockfile(log, &lockfile_path) {
+	match classify_agent_host_lockfile(log, &lockfile_path, launcher_paths.root()) {
 		AgentHostLockfileDecision::Reuse {
 			pid,
 			host,
@@ -616,7 +622,7 @@ pub async fn ensure_supervisor_running(
 		}
 	}
 
-	match classify_agent_host_lockfile(log, &lockfile_path) {
+	match classify_agent_host_lockfile(log, &lockfile_path, launcher_paths.root()) {
 		AgentHostLockfileDecision::Reuse {
 			pid,
 			host,

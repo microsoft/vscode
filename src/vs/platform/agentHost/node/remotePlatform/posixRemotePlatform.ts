@@ -21,6 +21,13 @@ const COMMIT_GLOB = '[0-9a-f]'.repeat(40);
 const COMMIT_HEX_RE = /^[0-9a-f]{40}$/;
 
 /**
+ * Absolute or `~`-rooted path built only from characters that carry no meaning
+ * to a POSIX shell. Discovery results are interpolated unquoted into `test -x`,
+ * `--version` and `exec`, so a candidate that fails this is never returned.
+ */
+const SAFE_REMOTE_PATH_RE = /^(?:~|\/[A-Za-z0-9._+-]+)(?:\/[A-Za-z0-9._+-]+)*$/;
+
+/**
  * Remote platform strategy for POSIX remotes (Linux and macOS). One class
  * covers both because the existing commands are already portable: `ls -1t`,
  * `xargs -I{}` and the archive layout all behave identically on GNU and
@@ -61,6 +68,10 @@ export class PosixRemotePlatform implements IRemotePlatform {
 		const archive = this.cliArchiveName(quality);
 		const q = validateShellToken(quality, 'quality');
 		const legacyDir = q === 'stable' ? '~/.vscode-cli' : `~/.vscode-cli-${q}`;
+
+		if (!SAFE_REMOTE_PATH_RE.test(candidate) || candidate.split('/').includes('..')) {
+			return undefined;
+		}
 
 		const slash = candidate.lastIndexOf('/');
 		if (slash < 0) {

@@ -303,7 +303,9 @@ export interface IAgentHostEndpoint {
 }
 
 const AGENT_HOST_ENDPOINT_MARKER = '__VSCODE_AGENT_HOST_ENDPOINT__';
-const AGENT_HOST_ENDPOINT_LINE_RE = new RegExp(`${AGENT_HOST_ENDPOINT_MARKER}\\s+(\\S.*)$`, 'm');
+// Requires the newline: a buffer that ends mid-line would otherwise parse as
+// though it were complete, latching a truncated port or token.
+const AGENT_HOST_ENDPOINT_LINE_RE = new RegExp(`${AGENT_HOST_ENDPOINT_MARKER}[ \\t]+([^\\r\\n]*)\\r?\\n`);
 
 /**
  * Parse the machine-readable endpoint line `code agent host` prints alongside

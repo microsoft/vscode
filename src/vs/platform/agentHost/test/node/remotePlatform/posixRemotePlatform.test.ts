@@ -139,6 +139,25 @@ suite('PosixRemotePlatform', () => {
 			);
 		});
 
+		test('rejects paths carrying shell metacharacters', () => {
+			// The result is interpolated unquoted into `test -x`, `--version`
+			// and `exec`, so a hostile `ls` line must never survive the filter.
+			const p = linuxPlatform();
+			assert.deepStrictEqual([
+				p.parseFallbackCliPath(`/home/u/$(id)/${sdf}/code-insiders-${commit}`, sdf, quality),
+				p.parseFallbackCliPath('/tmp/`id`/.vscode-cli-insider/code-insiders', sdf, quality),
+				p.parseFallbackCliPath(`/a b;rm -rf ~/.vscode-cli-insider/code-insiders`, sdf, quality),
+				p.parseFallbackCliPath(`/home/u/../../${sdf}/code-insiders-${commit}`, sdf, quality),
+				p.parseFallbackCliPath(`/home/u/${sdf}/code-insiders-${commit}`, sdf, quality),
+			], [
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				`/home/u/${sdf}/code-insiders-${commit}` as RemotePath,
+			]);
+		});
+
 		test('accepts the expanded absolute paths discovery actually reports', () => {
 			// The shell expands `~` before `ls` runs, so every candidate coming
 			// back from a real remote is absolute.

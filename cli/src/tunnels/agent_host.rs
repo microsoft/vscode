@@ -1305,16 +1305,24 @@ fn locate_token_file(
 pub fn classify_agent_host_lockfile(
 	log: &log::Logger,
 	path: &std::path::Path,
+	launcher_root: &std::path::Path,
 ) -> AgentHostLockfileDecision {
-	classify_agent_host_lockfile_with_roots(log, path, &default_legacy_token_roots())
+	classify_agent_host_lockfile_with_roots(log, path, &legacy_token_roots(launcher_root))
 }
 
-/// Default locations a pre-`connectionTokenFile` supervisor could have minted
-/// its token into. Separated so tests can supply their own.
-fn default_legacy_token_roots() -> Vec<std::path::PathBuf> {
-	crate::state::LauncherPaths::new(None)
-		.map(|paths| vec![paths.root().to_owned()])
-		.unwrap_or_default()
+/// Directories a supervisor predating the recorded token path could have
+/// minted its token into. The caller's own launcher root comes first: the
+/// token is written under `--cli-data-dir` while the lockfile is pinned to the
+/// canonical root, so the default alone would miss every desktop-started
+/// supervisor.
+fn legacy_token_roots(launcher_root: &std::path::Path) -> Vec<std::path::PathBuf> {
+	let mut roots = vec![launcher_root.to_owned()];
+	if let Ok(default_paths) = crate::state::LauncherPaths::new(None) {
+		if default_paths.root() != launcher_root {
+			roots.push(default_paths.root().to_owned());
+		}
+	}
+	roots
 }
 
 /// See [`classify_agent_host_lockfile`]; `legacy_token_roots` are the
@@ -1742,7 +1750,7 @@ mod tests {
 		let dir = tempfile::tempdir().unwrap();
 		let lockfile = dir.path().join("missing.lock");
 
-		let decision = classify_agent_host_lockfile(&log::Logger::test(), &lockfile);
+		let decision = classify_agent_host_lockfile_with_roots(&log::Logger::test(), &lockfile, &[dir.path().to_owned()]);
 
 		assert_eq!(decision, AgentHostLockfileDecision::SpawnFresh);
 	}
@@ -1757,7 +1765,7 @@ mod tests {
 		metadata.connection_token = Some("ignored".to_string());
 		write_agent_host_metadata(&lockfile, &metadata).unwrap();
 
-		let decision = classify_agent_host_lockfile(&log::Logger::test(), &lockfile);
+		let decision = classify_agent_host_lockfile_with_roots(&log::Logger::test(), &lockfile, &[dir.path().to_owned()]);
 
 		assert_eq!(decision, AgentHostLockfileDecision::SpawnFresh);
 	}
@@ -1774,7 +1782,7 @@ mod tests {
 		metadata.connection_token_file = Some(token_file.to_string_lossy().to_string());
 		write_agent_host_metadata(&lockfile, &metadata).unwrap();
 
-		let decision = classify_agent_host_lockfile(&log::Logger::test(), &lockfile);
+		let decision = classify_agent_host_lockfile_with_roots(&log::Logger::test(), &lockfile, &[dir.path().to_owned()]);
 
 		assert_eq!(
 			decision,
@@ -1803,7 +1811,7 @@ mod tests {
 		metadata.connection_token_file = Some(token_file.to_string_lossy().to_string());
 		write_agent_host_metadata(&lockfile, &metadata).unwrap();
 
-		let decision = classify_agent_host_lockfile(&log::Logger::test(), &lockfile);
+		let decision = classify_agent_host_lockfile_with_roots(&log::Logger::test(), &lockfile, &[dir.path().to_owned()]);
 
 		assert_eq!(
 			decision,
