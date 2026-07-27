@@ -29,13 +29,6 @@ export interface IEditorFeedbackMenuOptions {
 	readonly clearActionId: string;
 	readonly submitLabel: (count: number) => string;
 	readonly editorGroup?: IEditorGroup;
-	readonly input?: {
-		readonly key: string;
-		readonly placeholder: string;
-		readonly ariaLabel: string;
-		readonly onDidChange: (value: string) => void;
-		readonly onSubmit: (value: string) => Promise<boolean>;
-	};
 }
 
 export interface IEditorFeedbackPlanAction {
@@ -171,10 +164,6 @@ export class EditorFeedbackOverlayWidget extends Disposable {
 		return this._domNode;
 	}
 
-	get inputValue(): string {
-		return this._inputBox.value;
-	}
-
 	layout(width: number): void {
 		const availableWidth = Math.max(0, width - 48);
 		this._domNode.style.maxWidth = `${availableWidth}px`;
@@ -188,21 +177,14 @@ export class EditorFeedbackOverlayWidget extends Disposable {
 		this._navigationBearings.set(navigationBearings, undefined);
 		this._acceptedFeedbackCount.set(acceptedFeedbackCount, undefined);
 
-		if (options.input) {
-			if (this._inputKey !== options.input.key) {
-				this._inputBox.value = '';
-				this._inputKey = options.input.key;
-			}
-			this._showInput(options.input.placeholder, options.input.ariaLabel);
-			this._showStore.add(this._inputBox.onDidChange(value => options.input?.onDidChange(value)));
-		}
+		this._inputNode.remove();
 
 		const actionRunner = this._showStore.add(new EditorFeedbackActionRunner(
 			options.submitActionId,
 			options.clearActionId,
 			options.editorGroup,
-			() => this._inputBox.value,
-			options.input?.onSubmit,
+			() => '',
+			undefined,
 			() => { this._inputBox.value = ''; },
 		));
 		this._showStore.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._toolbarNode, options.menuId, {

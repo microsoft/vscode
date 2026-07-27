@@ -6,7 +6,6 @@
 import { DisposableMap, DisposableStore, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Event } from '../../../../base/common/event.js';
-import { URI } from '../../../../base/common/uri.js';
 import { DisposableResizeObserver, getWindow } from '../../../../base/browser/dom.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -23,8 +22,6 @@ import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.j
 import { getAcceptedAgentFeedbackCommentCount, getSessionEditorComments } from './sessionEditorComments.js';
 import { EditorFeedbackOverlayWidget } from '../../../../workbench/contrib/chat/browser/feedback/editorFeedbackOverlayWidget.js';
 import { IPlanReviewFeedbackService } from '../../../../workbench/contrib/chat/browser/planReviewFeedback/planReviewFeedbackService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { isActiveSessionStatus } from '../../../services/sessions/common/session.js';
 
 export { EditorFeedbackOverlayWidget as AgentFeedbackOverlayWidget };
 
@@ -40,7 +37,6 @@ class AgentFeedbackOverlayController {
 		@IInstantiationService instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeReviewService codeReviewService: ICodeReviewService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IPlanReviewFeedbackService planReviewFeedbackService: IPlanReviewFeedbackService,
 	) {
 		this._domNode.classList.add('agent-feedback-editor-overlay');
@@ -93,23 +89,18 @@ class AgentFeedbackOverlayController {
 			}
 			let navigationBearings = undefined;
 			let acceptedFeedbackCount = 0;
-			let sessionResource: URI | undefined;
-			let canSubmitOverallFeedback = false;
 			for (const candidate of candidates) {
-				const candidateSessionResource = agentFeedbackService.getSessionForFile(candidate)?.resource;
-				if (!candidateSessionResource) {
+				const sessionResource = agentFeedbackService.getSessionForFile(candidate)?.resource;
+				if (!sessionResource) {
 					continue;
 				}
-				sessionResource = candidateSessionResource;
-				const session = sessionsManagementService.getSession(sessionResource);
-				canSubmitOverallFeedback = !!session && !isActiveSessionStatus(session.status.read(r));
 
 				const comments = getSessionEditorComments(
 					sessionResource,
 					agentFeedbackService.getFeedback(sessionResource),
 					codeReviewService.getPRReviewState(sessionResource).read(r),
 				);
-				if (comments.length > 0 || canSubmitOverallFeedback) {
+				if (comments.length > 0) {
 					navigationBearings = agentFeedbackService.getNavigationBearing(sessionResource, comments);
 					acceptedFeedbackCount = getAcceptedAgentFeedbackCommentCount(comments);
 					break;
@@ -124,7 +115,7 @@ class AgentFeedbackOverlayController {
 			}
 
 			hasCommentsContext.set(navigationBearings.totalCount > 0);
-			hasAgentFeedbackContext.set(acceptedFeedbackCount > 0 || (canSubmitOverallFeedback && widget.inputValue.trim().length > 0));
+			hasAgentFeedbackContext.set(acceptedFeedbackCount > 0);
 			widget.showMenu(navigationBearings, acceptedFeedbackCount, {
 				menuId: Menus.AgentFeedbackEditorContent,
 				navigationBearingActionId: navigationBearingFakeActionId,
@@ -136,13 +127,6 @@ class AgentFeedbackOverlayController {
 					? localize('agentFeedback.submitCountShort', 'Submit {0}', count)
 					: localize('agentFeedback.submitFeedback', 'Submit Feedback'),
 				editorGroup: group,
-				input: canSubmitOverallFeedback && sessionResource ? {
-					key: sessionResource.toString(),
-					placeholder: localize('agentFeedback.overallFeedbackPlaceholder', "Add overall feedback"),
-					ariaLabel: localize('agentFeedback.overallFeedbackAriaLabel', "Overall session feedback"),
-					onDidChange: value => hasAgentFeedbackContext.set(acceptedFeedbackCount > 0 || value.trim().length > 0),
-					onSubmit: value => agentFeedbackService.submitFeedback(sessionResource, value),
-				} : undefined,
 			});
 			show();
 		}));

@@ -229,7 +229,7 @@ export interface IAgentFeedbackService {
 	 * Submit the currently accumulated accepted feedback for the session to the
 	 * agent and mark those items as submitted. Returns whether the feedback was submitted.
 	 */
-	submitFeedback(sessionResource: URI, overallFeedback?: string): Promise<boolean>;
+	submitFeedback(sessionResource: URI): Promise<boolean>;
 
 	/**
 	 * Add a feedback item and then submit the feedback. Waits for the
@@ -700,7 +700,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return session ? isAgentHostProviderId(session.providerId) : false;
 	}
 
-	async submitFeedback(sessionResource: URI, overallFeedback?: string): Promise<boolean> {
+	async submitFeedback(sessionResource: URI): Promise<boolean> {
 		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!widget) {
 			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', sessionResource.toString());
@@ -723,7 +723,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			}
 
 			try {
-				await widget.acceptInput(this._getSubmitFeedbackQuery(overallFeedback));
+				await widget.acceptInput('/act-on-feedback');
 			} catch (err) {
 				this._logService.error('[AgentFeedback] Failed to submit feedback', err);
 				return false;
@@ -740,7 +740,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		// attachment contribution also marks submission on send; marking here is
 		// idempotent and covers sessions without that contribution.
 		try {
-			await widget.acceptInput(this._getSubmitFeedbackQuery(overallFeedback));
+			await widget.acceptInput('/act-on-feedback');
 		} catch (err) {
 			this._logService.error('[AgentFeedback] Failed to submit feedback', err);
 			return false;
@@ -748,11 +748,6 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 		this.markFeedbackSubmitted(sessionResource);
 		return true;
-	}
-
-	private _getSubmitFeedbackQuery(overallFeedback: string | undefined): string {
-		const text = overallFeedback?.trim();
-		return text ? `/act-on-feedback ${text}` : '/act-on-feedback';
 	}
 
 	markFeedbackSubmitted(sessionResource: URI): void {
