@@ -194,6 +194,10 @@ const ENABLED_SETTING = 'dictation.enabled';
  */
 const MODEL_SETTING = 'dictation.model';
 
+export const enum DictationSettingId {
+	ShowTranscript = 'dictation.showTranscript',
+}
+
 /** `dictation.model` sentinel selecting the cloud voice backend used by Voice Mode. */
 const MAI_MODEL_ID = 'mai';
 
@@ -370,6 +374,12 @@ export interface IChatSpeechToTextService {
 	 */
 	readonly onDidUpdateTranscript: Event<IChatDictationTranscript>;
 
+	/** Whether interim transcript text should be rendered while recording. */
+	readonly showTranscriptWhileDictating: boolean;
+
+	/** Analyser for the active microphone capture, used for audio-reactive feedback. */
+	readonly analyserNode: AnalyserNode | undefined;
+
 	/**
 	 * Whether on-device speech-to-text is available on this platform. Callers
 	 * gate the dictation UI on this.
@@ -476,6 +486,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _mediaStream: MediaStream | undefined;
 	private _audioContext: AudioContext | undefined;
 	private _sourceNode: MediaStreamAudioSourceNode | undefined;
+	private _analyserNode: AnalyserNode | undefined;
 	private _workletNode: AudioWorkletNode | undefined;
 
 	private readonly _localSessionDisposables = this._register(new DisposableStore());
@@ -508,6 +519,14 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		// on first use. It is only unavailable where the platform lacks native
 		// inference support (e.g. web).
 		return this._localTranscription.isSupported;
+	}
+
+	get showTranscriptWhileDictating(): boolean {
+		return this._configurationService.getValue<boolean>(DictationSettingId.ShowTranscript) === true;
+	}
+
+	get analyserNode(): AnalyserNode | undefined {
+		return this._analyserNode;
 	}
 
 	/** Finalized (committed) utterances, space-joined. */
@@ -1535,7 +1554,12 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 
 		this._workletNode = node;
-		source.connect(node);
+		const analyser = ctx.createAnalyser();
+		analyser.fftSize = 256;
+		analyser.smoothingTimeConstant = 0.75;
+		this._analyserNode = analyser;
+		source.connect(analyser);
+		analyser.connect(node);
 		node.connect(ctx.destination);
 	}
 
@@ -1561,6 +1585,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			try { this._workletNode.disconnect(); } catch { /* ignore */ }
 			this._workletNode = undefined;
 		}
+		try { this._analyserNode?.disconnect(); } catch { /* ignore */ }
+		this._analyserNode = undefined;
 		try { this._sourceNode?.disconnect(); } catch { /* ignore */ }
 		this._sourceNode = undefined;
 		this._audioContext?.close().catch(() => { /* ignore */ });
