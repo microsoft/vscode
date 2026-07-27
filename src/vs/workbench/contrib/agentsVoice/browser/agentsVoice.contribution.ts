@@ -148,7 +148,9 @@ class AgentsVoiceOnboardingBannerContribution extends Disposable implements IWor
 		const shouldShow = this.configurationService.getValue<boolean>('agents.voice.enabled') === true
 			&& !this.storageService.getBoolean(AgentsVoiceStorageKeys.OnboardingCompleted, StorageScope.PROFILE, false)
 			&& !sentiment.hidden
-			&& !sentiment.disabled;
+			&& !sentiment.disabled
+			&& !sentiment.disabledInWorkspace
+			&& !sentiment.untrusted;
 
 		if (!shouldShow) {
 			this.bannerService.hide(AGENTS_VOICE_ONBOARDING_BANNER_ID);
@@ -462,7 +464,7 @@ const voicePreviewFiles = {
 type VoicePreview = keyof typeof voicePreviewFiles;
 
 function isVoicePreview(voice: string): voice is VoicePreview {
-	return voice in voicePreviewFiles;
+	return Object.prototype.hasOwnProperty.call(voicePreviewFiles, voice);
 }
 
 class PreviewVoiceAction extends Action2 {
