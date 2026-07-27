@@ -1802,7 +1802,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const pool = this.getModelsForSessionType(this.getCurrentSessionType());
 		if (!pool.some(m => m.identifier === currentModel.identifier)) {
 			this.initSelectedModel();
-			this._modelSelectionController.ensureCurrentModelInSessionPool();
+			this._modelSelectionController.ensureCurrentModelSupported();
 		}
 	}
 
@@ -2811,7 +2811,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			logChangesToStateModel(this._inputModel, `[CVVM].1 onDidChangeViewModel -> session change: ${this._currentSessionType} -> ${newSessionType} in ${this._currentSessionKey}, ${e.currentSessionResource.toString()}`, undefined, this._inputModel?.state.get(), this.logService);
 			this._currentSessionTypeObservable.set(newSessionType, transaction);
 			this.initSelectedModel();
-			this._modelSelectionController.ensureCurrentModelInSessionPool();
+			this._modelSelectionController.ensureCurrentModelSupported();
 			this.checkModeInSessionPool();
 		} else if (e.currentSessionResource) {
 			logChangesToStateModel(this._inputModel, `[CVVM].2 onDidChangeViewModel -> session change: ${this._currentSessionType} -> ${newSessionType} in ${this._currentSessionKey}, ${e.currentSessionResource.toString()}`, undefined, this._inputModel?.state.get(), this.logService);
@@ -2833,8 +2833,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// move away from the model that will be applied when it appears.
 		if (this._modelSelectionController.restorePerTypeModel) {
 			this.initSelectedModel();
-			if (!this._modelSelectionController.hasPendingIntent() && !this._modelSelectionController.isAwaitingRememberedModel()) {
-				this._modelSelectionController.ensureCurrentModelInSessionPool();
+			if (!this._modelSelectionController.isAwaitingModel()) {
+				this._modelSelectionController.ensureCurrentModelSupported();
 			}
 		}
 	}

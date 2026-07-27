@@ -8,7 +8,7 @@ import { IObservable, observableValue } from '../../../../../../base/common/obse
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { InitialModelSelectionResult, isInConversationModelChoice, ModelIdentifierResolution, ModelSelectionApplyReason, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier } from '../../../common/modelSelection.js';
-import { findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelSupportedForInlineChat, isModelSupportedForMode, isModelValidForSession, resolveModelFromSyncState, shouldDropAgnosticDraftModel, shouldResetModelToDefault, shouldResetOnModelListChange, shouldWaitForSessionModel } from './chatInputModelUtils.js';
+import { findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelSupportedForInlineChat, isModelSupportedForMode, resolveModelFromSyncState, shouldDropAgnosticDraftModel, shouldResetModelToDefault, shouldResetOnModelListChange, shouldWaitForSessionModel } from './chatInputModelUtils.js';
 import { IChatModelSelectionDiagnostics, NullChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 
 /** Supplies Workbench chat's filtered model catalog and conversation effects. */
@@ -49,12 +49,9 @@ export class ChatInputModelSelectionController extends Disposable {
 	private _restorePerTypeModel = false;
 	/**
 	 * The model the user is meant to be on, independent of what the catalog can currently offer,
-	 * together with the authority that put them there. Seeded from persisted storage by
-	 * {@link initialize} and updated by every deliberate choice (explicit pick, programmatic
-	 * selection, session restore). Falling back to a default because the catalog dropped the model
-	 * is a display state, not a decision, so it deliberately leaves this untouched — see
-	 * {@link _restoreRememberedModel}. The reason is retained so a restore reinstates the original
-	 * authority rather than downgrading an explicit pick to a mere remembered one.
+	 * with the authority that put them there. Seeded from storage by {@link initialize} and updated
+	 * by every deliberate choice. Falling back to a default because the catalog dropped the model
+	 * is a display state, not a decision, so it deliberately leaves this untouched.
 	 */
 	private _rememberedSelection: { readonly modelId: string; readonly reason: ModelSelectionApplyReason } | undefined;
 
@@ -85,16 +82,15 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._restorePerTypeModel = false;
 	}
 
-	hasPendingIntent(): boolean {
-		return !!this._intent;
-	}
-
 	/**
-	 * True while the remembered model is not selectable, i.e. whatever is currently selected is a
-	 * stand-in that {@link _restoreRememberedModel} will replace once the catalog offers the real
-	 * one. Callers use this to avoid acting on a selection that is about to change.
+	 * True while the selection is provisional — either an async intent is pending, or the
+	 * remembered model is not selectable and whatever is shown is standing in for it. Callers use
+	 * this to avoid acting on a selection that is about to change.
 	 */
-	isAwaitingRememberedModel(): boolean {
+	isAwaitingModel(): boolean {
+		if (this._intent) {
+			return true;
+		}
 		const modelId = this._rememberedSelection?.modelId;
 		return !!modelId && !this._selectablePool(this._runtime.getCurrentSessionType()).some(model => model.identifier === modelId);
 	}
@@ -210,16 +206,15 @@ export class ChatInputModelSelectionController extends Disposable {
 	ensureCurrentModelSupported(): void {
 		const currentModel = this._currentModel.get();
 		const sessionType = this._runtime.getCurrentSessionType();
-		const models = this._runtime.getModels(sessionType);
-		const context = {
-			location: this._runtime.location,
-			currentModeKind: this._runtime.getCurrentModeKind(),
-			sessionType,
-		};
-		const willReset = shouldResetModelToDefault(currentModel, models, context, this._runtime.getAllModels());
+		const currentModeKind = this._runtime.getCurrentModeKind();
+		const willReset = shouldResetModelToDefault(
+			currentModel,
+			this._runtime.getModels(sessionType),
+			{ location: this._runtime.location, currentModeKind, sessionType },
+			this._runtime.getAllModels());
 		this._diagnostics.report('compatibility-check', {
 			currentModel: currentModel?.identifier,
-			mode: context.currentModeKind,
+			mode: currentModeKind,
 			sessionType,
 			willReset,
 		}, willReset ? 'info' : 'debug');
@@ -229,11 +224,10 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	/**
-	 * The pool to choose a replacement from. {@link filterModelsForSession} only applies mode and
-	 * inline-chat filtering to the general pool, so a targeted session pool can still offer models
-	 * the current mode cannot use — including the one being replaced. Prefer the usable subset, but
-	 * fall back to the raw pool rather than selecting nothing when a provider advertises no usable
-	 * model at all.
+	 * The pool to select from. {@link filterModelsForSession} only applies mode and inline-chat
+	 * filtering to the general pool, so a targeted session pool can still offer models the current
+	 * mode cannot use — including one being replaced *because* it is unusable. Falls back to the
+	 * raw pool rather than selecting nothing when a provider declares no capabilities at all.
 	 */
 	private _selectablePool(sessionType: string | undefined): ILanguageModelChatMetadataAndIdentifier[] {
 		const models = this._runtime.getModels(sessionType);
@@ -244,13 +238,10 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	/**
-	 * Replaces a selection that is no longer valid, applying the precedence every such path shares:
-	 * the remembered selection if the catalog can offer it, else the closest match for what was
-	 * displaced, else the default.
-	 *
-	 * The callers differ only in *why* the current model stopped being valid — unsupported for the
-	 * mode, outside the session pool, withdrawn from the catalog. Routing them all through here
-	 * keeps that difference from turning into a difference in what replaces it.
+	 * Replaces a selection that is no longer valid. The callers differ only in *why* the model
+	 * stopped being valid — unsupported for the mode, outside the session pool, withdrawn from the
+	 * catalog — and routing them all through here keeps that from turning into a difference in
+	 * what replaces it.
 	 */
 	private _replaceInvalidSelection(
 		displaced: ILanguageModelChatMetadataAndIdentifier | undefined,
@@ -356,12 +347,10 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	/**
-	 * Reclaims the remembered model whenever the catalog can offer it again. A model can leave the
-	 * pool for reasons that have nothing to do with intent — an agent host that restarts drops its
-	 * whole catalog and republishes it moments later — and the default we show meanwhile is a
-	 * stand-in, not a decision. Every deliberate choice updates {@link _rememberedSelection}, so a
-	 * current model that differs from it is always a stand-in of some kind and may be superseded.
-	 * `chat.defaultModel` outranks a merely remembered model, but never an in-conversation choice,
+	 * Reclaims the remembered model once the catalog can offer it again. A model can leave the pool
+	 * for reasons that have nothing to do with intent — an agent host restarting republishes its
+	 * catalog moments later — so the default shown meanwhile is a stand-in, not a decision.
+	 * `chat.defaultModel` outranks a merely remembered model but never an in-conversation choice,
 	 * which is why the displaced authority is restored along with the model.
 	 */
 	private _restoreRememberedModel(): boolean {
@@ -423,17 +412,6 @@ export class ChatInputModelSelectionController extends Disposable {
 		} else {
 			this._clearIntent();
 			this.selectDefault(sessionType);
-		}
-	}
-
-	/**
-	 * Validate that the current model belongs to the current session's pool.
-	 * Called when switching sessions to prevent cross-contamination.
-	 */
-	ensureCurrentModelInSessionPool(): void {
-		const currentModel = this._currentModel.get();
-		if (currentModel && !isModelValidForSession(currentModel, this._runtime.getAllModels(), this._runtime.getCurrentSessionType())) {
-			this._replaceInvalidSelection(currentModel, this._runtime.getCurrentSessionType());
 		}
 	}
 
