@@ -62,6 +62,7 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 			path: env.PATH,
 			home: env.HOME,
 			userProfile: env.USERPROFILE,
+			aiAgent: env.AI_AGENT,
 		}, {
 			runAsNode: '1',
 			nodeOptions: undefined,
@@ -72,6 +73,7 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 			path: undefined, // not explicitly forwarded; PATH is composed in settingsEnv, not subprocessEnv
 			home: '/Users/test',
 			userProfile: 'C:\\Users\\test',
+			aiAgent: 'github_copilot_vscode_agent',
 		});
 	});
 
@@ -107,6 +109,8 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 			electronOther: env.ELECTRON_NO_ATTACH_CONSOLE,
 			nodeOptions: env.NODE_OPTIONS,
 			runAsNode: env.ELECTRON_RUN_AS_NODE,
+			// Announces the originating VS Code surface to `gh`.
+			aiAgent: env.AI_AGENT,
 		}, {
 			anthropicKey: 'sk-user-key',
 			oauthToken: 'sk-ant-oat-user',
@@ -116,6 +120,7 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 			electronOther: undefined,
 			nodeOptions: undefined,
 			runAsNode: '1',
+			aiAgent: 'github_copilot_vscode_agent',
 		});
 	});
 });
@@ -175,10 +180,14 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 			baseUrl: env.ANTHROPIC_BASE_URL,
 			authToken: env.ANTHROPIC_AUTH_TOKEN,
 			nonessential: env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC,
+			// Projected into `settings.env`; the CLI still re-stamps `AI_AGENT`
+			// for its own Bash tool.
+			aiAgent: env.AI_AGENT,
 		}, {
 			baseUrl: 'http://127.0.0.1:0',
 			authToken: 'n.s1',
 			nonessential: '1',
+			aiAgent: 'github_copilot_vscode_agent',
 		});
 	});
 

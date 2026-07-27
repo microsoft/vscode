@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
@@ -17,6 +18,7 @@ import { getToolKind } from '../../../../../../platform/agentHost/common/state/s
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AgentHostElementAttachmentDisplayKind } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
@@ -24,7 +26,8 @@ import { isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSess
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import product from '../../../../../../platform/product/common/product.js';
-import { formatCopilotCredits, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
+import { formatCopilotCredits, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -1044,6 +1047,10 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 			_meta: attachment._meta,
 		};
 	}
+	const element = restoreElementVariableEntry(attachment, modelRepresentation);
+	if (element) {
+		return element;
+	}
 	if (attachment.type === MessageAttachmentKind.Simple) {
 		const sessionReferenceEntry = restoreSessionReferenceVariableEntryFromAttachment(attachment);
 		if (sessionReferenceEntry) {
@@ -1064,6 +1071,22 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 		id: generateUuid(),
 		name: attachment.label,
 		value: modelRepresentation || attachment.label,
+		_meta: attachment._meta,
+	};
+}
+
+function restoreElementVariableEntry(attachment: MessageAttachment, modelRepresentation: string | undefined): IChatRequestVariableEntry | undefined {
+	if (attachment.displayKind !== AgentHostElementAttachmentDisplayKind || modelRepresentation === undefined) {
+		return undefined;
+	}
+	const fullName = /^Element:\s*(?<name>.+)$/m.exec(modelRepresentation)?.groups?.name;
+	return {
+		kind: 'element',
+		id: generateUuid(),
+		name: attachment.label,
+		...(fullName ? { fullName } : {}),
+		icon: Codicon.layout,
+		value: modelRepresentation,
 		_meta: attachment._meta,
 	};
 }
@@ -1171,11 +1194,12 @@ function getTerminalOutput(tc: ToolCallState) {
 	// Prefer the structured terminal snapshot. Text content is a compatibility
 	// fallback for older/restored results and can include legacy bookkeeping.
 	let text = terminalResult?.preview;
+	const hasRetainedNonPtySnapshot = terminalContent?.isPty === false && text !== undefined;
 	if (text === undefined && terminalContent?.isPty !== false) {
 		const fallbackText = tc.content?.find(isToolResultTextContent)?.text;
 		text = fallbackText === undefined ? undefined : stripLegacyTerminalExitMarkers(fallbackText);
 	}
-	if (text === undefined || (!text && terminalResult?.truncated !== true)) {
+	if (text === undefined || (!text && !hasRetainedNonPtySnapshot && terminalResult?.truncated !== true)) {
 		return undefined;
 	}
 
@@ -1474,6 +1498,31 @@ function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData
 	return { kind: 'sessionCreated', openLink, label, isChat };
 }
 
+function buildAutomationConfiguredToolData(tc: ToolCallState): IChatAutomationConfiguredData | undefined {
+	if (tc.status !== ToolCallStatus.Completed || !tc.success || tc.toolName !== ConfigureAutomationToolReferenceName) {
+		return undefined;
+	}
+	const output = getToolOutputText(tc);
+	if (!output) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(output) as { status?: unknown; automation?: { id?: unknown; name?: unknown } };
+		const operation = parsed.status === 'created' || parsed.status === 'updated' ? parsed.status : undefined;
+		if (!operation || typeof parsed.automation?.id !== 'string' || typeof parsed.automation.name !== 'string') {
+			return undefined;
+		}
+		return {
+			kind: 'automationConfigured',
+			automationId: parsed.automation.id,
+			automationName: parsed.automation.name,
+			operation,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
 /**
  * Derives a title for the "Open Session" button from a session tool's arguments —
  * the `prompt` (create_session/create_chat) or `message` (send_message) it was
@@ -1546,7 +1595,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		};
 	}
 
-	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | IChatToolInputInvocationData | IChatSessionCreatedData | undefined;
+	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | IChatToolInputInvocationData | IChatSessionCreatedData | IChatAutomationConfiguredData | undefined;
 	if (isTerminal) {
 		toolSpecificData = {
 			...buildTerminalToolSpecificData(tc, sessionResource),
@@ -1555,7 +1604,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	} else if (getToolKind(tc) === 'search') {
 		toolSpecificData = { kind: 'search' };
 	} else {
-		toolSpecificData = buildSessionCreatedToolData(tc);
+		toolSpecificData = buildSessionCreatedToolData(tc) ?? buildAutomationConfiguredToolData(tc);
 		if (!toolSpecificData) {
 			toolSpecificData = buildMcpAppToolInputData(tc, sessionResource);
 		}
@@ -2246,6 +2295,8 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 			agentName: subagentContent.agentName,
 			credits: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.credits : undefined,
 			modelName: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.modelName : undefined,
+			startedAt: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.startedAt : undefined,
+			duration: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.duration : undefined,
 			chatResource: subagentContent.resource,
 		};
 		// toolSpecificData is a plain property — notify state observers
@@ -2260,7 +2311,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		const description = getSubagentTaskDescription(tc) ?? existing.toolSpecificData.description;
 		const agentName = getSubagentAgentName(tc) ?? existing.toolSpecificData.agentName;
 		if (description !== existing.toolSpecificData.description || agentName !== existing.toolSpecificData.agentName) {
-			existing.toolSpecificData = { kind: 'subagent', isActive: existing.toolSpecificData.isActive, description, agentName, credits: existing.toolSpecificData.credits, modelName: existing.toolSpecificData.modelName, chatResource: existing.toolSpecificData.chatResource };
+			existing.toolSpecificData = { ...existing.toolSpecificData, description, agentName };
 			existing.notifyToolSpecificDataChanged();
 		}
 		return;
@@ -2359,6 +2410,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				result: resultText,
 				credits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
 				modelName: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.modelName : undefined,
+				startedAt: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.startedAt : undefined,
+				duration: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.duration : undefined,
 				chatResource: getSubagentChatResource(tc, subagentContent, backendSession),
 			};
 		} else if (invocation.toolSpecificData?.kind === 'subagent') {
@@ -2372,6 +2425,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				result: getToolOutputText(tc),
 				credits: invocation.toolSpecificData.credits,
 				modelName: invocation.toolSpecificData.modelName,
+				startedAt: invocation.toolSpecificData.startedAt,
+				duration: invocation.toolSpecificData.duration,
 				chatResource: invocation.toolSpecificData.chatResource ?? getSubagentChatResource(tc, undefined, backendSession),
 			};
 		}
@@ -2394,13 +2449,12 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	}
 
 	if (isCompleted) {
-		const sessionCreated = buildSessionCreatedToolData(tc);
-		if (sessionCreated) {
+		const resultToolSpecificData = buildSessionCreatedToolData(tc) ?? buildAutomationConfiguredToolData(tc);
+		if (resultToolSpecificData) {
 			// The tool required confirmation, so it was created with
-			// `HiddenAfterComplete`; clear it so the "Open Session" pill stays
-			// visible after completion.
+			// `HiddenAfterComplete`; clear it so the result pill stays visible.
 			invocation.presentation = undefined;
-			invocation.toolSpecificData = sessionCreated;
+			invocation.toolSpecificData = resultToolSpecificData;
 			invocation.notifyToolSpecificDataChanged();
 		}
 	}

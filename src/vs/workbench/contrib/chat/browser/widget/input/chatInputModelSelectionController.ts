@@ -159,7 +159,9 @@ export class ChatInputModelSelectionController extends Disposable {
 		const resolveSelection = (): InitialModelSelectionResult => {
 			const configuredModelValue = this._runtime.getConfiguredModelValue();
 			const models = this._runtime.getModels(this._runtime.getCurrentSessionType());
-			const configuredModel = resolveConfiguredModel(configuredModelValue, models);
+			// `chat.defaultModel` seeds new conversations only; a conversation with history keeps
+			// the model it was started with.
+			const configuredModel = this._runtime.isEmpty() ? resolveConfiguredModel(configuredModelValue, models) : undefined;
 			const resolution = resolveModelIdentifier(models, rememberedModelId, false);
 			return resolveInitialModelSelection({
 				configuredModel,
@@ -234,7 +236,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		// `chat.defaultModel` is the default for every new (empty) conversation. Only a genuine
 		// in-conversation choice blocks it: an explicit user pick or a mode-forced programmatic
 		// selection. `SessionRestore` on an empty session is just spillover from the previous
-		// session and must yield (a real reopened conversation is non-empty → `!isEmpty()`).
+		// session and must yield.
 		if (!this._runtime.isEmpty()
 			|| this._selectionReason === ModelSelectionReason.UserSelection
 			|| this._selectionReason === ModelSelectionReason.ProgrammaticSelection
@@ -346,12 +348,15 @@ export class ChatInputModelSelectionController extends Disposable {
 		initialize();
 		const restoredModel = this._currentModel.get();
 		const sessionType = this._runtime.getCurrentSessionType();
-		if (restoredModel && isModelValidForSession(restoredModel, this._runtime.getAllModels(), sessionType)) {
+		const models = this._runtime.getModels(sessionType);
+		if (restoredModel && models.some(model => model.identifier === restoredModel.identifier)) {
 			return;
 		}
-		const match = findBestMatchingModel(previousModel, this._runtime.getModels(sessionType));
+		const match = findBestMatchingModel(previousModel, models);
 		if (match) {
 			this._applyModel(match);
+		} else if (models.length === 0) {
+			this._currentModel.set(undefined, undefined);
 		} else {
 			this.selectDefault(sessionType);
 		}

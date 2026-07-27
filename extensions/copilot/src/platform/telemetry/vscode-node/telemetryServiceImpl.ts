@@ -5,6 +5,8 @@
 
 import { CustomFetcher } from '@vscode/extension-telemetry';
 import * as vscode from 'vscode';
+import * as zlib from 'zlib';
+import { promisify } from 'util';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
@@ -15,9 +17,16 @@ import { IFetcherService, NO_FETCH_TELEMETRY } from '../../networking/common/fet
 import { FetcherService } from '../../networking/vscode-node/fetcherServiceImpl';
 import { BaseTelemetryService } from '../common/baseTelemetryService';
 import { IExperimentationService } from '../common/nullExperimentationService';
-import { ITelemetryUserConfig, TelemetryTrustedValue } from '../common/telemetry';
+import { ITelemetryUserConfig, setTelemetryPropertyCompressor, TelemetryTrustedValue } from '../common/telemetry';
 import { GitHubTelemetrySender } from './githubTelemetrySender';
 import { MicrosoftTelemetrySender } from './microsoftTelemetrySender';
+
+// Register the Node-only property compressor with the common-layer multiplexProperties helper once,
+// so oversized telemetry properties are chunked in gzip + base64 form without every call site
+// having to thread the compressor through. gzip runs on the libuv threadpool so it never blocks the
+// host process event loop.
+const gzip = promisify(zlib.gzip);
+setTelemetryPropertyCompressor(async value => (await gzip(Buffer.from(value, 'utf8'))).toString('base64'));
 
 /**
  * The shared telemetry property carrying the CAPI flight assignment context.

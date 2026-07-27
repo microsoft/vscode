@@ -39,9 +39,8 @@ export const NEW_SESSION_ONBOARDING_SEEN_KEY = NEW_SESSION_TOUR_ID;
  * ExP treatment flag names for Tour 2's A/B experiment.
  *
  * - `behaviorFlag` — boolean: `true` shows the tour (treatment), `false` is control.
- * - `assignmentContextIdFlag` — string: this tour's assignment-context identifier,
- *   the key its scorecard groups on. Both arms MUST resolve it to the *same* value,
- *   which MUST start with the reserved `onb-` prefix (see
+ * - `assignmentContextIdFlag` — string: the current arm's ExP variant name, which
+ *   MUST start with the reserved `onb-` prefix (see
  *   `ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX`). It is distinct from Tour 1's id so the
  *   two tours report into separate scorecards.
  */
