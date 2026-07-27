@@ -573,9 +573,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		));
 		this._editor.setModel(textModel);
 
-		// When no explicit placeholder is provided, rotate through the friendly
-		// placeholders every few seconds with a shimmer transition.
-		if (!this.options.placeholder) {
+		if (this.options.placeholder === undefined) {
 			this._register(installRotatingChatPlaceholder(this._editor));
 		}
 

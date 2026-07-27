@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow, h } from '../../../../base/browser/dom.js';
+import { h } from '../../../../base/browser/dom.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, DebugOwner, derivedObservableWithCache, derivedOpts, derived, IObservable, IReader } from '../../../../base/common/observable.js';
+import { autorun, constObservable, DebugOwner, derivedObservableWithCache, derivedOpts, derived, IObservable, IReader, observableFromEvent } from '../../../../base/common/observable.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -32,11 +33,7 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 
 	private readonly _view;
 
-	/**
-	 * When enabled, a one-shot shimmer animation is played whenever the
-	 * placeholder text changes from one non-empty value to another while the
-	 * placeholder is visible. Used e.g. for rotating chat input placeholders.
-	 */
+	/** Whether visible placeholder changes use a one-shot shimmer transition. */
 	private _animateTransitions = false;
 
 	/**
@@ -49,6 +46,7 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this._editorObs = observableCodeEditor(this._editor);
@@ -60,15 +58,12 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 			return { placeholder: p };
 		});
 		this._shouldViewBeAlive = isOrWasTrue(this, reader => this._state.read(reader)?.placeholder !== undefined);
+		const reducedMotion = observableFromEvent(this, this._accessibilityService.onDidChangeReducedMotion, () => this._accessibilityService.isMotionReduced());
 		this._view = derived((reader) => {
 			if (!this._shouldViewBeAlive.read(reader)) { return; }
 
 			const element = h('div.editorPlaceholder');
 
-			// Two-phase transition state machine. When the placeholder text
-			// changes while visible (and animation is enabled), the current text
-			// first wipes out left-to-right, then the new text wipes in
-			// left-to-right with a shimmer glint.
 			const FADE_OUT_MS = 220;
 			const FADE_IN_MS = 480;
 			const transitionTimer = reader.store.add(new MutableDisposable());
@@ -83,8 +78,7 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 			};
 			const restartAnimation = (className: string) => {
 				clearAnimClasses();
-				// Force a reflow so the animation restarts even if the class was
-				// just removed.
+				// Force a reflow so a just-removed animation class can restart.
 				void element.root.offsetWidth;
 				element.root.classList.add(className);
 			};
@@ -101,7 +95,6 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 					transitionTimer.value = disposableTimeout(() => {
 						clearAnimClasses();
 						phase = 'idle';
-						// The target may have changed again mid-transition.
 						runTransition();
 					}, FADE_IN_MS);
 				}, FADE_OUT_MS);
@@ -114,10 +107,8 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 				element.root.style.display = shouldBeVisibile ? 'block' : 'none';
 				targetText = text;
 
-				const win = getWindow(element.root);
-				const reducedMotion = win.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 				const wantAnimate = this._animateTransitions
-					&& !reducedMotion
+					&& !reducedMotion.read(reader)
 					&& shouldBeVisibile
 					&& displayedText !== undefined
 					&& displayedText !== ''
@@ -126,7 +117,6 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 				if (wantAnimate) {
 					runTransition();
 				} else {
-					// Snap to the latest text without animating.
 					transitionTimer.clear();
 					phase = 'idle';
 					clearAnimClasses();

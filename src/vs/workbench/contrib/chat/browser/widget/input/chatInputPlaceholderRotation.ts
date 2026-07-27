@@ -7,12 +7,11 @@ import { disposableWindowInterval, getWindow } from '../../../../../../base/brow
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { EditorOption } from '../../../../../../editor/common/config/editorOptions.js';
 import { PlaceholderTextContribution } from '../../../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 
 /**
- * Randomized, friendly placeholders shown in an empty chat input to add a bit
- * of personality. Used both by the Agents window new-session input and the
- * agent host empty session state in the editor.
+ * Friendly placeholders shared by empty Agents window and agent host chat inputs.
  */
 export const CHAT_INPUT_ROTATING_PLACEHOLDERS: readonly string[] = [
 	localize('chatInput.placeholder.whatAreYouBuilding', "What are you building?"),
@@ -36,10 +35,7 @@ const DEFAULT_ROTATION_INTERVAL_MS = 5000;
 
 let lastPlaceholderIndex = -1;
 
-/**
- * Pick a random rotating placeholder, avoiding an immediate repeat of the
- * previous pick.
- */
+/** Pick a random placeholder without immediately repeating the previous pick. */
 export function getRandomChatInputPlaceholder(placeholders: readonly string[] = CHAT_INPUT_ROTATING_PLACEHOLDERS): string {
 	let index = Math.floor(Math.random() * placeholders.length);
 	if (index === lastPlaceholderIndex) {
@@ -56,15 +52,7 @@ export interface IRotatingPlaceholderOptions {
 	readonly intervalMs?: number;
 }
 
-/**
- * Rotate the placeholder of the given editor every few seconds, animating each
- * change with a shimmer transition. Returns a disposable that stops the
- * rotation and disables the shimmer transition.
- *
- * The caller is responsible for setting the initial placeholder before calling
- * this, and for restoring a sensible static placeholder after disposing (e.g.
- * once a conversation has started).
- */
+/** Rotate an editor's placeholder until the returned disposable is disposed. */
 export function installRotatingChatPlaceholder(editor: ICodeEditor, options?: IRotatingPlaceholderOptions): IDisposable {
 	const placeholders = options?.placeholders ?? CHAT_INPUT_ROTATING_PLACEHOLDERS;
 	const intervalMs = options?.intervalMs ?? DEFAULT_ROTATION_INTERVAL_MS;
@@ -78,7 +66,11 @@ export function installRotatingChatPlaceholder(editor: ICodeEditor, options?: IR
 	placeholderContribution?.setAnimateTransitions(true);
 	store.add(toDisposable(() => PlaceholderTextContribution.get(editor)?.setAnimateTransitions(false)));
 
-	let index = Math.floor(Math.random() * placeholders.length);
+	const currentPlaceholder = editor.getOption(EditorOption.placeholder);
+	let index = placeholders.indexOf(currentPlaceholder);
+	if (index === -1) {
+		index = Math.floor(Math.random() * placeholders.length);
+	}
 	store.add(disposableWindowInterval(getWindow(editor.getDomNode()), () => {
 		index = (index + 1) % placeholders.length;
 		editor.updateOptions({ placeholder: placeholders[index] });
