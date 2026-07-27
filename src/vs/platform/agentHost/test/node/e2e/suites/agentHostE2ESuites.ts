@@ -29,15 +29,7 @@ interface IDefineOptions {
 
 function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOptions): void {
 	(config.enabled ? suite : suite.skip)(options.suiteTitle, function () {
-		// Shell-tool replay has two independent constraints, and conflating them
-		// hides portable tests behind a Windows exclusion they don't need:
-		//  - the provider's shell-tool notifications can be unstable on Linux
-		//  - the committed capture may contain a POSIX-only command
-		// Only the second is about Windows, and only for captures that haven't
-		// been made portable.
-		const shellToolReplayStable = RECORD || !isLinux || !config.shellToolReplayUnstableOnLinux;
-		const shellToolReplayEnabled = !isWindows && shellToolReplayStable;
-		const portableShellToolReplayEnabled = shellToolReplayStable;
+		const portableShellToolReplayEnabled = RECORD || !isLinux || !config.shellToolReplayUnstableOnLinux;
 		let client: TestProtocolClient;
 		let lease: AgentHostE2EServerLease | undefined;
 		const createdSessions: string[] = [];
@@ -49,7 +41,6 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			get client() { return client; },
 			createdSessions,
 			tempDirs,
-			shellToolReplayEnabled,
 			portableShellToolReplayEnabled,
 			stableNewScenarioResponse: config.stableNewScenarioResponse,
 			isWindows,

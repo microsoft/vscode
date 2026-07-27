@@ -14,7 +14,7 @@ exchanges:
           name: ${shell}
           input:
             command: echo SHELL_VALUE_73
-            description: Echo the shell value
+            description: Echo the requested value
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
@@ -28,7 +28,7 @@ exchanges:
               name: bash
               input:
                 command: echo SHELL_VALUE_73
-                description: Echo the shell value
+                description: Echo the requested value
         - role: user
           content:
             - type: tool_result

@@ -176,7 +176,7 @@ export class AhpSnapshotRecorder {
 		}
 
 		for (const round of rounds) {
-			round.serverToClient = dropEmptyReasoningParts(round.serverToClient);
+			round.serverToClient = dropReasoning(round.serverToClient);
 			normalizeSnapshotObjects(round.clientToServer, this._normalization);
 			normalizeSnapshotObjects(round.serverToClient, this._normalization);
 		}
@@ -424,24 +424,28 @@ function projectAction(
 }
 
 /**
- * Drops reasoning parts that never received any content.
+ * Drops reasoning traffic from the snapshot.
  *
- * A provider can open a reasoning part and then close it without emitting a
- * delta. Live recording sees that empty part on the wire, but replay rebuilds
- * the stream from the fixture's aggregated message content, where an empty
- * reasoning block leaves no trace — so it can never be reproduced. Keeping it
- * would make any snapshot recorded during such a turn permanently unreplayable.
+ * Reasoning cannot survive the capture round-trip: `capiWireCodec` drops
+ * reasoning items when aggregating a response, because their content is opaque
+ * and provider-encrypted. Replay therefore rebuilds the stream from a fixture
+ * that has no reasoning in it, and any reasoning the live recording observed —
+ * whether an empty part the provider opened and closed without a delta, or a
+ * partial one carrying a few characters — can never be reproduced.
  *
- * Runs after projection because `ChatDelta` fills in content by mutating the
- * part recorded here, so a part's final content is only known once every
- * message has been projected.
+ * Keeping it would make a snapshot permanently unreplayable depending on
+ * whether the provider happened to emit reasoning during the recording, which
+ * says nothing about the behavior under test.
+ *
+ * Runs after projection because `ChatDelta` fills in a part's content by
+ * mutating the object recorded here, so the final content is only known once
+ * every message has been projected.
  */
-function dropEmptyReasoningParts(actions: object[]): object[] {
+function dropReasoning(actions: object[]): object[] {
 	return actions.filter(entry => {
-		const action = (entry as { action?: { type?: string; part?: { kind?: string; content?: string } } }).action;
-		return !(action?.type === ActionType.ChatResponsePart
-			&& action.part?.kind === ResponsePartKind.Reasoning
-			&& action.part.content === '');
+		const action = (entry as { action?: { type?: string; part?: { kind?: string } } }).action;
+		return action?.type !== ActionType.ChatReasoning
+			&& !(action?.type === ActionType.ChatResponsePart && action.part?.kind === ResponsePartKind.Reasoning);
 	});
 }
 

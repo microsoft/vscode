@@ -35,28 +35,25 @@ Verified against the current implementation with `userName: 'runner'`: the tool 
 
 Home directory paths are already handled by the `${homedir}` replacement that runs just before this one, so the bare user-name pass is only needed for occurrences outside a home path. Restricting it to path-like contexts (preceded by a separator) would keep that coverage without corrupting prose. Left alone for now because no committed snapshot currently trips it — fix it alongside the first test that does.
 
-### Windows has no permission, shell, or worktree coverage
+### What is still Windows-scoped, and why
 
-`shellToolReplayEnabled` is computed as `!isWindows && ...` — an *unconditional* Windows exclusion, not a per-provider or per-capture one. Everything downstream of it is therefore untested on Windows for every provider, including `tool call triggers permission request and can be approved`, which is the only E2E test of the permission-approval flow.
+The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnabled` now only reflects the provider's shell-tool replay stability on Linux, and every capture that runs a shell command is portable. Permission approval, file operations, renames, deletes, directory creation, and git status all run on Windows.
 
-The individual rows in [Windows shell and filesystem behavior](#windows-shell-and-filesystem-behavior) each look like a small portable-shell problem. Collectively they mean the Windows CI leg validates strictly less of the product than the macOS and Linux legs, in the areas most likely to be platform-specific. That is the inverse of what a cross-platform matrix is for.
+Two things remain deliberately scoped, both at the call site with a comment:
 
-Reducing this does not require making the recorded POSIX commands portable. Permission approval, worktree resolution, and terminal lifecycle can be exercised with host-executed commands (bang commands) and conformance-tier tests that do not depend on what the model chose to type into a shell.
+- `worktree session uses the resolved worktree as working directory` — cannot be fixed by pinning. `pwd` is auto-approved as a safe read-only command, while a pinned `node -e "…"` is not, so the turn stops on a permission prompt the test never answers. The assertions also compare POSIX-shaped paths. Worktree resolution itself is still asserted on Windows through the `sessionAdded` working-directory check in the same test's non-shell half.
+- `session configuration resolves and completes git branches` — Windows retains a handle on the temporary git repository after session disposal. This is mandatory file locking, a genuine OS difference, and nothing about command portability affects it.
 
-Where a scenario genuinely needs to run a command, prefer one that behaves the same under `cmd`/PowerShell and POSIX shells. `node -e "…"` (or a `.js` file seeded into the workspace and invoked as `node script.js`) is always available, since the suite already runs under Node. That keeps the real terminal tool, sandbox, streaming, and exit-code paths under test while removing the platform coupling.
+### Steering versus pinning
 
-#### Porting a shell-dependent test: what actually has to change
+Two techniques, and the choice is not stylistic:
 
-`runs a deterministic shell command` was ported first as a prototype. Three separate things coupled it to POSIX, and a fourth surfaced while re-recording. Expect to check all of them:
+- **Steer** (`Use your file tools; do not run a shell command.`) where a file tool exists for the operation. Reads, edits, missing-file handling, and content creation all took the hint, and the resulting capture contains no shell command at all — the strongest possible outcome, since there is nothing left to be platform-specific.
+- **Pin** (`Run exactly this shell command, with no modifications: …`) where no file tool exists. Rename, delete, directory creation, and listing have no file-tool equivalent, so every provider reaches for the shell and picks a POSIX command. Steering these harder made one provider skip the operation entirely rather than use a different tool.
 
-1. **The prompt.** It described the command rather than specifying it, so the model chose one per provider and whatever it chose was frozen into the fixture — Copilot picked `echo SHELL_VALUE_73`, Claude picked `printf '%s\n' "SHELL_VALUE_73"`. The test was disabled on Windows for *all three* providers because of Claude's choice, even though Copilot's capture would have run there unmodified. Pin the command in the prompt.
-2. **The tool name in the AHP snapshot.** The Copilot CLI names its shell tools after the shell it runs (`bash` on POSIX, `powershell` on Windows), and that name reaches the client verbatim in `chat/toolCallStart`. Snapshots now record `${shell}`.
-3. **The tool name in the CAPI fixture.** The same name appears in the `tool_use` block that *drives* replay, so a macOS recording would instruct a Windows agent to call a tool that does not exist. Captures now store the placeholder and `CapiReplayProxy` expands it to the running platform's name on replay. Covered by `capiReplayProxyShellTools.test.ts`, which asserts both directions for both platforms — the replay half is otherwise only exercised on whichever platform the developer happens to use.
-4. **Empty reasoning parts.** A provider can open a reasoning part and close it without emitting a delta. Live recording sees it; replay rebuilds the stream from the fixture's aggregated content, where it leaves no trace. Any snapshot recorded during such a turn was permanently unreplayable. These are now dropped during projection.
+Pinning uses `node -e "…"`, which is guaranteed present because the suite runs under Node, and whose `"…"` / `'…'` quoting is read identically by `cmd` and POSIX shells. Prefer relative paths in a pinned command so no Windows path with backslashes has to be escaped into a JavaScript string literal.
 
-Only (1) is per-test work. (2), (3) and (4) are fixed centrally and should not need revisiting.
-
-Note that after this the *snapshot* for a ported test contains no command string and no tool output at all — the `behavior` profile records neither — so what remains platform-specific is only whether the command itself succeeds.
+The trade-off is real: a pinned command tests shell execution rather than the provider's tool selection. Pin only when steering has actually been tried and failed, and note which it was.
 
 ### Recorded model requests are never asserted
 
@@ -160,25 +157,14 @@ These four are the actionable item: until they are recorded, the reason Codex sk
 
 ### Windows shell and filesystem behavior
 
-The committed model captures can select POSIX shell commands, and several host-owned shell behaviors differ on Windows. These tests remain enabled on unaffected providers and platforms.
+Most of this section is resolved — see [What is still Windows-scoped, and why](#what-is-still-windows-scoped-and-why). Thirteen tests that were disabled on Windows because their capture contained a POSIX-only command now run there.
+
+Two rows remain, and neither is about command portability:
 
 | Test | Disabled scope | Observed limitation |
 |---|---|---|
 | `a bang command runs locally and exposes terminal output` | Windows | The successful bang command produces output but does not complete reliably. |
 | `session configuration resolves and completes git branches` | Windows | Git-backed config discovery can retain the temporary repository lock after session disposal. |
-| `worktree session uses the resolved worktree as working directory` | Windows | The recorded paths and `pwd` behavior are POSIX-shaped. |
-| `tool call triggers permission request and can be approved` | Windows | The scenario executes a recorded shell command. |
-| `lists workspace entries` | Windows | The scenario depends on provider shell execution. |
-| `counts lines in a file` | Windows | The scenario depends on provider shell execution. |
-| `renames a workspace file` | Windows | The scenario depends on provider shell execution. |
-| `reads a file from a nested directory` | Copilot on Windows | The Copilot capture uses shell behavior that is not portable to Windows. |
-| `handles a missing file without a session error` | Copilot on Windows | The Copilot capture uses shell behavior that is not portable to Windows. |
-| `creates a file in a new nested directory` | Copilot on Windows | The Copilot capture uses a POSIX shell. |
-| `inspects git status` | Copilot on Windows | The scenario depends on provider shell execution. |
-| `edits an existing text file` | Claude on Windows | The scenario depends on provider shell execution. |
-| `deletes a workspace file` | Claude on Windows | The scenario depends on provider shell execution. |
-| `peer chat edits an existing workspace file` | Copilot on Windows | Replay completes, but the recorded tool plan does not mutate the Windows file. |
-| `peer chat creates a file in a nested directory` | Copilot on Windows | Replay completes, but the recorded tool plan does not create the Windows file. |
 
 Use the affected provider command with `--grep "<exact test title>"` and temporarily remove the platform gate to reevaluate a row.
 
