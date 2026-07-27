@@ -9,7 +9,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { mkdtempSync, rmSync } from 'fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -673,7 +673,9 @@ export class AgentHostE2EServerLease {
 			}
 			proxy.resetForReplay(capiReplay.fixturePath);
 		} else {
-			this._server = await this._target.launch({ ...this._startOptions, capiReplay });
+			// Only the Copilot CLI provider writes the `@github/copilot` runtime logs we
+			// capture, so only it is run verbosely; Claude/Codex use their own runtimes.
+			this._server = await this._target.launch({ ...this._startOptions, capiReplay, logLevel: this._isCopilotProvider ? 'trace' : undefined });
 			this._modelBackedTestsOnCurrentServer = 0;
 		}
 		if (modelTraffic === 'recorded') {
@@ -701,6 +703,66 @@ export class AgentHostE2EServerLease {
 
 	get observedModelRequestBodies(): readonly string[] {
 		return this._server?.capiReplay?.observedModelRequestBodies ?? [];
+	}
+
+	/** The bundled `@github/copilot` CLI is the only provider whose runtime logs we capture / run verbosely. */
+	private get _isCopilotProvider(): boolean {
+		return this._config.provider === 'copilotcli';
+	}
+
+	/**
+	 * Tail the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log`
+	 * into the test output. This is the SDK/CLI's own diagnostics — the key signal
+	 * when a turn hangs or times out, which the AHP assertions alone don't explain.
+	 * The runtime writes these under `${COPILOT_HOME}/logs`, and the harness pins
+	 * `COPILOT_HOME` to `${homeDir}/.copilot` (see `startRealServer`), running it
+	 * at `trace`. Only the Copilot CLI provider is captured — Claude/Codex use their
+	 * own runtimes and log elsewhere. Best-effort: never throws (it runs in a
+	 * `teardown`, right before the failure is re-raised). Output goes to
+	 * `process.stdout` directly (not `console.*`): the integration harness overrides
+	 * `console.*` and fails the test on ANY unexpected console output during a test,
+	 * and `currentTest` is still set during `teardown`.
+	 */
+	dumpRuntimeLogsOnFailure(label: string): void {
+		if (!this._isCopilotProvider) {
+			return;
+		}
+		try {
+			const logsDir = join(this._startOptions.homeDir, '.copilot', 'logs');
+			let entries: string[];
+			try {
+				entries = readdirSync(logsDir);
+			} catch {
+				// No log dir at all — the CLI never spawned. That itself is a signal.
+				process.stdout.write(`[agent-host-e2e] no Copilot runtime logs for failed test "${label}" (CLI never spawned; ${logsDir} absent)\n`);
+				return;
+			}
+			const newest = entries
+				.filter(name => /^process-.*\.log$/.test(name))
+				.map(name => {
+					const full = join(logsDir, name);
+					try {
+						return { full, mtimeMs: statSync(full).mtimeMs };
+					} catch {
+						return undefined;
+					}
+				})
+				.filter((v): v is { full: string; mtimeMs: number } => v !== undefined)
+				.sort((a, b) => b.mtimeMs - a.mtimeMs)[0];
+			if (!newest) {
+				process.stdout.write(`[agent-host-e2e] no Copilot runtime process-*.log for failed test "${label}" under ${logsDir}\n`);
+				return;
+			}
+			const lines = readFileSync(newest.full, 'utf8').split(/\r?\n/);
+			const tail = lines.slice(-200);
+			process.stdout.write(`[agent-host-e2e] --- Copilot runtime log for failed test "${label}" (${newest.full}; last ${tail.length} of ${lines.length} lines) ---\n`);
+			for (const ln of tail) {
+				process.stdout.write(`[agent-host-e2e] # ${ln}\n`);
+			}
+			process.stdout.write('[agent-host-e2e] --- end Copilot runtime log ---\n');
+		} catch {
+			// never let diagnostics break teardown
+		}
 	}
 
 	/**
