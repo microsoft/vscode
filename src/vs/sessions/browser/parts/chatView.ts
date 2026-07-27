@@ -18,7 +18,7 @@ import { IChat } from '../../services/sessions/common/session.js';
  * Discriminates between concrete {@link AbstractChatView} subclasses without
  * requiring core code (`sessions/browser/`) to import them from contrib.
  */
-export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
+export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat' | 'automations';
 
 /**
  * Options passed to a chat view when it is created.

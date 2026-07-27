@@ -28,4 +28,9 @@ export interface IChatViewFactory {
 	 * Creates a chat view that hosts a chat widget for an active session.
 	 */
 	createChatView(): AbstractChatView;
+
+	/**
+	 * Creates an automations view that displays the automations management page.
+	 */
+	createAutomationsView(): AbstractChatView;
 }
