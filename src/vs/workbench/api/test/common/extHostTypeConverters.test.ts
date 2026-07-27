@@ -7,8 +7,8 @@ import assert from 'assert';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IconPathDto } from '../../common/extHost.protocol.js';
-import { ChatRequestModeInstructions, IconPath } from '../../common/extHostTypeConverters.js';
-import { ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
+import { ChatRequestModeInstructions, ChatToolInvocationPart, IconPath } from '../../common/extHostTypeConverters.js';
+import { ChatSubagentToolInvocationData, ChatToolInvocationPart as ExtHostChatToolInvocationPart, ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
 import { IChatRequestModeInstructions } from '../../../contrib/chat/common/model/chatModel.js';
 import { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 
@@ -145,6 +145,7 @@ suite('extHostTypeConverters', function () {
 					value: undefined,
 					range: { start: 0, endExclusive: 5 },
 				}],
+				allowedSubagents: ['agent1', 'agent2'],
 				metadata: { key: 'value' },
 				isBuiltin: false,
 			};
@@ -155,6 +156,7 @@ suite('extHostTypeConverters', function () {
 				name: 'test-mode',
 				content: 'test content',
 				toolReferences: [{ name: 'tool1', range: [0, 5] }],
+				allowedSubagents: ['agent1', 'agent2'],
 				metadata: { key: 'value' },
 				isBuiltin: false,
 			});
@@ -166,6 +168,7 @@ suite('extHostTypeConverters', function () {
 				name: 'test-mode',
 				content: 'test content',
 				toolReferences: [],
+				allowedSubagents: undefined,
 				metadata: undefined,
 				isBuiltin: true,
 			};
@@ -200,6 +203,7 @@ suite('extHostTypeConverters', function () {
 					value: undefined,
 					range: { start: 0, endExclusive: 5 },
 				}],
+				allowedSubagents: undefined,
 				metadata: { key: 'value' },
 				isBuiltin: false,
 			});
@@ -241,6 +245,24 @@ suite('extHostTypeConverters', function () {
 			assert.strictEqual(backToApi.toolReferences?.[0].range, undefined);
 			assert.strictEqual(backToApi.toolReferences?.[1].name, 'tool2');
 			assert.deepStrictEqual(backToApi.toolReferences?.[1].range, [10, 20]);
+		});
+	});
+
+	suite('ChatToolInvocationPart', function () {
+		test('converts subagent data with its model name', function () {
+			const data = new ChatSubagentToolInvocationData('Run tests', 'execution', 'npm test', 'Passed');
+			data.modelName = 'Execution Model';
+			const part = new ExtHostChatToolInvocationPart('execution_subagent', 'tool-call-id');
+			(part as unknown as { toolSpecificData: ChatSubagentToolInvocationData }).toolSpecificData = data;
+
+			assert.deepStrictEqual(ChatToolInvocationPart.from(part as unknown as Parameters<typeof ChatToolInvocationPart.from>[0]).toolSpecificData, {
+				kind: 'subagent',
+				description: 'Run tests',
+				agentName: 'execution',
+				prompt: 'npm test',
+				result: 'Passed',
+				modelName: 'Execution Model',
+			});
 		});
 	});
 });

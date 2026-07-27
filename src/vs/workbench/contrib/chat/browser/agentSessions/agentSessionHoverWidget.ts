@@ -11,6 +11,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNow, getDurationString } from '../../../../../base/common/date.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -18,10 +19,10 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatViewModel } from '../../common/model/chatViewModel.js';
-import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatListWidget } from '../widget/chatListWidget.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
+import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession } from './agentSessionsModel.js';
 import './media/agentSessionHoverWidget.css';
 
@@ -37,7 +38,6 @@ export class AgentSessionHoverWidget extends Disposable {
 	private readonly contentElement: HTMLElement;
 	private readonly loadingElement: HTMLElement;
 	private readonly renderScheduler: RunOnceScheduler;
-	private hasRendered = false;
 	private readonly cts: CancellationTokenSource;
 
 	constructor(
@@ -45,6 +45,7 @@ export class AgentSessionHoverWidget extends Disposable {
 		@IChatService private readonly chatService: IChatService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 
@@ -71,16 +72,21 @@ export class AgentSessionHoverWidget extends Disposable {
 	onRendered() {
 		this.modelRef ??= this.loadModel();
 
-		if (!this.hasRendered) {
-			this.hasRendered = true;
-			this.renderScheduler.schedule();
-		} else {
-			this.listWidget?.layout(CHAT_LIST_HEIGHT, CHAT_HOVER_WIDTH);
+		if (this.listWidget) {
+			this.listWidget.layout(CHAT_LIST_HEIGHT, CHAT_HOVER_WIDTH);
+			this.listWidget.refresh();
+			return;
 		}
+
+		this.renderScheduler.schedule();
+	}
+
+	onHidden() {
+		this.renderScheduler.cancel();
 	}
 
 	private async loadModel() {
-		const modelRef = await this.chatService.acquireOrLoadSession(this.session.resource, ChatAgentLocation.Chat, this.cts.token);
+		const modelRef = await this.chatService.acquireOrLoadSession(this.session.resource, ChatAgentLocation.Chat, this.cts.token, 'AgentSessionHoverWidget#loadModel');
 		if (this._store.isDisposed) {
 			modelRef?.dispose();
 			return;
@@ -101,7 +107,13 @@ export class AgentSessionHoverWidget extends Disposable {
 	private async render() {
 		this.modelRef ??= this.loadModel();
 		const model = await this.modelRef;
-		if (!model || this._store.isDisposed) {
+		if (!model || this._store.isDisposed || !this.domNode.isConnected) {
+			return;
+		}
+
+		if (this.listWidget) {
+			this.listWidget.layout(CHAT_LIST_HEIGHT, CHAT_HOVER_WIDTH);
+			this.listWidget.refresh();
 			return;
 		}
 
@@ -109,11 +121,9 @@ export class AgentSessionHoverWidget extends Disposable {
 		this.loadingElement.remove();
 
 		// Create view model - only show last request+response pair
-		const codeBlockCollection = this._register(this.instantiationService.createInstance(CodeBlockModelCollection, 'agentSessionHover'));
 		const viewModel = this._register(this.instantiationService.createInstance(
 			ChatViewModel,
 			model,
-			codeBlockCollection,
 			{ maxVisibleItems: 2 }
 		));
 
@@ -131,15 +141,20 @@ export class AgentSessionHoverWidget extends Disposable {
 				currentChatMode: () => ChatModeKind.Ask,
 			}
 		));
+		this.listWidget = listWidget;
 		listWidget.layout(CHAT_LIST_HEIGHT, CHAT_HOVER_WIDTH);
 		listWidget.setScrollLock(true);
 		listWidget.setViewModel(viewModel);
 		listWidget.refresh();
 
-		const viewModelScheudler = this._register(new RunOnceScheduler(() => listWidget.refresh(), 500));
+		const viewModelScheduler = this._register(new RunOnceScheduler(() => {
+			if (this.domNode.isConnected) {
+				listWidget.refresh();
+			}
+		}, 500));
 		this._register(viewModel.onDidChange(() => {
-			if (!viewModelScheudler.isScheduled()) {
-				viewModelScheudler.schedule();
+			if (this.domNode.isConnected && !viewModelScheduler.isScheduled()) {
+				viewModelScheduler.schedule();
 			}
 		}));
 
@@ -181,21 +196,37 @@ export class AgentSessionHoverWidget extends Disposable {
 			dom.append(detailsRow, dom.$('span', undefined, fromNow(startTime, true, true)));
 		}
 
-		// Diff information
-		const diff = getAgentChangesSummary(session.changes);
-		if (diff && hasValidDiff(session.changes)) {
-			dom.append(detailsRow, dom.$('span.separator', undefined, '•'));
-			const diffContainer = dom.append(detailsRow, dom.$('.agent-session-hover-diff'));
-			if (diff.files > 0) {
-				dom.append(diffContainer, dom.$('span', undefined, diff.files === 1 ? localize('tooltip.file', "1 file") : localize('tooltip.files', "{0} files", diff.files)));
+		// Diff information - rendered reactively because `changes` may be lazily
+		// resolved by the provider (see IAgentSessionsModel.observeSession). We
+		// reserve a separator + container slot here and update them whenever the
+		// observed session emits a fresh value.
+		const diffSeparator = dom.append(detailsRow, dom.$('span.separator', undefined, '•'));
+		const diffContainer = dom.append(detailsRow, dom.$('.agent-session-hover-diff'));
+		diffSeparator.style.display = 'none';
+		diffContainer.style.display = 'none';
+
+		const observed = this.agentSessionsService.model.observeSession(session.resource);
+		this._register(autorun(reader => {
+			const latest = observed.read(reader) ?? session;
+			const diff = getAgentChangesSummary(latest.changes);
+			dom.clearNode(diffContainer);
+			if (diff && hasValidDiff(latest.changes)) {
+				diffSeparator.style.display = '';
+				diffContainer.style.display = '';
+				if (diff.files > 0) {
+					dom.append(diffContainer, dom.$('span', undefined, diff.files === 1 ? localize('tooltip.file', "1 file") : localize('tooltip.files', "{0} files", diff.files)));
+				}
+				if (diff.insertions > 0) {
+					dom.append(diffContainer, dom.$('span.insertions', undefined, `+${diff.insertions}`));
+				}
+				if (diff.deletions > 0) {
+					dom.append(diffContainer, dom.$('span.deletions', undefined, `-${diff.deletions}`));
+				}
+			} else {
+				diffSeparator.style.display = 'none';
+				diffContainer.style.display = 'none';
 			}
-			if (diff.insertions > 0) {
-				dom.append(diffContainer, dom.$('span.insertions', undefined, `+${diff.insertions}`));
-			}
-			if (diff.deletions > 0) {
-				dom.append(diffContainer, dom.$('span.deletions', undefined, `-${diff.deletions}`));
-			}
-		}
+		}));
 
 		// Status (only show if not completed)
 		if (session.status !== AgentSessionStatus.Completed) {

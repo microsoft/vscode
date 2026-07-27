@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createConnection, BrowserMessageReader, BrowserMessageWriter, Disposable } from 'vscode-languageserver/browser';
-import { RuntimeEnvironment, startServer } from '../jsonServer';
+import { RuntimeEnvironment, startServer } from '../jsonServer.js';
 
 
 const messageReader = new BrowserMessageReader(self);

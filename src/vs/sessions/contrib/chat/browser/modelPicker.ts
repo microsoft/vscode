@@ -3,202 +3,200 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../base/browser/dom.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { localize } from '../../../../nls.js';
-import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { RemoteNewSession } from './newSession.js';
-
-const FILTER_THRESHOLD = 10;
-
-interface IModelItem {
-	readonly id: string;
-	readonly name: string;
-	readonly description?: string;
-}
+import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
+import { localize2 } from '../../../../nls.js';
+import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
+import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
+import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { Menus } from '../../../browser/menus.js';
+import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
+import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISessionModelSelectionModel } from './sessionModelSelectionModel.js';
+import { INewChatModelPickerService } from './newChatModelPicker.js';
+import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
+import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 
 /**
- * A self-contained widget for selecting a model in cloud sessions.
- * Reads the model option group from the {@link RemoteNewSession} and
- * renders an action list dropdown with the available models.
+ * The sessions-core model picker. Unlike the previous per-provider pickers,
+ * this single widget reads the model list from the active session's provider
+ * via {@link ISessionsProvider.getModelsSnapshot}, remembers explicit model choices per
+ * shared or targeted model pool, and applies the selection through the existing
+ * {@link ISessionsProvider.setModel} API. It reuses the shared workbench
+ * {@link ModelPickerActionItem} so the dropdown looks and behaves like the
+ * other chat model pickers.
  */
-export class CloudModelPicker extends Disposable {
+export class ModelPicker extends Disposable {
 
-	private readonly _onDidChange = this._register(new Emitter<IChatSessionProviderOptionItem>());
-	readonly onDidChange: Event<IChatSessionProviderOptionItem> = this._onDidChange.event;
-
-	private _triggerElement: HTMLElement | undefined;
-	private _slotElement: HTMLElement | undefined;
+	private readonly _delegate: IModelPickerDelegate;
+	private readonly _modelPicker: ModelPickerActionItem;
 	private readonly _renderDisposables = this._register(new DisposableStore());
-	private readonly _sessionDisposables = this._register(new DisposableStore());
-
-	private _session: RemoteNewSession | undefined;
-	private _selectedModel: IModelItem | undefined;
-	private _models: IModelItem[] = [];
-
-	get selectedModel(): IModelItem | undefined {
-		return this._selectedModel;
-	}
+	private _container: HTMLElement | undefined;
 
 	constructor(
-		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
+		compact: IObservable<boolean>,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
+		@ISessionContext private readonly _sessionContext: ISessionContext,
+		@ISessionModelSelectionModel private readonly _selectionModel: ISessionModelSelectionModel,
 	) {
 		super();
-	}
+		const currentModel = derived(this, reader => this._selectionModel.state.read(reader).currentModel);
 
-	/**
-	 * Sets the remote session and loads the available models from it.
-	 */
-	setSession(session: RemoteNewSession): void {
-		this._session = session;
-		this._sessionDisposables.clear();
-		this._loadModels(session);
-
-		// Sync selected model to the new session
-		if (this._selectedModel) {
-			session.setModelId(this._selectedModel.id);
-			session.setOptionValue('models', { id: this._selectedModel.id, name: this._selectedModel.name });
-		}
-
-		// Re-load models when option groups change
-		this._sessionDisposables.add(session.onDidChangeOptionGroups(() => {
-			this._loadModels(session);
-		}));
-	}
-
-	/**
-	 * Renders the model picker trigger button into the given container.
-	 */
-	render(container: HTMLElement): HTMLElement {
-		this._renderDisposables.clear();
-
-		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
-		this._slotElement = slot;
-		this._renderDisposables.add({ dispose: () => slot.remove() });
-
-		const trigger = dom.append(slot, dom.$('a.action-label'));
-		trigger.tabIndex = 0;
-		trigger.role = 'button';
-		this._triggerElement = trigger;
-
-		this._updateTriggerLabel();
-
-		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
-			dom.EventHelper.stop(e, true);
-			this._showPicker();
-		}));
-
-		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				dom.EventHelper.stop(e, true);
-				this._showPicker();
-			}
-		}));
-
-		return slot;
-	}
-
-	/**
-	 * Shows or hides the picker.
-	 */
-	setVisible(visible: boolean): void {
-		if (this._slotElement) {
-			this._slotElement.style.display = visible ? '' : 'none';
-		}
-	}
-
-	private _loadModels(session: RemoteNewSession): void {
-		const modelOption = session.getModelOptionGroup();
-		if (modelOption?.group.items.length) {
-			this._models = modelOption.group.items.map(item => ({
-				id: item.id,
-				name: item.name,
-				description: item.description,
-			}));
-
-			// Select the session's current value, or the default, or the first
-			if (!this._selectedModel || !this._models.some(m => m.id === this._selectedModel!.id)) {
-				const value = modelOption.value;
-				this._selectedModel = value
-					? { id: value.id, name: value.name, description: value.description }
-					: this._models[0];
-			}
-		} else {
-			this._models = [];
-		}
-		this._updateTriggerLabel();
-	}
-
-	private _showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible || this._models.length === 0) {
-			return;
-		}
-
-		const items = this._buildItems();
-		const showFilter = items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
-
-		const triggerElement = this._triggerElement;
-		const delegate: IActionListDelegate<IModelItem> = {
-			onSelect: (item) => {
-				this.actionWidgetService.hide();
-				this._selectModel(item);
+		this._delegate = {
+			currentModel,
+			setModel: model => {
+				const previousModel = this._selectionModel.state.get().currentModel;
+				if (this._selectionModel.selectModel(model.identifier)) {
+					reportNewChatPickerClosed(this._telemetryService, {
+						id: 'NewChatModelPicker',
+						optionIdBefore: previousModel?.identifier,
+						optionIdAfter: model.identifier,
+						optionLabelBefore: previousModel?.metadata.name,
+						optionLabelAfter: model.metadata.name,
+						isPII: false,
+					});
+				}
 			},
-			onHide: () => { triggerElement.focus(); },
+			getModels: () => [...this._selectionModel.state.get().models],
+			getPresentationOptions: () => ({
+				...this._selectionModel.state.get().options,
+				showModelIcon: true,
+			}),
+			isCacheWarm: () => {
+				const session = this._sessionContext.session.get();
+				// The session's prompt cache is warm once its first request has
+				// been sent (status leaves Untitled), matching the main-window
+				// picker which warms as soon as the first request is added.
+				return session ? session.status.get() !== SessionStatus.Untitled : false;
+			},
 		};
 
-		this.actionWidgetService.show<IModelItem>(
-			'remoteModelPicker',
-			false,
-			items,
-			delegate,
-			this._triggerElement,
-			undefined,
-			[],
-			{
-				getAriaLabel: (item) => item.label ?? '',
-				getWidgetAriaLabel: () => localize('modelPicker.ariaLabel', "Model Picker"),
-			},
-			showFilter ? { showFilter: true, filterPlaceholder: localize('modelPicker.filter', "Filter models...") } : undefined,
-		);
-	}
-
-	private _buildItems(): IActionListItem<IModelItem>[] {
-		return this._models.map(model => ({
-			kind: ActionListItemKind.Action,
-			label: model.name,
-			group: { title: '', icon: this._selectedModel?.id === model.id ? Codicon.check : Codicon.blank },
-			item: model,
+		const pickerOptions: IChatInputPickerOptions = {
+			compact,
+		};
+		const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
+		this._modelPicker = this._register(instantiationService.createInstance(ModelPickerActionItem, action, this._delegate, pickerOptions));
+		this._register(this._newChatModelPickerService.registerModelPicker({
+			open: () => this._modelPicker.openModelPicker(),
+			switchToModel: modelIdentifier => this.switchToModel(modelIdentifier),
 		}));
+
+		this._register(autorun(reader => {
+			this._selectionModel.state.read(reader);
+			this._updatePickerState();
+		}));
+
+		// Re-evaluate when workspace trust changes (or finishes initializing): an
+		// untrusted workspace disables the model providers, and the shared widget
+		// then renders its Restricted Mode state. Visibility is recomputed so the
+		// picker stays visible to surface the "Models" placeholder + the Trust
+		// action instead of hiding as an empty picker.
+		this._register(this._workspaceTrustManagementService.onDidChangeTrust(() => this._updatePickerState()));
+		this._workspaceTrustManagementService.workspaceTrustInitialized.then(() => {
+			if (!this._store.isDisposed) {
+				this._updatePickerState();
+			}
+		});
+
+		// Re-evaluate when entitlement / sentiment / anonymous access change: when
+		// Chat needs sign-in the shared widget renders a Sign In state, so the
+		// picker stays visible to surface it (e.g. after the user signs out/in).
+		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._updatePickerState()));
+		this._register(this._chatEntitlementService.onDidChangeSentiment(() => this._updatePickerState()));
+		this._register(this._chatEntitlementService.onDidChangeAnonymous(() => this._updatePickerState()));
 	}
 
-	private _selectModel(item: IModelItem): void {
-		this._selectedModel = item;
-		this._updateTriggerLabel();
-
-		if (this._session) {
-			this._session.setModelId(item.id);
-			this._session.setOptionValue('models', { id: item.id, name: item.name });
-		}
-		this._onDidChange.fire({ id: item.id, name: item.name, description: item.description });
+	render(container: HTMLElement): void {
+		this._renderDisposables.clear();
+		this._container = container;
+		this._modelPicker.render(container);
+		this._renderDisposables.add(markOnboardingTarget(container, 'sessions.newSession.modelPicker', {
+			open: () => this._modelPicker.openModelPicker(),
+		}));
+		this._updatePickerState();
 	}
 
-	private _updateTriggerLabel(): void {
-		if (!this._triggerElement) {
-			return;
+	switchToModel(modelIdentifier: string): boolean {
+		return this._selectionModel.selectModel(modelIdentifier);
+	}
+
+	/**
+	 * Whether the model picker should be shown for the given session. Visible
+	 * when the session has models, when its Auto model is unavailable (so the
+	 * widget can render the "No models available" empty state), or when the
+	 * workspace is untrusted / Chat still needs sign-in (so the widget can render
+	 * its Restricted Mode or Sign In state). Otherwise hidden, matching the
+	 * historical behavior for providers that offer no models.
+	 */
+	private _shouldShowPicker(): boolean {
+		const state = this._selectionModel.state.get();
+		if (state.models.length > 0) {
+			return true;
 		}
+		if (this._modelPicker.isRestrictedMode() || this._modelPicker.isSetupRequired()) {
+			return true;
+		}
+		return !state.options.showAutoModel;
+	}
 
-		dom.clearNode(this._triggerElement);
-		const label = this._selectedModel?.name ?? localize('modelPicker.auto', "Auto");
+	private _updatePickerState(): void {
+		const visible = this._shouldShowPicker();
+		this._modelPicker.setEnabled(visible);
+		this._updateVisibility(visible);
+	}
 
-		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
-		labelSpan.textContent = label;
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+	private _updateVisibility(visible: boolean): void {
+		if (this._container) {
+			this._container.style.display = visible ? '' : 'none';
+		}
+	}
+}
 
-		this._slotElement?.classList.toggle('disabled', this._models.length === 0);
+// -- Action --
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.modelPicker',
+			title: localize2('sessionsModelPicker', "Model"),
+			f1: false,
+			menu: [{
+				id: Menus.NewSessionConfig,
+				group: 'navigation',
+				order: 1,
+				// Hidden on phone when the active provider supplies a combined
+				// mode + model picker instead (see MobileChatInputConfigPicker).
+				when: ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
+			}],
+		});
+	}
+	override async run(): Promise<void> { /* handled by action view item */ }
+});
+
+// -- Action View Item --
+
+export class ModelPickerActionViewItem extends BaseActionViewItem {
+	constructor(private readonly picker: ModelPicker) {
+		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
+	}
+
+	override render(container: HTMLElement): void {
+		this.picker.render(container);
+	}
+
+	override dispose(): void {
+		this.picker.dispose();
+		super.dispose();
 	}
 }

@@ -3,21 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IActionWidgetService } from './actionWidget.js';
-import { IAction } from '../../../base/common/actions.js';
-import { BaseDropdown, IActionProvider, IBaseDropdownOptions } from '../../../base/browser/ui/dropdown/dropdown.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemHover, IActionListOptions } from './actionList.js';
-import { ThemeIcon } from '../../../base/common/themables.js';
-import { Codicon } from '../../../base/common/codicons.js';
 import { getActiveElement, isHTMLElement } from '../../../base/browser/dom.js';
-import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES, CONTEXT_VIEW_MENU_MOTION_CLOSE_ANIMATION_DURATION } from '../../../base/browser/ui/contextview/contextview.js';
+import { BaseDropdown, IActionProvider, IBaseDropdownOptions } from '../../../base/browser/ui/dropdown/dropdown.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
+import { IAction } from '../../../base/common/actions.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { ActionListItemKind, IActionListCloseAnimation, IActionListDelegate, IActionListItem, IActionListItemHover, IActionListItemInlineToggle, IActionListOptions } from './actionList.js';
+import { IActionWidgetService } from './actionWidget.js';
+
+export const ACTION_WIDGET_DROPDOWN_MOTION_CLASS = 'action-widget-dropdown';
+export const ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS = 'action-widget-dropdown-closing';
+
+export const actionWidgetDropdownCloseAnimation: IActionListCloseAnimation = {
+	className: ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS,
+	duration: CONTEXT_VIEW_MENU_MOTION_CLOSE_ANIMATION_DURATION,
+	requiredAncestorClasses: CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES,
+};
+
+export function withActionWidgetDropdownMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
+	const classNames = listOptions?.className?.split(/\s+/).filter(Boolean) ?? [];
+	if (!classNames.includes(ACTION_WIDGET_DROPDOWN_MOTION_CLASS)) {
+		classNames.push(ACTION_WIDGET_DROPDOWN_MOTION_CLASS);
+	}
+
+	return {
+		...listOptions,
+		className: classNames.join(' '),
+		closeAnimation: listOptions?.closeAnimation ?? actionWidgetDropdownCloseAnimation,
+	};
+}
 
 export interface IActionWidgetDropdownAction extends IAction {
 	category?: { label: string; order: number; showHeader?: boolean };
 	icon?: ThemeIcon;
-	description?: string;
+	description?: string | IMarkdownString;
+	/**
+	 * Optional detail text displayed as a second line below the label.
+	 */
+	detail?: string;
+	/**
+	 * Optional description used in the accessible label instead of the visual description.
+	 */
+	ariaDescription?: string;
 	/**
 	 * Optional flyout hover configuration shown when focusing/hovering over the action.
 	 */
@@ -26,6 +59,21 @@ export interface IActionWidgetDropdownAction extends IAction {
 	 * Optional toolbar actions shown when the item is focused or hovered.
 	 */
 	toolbarActions?: IAction[];
+	/**
+	 * Optional CSS class name applied to the action list row container.
+	 */
+	className?: string;
+	/**
+	 * Optional inline toggle switch rendered on its own row inside the item.
+	 */
+	inlineToggle?: IActionListItemInlineToggle;
+	/**
+	 * Optional keybinding to display next to the action. When provided, this overrides the
+	 * keybinding that would otherwise be looked up via {@link IKeybindingService.lookupKeybinding}.
+	 * Useful when the active keybinding depends on a scoped context (e.g. focus state) that the
+	 * dropdown cannot evaluate at display time.
+	 */
+	keybinding?: ResolvedKeybinding;
 }
 
 // TODO @lramos15 - Should we just make IActionProvider templated?
@@ -130,8 +178,12 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					item: action,
 					tooltip: action.tooltip,
 					description: action.description,
+					ariaDescription: action.ariaDescription,
+					detail: action.detail,
 					hover: action.hover,
 					toolbarActions: action.toolbarActions,
+					className: action.className,
+					inlineToggle: action.inlineToggle,
 					kind: ActionListItemKind.Action,
 					canPreview: false,
 					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
@@ -139,7 +191,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					hideIcon: false,
 					label: action.label,
 					keybinding: this._options.showItemKeybindings ?
-						this.keybindingService.lookupKeybinding(action.id) :
+						(action.keybinding ?? this.keybindingService.lookupKeybinding(action.id)) :
 						undefined,
 				});
 			}
@@ -203,9 +255,23 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			}
 		}
 
+		const nonSeparatorItems = actionWidgetItems.filter(i => i.kind === ActionListItemKind.Action);
+
 		const accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IActionWidgetDropdownAction>>> = {
 			isChecked(element) {
 				return element.kind === ActionListItemKind.Action && !!element?.item?.checked;
+			},
+			getSetSize: () => nonSeparatorItems.length,
+			getPosInSet: (_element, index) => {
+				// Count only Action items up to this index; clamp to at least 1
+				// since aria-posinset must be in the range 1..aria-setsize
+				let pos = 0;
+				for (let i = 0; i <= index && i < actionWidgetItems.length; i++) {
+					if (actionWidgetItems[i].kind === ActionListItemKind.Action) {
+						pos++;
+					}
+				}
+				return Math.max(pos, 1);
 			},
 			getRole: (e) => {
 				switch (e.kind) {
@@ -233,8 +299,16 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			undefined,
 			[],
 			accessibilityProvider,
-			this._options.listOptions
+			withActionWidgetDropdownMotion(this._options.listOptions)
 		);
+	}
+
+	override hide(): void {
+		const wasVisible = this.isVisible();
+		super.hide();
+		if (wasVisible) {
+			this.actionWidgetService.hide(true);
+		}
 	}
 
 	setEnabled(enabled: boolean): void {

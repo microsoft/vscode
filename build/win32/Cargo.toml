@@ -1,7 +1,8 @@
 [package]
 name = "inno_updater"
-version = "0.19.0"
+version = "0.21.0"
 authors = ["Microsoft <monacotools@microsoft.com>"]
+edition = "2024"
 build = "build.rs"
 
 [dependencies]
@@ -30,3 +31,8 @@ features = [
 [profile.release]
 lto = true
 panic = 'abort'
+
+[[bin]]
+name = "test_helper"
+path = "src/bin/test_helper.rs"
+test = false

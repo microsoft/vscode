@@ -14,14 +14,14 @@
   "contributes": {
     "themes": [
       {
-        "id": "VS Code Light",
-        "label": "%vsCodeLightThemeLabel%",
+        "id": "Light 2026",
+        "label": "%light2026ThemeLabel%",
         "uiTheme": "vs",
         "path": "./themes/2026-light.json"
       },
       {
-        "id": "VS Code Dark",
-        "label": "%vsCodeDarkThemeLabel%",
+        "id": "Dark 2026",
+        "label": "%dark2026ThemeLabel%",
         "uiTheme": "vs-dark",
         "path": "./themes/2026-dark.json"
       },
