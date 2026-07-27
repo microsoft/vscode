@@ -7,6 +7,7 @@ import { DisposableMap, DisposableStore, combinedDisposable, toDisposable } from
 import { autorun, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
+import { DisposableResizeObserver, getWindow } from '../../../../base/browser/dom.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -50,6 +51,11 @@ class AgentFeedbackOverlayController {
 
 		const widget = this._store.add(instaService.createInstance(EditorFeedbackOverlayWidget));
 		this._domNode.appendChild(widget.getDomNode());
+		widget.layout(container.clientWidth);
+		const resizeObserver = this._store.add(new DisposableResizeObserver('AgentFeedbackOverlay.layout', entries => {
+			widget.layout(entries[0]?.contentRect.width ?? container.clientWidth);
+		}, getWindow(container)));
+		this._store.add(resizeObserver.observe(container));
 		this._store.add(toDisposable(() => this._domNode.remove()));
 		const hasCommentsContext = hasSessionEditorComments.bindTo(contextKeyService);
 		const hasAgentFeedbackContext = hasUnsubmittedAgentFeedback.bindTo(contextKeyService);

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
+import { DisposableResizeObserver, getWindow } from '../../../../../base/browser/dom.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -37,6 +38,11 @@ class PlanReviewFeedbackOverlayController extends Disposable {
 
 		const widget = this._register(instantiationService.createInstance(EditorFeedbackOverlayWidget));
 		overlay.appendChild(widget.getDomNode());
+		widget.layout(container.clientWidth);
+		const resizeObserver = this._register(new DisposableResizeObserver('PlanReviewFeedbackOverlay.layout', entries => {
+			widget.layout(entries[0]?.contentRect.width ?? container.clientWidth);
+		}, getWindow(container)));
+		this._register(resizeObserver.observe(container));
 		const hasFeedbackContext = hasPlanReviewFeedback.bindTo(contextKeyService);
 		const activeSignal = observableSignalFromEvent(this, Event.any(
 			group.onDidActiveEditorChange,

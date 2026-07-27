@@ -175,6 +175,14 @@ export class EditorFeedbackOverlayWidget extends Disposable {
 		return this._inputBox.value;
 	}
 
+	layout(width: number): void {
+		const availableWidth = Math.max(0, width - 48);
+		this._domNode.style.maxWidth = `${availableWidth}px`;
+		this._domNode.classList.toggle('compact', width < 760);
+		this._domNode.classList.toggle('narrow', width < 520);
+		this._domNode.style.width = width < 520 ? `${availableWidth}px` : '';
+	}
+
 	showMenu(navigationBearings: { activeIdx: number; totalCount: number }, acceptedFeedbackCount: number, options: IEditorFeedbackMenuOptions): void {
 		this._prepare();
 		this._navigationBearings.set(navigationBearings, undefined);
