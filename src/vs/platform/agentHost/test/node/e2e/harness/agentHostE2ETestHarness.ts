@@ -242,6 +242,18 @@ export interface IAgentHostE2EProviderConfig {
 	 */
 	readonly subagentReplayUnstableOnWindows?: boolean;
 	/**
+	 * Disables the side-chat source-context test because the provider races
+	 * between side-chat materialization and server-tool MCP wiring.
+	 *
+	 * When it loses, the replayed turn calls a server tool before the host's
+	 * server-tool MCP server is registered for that session and the provider
+	 * fails the send. This is a provider/host race, not a replay problem: the
+	 * test passes in isolation and only fails under a dense sequence of
+	 * model-backed turns. Remove this flag once the race is fixed rather than
+	 * re-recording the capture.
+	 */
+	readonly sideChatServerToolWiringUnstable?: boolean;
+	/**
 	 * Whether the provider's plan-mode flow matches the shared test's
 	 * expectations (auto-approve session-state writes; reach the
 	 * exit-plan-mode tool as an `inputRequested`). Currently true only for

@@ -60,6 +60,32 @@ Sequencing: do this *after* the recorded commands are made portable. Turning req
 
 ## Suspected product bugs
 
+### Claude side-chat server-tool wiring race
+
+- Test: `side chat receives bounded source context without copied history`.
+- Scope: Claude.
+- Expected: a side chat materializes with the host's server-tool MCP server (`host`) registered, so a replayed turn can call a server tool.
+- Observed: the turn fails with `sendFailed` / `Error: Server not found: host`, raised by the Claude CLI. `host` is `CLAUDE_SERVER_TOOL_MCP_SERVER_NAME`, which is only registered when a `serverToolHost` is present at materialization, so the replayed turn reaches the provider before the server-tool MCP server is wired for that session.
+- Gate: `sideChatServerToolWiringUnstable: true`.
+- This is a race, not a stale capture. The test passes in isolation and fails only under a dense sequence of model-backed turns, so **do not re-record the capture** to make it pass — that would hide the race behind a different tool plan.
+
+Measured while separating the conformance and parity tiers, which concentrated the Claude parity suite into consecutive model-backed turns (43 tests in ~21s) where the interleaved host-only tests previously spaced them out (101 tests in ~26s):
+
+| Configuration | Runs | Failures |
+|---|---|---|
+| Before the tier split, full Claude suite | 3 | 0 |
+| Before the tier split, peer tests only | 3 | 0 |
+| After the tier split, full Claude suite | 8 | ~4 |
+| After the tier split, peer tests only | 3 | 0 |
+
+Ruled out as causes: the shared-server recycle budget (fails at 25, at 12, and when every test consumes budget), shared-server reuse (fails with a fresh server per test), provider config drift, and test ordering (the preceding tests are identical in passing and failing runs).
+
+- Reproduce: remove the gate and run the full Claude suite a few times.
+
+```bash
+./scripts/test-integration.sh --runGlob '**/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.js'
+```
+
 ### Claude provider-context fork
 
 - Tests:
