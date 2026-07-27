@@ -76,6 +76,10 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	getProgressIndicator(): IProgressIndicator {
 		return this._mainPart.getProgressIndicator();
 	}
+
+	showAutomationsPage(): void {
+		this._mainPart.showAutomationsPage();
+	}
 }
 
 registerSingleton(ISessionsPartService, SessionsParts, InstantiationType.Eager);

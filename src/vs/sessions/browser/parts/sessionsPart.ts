@@ -378,6 +378,14 @@ export class SessionsPart extends Part {
 		return this._progressIndicator;
 	}
 
+	showAutomationsPage(): void {
+		const slot = this._slots[0];
+		if (slot) {
+			slot.boundSessionId = undefined;
+			slot.view.showAutomationsView();
+		}
+	}
+
 	private _createSlot(): IGridSlot {
 		const disposables = new DisposableStore();
 		const view = disposables.add(this.instantiationService.createInstance(SessionView));

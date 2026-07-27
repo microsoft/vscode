@@ -84,9 +84,13 @@ import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { createSessionArchiveAnimation, type ISessionArchiveAnimation } from './sessionArchiveAnimation.js';
+import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 
 const $ = DOM.$;
 
+const AUTOMATIONS_SECTION_ID = 'automations';
+const READ_AUTOMATION_RUNS_KEY = 'sessionsListControl.readAutomationRuns';
 const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
 const SESSION_HEADER_DROP_TARGET_CLASS = 'session-header-drop-target';
 
@@ -963,12 +967,14 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 interface ISessionSectionTemplate {
 	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
+	readonly statusIndicator: HTMLElement;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
 	readonly toolbar: MenuWorkbenchToolBar;
 	readonly chevron: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
+	readonly elementDisposables: DisposableStore;
 }
 
 class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionSectionTemplate> {
@@ -977,19 +983,29 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 
 	private readonly templatesByElement = new WeakMap<ISessionSection, ISessionSectionTemplate>();
 	private readonly templatesById = new Map<string, ISessionSectionTemplate>();
+	private readonly readAutomationRunIds: Set<string>;
+	private readonly readStateVersion = observableValue<number>('automationReadState', 0);
 
 	constructor(
 		private readonly hideSectionCount: boolean,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
-	) { }
+		private readonly automationService: IAutomationService,
+		private readonly storageService: IStorageService,
+		private readonly sessionsManagementService: ISessionsManagementService,
+	) {
+		this.readAutomationRunIds = this.loadReadAutomationRuns();
+	}
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
 		const disposables = new DisposableStore();
+		const elementDisposables = disposables.add(new DisposableStore());
 
 		container.classList.add('session-section');
 		const icon = DOM.append(container, $('span.session-section-icon'));
 		icon.setAttribute('aria-hidden', 'true');
+		const statusIndicator = DOM.append(container, $('span.session-section-status-indicator'));
+		statusIndicator.setAttribute('aria-hidden', 'true');
 		const label = DOM.append(container, $('span.session-section-label'));
 		const count = DOM.append(container, $('span.session-section-count'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
@@ -1002,7 +1018,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, icon, label, count, toolbar, chevron, contextKeyService, disposables };
+		return { container, icon, statusIndicator, label, count, toolbar, chevron, contextKeyService, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -1010,20 +1026,62 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		if (!isSessionSection(element)) {
 			return;
 		}
+		template.elementDisposables.clear();
 		this.templatesByElement.set(element, template);
 		this.templatesById.set(element.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
+		template.container.classList.remove('session-section-shortcut');
+		if (element.id === AUTOMATIONS_SECTION_ID) {
+			template.container.classList.add('session-section-shortcut');
+		}
 
 		// Leading icon for the "Pinned" and "Chats" (quick chats) section headers.
 		// Templates are reused across rows, so recompute the icon every render.
 		const sectionIcon = element.id === QUICK_CHATS_SECTION_ID ? Codicon.commentDiscussion
 			: element.id === 'pinned' ? Codicon.pinned
+				: element.id === AUTOMATIONS_SECTION_ID ? Codicon.watch
 				: undefined;
 		template.icon.className = sectionIcon ? `session-section-icon ${ThemeIcon.asClassName(sectionIcon)}` : 'session-section-icon';
 		template.icon.style.display = sectionIcon ? '' : 'none';
 
+		if (element.id === AUTOMATIONS_SECTION_ID) {
+			DOM.clearNode(template.statusIndicator);
+			const statusIcon = template.elementDisposables.add(this.instantiationService.createInstance(SessionStatusIcon, template.statusIndicator));
+			template.elementDisposables.add(this.storageService.onDidChangeValue(StorageScope.PROFILE, READ_AUTOMATION_RUNS_KEY, template.elementDisposables)(() => {
+				this.readAutomationRunIds.clear();
+				for (const id of this.loadReadAutomationRuns()) {
+					this.readAutomationRunIds.add(id);
+				}
+				this.readStateVersion.set(this.readStateVersion.get() + 1, undefined);
+			}));
+			template.elementDisposables.add(autorun(reader => {
+				const runs = this.automationService.runs.read(reader);
+				this.readStateVersion.read(reader);
+				const hasActiveRun = runs.some(run => run.status === 'pending' || run.status === 'running');
+				const hasUnreadCompletedRun = runs.some(run =>
+					(run.status === 'completed' || run.status === 'failed')
+					&& !!run.sessionResource
+					&& !!this.sessionsManagementService.getSession(URI.parse(run.sessionResource))
+					&& !this.readAutomationRunIds.has(run.id)
+				);
+
+				if (hasActiveRun) {
+					template.statusIndicator.style.display = '';
+					statusIcon.setStatus(SessionStatus.InProgress, true, false);
+				} else if (hasUnreadCompletedRun) {
+					template.statusIndicator.style.display = '';
+					statusIcon.setStatus(SessionStatus.Completed, false, false);
+				} else {
+					template.statusIndicator.style.display = 'none';
+				}
+			}));
+		} else {
+			template.statusIndicator.style.display = 'none';
+			DOM.clearNode(template.statusIndicator);
+		}
+
 		template.label.textContent = element.label;
-		if (this.hideSectionCount) {
+		if (this.hideSectionCount || element.id === AUTOMATIONS_SECTION_ID) {
 			template.count.textContent = '';
 			template.count.style.display = 'none';
 		} else {
@@ -1056,6 +1114,11 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		template?.container.classList.toggle(SESSION_HEADER_DROP_TARGET_CLASS, active);
 	}
 
+	setActive(sectionId: string, active: boolean): void {
+		const template = this.templatesById.get(sectionId);
+		template?.container.classList.toggle('active', active);
+	}
+
 	private updateChevron(template: ISessionSectionTemplate, collapsible: boolean, collapsed: boolean): void {
 		template.chevron.className = 'session-section-chevron';
 		if (collapsible) {
@@ -1065,7 +1128,20 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		}
 	}
 
-	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, _template: ISessionSectionTemplate): void {
+	private loadReadAutomationRuns(): Set<string> {
+		const raw = this.storageService.get(READ_AUTOMATION_RUNS_KEY, StorageScope.PROFILE);
+		if (!raw) {
+			return new Set();
+		}
+		try {
+			return new Set(JSON.parse(raw));
+		} catch {
+			return new Set();
+		}
+	}
+
+	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
+		template.elementDisposables.clear();
 		if (isSessionSection(node.element)) {
 			this.templatesByElement.delete(node.element);
 			this.templatesById.delete(node.element.id);
@@ -1322,6 +1398,9 @@ class SessionsAccessibilityProvider {
 			return `${element.group.name}, ${element.sessions.length}`;
 		}
 		if (isSessionSection(element)) {
+			if (element.id === AUTOMATIONS_SECTION_ID) {
+				return element.label;
+			}
 			return `${element.label}, ${element.sessions.length}`;
 		}
 		if (isSessionShowMore(element)) {
@@ -1845,6 +1924,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IAutomationService private readonly automationService: IAutomationService,
 		@IVoicePlaybackService private readonly _listVoicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -1931,7 +2011,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService);
-		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService);
+		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService, this.automationService, this.storageService, this._sessionsManagementService);
 		this._sectionRenderer = sectionRenderer;
 		const groupRenderer = new SessionGroupRenderer({
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
@@ -2045,6 +2125,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!element) {
 				return;
 			}
+			if (!isSessionSection(element) || element.id !== AUTOMATIONS_SECTION_ID) {
+				this._sectionRenderer.setActive(AUTOMATIONS_SECTION_ID, false);
+			}
 			if (isSessionShowMore(element)) {
 				if (element.kind === 'folders') {
 					this.expandedMoreFolders = element.mode === 'more';
@@ -2059,6 +2142,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (isSessionPlaceholder(element)) {
+				return;
+			}
+			if (isSessionSection(element) && element.id === AUTOMATIONS_SECTION_ID) {
+				this._sectionRenderer.setActive(AUTOMATIONS_SECTION_ID, true);
+				this.tree.setSelection([]);
+				this.commandService.executeCommand('sessionsView.manageAutomations');
 				return;
 			}
 			if (!isSessionSection(element) && !isSessionGroupItem(element)) {
@@ -2408,6 +2497,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const renderSection = (section: ISessionSection): IObjectTreeElement<SessionListItem> => {
+			if (section.id === AUTOMATIONS_SECTION_ID) {
+				return {
+					element: section as SessionListItem,
+					children: [],
+					collapsible: false,
+				};
+			}
+
 			const isWorkspaceGroup = grouping === SessionsGrouping.Workspace
 				&& section.id.startsWith('workspace:');
 			const limitSessions = isWorkspaceGroup
@@ -2466,6 +2563,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				children: groupChildren,
 			};
 		};
+
+		if (this.contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key)) {
+			children.push(renderSection({ id: AUTOMATIONS_SECTION_ID, label: localize('automations', "Automations"), sessions: [] }));
+		}
 
 		const pinnedSection = sections.find(s => s.id === 'pinned');
 		if (pinnedSection) {

@@ -70,4 +70,9 @@ export interface ISessionsPartService {
 	 * progress bar shown at the top of the part's content area.
 	 */
 	getProgressIndicator(): IProgressIndicator;
+
+	/**
+	 * Shows the automations management page in the active (or first) session slot.
+	 */
+	showAutomationsPage(): void;
 }

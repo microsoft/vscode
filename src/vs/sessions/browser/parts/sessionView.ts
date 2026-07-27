@@ -305,6 +305,27 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	/**
+	 * Replaces the current view with the automations management page.
+	 * This bypasses the session-driven autorun since automations is not a session.
+	 */
+	showAutomationsView(): void {
+		this._openSessionDisposables.clear();
+		this._currentSession = undefined;
+		this._sessionObs.set(undefined, undefined);
+		this._hasOpenedSession = true;
+
+		const view = this.chatViewFactory.createAutomationsView();
+		this._contentContainer.replaceChildren(view.element);
+		this._currentView.value = view;
+		view.setActive(this._isActive);
+
+		this._header.setSession(undefined);
+		this._compositeBar.setSession(undefined);
+		this._floatingToolbar.setSession(undefined);
+		this._layoutChildren();
+	}
+
+	/**
 	 * Updates the view's maximized context key so toolbars hosted within can react.
 	 * Called by the owning {@link SessionsPart} when the grid's maximized view changes.
 	 */
