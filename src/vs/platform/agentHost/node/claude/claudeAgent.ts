@@ -1171,10 +1171,35 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// {@link shutdown} already serializing teardown for this same
 		// session id awaits this work first (and vice versa). When the session
 		// has not yet been materialized, abort the controller (unblocks any
-		// racing `await sdk.startup()`) and drop the record. No SDK contact,
-		// no DB write — symmetric with `createSession`.
+		// racing `await sdk.startup()`) and drop the record — nothing was ever
+		// persisted, so there is no SDK transcript to delete.
+		//
+		// A materialized session DOES have a durable SDK transcript, and
+		// `disposeSession` is the permanent-delete path (`AgentService.disposeSession`
+		// pairs it with deleting the VS Code-side session data — see its "mirror
+		// the SDK-side cleanup performed by the provider" comment). Mirrors
+		// `CopilotAgent.disposeSession` and this file's own `_removeAllTurns`: await
+		// the live subprocess's actual exit first (its final transcript flush makes
+		// the on-disk `<id>.jsonl` stable) so no live writer can recreate it after
+		// `deleteSession` removes it, then delete the transcript before dropping the
+		// in-memory record — otherwise the SDK remains the source of truth for
+		// `listSessions()` and rediscovers the "deleted" session on the next list.
+		//
+		// A session absent from `_sessions` is ambiguous — never created (or
+		// already disposed) vs. materialized in an earlier process and simply
+		// not resumed into this one — so it's resolved the same way
+		// `_removeAllTurns`'s cold path does: ask the SDK.
 		const sessionId = AgentSession.id(session);
 		return this._disposeSequencer.queue(sessionId, async () => {
+			const existing = this._findAnySession(sessionId);
+			if (existing) {
+				if (existing.isPipelineReady) {
+					await existing.shutdownLiveQuery();
+					await this._sdkService.deleteSession(sessionId);
+				}
+			} else if (await this._sdkService.getSessionInfo(sessionId)) {
+				await this._sdkService.deleteSession(sessionId);
+			}
 			await this._teardownEntry(sessionId);
 			this._pruneActiveClientHandles(sessionId);
 		});
@@ -1190,8 +1215,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * No-ops for provisional sessions (never materialized, so nothing on disk to
 	 * resume from) and for sessions with a turn in flight — tearing the pipeline
 	 * down mid-turn would abort live work. Shares the same in-memory teardown as
-	 * {@link disposeSession}; the destructive difference (deleting durable data)
-	 * lives in the orchestrator, which only invokes it on dispose.
+	 * {@link disposeSession}; the destructive difference (deleting the durable
+	 * SDK transcript) is layered on top only by {@link disposeSession}.
 	 */
 	releaseSession(session: URI): Promise<void> {
 		const sessionId = AgentSession.id(session);

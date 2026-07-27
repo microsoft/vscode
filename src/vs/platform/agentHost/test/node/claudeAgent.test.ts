@@ -1725,7 +1725,9 @@ suite('ClaudeAgent', () => {
 
 		// Phase 3: simulate cross-window resume by tearing the in-memory
 		// entry down and forcing the resume branch on the next send.
-		await agent.disposeSession(created.session);
+		// `releaseSession` (not `disposeSession`) is the non-destructive
+		// unload: `disposeSession` now also deletes the SDK transcript.
+		await agent.releaseSession(created.session);
 		sdk.sessionList = [{ sessionId, cwd: '/work-resume', summary: '', lastModified: Date.now() }];
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'turn 2', undefined, undefined, 'turn-2');
@@ -1884,7 +1886,9 @@ suite('ClaudeAgent', () => {
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1');
 
 		// Unload the session from memory; the transcript stays resumable.
-		await agent.disposeSession(created.session);
+		// `releaseSession` is the non-destructive unload — `disposeSession`
+		// now also deletes the SDK transcript.
+		await agent.releaseSession(created.session);
 		assert.strictEqual(agent.getSessionForTesting(created.session), undefined, 'unloaded');
 		sdk.sessionList = [{ sessionId, cwd: '/work', summary: '', lastModified: Date.now() }];
 
@@ -2005,8 +2009,11 @@ suite('ClaudeAgent', () => {
 
 		// Unload the session from memory; the transcript stays on disk. The
 		// remove-all path then has no live `existing` and must read the cwd
-		// from `getSessionInfo` before deleting + recreating.
-		await agent.disposeSession(created.session);
+		// from `getSessionInfo` before deleting + recreating. `releaseSession`
+		// (not `disposeSession`) is the non-destructive unload: `disposeSession`
+		// now also deletes the SDK transcript (this is the bug fix under test
+		// elsewhere), which would defeat this test's cold-path setup.
+		await agent.releaseSession(created.session);
 		assert.strictEqual(agent.getSessionForTesting(created.session), undefined, 'unloaded');
 		sdk.sessionList = [{ sessionId, cwd: '/work', summary: '', lastModified: Date.now() }];
 
@@ -3659,24 +3666,16 @@ suite('ClaudeAgent', () => {
 		await third;
 	});
 
-	test('disposeSession removes the wrapper but does NOT delete the SDK or DB session', async () => {
-		// Plan section 3.3.4 — `disposeSession` is wrapper teardown, NOT
-		// session deletion. The SDK session and the per-session DB
-		// outlive `disposeSession`; permanent deletion is a Phase 13
-		// concern (deletion command) and goes through a different code
-		// path. The user-visible consequence: closing a tab in the
-		// workbench drops the wrapper but the session reappears in the
-		// session list (and its history is still on disk) until
-		// explicitly deleted. This invariant prevents accidental
-		// regression in Phase 6+ where wrapper teardown will gain real
-		// cleanup work (Query.interrupt) — that work MUST NOT spill
-		// into SDK-side or DB-side deletion.
+	test('disposeSession on a still-provisional session does not attempt SDK deletion (nothing durable to delete)', async () => {
+		// A session that never sent a first message has no on-disk SDK
+		// transcript — `createSession` only registers the in-memory
+		// provisional wrapper. `disposeSession` must not call
+		// `deleteSession` in that case: there is nothing to delete, and the
+		// SDK remains the source of truth for any external session that
+		// happens to share the id.
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
-		// Make the SDK report the just-created session as if its
-		// metadata had been written by an earlier `query()` turn —
-		// that's the steady state once Phase 6 sendMessage lands.
 		sdk.sessionList = [{
 			sessionId: AgentSession.id(created.session),
 			summary: 'Hello world',
@@ -3687,14 +3686,70 @@ suite('ClaudeAgent', () => {
 		const result = await agent.listSessions();
 
 		assert.deepStrictEqual({
+			deleted: sdk.deleteSessionCalls,
 			ids: result.map(r => AgentSession.id(r.session)),
 			summary: result[0]?.summary,
-			sdkCalls: sdk.listSessionsCallCount,
 		}, {
+			deleted: [],
 			ids: [AgentSession.id(created.session)],
 			summary: 'Hello world',
-			sdkCalls: 1,
 		});
+	});
+
+	test('disposeSession deletes the SDK transcript for a materialized session, so it does not reappear in listSessions() (issue #325673)', async () => {
+		// Regression test: `listSessions` treats the SDK transcript as the
+		// source of truth (by design — external CLI sessions have no
+		// per-session DB), so a `disposeSession` that only tore down the
+		// in-memory wrapper left the transcript behind and the "deleted"
+		// session reappeared on the next list/refresh. `disposeSession` must
+		// also delete the underlying SDK session once it has been
+		// materialized.
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, 'turn-1');
+
+		await agent.disposeSession(created.session);
+
+		// Simulate the SDK-side effect of `deleteSession` (the fake SDK
+		// doesn't auto-mutate `sessionList`) to assert the session is gone
+		// from the next `listSessions()`/refresh, matching the issue's
+		// "does the session reappear" acceptance criterion.
+		sdk.sessionList = sdk.sessionList.filter(entry => entry.sessionId !== sessionId);
+		const result = await agent.listSessions();
+
+		assert.deepStrictEqual({
+			deleted: sdk.deleteSessionCalls,
+			ids: result.map(r => AgentSession.id(r.session)),
+		}, {
+			deleted: [sessionId],
+			ids: [],
+		});
+	});
+
+	test('disposeSession awaits the live query teardown (subprocess exit) before deleting the SDK transcript', async () => {
+		// Mirrors `truncateSession()`'s equivalent race guard: a premature
+		// `deleteSession` while the subprocess is still alive would race the
+		// dying writer re-flushing `<id>.jsonl`.
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, 'turn-1');
+
+		const exitGate = new DeferredPromise<void>();
+		sdk.queryReturnGate = exitGate.p;
+
+		const disposed = agent.disposeSession(created.session);
+		await timeout(0);
+		assert.deepStrictEqual(sdk.deleteSessionCalls, [], 'deleteSession ran before the subprocess exited');
+
+		exitGate.complete();
+		await disposed;
+		assert.deepStrictEqual(sdk.deleteSessionCalls, [sessionId]);
 	});
 
 	test('getSessionMessages returns an empty transcript for any session', async () => {
