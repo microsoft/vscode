@@ -122,7 +122,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.connecting',
 			title: nls.localize2('agentsVoice.connecting', "Connecting..."),
-			icon: Codicon.loading,
+			icon: Codicon.loadingCompact,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
 				AGENTS_VOICE_CONNECTING.isEqualTo(true),
@@ -150,7 +150,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.startVoiceInChat',
 			title: nls.localize2('agentsVoice.startVoiceInChat', "Voice Mode"),
-			icon: Codicon.voiceMode,
+			icon: Codicon.voiceModeCompact,
 			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
 			menu: {
 				id: MenuId.ChatExecute,
@@ -236,7 +236,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.pttStopInChat',
 			title: nls.localize2('agentsVoice.pttStopInChat', "Voice Mode: Stop Recording"),
-			icon: Codicon.voiceMode,
+			icon: Codicon.voiceModeCompact,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
 				AGENTS_VOICE_LISTENING.isEqualTo(true),
@@ -276,7 +276,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentsVoice.disconnect',
 			title: nls.localize2('agentsVoice.disconnect', "Disconnect Voice Mode"),
-			icon: Codicon.debugDisconnect,
+			icon: Codicon.debugDisconnectCompact,
 			f1: true,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),

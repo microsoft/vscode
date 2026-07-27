@@ -60,6 +60,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { getDictationHoverMarkdown } from '../../../../workbench/contrib/chat/browser/speechToText/micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions } from '../../../../workbench/contrib/chat/browser/speechToText/micButtonMenuActions.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
@@ -865,10 +866,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(this.hoverService.setupDelayedHover(button, () => ({
 			// While the model prepares, surface the download/connecting hover
 			// (which invites the user to click to cancel) so this composer matches
-			// the main chat toolbar affordance.
+			// the main chat toolbar affordance. Idle gets the richer description
+			// naming the configured dictation model.
 			content: sttService.isPreparingModel
 				? getDictationDownloadHoverMarkdown(sttService)
-				: (sttService.state !== ChatSpeechToTextState.Idle ? stopLabel : micLabel),
+				: (sttService.state !== ChatSpeechToTextState.Idle ? stopLabel : getDictationHoverMarkdown(micLabel, this.configurationService)),
 			position: { hoverPosition: HoverPosition.BELOW },
 			appearance: { showPointer: true }
 		})));
@@ -889,13 +891,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				// First-use only. The on-device backend downloads a model, so
 				// render a download icon wrapped by a progress ring; the cloud
 				// backend just connects, so render a plain spinner instead.
+				// Glyphs render at the compact 12px size, so use the `*Compact`
+				// variants where one exists.
 				if (sttService.currentBackend === 'mai') {
-					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
+					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
 				} else {
-					dom.append(button, renderIcon(Codicon.micDownload));
+					dom.append(button, renderIcon(Codicon.micDownloadCompact));
 					downloadRing.value = new DictationDownloadRing(button, sttService);
 				}
 			} else {
+				// `mic` / `micFilled` have no compact variant, so they stay as-is.
 				dom.append(button, renderIcon(recording ? Codicon.micFilled : Codicon.mic));
 			}
 			button.classList.toggle('recording', recording && !preparing);
