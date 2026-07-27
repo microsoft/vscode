@@ -45,6 +45,19 @@ Reducing this does not require making the recorded POSIX commands portable. Perm
 
 Where a scenario genuinely needs to run a command, prefer one that behaves the same under `cmd`/PowerShell and POSIX shells. `node -e "…"` (or a `.js` file seeded into the workspace and invoked as `node script.js`) is always available, since the suite already runs under Node. That keeps the real terminal tool, sandbox, streaming, and exit-code paths under test while removing the platform coupling.
 
+#### Porting a shell-dependent test: what actually has to change
+
+`runs a deterministic shell command` was ported first as a prototype. Three separate things coupled it to POSIX, and a fourth surfaced while re-recording. Expect to check all of them:
+
+1. **The prompt.** It described the command rather than specifying it, so the model chose one per provider and whatever it chose was frozen into the fixture — Copilot picked `echo SHELL_VALUE_73`, Claude picked `printf '%s\n' "SHELL_VALUE_73"`. The test was disabled on Windows for *all three* providers because of Claude's choice, even though Copilot's capture would have run there unmodified. Pin the command in the prompt.
+2. **The tool name in the AHP snapshot.** The Copilot CLI names its shell tools after the shell it runs (`bash` on POSIX, `powershell` on Windows), and that name reaches the client verbatim in `chat/toolCallStart`. Snapshots now record `${shell}`.
+3. **The tool name in the CAPI fixture.** The same name appears in the `tool_use` block that *drives* replay, so a macOS recording would instruct a Windows agent to call a tool that does not exist. Captures now store the placeholder and `CapiReplayProxy` expands it to the running platform's name on replay. Covered by `capiReplayProxyShellTools.test.ts`, which asserts both directions for both platforms — the replay half is otherwise only exercised on whichever platform the developer happens to use.
+4. **Empty reasoning parts.** A provider can open a reasoning part and close it without emitting a delta. Live recording sees it; replay rebuilds the stream from the fixture's aggregated content, where it leaves no trace. Any snapshot recorded during such a turn was permanently unreplayable. These are now dropped during projection.
+
+Only (1) is per-test work. (2), (3) and (4) are fixed centrally and should not need revisiting.
+
+Note that after this the *snapshot* for a ported test contains no command string and no tool output at all — the `behavior` profile records neither — so what remains platform-specific is only whether the command itself succeeds.
+
 ### Recorded model requests are never asserted
 
 `CapiReplayProxy` matches purely ordinally: the Nth request to a given `(method, path)` replays the Nth recorded response. The recorded `request:` block in a capture is normalized on write (for review and diff stability) but is never read back — `exchange.request` is only touched by `_writeFixture`. Replay is therefore driven entirely by the recorded responses.
@@ -158,7 +171,6 @@ The committed model captures can select POSIX shell commands, and several host-o
 | `lists workspace entries` | Windows | The scenario depends on provider shell execution. |
 | `counts lines in a file` | Windows | The scenario depends on provider shell execution. |
 | `renames a workspace file` | Windows | The scenario depends on provider shell execution. |
-| `runs a deterministic shell command` | Windows | The scenario directly exercises a shell command. |
 | `reads a file from a nested directory` | Copilot on Windows | The Copilot capture uses shell behavior that is not portable to Windows. |
 | `handles a missing file without a session error` | Copilot on Windows | The Copilot capture uses shell behavior that is not portable to Windows. |
 | `creates a file in a new nested directory` | Copilot on Windows | The Copilot capture uses a POSIX shell. |

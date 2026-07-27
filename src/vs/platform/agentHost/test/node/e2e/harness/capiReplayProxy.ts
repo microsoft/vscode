@@ -71,26 +71,36 @@ const FILE_LISTING_DATE_RE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|D
  * platform. Only the names that actually vary are mapped: Claude's `Bash` and
  * Codex's `shell` are fixed strings their SDKs use everywhere.
  */
-const SHELL_TOOL_SUFFIXES = ['', 'read_', 'write_', 'stop_', 'list_'] as const;
+const SHELL_TOOL_PREFIXES = ['', 'read_', 'write_', 'stop_', 'list_'] as const;
 const SHELL_TOOL_PLACEHOLDERS = new Map<string, string>();
-const SHELL_TOOL_EXPANSIONS = new Map<string, string>();
-for (const prefix of SHELL_TOOL_SUFFIXES) {
+for (const prefix of SHELL_TOOL_PREFIXES) {
 	const placeholder = `\${${prefix}shell}`;
 	SHELL_TOOL_PLACEHOLDERS.set(`${prefix}bash`, placeholder);
 	SHELL_TOOL_PLACEHOLDERS.set(`${prefix}powershell`, placeholder);
-	SHELL_TOOL_EXPANSIONS.set(placeholder, `${prefix}${process.platform === 'win32' ? 'powershell' : 'bash'}`);
 }
 SHELL_TOOL_PLACEHOLDERS.set('bash_shutdown', '${shell_shutdown}');
 SHELL_TOOL_PLACEHOLDERS.set('powershell_shutdown', '${shell_shutdown}');
-SHELL_TOOL_EXPANSIONS.set('${shell_shutdown}', process.platform === 'win32' ? 'powershell_shutdown' : 'bash_shutdown');
 
-function normalizeShellToolNameForCapture(toolName: string): string {
+/** Rewrites a platform-specific shell tool name to its stable placeholder. */
+export function normalizeShellToolNameForCapture(toolName: string): string {
 	return SHELL_TOOL_PLACEHOLDERS.get(toolName) ?? toolName;
 }
 
-function expandShellToolName(toolName: string): string {
-	return SHELL_TOOL_EXPANSIONS.get(toolName) ?? toolName;
+/**
+ * Expands a shell tool placeholder to the name the given platform uses.
+ *
+ * `platform` is injectable so both branches are testable from either host;
+ * it defaults to the running platform.
+ */
+export function expandShellToolName(toolName: string, platform: NodeJS.Platform = process.platform): string {
+	const match = /^\$\{(?<prefix>read_|write_|stop_|list_)?shell(?<shutdown>_shutdown)?\}$/.exec(toolName);
+	if (!match) {
+		return toolName;
+	}
+	const shell = platform === 'win32' ? 'powershell' : 'bash';
+	return match.groups?.shutdown ? `${shell}_shutdown` : `${match.groups?.prefix ?? ''}${shell}`;
 }
+
 
 /**
  * Placeholder for the recorder's OS username. It appears in captured tool output
