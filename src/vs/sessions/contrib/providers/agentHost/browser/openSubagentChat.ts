@@ -191,7 +191,7 @@ registerAction2(OpenSubagentChatAction);
  * Renders the "Open Subagent" pill as a standalone chip (styled like the chat
  * file/diff pill). See SESSIONS.md and `./media/openSubagentChat.css` for details.
  */
-class OpenSubagentChatActionViewItem extends BaseActionViewItem {
+export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 
 	private _resolvedTitle: string | undefined;
 	private _confirmationCount = 0;
@@ -273,12 +273,14 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		const resource = contextChatResource(this._context);
 		if (!resource) {
 			this._titleTracker.clear();
+			this.element?.classList.add('hidden');
 			this._setResolvedTitle(undefined);
 			this._setStatus(undefined);
 			return;
 		}
 		this._titleTracker.value = autorun(reader => {
 			const chat = findSubagentChat(this.sessionsService, resource, reader)?.chat;
+			this.element?.classList.toggle('hidden', !chat);
 			this._setResolvedTitle(chat?.title.read(reader) || undefined);
 			this._setStatus(chat?.status.read(reader));
 		});
