@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 5
-
 declare module 'vscode' {
 
 	/**
@@ -48,6 +46,14 @@ declare module 'vscode' {
 		readonly multiplierNumeric?: number;
 
 		/**
+		 * Whether this model is a "bring your own key" (BYOK) model, i.e. it is
+		 * served using credentials the user supplied rather than through the
+		 * built-in Copilot (CAPI) service. When unset, the model is treated as
+		 * a non-BYOK / CAPI-served model.
+		 */
+		readonly isBYOK?: boolean;
+
+		/**
 		 * Whether or not this will be selected by default in the model picker
 		 * NOT BEING FINALIZED
 		 */
@@ -77,6 +83,28 @@ declare module 'vscode' {
 		 * The value must match a `type` declared in a `chatSessions` extension contribution.
 		 */
 		readonly targetChatSessionType?: string;
+
+		/**
+		 * Optional warning text to display in the model picker hover as a warning banner.
+		 * The keys are warning categories (e.g. "data_retention") and the values are markdown strings.
+		 * Unlike degradation warnings, this does not produce a warning icon in the picker list.
+		 */
+		readonly warningText?: Record<string, string>;
+
+		/**
+		 * Optional promotional information for this model. When present, indicates the model
+		 * is currently experiencing a promotional discount.
+		 */
+		readonly promo?: {
+			/** Unique identifier for the promotion. */
+			readonly id: string;
+			/** The discount percentage (e.g. 20 for 20% off). */
+			readonly discountPercent: number;
+			/** ISO 8601 date string indicating when the promotion ends. */
+			readonly endsAt: string;
+			/** A human-readable message about the promotion. */
+			readonly message: string;
+		};
 	}
 
 	export interface LanguageModelChatCapabilities {

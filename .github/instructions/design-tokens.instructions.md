@@ -5,6 +5,13 @@ applyTo: src/vs/**/*.css
 
 # Design tokens for sizing, spacing & radii
 
+> **These tokens are the *moves*, not the reasoning.** They implement the
+> **design philosophy** (Values → Principles → Moves): reach for a token *after*
+> naming the feeling and the principle it serves - a radius is an *elevation
+> tier*, a font is a *type role*, not a number. See the
+> [`design-philosophy` skill](../skills/design-philosophy/SKILL.md) for the full
+> vocabulary, worked examples, and how to give UI feedback in design terms.
+
 VS Code ships a design-system **size** ramp. These tokens are registered in
 [baseSizes.ts](../../src/vs/platform/theme/common/sizes/baseSizes.ts) (and the
 agents font ramp in [sizes.ts](../../src/vs/sessions/common/sizes.ts)) and are
@@ -76,16 +83,32 @@ of a shorthand is checked independently (`0 5px → 0 6px`). `auto`, `%`,
 
 ## Font size — `font-size`
 
-Generic UI chrome (fixed px):
+Generic UI ramp — pair a **size** token with a **weight** token; "Strong"
+reuses the matching size token + `fontWeight.semiBold`, **never** a separate
+"strong" size:
 
-| px | Variable |
-|----|----------|
-| 13 | `--vscode-bodyFontSize` (base) |
-| 12 | `--vscode-bodyFontSize-small` |
-| 11 | `--vscode-bodyFontSize-xSmall` |
+| px | Size var | Weight |
+|----|----------|--------|
+| 26 | `--vscode-fontSize-heading1` | semiBold |
+| 18 | `--vscode-fontSize-heading2` | semiBold |
+| 13 | `--vscode-fontSize-heading3` | semiBold |
+| 13 | `--vscode-fontSize-body1` | regular |
+| 11 | `--vscode-fontSize-body2` | regular |
+| 12 | `--vscode-fontSize-label1` | regular |
+| 11 | `--vscode-fontSize-label2` | regular |
+| 10 | `--vscode-fontSize-label3` | regular |
 
-Agents window ramp (`src/vs/sessions/**`) — pair size with a weight token,
-**never** add a separate "strong" size:
+**Deprecated** — the legacy `--vscode-bodyFontSize*` tokens are deprecated. Use
+the generic ramp above instead:
+
+| Deprecated | px | Use instead |
+|------------|----|-------------|
+| `--vscode-bodyFontSize` | 13 | `--vscode-fontSize-body1` |
+| `--vscode-bodyFontSize-small` | 12 | `--vscode-fontSize-label1` |
+| `--vscode-bodyFontSize-xSmall` | 11 | `--vscode-fontSize-body2` |
+
+Agents window ramp (`src/vs/sessions/**`) — identical values, `agents-`-prefixed
+(pair size with a weight token, **never** add a separate "strong" size):
 
 | px | Size var | Weight |
 |----|----------|--------|
@@ -105,26 +128,26 @@ is no medium (500). "Strong" = same size token + `semiBold`. See
 
 ## Font weight — `font-weight`
 
-The agents window uses a **two-weight ramp** — there are no other weights.
-Pair every text style with one of these:
+Both the generic and agents ramps use a **two-weight ramp** — there are no other
+weights. Pair every text style with one of these:
 
-| weight | Variable | Use |
-|--------|----------|-----|
-| 400 | `--vscode-agents-fontWeight-regular` | body, labels, metadata |
-| 600 | `--vscode-agents-fontWeight-semiBold` | headings, "strong" emphasis |
+| weight | Generic var | Agents var | Use |
+|--------|-------------|------------|-----|
+| 400 | `--vscode-fontWeight-regular` | `--vscode-agents-fontWeight-regular` | body, labels, metadata |
+| 600 | `--vscode-fontWeight-semiBold` | `--vscode-agents-fontWeight-semiBold` | headings, "strong" emphasis |
 
 - **No medium (500).** `font-weight: 500` is **off the ramp** — snap it to
   `semiBold` (600). The same goes for `700`/`bold` and any other numeric weight:
   round to the nearer of 400/600.
 - **"Strong" is not a separate size.** A "Body 1 Strong" / "Label 2 Strong"
-  style reuses the matching `--vscode-agents-fontSize-*` token paired with
-  `semiBold`. Never introduce a separate strong *size* token.
+  style reuses the matching `--vscode-fontSize-*` (or `--vscode-agents-fontSize-*`)
+  token paired with `semiBold`. Never introduce a separate strong *size* token.
 - `normal` ≡ 400 → `regular`. **Leave untouched:** `inherit`, `lighter`,
   `bolder`, and any `var()`/`calc()` expression. Preserve `!important`.
 
 ```css
 /* avoid */            font-weight: 500;   /* not on the 400/600 ramp */
-/* prefer */           font-weight: var(--vscode-agents-fontWeight-semiBold);
+/* prefer */           font-weight: var(--vscode-fontWeight-semiBold);
 ```
 
 ## Codicon size — icon `font-size`
@@ -164,3 +187,13 @@ width of 1px should use the token.
 
 Applies to the `border: 1px solid <color>` shorthand and `border-width: 1px`.
 Other widths have no token — leave them as-is.
+
+## `.monaco-editor-background` must be opaque
+
+`.monaco-editor-background` must use a fully opaque color — making it
+`transparent` (or any partial alpha) is forbidden. Monaco reuses this layer to
+carve the reverse-rounded notches out of text selections, so a non-opaque
+background introduces subtle rendering bugs (blocky selection corners) and
+performance problems. To blend an embedded editor into its surface, keep
+`.monaco-editor` transparent and paint `.monaco-editor-background` with the
+container's solid background color.

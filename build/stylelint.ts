@@ -7,7 +7,7 @@ import es from 'event-stream';
 import vfs from 'vinyl-fs';
 import { stylelintFilter } from './filters.ts';
 import { getVariableNameValidator } from './lib/stylelint/validateVariableNames.ts';
-import { validateCodiconFontSizes, validateFontSizeTokens, validateFontWeightTokens, validateCornerRadiusTokens, validateSpacingTokens, validateStrokeTokens } from './lib/stylelint/validateDesignTokens.ts';
+import { validateCodiconFontSizes, validateFontSizeTokens, validateFontWeightTokens, validateCornerRadiusTokens, validateSpacingTokens, validateStrokeTokens, validateDeprecatedTokens } from './lib/stylelint/validateDesignTokens.ts';
 
 interface FileWithLines {
 	__lines?: string[];
@@ -21,9 +21,10 @@ type Reporter = (message: string, isError: boolean) => void;
  * Stylelint gulpfile task. When `designTokensEverywhere` is `true` the
  * design-token suggestions run on every linted file rather than only the
  * design-system area (`src/vs/sessions`); used when the caller explicitly
- * targets a path so the checks follow the requested scope.
+ * targets a path so the checks follow the requested scope. Set
+ * `reportDesignTokenSuggestions` to `false` when only enforced checks should run.
  */
-export default function gulpstylelint(reporter: Reporter, designTokensEverywhere = false): NodeJS.ReadWriteStream {
+export default function gulpstylelint(reporter: Reporter, designTokensEverywhere = false, reportDesignTokenSuggestions = true): NodeJS.ReadWriteStream {
 	const variableValidator = getVariableNameValidator();
 	let errorCount = 0;
 	const monacoWorkbenchPattern = /\.monaco-workbench/;
@@ -32,7 +33,7 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 	const layerCheckerDisablePattern = /\/\*\s*stylelint-disable\s+layer-checker\s*\*\//;
 
 	// Per-category tally of design-token suggestions for the summary footer.
-	const designTokenCounts: Record<string, number> = { codicon: 0, 'font-size': 0, weight: 0, radius: 0, spacing: 0, stroke: 0 };
+	const designTokenCounts: Record<string, number> = { codicon: 0, 'font-size': 0, weight: 0, radius: 0, spacing: 0, stroke: 0, deprecated: 0 };
 	let designTokenFileCount = 0;
 
 	return es.through(function (this, file: FileWithLines) {
@@ -65,7 +66,7 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 		// file header as compact `path(line,col): [category] value -> var` rows so
 		// the terminal both groups them visually and linkifies each row.
 		const contents = file.contents.toString('utf8');
-		if (designTokensEverywhere || designSystemPattern.test(file.relative)) {
+		if (reportDesignTokenSuggestions && (designTokensEverywhere || designSystemPattern.test(file.relative))) {
 			const findings: { line: number; category: string; message: string }[] = [];
 			for (const v of validateCodiconFontSizes(contents)) { findings.push({ line: v.line, category: 'codicon', message: v.message }); }
 			for (const v of validateFontSizeTokens(contents)) { findings.push({ line: v.line, category: 'font-size', message: v.message }); }
@@ -73,6 +74,7 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 			for (const v of validateCornerRadiusTokens(contents)) { findings.push({ line: v.line, category: 'radius', message: v.message }); }
 			for (const v of validateSpacingTokens(contents)) { findings.push({ line: v.line, category: 'spacing', message: v.message }); }
 			for (const v of validateStrokeTokens(contents)) { findings.push({ line: v.line, category: 'stroke', message: v.message }); }
+			for (const v of validateDeprecatedTokens(contents)) { findings.push({ line: v.line, category: 'deprecated', message: v.message }); }
 
 			if (findings.length > 0) {
 				findings.sort((a, b) => a.line - b.line);
@@ -91,7 +93,7 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 		if (errorCount > 0) {
 			reporter('All valid variable names are in `build/lib/stylelint/vscode-known-variables.json`\nTo update that file, run `./scripts/test-documentation.sh|bat.`', false);
 		}
-		const designTokenTotal = designTokenCounts.codicon + designTokenCounts['font-size'] + designTokenCounts.weight + designTokenCounts.radius + designTokenCounts.spacing + designTokenCounts.stroke;
+		const designTokenTotal = designTokenCounts.codicon + designTokenCounts['font-size'] + designTokenCounts.weight + designTokenCounts.radius + designTokenCounts.spacing + designTokenCounts.stroke + designTokenCounts.deprecated;
 		if (designTokenTotal > 0) {
 			reporter('', false);
 			reporter(
@@ -101,7 +103,8 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 				', weight ' + designTokenCounts.weight +
 				', radius ' + designTokenCounts.radius +
 				', spacing ' + designTokenCounts.spacing +
-				', stroke ' + designTokenCounts.stroke + ')',
+				', stroke ' + designTokenCounts.stroke +
+				', deprecated ' + designTokenCounts.deprecated + ')',
 				false
 			);
 		}

@@ -9,26 +9,39 @@
 	display: none;
 }
 
-/* input specific styling */
+/* input specific styling - box look comes from the shared container rule below */
 .interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-carousel-container,
 .interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container .chat-question-carousel-container {
 	margin: 0;
-	border: 1px solid var(--vscode-input-border, transparent);
-	background-color: var(--vscode-panel-background);
-	border-radius: var(--vscode-cornerRadius-large);
 }
 
-/* general questions styling */
+/* general questions styling - matches the tool confirmation (permissions) box family */
 .interactive-session .chat-question-carousel-container {
 	margin: 8px 0;
-	border: 1px solid var(--vscode-chat-requestBorder);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-chat-requestBorder));
 	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-panel-background);
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
 	container-type: inline-size;
 	max-height: min(420px, 45vh);
 	position: relative;
+}
+
+.interactive-session .chat-question-carousel-container:focus {
+	outline: none;
+}
+
+.interactive-session .chat-question-carousel-container:focus-visible,
+.interactive-session .chat-question-carousel-container:focus-within {
+	border-color: var(--vscode-focusBorder);
+}
+
+/* in the agents window / editor the surface is the editor background */
+.agent-sessions-workbench .interactive-session .chat-question-carousel-container,
+.editor-instance .interactive-session .chat-question-carousel-container {
+	background-color: var(--vscode-editor-background);
 }
 
 /* input part wrapper */
@@ -315,6 +328,11 @@
 			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
 		}
 
+		.chat-question-list-item.multi-select:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: -1px;
+		}
+
 		/* Checkbox for multi-select */
 		.chat-question-list-checkbox {
 			flex-shrink: 0;
@@ -535,7 +553,8 @@
 		overflow-wrap: break-word;
 	}
 
-	.chat-question-summary-skipped {
+	.chat-question-summary-skipped,
+	.chat-question-summary-answered {
 		color: var(--vscode-descriptionForeground);
 		font-style: italic;
 		font-size: var(--vscode-chat-font-size-body-s);

@@ -23,6 +23,12 @@ const ignores = fs.readFileSync(path.join(import.meta.dirname, '.eslint-ignore')
 	.split(/\r\n|\n/)
 	.filter(line => line && !line.startsWith('#'));
 
+const allowedJavaScriptFiles = fs.readFileSync(path.join(import.meta.dirname, '.eslint-allowed-javascript-files'), 'utf8')
+	.toString()
+	.split(/\r\n|\n/)
+	.map(line => line.trim())
+	.filter(line => line && !line.startsWith('#'));
+
 export default defineConfig(
 	// Global ignores
 	{
@@ -348,6 +354,30 @@ export default defineConfig(
 		},
 		rules: {
 			'local/code-no-in-operator': 'warn',
+		}
+	},
+	// Guard the agent host protocol `_meta` bag: no untyped field access or casts.
+	{
+		files: [
+			'src/vs/platform/agentHost/**/*.ts',
+			'src/vs/workbench/contrib/chat/browser/agentSessions/**/*.ts',
+			'src/vs/workbench/services/agentHost/**/*.ts',
+			'src/vs/sessions/**/*.ts',
+		],
+		ignores: [
+			// Tests assert on the raw `_meta` wire shape on purpose (verifying
+			// producers); routing them through readers would weaken them.
+			'**/test/**',
+			'**/*.test.ts',
+			'**/*.integrationTest.ts',
+			// Codex's own generated app-server protocol (not AHP `_meta`).
+			'src/vs/platform/agentHost/node/codex/protocol/**',
+		],
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-untyped-meta-access': 'warn',
 		}
 	},
 	// Strict no explicit `any`
@@ -1521,6 +1551,7 @@ export default defineConfig(
 						'console',
 						'cookie',
 						'crypto',
+						'detect-libc',
 						'dns',
 						'events',
 						'fs',
@@ -1546,6 +1577,7 @@ export default defineConfig(
 						'undici',
 						'undici-types',
 						'url',
+						'module',
 						'util',
 						'vscode-regexpp',
 						'vscode-textmate',
@@ -1645,6 +1677,7 @@ export default defineConfig(
 						'@microsoft/1ds-core-js', // node module allowed even in /common/
 						'@microsoft/1ds-post-js', // node module allowed even in /common/
 						'@xterm/headless', // node module allowed even in /common/
+						'@vscode/fs-copyfile', // used by agentHost for file copying after worktree creation
 						'@vscode/tree-sitter-wasm', // used by agentHost for command auto-approval
 						'@vscode/copilot-api', // used by agentHost for Copilot API requests
 						'@anthropic-ai/sdk', // used by agentHost for Anthropic API requests
@@ -2906,166 +2939,16 @@ export default defineConfig(
 		}
 	},
 	// Forbid new JavaScript files - use TypeScript instead.
-	// The `ignores` list below is the allowlist of pre-existing JS/CJS/MJS files.
-	// Do NOT add new entries here; convert your file to TypeScript instead.
+	// The allowlist of pre-existing JS/CJS/MJS files lives in
+	// `.eslint-allowed-javascript-files`, which is gated by CODEOWNERS.
+	// Do NOT add new entries; convert your file to TypeScript instead.
 	{
 		files: [
 			'**/*.js',
 			'**/*.cjs',
 			'**/*.mjs',
 		],
-		ignores: [
-			'.github/skills/heap-snapshot-analysis/helpers/streamSnapshot.mjs',
-			'.vscode-test.js',
-			'build/azure-pipelines/common/installPlaywright.js',
-			'build/azure-pipelines/github-check-run.js',
-			'build/builtin/browser-main.js',
-			'build/builtin/main.js',
-			'build/codex/generate-protocol.mjs',
-			'eslint.config.js',
-			'extensions/copilot/.mocha-multi-reporters.js',
-			'extensions/copilot/.mocharc.js',
-			'extensions/copilot/.vscode-test.mjs',
-			'extensions/copilot/.vscode/extensions/visualization-runner/entry.js',
-			'extensions/copilot/build/listBuildCacheFiles.js',
-			'extensions/copilot/script/electron/simulationWorkbenchMain.js',
-			'extensions/copilot/src/extension/completions-core/vscode-node/extension/test/run.js',
-			'extensions/copilot/src/extension/test/node/fixtures/gitdiff/generate-diffs.js',
-			'extensions/copilot/src/platform/parser/test/node/fixtures/test.js',
-			'extensions/copilot/test/scenarios/test-cli/wkspc1/sample.js',
-			'extensions/copilot/test/scenarios/test-cli/wkspc1/stringUtils.js',
-			'extensions/copilot/test/scenarios/test-cli/wkspc1/utils.js',
-			'extensions/copilot/test/scenarios/test-cli/wkspc2/foobar.js',
-			'extensions/copilot/test/scenarios/test-scenario-1/bar.js',
-			'extensions/copilot/test/scenarios/test-scenario-1/fib.js',
-			'extensions/copilot/test/scenarios/test-system/puppeteer.js',
-			'extensions/copilot/test/simulation/fixtures/edit/issue-6329/math.js',
-			'extensions/copilot/test/simulation/fixtures/edit/issue-7282/math.js',
-			'extensions/copilot/test/simulation/fixtures/editing/math.js',
-			'extensions/copilot/test/simulation/fixtures/gen-twice-issue-3597/new.js',
-			'extensions/copilot/test/simulation/fixtures/generate/issue-6956/.eslintrc.js',
-			'extensions/copilot/test/simulation/fixtures/multiFile/unicode-string-sequences/example.js',
-			'extensions/copilot/test/simulation/fixtures/multiFileEdit/two-edits/generate-command-ts.js',
-			'extensions/copilot/test/simulation/fixtures/review/binary-search-1.js',
-			'extensions/copilot/test/simulation/fixtures/review/binary-search-2.js',
-			'extensions/copilot/test/simulation/fixtures/tests/generate-jest/some/app.js',
-			'extensions/copilot/test/simulation/fixtures/tests/generate-jest/some/sum.js',
-			'extensions/copilot/test/simulation/fixtures/tests/generate-jest/some/sum.test.js',
-			'extensions/copilot/test/simulation/fixtures/tests/simple-js-proj copy/src/index.js',
-			'extensions/copilot/test/simulation/fixtures/tests/simple-js-proj/src/index.js',
-			'extensions/copilot/test/simulationExtension/extension.js',
-			'extensions/cpp/build/update-grammars.js',
-			'extensions/css-language-features/server/test/index.js',
-			'extensions/css-language-features/server/test/pathCompletionFixtures/.foo.js',
-			'extensions/css-language-features/server/test/pathCompletionFixtures/src/feature.js',
-			'extensions/css-language-features/server/test/pathCompletionFixtures/src/test.js',
-			'extensions/git-base/build/update-grammars.js',
-			'extensions/git/build/update-emoji.js',
-			'extensions/html-language-features/build/bundleTypeScriptLibraries.js',
-			'extensions/html-language-features/server/src/test/pathCompletionFixtures/.foo.js',
-			'extensions/html-language-features/server/src/test/pathCompletionFixtures/src/feature.js',
-			'extensions/html-language-features/server/src/test/pathCompletionFixtures/src/test.js',
-			'extensions/html-language-features/server/test/index.js',
-			'extensions/html/build/update-grammar.mjs',
-			'extensions/json/build/update-grammars.js',
-			'extensions/latex/build/update-grammars.js',
-			'extensions/less/build/update-grammar.js',
-			'extensions/media-preview/media/audioPreview.js',
-			'extensions/media-preview/media/imagePreview.js',
-			'extensions/media-preview/media/videoPreview.js',
-			'extensions/microsoft-authentication/packageMocks/dpapi/dpapi.js',
-			'extensions/microsoft-authentication/packageMocks/keytar/index.js',
-			'extensions/objective-c/build/update-grammars.js',
-			'extensions/php/build/update-grammar.mjs',
-			'extensions/postinstall.mjs',
-			'extensions/razor/build/update-grammar.mjs',
-			'extensions/rust/build/update-grammar.mjs',
-			'extensions/search-result/syntaxes/generateTMLanguage.js',
-			'extensions/sql/build/update-grammar.mjs',
-			'extensions/terminal-suggest/scripts/update-specs.js',
-			'extensions/theme-seti/build/update-icon-theme.js',
-			'extensions/typescript-basics/build/update-grammars.mjs',
-			'extensions/typescript-language-features/test-workspace/foojs.js',
-			'extensions/vscode-api-tests/testWorkspace/debug.js',
-			'extensions/vscode-api-tests/testWorkspace/far.js',
-			'extensions/vscode-api-tests/testWorkspace/worker.js',
-			'extensions/vscode-colorize-tests/test/colorize-fixtures/test.js',
-			'extensions/vscode-colorize-tests/test/colorize-fixtures/test6916.js',
-			'extensions/yaml/build/update-grammar.js',
-			'gulpfile.mjs',
-			'scripts/chat-simulation/common/perf-scenarios.js',
-			'scripts/chat-simulation/common/utils.js',
-			'scripts/chat-simulation/merge-ci-summary.js',
-			'scripts/chat-simulation/test-chat-mem-leaks.js',
-			'scripts/chat-simulation/test-chat-perf-regression.js',
-			'scripts/code-agent-host.js',
-			'scripts/code-perf.js',
-			'scripts/code-server.js',
-			'scripts/code-sessions-web.js',
-			'scripts/code-web.js',
-			'scripts/xterm-update.js',
-			'src/vs/base/browser/dompurify/dompurify.js',
-			'src/vs/base/common/marked/marked.js',
-			'src/vs/base/common/semver/semver.js',
-			'src/vs/base/test/common/filters.perf.data.js',
-			'src/vs/editor/test/node/diffing/fixtures/difficult-move/1.js',
-			'src/vs/editor/test/node/diffing/fixtures/difficult-move/2.js',
-			'src/vs/editor/test/node/diffing/fixtures/just-whitespace/1.js',
-			'src/vs/editor/test/node/diffing/fixtures/just-whitespace/2.js',
-			'src/vs/platform/files/test/node/fixtures/resolver/examples/company.js',
-			'src/vs/platform/files/test/node/fixtures/resolver/examples/conway.js',
-			'src/vs/platform/files/test/node/fixtures/resolver/examples/employee.js',
-			'src/vs/platform/files/test/node/fixtures/resolver/examples/small.js',
-			'src/vs/platform/files/test/node/fixtures/resolver/other/deep/company.js',
-			'src/vs/platform/files/test/node/fixtures/resolver/other/deep/conway.js',
-			'src/vs/platform/files/test/node/fixtures/resolver/other/deep/employee.js',
-			'src/vs/platform/files/test/node/fixtures/resolver/other/deep/small.js',
-			'src/vs/platform/files/test/node/fixtures/service/deep/company.js',
-			'src/vs/platform/files/test/node/fixtures/service/deep/conway.js',
-			'src/vs/platform/files/test/node/fixtures/service/deep/employee.js',
-			'src/vs/platform/files/test/node/fixtures/service/deep/small.js',
-			'src/vs/sessions/test/e2e/common.cjs',
-			'src/vs/sessions/test/e2e/extensions/sessions-e2e-mock/extension.js',
-			'src/vs/sessions/test/e2e/generate.cjs',
-			'src/vs/sessions/test/e2e/test.cjs',
-			'src/vs/workbench/contrib/webview/browser/pre/service-worker.js',
-			'src/vs/workbench/services/keybinding/test/node/linux_de_ch.js',
-			'src/vs/workbench/services/keybinding/test/node/linux_en_uk.js',
-			'src/vs/workbench/services/keybinding/test/node/linux_en_us.js',
-			'src/vs/workbench/services/keybinding/test/node/linux_ru.js',
-			'src/vs/workbench/services/keybinding/test/node/mac_de_ch.js',
-			'src/vs/workbench/services/keybinding/test/node/mac_en_us.js',
-			'src/vs/workbench/services/keybinding/test/node/mac_zh_hant.js',
-			'src/vs/workbench/services/keybinding/test/node/mac_zh_hant2.js',
-			'src/vs/workbench/services/keybinding/test/node/win_de_ch.js',
-			'src/vs/workbench/services/keybinding/test/node/win_en_us.js',
-			'src/vs/workbench/services/keybinding/test/node/win_por_ptb.js',
-			'src/vs/workbench/services/keybinding/test/node/win_ru.js',
-			'src/vs/workbench/services/search/test/node/fixtures/examples/NullPoinderException.js',
-			'src/vs/workbench/services/search/test/node/fixtures/examples/company.js',
-			'src/vs/workbench/services/search/test/node/fixtures/examples/employee.js',
-			'src/vs/workbench/services/search/test/node/fixtures/examples/small.js',
-			'test/automation/tools/copy-driver-definition.js',
-			'test/automation/tools/copy-package-version.js',
-			'test/integration/electron/testrunner.js',
-			'test/monaco/core.js',
-			'test/monaco/esm-check/esm-check.js',
-			'test/monaco/esm-check/index.js',
-			'test/monaco/runner.js',
-			'test/monaco/webpack.config.js',
-			'test/smoke/extensions/vscode-smoketest-ext-host/extension.js',
-			'test/smoke/test/index.js',
-			'test/unit/analyzeSnapshot.js',
-			'test/unit/assert.js',
-			'test/unit/browser/index.js',
-			'test/unit/coverage.js',
-			'test/unit/electron/index.js',
-			'test/unit/electron/preload.js',
-			'test/unit/electron/renderer.js',
-			'test/unit/fullJsonStreamReporter.js',
-			'test/unit/node/index.js',
-			'test/unit/reporter.js',
-		],
+		ignores: allowedJavaScriptFiles,
 		plugins: {
 			'local': pluginLocal,
 		},

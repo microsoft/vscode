@@ -21,13 +21,11 @@ import '../../../browser/parts/auxiliarybar/media/auxiliaryBarPart.css';
 // Theme
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
-import { ColorScheme, ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
-import { IColorTheme, IThemeService, IThemingRegistry, Extensions as ThemingExtensions } from '../../../../platform/theme/common/themeService.js';
-import { generateColorThemeCSS } from '../../../services/themes/browser/colorThemeCss.js';
+import { ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
+import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ColorThemeData } from '../../../services/themes/common/colorThemeData.js';
 import { ExtensionData } from '../../../services/themes/common/workbenchThemeService.js';
+import { ensureGlobalStylesInstalled, getStylesheetDocumentFiles, overrideStylesheetOrder, ReverseStylesheetsOption } from './fixtureUtilsCss.js';
 
 // Instantiation
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -69,6 +67,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IDataChannelService, NullDataChannelService } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -100,6 +99,8 @@ import { IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedbac
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ISessionsService } from '../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
@@ -244,9 +245,6 @@ class NullStorageService implements IStorageService {
 // Themes
 // ============================================================================
 
-const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
-const mockEnvironmentService: IEnvironmentService = Object.create(null);
-
 // Eagerly bundle all built-in theme JSON files so they can be served to
 // `_loadColorTheme` via the IExtensionResourceLoaderService code path. The
 // rspack config maps these JSON files to `asset/source`, so they are imported
@@ -256,6 +254,7 @@ const mockEnvironmentService: IEnvironmentService = Object.create(null);
 import dark_modern from '../../../../../../extensions/theme-defaults/themes/dark_modern.json' with { type: 'json' };
 import dark_plus from '../../../../../../extensions/theme-defaults/themes/dark_plus.json' with { type: 'json' };
 import dark_vs from '../../../../../../extensions/theme-defaults/themes/dark_vs.json' with { type: 'json' };
+import hc_black from '../../../../../../extensions/theme-defaults/themes/hc_black.json' with { type: 'json' };
 import light_modern from '../../../../../../extensions/theme-defaults/themes/light_modern.json' with { type: 'json' };
 import light_plus from '../../../../../../extensions/theme-defaults/themes/light_plus.json' with { type: 'json' };
 import light_vs from '../../../../../../extensions/theme-defaults/themes/light_vs.json' with { type: 'json' };
@@ -265,6 +264,7 @@ const themeJsonModules: Record<string, string> = {
 	'/extensions/theme-defaults/themes/dark_modern.json': dark_modern as unknown as string,
 	'/extensions/theme-defaults/themes/dark_plus.json': dark_plus as unknown as string,
 	'/extensions/theme-defaults/themes/dark_vs.json': dark_vs as unknown as string,
+	'/extensions/theme-defaults/themes/hc_black.json': hc_black as unknown as string,
 	'/extensions/theme-defaults/themes/light_modern.json': light_modern as unknown as string,
 	'/extensions/theme-defaults/themes/light_plus.json': light_plus as unknown as string,
 	'/extensions/theme-defaults/themes/light_vs.json': light_vs as unknown as string,
@@ -295,98 +295,84 @@ function createBuiltInTheme(themePath: string, uiTheme: ThemeTypeSelector): Colo
 
 export const darkTheme = createBuiltInTheme('/extensions/theme-defaults/themes/dark_modern.json', ThemeTypeSelector.VS_DARK);
 export const lightTheme = createBuiltInTheme('/extensions/theme-defaults/themes/light_modern.json', ThemeTypeSelector.VS);
+const darkHighContrastTheme = createBuiltInTheme('/extensions/theme-defaults/themes/hc_black.json', ThemeTypeSelector.HC_BLACK);
 
-let globalStyleSheet: CSSStyleSheet | undefined;
-let iconsStyleSheetCache: CSSStyleSheet | undefined;
-let darkThemeStyleSheet: CSSStyleSheet | undefined;
-let lightThemeStyleSheet: CSSStyleSheet | undefined;
+type ComponentFixtureThemeVariant = {
+	readonly label: string;
+	readonly background: 'dark' | 'light';
+	readonly theme: ColorThemeData;
+	readonly scopeThemingParticipants: boolean;
+};
+type ComponentFixtureAdditionalThemeVariant = ComponentFixtureThemeVariant & { readonly scopeThemingParticipants: true };
 
-function getGlobalStyleSheet(): CSSStyleSheet {
-	if (!globalStyleSheet) {
-		globalStyleSheet = new CSSStyleSheet();
-		const globalRules: string[] = [];
-		for (const sheet of Array.from(document.styleSheets)) {
-			try {
-				for (const rule of Array.from(sheet.cssRules)) {
-					globalRules.push(rule.cssText);
-				}
-			} catch {
-				// Cross-origin stylesheets can't be read
-			}
-		}
-		globalStyleSheet.replaceSync(globalRules.join('\n'));
+const darkThemeVariant = { label: 'Dark', background: 'dark', theme: darkTheme, scopeThemingParticipants: false } as const satisfies ComponentFixtureThemeVariant;
+const lightThemeVariant = { label: 'Light', background: 'light', theme: lightTheme, scopeThemingParticipants: false } as const satisfies ComponentFixtureThemeVariant;
+const additionalThemeVariants = {
+	darkHighContrast: { label: 'DarkHighContrast', background: 'dark', theme: darkHighContrastTheme, scopeThemingParticipants: true },
+} as const satisfies Record<string, ComponentFixtureAdditionalThemeVariant>;
+export type ComponentFixtureAdditionalTheme = keyof typeof additionalThemeVariants;
+
+const themeLoadedPromises = new WeakMap<ColorThemeData, Promise<void>>();
+function ensureThemeLoaded(theme: ColorThemeData): Promise<void> {
+	let themeLoadedPromise = themeLoadedPromises.get(theme);
+	if (!themeLoadedPromise) {
+		themeLoadedPromise = theme.ensureLoaded(fixtureExtensionResourceLoaderService);
+		themeLoadedPromises.set(theme, themeLoadedPromise);
 	}
-	return globalStyleSheet;
+	return themeLoadedPromise;
 }
 
-function getIconsStyleSheetCached(): CSSStyleSheet {
-	if (!iconsStyleSheetCache) {
-		iconsStyleSheetCache = new CSSStyleSheet();
-		const iconsSheet = getIconsStyleSheet(undefined);
-		iconsStyleSheetCache.replaceSync(iconsSheet.getCSS() as string);
-		iconsSheet.dispose();
-	}
-	return iconsStyleSheetCache;
-}
-
-function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
-	const isDark = theme.type === ColorScheme.DARK;
-	if (isDark && darkThemeStyleSheet) {
-		return darkThemeStyleSheet;
-	}
-	if (!isDark && lightThemeStyleSheet) {
-		return lightThemeStyleSheet;
-	}
-
-	const scopeSelector = '.' + theme.classNames[0];
-	const sheet = new CSSStyleSheet();
-	const css = generateColorThemeCSS(
-		theme,
-		scopeSelector,
-		themingRegistry.getThemingParticipants(),
-		mockEnvironmentService
-	);
-	sheet.replaceSync(css.code);
-
-	if (isDark) {
-		darkThemeStyleSheet = sheet;
-	} else {
-		lightThemeStyleSheet = sheet;
-	}
-	return sheet;
-}
-
-let globalStylesInstalled = false;
-
-let themesLoadedPromise: Promise<void> | undefined;
-function ensureThemesLoaded(): Promise<void> {
-	if (!themesLoadedPromise) {
-		themesLoadedPromise = Promise.all([
-			darkTheme.ensureLoaded(fixtureExtensionResourceLoaderService),
-			lightTheme.ensureLoaded(fixtureExtensionResourceLoaderService),
-		]).then(() => undefined);
-	}
-	return themesLoadedPromise;
-}
-
-function installGlobalStyles(): void {
-	if (globalStylesInstalled) {
-		return;
-	}
-	globalStylesInstalled = true;
-	document.adoptedStyleSheets = [
-		...document.adoptedStyleSheets,
-		getGlobalStyleSheet(),
-		getIconsStyleSheetCached(),
-		getThemeStyleSheet(darkTheme),
-		getThemeStyleSheet(lightTheme),
-	];
-}
-
-export async function setupTheme(container: HTMLElement, theme: ColorThemeData): Promise<void> {
-	await ensureThemesLoaded();
-	installGlobalStyles();
+export async function setupTheme(container: HTMLElement, theme: ColorThemeData, scopeThemingParticipants = false): Promise<void> {
+	await ensureThemeLoaded(theme);
+	await ensureGlobalStylesInstalled(theme, scopeThemingParticipants);
 	container.classList.add('monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
+}
+
+/**
+ * The recognized fields of the per-render `input` (passed via the CLI `--input`
+ * flag), parsed once into a typed shape by {@link parseFixtureInput}.
+ */
+interface FixtureRenderInput {
+	/** See {@link ReverseStylesheetsOption}; `false` when no reversal is requested. */
+	readonly reverseStylesheets: ReverseStylesheetsOption;
+	/** Whether the render should return its virtual-time trace as `output`. */
+	readonly outputTimeTrace: boolean;
+	/** Whether the render should return the bundled stylesheet files as `output`. */
+	readonly outputStylesheetFiles: boolean;
+}
+
+/**
+ * Parses the untyped render `input` into the recognized {@link FixtureRenderInput}
+ * fields. Unknown/extra fields are ignored; missing fields default to off.
+ */
+function parseFixtureInput(input: unknown): FixtureRenderInput {
+	if (!input || typeof input !== 'object') {
+		return { reverseStylesheets: false, outputTimeTrace: false, outputStylesheetFiles: false };
+	}
+	const record = input as Record<string, unknown>;
+	return {
+		reverseStylesheets: parseReverseOption(record.reverseStylesheets),
+		outputTimeTrace: !!record.outputTimeTrace,
+		outputStylesheetFiles: !!record.outputStylesheetFiles,
+	};
+}
+
+/**
+ * Validates a `reverseStylesheets` input value: `true` (reverse all stylesheet
+ * documents), `{ fromIndex, toIndex }` (reverse only that index window, used by
+ * the order-dependency bisection), or `false` when absent/unrecognized.
+ */
+function parseReverseOption(value: unknown): ReverseStylesheetsOption {
+	if (value === true) {
+		return true;
+	}
+	if (value && typeof value === 'object') {
+		const range = value as Record<string, unknown>;
+		if (typeof range.fromIndex === 'number' && typeof range.toIndex === 'number') {
+			return { fromIndex: range.fromIndex, toIndex: range.toIndex };
+		}
+	}
+	return false;
 }
 
 function getPlatformClass(): string {
@@ -586,6 +572,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		onDidChangeCopilotTokenInfo: new Emitter<null>().event,
 		managedSettingsFetchStatus: null,
 		managedSettingsFetchedAt: null,
+		managedSettingsRawResponse: null,
 		getDefaultAccount: async () => null,
 		getDefaultAccountAuthenticationProvider: () => ({ id: 'test', name: 'Test', scopes: [], enterprise: false }),
 		resolveGitHubUrl: (path: string) => `https://github.com/${path}`,
@@ -634,6 +621,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
+		hasLoadedFeedback: () => true,
 		getSessionForFile: () => undefined,
 		getMostRecentSessionForResource: () => undefined,
 		revealFeedback: async () => { },
@@ -644,7 +632,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		getNavigationBearing: () => ({ activeIdx: -1, totalCount: 0 }),
 		clearFeedback: () => { },
 		markFeedbackSubmitted: () => { },
-		submitFeedback: async () => { },
+		submitFeedback: async () => false,
 		addFeedbackAndSubmit: async () => { },
 		setFeedbackResolved: async () => { },
 	});
@@ -658,9 +646,13 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 
 	definePartialInstance(ISessionsManagementService, {
 		_serviceBrand: undefined,
-		activeSession: constObservable(undefined),
 		getSession: () => undefined,
 		getSessions: () => [],
+	});
+
+	definePartialInstance(ISessionsService, {
+		_serviceBrand: undefined,
+		activeSession: constObservable(undefined),
 	});
 
 	definePartialInstance(ICodeReviewService, {
@@ -758,6 +750,18 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		showCombinedModeAndModelSheet: () => Promise.resolve(),
 		setImpl: () => ({ dispose: () => { } }),
 	});
+
+	// Workspace trust stubs so chat-input fixtures can instantiate the model
+	// picker (ModelPickerWidget reads workspace trust to detect Restricted Mode).
+	// Reports the workspace as trusted so the picker renders normally.
+	registration.defineInstance(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+		override onDidChangeTrust = Event.None;
+		override readonly workspaceTrustInitialized = Promise.resolve();
+		override isWorkspaceTrusted() { return true; }
+	}());
+	registration.defineInstance(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
+		override async requestWorkspaceTrust() { return true; }
+	}());
 }
 
 
@@ -840,6 +844,7 @@ export interface ComponentFixtureOptions {
 	render: (context: ComponentFixtureContext) => void | Promise<void>;
 	labels?: ThemedFixtureGroupLabels;
 	virtualTime?: { enabled?: boolean; durationMs?: number; teardownDrainMs?: number };
+	additionalThemes?: readonly ComponentFixtureAdditionalTheme[];
 }
 
 type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
@@ -859,7 +864,7 @@ if (logOutsideTime) {
 let fixtureRenderCounter = 0;
 
 /**
- * Creates Dark and Light fixture variants from a single render function.
+ * Creates Dark and Light fixture variants from a single render function, with optional additional theme variants.
  * The render function receives a context with container and disposableStore.
  *
  * Note: If render returns a Promise, the async work will run in background.
@@ -867,12 +872,14 @@ let fixtureRenderCounter = 0;
  * which should be sufficient for most async setup, but timing is not guaranteed.
  */
 export function defineComponentFixture(options: ComponentFixtureOptions): ThemedFixtures {
-	const createFixture = (theme: typeof darkTheme | typeof lightTheme) => defineFixture({
+	const createFixture = (themeVariant: ComponentFixtureThemeVariant) => defineFixture({
 		isolation: 'none',
 		displayMode: { type: 'component' },
-		background: theme === darkTheme ? 'dark' : 'light',
+		background: themeVariant.background,
 		render: async (container: HTMLElement, context) => {
 			const disposableStore = new DisposableStore();
+			const input = parseFixtureInput(context.input);
+			const { label: themeLabel, theme, scopeThemingParticipants } = themeVariant;
 
 			// Replace Math.random with a seeded PRNG so fixtures render deterministically.
 			disposableStore.add(pushRandomOverwrite(42));
@@ -969,7 +976,14 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			});
 
 			async function actualRender() {
-				await setupTheme(container, theme);
+				await setupTheme(container, theme, scopeThemingParticipants);
+
+				// The order-dependency fuzzer reorders the bundled CSS for just
+				// this render; the override is scoped to the fixture's lifetime
+				// (disposed at teardown, where it is also leak-checked).
+				if (input.reverseStylesheets !== false) {
+					disposableStore.add(overrideStylesheetOrder(input.reverseStylesheets));
+				}
 
 				let renderTimeApi: IDisposable | undefined;
 				if (virtualTimeEnabled) {
@@ -1016,7 +1030,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					if (virtualTimeEnabled && p.history.length > 0) {
 						const startTime = p.history[0].time;
 						const history = buildHistoryFromTasks(p.history, startTime);
-						console.error(`[ComponentFixture] ${theme === darkTheme ? 'Dark' : 'Light'} virtual-time history (${p.history.length} tasks):\n${renderSwimlanes(history)}`);
+						console.error(`[ComponentFixture] ${themeLabel} virtual-time history (${p.history.length} tasks):\n${renderSwimlanes(history)}`);
 					}
 					throw e;
 				} finally {
@@ -1030,7 +1044,6 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			// output by the scheduler / processor shows exactly which fixture
 			// caused each queued or historical timer, plus the full chain of
 			// setTimeout/rAF calls that led to it.
-			const themeLabel = theme === darkTheme ? 'Dark' : 'Light';
 			const fixtureRoot = createTraceRoot(`render#${++fixtureRenderCounter}(${themeLabel})`);
 
 			await TraceContext.instance.runAsHandler(fixtureRoot, actualRender, {
@@ -1038,21 +1051,32 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
 			});
 
-			const wantsTimeTrace = !!context.input && typeof context.input === 'object' && !!(context.input as Record<string, unknown>).outputTimeTrace;
-
-			if (wantsTimeTrace && virtualTimeEnabled && p.history.length > 0) {
+			if (input.outputTimeTrace && virtualTimeEnabled && p.history.length > 0) {
 				const startTime = p.history[0].time;
 				const history = buildHistoryFromTasks(p.history, startTime);
 				return { output: renderSwimlanes(history) };
+			}
+
+			// The order-dependency bisection driver asks for the list of bundled
+			// stylesheet documents so it can name a conflicting document by index
+			// without itself parsing the bundle. Keeping this knowledge in the
+			// runtime means the driver only deals in indices and image hashes.
+			if (input.outputStylesheetFiles) {
+				return { output: { stylesheetFiles: await getStylesheetDocumentFiles() } };
 			}
 			return undefined;
 		},
 	});
 
 	const labels = resolveLabels(options.labels);
+	const additionalFixtures = Object.fromEntries((options.additionalThemes ?? []).map(additionalTheme => {
+		const themeVariant = additionalThemeVariants[additionalTheme];
+		return [themeVariant.label, createFixture(themeVariant)];
+	}));
 	return defineFixtureVariants(labels.length > 0 ? { labels } : {}, {
-		Dark: createFixture(darkTheme),
-		Light: createFixture(lightTheme),
+		Dark: createFixture(darkThemeVariant),
+		Light: createFixture(lightThemeVariant),
+		...additionalFixtures,
 	});
 }
 

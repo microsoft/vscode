@@ -6,7 +6,7 @@
 import * as sinon from 'sinon';
 import assert from 'assert';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, ExtensionRuntimeActionType, AutoUpdateConfigurationValue } from '../../common/extensions.js';
+import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, AutoUpdateDelayConfigurationKey, ExtensionRuntimeActionType, AutoUpdateConfigurationValue } from '../../common/extensions.js';
 import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
@@ -496,15 +496,15 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), false);
 	});
 
-	test('test getAutoUpdateValue normalizes legacy insiders values', async () => {
+	test('test getAutoUpdateValue normalizes legacy and migrated values', async () => {
 		const expected = new Map<unknown, AutoUpdateConfigurationValue>([
-			['on', true],
-			['delayed', true],
-			['off', false],
-			['onlySelectedExtensions', false],
-			[true, true],
-			[false, false],
-			['onlyEnabledExtensions', 'onlyEnabledExtensions'],
+			['on', 'on'],
+			['off', 'off'],
+			['delayed', 'on'],
+			['onlySelectedExtensions', 'off'],
+			[true, 'on'],
+			[false, 'off'],
+			['onlyEnabledExtensions', 'on'],
 		]);
 		for (const [configured, normalized] of expected) {
 			stubConfiguration(configured);
@@ -1799,6 +1799,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	function stubConfiguration(autoUpdateValue?: any, autoCheckUpdatesValue?: any): void {
 		const values: any = {
 			[AutoUpdateConfigurationKey]: autoUpdateValue ?? true,
+			[AutoUpdateDelayConfigurationKey]: 2,
 			[AutoCheckUpdatesConfigurationKey]: autoCheckUpdatesValue ?? true
 		};
 		const emitter = disposableStore.add(new Emitter<IConfigurationChangeEvent>());

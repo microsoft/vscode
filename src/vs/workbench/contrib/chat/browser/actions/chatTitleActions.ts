@@ -252,11 +252,10 @@ export function registerChatTitleActions() {
 				}
 			}
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
-			const languageModelId = widget?.input.currentLanguageModel;
 
 			chatAccessibilityService.acceptRequest(item.sessionResource);
 			chatService.resendRequest(request!, {
-				userSelectedModelId: languageModelId,
+				...widget?.getSelectedModelRequestOptions(),
 				attempt: (request?.attempt ?? -1) + 1,
 				...widget?.getModeRequestOptions(),
 			});

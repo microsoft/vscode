@@ -115,6 +115,7 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		const SafetyRules = customizations.SafetyRulesClass;
 
 		const omitBaseAgentInstructions = this.configurationService.getConfig(ConfigKey.Advanced.OmitBaseAgentInstructions);
+		const hasMemoryTool = !!this.props.promptContext.tools?.availableTools?.find(tool => tool.name === ToolName.Memory);
 		const baseAgentInstructions = <>
 			<SystemMessage>
 				You are an expert AI programming assistant, working with a user in the VS Code editor.<br />
@@ -122,9 +123,9 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 				<SafetyRules />
 			</SystemMessage>
 			{instructions}
-			<SystemMessage>
+			{hasMemoryTool && <SystemMessage>
 				<MemoryInstructionsPrompt />
-			</SystemMessage>
+			</SystemMessage>}
 		</>;
 		const isAutopilot = this.props.promptContext.request?.permissionLevel === 'autopilot';
 		const sessionResource = this.props.promptContext.request?.sessionResource;
@@ -259,7 +260,7 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		if (!firstTurn) {
 			return undefined;
 		}
-		const variable = this.props.promptContext.chatVariables.find(isCustomizationsIndex);
+		const variable = this.props.promptContext.chatVariables.find(v => isCustomizationsIndex(v.reference));
 		const currentValue = variable && typeof variable.value === 'string' ? variable.value : undefined;
 		const currentToolReferences = variable?.reference.toolReferences;
 
@@ -342,6 +343,7 @@ interface GlobalAgentContextProps extends BasePromptElementProps {
  */
 class GlobalAgentContext extends PromptElement<GlobalAgentContextProps> {
 	render() {
+		const hasMemoryTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.Memory);
 		return <UserMessage>
 			<Tag name='environment_info'>
 				<UserOSPrompt />
@@ -354,7 +356,7 @@ class GlobalAgentContext extends PromptElement<GlobalAgentContextProps> {
 				<AgentMultirootWorkspaceStructure maxSize={2000} excludeDotFiles={true} availableTools={this.props.availableTools} workingDir={this.props.workingDir} />
 			</Tag>
 			<UserPreferences flexGrow={7} priority={800} />
-			{this.props.isNewChat && <MemoryContextPrompt sessionResource={this.props.sessionResource} />}
+			{this.props.isNewChat && hasMemoryTool && <MemoryContextPrompt sessionResource={this.props.sessionResource} />}
 			<DeferredToolListReminder availableTools={this.props.availableTools} />
 			{this.props.enableCacheBreakpoints && <cacheBreakpoint type={CacheType} />}
 		</UserMessage>;
@@ -492,6 +494,7 @@ export class AgentUserMessage extends PromptElement<AgentUserMessageProps> {
 		const hasTerminalTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.CoreRunInTerminal);
 		const hasToolsToEditNotebook = hasCreateFileTool || hasEditNotebookTool || hasReplaceStringTool || hasApplyPatchTool || hasEditFileTool;
 		const hasTodoTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.CoreManageTodoList);
+		const hasMemoryTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.Memory);
 
 		const userQueryTagName = this.props.userQueryTagName ?? 'userRequest';
 		const ReminderInstructionsClass = this.props.ReminderInstructionsClass ?? DefaultReminderInstructions;
@@ -501,6 +504,7 @@ export class AgentUserMessage extends PromptElement<AgentUserMessageProps> {
 			hasEditFileTool,
 			hasReplaceStringTool,
 			hasMultiReplaceStringTool,
+			hasMemoryTool,
 		};
 		const ToolReferencesHintClass = this.props.ToolReferencesHintClass ?? DefaultToolReferencesHint;
 		const toolReferencesHintProps: ToolReferencesHintProps = {
@@ -682,7 +686,7 @@ class SkillAdherenceReminder extends PromptElement<SkillAdherenceReminderProps> 
 
 	async render() {
 		// Check if any skills are available from the instruction index
-		const indexVariable = this.props.chatVariables.find(isCustomizationsIndex);
+		const indexVariable = this.props.chatVariables.find(p => isCustomizationsIndex(p.reference));
 		if (!indexVariable || !isString(indexVariable.value)) {
 			return undefined;
 		}

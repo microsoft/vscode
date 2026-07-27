@@ -38,7 +38,7 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-widget-icon {
 	flex: 0 0 auto;
-	font-size: 16px;
+	font-size: var(--vscode-codiconFontSize);
 	color: inherit;
 }
 
@@ -72,7 +72,7 @@
 /* Spacing between titlebar-right action items (account widget, update indicator, etc.) */
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .actions-container {
-	gap: 5px;
+	gap: 6px;
 }
 
 /* Badge on account icon */
@@ -84,7 +84,7 @@
 	justify-content: center;
 	min-width: 18px;
 	height: 16px;
-	padding: 0 5px;
+	padding: 0 4px;
 	border-radius: var(--vscode-cornerRadius-large);
 	background: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
@@ -187,7 +187,7 @@
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-header-actions > .monaco-action-bar .action-label {
-	padding: 3px;
+	padding: 4px;
 	color: var(--vscode-icon-foreground, var(--vscode-descriptionForeground));
 }
 

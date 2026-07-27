@@ -10,6 +10,7 @@ import { IVSCodeExtensionContext } from '../../../platform/extContext/common/ext
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { getToolName } from '../../tools/common/toolNames';
 import { IPromptVariablesService } from '../node/promptVariablesService';
+import type { LanguageModelToolInformation } from '../../../vscodeTypes';
 
 /**
  * Known template variables that can be resolved at runtime.
@@ -75,8 +76,7 @@ export class PromptVariablesServiceImpl implements IPromptVariablesService {
 			if (previousRange && range[0] === previousRange[0] && range[1] === previousRange[1]) {
 				continue;
 			}
-			const toolName = getToolName(toolReference.name);
-			message = message.slice(0, toolReference.range[0]) + `'${toolName}'` + message.slice(toolReference.range[1]);
+			message = message.slice(0, toolReference.range[0]) + getToolReferencePromptContent(toolReference) + message.slice(toolReference.range[1]);
 			previousRange = range;
 		}
 		return message;
@@ -105,4 +105,12 @@ export class PromptVariablesServiceImpl implements IPromptVariablesService {
 		const refsWithRange = refs.filter(ref => !!ref.range) as (T & { range: [number, number] })[];
 		return refsWithRange.sort((a, b) => b.range[0] - a.range[0]);
 	}
+}
+
+/**
+ * Wording that is used in requests when a tool is referenced.
+ */
+export function getToolReferencePromptContent(toolRef: ChatLanguageModelToolReference | LanguageModelToolInformation): string {
+	const toolName = getToolName(toolRef.name);
+	return `'${toolName}'`;
 }

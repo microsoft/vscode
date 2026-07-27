@@ -27,7 +27,7 @@ import { IExtensionsWorkbenchService } from '../../../extensions/common/extensio
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CHAT_OPEN_ACTION_ID } from '../actions/chatActions.js';
 import { ChatViewContainerId, ChatViewId } from '../chat.js';
-import { ChatSetupAnonymous, ChatSetupStep, ChatSetupResultValue, InstallChatEvent, InstallChatClassification, refreshTokens, maybeEnableAuthExtension } from './chatSetup.js';
+import { ChatSetupAnonymous, ChatSetupError, ChatSetupStep, ChatSetupResultValue, InstallChatEvent, InstallChatClassification, refreshTokens, maybeEnableAuthExtension } from './chatSetup.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -158,10 +158,12 @@ export class ChatSetupController extends Disposable {
 
 		let entitlements;
 		let defaultAccount;
+		let signInError: Error | undefined;
 		try {
 			({ defaultAccount, entitlements } = await this.requests.signIn(options));
 		} catch (e) {
 			this.logService.error(`[chat setup] signIn: error ${e}`);
+			signInError = e instanceof Error ? e : new Error(String(e));
 		}
 
 		if (!defaultAccount && !this.lifecycleService.willShutdown) {
@@ -175,6 +177,9 @@ export class ChatSetupController extends Disposable {
 			if (confirmed) {
 				return this.signIn(options);
 			}
+		}
+		if (signInError) {
+			throw new ChatSetupError(signInError, true);
 		}
 
 		return { defaultAccount, entitlement: entitlements?.entitlement };

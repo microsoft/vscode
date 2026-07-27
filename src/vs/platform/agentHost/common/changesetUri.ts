@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
-import type { Changeset, ISessionGitState, URI } from './state/sessionState.js';
+import { readSessionGitState, readSessionWorkspaceless, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
 
 /**
  * Helpers for building / parsing the URI clients subscribe to in order to
@@ -87,7 +87,7 @@ export const compareTurnsChangesetDescription = (): string => localize('compareT
  * Returns `undefined` only when no branch name is known at all, so
  * callers can omit the description entirely.
  */
-export function formatSessionChangesetDescription(gitState: ISessionGitState): string | undefined {
+export function formatBranchChangesetDescription(gitState: ISessionGitState): string | undefined {
 	const { baseBranchName, branchName, upstreamBranchName } = gitState;
 
 	// Use branch name
@@ -292,12 +292,55 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
  * compare-turns diffs construct the URI themselves from two known
  * turn ids and subscribe directly.
  */
-export function buildDefaultChangesetCatalogue(sessionUri: URI): Changeset[] {
+export function buildDefaultChangesetCatalog(sessionUri: URI, state?: ISessionWithDefaultChat): Changeset[] {
+	// Session that failed to create
+	if (!state || state.lifecycle === SessionLifecycle.CreationFailed) {
+		return [];
+	}
+
+	// New Session
+	if (state.lifecycle === SessionLifecycle.Creating) {
+		if (readSessionWorkspaceless(state._meta)) {
+			// Quick chat
+			return [];
+		}
+
+		// Uncommitted changes
+		return [{
+			label: uncommittedChangesetLabel(),
+			description: uncommittedChangesetDescription(),
+			uriTemplate: buildUncommittedChangesetUri(sessionUri),
+			changeKind: ChangesetKind.Uncommitted
+		}];
+	}
+
+	const gitState = readSessionGitState(state._meta);
+
+	if (!gitState) {
+		// No git repository
+		return [{
+			label: sessionChangesetLabel(),
+			description: sessionChangesetDescription(),
+			uriTemplate: buildSessionChangesetUri(sessionUri),
+			changeKind: ChangesetKind.Session
+		},
+		{
+			label: thisTurnChangesetLabel(),
+			description: thisTurnChangesetDescription(),
+			uriTemplate: buildTurnChangesetUriTemplate(sessionUri),
+			changeKind: ChangesetKind.Turn
+		}] satisfies Changeset[];
+	}
+
 	return [
 		{
 			label: branchChangesetLabel(),
+			description: gitState
+				? formatBranchChangesetDescription(gitState)
+				: undefined,
 			uriTemplate: buildBranchChangesetUri(sessionUri),
-			changeKind: ChangesetKind.Branch
+			changeKind: ChangesetKind.Branch,
+			capabilities: { review: {} }
 		},
 		{
 			label: uncommittedChangesetLabel(),
@@ -323,5 +366,5 @@ export function buildDefaultChangesetCatalogue(sessionUri: URI): Changeset[] {
 			uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
 			changeKind: ChangesetKind.Compare
 		}
-	];
+	] satisfies Changeset[];
 }

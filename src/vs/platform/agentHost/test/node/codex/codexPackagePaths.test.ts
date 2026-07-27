@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { join } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { codexBinaryTriple, codexPackageSuffix } from '../../../node/codex/codexAgent.js';
+import { codexBinaryTriple, codexPackageSuffix, resolveCodexDevSdkRoot } from '../../../node/codex/codexAgent.js';
 
 suite('codex package paths', () => {
 
@@ -14,7 +15,7 @@ suite('codex package paths', () => {
 	suite('codexPackageSuffix', () => {
 
 		test('every supported (platform, arch) returns the npm optionalDependencies suffix', () => {
-			// The downloader and the build pipeline both rely on the runtime
+			// The build pipeline and codexBinaryTriple both rely on the runtime
 			// reaching exactly one of these strings. New supported platforms
 			// must update this table, the build's `getSdkTargetForBuild`, AND
 			// codexBinaryTriple in lockstep.
@@ -82,6 +83,23 @@ suite('codex package paths', () => {
 			assert.strictEqual(codexBinaryTriple('linux-x64-musl'), undefined);
 			assert.strictEqual(codexBinaryTriple('darwin-arm'), undefined);
 			assert.strictEqual(codexBinaryTriple(''), undefined);
+		});
+	});
+
+	suite('resolveCodexDevSdkRoot', () => {
+
+		test('returns the directory containing node_modules when @openai/codex resolves', async () => {
+			// `require.resolve('@openai/codex/package.json')` yields
+			// `<root>/node_modules/@openai/codex/package.json`; the helper walks
+			// four segments up to recover `<root>` — the dir `_startConnection`
+			// joins `node_modules/@openai/codex-<target>` onto.
+			const root = join('home', 'me', 'vscode');
+			const pkgJson = join(root, 'node_modules', '@openai', 'codex', 'package.json');
+			assert.strictEqual(await resolveCodexDevSdkRoot(() => pkgJson), root);
+		});
+
+		test('returns undefined when resolution throws (e.g. built product without the devDependency)', async () => {
+			assert.strictEqual(await resolveCodexDevSdkRoot(() => { throw new Error('Cannot find module'); }), undefined);
 		});
 	});
 });

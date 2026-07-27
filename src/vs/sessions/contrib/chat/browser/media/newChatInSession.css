@@ -47,8 +47,7 @@
 }
 
 .new-chat-in-session .sessions-chat-editor .monaco-editor,
-.new-chat-in-session .sessions-chat-editor .monaco-editor .overflow-guard,
-.new-chat-in-session .sessions-chat-editor .monaco-editor-background {
+.new-chat-in-session .sessions-chat-editor .monaco-editor .overflow-guard {
 	border-radius: var(--vscode-cornerRadius-large, 8px) var(--vscode-cornerRadius-large, 8px) 0 0;
 }
 

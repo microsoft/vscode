@@ -5,14 +5,21 @@
 
 import './media/chatContextUsageDetails.css';
 import * as dom from '../../../../../../base/browser/dom.js';
+import { toAction, type IAction } from '../../../../../../base/common/actions.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { MenuWorkbenchButtonBar } from '../../../../../../platform/actions/browser/buttonbar.js';
+import { WorkbenchButtonBar } from '../../../../../../platform/actions/browser/buttonbar.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { formatCopilotCredits } from '../../../common/chatService/chatService.js';
+import type { IChatWidget } from '../../chat.js';
 
 const $ = dom.$;
+
+const COMPACT_AGENT_HOST_CONVERSATION_ACTION_ID = 'workbench.action.chat.compactAgentHostConversation';
 
 export interface IChatContextUsagePromptTokenDetail {
 	category: string;
@@ -27,6 +34,7 @@ export interface IChatContextUsageData {
 	percentage: number;
 	outputBufferPercentage?: number;
 	promptTokenDetails?: readonly IChatContextUsagePromptTokenDetail[];
+	sessionCost?: number;
 }
 
 /**
@@ -37,6 +45,8 @@ export class ChatContextUsageDetails extends Disposable {
 
 	readonly domNode: HTMLElement;
 
+	private readonly sessionCostSection: HTMLElement;
+	private readonly sessionCostValue: HTMLElement;
 	private readonly quotaItem: HTMLElement;
 	private readonly percentageLabel: HTMLElement;
 	private readonly tokenCountLabel: HTMLElement;
@@ -48,6 +58,8 @@ export class ChatContextUsageDetails extends Disposable {
 	private readonly actionsSection: HTMLElement;
 
 	constructor(
+		private _chatWidget: IChatWidget | undefined,
+		private readonly _dataObservable: IObservable<IChatContextUsageData | undefined>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -56,10 +68,22 @@ export class ChatContextUsageDetails extends Disposable {
 
 		this.domNode = $('.chat-context-usage-details');
 
+		// Top-level header
+		const topHeader = this.domNode.appendChild($('div.header'));
+		topHeader.textContent = localize('sessionInfo', "Session Info");
+
+		// Session cost section (hidden until cost data is available)
+		this.sessionCostSection = this.domNode.appendChild($('.session-cost-section'));
+		this.sessionCostSection.style.display = 'none';
+		const sessionCostRow = this.sessionCostSection.appendChild($('.session-cost-row'));
+		const sessionCostLabel = sessionCostRow.appendChild($('span.session-cost-label'));
+		sessionCostLabel.textContent = localize('sessionCost', "Session Cost");
+		this.sessionCostValue = sessionCostRow.appendChild($('span.session-cost-value'));
+
 		// Quota indicator — using same structure as ChatStatusDashboard
 		this.quotaItem = this.domNode.appendChild($('.quota-indicator'));
 
-		// Header row
+		// Context Window header
 		const header = this.domNode.insertBefore($('div.header'), this.quotaItem);
 		header.textContent = localize('contextWindow', "Context Window");
 
@@ -91,26 +115,66 @@ export class ChatContextUsageDetails extends Disposable {
 		// Actions section with button bar
 		this.actionsSection = this.domNode.appendChild($('.actions-section'));
 		const buttonBarContainer = this.actionsSection.appendChild($('.button-bar-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchButtonBar, buttonBarContainer, MenuId.ChatContextUsageActions, {
-			toolbarOptions: {
-				primaryGroup: () => true
-			},
+		const buttonBar = this._register(this.instantiationService.createInstance(WorkbenchButtonBar, buttonBarContainer, {
 			buttonConfigProvider: () => ({ isSecondary: true })
 		}));
 
 		// Listen to menu changes to show/hide actions section
 		const menu = this._register(this.menuService.createMenu(MenuId.ChatContextUsageActions, this.contextKeyService));
-		const updateActionsVisibility = () => {
-			const actions = menu.getActions();
-			const hasActions = actions.length > 0 && actions.some(([, items]) => items.length > 0);
-			this.actionsSection.style.display = hasActions ? '' : 'none';
+		const updateActions = () => {
+			const actions = getActionBarActions(menu.getActions({ shouldForwardArgs: true }), () => true);
+			const primaryActions = actions.primary.map(action => this.withActionContext(action));
+			const secondaryActions = actions.secondary.map(action => this.withActionContext(action));
+			buttonBar.update(primaryActions, secondaryActions);
+			this.actionsSection.style.display = primaryActions.length > 0 || secondaryActions.length > 0 ? '' : 'none';
 		};
-		this._register(menu.onDidChange(updateActionsVisibility));
-		updateActionsVisibility();
+		this._register(menu.onDidChange(updateActions));
+		updateActions();
+
+		this._register(autorun(reader => {
+			const data = this._dataObservable.read(reader);
+			// Re-render when the usage data changes; keep the last-rendered DOM when data becomes undefined.
+			if (data) {
+				this._render(data);
+			}
+		}));
 	}
 
-	update(data: IChatContextUsageData): void {
-		const { percentage, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails } = data;
+	setChatWidget(widget: IChatWidget): void {
+		this._chatWidget = widget;
+	}
+
+	private withActionContext(action: IAction): IAction {
+		// Only the workbench-owned compact action can receive the in-memory widget.
+		// Extension-contributed commands must stay argument-free because widgets are not serializable across the extension host boundary.
+		if (action.id !== COMPACT_AGENT_HOST_CONVERSATION_ACTION_ID) {
+			return action;
+		}
+
+		return toAction({
+			id: action.id,
+			label: action.label,
+			tooltip: action.tooltip,
+			class: action.class,
+			enabled: action.enabled,
+			checked: action.checked,
+			run: () => action.run(this._chatWidget),
+		});
+	}
+
+	private _render(data: IChatContextUsageData): void {
+		const { percentage, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails, sessionCost } = data;
+
+		// Update session cost — hide section when no cost data is available
+		if (typeof sessionCost === 'number' && sessionCost > 0) {
+			const formatted = formatCopilotCredits(sessionCost);
+			this.sessionCostValue.textContent = formatted === '1'
+				? localize('sessionCostCredit', "{0} credit", formatted)
+				: localize('sessionCostCredits', "{0} credits", formatted);
+			this.sessionCostSection.style.display = '';
+		} else {
+			this.sessionCostSection.style.display = 'none';
+		}
 
 		// Update token count and percentage — reflects actual usage only
 		this.tokenCountLabel.textContent = localize(

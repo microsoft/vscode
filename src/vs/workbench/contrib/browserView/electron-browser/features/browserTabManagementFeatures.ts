@@ -25,7 +25,8 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../.
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { BrowserNewTabPlacementSettingId } from '../browserViewWorkbenchService.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { IExternalOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority, isAllInterfacesAuthority } from '../../../../../platform/url/common/trustedDomains.js';
@@ -103,7 +104,7 @@ class BrowserTabQuickPick extends Disposable {
 		}));
 
 		this._register(this._quickPick.onDidTriggerButton(async () => {
-			for (const editor of this._browserViewService.getKnownBrowserViews().values()) {
+			for (const editor of this._browserViewService.getContextualBrowserViews().values()) {
 				editor.dispose(true);
 			}
 		}));
@@ -118,9 +119,9 @@ class BrowserTabQuickPick extends Disposable {
 				this._quickPick.hide();
 				await this._editorService.openEditor({
 					resource: BrowserViewUri.forId(generateUuid()),
-				});
+				}, await this._browserViewService.getPreferredGroup());
 			} else {
-				await this._editorService.openEditor(selected.editor, selected.groupId);
+				await this._editorService.openEditor(selected.editor, await this._browserViewService.getPreferredGroup(selected.groupId));
 			}
 		}));
 
@@ -165,7 +166,7 @@ class BrowserTabQuickPick extends Disposable {
 		}
 
 		// Background views: known but not open in any editor group
-		const backgroundEditors = [...this._browserViewService.getKnownBrowserViews().values()].filter(e => !viewsInGroups.has(e.id));
+		const backgroundEditors = [...this._browserViewService.getContextualBrowserViews().values()].filter(e => !viewsInGroups.has(e.id));
 		const backgroundLabel = localize('browser.backgroundGroup', "Background");
 
 		// Build sections: each editor group + optional background
@@ -288,11 +289,11 @@ class OpenIntegratedBrowserAction extends Action2 {
 		// Parse arguments
 		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
 		const resource = BrowserViewUri.forId(generateUuid());
-		const group = options.openToSide ? SIDE_GROUP : ACTIVE_GROUP;
+		const group = await browserViewService.getPreferredGroup(options.openToSide ? SIDE_GROUP : undefined);
 
 		if (options.reuseUrlFilter) {
 			const filterUri = URI.parse(options.reuseUrlFilter);
-			const matchingEditor = [...browserViewService.getKnownBrowserViews().values()].find((e) => {
+			const matchingEditor = [...browserViewService.getContextualBrowserViews().values()].find((e) => {
 				const editorUri = URI.parse(e.url || '');
 				// URIs default to putting "file" scheme. Check that the scheme is really in the filter.
 				if (filterUri.scheme && options.reuseUrlFilter!.startsWith(`${filterUri.scheme}:`) && filterUri.scheme !== editorUri.scheme) {
@@ -318,6 +319,9 @@ class OpenIntegratedBrowserAction extends Action2 {
 				if (options.url) {
 					matchingEditor.navigate(options.url);
 				}
+				// Reveal the existing browser tab where it already lives rather than
+				// relocating it into the docked group (which would move a tab out of a
+				// modal group when `workbench.editor.useModal: 'all'`).
 				await editorService.openEditor(matchingEditor);
 				return;
 			}
@@ -373,6 +377,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 	async run(accessor: ServicesAccessor, resource?: URI): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 
 		// Resolve the file URI from the context or the active editor
 		const fileUri = resource ?? EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { filterByScheme: [Schemas.file], supportSideBySide: SideBySideEditor.PRIMARY });
@@ -383,7 +388,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 		logBrowserOpen(telemetryService, 'openFileCommand');
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } });
+		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } }, await browserViewService.getPreferredGroup());
 	}
 }
 
@@ -413,11 +418,12 @@ class NewTabAction extends Action2 {
 	async run(accessor: ServicesAccessor, _browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 		const resource = BrowserViewUri.forId(generateUuid());
 
 		logBrowserOpen(telemetryService, 'newTabCommand');
 
-		await editorService.openEditor({ resource });
+		await editorService.openEditor({ resource }, await browserViewService.getPreferredGroup());
 	}
 }
 
@@ -499,7 +505,7 @@ class OpenOrListBrowsersAction extends Action2 {
 		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 		const commandService = accessor.get(ICommandService);
 
-		const hasOpenBrowserEditor = browserViewService.getKnownBrowserViews().size > 0;
+		const hasOpenBrowserEditor = browserViewService.getContextualBrowserViews().size > 0;
 
 		if (hasOpenBrowserEditor) {
 			await commandService.executeCommand(BrowserViewCommandId.QuickOpen);
@@ -564,7 +570,7 @@ class BrowserEditorOpenContextKeyContribution extends Disposable implements IWor
 		super();
 
 		const contextKey = CONTEXT_BROWSER_EDITOR_OPEN.bindTo(contextKeyService);
-		const update = () => contextKey.set(browserViewService.getKnownBrowserViews().size > 0);
+		const update = () => contextKey.set(browserViewService.getContextualBrowserViews().size > 0);
 
 		update();
 		this._register(browserViewService.onDidChangeBrowserViews(() => update()));
@@ -620,7 +626,7 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		const isDefaultLinkOpen = !isConfigured(this.configurationService.inspect('workbench.browser.openLocalhostLinks'));
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } });
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, await this.browserViewWorkbenchService.getPreferredGroup());
 		return true;
 	}
 }
@@ -818,7 +824,7 @@ class BrowserTabUrlSuggestions extends BrowserEditorContribution {
 	}
 
 	private _refreshEditorLabelListeners(): void {
-		const known = this._browserViewService.getKnownBrowserViews();
+		const known = this._browserViewService.getContextualBrowserViews();
 		for (const id of [...this._editorLabelListeners.keys()]) {
 			if (!known.has(id)) {
 				this._editorLabelListeners.deleteAndDispose(id);
@@ -847,7 +853,7 @@ class BrowserTabUrlSuggestions extends BrowserEditorContribution {
 				}
 			}
 		}
-		for (const tab of this._browserViewService.getKnownBrowserViews().values()) {
+		for (const tab of this._browserViewService.getContextualBrowserViews().values()) {
 			if (!seen.has(tab.id)) {
 				seen.add(tab.id);
 				ordered.push(tab);
@@ -923,6 +929,21 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				'When enabled, localhost links (`localhost`, `127.0.0.1`, `[::1]`) and all-interfaces links (`0.0.0.0`, `[0:0:0:0:0:0:0:0]`, `[::]`) from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
 			),
 			agentsWindow: { default: true },
+		},
+		[BrowserNewTabPlacementSettingId]: {
+			type: 'string',
+			enum: ['activeGroup', 'sideGroup', 'window'],
+			enumDescriptions: [
+				localize({ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement.activeGroup' }, "New browser tabs open in the currently active editor group."),
+				localize({ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement.sideGroup' }, "New browser tabs open in a dedicated editor group to the side that is reused for subsequent tabs. The group is locked so other editors are not opened into it."),
+				localize({ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement.window' }, "New browser tabs open in a dedicated window that is reused for subsequent tabs. The window is locked so other editors are not opened into it.")
+			],
+			default: 'activeGroup',
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement' },
+				"Controls where new Integrated Browser tabs are opened."
+			),
+			scope: ConfigurationScope.WINDOW,
 		}
 	}
 });
