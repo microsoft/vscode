@@ -8,6 +8,7 @@ import { dirname, join } from '../../../../base/common/path.js';
 import type { TelemetryConfig } from '@github/copilot-sdk';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { ILogService } from '../../../log/common/log.js';
 import { startLocalOtlpHttpReceiver, type ILocalOtlpHttpReceiver } from '../../../otel/node/otlp/localOtlpReceiver.js';
@@ -18,9 +19,11 @@ import {
 	OtlpHttpForwarder,
 	type IOutboundForwarder,
 } from '../../../otel/node/otlp/outboundForwarder.js';
+import { GenAiAttr } from '../../../otel/common/genAiAttributes.js';
+import { ICompletedSpanData, SpanStatusCode } from '../../../otel/common/spanData.js';
 import { OTelSqliteStore } from '../../../otel/node/sqlite/otelSqliteStore.js';
 import { AgentHostOTelSpansDbSubPath } from '../../common/agentService.js';
-import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 
 /** Sub-path under the user data directory where the span DB lives. */
 const SPANS_DB_SUBPATH = AgentHostOTelSpansDbSubPath;
@@ -118,8 +121,10 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	private readonly _spansDbPath: string;
 
 	private _receiver: ILocalOtlpHttpReceiver | undefined;
+	private _spanStore: OTelSqliteStore | undefined;
 	private _forwarder: IOutboundForwarder | undefined;
 	private _startPromise: Promise<void> | undefined;
+	private _titleExportQueue = Promise.resolve();
 
 	constructor(
 		private readonly _fetchFn: typeof globalThis.fetch | undefined,
@@ -156,7 +161,18 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		return this._config.dbSpanExporter ? URI.file(this._spansDbPath) : undefined;
 	}
 
+	emitSessionTitleChanged(conversationId: string, sessionUri: string, title: string): void {
+		if (!this._config.enabled || this._config.captureContent !== true || !conversationId || !title) {
+			return;
+		}
+
+		this._titleExportQueue = this._titleExportQueue
+			.then(() => this._emitSessionTitleSpan(conversationId, sessionUri, title))
+			.catch(err => this._logService.warn('[agentHost.otel] failed to emit session title span', err));
+	}
+
 	async flush(): Promise<void> {
+		await this._titleExportQueue;
 		await this._startPromise;
 		if (this._forwarder) {
 			await this._forwarder.flush();
@@ -203,7 +219,11 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		// 1. Persistent SQLite store.
 		await mkdir(dirname(this._spansDbPath), { recursive: true });
 		const store = new OTelSqliteStore(this._spansDbPath);
-		this._register(toDisposable(() => store.close()));
+		this._spanStore = store;
+		this._register(toDisposable(() => {
+			store.close();
+			this._spanStore = undefined;
+		}));
 
 		// 2. Optional outbound forwarder when the user *also* wants an external sink.
 		this._forwarder = this._buildOutboundForwarder();
@@ -237,6 +257,66 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		}
 
 		this._logService.info(`[agentHost.otel] loopback receiver at ${receiver.baseUrl}, db ${this._spansDbPath}`);
+	}
+
+	private async _emitSessionTitleSpan(conversationId: string, sessionUri: string, title: string): Promise<void> {
+		if (this._config.dbSpanExporter) {
+			await this._ensureStarted();
+		} else if (!this._forwarder) {
+			this._forwarder = this._buildOutboundForwarder();
+			if (this._forwarder) {
+				this._register(this._forwarder);
+			}
+		}
+
+		const now = Date.now();
+		const traceId = generateUuid().replaceAll('-', '');
+		const span: ICompletedSpanData = {
+			name: AgentHostSessionTitleSpanName,
+			traceId,
+			spanId: generateUuid().replaceAll('-', '').slice(0, 16),
+			startTime: now,
+			endTime: now,
+			status: { code: SpanStatusCode.OK },
+			attributes: {
+				[GenAiAttr.CONVERSATION_ID]: conversationId,
+				[AgentHostSessionTitleAttribute]: title,
+				[AgentHostSessionUriAttribute]: sessionUri,
+			},
+			events: [],
+		};
+
+		this._spanStore?.insertSpan(span);
+		const result = { spans: [span], rejected: 0, errors: [] };
+		this._forwarder?.forwardSpans?.(result);
+		this._forwarder?.forwardRaw?.(this._encodeOtlpSpan(span), 'application/json');
+	}
+
+	private _encodeOtlpSpan(span: ICompletedSpanData): Buffer {
+		const attributes = Object.entries(span.attributes).map(([key, value]) => ({
+			key,
+			value: typeof value === 'string' ? { stringValue: value }
+				: typeof value === 'number' ? { doubleValue: value }
+					: typeof value === 'boolean' ? { boolValue: value }
+						: { arrayValue: { values: value.map(item => ({ stringValue: item })) } },
+		}));
+		return Buffer.from(JSON.stringify({
+			resourceSpans: [{
+				scopeSpans: [{
+					scope: { name: this._config.sourceName ?? 'vscode.agent-host' },
+					spans: [{
+						traceId: span.traceId,
+						spanId: span.spanId,
+						name: span.name,
+						kind: 1,
+						startTimeUnixNano: `${span.startTime}000000`,
+						endTimeUnixNano: `${span.endTime}000000`,
+						attributes,
+						status: { code: 1 },
+					}],
+				}],
+			}],
+		}), 'utf8');
 	}
 
 	private _buildOutboundForwarder(): IOutboundForwarder | undefined {

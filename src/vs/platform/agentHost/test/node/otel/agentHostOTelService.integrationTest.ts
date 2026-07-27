@@ -18,7 +18,7 @@ import {
 	IOtlpExportTraceServiceRequest,
 	OtlpSpanKind,
 } from '../../../../otel/node/otlp/otlpJsonTypes.js';
-import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
+import { AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService, readAgentHostOTelEnv } from '../../../node/otel/agentHostOTelService.js';
 import { AgentHostOTelSpansDbSubPath } from '../../../common/agentService.js';
 
@@ -261,6 +261,41 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 				const operationNames = persisted.map(s => s.operation_name);
 				ok(operationNames.every(op => op === 'invoke_agent'));
 				notStrictEqual(persisted[0].request_model, null);
+			} finally {
+				reader.close();
+			}
+		} finally {
+			restoreEnv(saved);
+			await cleanup();
+		}
+	});
+
+	test('DB mode: emits session title metadata spans when content capture is enabled', async () => {
+		const saved = saveEnv();
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
+		const cleanup = () => rm(tmp, { recursive: true, force: true }).catch(() => undefined);
+		try {
+			process.env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED = 'true';
+			process.env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = 'true';
+
+			const di = store.add(new TestInstantiationService());
+			di.set(ILogService, new NullLogService());
+			di.set(INativeEnvironmentService, makeEnvService(tmp));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+
+			await svc.getSdkTelemetryConfig();
+			svc.emitSessionTitleChanged('conv-title', 'copilotcli:/conv-title', 'Updated title');
+			await svc.flush();
+
+			const dbPath = svc.getSpansDbPath();
+			ok(dbPath);
+			const reader = new OTelSqliteStore(dbPath!.fsPath);
+			try {
+				const spans = reader.getSpansByConversationId('conv-title');
+				strictEqual(spans.length, 1);
+				strictEqual(spans[0].name, AgentHostSessionTitleSpanName);
+				strictEqual(reader.getSpanAttribute(spans[0].span_id, AgentHostSessionTitleAttribute), 'Updated title');
+				strictEqual(reader.getSpanAttribute(spans[0].span_id, AgentHostSessionUriAttribute), 'copilotcli:/conv-title');
 			} finally {
 				reader.close();
 			}

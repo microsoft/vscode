@@ -472,6 +472,7 @@ class MockAgentHostOTelService implements IAgentHostOTelService {
 	getSpansDbPath() {
 		return undefined;
 	}
+	emitSessionTitleChanged() { }
 	async flush() {
 		//
 	}
@@ -615,6 +616,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 		_serviceBrand: undefined,
 		getSdkTelemetryConfig: async () => undefined,
 		getSpansDbPath: () => undefined,
+		emitSessionTitleChanged: () => { },
 		flush: async () => undefined,
 	});
 	services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService)));
