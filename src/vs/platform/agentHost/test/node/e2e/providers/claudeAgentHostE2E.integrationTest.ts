@@ -84,9 +84,6 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	// The Claude SDK currently receives the AHP turn id as upToMessageId and
 	// rejects it as invalid when the fork is exercised against a real transcript.
 	supportsChatForkE2E: false,
-	// Races between side-chat materialization and server-tool MCP wiring; see
-	// KNOWN_ISSUES.md.
-	sideChatServerToolWiringUnstable: true,
 	stableNewScenarioResponse: true,
 };
 

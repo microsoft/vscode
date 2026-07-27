@@ -669,7 +669,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			firstMessage: question,
 			firstAttachments: [],
 		});
-	}, config.supportsMultipleChats && !!config.supportsSideChats && !config.sideChatServerToolWiringUnstable);
+	}, config.supportsMultipleChats && !!config.supportsSideChats);
 
 	providerTest('two peer chats keep independent provider contexts', async function () {
 		const { sessionUri } = await createSession('two-contexts');
