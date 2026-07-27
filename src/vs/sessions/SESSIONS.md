@@ -328,9 +328,7 @@ workspace-scoped machine storage. `NewChatWidget` saves that draft when it is
 disposed (for example, when navigating to an existing session), and the
 replacement widget restores it when the user returns to the new-session view.
 Starting a send clears the stored draft before request dispatch and any view
-replacement. Inputs without an explicit placeholder rotate through the shared
-friendly placeholder set; an explicitly provided placeholder, including an empty
-string, remains static.
+replacement.
 
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s
@@ -379,7 +377,12 @@ the pending/active session or navigating the current view — the started sessio
 just appears in the sessions list once the provider commits it. It shares the
 underlying commit helper with the composer's background send; if the send fails
 it disposes the stranded draft via `deleteNewSession` and rejects so the caller
-can react.
+can react. After resolving
+the exact provider/session type and workspace once, it checks that workspace's
+`requiresWorkspaceTrust` policy and queries resource trust before
+`provider.createNewSession`. An untrusted required workspace rejects with
+`WorkspaceNotTrustedError`, so headless callers fail closed before provider code
+can load workspace-controlled configuration or run commands.
 
 ### Adding a Chat to an Existing Session (Agent Host Multi-Chat)
 

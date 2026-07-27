@@ -151,6 +151,25 @@
 	position: relative;
 }
 
+/* Match the send button's control tier (22×22, control radius) and the compact
+	glyph size used by the pickers, so the voice controls, the dictation mic and
+	Send all read as one row. */
+.sessions-chat-voice-toolbar .monaco-action-bar .action-item > .action-label {
+	box-sizing: border-box;
+	width: 22px;
+	height: 22px;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-voice-toolbar .action-label.codicon-loading-compact::before,
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button .codicon-loading-compact.codicon-modifier-spin {
+	display: inline-block;
+	transform-origin: center center;
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
 /* Segmented voice/dictation pill (experimental) */
 .sessions-chat-voice-input-mode {
 	display: flex;
@@ -432,18 +451,20 @@
 	color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
 }
 
+/* Compact glyph, matching the model / mode picker icons in the row above. */
 .monaco-workbench .sessions-chat-stt-button .codicon[class*='codicon-'] {
-	font-size: var(--vscode-codiconFontSize, 16px);
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
 /* Determinate download ring shown over the mic while the on-device dictation
-	model downloads on first use (see DictationDownloadRing). */
+	model downloads on first use (see DictationDownloadRing). Sized to hug the
+	compact glyph rather than the full button. */
 .sessions-chat-stt-button > .dictation-download-ring {
 	position: absolute;
 	top: 50%;
 	left: 50%;
-	width: 22px;
-	height: 22px;
+	width: 16px;
+	height: 16px;
 	transform: translate(-50%, -50%) rotate(-90deg);
 	pointer-events: none;
 }
