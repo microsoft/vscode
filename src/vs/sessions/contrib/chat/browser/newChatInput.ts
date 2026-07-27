@@ -60,6 +60,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { getDictationHoverMarkdown } from '../../../../workbench/contrib/chat/browser/speechToText/micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions } from '../../../../workbench/contrib/chat/browser/speechToText/micButtonMenuActions.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
@@ -74,7 +75,6 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
-import { getRandomChatInputPlaceholder, installRotatingChatPlaceholder } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPlaceholderRotation.js';
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
@@ -85,6 +85,7 @@ import { IChatStatusItemService } from '../../../../workbench/contrib/chat/brows
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browser/speechToText/dictationMicGlow.js';
 import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { IVoiceInputModeService } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
 import { toAction } from '../../../../base/common/actions.js';
@@ -92,7 +93,7 @@ import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser
 import { notifyDictationSubmitted } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { DictationDownloadRing, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
+import { DictationDownloadRing, getDictationDownloadHoverMarkdown, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ChatPetWidget } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 
@@ -252,11 +253,37 @@ export interface INewChatInputSendRequest {
 }
 
 /**
- * Randomized, friendly placeholders shown in the new-session chat input to add
- * a bit of personality. Shared with the editor-window agent host empty state.
- * A random one is shown per widget instance and then rotates every few seconds
- * with a shimmer transition, unless the caller passes an explicit placeholder.
+ * Randomized, friendly placeholders shown in the new-session chat input
+ * to add a bit of personality. One is picked per widget instance, avoiding
+ * an immediate repeat of the previous pick.
  */
+const RANDOM_PLACEHOLDERS = [
+	localize('sessionsChatInput.placeholder.whatAreYouBuilding', "What are you building?"),
+	localize('sessionsChatInput.placeholder.whatWillYouShipToday', "What will you ship today?"),
+	localize('sessionsChatInput.placeholder.describeWhatYouWantToBuild', "Describe what you want to build"),
+	localize('sessionsChatInput.placeholder.whatsYourNextMilestone', "What's your next milestone?"),
+	localize('sessionsChatInput.placeholder.whatAreYouTryingToAchieve', "What are you trying to achieve?"),
+	localize('sessionsChatInput.placeholder.pitchYourIdea', "Pitch your idea"),
+	localize('sessionsChatInput.placeholder.whatsTheGoal', "What's the goal?"),
+	localize('sessionsChatInput.placeholder.whatWillYouCreate', "What will you create?"),
+	localize('sessionsChatInput.placeholder.whatFeatureAreYouDreamingUp', "What feature are you dreaming up?"),
+	localize('sessionsChatInput.placeholder.describeTheOutcome', "Describe the outcome you want"),
+	localize('sessionsChatInput.placeholder.whatProblemAreYouSolving', "What problem are you solving?"),
+	localize('sessionsChatInput.placeholder.whatsNextOnYourRoadmap', "What's next on your roadmap?"),
+	localize('sessionsChatInput.placeholder.whatWouldYouLikeToAutomate', "What would you like to automate?"),
+	localize('sessionsChatInput.placeholder.whatWillYouLaunch', "What will you launch?"),
+	localize('sessionsChatInput.placeholder.describeYourMission', "Describe your mission"),
+];
+
+let lastPlaceholderIndex = -1;
+function getRandomChatInputPlaceholder(): string {
+	let index = Math.floor(Math.random() * RANDOM_PLACEHOLDERS.length);
+	if (index === lastPlaceholderIndex) {
+		index = (index + 1) % RANDOM_PLACEHOLDERS.length;
+	}
+	lastPlaceholderIndex = index;
+	return RANDOM_PLACEHOLDERS[index];
+}
 
 // #region --- New Chat Widget ---
 
@@ -346,6 +373,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@ICommandService private readonly commandService: ICommandService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 		@IVoiceInputModeService private readonly voiceInputModeService: IVoiceInputModeService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
@@ -572,11 +600,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			CodeEditorWidget, editorContainer, editorOptions, widgetOptions,
 		));
 		this._editor.setModel(textModel);
-
-		if (this.options.placeholder === undefined) {
-			this._register(installRotatingChatPlaceholder(this._editor));
-		}
-
 		this._register(autorun(reader => {
 			// Re-evaluate when the attached session changes; content changes are
 			// handled by the model-content listener below.
@@ -840,11 +863,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		button.role = 'button';
 		const micLabel = localize('sessionsStt.dictate', "Dictate (Speech to Text)");
 		const stopLabel = localize('sessionsStt.stop', "Stop Dictation");
-		this._register(this.hoverService.setupDelayedHover(button, {
-			content: micLabel,
+		this._register(this.hoverService.setupDelayedHover(button, () => ({
+			// While the model prepares, surface the download/connecting hover
+			// (which invites the user to click to cancel) so this composer matches
+			// the main chat toolbar affordance. Idle gets the richer description
+			// naming the configured dictation model.
+			content: sttService.isPreparingModel
+				? getDictationDownloadHoverMarkdown(sttService)
+				: (sttService.state !== ChatSpeechToTextState.Idle ? stopLabel : getDictationHoverMarkdown(micLabel, this.configurationService)),
 			position: { hoverPosition: HoverPosition.BELOW },
 			appearance: { showPointer: true }
-		}));
+		})));
 
 		const downloadRing = this._register(new MutableDisposable<DictationDownloadRing>());
 		const renderState = () => {
@@ -862,13 +891,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				// First-use only. The on-device backend downloads a model, so
 				// render a download icon wrapped by a progress ring; the cloud
 				// backend just connects, so render a plain spinner instead.
+				// Glyphs render at the compact 12px size, so use the `*Compact`
+				// variants where one exists.
 				if (sttService.currentBackend === 'mai') {
-					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
+					dom.append(button, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
 				} else {
-					dom.append(button, renderIcon(Codicon.micDownload));
+					dom.append(button, renderIcon(Codicon.micDownloadCompact));
 					downloadRing.value = new DictationDownloadRing(button, sttService);
 				}
 			} else {
+				// `mic` / `micFilled` have no compact variant, so they stay as-is.
 				dom.append(button, renderIcon(recording ? Codicon.micFilled : Codicon.mic));
 			}
 			button.classList.toggle('recording', recording && !preparing);
@@ -880,6 +912,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		renderState();
 		this._register(sttService.onDidChangeState(renderState));
 		this._register(sttService.onDidChangePreparingModel(renderState));
+		this._register(setupDictationMicGlow(button, sttService, this.accessibilityService));
 
 		const updateVisibility = () => {
 			// Mirror the `MenuId.ChatExecute` dictation gate: hide while
