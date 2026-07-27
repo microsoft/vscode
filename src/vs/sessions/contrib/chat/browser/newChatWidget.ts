@@ -93,7 +93,7 @@ export class NewChatWidget extends Disposable {
 		// sheet on phone-layout viewports. On Electron desktop, the regular
 		// {@link WorkspacePicker} is fine — phones never run there.
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
-		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor));
+		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {}));
 		this._register(this._pendingPreferredUpgrade);
 
 		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsService.activeSession read in the widget.
