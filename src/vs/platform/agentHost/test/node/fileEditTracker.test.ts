@@ -16,8 +16,9 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
+import { createFileEditContentDigest, getFileEditAttributionMarker, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
-import { createZeroDiffComputeService, TestDiffComputeService } from '../common/sessionTestHelpers.js';
+import { TestDiffComputeService } from '../common/sessionTestHelpers.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { FileEditTracker, buildSessionDbUri, parseSessionDbUri } from '../../node/shared/fileEditTracker.js';
@@ -28,6 +29,7 @@ suite('FileEditTracker', () => {
 	let fileService: FileService;
 	let db: SessionDatabase;
 	let tracker: FileEditTracker;
+	let diffComputeService: TestDiffComputeService;
 
 	setup(async () => {
 		fileService = disposables.add(new FileService(new NullLogService()));
@@ -40,7 +42,9 @@ suite('FileEditTracker', () => {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IFileService, fileService);
-		services.set(IDiffComputeService, createZeroDiffComputeService());
+		diffComputeService = new TestDiffComputeService();
+		services.set(IDiffComputeService, diffComputeService);
+		services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		tracker = instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', db);
@@ -62,6 +66,7 @@ suite('FileEditTracker', () => {
 		const fileEdit = await tracker.takeCompletedEdit('turn-1', 'tc-1', '/workspace/test.txt', '', undefined, undefined);
 		assert.ok(fileEdit);
 		assert.strictEqual(fileEdit.type, ToolResultContentType.FileEdit);
+		assert.strictEqual(diffComputeService.callCount, 1);
 
 		// URIs are parseable session-db: URIs
 		const beforeFields = parseSessionDbUri(fileEdit.before!.content.uri);
@@ -106,6 +111,80 @@ suite('FileEditTracker', () => {
 		assert.strictEqual(result, undefined);
 	});
 
+	test('attaches Agent attribution marker to the file edit result', async () => {
+		const services = new ServiceCollection();
+		services.set(ILogService, new NullLogService());
+		services.set(IFileService, fileService);
+		services.set(IDiffComputeService, new TestDiffComputeService());
+		services.set(IAgentEditAttributionService, {
+			_serviceBrand: undefined,
+			setEnabled: () => { },
+			recordEdit: async edit => ({
+				version: 1,
+				editId: 'edit-1',
+				sequence: 1,
+				beforeDigest: createFileEditContentDigest(edit.beforeText),
+				afterDigest: createFileEditContentDigest(edit.afterText),
+			}),
+			flushSession: async () => { },
+			prepareFlush: async () => undefined,
+			commitFlush: async () => ({ outcome: 'missing', agentModifiedCount: 0 }),
+			cancelFlush: async () => ({ outcome: 'missing', agentModifiedCount: 0 }),
+		});
+		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
+		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
+		const localTracker = instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', db);
+		await fileService.writeFile(URI.file('/workspace/marker.txt'), VSBuffer.fromString('before'));
+
+		await localTracker.trackEditStart('/workspace/marker.txt');
+		await fileService.writeFile(URI.file('/workspace/marker.txt'), VSBuffer.fromString('after'));
+		await localTracker.completeEdit('/workspace/marker.txt');
+		const result = await localTracker.takeCompletedEdit('turn-1', 'tc-marker', '/workspace/marker.txt', 'edit', undefined, 'model');
+
+		assert.deepStrictEqual(result && getFileEditAttributionMarker(result), {
+			version: 1,
+			editId: 'edit-1',
+			sequence: 1,
+			beforeDigest: createFileEditContentDigest('before'),
+			afterDigest: createFileEditContentDigest('after'),
+		});
+	});
+
+	test('returns the file edit result when attribution fails', async () => {
+		const services = new ServiceCollection();
+		services.set(ILogService, new NullLogService());
+		services.set(IFileService, fileService);
+		services.set(IDiffComputeService, new TestDiffComputeService());
+		services.set(IAgentEditAttributionService, {
+			_serviceBrand: undefined,
+			setEnabled: () => { },
+			recordEdit: async () => {
+				throw new Error('Attribution failed');
+			},
+			flushSession: async () => { },
+			prepareFlush: async () => undefined,
+			commitFlush: async () => ({ outcome: 'missing', agentModifiedCount: 0 }),
+			cancelFlush: async () => ({ outcome: 'missing', agentModifiedCount: 0 }),
+		});
+		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
+		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
+		const localTracker = instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', db);
+		await fileService.writeFile(URI.file('/workspace/fallback.txt'), VSBuffer.fromString('before'));
+
+		await localTracker.trackEditStart('/workspace/fallback.txt');
+		await fileService.writeFile(URI.file('/workspace/fallback.txt'), VSBuffer.fromString('after'));
+		await localTracker.completeEdit('/workspace/fallback.txt');
+		const result = await localTracker.takeCompletedEdit('turn-1', 'tc-fallback', '/workspace/fallback.txt', 'edit', undefined, 'model');
+
+		assert.deepStrictEqual({
+			type: result?.type,
+			marker: result && getFileEditAttributionMarker(result),
+		}, {
+			type: ToolResultContentType.FileEdit,
+			marker: undefined,
+		});
+	});
+
 	test('Write to non-existent file records kind=create with removed=0', async () => {
 		// When a file did not exist before the edit, the tracker clamps
 		// `removed` to 0 (the differ otherwise reports 1 for an empty
@@ -115,7 +194,8 @@ suite('FileEditTracker', () => {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IFileService, fileService);
-		services.set(IDiffComputeService, new TestDiffComputeService({ added: 1, removed: 1 }));
+		services.set(IDiffComputeService, new TestDiffComputeService({ added: 1, removed: 1, changes: [] }));
+		services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
 		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
 		const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 		const localTracker = inst.createInstance(FileEditTracker, 'copilot:/test-session', db);

@@ -62,7 +62,7 @@ suite('Edit Telemetry', () => {
 
 		const w = new MutableObservableWorkspace();
 		const docs = disposables.add(new AnnotatedDocuments(w, instantiationService));
-		disposables.add(new EditSourceTrackingImpl(constObservable(true), docs, instantiationService));
+		disposables.add(new EditSourceTrackingImpl(constObservable(true), docs, undefined, instantiationService));
 
 		const d1 = disposables.add(w.createDocument({
 			uri: URI.parse('file:///a'), initialValue: `
