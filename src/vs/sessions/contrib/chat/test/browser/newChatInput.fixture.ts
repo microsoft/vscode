@@ -5,11 +5,9 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { Range } from '../../../../../editor/common/core/range.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -20,9 +18,7 @@ import { registerChatFixtureServices } from '../../../../../workbench/test/brows
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
-import { NewChatView } from '../../browser/chatView.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
@@ -30,11 +26,6 @@ import { IVoiceInputModeService, VoiceInputMode } from '../../../../../workbench
 import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IAquariumService } from '../../../aquarium/browser/aquariumOverlay.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
-import { activeSessionViewBackground } from '../../../../common/theme.js';
-import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 
 // The new-session input box styling lives in these stylesheets; `style.css`
 // provides the `--vscode-agentsChatInput-*` theme variables and the
@@ -43,12 +34,10 @@ import '../../browser/media/chatInput.css';
 import '../../browser/media/newChatInSession.css';
 import '../../browser/media/chatWidget.css';
 import '../../../../browser/media/style.css';
-import '../../../../browser/parts/media/sessionView.css';
 
 interface NewChatInputFixtureOptions {
 	readonly value?: string;
 	readonly selection?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
-	readonly newSessionCommentCount?: number;
 }
 
 /**
@@ -59,16 +48,7 @@ interface NewChatInputFixtureOptions {
  */
 async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptions: NewChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { value, selection, newSessionCommentCount } = fixtureOptions;
-	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: newSessionCommentCount ?? 0 }, (_, index) => ({
-		id: `feedback-${index}`,
-		text: `Comment ${index + 1}`,
-		resourceUri: URI.file(`/workspace/src/file-${index + 1}.ts`),
-		range: new Range(index + 1, 1, index + 1, 8),
-		sessionResource: AGENT_FEEDBACK_NEW_SESSION_RESOURCE,
-		kind: AgentFeedbackKind.UserReview,
-		state: AgentFeedbackState.Accepted,
-	}));
+	const { value, selection } = fixtureOptions;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -90,33 +70,6 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 				override readonly onDidChangeProviders = Event.None;
 				override getProviders() { return []; }
 				override getProvider() { return undefined; }
-			}());
-			reg.defineInstance(ISessionsRecentWorkspacesService, new class extends mock<ISessionsRecentWorkspacesService>() {
-				override readonly onDidChangeRecentWorkspaces = Event.None;
-				override getRecentWorkspaces() { return []; }
-			}());
-			reg.defineInstance(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
-			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
-				override readonly onDidChange = Event.None;
-				override readonly onDidChangeDiscovering = Event.None;
-				override readonly selectedProviderId = undefined;
-				override readonly hosts = [];
-				override readonly isDiscovering = false;
-				override async rediscover(): Promise<void> { }
-			}());
-			reg.defineInstance(IAquariumService, new class extends mock<IAquariumService>() {
-				override mountToggle() {
-					return { dispose() { }, setHostVisible() { } };
-				}
-			}());
-			reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
-				override readonly onDidChangeFeedback = Event.None;
-				override readonly onDidChangeFeedbackScope = Event.None;
-				override getFeedback(sessionResource: URI): readonly IAgentFeedback[] {
-					return sessionResource.toString() === AGENT_FEEDBACK_NEW_SESSION_RESOURCE.toString() ? feedbackItems : [];
-				}
-				override getFeedbackSessionResource() { return undefined; }
-				override async revealFeedback(): Promise<void> { }
 			}());
 			reg.defineInstance(IHistoryService, new class extends mock<IHistoryService>() { }());
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
@@ -166,25 +119,6 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 	container.style.width = '600px';
 	container.style.height = '160px';
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
-	if (newSessionCommentCount !== undefined) {
-		container.style.width = '800px';
-		container.style.height = '360px';
-		const sessionView = dom.append(container, dom.$('.session-view.is-active'));
-		sessionView.style.width = '100%';
-		sessionView.style.height = '100%';
-		sessionView.style.backgroundColor = asCssVariable(activeSessionViewBackground);
-		sessionView.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
-		const sessionViewContent = dom.append(sessionView, dom.$('.session-view-content'));
-		sessionViewContent.style.width = '100%';
-		sessionViewContent.style.height = '100%';
-		const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
-			renderSessionTypePickerInControls: constObservable(true),
-		}));
-		sessionViewContent.appendChild(view.element);
-		view.layout(800, 360, 0, 0);
-		await new Promise(resolve => setTimeout(resolve, 100));
-		return;
-	}
 
 	// `.new-chat-in-session` scopes the layout overrides and
 	// `.new-chat-widget-container.revealed` flips `.new-chat-input-container`
@@ -222,10 +156,6 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newInput/' }, {
 	Default: defineComponentFixture({ render: context => renderNewChatInput(context, { value: 'What are you building?' }) }),
-	NewSessionComments: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: context => renderNewChatInput(context, { newSessionCommentCount: 3 }),
-	}),
 	// Partial multi-line selection so the reverse-rounded selection corners are
 	// rendered. These cut-out pieces use `.monaco-editor-background`, which the
 	// sessions CSS forces transparent — the bug shows here as blocky corners.
