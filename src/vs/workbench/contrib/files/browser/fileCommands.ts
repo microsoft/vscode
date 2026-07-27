@@ -363,7 +363,30 @@ CommandsRegistry.registerCommand({
 
 // Save / Save As / Save All / Revert
 
-function getEditorsFromCommandArgs(accessor: ServicesAccessor, commandArgs?: unknown[]): IEditorIdentifier[] | undefined {
+function expandSideBySideEditor({ groupId, editor }: IEditorIdentifier, options?: ISaveEditorsOptions): IEditorIdentifier[] {
+
+	// Special treatment for side by side editors: if the editor
+	// has 2 sides, we consider both, to support saving both sides.
+	// We only allow this when saving, not for "Save As" and not if any
+	// editor is untitled which would bring up a "Save As" dialog too.
+	// In addition, we require the secondary side to be modified to not
+	// trigger a touch operation unexpectedly.
+	//
+	// See also https://github.com/microsoft/vscode/issues/4180
+	// See also https://github.com/microsoft/vscode/issues/106330
+	// See also https://github.com/microsoft/vscode/issues/190210
+	if (
+		editor instanceof SideBySideEditorInput &&
+		!options?.saveAs && !(editor.primary.hasCapability(EditorInputCapabilities.Untitled) || editor.secondary.hasCapability(EditorInputCapabilities.Untitled)) &&
+		editor.secondary.isModified()
+	) {
+		return [{ groupId, editor: editor.primary }, { groupId, editor: editor.secondary }];
+	}
+
+	return [{ groupId, editor }];
+}
+
+function getEditorsFromCommandArgs(accessor: ServicesAccessor, commandArgs: unknown[] | undefined, options?: ISaveEditorsOptions): IEditorIdentifier[] | undefined {
 	if (!commandArgs?.some(arg => isEditorCommandsContext(arg))) {
 		return undefined; // only respect the arguments if they contain an explicit editor context
 	}
@@ -373,11 +396,14 @@ function getEditorsFromCommandArgs(accessor: ServicesAccessor, commandArgs?: unk
 	const editors: IEditorIdentifier[] = [];
 	for (const { group, editors: groupEditors } of resolvedContext.groupedEditors) {
 		for (const editor of groupEditors) {
-			editors.push({ groupId: group.id, editor });
+			editors.push(...expandSideBySideEditor({ groupId: group.id, editor }, options));
 		}
 	}
 
-	return editors.length ? editors : undefined;
+	// Note: we return the (possibly empty) result even when the explicit context
+	// no longer resolves to any editor to not fall back to other editors which
+	// would end up saving an editor the command was not invoked for
+	return editors;
 }
 
 async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions, commandArgs?: unknown[]): Promise<void> {
@@ -388,7 +414,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 	// Retrieve the editors from the command arguments if they contain an explicit
 	// editor context (e.g. when invoked from the editor tab context menu) because
 	// the editor the command was triggered for may not be the active editor
-	let editors = getEditorsFromCommandArgs(accessor, commandArgs);
+	let editors = getEditorsFromCommandArgs(accessor, commandArgs, options);
 
 	// Retrieve selected or active editor
 	if (!editors) {
@@ -397,28 +423,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 	if (!editors) {
 		const activeGroup = editorGroupService.activeGroup;
 		if (activeGroup.activeEditor) {
-			editors = [];
-
-			// Special treatment for side by side editors: if the active editor
-			// has 2 sides, we consider both, to support saving both sides.
-			// We only allow this when saving, not for "Save As" and not if any
-			// editor is untitled which would bring up a "Save As" dialog too.
-			// In addition, we require the secondary side to be modified to not
-			// trigger a touch operation unexpectedly.
-			//
-			// See also https://github.com/microsoft/vscode/issues/4180
-			// See also https://github.com/microsoft/vscode/issues/106330
-			// See also https://github.com/microsoft/vscode/issues/190210
-			if (
-				activeGroup.activeEditor instanceof SideBySideEditorInput &&
-				!options?.saveAs && !(activeGroup.activeEditor.primary.hasCapability(EditorInputCapabilities.Untitled) || activeGroup.activeEditor.secondary.hasCapability(EditorInputCapabilities.Untitled)) &&
-				activeGroup.activeEditor.secondary.isModified()
-			) {
-				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.primary });
-				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.secondary });
-			} else {
-				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor });
-			}
+			editors = expandSideBySideEditor({ groupId: activeGroup.id, editor: activeGroup.activeEditor }, options);
 		}
 	}
 
