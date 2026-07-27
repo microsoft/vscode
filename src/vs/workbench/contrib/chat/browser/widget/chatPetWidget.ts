@@ -54,6 +54,7 @@ export function getChatPetSpriteName(state: ChatPetState, quality: string | unde
 	}
 }
 
+// TODO @justschen: convert resources to spritesheet instead of gif
 function createSpriteSources(name: string, tracksCursor = true): { animated: string; reducedMotion: string } {
 	const root = 'vs/workbench/contrib/chat/browser/widget/media/chatPet';
 	const suffix = tracksCursor ? '-tracking-96' : '-96';
