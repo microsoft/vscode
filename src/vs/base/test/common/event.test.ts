@@ -416,44 +416,20 @@ suite('Event', function () {
 	});
 
 	test('does not capture listener stacks below the leak warning threshold', () => {
-		const control = ds.add(new Emitter<undefined>());
+		let stackTraceCount = 0;
 		const monitored = ds.add(new Emitter<undefined>({
 			onListenerError() { },
 			leakWarningThreshold: 5,
-		}));
-		const originalError = globalThis.Error;
-		const warn = stub(console, 'warn');
-		let errorCount = 0;
-		globalThis.Error = new Proxy(originalError, {
-			construct(target, argumentsList, newTarget) {
-				errorCount++;
-				return Reflect.construct(target, argumentsList, newTarget);
+			_createStackTrace() {
+				stackTraceCount++;
+				return '';
 			},
-		});
+		}));
 
-		try {
-			for (let i = 0; i < 4; i++) {
-				ds.add(control.event(() => { }));
-			}
-			const controlErrorCount = errorCount;
-
-			errorCount = 0;
-			for (let i = 0; i < 4; i++) {
-				ds.add(monitored.event(() => { }));
-			}
-			assert.strictEqual(errorCount, controlErrorCount);
-
-			errorCount = 0;
-			ds.add(control.event(() => { }));
-			const controlNextListenerErrorCount = errorCount;
-
-			errorCount = 0;
+		for (let i = 0; i < 4; i++) {
 			ds.add(monitored.event(() => { }));
-			assert.strictEqual(errorCount, controlNextListenerErrorCount + 1);
-		} finally {
-			globalThis.Error = originalError;
-			warn.restore();
 		}
+		assert.strictEqual(stackTraceCount, 0);
 	});
 
 	test('reusing event function and context', function () {

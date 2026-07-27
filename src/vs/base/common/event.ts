@@ -944,6 +944,9 @@ export interface EmitterOptions {
 
 	/** ONLY enable this during development */
 	_profName?: string;
+
+	/** For testing only */
+	_createStackTrace?: () => string;
 }
 
 
@@ -1064,9 +1067,8 @@ class LeakageMonitor {
 
 class Stacktrace {
 
-	static create() {
-		const err = new Error();
-		return new Stacktrace(err.stack ?? '');
+	static create(createStackTrace?: () => string) {
+		return new Stacktrace(createStackTrace ? createStackTrace() : new Error().stack ?? '');
 	}
 
 	private constructor(readonly value: string) { }
@@ -1269,12 +1271,12 @@ export class Emitter<T> {
 			let stack: Stacktrace | undefined;
 			if (this._leakageMon && this._size + 1 >= this._leakageMon.threshold) {
 				// check and record this emitter for potential leakage
-				contained.stack = Stacktrace.create();
+				contained.stack = Stacktrace.create(this._options?._createStackTrace);
 				removeMonitor = this._leakageMon.check(contained.stack, this._size + 1);
 			}
 
 			if (_enableDisposeWithListenerWarning) {
-				contained.stack = stack ?? Stacktrace.create();
+				contained.stack = stack ?? Stacktrace.create(this._options?._createStackTrace);
 			}
 
 			if (!this._listeners) {
