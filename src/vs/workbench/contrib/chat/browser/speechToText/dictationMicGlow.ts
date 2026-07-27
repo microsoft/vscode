@@ -7,9 +7,8 @@ import './media/dictationMicGlow.css';
 import { getWindow } from '../../../../../base/browser/dom.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { readVoiceGlowIntensity } from '../voiceClient/voiceGlow.js';
-import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService } from './chatSpeechToTextService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
 
 const SPEAKING_THRESHOLD = 0.08;
 const GLOW_LEVEL_CLASSES = [
@@ -20,12 +19,11 @@ const GLOW_LEVEL_CLASSES = [
 ] as const;
 
 /**
- * Adds audio-reactive feedback to a dictation microphone when the live transcript is hidden.
+ * Adds audio-reactive feedback to a dictation microphone while recording.
  */
 export function setupDictationMicGlow(
 	target: HTMLElement,
 	service: IChatSpeechToTextService,
-	configurationService: IConfigurationService,
 	accessibilityService: IAccessibilityService,
 ): IDisposable {
 	const store = new DisposableStore();
@@ -56,8 +54,7 @@ export function setupDictationMicGlow(
 	};
 
 	const update = () => {
-		const active = service.state === ChatSpeechToTextState.Recording
-			&& !service.showTranscriptWhileDictating;
+		const active = service.state === ChatSpeechToTextState.Recording;
 		target.classList.toggle('dictation-mic-active', active);
 		if (!active) {
 			stopAnimation();
@@ -74,11 +71,6 @@ export function setupDictationMicGlow(
 	};
 
 	store.add(service.onDidChangeState(update));
-	store.add(configurationService.onDidChangeConfiguration(event => {
-		if (event.affectsConfiguration(DictationSettingId.ShowTranscript)) {
-			update();
-		}
-	}));
 	store.add(accessibilityService.onDidChangeReducedMotion(update));
 	store.add(toDisposable(() => {
 		stopAnimation();

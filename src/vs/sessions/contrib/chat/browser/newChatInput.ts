@@ -887,7 +887,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		renderState();
 		this._register(sttService.onDidChangeState(renderState));
 		this._register(sttService.onDidChangePreparingModel(renderState));
-		this._register(setupDictationMicGlow(button, sttService, this.configurationService, this.accessibilityService));
+		this._register(setupDictationMicGlow(button, sttService, this.accessibilityService));
 
 		const updateVisibility = () => {
 			// Mirror the `MenuId.ChatExecute` dictation gate: hide while
