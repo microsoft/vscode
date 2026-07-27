@@ -177,6 +177,8 @@ Running-chat `setModel` / `setAgent` calls update the active chat's cached selec
 
 When restoring Copilot SDK history, `mapSessionEvents` best-effort reconstructs each user message's model, launch/resume custom-agent fallback, and SDK-persisted attachments. Model selection is inferred from `session/model_change` events plus the launch fallback; SDK `subagent.selected` agent names are not treated as AHP agent URIs. Attachments come from the SDK `user.message` attachment payload.
 
+The Agents-window subagent transcript pill surfaces the child turn's current model as quiet inline metadata and shows only the newest child tool on an attached single-line row. Terminal tools prefer `ToolCallBase.intention` over the raw invocation message/command; other tools use the SDK/provider-authored invocation message with the display name as fallback. The view uses shared chat markdown/file-widget rendering for editor-quality file chips and inline commands, animates replacements with the rotating-placeholder wipe/shimmer, and snaps immediately for reduced motion.
+
 ## CRUD & Stubbed Operations
 
 - `archiveSession` / `unarchiveSession` / `deleteSession` — round-trip to the backend. `deleteSessions` is the batch variant (used when multiple sessions are selected): it disposes each backend session and emits a single removal change event. Sessions advertise `capabilities.supportsDelete`, so the shared sessions-list "Delete..." action (contributed by the sessions workbench, gated on `SessionSupportsDeleteContext`) confirms and invokes deletion — there is no provider-specific delete action.

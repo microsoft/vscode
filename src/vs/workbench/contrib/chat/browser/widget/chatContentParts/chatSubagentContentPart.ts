@@ -13,6 +13,7 @@ import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRender
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { rcut } from '../../../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
@@ -21,7 +22,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { formatCopilotCredits, IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { formatCopilotCredits, IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IRunSubagentToolInputParams } from '../../../common/tools/builtinTools/runSubagentTool.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -107,6 +108,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 	// Current tool message for collapsed title (persists even after tool completes)
 	private currentRunningToolMessage: string | undefined;
+	private currentRunningToolCallId: string | undefined;
+	private currentRunningToolIcon: ThemeIcon | undefined;
 
 	// Model name used by this subagent for hover tooltip
 	private modelName: string | undefined;
@@ -282,6 +285,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				confirmationActive: this._confirmationActive,
 				startedAt: data?.kind === 'subagent' ? data.startedAt : undefined,
 				duration: data?.kind === 'subagent' ? data.duration : undefined,
+				...(this.modelName ? { modelName: this.modelName } : {}),
+				...(this.isActive && this.currentRunningToolMessage ? { activeToolLabel: this.currentRunningToolMessage } : {}),
+				...(this.isActive && this.currentRunningToolIcon ? { activeToolIcon: this.currentRunningToolIcon } : {}),
 			};
 		}
 	}
@@ -621,9 +627,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			if (data.duration === undefined && data.startedAt !== undefined) {
 				data.duration = Math.max(0, Date.now() - data.startedAt);
 			}
-			this._updateOpenChatToolbarContext();
 		}
 		this.isActive = false;
+		this._updateOpenChatToolbarContext();
 		this.domNode.classList.remove('chat-thinking-active');
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
@@ -654,6 +660,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (this.wrapper && !this.hasToolsWaitingForConfirmation) {
 			this.showWorkingSpinner();
 		}
+		this._updateOpenChatToolbarContext();
 		this.updateTitle();
 	}
 
@@ -805,7 +812,20 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (modelName && modelName !== this.modelName) {
 			this.modelName = modelName;
 			this.updateHover();
+			this._updateOpenChatToolbarContext();
 		}
+	}
+
+	private getToolLabel(toolInvocation: IChatToolInvocation): string | undefined {
+		if (toolInvocation.toolSpecificData?.kind === 'terminal' && !isLegacyChatTerminalToolInvocationData(toolInvocation.toolSpecificData)) {
+			const intention = toolInvocation.toolSpecificData.intention?.replace(/\s+/g, ' ').trim();
+			if (intention) {
+				return intention;
+			}
+		}
+		const message = toolInvocation.invocationMessage;
+		const messageText = typeof message === 'string' ? message : message.value;
+		return messageText.replace(/\s+/g, ' ').trim() || undefined;
 	}
 
 	/**
@@ -822,9 +842,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		// Set the title immediately when tool is added - like thinking part does
-		const message = toolInvocation.invocationMessage;
-		const messageText = typeof message === 'string' ? message : message.value;
-		this.currentRunningToolMessage = messageText;
+		this.currentRunningToolCallId = toolInvocation.toolCallId;
+		this.currentRunningToolMessage = this.getToolLabel(toolInvocation);
+		this.currentRunningToolIcon = getToolInvocationIcon(toolInvocation.toolId, toolInvocation.icon);
+		this._updateOpenChatToolbarContext();
 		this.updateTitle();
 		const addToolToCarousel = this._addToolToCarousel;
 		const shouldUseCarouselForTool = this._shouldUseCarouselForTool;
@@ -833,6 +854,14 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		let wasWaitingForCarouselConfirmation = false;
 		const toolStateAutorun = autorun(r => {
 			const state = toolInvocation.state.read(r);
+			if (this.currentRunningToolCallId === toolInvocation.toolCallId) {
+				const toolLabel = this.getToolLabel(toolInvocation);
+				if (toolLabel !== this.currentRunningToolMessage) {
+					this.currentRunningToolMessage = toolLabel;
+					this._updateOpenChatToolbarContext();
+					this.updateTitle();
+				}
+			}
 
 			const isWaitingForConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
 				|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval
@@ -993,6 +1022,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 						if (toolInvocation.toolSpecificData.modelName) {
 							this.modelName = toolInvocation.toolSpecificData.modelName;
 							this.updateHover();
+							this._updateOpenChatToolbarContext();
 						}
 					}
 					// Credits (AIC) may arrive at or after completion as the
@@ -1016,6 +1046,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 					if (modelName) {
 						this.modelName = modelName;
 						this.updateHover();
+						this._updateOpenChatToolbarContext();
 					}
 					this.refreshCreditsFromToolData(toolInvocation);
 					this.renderPromptSection();
@@ -1208,6 +1239,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				? localize('hook.subagent.warning', 'Warning for {0}', hookPart.toolDisplayName)
 				: localize('hook.subagent.warningGeneric', 'Hook warning'));
 		this.currentRunningToolMessage = hookMessage;
+		this.currentRunningToolCallId = undefined;
+		this.currentRunningToolIcon = hookPart.stopReason ? Codicon.error : Codicon.warning;
+		this._updateOpenChatToolbarContext();
 		this.updateTitle();
 
 		if (this.isExpanded() || this.hasExpandedOnce) {
