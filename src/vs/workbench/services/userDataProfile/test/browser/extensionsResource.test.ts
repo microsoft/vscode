@@ -9,10 +9,12 @@ import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IExtensionGalleryService, IExtensionInfo, IGalleryExtension, IGalleryExtensionAssets, ILocalExtension } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IExtensionGalleryService, IExtensionInfo, IGalleryExtension, IGalleryExtensionAssets, ILocalExtension, InstallOperation } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionType, TargetPlatform } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUserDataProfile, toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileStorageService } from '../../../../../platform/userDataProfile/common/userDataProfileStorageService.js';
@@ -55,12 +57,33 @@ function aLocalExtension(id: string, isBuiltin: boolean = false): ILocalExtensio
 	});
 }
 
+class RecordingLogService extends NullLogService {
+
+	readonly errors: { message: string | Error; args: unknown[] }[] = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push({ message, args });
+	}
+}
+
+class RecordingNotificationService extends TestNotificationService {
+
+	readonly warnings: string[] = [];
+
+	override warn(message: string) {
+		this.warnings.push(message);
+		return super.warn(message);
+	}
+}
+
 suite('ExtensionsResource', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
 	let extensionManagementService: Partial<IWorkbenchExtensionManagementService>;
+	let logService: RecordingLogService;
+	let notificationService: RecordingNotificationService;
 	let profile: IUserDataProfile;
 
 	setup(() => {
@@ -89,7 +112,10 @@ suite('ExtensionsResource', () => {
 			}
 		});
 
-		instantiationService.stub(ILogService, new NullLogService());
+		logService = new RecordingLogService();
+		instantiationService.stub(ILogService, logService);
+		notificationService = new RecordingNotificationService();
+		instantiationService.stub(INotificationService, notificationService);
 
 		profile = toUserDataProfile('test', 'test', URI.file('/profiles/test'), URI.file('/cache'));
 	});
@@ -113,7 +139,18 @@ suite('ExtensionsResource', () => {
 			{ identifier: { id: 'pub.c' } },
 		]), profile, undefined, CancellationToken.None);
 
-		assert.deepStrictEqual(installed, ['pub.a', 'pub.c']);
+		assert.deepStrictEqual({
+			installed,
+			errors: logService.errors,
+			warnings: notificationService.warnings,
+		}, {
+			installed: ['pub.a', 'pub.c'],
+			errors: [{
+				message: 'Importing Profile (test): Failed to install extension.',
+				args: ['pub.b', 'Failed to install pub.b'],
+			}],
+			warnings: ['Some profile extensions could not be installed: pub.b'],
+		});
 	});
 
 	test('reports progress for every extension when one extension fails to install', async () => {
@@ -133,6 +170,34 @@ suite('ExtensionsResource', () => {
 		]), profile, message => progressMessages.push(message), CancellationToken.None);
 
 		assert.strictEqual(progressMessages.length, 2);
+	});
+
+	test('reports failed extensions from bulk installation', async () => {
+		extensionManagementService.installGalleryExtensions = async installExtensionInfos => installExtensionInfos.map(({ extension, options }) => ({
+			identifier: extension.identifier,
+			operation: InstallOperation.Install,
+			source: extension,
+			error: extension.identifier.id === 'pub.b' ? new Error('Failed to install pub.b') : undefined,
+			profileLocation: options.profileLocation!,
+		}));
+
+		const testObject = instantiationService.createInstance(ExtensionsResource);
+
+		await testObject.apply(JSON.stringify([
+			{ identifier: { id: 'pub.a' } },
+			{ identifier: { id: 'pub.b' } },
+		]), profile);
+
+		assert.deepStrictEqual({
+			errors: logService.errors,
+			warnings: notificationService.warnings,
+		}, {
+			errors: [{
+				message: 'Importing Profile (test): Failed to install extension.',
+				args: ['pub.b', 'Failed to install pub.b'],
+			}],
+			warnings: ['Some profile extensions could not be installed: pub.b'],
+		});
 	});
 
 	test('does not install an extension that is already installed as a builtin', async () => {
