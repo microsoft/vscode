@@ -66,6 +66,12 @@ export interface IAgentFeedbackNavigationBearing {
 	readonly totalCount: number;
 }
 
+export interface IAgentFeedbackCommentRevealEvent {
+	readonly sessionResource: URI;
+	readonly commentId: string;
+	readonly resourceUri: URI;
+}
+
 /** Fired when a brand-new agent feedback item is added by the user. */
 export interface IAgentFeedbackAddedEvent {
 	readonly sessionResource: URI;
@@ -107,6 +113,7 @@ export interface IAgentFeedbackService {
 
 	readonly onDidChangeFeedback: Event<IAgentFeedbackChangeEvent>;
 	readonly onDidChangeNavigation: Event<URI>;
+	readonly onDidRevealSessionComment: Event<IAgentFeedbackCommentRevealEvent>;
 	/** Fired when {@link getFeedbackSessionResource} may resolve differently. */
 	readonly onDidChangeFeedbackScope: Event<void>;
 
@@ -273,6 +280,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	readonly onDidChangeFeedback = this._onDidChangeFeedback.event;
 	private readonly _onDidChangeNavigation = this._store.add(new Emitter<URI>());
 	readonly onDidChangeNavigation = this._onDidChangeNavigation.event;
+	private readonly _onDidRevealSessionComment = this._store.add(new Emitter<IAgentFeedbackCommentRevealEvent>());
+	readonly onDidRevealSessionComment = this._onDidRevealSessionComment.event;
 	private readonly _onDidChangeFeedbackScope = this._store.add(new Emitter<void>());
 	readonly onDidChangeFeedbackScope = this._onDidChangeFeedbackScope.event;
 	private readonly _onDidAddFeedback = this._store.add(new Emitter<IAgentFeedbackAddedEvent>());
@@ -706,6 +715,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 
 		this.setNavigationAnchor(sessionResource, commentId);
+		this._onDidRevealSessionComment.fire({ sessionResource, commentId, resourceUri });
 	}
 
 	private _getSessionChange(resourceUri: URI, changes: readonly ISessionFileChange[] | undefined): { originalUri?: URI; modifiedUri: URI; isDeletion: boolean } | undefined {

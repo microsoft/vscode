@@ -159,6 +159,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	 */
 	#wireComments(document: vscode.TextDocument, webview: vscode.Webview): vscode.Disposable {
 		const commentsProvider = vscode.window.createAgentEditorComments(document.uri);
+		let webviewReady = false;
+		let revealedCommentId: string | undefined;
 
 		const postComments = () => {
 			const comments = commentsProvider.comments.map(comment => ({
@@ -170,11 +172,22 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			}));
 			webview.postMessage({ type: 'comments', comments, acceptsComments: commentsProvider.acceptsComments });
 		};
+		const postReveal = () => {
+			if (webviewReady && revealedCommentId) {
+				webview.postMessage({ type: 'revealComment', id: revealedCommentId });
+			}
+		};
 
 		const onChange = commentsProvider.onDidChange(postComments);
+		const onDidRevealComment = commentsProvider.onDidRevealComment(id => {
+			revealedCommentId = id;
+			postReveal();
+		});
 		const onMessage = webview.onDidReceiveMessage((message) => {
 			if (message.type === 'ready') {
+				webviewReady = true;
 				postComments();
+				postReveal();
 			} else if (message.type === 'addComment') {
 				const range = new vscode.Range(
 					document.positionAt(message.start),
@@ -186,7 +199,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			}
 		});
 
-		return vscode.Disposable.from(commentsProvider, onChange, onMessage);
+		return vscode.Disposable.from(commentsProvider, onChange, onDidRevealComment, onMessage);
 	}
 
 
