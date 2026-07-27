@@ -163,6 +163,13 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+.monaco-workbench.monaco-enable-motion .sessions-chat-voice-toolbar .action-label.codicon-loading-compact::before,
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button .codicon-loading-compact.codicon-modifier-spin {
+	display: inline-block;
+	transform-origin: center center;
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
 /* Segmented voice/dictation pill (experimental) */
 .sessions-chat-voice-input-mode {
 	display: flex;
