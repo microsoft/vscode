@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isCandidateLocalPort } from '../../browser/remoteExplorer.js';
+import { isCandidateRemappedTunnelLocalEndpoint } from '../../browser/remoteExplorer.js';
 
 suite('AutomaticPortForwarding', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,7 +27,7 @@ suite('AutomaticPortForwarding', () => {
 			{ host: 'localhost', port: 6000 },
 		];
 
-		assert.deepStrictEqual(candidates.map(candidate => isCandidateLocalPort(candidate, tunnels)), [
+		assert.deepStrictEqual(candidates.map(candidate => isCandidateRemappedTunnelLocalEndpoint(candidate, tunnels)), [
 			true,
 			true,
 			true,

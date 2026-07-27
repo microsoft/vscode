@@ -44,7 +44,7 @@ export const TOGGLE_VIEW_ACTION_ID = 'remoteExplorer.toggleForwardedPortsView';
 /**
  * Checks if a process candidate is the remapped local endpoint of an existing tunnel.
  */
-export function isCandidateLocalPort(candidate: CandidatePort, tunnels: Iterable<Pick<Tunnel, 'localPort' | 'remotePort'>>): boolean {
+export function isCandidateRemappedTunnelLocalEndpoint(candidate: CandidatePort, tunnels: Iterable<Pick<Tunnel, 'localPort' | 'remotePort'>>): boolean {
 	if (!isLocalhost(candidate.host) && !isAllInterfaces(candidate.host)) {
 		return false;
 	}
@@ -749,7 +749,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} missing detail`);
 				continue;
 			}
-			if (isCandidateLocalPort(value, this.remoteExplorerService.tunnelModel.forwarded.values())) {
+			if (isCandidateRemappedTunnelLocalEndpoint(value, this.remoteExplorerService.tunnelModel.forwarded.values())) {
 				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} is the local port of a forwarded tunnel`);
 				continue;
 			}
