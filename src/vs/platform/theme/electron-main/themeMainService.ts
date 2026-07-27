@@ -24,11 +24,5 @@ export interface IThemeMainService {
 
 	getColorScheme(): IColorScheme;
 
-	/**
-	 * Whether OS color-scheme auto-detection is active.
-	 * Returns `true` when the `window.autoDetectColorScheme` setting is enabled,
-	 * or for fresh installs where no theme has been stored yet and the user
-	 * has not explicitly configured the setting (e.g. via settings sync).
-	 */
 	isAutoDetectColorScheme(): boolean;
 }

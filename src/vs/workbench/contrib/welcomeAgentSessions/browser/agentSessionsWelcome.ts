@@ -60,11 +60,18 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { canShowAgentsBanner, createAgentsBanner } from '../../chat/browser/agentSessions/agentSessionsBanner.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
 const MAX_REPO_PICKS = 10;
 const MAX_WALKTHROUGHS = 10;
+const WELCOME_CHAT_INPUT_LAYOUT_HEIGHT = 150;
+const WELCOME_CHAT_INPUT_RESERVED_LIST_HEIGHT = 50;
+const WELCOME_CHAT_INPUT_RESERVED_CHROME_HEIGHT = 72;
+const WELCOME_COMPACT_HEIGHT = 800;
+// Mirror ChatWidget's compact-surface sizing so the hidden list reservation and input chrome do not collapse the editor.
+const WELCOME_CHAT_INPUT_MAX_HEIGHT_OVERRIDE = WELCOME_CHAT_INPUT_LAYOUT_HEIGHT + WELCOME_CHAT_INPUT_RESERVED_LIST_HEIGHT + WELCOME_CHAT_INPUT_RESERVED_CHROME_HEIGHT;
 
 /**
  * - visibleDurationMs: Do they close it right away or leave it open (#3)
@@ -559,6 +566,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			getHoverPosition: () => HoverPosition.BELOW,
 			trackActiveEditorSession: () => false,
 			source: 'welcomeView',
+			itemHeight: AgentSessionsListDelegate.ITEM_HEIGHT,
+			sectionHeight: AgentSessionsListDelegate.SECTION_HEIGHT,
 			notifySessionOpened: () => {
 				const isProjectionEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled);
 				if (!isProjectionEnabled) {
@@ -588,13 +597,21 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			this.layoutSessionsControl();
 		}));
 
-		// "View all sessions" link
-		const openButton = append(container, $('button.agentSessionsWelcome-openSessionsButton'));
-		openButton.textContent = localize('viewAllSessions', "View All Sessions");
-		openButton.onclick = () => {
-			this._closedBy = 'viewAllSessions';
-			this.revealMaximizedChat();
-		};
+		// "Try out the new Agents app" banner
+		if (canShowAgentsBanner(this.chatEntitlementService)) {
+			const agentsBanner = createAgentsBanner(
+				{
+					cssClass: 'agentSessionsWelcome-agentsBanner',
+					source: 'agentSessionsWelcome',
+					label: localize('viewAllSessions', "View All Sessions"),
+					onButtonClick: () => { this._closedBy = 'viewAllSessions'; },
+				},
+				this.commandService,
+				this.telemetryService,
+			);
+			this.sessionsControlDisposables.add(agentsBanner.disposables);
+			append(container, agentsBanner.element);
+		}
 	}
 
 	private buildWalkthroughs(container: HTMLElement): void {
@@ -788,6 +805,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.lastDimension = dimension;
 		this.container.style.height = `${dimension.height}px`;
 		this.container.style.width = `${dimension.width}px`;
+		this.container.classList.toggle('height-constrained', dimension.height <= WELCOME_COMPACT_HEIGHT);
 
 		// Layout chat widget
 		this.layoutChatWidget();
@@ -804,9 +822,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		}
 
 		const chatWidth = Math.min(800, this.lastDimension.width - 80);
-		// Use a reasonable height for the input part - the CSS will hide the list area
-		const inputHeight = 150;
-		this.chatWidget.layout(inputHeight, chatWidth);
+		this.chatWidget.setInputPartMaxHeightOverride(WELCOME_CHAT_INPUT_MAX_HEIGHT_OVERRIDE);
+		this.chatWidget.layout(WELCOME_CHAT_INPUT_LAYOUT_HEIGHT, chatWidth);
 	}
 
 	private layoutSessionsControl(): void {

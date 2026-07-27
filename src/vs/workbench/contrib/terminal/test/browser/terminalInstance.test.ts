@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { Color } from '../../../../../base/common/color.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, ImmortalReference } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -17,19 +16,15 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, TerminalLocation, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { TestColorTheme } from '../../../../../platform/theme/test/common/testThemeService.js';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../common/theme.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
-import { parseExitResult, TerminalInstance, TerminalInstanceColorProvider, TerminalLabelComputer } from '../../browser/terminalInstance.js';
+import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
 import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
-import { TERMINAL_BACKGROUND_COLOR } from '../../common/terminalColorRegistry.js';
 import { TestViewDescriptorService } from './xterm/xtermTerminal.test.js';
 import { fixPath } from '../../../../services/search/test/browser/queryBuilder.test.js';
 import { TestTerminalProfileResolverService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -205,6 +200,77 @@ suite('Workbench - TerminalInstance', () => {
 
 			// Verify that the task name is preserved
 			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title');
+		});
+
+		test('should preserve agent shell type detected from sequence until the parent shell returns', async () => {
+			const instance = await createTerminalInstance() as TerminalInstance;
+			const onTitleChange = (title: string) => (instance as unknown as Record<string, (value: string) => void>)['_onTitleChange'](title);
+			const handleShellTypeChange = (shellType: GeneralShellType | PosixShellType | undefined) => (instance as unknown as Record<string, (value: GeneralShellType | PosixShellType | undefined) => void>)['_handleShellTypeChange'](shellType);
+
+			strictEqual(instance.shellType, undefined);
+			onTitleChange('Claude Code');
+			strictEqual(instance.shellType, GeneralShellType.Claude);
+
+			handleShellTypeChange(GeneralShellType.Node);
+			strictEqual(instance.shellType, GeneralShellType.Claude);
+
+			handleShellTypeChange(undefined);
+			strictEqual(instance.shellType, GeneralShellType.Claude);
+
+			handleShellTypeChange(PosixShellType.Zsh);
+			strictEqual(instance.shellType, PosixShellType.Zsh);
+		});
+
+		test('should detect Command Code agent shell type from its OSC title', async () => {
+			const instance = await createTerminalInstance() as TerminalInstance;
+			const onTitleChange = (title: string) => (instance as unknown as Record<string, (value: string) => void>)['_onTitleChange'](title);
+
+			strictEqual(instance.shellType, undefined);
+			onTitleChange('\u2733 Command Code \u00b7 my-project');
+			strictEqual(instance.shellType, GeneralShellType.CommandCode);
+		});
+
+		test('should fire onWillDispose before xterm disposal and onDisposed after xterm disposal', async () => {
+			const instance = await createTerminalInstance();
+			const xterm = await instance.xtermReadyPromise;
+			const disposalOrder: string[] = [];
+
+			store.add(instance.onWillDispose(() => disposalOrder.push('onWillDispose')));
+			store.add(xterm!.onDidDispose(() => disposalOrder.push('xterm')));
+			store.add(instance.onDisposed(() => disposalOrder.push('onDisposed')));
+
+			instance.dispose();
+
+			deepStrictEqual(disposalOrder, ['onWillDispose', 'xterm', 'onDisposed']);
+		});
+
+		test('should dispose contribution-owned xterm addons before xterm disposal', async () => {
+			const instance = await createTerminalInstance();
+			const xterm = await instance.xtermReadyPromise;
+			const disposalOrder: string[] = [];
+			let addonDisposeCount = 0;
+
+			const addon = {
+				activate: () => { },
+				dispose: () => {
+					addonDisposeCount++;
+					disposalOrder.push('addon');
+				}
+			};
+			xterm!.raw.loadAddon(addon);
+			store.add(instance.onWillDispose(() => {
+				disposalOrder.push('onWillDispose');
+				addon.dispose();
+			}));
+			store.add(xterm!.onDidDispose(() => disposalOrder.push('xterm')));
+			store.add(instance.onDisposed(() => disposalOrder.push('onDisposed')));
+
+			instance.dispose();
+
+			deepStrictEqual(
+				{ disposalOrder, addonDisposeCount },
+				{ disposalOrder: ['onWillDispose', 'addon', 'xterm', 'onDisposed'], addonDisposeCount: 1 }
+			);
 		});
 
 		test('custom key event handler should handle commands in DEFAULT_COMMANDS_TO_SKIP_SHELL in VS Code and not xterm when sendKeybindingsToShell is disabled', async () => {
@@ -461,6 +527,12 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(terminalLabelComputer.title, 'sequence');
 			strictEqual(terminalLabelComputer.description, 'sequence');
 		});
+		test('should resolve empty sequence to process name', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${sequence}${separator}${process}', description: '${sequence}' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'zsh', sequence: '' }));
+			strictEqual(terminalLabelComputer.title, 'zsh');
+			strictEqual(terminalLabelComputer.description, '');
+		});
 		test('should resolve task', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${task}', description: '${task}' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { type: 'Task' } }));
@@ -484,6 +556,31 @@ suite('Workbench - TerminalInstance', () => {
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, sequence: 'my-sequence', processName: 'zsh', shellLaunchConfig: { titleTemplate: '${sequence}' } }));
 			strictEqual(terminalLabelComputer.title, 'my-sequence');
 			strictEqual(terminalLabelComputer.description, 'cwd');
+		});
+		test('should use ${sequence} for agent CLI shell types', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Copilot, sequence: 'Copilot Agent', processName: 'copilot' }));
+			strictEqual(terminalLabelComputer.title, 'Copilot Agent');
+		});
+		test('should use ${sequence} for Gemini agent CLI shell type', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Gemini, sequence: 'Gemini - my-project', processName: 'node' }));
+			strictEqual(terminalLabelComputer.title, 'Gemini - my-project');
+		});
+		test('should use ${sequence} for Command Code agent CLI shell type', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.CommandCode, sequence: 'Fix Parser Bug', processName: 'node' }));
+			strictEqual(terminalLabelComputer.title, 'Fix Parser Bug');
+		});
+		test('should prefer shellLaunchConfig.titleTemplate over agent CLI shell type override', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Copilot, sequence: 'Copilot Agent', processName: 'copilot', shellLaunchConfig: { titleTemplate: '${process}' } }));
+			strictEqual(terminalLabelComputer.title, 'copilot');
+		});
+		test('should fall back to configured title when allowAgentCliTitle is disabled', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: false } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Copilot, sequence: 'Copilot Agent', processName: 'copilot' }));
+			strictEqual(terminalLabelComputer.title, 'copilot');
 		});
 		test('should provide cwdFolder for all cwds only when in multi-root', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } } } });
@@ -523,6 +620,7 @@ suite('Workbench - TerminalInstance', () => {
 			cwd?: string;
 			remoteAuthority?: string;
 			fileExists?: boolean;
+			fileServiceCanHandle?: boolean;
 		}): Pick<ITerminalInstance, 'getCwdResource' | 'capabilities' | 'remoteAuthority'> {
 			const capabilities = store.add(new TerminalCapabilityStore());
 
@@ -535,6 +633,7 @@ suite('Workbench - TerminalInstance', () => {
 
 			// Mock file service
 			mockFileService = {
+				canHandleResource: async (_resource: URI) => options.fileServiceCanHandle !== false,
 				exists: async (resource: URI) => options.fileExists !== false
 			};
 
@@ -561,6 +660,9 @@ suite('Workbench - TerminalInstance', () => {
 						resource = await mockPathService.fileURI(cwd);
 					} else {
 						resource = URI.file(cwd);
+					}
+					if (!await mockFileService.canHandleResource(resource)) {
+						return undefined;
 					}
 					if (await mockFileService.exists(resource)) {
 						return resource;
@@ -634,106 +736,20 @@ suite('Workbench - TerminalInstance', () => {
 			const result = await instance.getCwdResource();
 			strictEqual(result, undefined);
 		});
-	});
-});
 
-suite('TerminalInstanceColorProvider', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+		test('should return undefined when fileService cannot handle the resource (VS Code web ENOPRO scenario)', async () => {
+			// Simulates server-linux-x64-web where remoteAuthority is falsy from the
+			// terminal's perspective, so URI.file() is produced but the browser
+			// FileService has no file:// provider registered.
+			const testCwd = '/workspace/my-project';
+			const instance = createMockTerminalInstance({
+				cwd: testCwd,
+				fileExists: true,
+				fileServiceCanHandle: false  // file:// provider absent
+			});
 
-	let configurationService: TestConfigurationService;
-	let viewDescriptorService: TestViewDescriptorService;
-
-	function createColorProvider(location: TerminalLocation | undefined): TerminalInstanceColorProvider {
-		const instantiationService = workbenchInstantiationService({
-			configurationService: () => configurationService,
-		}, store);
-		viewDescriptorService = new TestViewDescriptorService();
-		instantiationService.stub(IViewDescriptorService, viewDescriptorService as Partial<IViewDescriptorService>);
-		return instantiationService.createInstance(TerminalInstanceColorProvider, new ImmortalReference(location));
-	}
-
-	setup(() => {
-		configurationService = new TestConfigurationService({
-			terminal: {
-				integrated: {
-					editorUseEditorBackground: true
-				}
-			}
+			const result = await instance.getCwdResource();
+			strictEqual(result, undefined);
 		});
-	});
-
-	test('editor terminal with editorUseEditorBackground=true returns editor background', () => {
-		const provider = createColorProvider(TerminalLocation.Editor);
-		const theme = new TestColorTheme({
-			[editorBackground]: '#1e1e1e',
-			[TERMINAL_BACKGROUND_COLOR]: '#ff0000',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#1e1e1e'));
-	});
-
-	test('editor terminal with editorUseEditorBackground=false and TERMINAL_BACKGROUND_COLOR defined returns terminal background', () => {
-		configurationService = new TestConfigurationService({
-			terminal: {
-				integrated: {
-					editorUseEditorBackground: false
-				}
-			}
-		});
-		const provider = createColorProvider(TerminalLocation.Editor);
-		const theme = new TestColorTheme({
-			[editorBackground]: '#1e1e1e',
-			[TERMINAL_BACKGROUND_COLOR]: '#ff0000',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#ff0000'));
-	});
-
-	test('editor terminal with editorUseEditorBackground=false and no TERMINAL_BACKGROUND_COLOR falls back to editor background', () => {
-		configurationService = new TestConfigurationService({
-			terminal: {
-				integrated: {
-					editorUseEditorBackground: false
-				}
-			}
-		});
-		const provider = createColorProvider(TerminalLocation.Editor);
-		const theme = new TestColorTheme({
-			[editorBackground]: '#1e1e1e',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#1e1e1e'));
-	});
-
-	test('panel terminal ignores editorUseEditorBackground and uses TERMINAL_BACKGROUND_COLOR', () => {
-		const provider = createColorProvider(TerminalLocation.Panel);
-		const theme = new TestColorTheme({
-			[editorBackground]: '#1e1e1e',
-			[TERMINAL_BACKGROUND_COLOR]: '#ff0000',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#ff0000'));
-	});
-
-	test('panel terminal without TERMINAL_BACKGROUND_COLOR falls back to panel background', () => {
-		const provider = createColorProvider(TerminalLocation.Panel);
-		viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.Panel);
-		const theme = new TestColorTheme({
-			[PANEL_BACKGROUND]: '#00ff00',
-			[SIDE_BAR_BACKGROUND]: '#0000ff',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#00ff00'));
-	});
-
-	test('sidebar terminal without TERMINAL_BACKGROUND_COLOR falls back to sidebar background', () => {
-		const provider = createColorProvider(TerminalLocation.Panel);
-		viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.Sidebar);
-		const theme = new TestColorTheme({
-			[PANEL_BACKGROUND]: '#00ff00',
-			[SIDE_BAR_BACKGROUND]: '#0000ff',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#0000ff'));
 	});
 });

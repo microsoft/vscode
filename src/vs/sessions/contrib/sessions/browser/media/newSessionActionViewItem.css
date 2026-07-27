@@ -1,0 +1,81 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Compact "New" session button — rendered by NewSessionActionViewItem and shared
+between the sessions sidebar header and the titlebar. Selectors are intentionally
+unscoped so the widget renders identically wherever it is mounted. */
+
+.agent-sessions-compact-new-button.monaco-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 2px 8px;
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
+	line-height: 18px;
+	border-radius: var(--vscode-cornerRadius-small);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, transparent));
+	background-color: var(--vscode-agentsNewSessionButton-background, transparent);
+	color: var(--vscode-agentsNewSessionButton-foreground, var(--vscode-foreground));
+	width: auto;
+	min-width: 0;
+	height: auto;
+	white-space: nowrap;
+}
+
+.agent-sessions-compact-new-button.monaco-button:not(.disabled) {
+	cursor: pointer;
+}
+
+.agent-sessions-compact-new-button.monaco-button.default-colors:hover {
+	background-color: var(--vscode-agentsNewSessionButton-hoverBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+.agent-sessions-compact-new-button.monaco-button:focus {
+	outline-offset: -1px !important;
+}
+
+.agent-sessions-compact-new-button .new-session-button-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	min-width: 0;
+	white-space: nowrap;
+}
+
+.agent-sessions-compact-new-button .new-session-keybinding-hint {
+	display: inline-block;
+	flex-shrink: 0;
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-agents-fontSize-label3, 10px);
+	line-height: 1;
+	padding: 2px 4px;
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	background-color: var(--vscode-keybindingLabel-background);
+	color: var(--vscode-keybindingLabel-foreground);
+	box-shadow: none;
+}
+
+.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding {
+	line-height: 1;
+}
+
+.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key {
+	margin: 0 1px;
+	padding: 0;
+	min-width: auto;
+	border: 0;
+	background-color: transparent;
+	box-shadow: none;
+}
+
+.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key:first-child {
+	margin-left: 0;
+}
+
+.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key:last-child {
+	margin-right: 0;
+}

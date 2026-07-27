@@ -408,6 +408,11 @@
 	display: none;
 }
 
+/* Hidden when the title bar is too narrow to fit it without pushing the window controls off-screen (#303222). */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container.overflowing {
+	display: none;
+}
+
 /* Action Tool Bar Controls */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
 	display: none;

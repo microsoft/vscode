@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { CursorChangeReason } from '../../../../../editor/common/cursorEvents.js';
 import { CursorState } from '../../../../../editor/common/cursorCommon.js';
@@ -16,7 +15,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService.js';
 import { Event } from '../../../../../base/common/event.js';
 import { InlineChatAffordance } from '../../browser/inlineChatAffordance.js';
-import { InlineChatInputWidget } from '../../browser/inlineChatOverlayWidget.js';
+
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -26,15 +25,6 @@ import { InlineChatConfigKeys } from '../../common/inlineChat.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-
-function createMockInputWidget(): InlineChatInputWidget {
-	return new class extends mock<InlineChatInputWidget>() {
-		override readonly position = observableValue('test.position', null);
-		override show() { }
-		override hide() { }
-		override dispose() { }
-	};
-}
 
 suite('InlineChatAffordance - Telemetry', () => {
 
@@ -88,7 +78,7 @@ suite('InlineChatAffordance - Telemetry', () => {
 	}
 
 	test('shown event includes mode "editor"', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		store.add(instantiationService.createInstance(InlineChatAffordance, editor, createMockInputWidget()));
+		store.add(instantiationService.createInstance(InlineChatAffordance, editor));
 
 		setExplicitSelection(new Selection(1, 1, 1, 6));
 		await timeout(600);
@@ -106,7 +96,7 @@ suite('InlineChatAffordance - Telemetry', () => {
 			override affectsConfiguration(key: string) { return key === InlineChatConfigKeys.Affordance; }
 		});
 
-		store.add(instantiationService.createInstance(InlineChatAffordance, editor, createMockInputWidget()));
+		store.add(instantiationService.createInstance(InlineChatAffordance, editor));
 
 		setExplicitSelection(new Selection(1, 1, 1, 6));
 		await timeout(600);
@@ -117,7 +107,7 @@ suite('InlineChatAffordance - Telemetry', () => {
 	test('shown event does NOT fire for whitespace-only selection', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		model.setValue('   \nhello');
 
-		store.add(instantiationService.createInstance(InlineChatAffordance, editor, createMockInputWidget()));
+		store.add(instantiationService.createInstance(InlineChatAffordance, editor));
 
 		setExplicitSelection(new Selection(1, 1, 1, 4));
 		await timeout(600);
@@ -126,7 +116,7 @@ suite('InlineChatAffordance - Telemetry', () => {
 	}));
 
 	test('shown event does NOT fire for empty selection', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		store.add(instantiationService.createInstance(InlineChatAffordance, editor, createMockInputWidget()));
+		store.add(instantiationService.createInstance(InlineChatAffordance, editor));
 
 		setExplicitSelection(new Selection(1, 1, 1, 1));
 		await timeout(600);
@@ -135,7 +125,7 @@ suite('InlineChatAffordance - Telemetry', () => {
 	}));
 
 	test('each selection gets a unique affordanceId', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		store.add(instantiationService.createInstance(InlineChatAffordance, editor, createMockInputWidget()));
+		store.add(instantiationService.createInstance(InlineChatAffordance, editor));
 
 		setExplicitSelection(new Selection(1, 1, 1, 6));
 		await timeout(600);

@@ -5,8 +5,10 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { errorHandler } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugLogProvider, IChatDebugModelTurnEvent, IChatDebugResolvedEventContent, IChatDebugToolCallEvent } from '../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../common/chatDebugServiceImpl.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
@@ -26,7 +28,7 @@ suite('ChatDebugServiceImpl', () => {
 	const claudeCodeSession = URI.parse('claude-code:/test-session-id');
 
 	setup(() => {
-		service = disposables.add(new ChatDebugServiceImpl());
+		service = disposables.add(new ChatDebugServiceImpl(new TestConfigurationService()));
 	});
 
 	suite('addEvent and getEvents', () => {
@@ -104,6 +106,7 @@ suite('ChatDebugServiceImpl', () => {
 				inputTokens: 100,
 				outputTokens: 50,
 				totalTokens: 150,
+				copilotUsageNanoAiu: 5_000_000_000,
 				durationInMillis: 1200,
 			};
 
@@ -114,6 +117,7 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(events.length, 2);
 			assert.strictEqual(events[0].kind, 'toolCall');
 			assert.strictEqual(events[1].kind, 'modelTurn');
+			assert.strictEqual((events[1] as IChatDebugModelTurnEvent).copilotUsageNanoAiu, 5_000_000_000);
 		});
 	});
 
@@ -276,44 +280,6 @@ suite('ChatDebugServiceImpl', () => {
 		});
 	});
 
-	suite('markDebugDataAttached', () => {
-		test('should track attached debug data per session', () => {
-			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), false);
-
-			const fired: URI[] = [];
-			disposables.add(service.onDidAttachDebugData(uri => fired.push(uri)));
-
-			service.markDebugDataAttached(sessionGeneric);
-			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), true);
-			assert.strictEqual(fired.length, 1);
-			assert.strictEqual(fired[0].toString(), sessionGeneric.toString());
-
-			// Idempotent — second call should not fire again
-			service.markDebugDataAttached(sessionGeneric);
-			assert.strictEqual(fired.length, 1);
-
-			// Other sessions remain unaffected
-			assert.strictEqual(service.hasAttachedDebugData(sessionA), false);
-		});
-
-		test('should clear attached debug data on endSession', () => {
-			service.markDebugDataAttached(sessionGeneric);
-			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), true);
-
-			service.endSession(sessionGeneric);
-			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), false);
-		});
-
-		test('should clear attached debug data on clear', () => {
-			service.markDebugDataAttached(sessionA);
-			service.markDebugDataAttached(sessionB);
-
-			service.clear();
-			assert.strictEqual(service.hasAttachedDebugData(sessionA), false);
-			assert.strictEqual(service.hasAttachedDebugData(sessionB), false);
-		});
-	});
-
 	suite('registerProvider', () => {
 		test('should register and unregister a provider', async () => {
 			const extSession = URI.parse('vscode-chat-session://local/ext-session');
@@ -355,13 +321,45 @@ suite('ChatDebugServiceImpl', () => {
 			};
 
 			disposables.add(service.registerProvider(provider));
-			// Should not throw
-			await service.invokeProviders(errorSession);
+			// Suppress the expected onUnexpectedError from _invokeProvider
+			const origHandler = errorHandler.getUnexpectedErrorHandler();
+			errorHandler.setUnexpectedErrorHandler(() => { });
+			try {
+				await service.invokeProviders(errorSession);
+			} finally {
+				errorHandler.setUnexpectedErrorHandler(origHandler);
+			}
 			assert.strictEqual(service.getEvents(errorSession).length, 0);
 		});
 	});
 
 	suite('invokeProviders', () => {
+		test('re-invocation that returns undefined should preserve previously loaded events', async () => {
+			// A provider that succeeds once and then transiently fails (e.g. an
+			// Agent Host session's events.jsonl is mid-rewrite by the external
+			// CLI) must not wipe the events currently shown.
+			let succeed = true;
+			const provider: IChatDebugLogProvider = {
+				provideChatDebugLog: async () => succeed ? [{
+					kind: 'generic',
+					sessionResource: sessionGeneric,
+					created: new Date(),
+					name: 'provider-event',
+					level: ChatDebugLogLevel.Info,
+				}] : undefined,
+			};
+
+			disposables.add(service.registerProvider(provider));
+
+			await service.invokeProviders(sessionGeneric);
+			assert.strictEqual(service.getEvents(sessionGeneric).length, 1);
+
+			// Second invocation fails (returns undefined) — events are kept.
+			succeed = false;
+			await service.invokeProviders(sessionGeneric);
+			assert.strictEqual(service.getEvents(sessionGeneric).length, 1);
+		});
+
 		test('should invoke multiple providers and merge events', async () => {
 			const providerA: IChatDebugLogProvider = {
 				provideChatDebugLog: async () => [{
@@ -688,6 +686,103 @@ suite('ChatDebugServiceImpl', () => {
 
 			assert.ok(capturedToken);
 			assert.strictEqual(capturedToken.isCancellationRequested, true);
+		});
+	});
+
+	suite('event deduplication', () => {
+		test('should deduplicate events with the same ID, keeping the richer kind', () => {
+			const userMsg: IChatDebugEvent = {
+				kind: 'userMessage',
+				id: 'shared-id-1',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:00Z'),
+				message: 'hello',
+				sections: [],
+			};
+			const subagent: IChatDebugEvent = {
+				kind: 'subagentInvocation',
+				id: 'shared-id-1',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:01Z'),
+				agentName: 'Explore',
+			};
+			service.addEvent(userMsg);
+			service.addEvent(subagent);
+
+			const events = service.getEvents(session1);
+			assert.strictEqual(events.length, 1);
+			assert.strictEqual(events[0].kind, 'subagentInvocation');
+		});
+
+		test('should keep richer event when it arrives first', () => {
+			const subagent: IChatDebugEvent = {
+				kind: 'subagentInvocation',
+				id: 'shared-id-2',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:00Z'),
+				agentName: 'Explore',
+			};
+			const userMsg: IChatDebugEvent = {
+				kind: 'userMessage',
+				id: 'shared-id-2',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:01Z'),
+				message: 'hello',
+				sections: [],
+			};
+			service.addEvent(subagent);
+			service.addEvent(userMsg);
+
+			const events = service.getEvents(session1);
+			assert.strictEqual(events.length, 1);
+			assert.strictEqual(events[0].kind, 'subagentInvocation');
+		});
+
+		test('should not fire onDidAddEvent for skipped duplicates', () => {
+			const firedKinds: string[] = [];
+			disposables.add(service.onDidAddEvent(e => firedKinds.push(e.kind)));
+
+			const subagent: IChatDebugEvent = {
+				kind: 'subagentInvocation',
+				id: 'shared-id-3',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:00Z'),
+				agentName: 'Explore',
+			};
+			const userMsg: IChatDebugEvent = {
+				kind: 'userMessage',
+				id: 'shared-id-3',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:01Z'),
+				message: 'hello',
+				sections: [],
+			};
+			service.addEvent(subagent);
+			service.addEvent(userMsg); // should be skipped
+
+			assert.deepStrictEqual(firedKinds, ['subagentInvocation']);
+		});
+
+		test('should allow events without IDs to coexist', () => {
+			const event1: IChatDebugGenericEvent = {
+				kind: 'generic',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:00Z'),
+				name: 'a',
+				level: ChatDebugLogLevel.Info,
+			};
+			const event2: IChatDebugGenericEvent = {
+				kind: 'generic',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:01Z'),
+				name: 'b',
+				level: ChatDebugLogLevel.Info,
+			};
+			service.addEvent(event1);
+			service.addEvent(event2);
+
+			const events = service.getEvents(session1);
+			assert.strictEqual(events.length, 2);
 		});
 	});
 });
