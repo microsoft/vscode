@@ -40,7 +40,7 @@ import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { ObservableSuggestWidgetAdapter } from '../model/suggestWidgetAdapter.js';
 import { ObservableContextKeyService } from '../utils.js';
 import { InlineSuggestionsView } from '../view/inlineSuggestionsView.js';
-import { inlineSuggestCommitId } from './commandIds.js';
+import { inlineSuggestCommitId, jumpToNextInlineEditId } from './commandIds.js';
 import { setInlineCompletionsControllerGetter } from './common.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 
@@ -346,10 +346,22 @@ export class InlineCompletionsController extends Disposable {
 					this._provideScreenReaderUpdate(state.primaryGhostText.renderForScreenReader(lineText));
 				} else {
 					const lineNumber = state.inlineSuggestion.targetRange.startLineNumber;
-					const cursorAtInlineEdit = state.cursorAtInlineEdit.get();
-					const content = cursorAtInlineEdit
-						? localize('nextEditSuggestionAccept', "Next edit suggestion available on line {0}, press Tab to accept", lineNumber)
-						: localize('nextEditSuggestionJump', "Next edit suggestion available on line {0}, press Tab to jump", lineNumber);
+					const tabShouldAccept = model.tabShouldAcceptInlineEdit.get();
+					const tabShouldJump = model.tabShouldJumpToInlineEdit.get();
+					let content: string;
+					if (tabShouldAccept) {
+						const kb = this._keybindingService.lookupKeybinding(inlineSuggestCommitId)?.getAriaLabel();
+						content = kb
+							? localize('nextEditSuggestionAcceptWithKb', "Next edit suggestion available on line {0}, press {1} to accept", lineNumber, kb)
+							: localize('nextEditSuggestionAcceptNoKb', "Next edit suggestion available on line {0}, accept it to apply", lineNumber);
+					} else if (tabShouldJump) {
+						const kb = this._keybindingService.lookupKeybinding(jumpToNextInlineEditId)?.getAriaLabel();
+						content = kb
+							? localize('nextEditSuggestionJumpWithKb', "Next edit suggestion available on line {0}, press {1} to jump", lineNumber, kb)
+							: localize('nextEditSuggestionJumpNoKb', "Next edit suggestion available on line {0}", lineNumber);
+					} else {
+						content = localize('nextEditSuggestionNoAction', "Next edit suggestion available on line {0}", lineNumber);
+					}
 					this._provideScreenReaderUpdate(content);
 				}
 			}
