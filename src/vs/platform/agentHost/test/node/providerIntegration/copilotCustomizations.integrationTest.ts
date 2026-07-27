@@ -54,10 +54,19 @@ const TEST_TIMEOUT_MS = 90_000;
 const NOTIFICATION_TIMEOUT_MS = 10_000;
 const WATCH_ASSERT_TIMEOUT_MS = 30_000;
 const WATCH_ASSERT_POLL_INTERVAL_MS = 100;
+/**
+ * Cadence at which {@link applyAndWaitForAssert} re-applies its mutation.
+ *
+ * Must stay comfortably above the agent's own refresh debounce
+ * (`REFRESH_DEBOUNCE_MS`). That debounce is a `Delayer`, so each new change
+ * event cancels and restarts its timer: a mutation stream at (or faster than)
+ * the debounce window starves the delayer and the re-scan never runs at all.
+ */
+const WATCH_MUTATION_RETRY_INTERVAL_MS = 2_000;
 
 async function waitForAssert(
 	assertion: () => Promise<void> | void,
-	beforeRetry?: () => Promise<void>,
+	beforeAttempt?: () => Promise<void>,
 	timeoutMs = WATCH_ASSERT_TIMEOUT_MS,
 	pollIntervalMs = WATCH_ASSERT_POLL_INTERVAL_MS,
 ): Promise<void> {
@@ -65,13 +74,13 @@ async function waitForAssert(
 	let lastError: unknown;
 	while (Date.now() < deadline) {
 		try {
+			await beforeAttempt?.();
 			await assertion();
 			return;
 		} catch (error) {
 			lastError = error;
 		}
 		await new Promise<void>(resolve => setTimeout(resolve, pollIntervalMs));
-		await beforeRetry?.();
 	}
 	throw new Error(
 		`Timed out waiting for expected customizations state (${timeoutMs}ms). Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`
@@ -79,20 +88,31 @@ async function waitForAssert(
 }
 
 /**
- * Apply a filesystem mutation, then wait for the session's customization
- * state to reflect it — re-applying the mutation before every retry.
+ * Apply a filesystem mutation and wait for the session's customization state
+ * to reflect it, periodically re-applying the mutation.
  *
  * Recursive filesystem watchers are subscribed asynchronously by the OS
  * watcher process, so a mutation issued right after the initial discovery
  * settles can land before the subscription is live and is then never
  * reported: nothing triggers a re-scan and the wait burns its full timeout.
- * Re-writing the file on each attempt emits a fresh change event, so the
- * first attempt that lands after the watcher is live drives the re-scan. A
- * watcher that never comes up still fails the assertion.
+ * Re-applying the mutation emits a fresh change event, so the first attempt
+ * that lands after the watcher is live drives the re-scan.
+ *
+ * The mutation is re-applied on {@link WATCH_MUTATION_RETRY_INTERVAL_MS}
+ * rather than on every poll so it can never starve the agent's refresh
+ * debounce. The mutation runs inside the retry loop, so a transient failure
+ * to apply it is retried too. A watcher that never comes up still fails the
+ * assertion.
  */
 async function applyAndWaitForAssert(mutate: () => Promise<void>, assertion: () => Promise<void> | void): Promise<void> {
-	await mutate();
-	await waitForAssert(assertion, mutate);
+	let nextMutationAt = 0;
+	await waitForAssert(assertion, async () => {
+		if (Date.now() < nextMutationAt) {
+			return;
+		}
+		nextMutationAt = Date.now() + WATCH_MUTATION_RETRY_INTERVAL_MS;
+		await mutate();
+	});
 }
 
 const TEST_WATCH = true;

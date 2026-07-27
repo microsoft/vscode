@@ -355,13 +355,7 @@ export function buildDiscoveredCustomizations(
 
 	const agentNames = new Set(sdk.agents.map(a => a.name));
 	const commandNames = new Set(sdk.commands.map(c => c.name));
-	// The agent host's own in-process MCP servers (client-tool / server-tool
-	// bridges) are reported by the SDK alongside real servers, but they are
-	// internal plumbing: surfacing them would both show phantom entries in the
-	// customization UI and feed their names back into the session's MCP
-	// enablement reconciliation, which then tries to toggle a server the CLI
-	// has no configuration for (`Server not found: <name>`).
-	const mcpByName = new Map(sdk.mcpServers.filter(s => !isHostInjectedMcpServerName(s.name)).map(s => [s.name, s] as const));
+	const mcpByName = new Map(sdk.mcpServers.map(s => [s.name, s] as const));
 
 	// Keep disk entries the live session actually loaded. A loaded skill
 	// surfaces in the SDK's `supportedCommands()` set, so disk skills are
@@ -416,6 +410,19 @@ export function buildDiscoveredCustomizations(
 	}
 	for (const [name, sdkServer] of mcpByName) {
 		if (seenMcp.has(name) || pluginMcpNames.has(name)) {
+			continue;
+		}
+		// The agent host injects its own in-process MCP servers (the client-tool
+		// and server-tool bridges) into `Options.mcpServers`, and the SDK reports
+		// them here alongside real ones. They are internal plumbing with no
+		// definition the user can act on, so an SDK-only entry under one of those
+		// names is ours: surfacing it would show a phantom customization AND feed
+		// its name into the session's MCP enablement reconciliation, which then
+		// tries to toggle a server the CLI has no configuration for
+		// (`Server not found: <name>`). A server the disk scan did define under
+		// the same name is matched above and kept, so a user-configured server is
+		// never hidden by this.
+		if (isHostInjectedMcpServerName(name)) {
 			continue;
 		}
 		servers.push({ ...makeMcpServerCustomization(nonEditableUri('mcp', name), name), state: deriveMcpState(sdkServer.status) });
