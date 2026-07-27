@@ -146,8 +146,12 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		this.hideContentHover();
 	}
 
+	private _isMaybeChoosingColor(): boolean {
+		return !!this._contentWidget?.isColorPickerVisible && this._isMouseDown;
+	}
+
 	private _shouldKeepHoverWidgetVisible(mouseEvent: IPartialEditorMouseEvent): boolean {
-		return this._isMouseOnContentHoverWidget(mouseEvent) || this._isContentWidgetResizing() || isOnColorDecorator(mouseEvent);
+		return this._isMouseOnContentHoverWidget(mouseEvent) || this._isContentWidgetResizing() || isOnColorDecorator(mouseEvent) || this._isMaybeChoosingColor();
 	}
 
 	private _isMouseOnContentHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
@@ -196,8 +200,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			const isColorPickerVisible = contentWidget.isColorPickerVisible;
 			const isMouseOnContentHoverWidget = this._isMouseOnContentHoverWidget(mouseEvent);
 			const isMouseOnHoverWithColorPicker = isColorPickerVisible && isMouseOnContentHoverWidget;
-			const isMaybeChoosingColor = isColorPickerVisible && this._isMouseDown;
-			return isMouseOnHoverWithColorPicker || isMaybeChoosingColor;
+			return isMouseOnHoverWithColorPicker || this._isMaybeChoosingColor();
 		};
 		// TODO@aiday-mar verify if the following is necessary code
 		const isTextSelectedWithinContentHoverWidget = (mouseEvent: IEditorMouseEvent, sticky: boolean): boolean => {
