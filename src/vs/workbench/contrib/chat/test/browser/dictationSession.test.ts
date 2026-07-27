@@ -7,6 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { createTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
@@ -23,6 +24,7 @@ suite('DictationSession', () => {
 		const onDidUpdateTranscript = store.add(new Emitter<IChatDictationTranscript>());
 		const onDidChangeState = store.add(new Emitter<ChatSpeechToTextState>());
 		let state = ChatSpeechToTextState.Idle;
+		let placeholderDuringStart: string | undefined;
 		const service: IChatSpeechToTextService = {
 			_serviceBrand: undefined,
 			onDidUpdateTranscript: onDidUpdateTranscript.event,
@@ -35,6 +37,7 @@ suite('DictationSession', () => {
 			get modelDownloadProgress() { return undefined; },
 			get currentBackend() { return 'mai' as const; },
 			async start() {
+				placeholderDuringStart = editor.getOption(EditorOption.placeholder);
 				state = ChatSpeechToTextState.Recording;
 				onDidChangeState.fire(state);
 			},
@@ -47,13 +50,24 @@ suite('DictationSession', () => {
 			logDictationAccuracy() { },
 		};
 		const model = store.add(createTextModel(''));
-		const editor = store.add(createTestCodeEditor(model));
+		const editor = store.add(createTestCodeEditor(model, { placeholder: 'Ask a question' }));
 
 		await startDictation(service, editor, mainWindow, new NullLogService());
+		const activePlaceholder = editor.getOption(EditorOption.placeholder);
 		onDidUpdateTranscript.fire({ text: transcript, finalizedText: '' });
 		editor.executeEdits('test', [{ range: new Range(1, 1, 1, transcript.length + 1), text: '' }]);
 		await stopDictation();
 
-		assert.strictEqual(editor.getValue(), '');
+		assert.deepStrictEqual({
+			placeholderDuringStart,
+			activePlaceholder,
+			placeholderAfterStop: editor.getOption(EditorOption.placeholder),
+			value: editor.getValue(),
+		}, {
+			placeholderDuringStart: '',
+			activePlaceholder: 'Listening\u2026',
+			placeholderAfterStop: 'Ask a question',
+			value: '',
+		});
 	});
 });

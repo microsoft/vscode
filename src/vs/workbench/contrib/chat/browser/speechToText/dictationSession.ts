@@ -362,9 +362,9 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	// prepared on first use (downloading/loading, which can take a while), show
 	// a "Preparing…/Downloading… X%" placeholder instead so the user knows why
 	// dictation has not started yet rather than staring at an idle editor. The
-	// placeholder must not appear during microphone acquisition. It remains
-	// visible until transcript text is inserted, and is restored to its
-	// previous value when the session ends.
+	// previous placeholder must not appear during microphone acquisition. The
+	// dictation placeholder remains visible until transcript text is inserted,
+	// and the previous value is restored when the session ends.
 	const previousPlaceholder = editor.getOption(EditorOption.placeholder);
 	const listeningPlaceholder = localize('chatStt.listening', "Listening…");
 	// The placeholder we last applied (listening or a preparing label), so we
@@ -377,15 +377,10 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 		const recording = service.state === ChatSpeechToTextState.Recording;
 		const desired = recording
 			? (service.isPreparingModel ? getDictationPreparingLabel(service) : listeningPlaceholder)
-			: undefined;
-		if (desired !== undefined) {
-			if (appliedPlaceholder !== desired) {
-				editor.updateOptions({ placeholder: desired });
-				appliedPlaceholder = desired;
-			}
-		} else if (appliedPlaceholder !== undefined) {
-			editor.updateOptions({ placeholder: previousPlaceholder });
-			appliedPlaceholder = undefined;
+			: '';
+		if (appliedPlaceholder !== desired) {
+			editor.updateOptions({ placeholder: desired });
+			appliedPlaceholder = desired;
 		}
 	};
 	disposables.add(toDisposable(() => {
@@ -427,6 +422,7 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	// and local transcription running against a dead editor.
 	disposables.add(editor.onDidDispose(() => cancelDictation()));
 	_active = { service, editor, inserter, disposables, logService, surface };
+	applyPlaceholder();
 	try {
 		await service.start(window, surface);
 	} catch {

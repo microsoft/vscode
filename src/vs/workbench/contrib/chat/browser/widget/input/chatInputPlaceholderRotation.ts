@@ -63,17 +63,27 @@ export function installRotatingChatPlaceholder(editor: ICodeEditor, options?: IR
 	const store = new DisposableStore();
 
 	const placeholderContribution = PlaceholderTextContribution.get(editor);
-	placeholderContribution?.setAnimateTransitions(true);
 	store.add(toDisposable(() => PlaceholderTextContribution.get(editor)?.setAnimateTransitions(false)));
 
 	const currentPlaceholder = editor.getOption(EditorOption.placeholder);
+	let expectedPlaceholder = currentPlaceholder;
 	let index = placeholders.indexOf(currentPlaceholder);
 	if (index === -1) {
 		index = Math.floor(Math.random() * placeholders.length);
 	}
 	store.add(disposableWindowInterval(getWindow(editor.getDomNode()), () => {
+		if (editor.getOption(EditorOption.placeholder) !== expectedPlaceholder) {
+			return;
+		}
+
 		index = (index + 1) % placeholders.length;
-		editor.updateOptions({ placeholder: placeholders[index] });
+		expectedPlaceholder = placeholders[index];
+		placeholderContribution?.setAnimateTransitions(true);
+		try {
+			editor.updateOptions({ placeholder: expectedPlaceholder });
+		} finally {
+			placeholderContribution?.setAnimateTransitions(false);
+		}
 	}, intervalMs));
 
 	return store;
