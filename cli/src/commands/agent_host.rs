@@ -717,6 +717,12 @@ fn mint_connection_token(path: &Path, prefer_token: Option<String>) -> std::io::
 	file_options.mode(0o600);
 	let mut file = file_options.open(path)?;
 
+	// Applied on every call, not only when the token is written. A token file
+	// created before this existed keeps whatever it inherited for as long as
+	// it survives, and the common path returns an existing token below without
+	// rewriting it — so repairing only on write would never reach those.
+	crate::util::file_permissions::restrict_to_owner(path)?;
+
 	if prefer_token.is_none() {
 		let mut token = String::new();
 		file.read_to_string(&mut token)?;
