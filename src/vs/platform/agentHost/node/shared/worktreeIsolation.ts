@@ -382,8 +382,17 @@ export class WorktreeIsolation extends Disposable {
 		if (!workingDirectory) {
 			return { items: [] };
 		}
-		const branches = await this._gitService.getBranches(workingDirectory, { pattern: ['refs/heads'], sort: 'committerdate' });
-		const branchCompletions = getBranchCompletions(branches.map(branch => branch.name), { query, limit: BRANCH_COMPLETION_LIMIT });
+		const [branches, currentBranch, defaultBranch] = await Promise.all([
+			this._gitService.getBranches(workingDirectory, { pattern: ['refs/heads'], sort: 'committerdate' }),
+			this._gitService.getCurrentBranch(workingDirectory),
+			this._gitService.getDefaultBranch(workingDirectory),
+		]);
+		const branchCompletions = getBranchCompletions(branches.map(branch => branch.name), {
+			currentBranch,
+			defaultBranch: defaultBranch?.name,
+			query,
+			limit: BRANCH_COMPLETION_LIMIT,
+		});
 
 		return { items: branchCompletions.map(branch => ({ value: branch, label: branch })) };
 	}
