@@ -2416,7 +2416,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return altBufferResult;
 		}
 
-		if (didSandboxWrapCommand && outputLooksBubblewrapHostRestricted(terminalResult)) {
+		if (didSandboxWrapCommand && exitCode !== 0 && outputLooksBubblewrapHostRestricted(terminalResult)) {
 			return this._getBubblewrapHostRestrictedResult();
 		}
 
