@@ -212,11 +212,14 @@ export class TerminalSandboxEngine extends Disposable {
 		const blockedDomainResult = shouldInspectBlockedDomains ? this._getBlockedDomains(command) : { blockedDomains: [], deniedDomains: [] };
 		const requiresPreflightAllowNetwork = retryWithAllowNetworkRequests && blockedDomainResult.blockedDomains.length > 0;
 		const allowNetworkForCommand = requestUnsandboxedExecution !== true && ((requestAllowNetwork === true && retryWithAllowNetworkRequests) || requiresPreflightAllowNetwork);
-		const normalizedCommandDetails = this._normalizeCommandDetails(commandDetails ?? []);
+		const autoUpdateSandboxSettings = this._isSandboxSettingsAutoUpdateEnabled();
+		const normalizedCommandDetails = autoUpdateSandboxSettings ? this._normalizeCommandDetails(commandDetails ?? []) : [];
 		const normalizedCommandKeywords = this._normalizeCommandKeywords(normalizedCommandDetails.map(c => c.keyword));
-		const currentReadAllowListPaths = getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails);
+		const currentCommandKeywords = autoUpdateSandboxSettings ? this._commandAllowListKeywords : [];
+		const currentCommandDetails = autoUpdateSandboxSettings ? this._commandAllowListCommandDetails : [];
+		const currentReadAllowListPaths = getTerminalSandboxReadAllowListForCommands(this._os, currentCommandKeywords, currentCommandDetails);
 		const nextReadAllowListPaths = getTerminalSandboxReadAllowListForCommands(this._os, normalizedCommandKeywords, normalizedCommandDetails);
-		const currentRuntimeConfiguration = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._commandAllowListCommandDetails);
+		const currentRuntimeConfiguration = getTerminalSandboxRuntimeConfigurationForCommands(this._os, currentCommandDetails);
 		const nextRuntimeConfiguration = getTerminalSandboxRuntimeConfigurationForCommands(this._os, normalizedCommandDetails);
 		const shouldRefreshConfig = this._commandAllowListKeywords.length === 0
 			|| this._needsForceUpdateConfigFile
@@ -641,7 +644,7 @@ export class TerminalSandboxEngine extends Disposable {
 			? this._getSettingValue<string>(AgentSandboxSettingId.AgentSandboxWindowsSchemaVersion)
 			: undefined;
 		const runtimeSetting = this._getSettingValue<Record<string, unknown>>(AgentSandboxSettingId.AgentSandboxAdvancedRuntime) ?? {};
-		const commandRuntimeSetting = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._commandAllowListCommandDetails);
+		const commandRuntimeSetting = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._getCommandDetailsForSandboxConfig());
 		const commandRuntimeAllowReadPaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowRead');
 		const commandRuntimeAllowWritePaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowWrite');
 		const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
@@ -714,7 +717,7 @@ export class TerminalSandboxEngine extends Disposable {
 		const windowsFileSystemSetting = this._os === OperatingSystem.Windows
 			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxWindowsFileSystem) ?? {}
 			: {};
-		const commandRuntimeSetting = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._commandAllowListCommandDetails);
+		const commandRuntimeSetting = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._getCommandDetailsForSandboxConfig());
 		const commandRuntimeAllowReadPaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowRead');
 		const commandRuntimeAllowWritePaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowWrite');
 		let allowWritePaths: string[] = [];
@@ -929,7 +932,9 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	private async _updateAllowReadPathsWithAllowWrite(configuredAllowRead: string[] | undefined, allowWrite: string[], commandRuntimeAllowRead: string[] = []): Promise<string[]> {
-		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails), ...commandRuntimeAllowRead, ...this._getSandboxRuntimeReadPaths(), ...await this._getWorkspaceStorageReadPaths(), ...allowWrite])];
+		const commandDetails = this._getCommandDetailsForSandboxConfig();
+		const commandKeywords = this._isSandboxSettingsAutoUpdateEnabled() ? this._commandAllowListKeywords : [];
+		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, commandKeywords, commandDetails), ...commandRuntimeAllowRead, ...this._getSandboxRuntimeReadPaths(), ...await this._getWorkspaceStorageReadPaths(), ...allowWrite])];
 	}
 
 	private async _resolveFileSystemPaths(paths: string[] | undefined): Promise<string[]> {
@@ -1075,6 +1080,14 @@ export class TerminalSandboxEngine extends Disposable {
 
 	private _areRetryWithAllowNetworkRequestsAllowed(): boolean {
 		return this._getSettingValue<boolean>(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests) === true;
+	}
+
+	private _isSandboxSettingsAutoUpdateEnabled(): boolean {
+		return this._getSettingValue<boolean>(AgentSandboxSettingId.AgentSandboxSettingsAutoUpdate) !== false;
+	}
+
+	private _getCommandDetailsForSandboxConfig(): readonly ITerminalSandboxCommand[] {
+		return this._isSandboxSettingsAutoUpdateEnabled() ? this._commandAllowListCommandDetails : [];
 	}
 
 	private _getSettingValue<T>(settingId: AgentSandboxSettingId | AgentNetworkDomainSettingId): T | undefined {

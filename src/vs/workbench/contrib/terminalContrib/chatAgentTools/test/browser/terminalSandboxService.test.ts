@@ -845,6 +845,27 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!gitConfig.filesystem.allowWrite.includes('/home/user/.volta/'), 'Refreshing for a new command should start allowWrite from the current command details');
 	});
 
+	test('should not add command-specific sandbox settings when auto update is disabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxSettingsAutoUpdate, false);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		await sandboxService.wrapCommand('node --version && git status', false, 'bash', undefined, [
+			{ keyword: 'node', args: ['--version'] },
+			{ keyword: 'git', args: ['status'] },
+		]);
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be rewritten for the command');
+
+		const config = JSON.parse(configContent);
+		ok(!config.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Disabled auto update should omit Node read paths');
+		ok(!config.filesystem.allowWrite.includes('/home/user/.volta/'), 'Disabled auto update should omit Node write paths');
+		ok(!config.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Disabled auto update should omit Git read paths');
+		ok(!config.filesystem.allowRead.includes('/home/user/.gnupg'), 'Disabled auto update should omit command runtime read paths');
+		ok(!config.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Disabled auto update should omit command runtime write paths');
+	});
+
 	test('should apply command-detail read and write allow-list rules', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		const configPath = await sandboxService.getSandboxConfigPath();
