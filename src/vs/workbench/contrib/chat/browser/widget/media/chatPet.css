@@ -86,13 +86,24 @@
 	display: block;
 	width: 48px;
 	height: 48px;
-	object-fit: contain;
+	overflow: hidden;
 	image-rendering: pixelated;
 	pointer-events: none;
 }
 
 .chat-pet-sprite.hidden {
 	display: none;
+}
+
+.chat-pet-spritesheet {
+	position: absolute;
+	top: 0;
+	left: 0;
+	display: block;
+	height: 48px;
+	max-width: none;
+	image-rendering: pixelated;
+	pointer-events: none;
 }
 
 .chat-pet-button[data-state='complete'] .chat-pet-sprite {
@@ -115,6 +126,12 @@
 .chat-pet-button[data-state='yappingMouthOpen'] .chat-pet-sprite {
 	transform-origin: 30% 80%;
 	transform: translateY(calc(-1 * var(--vscode-spacing-size40))) rotate(-90deg);
+}
+
+.chat-pet-button.dragging .chat-pet-sprite,
+.chat-pet-button.dragging .chat-pet-eyes {
+	transform: none;
+	animation: none;
 }
 
 .chat-pet-speech-bubble {
@@ -155,20 +172,23 @@
 	display: block;
 }
 
+.chat-pet-button.dragging .chat-pet-speech-bubble {
+	display: none;
+}
+
 .chat-pet-eyes {
 	position: absolute;
 	inset: 0;
+	visibility: hidden;
 	pointer-events: none;
+}
+
+.chat-pet-eyes.tracking {
+	visibility: visible;
 }
 
 .chat-pet-eyes.animated {
 	animation: chat-pet-eye-bob 2s steps(1, end) infinite;
-}
-
-.chat-pet-button[data-state='love'] .chat-pet-eyes,
-.chat-pet-button[data-state='complete'] .chat-pet-eyes,
-.chat-pet-button[data-state='yappingMouthOpen'] .chat-pet-eyes {
-	visibility: hidden;
 }
 
 .chat-pet-eye {
