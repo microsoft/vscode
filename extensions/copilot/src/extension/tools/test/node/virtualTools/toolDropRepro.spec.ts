@@ -14,7 +14,7 @@ import { IInstantiationService } from '../../../../../util/vs/platform/instantia
 import { LanguageModelToolExtensionSource, LanguageModelToolMCPSource } from '../../../../../vscodeTypes';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { IToolEmbeddingsCache, IToolEmbeddingsComputer, ToolEmbeddingsComputer } from '../../../common/virtualTools/toolEmbeddingsComputer';
-import { VIRTUAL_TOOL_NAME_PREFIX, VirtualTool } from '../../../common/virtualTools/virtualTool';
+import { EMBEDDINGS_GROUP_NAME, VIRTUAL_TOOL_NAME_PREFIX, VirtualTool } from '../../../common/virtualTools/virtualTool';
 import { VirtualToolGrouper } from '../../../common/virtualTools/virtualToolGrouper';
 import { TOOLS_AND_GROUPS_LIMIT, UNCATEGORIZED_TOOLS_GROUP_NAME } from '../../../common/virtualTools/virtualToolsConstants';
 import { ISummarizedToolCategory } from '../../../common/virtualTools/virtualToolTypes';
@@ -234,7 +234,13 @@ describe('Virtual Tools - grouping must not drop tools (#324113)', () => {
 		const accessor = createAccessor();
 		try {
 			const source = makeExtensionSource('lossy.extension');
-			const extensionTools = Array.from({ length: 5 }, (_, i) => makeTool(`lossy-${i}`, source));
+			const extensionTools = [
+				makeTool('lossy-0', source),
+				makeTool('lossy-1', source),
+				makeTool(`${VIRTUAL_TOOL_NAME_PREFIX}group_1`, source),
+				makeTool(EMBEDDINGS_GROUP_NAME, source),
+				makeTool('lossy-4', source),
+			];
 			const tools = [
 				...Array.from({ length: 86 }, (_, i) => makeTool(`builtin-${i}`)),
 				...extensionTools,
@@ -247,7 +253,13 @@ describe('Virtual Tools - grouping must not drop tools (#324113)', () => {
 			await grouper.addGroups('', root, tools, CancellationToken.None);
 
 			const recovered = root.contents.find(item => item.name === `${VIRTUAL_TOOL_NAME_PREFIX}${UNCATEGORIZED_TOOLS_GROUP_NAME}`) as VirtualTool;
-			expect(recovered.contents.map(tool => tool.name)).toEqual(extensionTools.slice(2).map(tool => tool.name));
+			expect({
+				recovered: recovered.contents.map(tool => tool.name),
+				virtualGroupNames: root.contents.filter(item => item instanceof VirtualTool).map(item => item.name),
+			}).toEqual({
+				recovered: extensionTools.slice(2).map(tool => tool.name),
+				virtualGroupNames: [`${VIRTUAL_TOOL_NAME_PREFIX}group_1_2`, `${VIRTUAL_TOOL_NAME_PREFIX}${UNCATEGORIZED_TOOLS_GROUP_NAME}`, `${EMBEDDINGS_GROUP_NAME}_2`],
+			});
 		} finally {
 			accessor.dispose();
 		}

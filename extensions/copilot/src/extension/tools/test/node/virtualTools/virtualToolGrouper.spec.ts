@@ -23,13 +23,15 @@ describe('Virtual Tools - Grouper', () => {
 	let root: VirtualTool;
 
 	class TestVirtualToolGrouper extends VirtualToolGrouper {
+		public groupNameOverride: string | undefined;
+
 		// Override the bulk description method to avoid hitting the endpoint
 		protected override async _generateBulkGroupDescriptions(embeddingGroups: LanguageModelToolInformation[][], token: CancellationToken): Promise<{ groups: ISummarizedToolCategory[]; missed: number }> {
 			// Simulate describing groups based on their tool names
 			const groups = embeddingGroups.map((group, index) => {
 				const prefix = group[0]?.name.split('_')[0] || 'unknown';
 				return {
-					name: `${prefix}_group_${index + 1}`,
+					name: this.groupNameOverride ?? `${prefix}_group_${index + 1}`,
 					summary: `Group of ${prefix} tools containing ${group.map(t => t.name).join(', ')}`,
 					tools: group
 				};
@@ -60,7 +62,7 @@ describe('Virtual Tools - Grouper', () => {
 
 	/** Root contents excluding the embeddings group, which `addGroups` always appends. */
 	function contentsWithoutEmbeddings(): (VirtualTool | LanguageModelToolInformation)[] {
-		return root.contents.filter(c => c.name !== EMBEDDINGS_GROUP_NAME);
+		return root.contents.filter(c => !(c instanceof VirtualTool && c.metadata.wasEmbeddingsMatched));
 	}
 
 	function groupsIn(): VirtualTool[] {
@@ -118,11 +120,20 @@ describe('Virtual Tools - Grouper', () => {
 			expect(renamed.contents).toEqual([tool]);
 		});
 
-		it('never drops an item', () => {
+		it('renames virtual tools that collide with real tool names', () => {
 			const dupName = `${VIRTUAL_TOOL_NAME_PREFIX}baz`;
-			const items = [vt(dupName), makeTool(dupName), makeTool('unique'), vt(dupName)];
+			const realTool = makeTool(dupName);
+			const result = VirtualToolGrouper.deduplicateGroups([vt(dupName), realTool, makeTool('unique'), vt(dupName)]);
 
-			expect(VirtualToolGrouper.deduplicateGroups(items)).toHaveLength(items.length);
+			expect({
+				names: result.map(item => item.name),
+				uniqueNames: new Set(result.map(item => item.name)).size,
+				realToolPreserved: result.find(item => item.name === dupName) === realTool,
+			}).toEqual({
+				names: [`${dupName}_2`, dupName, 'unique', `${dupName}_3`],
+				uniqueNames: result.length,
+				realToolPreserved: true,
+			});
 		});
 	});
 
@@ -329,7 +340,7 @@ describe('Virtual Tools - Grouper', () => {
 		}
 
 		function embeddingsGroup(): VirtualTool {
-			return root.contents.find(c => c.name === EMBEDDINGS_GROUP_NAME) as VirtualTool;
+			return root.contents.find(c => c instanceof VirtualTool && c.metadata.wasEmbeddingsMatched) as VirtualTool;
 		}
 
 		it('should create embeddings group with predicted tools', async () => {
@@ -373,8 +384,57 @@ describe('Virtual Tools - Grouper', () => {
 			expect({
 				first,
 				second: embeddingsGroup().contents.map(t => t.name),
-				groupCount: root.contents.filter(c => c.name === EMBEDDINGS_GROUP_NAME).length,
+				groupCount: root.contents.filter(c => c instanceof VirtualTool && c.metadata.wasEmbeddingsMatched).length,
 			}).toEqual({ first: ['tool1'], second: ['tool2', 'tool3'], groupCount: 1 });
+		});
+
+		it('does not replace an ordinary group named activate_embeddings', async () => {
+			const nested = makeTool('nested_tool');
+			const ordinaryGroup = new VirtualTool(EMBEDDINGS_GROUP_NAME, 'ordinary group', 0, {}, [nested]);
+			root.contents = [ordinaryGroup];
+			stubQueryEmbedding();
+			stubPredictions();
+
+			await grouper.recomputeEmbeddingRankings('query', root, CancellationToken.None);
+
+			expect(root.contents.map(item => ({
+				name: item.name,
+				isEmbeddingGroup: item instanceof VirtualTool && item.metadata.wasEmbeddingsMatched === true,
+			}))).toEqual([
+				{ name: EMBEDDINGS_GROUP_NAME, isEmbeddingGroup: false },
+				{ name: `${EMBEDDINGS_GROUP_NAME}_2`, isEmbeddingGroup: true },
+			]);
+			expect(Array.from(root.all())).toContain(nested);
+		});
+
+		it('does not transfer embedding identity to an ordinary group during rebuild', async () => {
+			const source = makeExtensionSource('rebuild.extension');
+			const extensionTools = Array.from({ length: 5 }, (_, i) => makeTool(`rebuild_${i}`, source));
+			const tools = [...builtinsFillingSlots(2), ...extensionTools];
+			stubQueryEmbedding();
+			stubPredictions();
+			await grouper.addGroups('first query', root, tools, CancellationToken.None);
+
+			grouper.groupNameOverride = 'embeddings';
+			await grouper.addGroups('second query', root, [...tools, makeTool('new_builtin')], CancellationToken.None);
+
+			const ordinaryGroup = root.contents.find(item => item.name === EMBEDDINGS_GROUP_NAME) as VirtualTool;
+			const embeddingGroup = embeddingsGroup();
+			expect({
+				ordinaryGroupContents: ordinaryGroup.contents.map(tool => tool.name),
+				ordinaryGroupIsEmbedding: ordinaryGroup.metadata.wasEmbeddingsMatched === true,
+				ordinaryGroupIsExpanded: ordinaryGroup.isExpanded,
+				ordinaryGroupCanBeCollapsed: ordinaryGroup.metadata.canBeCollapsed,
+				embeddingGroupName: embeddingGroup.name,
+				lost: extensionTools.filter(tool => !Array.from(root.all()).includes(tool)).map(tool => tool.name),
+			}).toEqual({
+				ordinaryGroupContents: extensionTools.map(tool => tool.name),
+				ordinaryGroupIsEmbedding: false,
+				ordinaryGroupIsExpanded: false,
+				ordinaryGroupCanBeCollapsed: undefined,
+				embeddingGroupName: `${EMBEDDINGS_GROUP_NAME}_2`,
+				lost: [],
+			});
 		});
 
 		it('should create an empty embeddings group when nothing is predicted', async () => {

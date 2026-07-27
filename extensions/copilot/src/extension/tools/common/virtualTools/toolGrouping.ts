@@ -13,7 +13,7 @@ import { Iterable } from '../../../../util/vs/base/common/iterator';
 import { IObservable } from '../../../../util/vs/base/common/observableInternal';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelTextPart, LanguageModelToolResult } from '../../../../vscodeTypes';
-import { EMBEDDINGS_GROUP_NAME, VIRTUAL_TOOL_NAME_PREFIX, VirtualTool } from './virtualTool';
+import { VIRTUAL_TOOL_NAME_PREFIX, VirtualTool } from './virtualTool';
 import { VirtualToolGrouper } from './virtualToolGrouper';
 import * as Constant from './virtualToolsConstants';
 import { IToolCategorization, IToolGrouping } from './virtualToolTypes';
@@ -99,7 +99,7 @@ export class ToolGrouping implements IToolGrouping {
 				isVirtual: tool instanceof VirtualTool ? 1 : 0,
 				depth: path.length - 1,
 				preExpanded: path.every(p => p.metadata.wasExpandedByDefault) ? 1 : 0,
-				wasEmbedding: path.some(p => p.name === EMBEDDINGS_GROUP_NAME) ? 1 : 0,
+				wasEmbedding: path.some(p => p.metadata.wasEmbeddingsMatched) ? 1 : 0,
 				totalTools: this._tools.length,
 			});
 		}

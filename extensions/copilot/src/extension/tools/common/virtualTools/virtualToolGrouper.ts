@@ -164,7 +164,7 @@ export class VirtualToolGrouper implements IToolCategorization {
 		for (const tool of root.all()) {
 			if (tool instanceof VirtualTool) {
 				const prev = previousGroups.get(tool.name);
-				if (prev) {
+				if (prev && !!prev.metadata.wasEmbeddingsMatched === !!tool.metadata.wasEmbeddingsMatched) {
 					tool.copyStateFrom(prev);
 				}
 			}
@@ -186,9 +186,11 @@ export class VirtualToolGrouper implements IToolCategorization {
 	}
 
 	private _addPredictedToolsGroup(root: VirtualTool, predictedTools: LanguageModelToolInformation[]): void {
+		const existingGroupIndex = root.contents.findIndex(item => item instanceof VirtualTool && item.metadata.wasEmbeddingsMatched);
+		const existingGroup = existingGroupIndex >= 0 ? root.contents[existingGroupIndex] as VirtualTool : undefined;
 		const currentlyAvailable = new Set<string>();
 		for (const item of root.contents) {
-			if (item.name === EMBEDDINGS_GROUP_NAME) {
+			if (item === existingGroup) {
 				continue;
 			}
 
@@ -202,7 +204,17 @@ export class VirtualToolGrouper implements IToolCategorization {
 		}
 
 		let remainingSlots = Math.max(0, HARD_TOOL_LIMIT - currentlyAvailable.size);
-		const newGroup = new VirtualTool(EMBEDDINGS_GROUP_NAME, 'Tools with high predicted relevancy for this query', Infinity, {
+		let groupName = existingGroup?.name ?? EMBEDDINGS_GROUP_NAME;
+		if (!existingGroup) {
+			const usedNames = new Set(Array.from(root.all(), item => item.name));
+			let counter = 1;
+			while (usedNames.has(groupName)) {
+				counter++;
+				groupName = `${EMBEDDINGS_GROUP_NAME}_${counter}`;
+			}
+		}
+
+		const newGroup = new VirtualTool(groupName, 'Tools with high predicted relevancy for this query', Infinity, {
 			wasEmbeddingsMatched: true,
 			wasExpandedByDefault: true,
 			canBeCollapsed: false,
@@ -216,9 +228,8 @@ export class VirtualToolGrouper implements IToolCategorization {
 			newGroup.contents.push(tool);
 		}
 
-		const idx = root.contents.findIndex(t => t.name === EMBEDDINGS_GROUP_NAME);
-		if (idx >= 0) {
-			root.contents[idx] = newGroup;
+		if (existingGroupIndex >= 0) {
+			root.contents[existingGroupIndex] = newGroup;
 		} else {
 			root.contents.push(newGroup);
 		}
@@ -261,7 +272,9 @@ export class VirtualToolGrouper implements IToolCategorization {
 		for (const item of grouped) {
 			if (item instanceof VirtualTool) {
 				for (const nested of item.all()) {
-					placed.add(nested.name);
+					if (!(nested instanceof VirtualTool)) {
+						placed.add(nested.name);
+					}
 				}
 			} else {
 				placed.add(item.name);
@@ -286,14 +299,26 @@ export class VirtualToolGrouper implements IToolCategorization {
 
 	public static deduplicateGroups(grouped: readonly (VirtualTool | LanguageModelToolInformation)[]) {
 		const seen = new Set<string>();
+		const realToolNames = new Set<string>();
 		const result: (VirtualTool | LanguageModelToolInformation)[] = [];
+		for (const item of grouped) {
+			if (item instanceof VirtualTool) {
+				for (const nested of item.all()) {
+					if (!(nested instanceof VirtualTool)) {
+						realToolNames.add(nested.name);
+					}
+				}
+			} else {
+				realToolNames.add(item.name);
+			}
+		}
 
 		for (const item of grouped) {
 			let name = item.name;
 			let counter = 1;
 
-			// Find a unique name by adding numeric suffix if needed
-			while (seen.has(name)) {
+			// Synthetic group names must not shadow registered real tools.
+			while (item instanceof VirtualTool && (seen.has(name) || realToolNames.has(name))) {
 				counter++;
 				name = `${item.name}_${counter}`;
 			}

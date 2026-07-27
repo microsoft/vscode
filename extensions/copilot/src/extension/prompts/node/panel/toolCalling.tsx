@@ -275,7 +275,7 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 				try {
 					if (promptContext.tools && !promptContext.tools.availableTools.find(t => t.name === props.toolCall.name)) {
 						outcome = ToolInvocationOutcome.NotInRequestToolset;
-						throw new Error(`Tool ${props.toolCall.name} is not part of this request's toolset, so it cannot be called. It is either disabled in Configure Tools, or grouped behind an activate_* tool that has not been called yet.`);
+						throw new Error(`Tool ${props.toolCall.name} is not part of this request's toolset, so it cannot be called.`);
 					}
 
 					if (copilotTool?.resolveInput) {
