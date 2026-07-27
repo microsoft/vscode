@@ -13,7 +13,7 @@ import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/b
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../services/sessions/common/session.js';
-import { SessionsVoiceActiveSessionContribution } from '../../browser/voiceBridge.contribution.js';
+import { SessionsVoiceActiveSessionContribution, SessionsVoiceListeningContribution } from '../../browser/voiceBridge.contribution.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from '../../browser/newChatVoice.js';
 
 suite('SessionsVoiceActiveSessionContribution', () => {
@@ -53,5 +53,47 @@ suite('SessionsVoiceActiveSessionContribution', () => {
 			NEW_CHAT_VOICE_SENTINEL.toString(),
 			undefined,
 		]);
+	});
+
+	test('keeps listening when opening the new-session composer', () => {
+		const firstChatResource = URI.parse('test:///first-chat');
+		const secondChatResource = URI.parse('test:///second-chat');
+		const createdSession = upcastPartial<IActiveSession>({
+			isCreated: constObservable(true),
+			activeChat: constObservable(upcastPartial<IChat>({ resource: firstChatResource })),
+		});
+		const draftSession = upcastPartial<IActiveSession>({
+			isCreated: constObservable(false),
+			activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:///draft-chat') })),
+		});
+		const secondCreatedSession = upcastPartial<IActiveSession>({
+			isCreated: constObservable(true),
+			activeChat: constObservable(upcastPartial<IChat>({ resource: secondChatResource })),
+		});
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', createdSession);
+		const activeComposer = observableValue<INewChatVoiceComposer | undefined>('activeComposer', {
+			onDidFocus: Event.None,
+			sendQuery: () => undefined,
+			prefillInput: () => undefined,
+			focus: () => undefined,
+		});
+		const listeningChanges: string[] = [];
+		disposables.add(new SessionsVoiceListeningContribution(
+			upcastPartial<IVoiceSessionController>({
+				isConnected: constObservable(true),
+				voiceState: constObservable<'listening'>('listening'),
+				targetSession: constObservable(undefined),
+				transcriptTurns: constObservable([]),
+				discardListening: () => listeningChanges.push('discard'),
+				finishListeningAndSubmitTo: resource => listeningChanges.push(`submit:${resource.toString()}`),
+			}),
+			upcastPartial<ISessionsService>({ activeSession }),
+			upcastPartial<INewChatVoiceTargetService>({ activeComposer }),
+		));
+
+		activeSession.set(draftSession, undefined);
+		activeSession.set(secondCreatedSession, undefined);
+
+		assert.deepStrictEqual(listeningChanges, ['discard']);
 	});
 });

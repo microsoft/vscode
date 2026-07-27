@@ -234,13 +234,14 @@ registerWorkbenchContribution2(SessionsVoiceActiveSessionContribution.ID, Sessio
  * anything already dictated to the original session, or discard an empty turn,
  * so voice mode doesn't keep recording against a newly focused session.
  */
-class SessionsVoiceListeningContribution extends Disposable implements IWorkbenchContribution {
+export class SessionsVoiceListeningContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.voiceListening';
 
 	constructor(
 		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
 		@ISessionsService sessionsService: ISessionsService,
+		@INewChatVoiceTargetService newChatVoiceTargetService: INewChatVoiceTargetService,
 	) {
 		super();
 
@@ -251,7 +252,11 @@ class SessionsVoiceListeningContribution extends Disposable implements IWorkbenc
 			const targetSession = voiceSessionController.targetSession.read(reader);
 			const turns = voiceSessionController.transcriptTurns.read(reader);
 			const activeSession = sessionsService.activeSession.read(reader);
-			const currentSession = activeSession?.activeChat.read(reader)?.resource;
+			const currentSession = activeSession?.isCreated.read(reader)
+				? activeSession.activeChat.read(reader)?.resource
+				: newChatVoiceTargetService.activeComposer.read(reader)
+					? NEW_CHAT_VOICE_SENTINEL
+					: undefined;
 
 			if (!connected) {
 				listeningSession = undefined;
@@ -267,6 +272,10 @@ class SessionsVoiceListeningContribution extends Disposable implements IWorkbenc
 			if (!listeningSession) {
 				listeningSession = targetSession ?? currentSession;
 			} else if (!targetSession && currentSession && !isEqual(currentSession, listeningSession)) {
+				if (isEqual(currentSession, NEW_CHAT_VOICE_SENTINEL)) {
+					listeningSession = currentSession;
+					return;
+				}
 				const dictationSession = listeningSession;
 				const activelyDictating = turns.some(t => t.speaker === 'user' && t.isPartial && t.text.trim().length > 0);
 				if (activelyDictating) {

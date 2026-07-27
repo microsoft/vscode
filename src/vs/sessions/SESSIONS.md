@@ -81,7 +81,7 @@ focus a slot:   part.onDidFocusSession → view.setActive → updates active vis
 
 The Agents-window chat surface also registers the workbench chat pre-submit handlers. These handlers can consume provider-specific client-side commands before the normal send path, while the actual send still routes through the sessions provider model.
 
-The voice bridge can either submit a finalized transcription or prefill it for review. With hands-free mode disabled, stopping listening uses the prefill path so sending remains an explicit user action.
+The voice bridge can either submit a finalized transcription or prefill it for review. With hands-free mode disabled, stopping listening uses the prefill path so sending remains an explicit user action. When connected Voice Mode moves from a created session into the new-session composer, the composer sentinel becomes the active voice target without discarding the listening turn; moving between created sessions still stops or submits the turn to prevent misrouting.
 
 The part (interface `services/sessions/browser/sessionsPartService.ts`; concrete `browser/parts/sessionsPart.ts`) is a **passive renderer**: it injects neither the model nor the view, and only exposes `updateVisibleSessions(visible, active)`, `focusSession`, and `onDidFocusSession`. The view owns the reconcile autorun and focus and wires `part.onDidFocusSession → view.setActive`.
 
