@@ -42,7 +42,7 @@ import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAtt
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isDefaultChatUri, isSubagentSession, withSessionPromptCacheState, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isDefaultChatUri, isSubagentSession, withSessionPromptCacheState, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -542,13 +542,13 @@ export class CopilotAgentSession extends Disposable {
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
 	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; mcpServerName: string | undefined; meta: IToolCallMeta | undefined }>();
 	/**
-	 * Maps a running subagent's `agentId` to its parent tool call id. Session-
-	 * scoped rather than per-turn: a subagent's lifetime is bounded by its
-	 * `subagent.started` / `subagent.completed` events (and background
-	 * subagents can outlive the parent tool call), so this routing must not be
-	 * cleared on turn boundaries.
+	 * Maps a subagent's stable `agentId` to its parent tool call id. Completion
+	 * ends the current subagent turn, but steering can start another turn with
+	 * the same id, so mappings live until session teardown.
 	 */
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
+	private readonly _activeSubagentAgentIds = new Set<string>();
+	private readonly _unroutableSubagentToolCallIds = new Set<string>();
 	private readonly _autoApprovals = new Map<string, PermissionAutoApproval | null>();
 	private readonly _pendingAutoApprovals = new Map<string, DeferredPromise<PermissionAutoApproval | undefined>>();
 	/** Pending permission requests awaiting a renderer-side decision. */
@@ -947,6 +947,42 @@ export class CopilotAgentSession extends Disposable {
 
 	private _parentToolCallIdForSubagentEvent(e: { readonly agentId?: string }): string | undefined {
 		return e.agentId ? this._parentToolCallIdsByAgentId.get(e.agentId) : undefined;
+	}
+
+	private _resumeSubagentForEvent(e: { readonly agentId?: string }, message?: Message): void {
+		if (!e.agentId || this._activeSubagentAgentIds.has(e.agentId)) {
+			return;
+		}
+		const parentToolCallId = this._parentToolCallIdsByAgentId.get(e.agentId);
+		if (!parentToolCallId) {
+			return;
+		}
+		this._activeSubagentAgentIds.add(e.agentId);
+		this._onDidSessionProgress.fire({
+			kind: 'subagent_resumed',
+			chat: this._chatChannelUri,
+			toolCallId: parentToolCallId,
+			message,
+		});
+	}
+
+	private _completeSubagentTurn(agentId: string | undefined, toolCallId?: string): void {
+		if (agentId) {
+			if (!this._activeSubagentAgentIds.delete(agentId)) {
+				return;
+			}
+		} else if (!toolCallId) {
+			return;
+		}
+		const parentToolCallId = toolCallId ?? (agentId ? this._parentToolCallIdsByAgentId.get(agentId) : undefined);
+		if (!parentToolCallId) {
+			return;
+		}
+		this._onDidSessionProgress.fire({
+			kind: 'subagent_completed',
+			chat: this._chatChannelUri,
+			toolCallId: parentToolCallId,
+		});
 	}
 
 	private _shouldDropUnmappedSubagentEvent(e: { readonly agentId?: string }, eventName: string): boolean {
@@ -2204,6 +2240,10 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.warn(`[Copilot:${this.sessionId}] Permission request without toolCallId, auto-denying: kind=${request.kind}`);
 				return { kind: 'reject' };
 			}
+			if (this._unroutableSubagentToolCallIds.delete(toolCallId)) {
+				this._logService.error(`[Copilot:${this.sessionId}] Rejecting permission request for unroutable subagent tool call: toolCallId=${toolCallId}, kind=${request.kind}`);
+				return { kind: 'reject' };
+			}
 
 			const autoApproval = this._lastAppliedPermissionMode === 'auto'
 				? await this._takeAutoApproval(toolCallId)
@@ -3182,7 +3222,11 @@ export class CopilotAgentSession extends Disposable {
 		//    so doing this for synthetic injections would permanently
 		//    pin the wrong event to the turn.
 		this._register(wrapper.onUserMessage(e => {
-			if (e.agentId || (e.data.source && e.data.source.toLowerCase() !== 'user')) {
+			if (e.agentId) {
+				this._resumeSubagentForEvent(e, { text: e.data.content, origin: { kind: MessageKind.User } });
+				return;
+			}
+			if (e.data.source && e.data.source.toLowerCase() !== 'user') {
 				return;
 			}
 			// First SDK event for the loop: promote the turn out of `pending`.
@@ -3198,6 +3242,7 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onMessageDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] delta: ${e.data.deltaContent}`);
+			this._resumeSubagentForEvent(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message_delta')) {
 				return;
 			}
@@ -3206,6 +3251,7 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onMessage(e => {
 			this._logService.info(`[Copilot:${sessionId}] Full message received: ${e.data.content.length} chars`);
+			this._resumeSubagentForEvent(e);
 			// Report the enhanced GH `request.options.tools` event for this model call — parity with
 			// the Copilot extension, which emits it per LLM request. `assistant.message` is the
 			// agent-host's per-model-call boundary; we correlate on its `x-copilot-service-request-id`.
@@ -3294,7 +3340,9 @@ export class CopilotAgentSession extends Disposable {
 				toolArgs = tryStringify(parameters);
 			}
 			const displayName = getToolDisplayName(e.data.toolName);
+			this._resumeSubagentForEvent(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'tool.execution_start')) {
+				this._unroutableSubagentToolCallIds.add(e.data.toolCallId);
 				return;
 			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
@@ -3429,6 +3477,7 @@ export class CopilotAgentSession extends Disposable {
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (!tracked) {
+				this._unroutableSubagentToolCallIds.delete(e.data.toolCallId);
 				return;
 			}
 			const parentToolCallId = tracked.parentToolCallId ?? this._parentToolCallIdForSubagentEvent(e);
@@ -3577,6 +3626,7 @@ export class CopilotAgentSession extends Disposable {
 		// clickable file link, matching the `view`-tool display style.
 		this._register(wrapper.onSkillInvoked(e => {
 			this._logService.info(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
+			this._resumeSubagentForEvent(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'skill.invoked')) {
 				return;
 			}
@@ -3621,6 +3671,7 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onSubagentStarted(e => {
 			if (e.agentId) {
 				this._parentToolCallIdsByAgentId.set(e.agentId, e.data.toolCallId);
+				this._activeSubagentAgentIds.add(e.agentId);
 			}
 			this._logService.info(`[Copilot:${sessionId}] Subagent started: toolCallId=${e.data.toolCallId}, agent=${e.data.agentName}`);
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
@@ -3699,6 +3750,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onUsage(e => {
+			this._resumeSubagentForEvent(e);
 			// Usage events for a subagent's model calls carry the subagent's
 			// `agentId`. Such an event is reported twice:
 			//  1. Folded into the parent turn (scope `''`) so the parent turn's
@@ -3858,6 +3910,7 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onReasoningDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Reasoning delta: ${e.data.deltaContent.length} chars`);
+			this._resumeSubagentForEvent(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.reasoning_delta')) {
 				return;
 			}
@@ -4513,27 +4566,13 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSubagentCompleted(e => {
-			if (e.agentId) {
-				this._parentToolCallIdsByAgentId.delete(e.agentId);
-			}
+			this._completeSubagentTurn(e.agentId, e.data.toolCallId);
 			this._logService.trace(`[Copilot:${sessionId}] Subagent completed: ${e.data.agentName}`);
-			this._onDidSessionProgress.fire({
-				kind: 'subagent_completed',
-				chat: this._chatChannelUri,
-				toolCallId: e.data.toolCallId,
-			});
 		}));
 
 		this._register(wrapper.onSubagentFailed(e => {
-			if (e.agentId) {
-				this._parentToolCallIdsByAgentId.delete(e.agentId);
-			}
+			this._completeSubagentTurn(e.agentId, e.data.toolCallId);
 			this._logService.error(`[Copilot:${sessionId}] Subagent failed: ${e.data.agentName} - ${e.data.error}`);
-			this._onDidSessionProgress.fire({
-				kind: 'subagent_completed',
-				chat: this._chatChannelUri,
-				toolCallId: e.data.toolCallId,
-			});
 		}));
 
 		this._register(wrapper.onSubagentSelected(e => {
@@ -4546,6 +4585,9 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onHookEnd(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Hook ended: ${e.data.hookType} (${e.data.hookInvocationId}), success=${e.data.success}`);
+			if (e.data.hookType === 'agentStop') {
+				this._completeSubagentTurn(e.agentId);
+			}
 		}));
 
 		this._register(wrapper.onSystemMessage(e => {
