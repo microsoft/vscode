@@ -1279,21 +1279,32 @@ configurationRegistry.registerConfiguration({
 			// Policy-only delivery slot for enterprise-managed marketplace entries (via the
 			// `ChatExtraMarketplaces` policy). Consumers union this with `chat.plugins.marketplaces`.
 			//
-			// Stored as a `{ [name]: url-or-shorthand }` object so that:
+			// Stored as a named object whose values are either the legacy source string or
+			// `{ source, autoUpdate }` when an explicit update override is managed.
+			// This ensures:
 			//   - The Settings Editor (ComplexObject renderer) can display entries inline when
 			//     managed by policy, rather than only showing "Edit in settings.json".
 			//   - Marketplace names are preserved for `enabledPlugins["plugin@<name>"]` resolution.
 			//
-			// `additionalProperties: { type: ['string'] }` uses the single-element array form of
-			// JSON Schema's `type` keyword (equivalent to `type: 'string'`) to trigger VS Code's
-			// ComplexObject renderer, which shows key-value rows inline and hides the
-			// "Edit in settings.json" link when the value is managed by policy.
 			type: 'object',
-			additionalProperties: { type: ['string'] as ['string'] },
+			additionalProperties: {
+				anyOf: [
+					{ type: 'string' },
+					{
+						type: 'object',
+						properties: {
+							source: { type: 'string' },
+							autoUpdate: { type: 'boolean' },
+						},
+						required: ['source', 'autoUpdate'],
+						additionalProperties: false,
+					},
+				],
+			},
 			default: {},
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
-			markdownDescription: nls.localize('chat.plugins.extraMarketplaces', "Enterprise-managed additional plugin marketplaces. Unioned with {0}.", `\`#${ChatConfiguration.PluginMarketplaces}#\``),
+			markdownDescription: nls.localize('chat.plugins.extraMarketplaces', "Enterprise-managed additional plugin marketplaces. Unioned with {0}. An entry's `autoUpdate` value overrides {1} for plugins from that marketplace.", `\`#${ChatConfiguration.PluginMarketplaces}#\``, '`#extensions.autoUpdate#`'),
 			policy: {
 				name: 'ChatExtraMarketplaces',
 				category: PolicyCategory.InteractiveSession,
@@ -1305,7 +1316,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.plugins.extraMarketplaces.policy',
-						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`{url}[#ref]`)."),
+						value: nls.localize('chat.plugins.extraMarketplaces.policy', "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`{url}[#ref]`), optionally with an enterprise-managed auto-update override."),
 					}
 				},
 			},

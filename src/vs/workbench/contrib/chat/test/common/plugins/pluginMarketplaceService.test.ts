@@ -22,7 +22,7 @@ import { IRequestService } from '../../../../../../platform/request/common/reque
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
-import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
+import { AutoUpdateConfigurationValue, IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -180,9 +180,10 @@ suite('PluginMarketplaceService', () => {
 	test('readConfiguredMarketplaces converts policy dict to named marketplace entries', () => {
 		const configService = new TestConfigurationService({
 			[ChatConfiguration.ExtraMarketplaces]: {
-				'acme-internal': 'https://plugins.internal.acme.com',
-				'acme-public': 'https://copilot-plugins.acme.io',
+				'acme-internal': { source: 'https://plugins.internal.acme.com', autoUpdate: true },
+				'acme-public': { source: 'https://copilot-plugins.acme.io', autoUpdate: false },
 				'vscode-team-kit': 'microsoft/vscode-team-kit',
+				'invalid': null,
 			},
 		});
 		const { extraValues, effectiveValues } = readConfiguredMarketplaces(configService as unknown as IConfigurationService);
@@ -191,6 +192,7 @@ suite('PluginMarketplaceService', () => {
 		assert.deepStrictEqual(refs.map(r => r.displayLabel), ['acme-internal', 'acme-public', 'vscode-team-kit']);
 		assert.strictEqual(refs[0].kind, MarketplaceReferenceKind.GitUri);
 		assert.strictEqual(refs[2].kind, MarketplaceReferenceKind.GitHubShorthand);
+		assert.deepStrictEqual(refs.map(r => r.autoUpdate), [true, false, undefined]);
 		// Effective values union user + extra
 		assert.strictEqual(effectiveValues.length, extraValues.length);
 	});
@@ -205,6 +207,31 @@ suite('PluginMarketplaceService', () => {
 			{ name: 'vscode-team-kit', source: { source: 'github', repo: 'microsoft/vscode-team-kit' } },
 		]);
 		assert.deepStrictEqual(dict, { 'vscode-team-kit': 'microsoft/vscode-team-kit' });
+	});
+
+	test('extraKnownMarketplacesToConfigDict: preserves explicit autoUpdate values', () => {
+		const dict = extraKnownMarketplacesToConfigDict([
+			{ name: 'always', autoUpdate: true, source: { source: 'github', repo: 'microsoft/always' } },
+			{ name: 'never', autoUpdate: false, source: { source: 'github', repo: 'microsoft/never' } },
+			{ name: 'default', source: { source: 'github', repo: 'microsoft/default' } },
+		]);
+		assert.deepStrictEqual(dict, {
+			always: { source: 'microsoft/always', autoUpdate: true },
+			never: { source: 'microsoft/never', autoUpdate: false },
+			default: 'microsoft/default',
+		});
+	});
+
+	test('managed autoUpdate survives a duplicate user marketplace reference', () => {
+		const configService = new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: ['microsoft/plugins'],
+			[ChatConfiguration.ExtraMarketplaces]: {
+				managed: { source: 'microsoft/plugins', autoUpdate: true },
+			},
+		});
+		const refs = parseMarketplaceReferences(readConfiguredMarketplaces(configService as unknown as IConfigurationService).effectiveValues);
+		assert.strictEqual(refs.length, 1);
+		assert.strictEqual(refs[0].autoUpdate, true);
 	});
 
 	test('extraKnownMarketplacesToConfigDict: github source with ref appends #ref', () => {
@@ -498,11 +525,12 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 
 	const marketplaceRef = parseMarketplaceReference('microsoft/plugins')!;
 
-	function createService(): PluginMarketplaceService {
+	function createService(autoUpdate: AutoUpdateConfigurationValue = 'on', extraMarketplaces: Record<string, unknown> = {}): PluginMarketplaceService {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({
 			[ChatConfiguration.PluginMarketplaces]: ['microsoft/plugins'],
+			[ChatConfiguration.ExtraMarketplaces]: extraMarketplaces,
 			[ChatConfiguration.PluginsEnabled]: true,
 		}));
 		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
@@ -520,7 +548,7 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 		instantiationService.stub(IExtensionsWorkbenchService, {
-			getAutoUpdateValue: () => 'on',
+			getAutoUpdateValue: () => autoUpdate,
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
@@ -556,6 +584,26 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 		const service = createService();
 		const result = service.getMarketplacePluginMetadata(URI.file('/any/path'));
 		assert.strictEqual(result, undefined);
+	});
+
+	test('managed marketplace autoUpdate overrides the global setting by canonical identity', () => {
+		const service = createService('off', {
+			always: { source: 'microsoft/always', autoUpdate: true },
+			never: { source: 'microsoft/never', autoUpdate: false },
+			inherited: 'microsoft/inherited',
+		});
+
+		assert.deepStrictEqual({
+			always: service.isMarketplaceAutoUpdateEnabled(parseMarketplaceReference('https://github.com/microsoft/always.git')!),
+			never: service.isMarketplaceAutoUpdateEnabled(parseMarketplaceReference('microsoft/never')!),
+			inherited: service.isMarketplaceAutoUpdateEnabled(parseMarketplaceReference('microsoft/inherited')!),
+			unmanaged: service.isMarketplaceAutoUpdateEnabled(parseMarketplaceReference('microsoft/unmanaged')!),
+		}, {
+			always: true,
+			never: false,
+			inherited: false,
+			unmanaged: false,
+		});
 	});
 });
 

@@ -371,7 +371,11 @@ export class PluginInstallService implements IPluginInstallService {
 	}
 
 	async updateAllPlugins(options: IUpdateAllPluginsOptions, token: CancellationToken): Promise<IUpdateAllPluginsResult> {
-		const installed = this._pluginMarketplaceService.installedPlugins.get();
+		const allInstalled = this._pluginMarketplaceService.installedPlugins.get();
+		const installed = allInstalled.filter(entry =>
+			(!options.marketplaceIds || options.marketplaceIds.has(entry.plugin.marketplaceReference.canonicalId))
+			&& (!options.automatic || this._pluginMarketplaceService.isMarketplaceAutoUpdateEnabled(entry.plugin.marketplaceReference))
+		);
 		if (installed.length === 0) {
 			return { updatedNames: [], failedNames: [] };
 		}
@@ -393,6 +397,10 @@ export class PluginInstallService implements IPluginInstallService {
 					continue;
 				}
 				seenMarketplaces.add(ref.canonicalId);
+				if (this._pluginMarketplaceService.isStrictMarketplacePolicyActive() && !this._pluginMarketplaceService.isMarketplaceTrusted(ref)) {
+					failedNames.push(ref.displayLabel);
+					continue;
+				}
 				gitTasks.push((async () => {
 					if (token.isCancellationRequested) {
 						return;
@@ -419,7 +427,8 @@ export class PluginInstallService implements IPluginInstallService {
 
 			// 2. Re-fetch marketplace data *after* pulling so we see any
 			//    updated plugin descriptors (new versions, refs, etc.).
-			const marketplacePlugins = await this._pluginMarketplaceService.fetchMarketplacePlugins(token);
+			const marketplaceIds = new Set(installed.map(entry => entry.plugin.marketplaceReference.canonicalId));
+			const marketplacePlugins = await this._pluginMarketplaceService.fetchMarketplacePlugins(token, marketplaceIds);
 			const marketplaceByKey = new Map<string, IMarketplacePlugin>();
 			for (const mp of marketplacePlugins) {
 				marketplaceByKey.set(`${mp.marketplaceReference.canonicalId}::${mp.name}`, mp);

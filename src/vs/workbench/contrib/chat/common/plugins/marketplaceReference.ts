@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { ExtraKnownMarketplacesConfigDict } from '../../../../../base/common/managedSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../constants.js';
 
@@ -25,6 +26,7 @@ export interface IMarketplaceReference {
 	readonly ref?: string;
 	readonly githubRepo?: string;
 	readonly localRepositoryUri?: URI;
+	readonly autoUpdate?: boolean;
 }
 
 /**
@@ -53,12 +55,17 @@ export function readConfiguredMarketplaces(configurationService: IConfigurationS
 	// `ChatExtraMarketplaces` is stored as `{ [name]: url-or-shorthand }` when delivered by
 	// policy. Convert each entry to the nested IExtraMarketplaceObjectEntry shape so that
 	// parseMarketplaceReferences can set displayLabel = name (critical for enabledPlugins keys).
-	const extraObj = configurationService.getValue<Record<string, string>>(ChatConfiguration.ExtraMarketplaces) ?? {};
-	const extraValues: IExtraMarketplaceObjectEntry[] = Object.entries(extraObj).map(([name, src]) => {
+	const extraObj = configurationService.getValue<ExtraKnownMarketplacesConfigDict>(ChatConfiguration.ExtraMarketplaces) ?? {};
+	const extraValues: IExtraMarketplaceObjectEntry[] = Object.entries(extraObj).flatMap(([name, value]) => {
+		if (typeof value !== 'string' && (!value || typeof value !== 'object' || typeof value.source !== 'string')) {
+			return [];
+		}
+		const src = typeof value === 'string' ? value : value.source;
+		const autoUpdate = typeof value === 'string' ? undefined : value.autoUpdate;
 		const isGithubShorthand = _githubShorthandRe.test(src);
-		return isGithubShorthand
-			? { name, source: { source: 'github' as const, repo: src } }
-			: { name, source: { source: 'git' as const, url: src } };
+		return [isGithubShorthand
+			? { name, autoUpdate, source: { source: 'github' as const, repo: src } }
+			: { name, autoUpdate, source: { source: 'git' as const, url: src } }];
 	});
 
 	return {
@@ -78,8 +85,13 @@ export function parseMarketplaceReferences(values: readonly unknown[]): IMarketp
 		} else if (value && typeof value === 'object') {
 			parsed = parseMarketplaceObjectEntry(value as IExtraMarketplaceObjectEntry);
 		}
-		if (parsed && !byCanonicalId.has(parsed.canonicalId)) {
-			byCanonicalId.set(parsed.canonicalId, parsed);
+		if (parsed) {
+			const existing = byCanonicalId.get(parsed.canonicalId);
+			if (!existing) {
+				byCanonicalId.set(parsed.canonicalId, parsed);
+			} else if (parsed.autoUpdate !== undefined) {
+				byCanonicalId.set(parsed.canonicalId, { ...existing, autoUpdate: parsed.autoUpdate });
+			}
 		}
 	}
 
@@ -101,6 +113,7 @@ export interface IExtraMarketplaceObjectEntry {
 	readonly repo?: string;
 	readonly url?: string;
 	readonly ref?: string;
+	readonly autoUpdate?: boolean;
 }
 
 export function parseMarketplaceObjectEntry(entry: IExtraMarketplaceObjectEntry): IMarketplaceReference | undefined {
@@ -131,6 +144,9 @@ export function parseMarketplaceObjectEntry(entry: IExtraMarketplaceObjectEntry)
 
 	if (parsed && typeof entry.name === 'string' && entry.name.length > 0) {
 		parsed = { ...parsed, displayLabel: entry.name };
+	}
+	if (parsed && typeof entry.autoUpdate === 'boolean') {
+		parsed = { ...parsed, autoUpdate: entry.autoUpdate };
 	}
 	return parsed;
 }
