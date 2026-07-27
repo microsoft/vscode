@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../nls.js';
 import type { ISshExec } from '../sshRemoteAgentHostHelpers.js';
 import { PosixRemotePlatform } from './posixRemotePlatform.js';
 import type { IRemotePlatform, IRemotePlatformInfo, RemoteArch, RemoteOS } from './remotePlatform.js';
@@ -92,9 +93,23 @@ export async function detectRemotePlatform(exec: ISshExec): Promise<IRemotePlatf
 		}
 	}
 
-	throw new Error(
-		`Could not detect remote platform.\n` +
-		`POSIX probe (uname -s -m) exit=${posix.code}, stdout=${JSON.stringify(posix.stdout.trim())}, stderr=${JSON.stringify(posix.stderr.trim())}.\n` +
-		`Windows probe exit=${win.code}, stdout=${JSON.stringify(win.stdout.trim())}, stderr=${JSON.stringify(win.stderr.trim())}.`
-	);
+	// A remote that has neither `uname` nor a usable `powershell.exe` is
+	// almost always a Windows machine with PowerShell off `PATH`, so say
+	// that rather than reporting a generic detection failure.
+	const combined = `${win.stderr} ${posix.stderr}`.toLowerCase();
+	if (combined.includes('powershell') && (combined.includes('not recognized') || combined.includes('not found'))) {
+		throw new Error(localize(
+			'remotePlatformNoPowerShell',
+			"Could not start PowerShell on the remote. The remote agent host requires powershell.exe to be available on the PATH of Windows hosts.",
+		));
+	}
+
+	throw new Error(localize(
+		'remotePlatformUndetected',
+		"Could not determine the operating system of the remote.\nPOSIX probe exited {0}: {1}\nWindows probe exited {2}: {3}",
+		posix.code,
+		JSON.stringify(`${posix.stdout.trim()} ${posix.stderr.trim()}`.trim()),
+		win.code,
+		JSON.stringify(`${win.stdout.trim()} ${win.stderr.trim()}`.trim()),
+	));
 }

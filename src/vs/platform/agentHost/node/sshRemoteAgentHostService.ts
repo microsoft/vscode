@@ -402,7 +402,19 @@ function startRemoteAgentHost(
 				if (!resolved) {
 					resolved = true;
 					clearTimeout(timeout);
-					reject(new Error(`${LOG_PREFIX} Agent host process exited with code ${code} before becoming ready.\noutput: ${redactToken(outputBuf)}`));
+					const output = redactToken(outputBuf);
+					// The override path is POSIX-only by contract, so pointing it
+					// at a Windows remote fails on the login-shell wrapper rather
+					// than on anything the user configured. Say so, instead of
+					// surfacing a bare `bash` error.
+					if (commandOverride && /bash.*(not recognized|not found)/i.test(output)) {
+						reject(new Error(localize(
+							'sshRawLaunchNeedsPosix',
+							"The configured remote agent host command could not start because the remote has no POSIX shell. This setting is supported on Linux and macOS remotes only.",
+						)));
+						return;
+					}
+					reject(new Error(`${LOG_PREFIX} Agent host process exited with code ${code} before becoming ready.\noutput: ${output}`));
 				}
 			});
 		});
