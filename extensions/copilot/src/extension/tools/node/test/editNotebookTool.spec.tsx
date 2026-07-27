@@ -779,7 +779,10 @@ describe('Edit Notebook Tool', () => {
 				newCode: 'print("test")',
 			}, notebookEdits);
 			expect.fail('Expected error was not thrown');
-		} catch (err: any) {
+		} catch (err: unknown) {
+			if (!(err instanceof Error)) {
+				throw err;
+			}
 			expect(err.message).to.include('Valid cell Ids in the current notebook are:');
 			for (const id of validIds) {
 				expect(err.message).to.include(id);
