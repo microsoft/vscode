@@ -348,7 +348,6 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 		return;
 	}
 	const inserter = new LiveTranscriptInserter(editor, logService);
-	const showTranscriptWhileDictating = service.showTranscriptWhileDictating;
 	const disposables = new DisposableStore();
 	// Hide the editor's blinking caret for the duration of the dictation
 	// session. During dictation the caret is parked at the start of the dictated
@@ -402,7 +401,13 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	const idleSettle = disposables.add(new MutableDisposable());
 	disposables.add(service.onDidUpdateTranscript(update => {
 		logService.trace(`${LOG_PREFIX} onDidUpdateTranscript len=${update.text.length} finalized=${update.finalizedText.length} state=${service.state}`);
-		if (!showTranscriptWhileDictating) {
+		if (!service.showTranscriptWhileDictating) {
+			// The setting is read live (not snapshotted) so transcript rendering
+			// and the hidden-transcript mic glow always react to configuration
+			// changes together. If the transcript is hidden mid-session, drop any
+			// lingering interim shimmer so hidden mode renders no transcript at all.
+			inserter.clearShimmer();
+			idleSettle.clear();
 			return;
 		}
 		inserter.update(update.text, true, update.finalizedText);
