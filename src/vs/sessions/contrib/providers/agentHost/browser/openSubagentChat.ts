@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/openSubagentChat.css';
-import { $, getWindow, WindowIntervalTimer } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType, WindowIntervalTimer } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -17,6 +16,7 @@ import { autorun, IReader } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -31,9 +31,6 @@ import { IChatMarkdownAnchorService } from '../../../../../workbench/contrib/cha
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
-
-const TOOL_FADE_OUT_MS = 220;
-const TOOL_FADE_IN_MS = 480;
 
 // "Open Subagent" affordance for agent host worker (subagent) chats.
 //
@@ -211,7 +208,7 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	private readonly _titleTracker = this._register(new MutableDisposable());
 	private readonly _spinner = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _durationTimer = this._register(new WindowIntervalTimer());
-	private readonly _toolTransitionTimer = this._register(new MutableDisposable());
+	private readonly _toolTransition = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _activeToolRendered = this._register(new MutableDisposable());
 	private readonly _activeToolFileWidgets = this._register(new DisposableStore());
 	private _labelElement: HTMLElement | undefined;
@@ -240,8 +237,14 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super(context, action, options);
+		this._register(this.accessibilityService.onDidChangeReducedMotion(() => {
+			if (this.accessibilityService.isMotionReduced()) {
+				this._finishToolTransition();
+			}
+		}));
 	}
 
 	override render(container: HTMLElement): void {
@@ -310,7 +313,7 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		}
 		this._activeToolElement.classList.toggle('hidden', !label);
 		if (!label) {
-			this._toolTransitionTimer.clear();
+			this._toolTransition.clear();
 			this._toolTransitionPhase = 'idle';
 			this._clearToolTransitionClasses();
 			this._activeToolRendered.clear();
@@ -322,12 +325,8 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 			this._renderActiveToolIcon(undefined);
 			return;
 		}
-		const reducedMotion = getWindow(this._activeToolLabelElement).matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-		if (!this._displayedToolLabel || reducedMotion) {
-			this._toolTransitionTimer.clear();
-			this._toolTransitionPhase = 'idle';
-			this._clearToolTransitionClasses();
-			this._setDisplayedTool(label, icon);
+		if (!this._displayedToolLabel || this.accessibilityService.isMotionReduced()) {
+			this._finishToolTransition();
 			return;
 		}
 		this._runToolTransition();
@@ -339,17 +338,35 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 			return;
 		}
 		this._toolTransitionPhase = 'out';
-		this._restartToolTransition('chat-subagent-tool-fade-out');
-		this._toolTransitionTimer.value = disposableTimeout(() => {
+		if (!this._restartToolTransition('chat-subagent-tool-fade-out')) {
+			this._completeToolTransition();
+		}
+	}
+
+	private _completeToolTransition(): void {
+		this._toolTransition.clear();
+		if (this._toolTransitionPhase === 'out') {
 			this._toolTransitionPhase = 'in';
 			this._setDisplayedTool(this._targetToolLabel ?? '', this._targetToolIcon);
-			this._restartToolTransition('chat-subagent-tool-fade-in');
-			this._toolTransitionTimer.value = disposableTimeout(() => {
-				this._clearToolTransitionClasses();
-				this._toolTransitionPhase = 'idle';
-				this._runToolTransition();
-			}, TOOL_FADE_IN_MS);
-		}, TOOL_FADE_OUT_MS);
+			if (!this._restartToolTransition('chat-subagent-tool-fade-in')) {
+				this._completeToolTransition();
+			}
+			return;
+		}
+		if (this._toolTransitionPhase === 'in') {
+			this._clearToolTransitionClasses();
+			this._toolTransitionPhase = 'idle';
+			this._runToolTransition();
+		}
+	}
+
+	private _finishToolTransition(): void {
+		this._toolTransition.clear();
+		this._toolTransitionPhase = 'idle';
+		this._clearToolTransitionClasses();
+		if (this._targetToolLabel) {
+			this._setDisplayedTool(this._targetToolLabel, this._targetToolIcon);
+		}
 	}
 
 	private _setDisplayedTool(label: string, icon: ThemeIcon | undefined): void {
@@ -383,13 +400,29 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		this._activeToolLabelElement?.classList.remove('chat-subagent-tool-fade-in', 'chat-subagent-tool-fade-out');
 	}
 
-	private _restartToolTransition(className: string): void {
+	private _restartToolTransition(className: string): boolean {
 		if (!this._activeToolLabelElement) {
-			return;
+			return false;
 		}
+		this._toolTransition.clear();
 		this._clearToolTransitionClasses();
+		const transition = new DisposableStore();
+		const complete = (event: AnimationEvent) => {
+			if (event.target === this._activeToolLabelElement) {
+				this._completeToolTransition();
+			}
+		};
+		transition.add(addDisposableListener(this._activeToolLabelElement, EventType.ANIMATION_END, complete));
+		transition.add(addDisposableListener(this._activeToolLabelElement, 'animationcancel', complete));
+		this._toolTransition.value = transition;
 		void this._activeToolLabelElement.offsetWidth;
 		this._activeToolLabelElement.classList.add(className);
+		if (this._activeToolLabelElement.getAnimations().length === 0) {
+			this._toolTransition.clear();
+			this._clearToolTransitionClasses();
+			return false;
+		}
+		return true;
 	}
 
 	private _updateConfirmationCount(): void {

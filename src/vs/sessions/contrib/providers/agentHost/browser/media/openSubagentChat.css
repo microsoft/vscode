@@ -82,7 +82,11 @@
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-model {
-	flex: 0 0 auto;
+	flex: 0 1 auto;
+	min-width: 0;
+	max-width: 120px;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	white-space: nowrap;
 	color: var(--vscode-descriptionForeground);
 	opacity: 0.7;
@@ -139,36 +143,34 @@
 }
 
 @supports ((background-clip: text) or (-webkit-background-clip: text)) {
-	@media not (prefers-reduced-motion: reduce) {
-		.chat-subagent-pill-active-tool-label.chat-subagent-tool-fade-out,
-		.chat-subagent-pill-active-tool-label.chat-subagent-tool-fade-in {
-			-webkit-mask-repeat: no-repeat;
-			mask-repeat: no-repeat;
-			-webkit-mask-size: 300% 100%;
-			mask-size: 300% 100%;
-		}
+	.monaco-enable-motion .chat-subagent-pill-active-tool-label.chat-subagent-tool-fade-out,
+	.monaco-enable-motion .chat-subagent-pill-active-tool-label.chat-subagent-tool-fade-in {
+		-webkit-mask-repeat: no-repeat;
+		mask-repeat: no-repeat;
+		-webkit-mask-size: 300% 100%;
+		mask-size: 300% 100%;
+	}
 
-		.chat-subagent-pill-active-tool-label.chat-subagent-tool-fade-out {
-			-webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 33%, #000 66%, #000 100%);
-			mask-image: linear-gradient(90deg, transparent 0%, transparent 33%, #000 66%, #000 100%);
-			animation: chat-subagent-tool-fade-out 220ms ease-in forwards;
-		}
+	.monaco-enable-motion .chat-subagent-pill-active-tool-label.chat-subagent-tool-fade-out {
+		-webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 33%, #000 66%, #000 100%);
+		mask-image: linear-gradient(90deg, transparent 0%, transparent 33%, #000 66%, #000 100%);
+		animation: chat-subagent-tool-fade-out 220ms ease-in forwards;
+	}
 
-		.chat-subagent-pill-active-tool-label.chat-subagent-tool-fade-in {
-			-webkit-mask-image: linear-gradient(90deg, #000 0%, #000 33%, transparent 66%, transparent 100%);
-			mask-image: linear-gradient(90deg, #000 0%, #000 33%, transparent 66%, transparent 100%);
-			background: linear-gradient(90deg,
-					var(--vscode-descriptionForeground) 0%,
-					var(--vscode-descriptionForeground) 30%,
-					var(--vscode-foreground) 50%,
-					var(--vscode-descriptionForeground) 70%,
-					var(--vscode-descriptionForeground) 100%);
-			background-size: 250% 100%;
-			background-clip: text;
-			-webkit-background-clip: text;
-			-webkit-text-fill-color: transparent;
-			animation: chat-subagent-tool-fade-in 480ms ease-out forwards;
-		}
+	.monaco-enable-motion .chat-subagent-pill-active-tool-label.chat-subagent-tool-fade-in {
+		-webkit-mask-image: linear-gradient(90deg, #000 0%, #000 33%, transparent 66%, transparent 100%);
+		mask-image: linear-gradient(90deg, #000 0%, #000 33%, transparent 66%, transparent 100%);
+		background: linear-gradient(90deg,
+				var(--vscode-descriptionForeground) 0%,
+				var(--vscode-descriptionForeground) 30%,
+				var(--vscode-foreground) 50%,
+				var(--vscode-descriptionForeground) 70%,
+				var(--vscode-descriptionForeground) 100%);
+		background-size: 250% 100%;
+		background-clip: text;
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		animation: chat-subagent-tool-fade-in 480ms ease-out forwards;
 	}
 }
 
@@ -233,7 +235,7 @@
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.chat-subagent-running {
 	color: var(--vscode-descriptionForeground);
-	gap: 3px;
+	gap: var(--vscode-spacing-size40);
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.chat-subagent-waiting {
@@ -250,7 +252,7 @@
 	}
 }
 
-.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.chat-subagent-confirmation-pending .chat-subagent-pill-content {
+.monaco-enable-motion .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.chat-subagent-confirmation-pending .chat-subagent-pill-content {
 	animation: chat-subagent-confirmation-pending-pulse 3s ease-in-out infinite;
 }
 
@@ -260,11 +262,8 @@
 	color: var(--vscode-list-warningForeground);
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.chat-subagent-confirmation-pending .chat-subagent-pill-content {
-		animation: none;
-		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
-	}
+.monaco-reduce-motion .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.chat-subagent-confirmation-pending .chat-subagent-pill-content {
+	background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget:is(.chat-subagent-running, .chat-subagent-waiting) .chat-subagent-pill-icon .chat-subagent-pill-open-icon.codicon {
