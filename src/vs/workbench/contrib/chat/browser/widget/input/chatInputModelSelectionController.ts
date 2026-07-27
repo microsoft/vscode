@@ -180,7 +180,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._rememberedSelection = rememberedModelId ? { modelId: rememberedModelId, reason: ModelSelectionReason.Remembered } : undefined;
 		// One catalog snapshot for the whole decision, so the fallback we fall back *to* is the
 		// same one the precedence rules were evaluated against.
-		const models = this._runtime.getModels(this._runtime.getCurrentSessionType());
+		const models = this._selectablePool(this._runtime.getCurrentSessionType());
 		const fallbackModel = findDefaultModel(models, this._runtime.location);
 		// `chat.defaultModel` seeds new conversations only; a conversation with history keeps
 		// the model it was started with.
@@ -319,7 +319,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (!configuredValue) {
 			return false;
 		}
-		const configuredModel = resolveConfiguredModel(configuredValue, this._runtime.getModels(this._runtime.getCurrentSessionType()));
+		const configuredModel = resolveConfiguredModel(configuredValue, this._selectablePool(this._runtime.getCurrentSessionType()));
 		if (!configuredModel) {
 			return false;
 		}

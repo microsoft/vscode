@@ -708,6 +708,37 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
+	test('a mode-invalid configured default is not reapplied on every catalog change', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		// `chat.defaultModel` names a model agent mode cannot use.
+		const configured = targetedModel('agent-host/configured', 'agent-host');
+		const agentCapableBase = targetedModel('agent-host/capable', 'agent-host');
+		const agentCapable: ILanguageModelChatMetadataAndIdentifier = {
+			...agentCapableBase,
+			metadata: { ...agentCapableBase.metadata, capabilities: { toolCalling: true, agentMode: true } },
+		};
+		const state: IRuntimeState = {
+			models: [configured, agentCapable],
+			resolved: true,
+			sessionType: 'agent-host',
+			modeKind: ChatModeKind.Agent,
+			configuredModel: configured.metadata.id,
+		};
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.applyAutomaticSelection(agentCapable, () => { });
+		applied.length = 0;
+		modelChanges.fire('refresh-one');
+		modelChanges.fire('refresh-two');
+
+		assert.deepStrictEqual({ applied, current: controller.currentModel.get()?.identifier }, {
+			// No churn: the unusable configured model is never applied, so nothing is re-applied.
+			applied: [],
+			current: agentCapable.identifier,
+		});
+	});
+
 	test('applies a fallback while the configured default loads, then upgrades it', () => {
 		const byok = model('openai/byok');
 		const configured = model('copilot/configured');
@@ -1607,7 +1638,7 @@ suite('ChatInputModelSelectionController', () => {
 			};
 			const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 			controller.initialize(rememberedId, () => { });
-			return controller.hasPendingIntent();
+			return controller.isAwaitingRememberedModel();
 		};
 		const first = model('test/first');
 		const remembered = model('test/remembered');
