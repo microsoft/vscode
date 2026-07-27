@@ -12,6 +12,7 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
+import { ImportChanges } from '../../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
 import { DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
@@ -21,8 +22,10 @@ import { ILogger } from '../../../../platform/log/common/logService';
 import { FilterReason } from '../../../../platform/networking/common/openai';
 import { ISimulationTestContext } from '../../../../platform/simulationTestContext/common/simulationTestContext';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
+import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { AsyncIterUtils } from '../../../../util/common/asyncIterableUtils';
 import { Result } from '../../../../util/common/result';
+import { createTextDocumentData } from '../../../../util/common/test/shims/textDocument';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
@@ -39,6 +42,7 @@ import { DelaySession } from '../../../inlineEdits/common/delay';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { N_LINES_AS_CONTEXT } from '../../common/promptCrafting';
 import { nes41Miniv3SystemPrompt, simplifiedPrompt, systemPromptTemplate, unifiedModelSystemPrompt, xtab275SystemPrompt } from '../../common/systemMessages';
+import { PromptTags } from '../../common/tags';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
 import {
 	computeAreaAroundEditWindowLinesRange,
@@ -1135,6 +1139,69 @@ describe('XtabProvider integration', () => {
 	// Group 4: Filter Pipeline
 	// ========================================================================
 
+	describe('global budget', () => {
+
+		/** Drives the provider once and returns the captured user-message text. */
+		async function captureUserPrompt(provider: XtabProvider, request: StatelessNextEditRequest): Promise<string> {
+			streamingFetcher.setStreamingLines(['x']);
+			const capturesBefore = streamingFetcher.capturedOptions.length;
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			await AsyncIterUtils.drainUntilReturn(gen);
+			// Guard against silently comparing a stale capture: the run must have fetched.
+			expect(streamingFetcher.capturedOptions.length).toBeGreaterThan(capturesBefore);
+			const messages = streamingFetcher.capturedOptions.at(-1)?.messages;
+			const userMessage = messages?.find(m => m.role === Raw.ChatRole.User);
+			expect(userMessage).toBeDefined();
+			return getMessageText(userMessage!);
+		}
+
+		/** Number of lines in the `<|current_file_content|>` region of the prompt. */
+		function currentFileRegionLineCount(prompt: string): number {
+			const start = prompt.indexOf(PromptTags.CURRENT_FILE.start);
+			const end = prompt.indexOf(PromptTags.CURRENT_FILE.end);
+			expect(start).toBeGreaterThanOrEqual(0);
+			expect(end).toBeGreaterThan(start);
+			return prompt.slice(start, end).split('\n').length;
+		}
+
+		const bigFile = Array.from({ length: 400 }, (_, i) => `const value${i} = ${i};`);
+
+		// Under a global budget the current file is clipped LAST, so it absorbs whatever
+		// budget the cascade parts leave unused. With the (here empty) cascade the
+		// current file therefore reuses essentially the whole pool and keeps strictly
+		// MORE of the file than the legacy path, which caps it at its own
+		// currentFile.maxTokens (1500) and trims the tail.
+		it('absorbs leftover cascade budget so it keeps more of the current file than the legacy cap', async () => {
+			const legacy = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, '{}');
+			const enabledAtDefault = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			// Legacy caps the current file at 2000 tokens → the tail is trimmed.
+			expect(legacy).not.toContain('const value399 = 399;');
+			// Clip-last lets the current file reuse the whole pool → the entire file fits.
+			expect(enabledAtDefault).toContain('const value399 = 399;');
+			expect(currentFileRegionLineCount(legacy)).toBeLessThan(currentFileRegionLineCount(enabledAtDefault));
+		});
+
+		// New behavior: because the current file is sized to its share PLUS the cascade
+		// leftover (≈ the whole pool when the cascade is empty), a larger total budget
+		// keeps more of the file. A small pool still trims the tail; a generous pool
+		// fits the entire file.
+		it('keeps more of the current file as the total budget grows', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, JSON.stringify({ totalTokens: 2000 }));
+			const smallBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, JSON.stringify({ totalTokens: 8000 }));
+			const wideBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			// Small pool trims the tail; wide pool fits the whole file.
+			expect(smallBudget).not.toContain('const value399 = 399;');
+			expect(wideBudget).toContain('const value399 = 399;');
+			expect(currentFileRegionLineCount(smallBudget)).toBeLessThan(currentFileRegionLineCount(wideBudget));
+		});
+	});
+
 	describe('filter pipeline', () => {
 		it('filters out import-only changes', async () => {
 			const provider = createProvider();
@@ -1163,6 +1230,36 @@ describe('XtabProvider integration', () => {
 
 			// Import-only changes should be filtered out
 			expect(edits.length).toBe(0);
+		});
+
+		it('allows import-only changes when model config allows them', async () => {
+			const provider = createProvider();
+			mockModelService.setSelectedConfig({ allowImportChanges: ImportChanges.All });
+
+			const lines = [
+				'import { foo } from "bar";',
+				'',
+				'function main() {',
+				'  foo();',
+				'}',
+			];
+			// Place cursor at the import line
+			const request = createRequestWithEdit(lines, {
+				insertionOffset: 5,
+				insertedText: 'x',
+				languageId: 'typescript',
+			});
+
+			// Respond with a modified import line
+			const responseLines = [...lines];
+			responseLines[0] = 'import { foo, baz } from "bar";';
+			streamingFetcher.setStreamingLines(responseLines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits } = await collectEdits(gen);
+
+			// With import changes allowed, the import-only edit should pass through
+			expect(edits.length).toBeGreaterThan(0);
 		});
 
 		it('passes through substantive code edits', async () => {
@@ -1737,6 +1834,59 @@ describe('XtabProvider integration', () => {
 			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
 			// Exactly 3 calls: main + cursor prediction + retry (no further retry)
 			expect(streamingFetcher.callCount).toBe(3);
+		});
+
+		it('cross-file cursor jump with out-of-bounds predicted line → NoSuggestions without throwing', async () => {
+			const provider = createProvider();
+			await configService.setConfig(ConfigKey.InlineEditsNextCursorPredictionEnabled, true);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, 'test-model');
+
+			const lines = Array.from({ length: 30 }, (_, i) => `line ${i} content`);
+			const cursorOffset = lines.slice(0, 5).join('\n').length;
+			const request = createRequestWithEdit(lines, { insertionOffset: cursorOffset });
+
+			// 1st call (main LLM): edit-window lines unchanged → no edits → cursor jump path
+			const mainEditWindowLines = lines.slice(3, 11);
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-main',
+				serverRequestId: 'srv-main',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: mainEditWindowLines.join('\n'),
+				resolvedModel: 'test-model',
+			});
+
+			// 2nd call (cursor prediction): predict a jump into another file at line 50 (0-based),
+			// which is out of bounds for the 5-line target document opened below.
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-cursor',
+				serverRequestId: 'srv-cursor',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: '/test/other.ts:50',
+				resolvedModel: 'test-model',
+			});
+
+			// The cross-file jump target only has 5 lines, so the predicted line 50 is out of bounds.
+			const targetDoc = createTextDocumentData(
+				URI.file('/test/other.ts'),
+				Array.from({ length: 5 }, (_, i) => `other ${i}`).join('\n'),
+				'typescript',
+			).document;
+			const workspaceService = instaService.invokeFunction(accessor => accessor.get(IWorkspaceService));
+			const openSpy = vi.spyOn(workspaceService, 'openTextDocument').mockResolvedValue(targetDoc);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect(edits.length).toBe(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			// The out-of-bounds prediction must be rejected before any retry fetch happens, rather
+			// than constructing a CurrentDocument with an out-of-bounds cursor (which would throw).
+			expect(streamingFetcher.callCount).toBe(2);
+			expect(openSpy).toHaveBeenCalledOnce();
+
+			openSpy.mockRestore();
 		});
 
 		it('model fallback retry on NotFound then yields edits on second attempt', async () => {

@@ -10,13 +10,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentFeedbackAttachmentContribution } from '../../browser/agentFeedbackAttachment.js';
-import { AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 
 suite('AgentFeedbackAttachmentContribution', () => {
 	const store = new DisposableStore();
@@ -32,7 +32,7 @@ suite('AgentFeedbackAttachmentContribution', () => {
 			resourceUri: URI.file('/workspace/a.ts'),
 			range: new Range(1, 1, 1, 5),
 			sessionResource,
-			kind: 'user',
+			kind: AgentFeedbackKind.UserReview,
 			state: AgentFeedbackState.Accepted,
 		};
 		let getWidgetCallCount = 0;
@@ -52,7 +52,6 @@ suite('AgentFeedbackAttachmentContribution', () => {
 			}
 		};
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
-			override activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 			override onDidChangeSessions = Event.None;
 			override getSession(resource: URI): ISession | undefined {
 				return resource.toString() === sessionResource.toString()

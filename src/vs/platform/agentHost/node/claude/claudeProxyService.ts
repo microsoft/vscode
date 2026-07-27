@@ -7,8 +7,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type * as http from 'http';
 import { once } from 'events';
-import { AddressInfo } from 'net';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import {
@@ -17,6 +16,14 @@ import {
 	ICopilotApiService,
 	type ICopilotApiServiceRequestOptions,
 } from '../shared/copilotApiService.js';
+import { buildForwardedChatError, encodeForwardedChatError } from '../shared/forwardedChatError.js';
+import {
+	IProxyInFlight,
+	ILoopbackProxyHandle,
+	ILoopbackProxyRuntime,
+	LoopbackProxyServer,
+	readProxyRequestBody,
+} from '../shared/loopbackProxyServer.js';
 import { filterSupportedBetas } from './anthropicBetas.js';
 import {
 	buildErrorEnvelope,
@@ -41,15 +48,55 @@ import { parseProxyBearer } from './claudeProxyAuth.js';
  * after `dispose()` the proxy may rebind on a different port and the
  * subprocess would silently lose its endpoint.
  */
-export interface IClaudeProxyHandle extends IDisposable {
+export interface IClaudeProxyHandle extends ILoopbackProxyHandle {
 	/** e.g. `http://127.0.0.1:54321` — no trailing slash. */
 	readonly baseUrl: string;
 	/** 256-bit hex string. Combine with a session id as `Bearer <nonce>.<sessionId>`. */
 	readonly nonce: string;
 }
 
+/**
+ * How the Claude provider reaches Anthropic, resolved once per session at
+ * materialize time and threaded as data through `IMaterializeContext` into
+ * `buildOptions` / `buildSubprocessEnv`.
+ *
+ * - `proxy`: Copilot-routed Claude (the default). All `messages` traffic goes
+ *   through the local {@link IClaudeProxyHandle} → Copilot CAPI.
+ * - `native`: BYO-Anthropic (Phase 19). The SDK talks to Anthropic directly on
+ *   the user's own credentials (`ANTHROPIC_API_KEY`, or a subscription OAuth
+ *   token in `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`); no proxy is
+ *   involved. The SDK's bundled `claude` CLI runs the turn.
+ */
+export type ClaudeTransport =
+	| { readonly kind: 'proxy'; readonly handle: IClaudeProxyHandle }
+	| { readonly kind: 'native' };
+
+/**
+ * A per-request credits report. CAPI returns the actual billed credits
+ * for a `/v1/messages` request as `copilot_usage.total_nano_aiu` on the
+ * Anthropic SSE stream. The Claude SDK subprocess strips this field from
+ * its `result` message, so the proxy — which sees the raw CAPI response —
+ * is the only place the real billed amount survives. `sessionId` is
+ * decoded from the proxy Bearer token (`<nonce>.<sessionId>`) so consumers
+ * can attribute credits to the originating session/turn.
+ */
+export interface IClaudeProxyCreditsReport {
+	readonly sessionId: string;
+	/** Billed credits for the request, in nano-AIU (1 credit = 1e9 nano-AIU). */
+	readonly totalNanoAiu: number;
+}
+
 export interface IClaudeProxyService {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fires once per completed CAPI `/v1/messages` request that reported
+	 * `copilot_usage.total_nano_aiu`. Consumers accumulate per turn to
+	 * surface real per-turn Copilot credits (the SDK-computed
+	 * `total_cost_usd` is an Anthropic-list-price estimate, not the
+	 * amount CAPI actually bills).
+	 */
+	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport>;
 
 	/**
 	 * Start the proxy (if not already running) and return a refcounted
@@ -73,30 +120,12 @@ export const IClaudeProxyService = createDecorator<IClaudeProxyService>('claudeP
 
 // #region Internal state
 
-/**
- * Per-request bookkeeping. `clientGone` distinguishes a client-driven
- * disconnect (socket already closed — write nothing) from a service-
- * driven `dispose()` (socket still open — `res.destroy()` to unblock
- * the client) when the abort signal fires.
- */
-interface IInFlight {
-	readonly ac: AbortController;
-	readonly res: http.ServerResponse;
-	clientGone: boolean;
+/** Subclass-owned per-bind mutable state: the active outbound CAPI token. */
+interface IClaudeProxyState {
+	githubToken: string;
 }
 
-/**
- * Process-wide proxy state. Created lazily on first `start()` and torn
- * down when refcount → 0 (or `dispose()` is called explicitly).
- */
-interface IProxyRuntime {
-	readonly server: http.Server;
-	readonly baseUrl: string;
-	readonly nonce: string;
-	readonly inFlight: Set<IInFlight>;
-	githubToken: string;
-	refcount: number;
-}
+type IClaudeProxyRuntime = ILoopbackProxyRuntime<IClaudeProxyState>;
 
 // #endregion
 
@@ -108,18 +137,23 @@ const PROXY_USER_FACING_NAME = 'ClaudeProxyService';
 const USER_AGENT_PREFIX = 'vscode_claude_code';
 
 /**
- * Build the 256-bit hex nonce embedded in the `Bearer <nonce>.<sessionId>`
- * token. Web Crypto is available in Node 18+ (used elsewhere in this
- * folder via `generateUuid`).
+ * CAPI augments the Anthropic `/v1/messages` response with the request's
+ * billed credits under `copilot_usage.total_nano_aiu`. The published
+ * Anthropic SDK types don't declare it, so narrow through this shape
+ * (mirrors `messagesApi.ts` in the Copilot extension).
  */
-function generateNonce(): string {
-	const bytes = new Uint8Array(32);
-	crypto.getRandomValues(bytes);
-	let out = '';
-	for (let i = 0; i < bytes.length; i++) {
-		out += bytes[i].toString(16).padStart(2, '0');
-	}
-	return out;
+interface ICopilotUsageEnvelope {
+	readonly copilot_usage?: { readonly total_nano_aiu?: number };
+}
+
+/**
+ * Read `copilot_usage.total_nano_aiu` off an Anthropic stream event or
+ * message, returning `undefined` unless it is a finite, non-negative
+ * number.
+ */
+function readCopilotUsageNanoAiu(event: unknown): number | undefined {
+	const value = (event as ICopilotUsageEnvelope | undefined)?.copilot_usage?.total_nano_aiu;
+	return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
 /**
@@ -132,196 +166,65 @@ function generateNonce(): string {
  * {@link IClaudeProxyService.start} and the subprocess-ownership
  * invariant on `IClaudeProxyHandle`.
  */
-export class ClaudeProxyService implements IClaudeProxyService {
+export class ClaudeProxyService extends LoopbackProxyServer<IClaudeProxyState, string> implements IClaudeProxyService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private _runtime: IProxyRuntime | undefined;
-	private _starting: Promise<IProxyRuntime> | undefined;
-	private _disposed = false;
+	private readonly _onDidReportCredits = new Emitter<IClaudeProxyCreditsReport>();
+	readonly onDidReportCredits: Event<IClaudeProxyCreditsReport> = this._onDidReportCredits.event;
 
 	constructor(
-		@ILogService private readonly _logService: ILogService,
+		@ILogService logService: ILogService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
-	) { }
-
-	async start(githubToken: string): Promise<IClaudeProxyHandle> {
-		if (this._disposed) {
-			throw new Error('ClaudeProxyService has been disposed');
-		}
-
-		const runtime = await this._ensureRuntime(githubToken);
-		// Re-check after the await: dispose() may have run while
-		// _ensureRuntime was awaiting the bind, in which case the
-		// runtime we received is already torn down (see
-		// _ensureRuntime) — but a fresh start() in between is also
-		// possible, so verify the active runtime hasn't moved.
-		if (this._disposed || this._runtime !== runtime) {
-			throw new Error('ClaudeProxyService has been disposed');
-		}
-		// Late-binding token update covers the case where multiple
-		// concurrent callers awaited the same _ensureRuntime — last
-		// caller's token wins, matching the single-tenant contract.
-		runtime.githubToken = githubToken;
-		runtime.refcount++;
-
-		let disposed = false;
-		const handle: IClaudeProxyHandle = {
-			baseUrl: runtime.baseUrl,
-			nonce: runtime.nonce,
-			dispose: () => {
-				if (disposed) {
-					return;
-				}
-				disposed = true;
-				this._releaseHandle(runtime);
-			},
-		};
-		return handle;
+	) {
+		super(PROXY_USER_FACING_NAME, logService);
 	}
 
-	dispose(): void {
-		if (this._disposed) {
-			return;
-		}
-		this._disposed = true;
-		this._teardownRuntime();
+	protected createState(githubToken: string): IClaudeProxyState {
+		return { githubToken };
+	}
+
+	async start(githubToken: string): Promise<IClaudeProxyHandle> {
+		const { runtime, release } = await this.acquire(githubToken);
+		// Late-binding token update covers the case where multiple
+		// concurrent callers awaited the same bind — last caller's token
+		// wins, matching the single-tenant contract.
+		runtime.state.githubToken = githubToken;
+		return {
+			baseUrl: runtime.baseUrl,
+			nonce: runtime.nonce,
+			dispose: release,
+		};
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this._onDidReportCredits.dispose();
+	}
+
+	protected override writeInternalError(res: http.ServerResponse): void {
+		writeJsonError(res, 500, 'api_error', 'Internal proxy error');
 	}
 
 	/**
-	 * Returns the shared runtime, binding a new server if there isn't
-	 * one yet. Concurrent callers share the same in-flight bind via
-	 * {@link _starting}; this prevents two listeners from being
-	 * created when {@link start} is invoked twice before the first
-	 * bind resolves.
-	 *
-	 * If {@link dispose} runs while the bind is in flight, the
-	 * just-bound server is torn down here and the awaiting caller
-	 * sees a rejected promise.
+	 * Fire {@link onDidReportCredits} for a completed request. No-op when
+	 * the request carried no credits (`copilot_usage` absent) or the
+	 * Bearer token lacked a session id (shouldn't happen post-auth).
 	 */
-	private _ensureRuntime(githubToken: string): Promise<IProxyRuntime> {
-		if (this._runtime) {
-			return Promise.resolve(this._runtime);
-		}
-		if (!this._starting) {
-			this._starting = (async () => {
-				try {
-					const rt = await this._startServer(githubToken);
-					if (this._disposed) {
-						// dispose() ran while we were binding — the
-						// teardown noop'd because _runtime was still
-						// undefined, so close what we just created.
-						rt.server.closeAllConnections();
-						rt.server.close();
-						throw new Error('ClaudeProxyService has been disposed');
-					}
-					this._runtime = rt;
-					return rt;
-				} finally {
-					this._starting = undefined;
-				}
-			})();
-		}
-		return this._starting;
-	}
-
-	private _releaseHandle(runtime: IProxyRuntime): void {
-		// If `dispose()` (or a later `start()`) already replaced the
-		// runtime, the handle's refcount no longer applies.
-		if (this._runtime !== runtime) {
+	private _reportCredits(sessionId: string | undefined, totalNanoAiu: number | undefined): void {
+		if (sessionId === undefined || totalNanoAiu === undefined) {
 			return;
 		}
-		runtime.refcount--;
-		if (runtime.refcount === 0) {
-			this._teardownRuntime();
-		}
-	}
-
-	private _teardownRuntime(): void {
-		const runtime = this._runtime;
-		if (!runtime) {
-			return;
-		}
-		this._runtime = undefined;
-		// Abort in-flight requests so the catch handlers run and
-		// destroy still-open responses; closeAllConnections() then
-		// frees the listening socket immediately.
-		for (const entry of runtime.inFlight) {
-			entry.ac.abort();
-		}
-		runtime.server.closeAllConnections();
-		runtime.server.close(err => {
-			if (err) {
-				this._logService.warn(`[${PROXY_USER_FACING_NAME}] server.close error: ${err.message}`);
-			}
-		});
-	}
-
-	private async _startServer(githubToken: string): Promise<IProxyRuntime> {
-		const nonce = generateNonce();
-		const inFlight = new Set<IInFlight>();
-		const httpModule = await import('http');
-		const server = httpModule.createServer();
-
-		await new Promise<void>((resolve, reject) => {
-			const onError = (err: Error) => { reject(err); };
-			server.once('error', onError);
-			server.listen(0, '127.0.0.1', () => {
-				server.removeListener('error', onError);
-				resolve();
-			});
-		});
-
-		const address = server.address();
-		if (!address || typeof address === 'string') {
-			server.close();
-			throw new Error(`${PROXY_USER_FACING_NAME} failed to bind: unexpected address ${String(address)}`);
-		}
-		const baseUrl = `http://127.0.0.1:${(address as AddressInfo).port}`;
-		this._logService.info(`[${PROXY_USER_FACING_NAME}] listening on ${baseUrl}`);
-
-		const runtime: IProxyRuntime = {
-			server,
-			baseUrl,
-			nonce,
-			inFlight,
-			githubToken,
-			refcount: 0,
-		};
-
-		// Attach the request handler only after `runtime` is fully
-		// built. Node's single-threaded event loop guarantees no
-		// `request` event can be parsed and dispatched between
-		// `listen` resolving and this synchronous registration, so
-		// the handler can safely close over `runtime` as a `const`.
-		server.on('request', (req, res) => {
-			this._handleRequest(req, res, runtime).catch(err => {
-				// Last-resort safety net. All known throw paths are
-				// already handled inside `_handleRequest`.
-				this._logService.error(`[${PROXY_USER_FACING_NAME}] unhandled request error: ${stringifyError(err)}`);
-				if (!res.headersSent) {
-					try {
-						writeJsonError(res, 500, 'api_error', 'Internal proxy error');
-					} catch {
-						// nothing else we can do
-					}
-				} else if (!res.writableEnded) {
-					try {
-						res.end();
-					} catch { /* ignore */ }
-				}
-			});
-		});
-
-		return runtime;
+		this._logService.trace(`[${PROXY_USER_FACING_NAME}] credits: session=${sessionId} totalNanoAiu=${totalNanoAiu}`);
+		this._onDidReportCredits.fire({ sessionId, totalNanoAiu });
 	}
 
 	// #region Dispatch
 
-	private async _handleRequest(
+	protected override async handleRequest(
 		req: http.IncomingMessage,
 		res: http.ServerResponse,
-		runtime: IProxyRuntime,
+		runtime: IClaudeProxyRuntime,
 	): Promise<void> {
 		const method = req.method ?? 'GET';
 		const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
@@ -346,7 +249,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		}
 
 		if (method === 'POST' && pathname === '/v1/messages') {
-			await this._handleMessages(req, res, runtime);
+			await this._handleMessages(req, res, runtime, auth.sessionId);
 			return;
 		}
 
@@ -362,11 +265,11 @@ export class ClaudeProxyService implements IClaudeProxyService {
 
 	// #region GET /v1/models
 
-	private async _handleModels(req: http.IncomingMessage, res: http.ServerResponse, runtime: IProxyRuntime): Promise<void> {
+	private async _handleModels(req: http.IncomingMessage, res: http.ServerResponse, runtime: IClaudeProxyRuntime): Promise<void> {
 		const headers = buildOutboundHeaders(req.headers);
 		let models: CCAModel[];
 		try {
-			models = await this._copilotApiService.models(runtime.githubToken, { headers });
+			models = await this._copilotApiService.models(runtime.state.githubToken, { headers, suppressIntegrationId: true });
 		} catch (err) {
 			this._writeUpstreamErrorResponse(res, err);
 			return;
@@ -407,11 +310,12 @@ export class ClaudeProxyService implements IClaudeProxyService {
 	private async _handleMessages(
 		req: http.IncomingMessage,
 		res: http.ServerResponse,
-		runtime: IProxyRuntime,
+		runtime: IClaudeProxyRuntime,
+		sessionId: string | undefined,
 	): Promise<void> {
 		let bodyString: string;
 		try {
-			bodyString = await readRequestBody(req);
+			bodyString = await readProxyRequestBody(req);
 		} catch (err) {
 			writeJsonError(res, 400, 'invalid_request_error', `Failed to read request body: ${stringifyError(err)}`);
 			return;
@@ -445,13 +349,16 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			writeJsonError(res, 404, 'not_found_error', `Unknown model: ${sdkModelId}`);
 			return;
 		}
+		// The SDK/CLI sends the model in SDK format (dashed, `claude-haiku-4-5`);
+		// CAPI's `/v1/messages` expects the endpoint format (dotted,
+		// `claude-haiku-4.5`). Rewrite on the way out.
 		const endpointModelId = parsedModel.toEndpointModelId();
 		body.model = endpointModelId;
 
 		const stream = body.stream === true;
 		const headers = buildOutboundHeaders(req.headers);
 
-		const entry: IInFlight = {
+		const entry: IProxyInFlight = {
 			ac: new AbortController(),
 			res,
 			clientGone: false,
@@ -472,6 +379,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 					entry,
 					runtime,
 					sdkModelId,
+					sessionId,
 				);
 			} else {
 				await this._sendNonStreamingMessage(
@@ -481,6 +389,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 					entry,
 					runtime,
 					sdkModelId,
+					sessionId,
 				);
 			}
 		} finally {
@@ -493,14 +402,15 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		body: Anthropic.MessageCreateParamsNonStreaming,
 		headers: Record<string, string>,
 		res: http.ServerResponse,
-		entry: IInFlight,
-		runtime: IProxyRuntime,
+		entry: IProxyInFlight,
+		runtime: IClaudeProxyRuntime,
 		originalSdkModelId: string,
+		sessionId: string | undefined,
 	): Promise<void> {
 		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal, suppressIntegrationId: true };
 		let message: Anthropic.Message;
 		try {
-			message = await this._copilotApiService.messages(runtime.githubToken, body, options);
+			message = await this._copilotApiService.messages(runtime.state.githubToken, body, options);
 		} catch (err) {
 			if (entry.ac.signal.aborted) {
 				if (!entry.clientGone && !res.writableEnded) {
@@ -508,9 +418,11 @@ export class ClaudeProxyService implements IClaudeProxyService {
 				}
 				return;
 			}
-			this._writeUpstreamErrorResponse(res, err);
+			this._writeUpstreamErrorResponse(res, err, true);
 			return;
 		}
+
+		this._reportCredits(sessionId, readCopilotUsageNanoAiu(message));
 
 		// Rewrite outbound `model` to SDK format. Failure to re-parse
 		// shouldn't normally happen because we just translated it on
@@ -526,14 +438,15 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		body: Anthropic.MessageCreateParamsStreaming,
 		headers: Record<string, string>,
 		res: http.ServerResponse,
-		entry: IInFlight,
-		runtime: IProxyRuntime,
+		entry: IProxyInFlight,
+		runtime: IClaudeProxyRuntime,
 		_originalSdkModelId: string,
+		sessionId: string | undefined,
 	): Promise<void> {
 		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal, suppressIntegrationId: true };
 		let stream: AsyncGenerator<Anthropic.MessageStreamEvent>;
 		try {
-			stream = this._copilotApiService.messages(runtime.githubToken, body, options);
+			stream = this._copilotApiService.messages(runtime.state.githubToken, body, options);
 		} catch (err) {
 			// Synchronous throws from the generator factory (rare —
 			// CAPI errors come from the first iteration).
@@ -543,7 +456,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 				}
 				return;
 			}
-			this._writeUpstreamErrorResponse(res, err);
+			this._writeUpstreamErrorResponse(res, err, true);
 			return;
 		}
 
@@ -559,7 +472,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 				}
 				return;
 			}
-			this._writeUpstreamErrorResponse(res, err);
+			this._writeUpstreamErrorResponse(res, err, true);
 			return;
 		}
 
@@ -587,8 +500,14 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			return true;
 		};
 
+		// Tracks the latest `copilot_usage.total_nano_aiu` seen on the
+		// stream; CAPI sends the request's running total on `message_delta`
+		// (assign-last-wins). Reported once on clean stream end.
+		let reportedNanoAiu: number | undefined;
+
 		try {
 			if (!first.done) {
+				reportedNanoAiu = readCopilotUsageNanoAiu(first.value) ?? reportedNanoAiu;
 				const ok = await writeFrame(first.value);
 				if (!ok) {
 					return;
@@ -607,7 +526,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 					}
 					// Mid-stream error: emit Anthropic SSE error frame, then end.
 					const envelope = err instanceof CopilotApiError
-						? err.envelope
+						? embedForwardedChatError(err)
 						: buildErrorEnvelope('api_error', stringifyError(err));
 					if (!res.writableEnded) {
 						try {
@@ -622,6 +541,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 				if (next.done) {
 					break;
 				}
+				reportedNanoAiu = readCopilotUsageNanoAiu(next.value) ?? reportedNanoAiu;
 				const ok = await writeFrame(next.value);
 				if (!ok) {
 					return;
@@ -630,6 +550,12 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			if (!res.writableEnded) {
 				res.end();
 			}
+			// CAPI reports the request's billed credits as the last
+			// `copilot_usage.total_nano_aiu` seen on the stream
+			// (assign-last-wins, matching the Copilot messages client).
+			// Fire only after a clean end so we never attribute credits
+			// for a request the client abandoned mid-stream.
+			this._reportCredits(sessionId, reportedNanoAiu);
 		} catch (err) {
 			// Defense in depth — should not be reached.
 			this._logService.warn(`[${PROXY_USER_FACING_NAME}] stream loop unexpected error: ${stringifyError(err)}`);
@@ -643,7 +569,15 @@ export class ClaudeProxyService implements IClaudeProxyService {
 
 	// #region Error helpers
 
-	private _writeUpstreamErrorResponse(res: http.ServerResponse, err: unknown): void {
+	/**
+	 * Writes an upstream error as a JSON response. When `embedChatError` is set
+	 * (the `/v1/messages` paths), a `VSCODE_PROXY_ERROR` marker is appended to
+	 * the envelope message so the structured CAPI error round-trips back through
+	 * the SDK subprocess to the agent host (which decodes it into `_meta` and
+	 * strips the marker). The `/v1/models` path does not round-trip, so it
+	 * re-emits the envelope verbatim.
+	 */
+	private _writeUpstreamErrorResponse(res: http.ServerResponse, err: unknown, embedChatError = false): void {
 		if (res.headersSent) {
 			// Headers are already sent — caller should have routed to
 			// the SSE error path. This is a defensive log.
@@ -659,7 +593,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			// don't ship a 520 with a JSON body that violates HTTP
 			// semantics for the consumer.
 			const status = err.status === COPILOT_API_ERROR_STATUS_STREAMING ? 502 : err.status;
-			writeUpstreamJsonError(res, status, err.envelope);
+			writeUpstreamJsonError(res, status, embedChatError ? embedForwardedChatError(err) : err.envelope);
 			return;
 		}
 		writeJsonError(res, 502, 'api_error', err instanceof Error ? err.message : String(err));
@@ -757,15 +691,6 @@ function transformUserAgent(userAgent: string): string {
 	return `${USER_AGENT_PREFIX}${userAgent.substring(slashIndex)}`;
 }
 
-function readRequestBody(req: http.IncomingMessage): Promise<string> {
-	return new Promise((resolve, reject) => {
-		const chunks: Buffer[] = [];
-		req.on('data', chunk => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
-		req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-		req.on('error', reject);
-	});
-}
-
 function req_setNoDelay(res: http.ServerResponse): void {
 	const socket = res.socket;
 	if (socket && typeof socket.setNoDelay === 'function') {
@@ -782,6 +707,25 @@ function stringifyError(err: unknown): string {
 		return err.message;
 	}
 	return String(err);
+}
+
+/**
+ * Returns a copy of a {@link CopilotApiError}'s Anthropic envelope with a
+ * `VSCODE_PROXY_ERROR:<base64>` marker appended to the error message. The
+ * marker carries the structured chat fetch error so the agent host can
+ * forward rich, localized error messaging to core once the SDK subprocess
+ * echoes the text back. The original message is preserved (the decoder stops
+ * at the first whitespace), so non-core consumers still read it verbatim.
+ */
+function embedForwardedChatError(err: CopilotApiError): Anthropic.ErrorResponse {
+	const marker = encodeForwardedChatError(buildForwardedChatError(err));
+	return {
+		...err.envelope,
+		error: {
+			...err.envelope.error,
+			message: `${err.envelope.error.message} ${marker}`,
+		},
+	};
 }
 
 // #endregion

@@ -80,6 +80,12 @@ export async function generateTerminalFixes(instantiationService: IInstantiation
 				}
 			}
 			r(picks);
+		}, err => {
+			// Generating terminal fixes is best-effort: a failed model request rejects here.
+			// Surface it as "No fixes found" instead of leaving an unhandled rejection that
+			// also strands the quick pick on "Generating…".
+			instantiationService.invokeFunction(accessor => accessor.get(ILogService)).error(err);
+			r([]);
 		});
 	});
 	picksPromise.then(picks => {

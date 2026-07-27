@@ -22,7 +22,7 @@ import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
 
 class StaticChatSessionItemController implements IChatSessionItemController {
 	readonly onDidChangeChatSessionItems = Event.None;
@@ -1284,6 +1284,27 @@ suite('AgentSessions', () => {
 		let instantiationService: TestInstantiationService;
 		let viewModel: AgentSessionsModel;
 
+		class MutableArchiveChatSessionItemController implements IChatSessionItemController {
+			readonly onDidChangeChatSessionItems = Event.None;
+			readonly archiveUpdates: boolean[] = [];
+
+			constructor(private sessionItem: IChatSessionItem) { }
+
+			get items(): readonly IChatSessionItem[] {
+				return [this.sessionItem];
+			}
+
+			async refresh(): Promise<void> { }
+
+			setChatSessionItemArchived(_resource: URI, archived: boolean): void {
+				this.archiveUpdates.push(archived);
+			}
+
+			setProviderArchived(archived: boolean): IChatSessionItem {
+				return this.sessionItem = { ...this.sessionItem, archived };
+			}
+		}
+
 		setup(() => {
 			mockChatSessionsService = new MockChatSessionsService();
 			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
@@ -1359,6 +1380,85 @@ suite('AgentSessions', () => {
 				// Try to archive again with same value
 				session.setArchived(true);
 				assert.strictEqual(changeEventFired, false);
+			});
+		});
+
+		test('should ignore stale local state for controller-owned archived state', async () => {
+			return runWithFakedTimers({}, async () => {
+				const item = makeSimpleSessionItem('session-1', { archived: true });
+				instantiationService.get(IStorageService).store(
+					'agentSessions.state.cache',
+					JSON.stringify([{ resource: item.resource.toString(), archived: false }]),
+					StorageScope.WORKSPACE,
+					StorageTarget.MACHINE,
+				);
+				const controller = new MutableArchiveChatSessionItemController(item);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+				const session = viewModel.sessions[0];
+				session.setArchived(false);
+
+				assert.deepStrictEqual({
+					beforeProviderUpdate: session.isArchived(),
+					archiveUpdates: controller.archiveUpdates,
+				}, {
+					beforeProviderUpdate: true,
+					archiveUpdates: [false],
+				});
+			});
+		});
+
+		test('should not create a local overlay for controller-owned archive writes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const item = makeSimpleSessionItem('session-1', { archived: false });
+				const controller = new MutableArchiveChatSessionItemController(item);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(true);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					archived: viewModel.sessions[0].isArchived(),
+					archiveUpdates: controller.archiveUpdates,
+				}, {
+					archived: false,
+					archiveUpdates: [true],
+				});
+			});
+		});
+
+		test('should fire archive state changes only for effective provider transitions', async () => {
+			return runWithFakedTimers({}, async () => {
+				const item = makeSimpleSessionItem('session-1', { archived: false });
+				const controller = new MutableArchiveChatSessionItemController(item);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const archivedEvents: boolean[] = [];
+				disposables.add(viewModel.onDidChangeSessionArchivedState(session => archivedEvents.push(session.isArchived())));
+
+				const archivedItem = controller.setProviderArchived(true);
+				let sessionsChanged = Event.toPromise(viewModel.onDidChangeSessions);
+				mockChatSessionsService.fireDidChangeSessionItems({ addedOrUpdated: [archivedItem] });
+				await sessionsChanged;
+
+				const unchangedItem = controller.setProviderArchived(true);
+				sessionsChanged = Event.toPromise(viewModel.onDidChangeSessions);
+				mockChatSessionsService.fireDidChangeSessionItems({ addedOrUpdated: [unchangedItem] });
+				await sessionsChanged;
+
+				assert.deepStrictEqual({
+					archived: viewModel.sessions[0].isArchived(),
+					archivedEvents,
+				}, {
+					archived: true,
+					archivedEvents: [true],
+				});
 			});
 		});
 
@@ -2171,7 +2271,12 @@ suite('AgentSessions', () => {
 
 		test('should return correct icon for AgentHostCopilot provider', () => {
 			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostCopilot);
-			assert.strictEqual(icon.id, Codicon.copilot.id);
+			assert.strictEqual(icon.id, Codicon.vm.id);
+		});
+
+		test('should return simplified AgentHostCopilot name', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.AgentHostCopilot);
+			assert.strictEqual(name, 'Copilot');
 		});
 
 		test('should return correct name for Growth provider', () => {
@@ -2182,6 +2287,36 @@ suite('AgentSessions', () => {
 		test('should return correct icon for Growth provider', () => {
 			const icon = getAgentSessionProviderIcon(AgentSessionProviders.Growth);
 			assert.strictEqual(icon.id, Codicon.lightbulb.id);
+		});
+
+		test('should return correct name for AgentHostClaude provider', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.AgentHostClaude);
+			assert.strictEqual(name, 'Claude');
+		});
+
+		test('should return correct icon for AgentHostClaude provider', () => {
+			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostClaude);
+			assert.strictEqual(icon.id, Codicon.claude.id);
+		});
+
+		test('should return correct name for AgentHostCodex provider', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.AgentHostCodex);
+			assert.strictEqual(name, 'Codex');
+		});
+
+		test('should return correct icon for AgentHostCodex provider', () => {
+			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostCodex);
+			assert.strictEqual(icon.id, Codicon.openai.id);
+		});
+
+		test('should resolve AgentHostClaude provider from session type', () => {
+			const provider = getAgentSessionProvider(AgentSessionProviders.AgentHostClaude);
+			assert.strictEqual(provider, AgentSessionProviders.AgentHostClaude);
+		});
+
+		test('should resolve AgentHostCodex provider from session type', () => {
+			const provider = getAgentSessionProvider(AgentSessionProviders.AgentHostCodex);
+			assert.strictEqual(provider, AgentSessionProviders.AgentHostCodex);
 		});
 
 		test('should handle Local provider type in model', async () => {
@@ -2303,6 +2438,21 @@ suite('AgentSessions', () => {
 		test('should return false for Growth provider', () => {
 			const result = getAgentCanContinueIn(AgentSessionProviders.Growth);
 			assert.strictEqual(result, false);
+		});
+
+		test('should return true for the Copilot agent host provider', () => {
+			const result = getAgentCanContinueIn(AgentSessionProviders.AgentHostCopilot);
+			assert.strictEqual(result, true);
+		});
+
+		test('should return true for dynamically registered agent host session types', () => {
+			assert.strictEqual(getAgentCanContinueIn('agent-host-codex'), true);
+			assert.strictEqual(getAgentCanContinueIn('agent-host-claude'), true);
+			assert.strictEqual(getAgentCanContinueIn('remote-myauthority-copilot'), true);
+		});
+
+		test('should return false for unknown extension-host session types', () => {
+			assert.strictEqual(getAgentCanContinueIn('some-extension-session'), false);
 		});
 	});
 

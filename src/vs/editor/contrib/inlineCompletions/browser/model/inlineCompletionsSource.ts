@@ -539,6 +539,7 @@ export class InlineCompletionsSource extends Disposable {
 			sameShapeReplacements: undefined,
 			longDistanceHintVisible: undefined,
 			longDistanceHintDistance: undefined,
+			isForAnotherDocument: undefined,
 			notShownReason: undefined,
 			renameCreated: false,
 			renameDuration: undefined,

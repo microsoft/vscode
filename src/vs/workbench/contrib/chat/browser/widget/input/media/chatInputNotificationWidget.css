@@ -106,6 +106,16 @@
 	margin: 0;
 }
 
+.chat-input-notification .chat-input-notification-title-markdown a,
+.chat-input-notification .chat-input-notification-title-markdown a:visited {
+	color: var(--vscode-textLink-foreground);
+}
+
+.chat-input-notification .chat-input-notification-title-markdown a:hover,
+.chat-input-notification .chat-input-notification-title-markdown a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .chat-input-notification .chat-input-notification-title-markdown code {
 	font-family: var(--monaco-monospace-font);
 	font-size: var(--vscode-agents-fontSize-body2);

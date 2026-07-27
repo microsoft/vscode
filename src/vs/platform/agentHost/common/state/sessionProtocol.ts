@@ -16,6 +16,7 @@
 export type {
 	JsonRpcErrorResponse,
 	JsonRpcNotification,
+	JsonRpcParseErrorResponse,
 	JsonRpcRequest,
 	JsonRpcResponse,
 	JsonRpcSuccessResponse,
@@ -68,6 +69,7 @@ export type {
 	ResourceWriteParams,
 	ResourceWriteResult,
 	SubscribeParams,
+	SubscribeResult,
 	UnsubscribeParams,
 } from './protocol/commands.js';
 
@@ -84,8 +86,10 @@ export type { ResourceChange, ResourceWatchState } from './protocol/channels-res
 export { AhpErrorCodes, JsonRpcErrorCodes } from './protocol/errors.js';
 export type { AhpErrorCode, JsonRpcErrorCode } from './protocol/errors.js';
 
-// Snapshot type (re-exported from state)
-export type { Snapshot as IStateSnapshot } from './protocol/state.js';
+// Snapshot type (re-exported from state). The generated `Snapshot.state`
+// union now includes `ChatState`, so per-chat snapshots type-check directly.
+import type { Snapshot as ProtocolSnapshot } from './protocol/state.js';
+export type IStateSnapshot = ProtocolSnapshot;
 
 // ---- Backward-compatible error code aliases ---------------------------------
 

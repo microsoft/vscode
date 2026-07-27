@@ -13,12 +13,13 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import type { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
-import { agentIcon, instructionsIcon, pluginIcon, skillIcon, hookIcon } from './aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from './aiCustomizationIcons.js';
 import { IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import type { IAICustomizationWelcomePageImplementation, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IPromptMigrationInfo } from './promptMigration.js';
 
 const $ = DOM.$;
 
@@ -40,10 +41,12 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 	private firstCard: HTMLElement | undefined;
 	private heading: HTMLElement | undefined;
 	private inputElement: HTMLInputElement | undefined;
+	private visibleSectionIds = new Set<AICustomizationManagementSection>();
 
 	private sentLabel: HTMLElement | undefined;
 	private submitBtn: HTMLElement | undefined;
 	private inputRow: HTMLElement | undefined;
+	private promptMigrationInfo: IPromptMigrationInfo | undefined;
 
 	private readonly categoryDescriptions: IPromptLaunchersCategoryDescription[] = [
 		{
@@ -85,6 +88,12 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			label: localize('plugins', "Plugins"),
 			icon: pluginIcon,
 			description: localize('pluginsDesc', "Install and manage agent plugins that add additional tools, skills, and integrations."),
+		},
+		{
+			id: AICustomizationManagementSection.Tools,
+			label: localize('tools', "Tools"),
+			icon: toolsIcon,
+			description: localize('toolsDesc', "Enable or disable the tools available to chat."),
 		},
 	];
 
@@ -221,6 +230,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		if (!this.cardsContainer) {
 			return;
 		}
+		this.visibleSectionIds = new Set(visibleSectionIds);
 
 		this.cardDisposables.clear();
 		DOM.clearNode(this.cardsContainer);
@@ -283,8 +293,22 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			}));
 		}
 
+		if (this.promptMigrationInfo) {
+			this.renderPromptMigrationCard();
+		}
+
 		// Content changed — recompute scroll dimensions.
 		this.scrollable.scanDomNode();
+	}
+
+	setPromptMigrationInfo(info: IPromptMigrationInfo | undefined): void {
+		const didChange = this.promptMigrationInfo?.totalPromptCount !== info?.totalPromptCount
+			|| this.promptMigrationInfo?.workspacePromptCount !== info?.workspacePromptCount
+			|| this.promptMigrationInfo?.userPromptCount !== info?.userPromptCount;
+		this.promptMigrationInfo = info;
+		if (didChange) {
+			this.rebuildCards(this.visibleSectionIds);
+		}
 	}
 
 	setHarnessLabel(label: string): void {
@@ -299,6 +323,81 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		if (this.heading) {
 			this.heading.textContent = localize('welcomeHeadingWithHarness', "Agent Customizations for {0}", this.harnessLabel);
 		}
+	}
+
+	private renderPromptMigrationCard(): void {
+		if (!this.cardsContainer || !this.promptMigrationInfo) {
+			return;
+		}
+
+		const migrationCard = DOM.append(this.cardsContainer, $('.welcome-prompts-card.welcome-prompts-migration-card'));
+		migrationCard.setAttribute('tabindex', '0');
+		migrationCard.setAttribute('role', 'button');
+		if (!this.firstCard) {
+			this.firstCard = migrationCard;
+		}
+
+		const cardHeader = DOM.append(migrationCard, $('.welcome-prompts-card-header'));
+		const iconEl = DOM.append(cardHeader, $('.welcome-prompts-card-icon'));
+		iconEl.classList.add(...ThemeIcon.asClassNameArray(Codicon.sync));
+		const labelEl = DOM.append(cardHeader, $('span.welcome-prompts-card-label'));
+		labelEl.textContent = localize('migratePromptFiles', "Migrate");
+
+		const descEl = DOM.append(migrationCard, $('p.welcome-prompts-card-description'));
+		descEl.textContent = this.getPromptMigrationDescription();
+
+		const footer = DOM.append(migrationCard, $('.welcome-prompts-card-footer'));
+		const migrateBtn = DOM.append(footer, $('button.welcome-prompts-card-action'));
+		migrateBtn.textContent = localize('convertToSkills', "Convert to Skills...");
+		migrateBtn.setAttribute('aria-label', localize('convertPromptFilesAriaLabel', "Convert prompt files to skills"));
+		this.cardDisposables.add(DOM.addDisposableListener(migrateBtn, 'click', e => {
+			e.stopPropagation();
+			this.callbacks.migratePromptFiles();
+		}));
+
+		this.cardDisposables.add(DOM.addDisposableListener(migrationCard, 'click', () => {
+			this.callbacks.migratePromptFiles();
+		}));
+		this.cardDisposables.add(DOM.addDisposableListener(migrationCard, 'keydown', e => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				this.callbacks.migratePromptFiles();
+			}
+		}));
+	}
+
+	private getPromptMigrationDescription(): string {
+		if (!this.promptMigrationInfo) {
+			return '';
+		}
+
+		const { workspacePromptCount, userPromptCount, totalPromptCount } = this.promptMigrationInfo;
+		if (workspacePromptCount > 0 && userPromptCount > 0) {
+			return localize(
+				'promptMigrationCardDescriptionWorkspaceAndUser',
+				"Prompt files are deprecated for this harness. Found {0} prompt files ({1} workspace, {2} global) that local VS Code can still run, but {3} ignores. Convert them to skills to keep them available.",
+				totalPromptCount,
+				workspacePromptCount,
+				userPromptCount,
+				this.harnessLabel,
+			);
+		}
+
+		if (workspacePromptCount > 0) {
+			return localize(
+				'promptMigrationCardDescriptionWorkspace',
+				"Prompt files are deprecated for this harness. Found {0} workspace prompt files that local VS Code can still run, but {1} ignores. Convert them to skills to keep them available.",
+				workspacePromptCount,
+				this.harnessLabel,
+			);
+		}
+
+		return localize(
+			'promptMigrationCardDescriptionUser',
+			"Prompt files are deprecated for this harness. Found {0} global prompt files that local VS Code can still run, but {1} ignores. Convert them to skills to keep them available.",
+			userPromptCount,
+			this.harnessLabel,
+		);
 	}
 
 	focus(): void {

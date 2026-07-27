@@ -7,6 +7,7 @@ import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../common/chatDebugServiceImpl.js';
@@ -46,7 +47,7 @@ suite('PromptsDebugContribution', () => {
 	setup(() => {
 		instaService = disposables.add(new TestInstantiationService());
 
-		chatDebugService = disposables.add(new ChatDebugServiceImpl());
+		chatDebugService = disposables.add(new ChatDebugServiceImpl(new TestConfigurationService()));
 		instaService.stub(IChatDebugService, chatDebugService);
 
 		willInvokeAgentEmitter = disposables.add(new Emitter<IChatAgentInvocationEvent>());

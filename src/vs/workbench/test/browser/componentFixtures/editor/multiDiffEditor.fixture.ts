@@ -11,6 +11,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { createTimeout, timeout } from '../../../../../base/common/async.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
+import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { IResourceLabel as IMultiDiffResourceLabel, IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
@@ -133,6 +134,48 @@ function renderMultiDiffEditor({ container, disposableStore, disposableStackStor
 	disposableStackStore.add(toDisposable(() => widget.setViewModel(undefined)));
 }
 
+// A long unchanged prefix/suffix around a single change so `hideUnchangedRegions`
+// collapses the surrounding context into "N hidden lines" widgets.
+const UNCHANGED_BLOCK = Array.from({ length: 20 }, (_, i) => `const value${i} = ${i};`).join('\n');
+const ORIGINAL_HIDDEN = `${UNCHANGED_BLOCK}\nconst changed = 'before';\n${UNCHANGED_BLOCK}`;
+const MODIFIED_HIDDEN = `${UNCHANGED_BLOCK}\nconst changed = 'after';\nconst added = true;\n${UNCHANGED_BLOCK}`;
+
+/**
+ * Renders the multi-diff in inline view with `hideOriginalLineNumbers` (the
+ * Agents window Changes editor configuration): the original line-number column
+ * is dropped so the code sits flush left, while the full expandable
+ * hidden-region widgets are still shown.
+ */
+function renderMultiDiffEditorHideOriginalLineNumbers({ container, disposableStore, disposableStackStore, theme }: ComponentFixtureContext): void {
+	container.style.width = '800px';
+	container.style.height = '600px';
+	container.style.border = '1px solid var(--vscode-editorWidget-border)';
+
+	const instantiationService = createCommonServices(disposableStore, theme, new TestDiffProviderFactoryService());
+
+	const textModels = disposableStackStore.add(new DisposableStore());
+	const original = textModels.add(createTextModel(instantiationService, ORIGINAL_HIDDEN, URI.parse('inmemory://original/settings.ts'), 'typescript'));
+	const modified = textModels.add(createTextModel(instantiationService, MODIFIED_HIDDEN, URI.parse('inmemory://modified/settings.ts'), 'typescript'));
+	const doc = RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original, modified }, { dispose() { } });
+
+	const widget = disposableStackStore.add(createWidget(instantiationService, container, {
+		hideOriginalLineNumbers: true,
+		hideUnchangedRegions: { enabled: true },
+	}));
+	// `hideOriginalLineNumbers` only affects the inline view.
+	widget.setRenderSideBySide(false);
+
+	const model: IMultiDiffEditorModel = {
+		documents: ValueWithChangeEvent.const([doc]),
+	};
+
+	const viewModel = disposableStackStore.add(widget.createViewModel(model));
+	widget.setViewModel(viewModel);
+	widget.layout(new Dimension(800, 600));
+
+	disposableStackStore.add(toDisposable(() => widget.setViewModel(undefined)));
+}
+
 class DelayedDiffProviderFactoryService implements IDiffProviderFactoryService {
 	declare readonly _serviceBrand: undefined;
 	constructor(private readonly _delayMs: number) { }
@@ -183,12 +226,13 @@ function createCommonServices(disposableStore: DisposableStore, theme: Component
 	});
 }
 
-function createWidget(instantiationService: IInstantiationService, container: HTMLElement) {
+function createWidget(instantiationService: IInstantiationService, container: HTMLElement, diffEditorOptions?: IDiffEditorOptions) {
 	const uiFactory = instantiationService.createInstance(FixtureWorkbenchUIElementFactory);
 	return instantiationService.createInstance(
 		MultiDiffEditorWidget,
 		container,
 		uiFactory,
+		diffEditorOptions,
 	);
 }
 
@@ -290,6 +334,10 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	MultiDiffEditor: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (context) => renderMultiDiffEditor(context),
+	}),
+	MultiDiffEditorHideOriginalLineNumbers: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderMultiDiffEditorHideOriginalLineNumbers(context),
 	}),
 	MultiDiffEditorIncrementalPending: defineComponentFixture({
 		labels: { kind: 'screenshot' },

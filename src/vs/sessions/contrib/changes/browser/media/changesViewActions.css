@@ -6,7 +6,7 @@
 .changes-action-view-item {
 	display: flex;
 	align-items: center;
-	gap: 3px;
+	gap: 4px;
 	cursor: pointer;
 	padding: 0 4px;
 	border-radius: var(--vscode-cornerRadius-small);

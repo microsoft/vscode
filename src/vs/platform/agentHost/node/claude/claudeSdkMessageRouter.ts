@@ -36,28 +36,29 @@ export class ClaudeSdkMessageRouter extends Disposable {
 	private readonly _editObserver: ClaudeFileEditObserver;
 	private readonly _mapperState = new ClaudeMapperState();
 
-	private _clientId: string | undefined;
+	private _clientToolOwner: ((toolName: string) => string | undefined) | undefined;
 
 	constructor(
-		private readonly _sessionUri: URI,
+		sessionUri: URI,
+		private readonly _chatChannelUri: URI,
 		dbRef: IReference<ISessionDatabase>,
 		private readonly _subagents: SubagentRegistry,
-		clientId: string | undefined = undefined,
+		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._clientId = clientId;
+		this._clientToolOwner = clientToolOwner;
 		this._editObserver = this._register(
-			instantiationService.createInstance(ClaudeFileEditObserver, _sessionUri.toString(), dbRef),
+			instantiationService.createInstance(ClaudeFileEditObserver, sessionUri.toString(), dbRef),
 		);
 	}
 
-	setClientId(clientId: string | undefined): void {
-		this._clientId = clientId;
+	setClientToolOwner(clientToolOwner: ((toolName: string) => string | undefined) | undefined): void {
+		this._clientToolOwner = clientToolOwner;
 	}
 
-	async handle(message: SDKMessage, turnId: string | undefined): Promise<void> {
+	async handle(message: SDKMessage, turnId: string | undefined, turnDuration?: number): Promise<void> {
 		if (message.type === 'assistant') {
 			this._editObserver.observeAssistant(message);
 		} else if (message.type === 'user' && turnId !== undefined) {
@@ -69,12 +70,13 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		try {
 			const signals = mapSDKMessageToAgentSignals(
 				message,
-				this._sessionUri,
+				this._chatChannelUri,
 				turnId,
 				this._mapperState,
 				this._logService,
 				this._subagents,
-				this._clientId,
+				this._clientToolOwner,
+				turnDuration,
 			);
 			for (const signal of signals) {
 				this._onDidProduceSignal.fire(signal);

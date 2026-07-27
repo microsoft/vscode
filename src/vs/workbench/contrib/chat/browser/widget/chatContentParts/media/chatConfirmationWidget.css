@@ -118,8 +118,12 @@
 }
 
 .chat-confirmation-widget .chat-buttons-container,
+.chat-confirmation-widget .chat-confirmation-widget-message,
 .chat-confirmation-widget .chat-confirmation-widget-message-scrollable {
 	flex-basis: 100%;
+	box-sizing: border-box;
+	min-width: 0;
+	max-width: 100%;
 	margin: 8px 0;
 
 
@@ -160,8 +164,51 @@
 	align-items: center;
 }
 
-.chat-confirmation-widget.collapsed .chat-confirmation-widget-message {
+.chat-confirmation-widget:not(.chat-confirmation-widget-collapsible).collapsed .chat-confirmation-widget-message {
 	display: none;
+}
+
+.chat-confirmation-widget-collapsible > .chat-confirmation-widget-message-animation {
+	display: grid;
+	flex-basis: 100%;
+	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+	grid-template-rows: 1fr;
+	opacity: 1;
+	visibility: visible;
+	transition:
+		grid-template-rows 180ms cubic-bezier(0.2, 0, 0, 1),
+		opacity 140ms cubic-bezier(0.2, 0, 0, 1),
+		visibility 0s;
+
+	> .chat-confirmation-widget-message-animation-inner {
+		min-height: 0;
+		min-width: 0;
+		width: 100%;
+		overflow: hidden;
+	}
+}
+
+.chat-confirmation-widget-collapsible.collapsed > .chat-confirmation-widget-message-animation {
+	grid-template-rows: 0fr;
+	opacity: 0;
+	visibility: hidden;
+	transition:
+		grid-template-rows 180ms cubic-bezier(0.2, 0, 0, 1),
+		opacity 140ms cubic-bezier(0.2, 0, 0, 1),
+		visibility 0s linear 180ms;
+}
+
+.monaco-reduce-motion .chat-confirmation-widget-message-animation,
+.monaco-workbench.monaco-reduce-motion .chat-confirmation-widget-message-animation {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-confirmation-widget-message-animation {
+		transition: none;
+	}
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-message .rendered-markdown p {

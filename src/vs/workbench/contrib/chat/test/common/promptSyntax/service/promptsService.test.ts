@@ -54,6 +54,7 @@ import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { PluginFormat } from '../../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 
 class TestPromptContextKeyService extends MockContextKeyService {
@@ -194,6 +195,7 @@ suite('PromptsService', () => {
 
 		instaService.stub(IRemoteAgentService, {
 			getEnvironment: () => Promise.resolve(null),
+			getConnection: () => null,
 		});
 
 		instaService.stub(IContextKeyService, new MockContextKeyService());
@@ -806,6 +808,12 @@ suite('PromptsService', () => {
 				].sort(),
 				'Must find correct instruction files.',
 			);
+		});
+
+		test('exposes onDidChangeAgentInstructions', async () => {
+			const disposable = service.onDidChangeAgentInstructions(() => { });
+			await new Promise(resolve => setTimeout(resolve, 0));
+			disposable.dispose();
 		});
 	});
 
@@ -4398,6 +4406,7 @@ suite('PromptsService', () => {
 			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/my-plugin'),
+				format: PluginFormat.Copilot,
 				label: 'my-plugin',
 				enablement,
 				remove: () => { },
@@ -4443,6 +4452,7 @@ suite('PromptsService', () => {
 			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
 			const plugin: IAgentPlugin = {
 				uri: URI.file('/plugins/devtools'),
+				format: PluginFormat.Copilot,
 				label: 'devtools',
 				enablement,
 				remove: () => { },
@@ -4472,6 +4482,56 @@ suite('PromptsService', () => {
 
 			testPluginsObservable.set([], undefined);
 		});
+
+		test('plugin skill slash command prefix uses plugin label when install path is a pinned SHA', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const pluginUri = URI.file('/cache/agentPlugins/github/datadog/sha_b003fcad48c3a935ffe04b6218f5cf58fe2b6760');
+			const skillUri = URI.joinPath(pluginUri, 'skills', 'ddsetup', 'SKILL.md');
+			await mockFiles(fileService, [
+				{
+					path: skillUri.path,
+					contents: [
+						'---',
+						'name: "ddsetup"',
+						'description: "Set up Datadog"',
+						'---',
+						'Datadog setup skill content',
+					],
+				},
+			]);
+
+			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
+			const plugin: IAgentPlugin = {
+				uri: pluginUri,
+				format: PluginFormat.Copilot,
+				label: 'datadog',
+				enablement,
+				remove: () => { },
+				hooks: observableValue('testPluginHooks', []),
+				commands: observableValue('testPluginCommands', []),
+				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'ddsetup' }]),
+				agents: observableValue('testPluginAgents', []),
+				instructions: observableValue('testPluginInstructions', []),
+				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+			};
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			assert.deepStrictEqual(slashCommands
+				.filter(command => command.uri.toString() === skillUri.toString())
+				.map(command => ({ name: command.name, description: command.description, type: command.type, storage: command.storage })), [{
+					name: 'datadog:ddsetup',
+					description: 'Set up Datadog',
+					type: PromptsType.skill,
+					storage: PromptsStorage.plugin,
+				}]);
+
+			testPluginsObservable.set([], undefined);
+		});
 	});
 
 	suite('hooks', () => {
@@ -4487,6 +4547,7 @@ suite('PromptsService', () => {
 			return {
 				plugin: {
 					uri: URI.file(path),
+					format: PluginFormat.Copilot,
 					label: basename(URI.file(path)),
 					enablement,
 					remove: () => { },
@@ -4735,6 +4796,7 @@ suite('PromptsService', () => {
 			return {
 				plugin: {
 					uri: URI.file(path),
+					format: PluginFormat.Copilot,
 					label: basename(URI.file(path)),
 					enablement,
 					remove: () => { },

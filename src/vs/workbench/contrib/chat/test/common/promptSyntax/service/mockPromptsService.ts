@@ -69,6 +69,7 @@ export class MockPromptsService implements IPromptsService {
 	getDiscoveryInfo(_type: PromptsType, _token: CancellationToken): Promise<IPromptDiscoveryInfo> { throw new Error('Method not implemented.'); }
 	dispose(): void { }
 	onDidChangeInstructions: Event<void> = Event.None;
+	onDidChangeAgentInstructions: Event<void> = Event.None;
 	onDidChangePromptFiles: Event<void> = Event.None;
 	onDidChangeSkills: Event<void> = Event.None;
 	onDidChangeHooks: Event<void> = Event.None;

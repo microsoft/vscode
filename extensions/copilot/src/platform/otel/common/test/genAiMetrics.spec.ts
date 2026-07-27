@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import { Event } from '../../../../util/vs/base/common/event';
-import { GenAiAttr, GenAiOperationName, GenAiProviderName, GenAiTokenType, StdAttr } from '../genAiAttributes';
+import { GenAiAttr, GenAiOperationName, GenAiProviderName, GenAiTokenType, GitHubCopilotAttr, StdAttr } from '../genAiAttributes';
 import { GenAiMetrics } from '../genAiMetrics';
 import { resolveOTelConfig } from '../otelConfig';
 import type { IOTelService } from '../otelService';
 
-function createMockOTelService(): IOTelService & { recordMetric: ReturnType<typeof vi.fn>; incrementCounter: ReturnType<typeof vi.fn> } {
+function createMockOTelService(): IOTelService & { recordMetric: Mock; incrementCounter: Mock } {
 	const config = resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' });
 	return {
 		_serviceBrand: undefined!,
@@ -158,5 +158,61 @@ describe('GenAiMetrics', () => {
 		expect(attrs).not.toHaveProperty(GenAiAttr.RESPONSE_MODEL);
 		expect(attrs).not.toHaveProperty(StdAttr.SERVER_ADDRESS);
 		expect(attrs).not.toHaveProperty(StdAttr.ERROR_TYPE);
+	});
+
+	it('recordCloudOperation records count and duration tagged with backend version', () => {
+		const otel = createMockOTelService();
+
+		GenAiMetrics.recordCloudOperation(otel, 'createSession', 'v2', true, 1200);
+
+		expect(otel.incrementCounter).toHaveBeenCalledWith('copilot_chat.cloud.operation.count', 1, {
+			operation: 'createSession',
+			[GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: 'v2',
+			success: true,
+		});
+		expect(otel.recordMetric).toHaveBeenCalledWith('copilot_chat.cloud.operation.duration', 1200, {
+			operation: 'createSession',
+			[GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: 'v2',
+		});
+	});
+
+	it('recordCloudOperation omits the duration histogram when no duration is provided', () => {
+		const otel = createMockOTelService();
+
+		GenAiMetrics.recordCloudOperation(otel, 'followUp', 'v1', false);
+
+		expect(otel.incrementCounter).toHaveBeenCalledWith('copilot_chat.cloud.operation.count', 1, {
+			operation: 'followUp',
+			[GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: 'v1',
+			success: false,
+		});
+		expect(otel.recordMetric).not.toHaveBeenCalled();
+	});
+
+	it('incrementCloudError increments the guardrail counter with operation, backend version and error type', () => {
+		const otel = createMockOTelService();
+
+		GenAiMetrics.incrementCloudError(otel, 'fetchSessionList', 'v2', 'http_500');
+
+		expect(otel.incrementCounter).toHaveBeenCalledWith('copilot_chat.cloud.error.count', 1, {
+			operation: 'fetchSessionList',
+			[GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: 'v2',
+			[StdAttr.ERROR_TYPE]: 'http_500',
+		});
+	});
+
+	it('cloud session and pr_ready counters tag the backend version', () => {
+		const otel = createMockOTelService();
+
+		GenAiMetrics.incrementCloudSessionCount(otel, 'copilot', 'v2');
+		GenAiMetrics.incrementCloudPrReadyCount(otel, 'v1');
+
+		expect(otel.incrementCounter).toHaveBeenCalledWith('copilot_chat.cloud.session.count', 1, {
+			partner_agent: 'copilot',
+			[GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: 'v2',
+		});
+		expect(otel.incrementCounter).toHaveBeenCalledWith('copilot_chat.cloud.pr_ready.count', 1, {
+			[GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: 'v1',
+		});
 	});
 });

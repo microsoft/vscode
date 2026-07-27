@@ -49,7 +49,7 @@
 	border-radius: 50%;
 	flex-shrink: 0;
 	touch-action: manipulation;
-	font-size: 18px;
+	font-size: var(--vscode-agents-fontSize-heading2);
 	padding: 0;
 }
 
@@ -75,7 +75,7 @@
 	padding: 0 10px;
 	border-radius: var(--vscode-cornerRadius-circle);
 	gap: 4px;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
 	font-variant-numeric: tabular-nums;
 	border: 1px solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 15%, transparent));
@@ -115,7 +115,7 @@
 	min-width: 0;
 	text-align: center;
 	font-size: 16px;
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -572,6 +572,12 @@
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot {
 	flex-shrink: 0;
 	min-width: max-content;
+}
+
+/* Keep phone chips unconstrained so long labels scroll horizontally instead of clipping. */
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .sessions-chat-session-type-picker,
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-session-type-picker-host {
+	max-width: none;
 }
 
 /* Chip-pill style for each picker / toolbar action item in the chip row.

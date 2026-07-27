@@ -262,37 +262,13 @@ export class ChatSendPendingImmediatelyAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const chatService = accessor.get(IChatService);
-		const widgetService = accessor.get(IChatWidgetService);
 		const [context] = args;
 
 		if (!isRequestVM(context) || !context.pendingKind) {
 			return;
 		}
 
-		const widget = widgetService.getWidgetBySessionResource(context.sessionResource);
-		const model = widget?.viewModel?.model;
-		if (!model) {
-			return;
-		}
-
-		const pendingRequests = model.getPendingRequests();
-		const targetIndex = pendingRequests.findIndex(r => r.request.id === context.id);
-		if (targetIndex === -1) {
-			return;
-		}
-
-		// Keep the target item's kind (queued vs steering)
-		const targetRequest = pendingRequests[targetIndex];
-
-		// Reorder: move target to front, keep others in their relative order
-		const reordered = [
-			{ requestId: targetRequest.request.id, kind: targetRequest.kind },
-			...pendingRequests.filter((_, i) => i !== targetIndex).map(r => ({ requestId: r.request.id, kind: r.kind }))
-		];
-
-		chatService.setPendingRequests(context.sessionResource, reordered);
-		await chatService.cancelCurrentRequestForSession(context.sessionResource, 'queueRunNext');
-		chatService.processPendingRequests(context.sessionResource);
+		await chatService.sendPendingRequestImmediately(context.sessionResource, context.id);
 	}
 }
 

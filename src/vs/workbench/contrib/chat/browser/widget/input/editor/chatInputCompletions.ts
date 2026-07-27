@@ -50,7 +50,7 @@ import { getAttachableImageExtension } from '../../../../common/model/chatModel.
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../../../common/participants/chatSlashCommands.js';
 import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
-import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
+import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService, isAgentHostTarget } from '../../../../common/chatSessionsService.js';
@@ -62,7 +62,7 @@ import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
-import { computeCompletionRanges, escapeForCharClass, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
+import { attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionFilterText, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../../../agentSessions/agentSessions.js';
 
 /**
@@ -895,6 +895,44 @@ class BuiltinDynamicCompletions extends Disposable {
 	) {
 		super();
 
+		this.registerVariableCompletions('attachedContexts', ({ widget, range }) => {
+			if (!widget.supportsFileReferences) {
+				return;
+			}
+
+			const typedLeader = range.varWord?.word?.charAt(0) === chatAgentLeader ? chatAgentLeader : chatVariableLeader;
+			const suggestions = widget.attachmentModel.attachments
+				.filter(attachment => !attachment.range)
+				.map((attachment): CompletionItem => {
+					const text = `${typedLeader}attachment:${attachment.name}`;
+					const referenceRange = {
+						startLineNumber: range.replace.startLineNumber,
+						startColumn: range.replace.startColumn,
+						endLineNumber: range.replace.endLineNumber,
+						endColumn: range.replace.startColumn + text.length
+					};
+					return {
+						label: { label: attachment.name, description: localize('attachedContext', 'Attached context') },
+						filterText: getAttachedContextCompletionFilterText(typedLeader, attachment.name, attachment.kind),
+						insertText: range.varWord?.endColumn === range.replace.endColumn ? `${text} ` : text,
+						range,
+						kind: attachment.kind === 'directory'
+							? CompletionItemKind.Folder
+							: attachment.kind === 'file' || attachment.kind === 'image'
+								? CompletionItemKind.File
+								: CompletionItemKind.Reference,
+						sortText: attachedContextCompletionSortText,
+						command: {
+							id: BuiltinDynamicCompletions.addReferenceCommand,
+							title: '',
+							arguments: [new ReferenceArgument(widget, toAttachedContextDynamicVariable(attachment, referenceRange))]
+						}
+					};
+				});
+
+			return { suggestions };
+		}, BuiltinDynamicCompletions.VariableNameDef, true);
+
 		// File/Folder completions in one go and m
 		const fileWordPattern = new RegExp(`[${escapeForCharClass(chatVariableLeader)}${escapeForCharClass(chatAgentLeader)}][^\\s]*`, 'g');
 		this.registerVariableCompletions('fileAndFolder', async ({ widget, range }, token) => {
@@ -993,7 +1031,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				// User has typed #session: — fetch all sessions and show them inline
 				const allSessions: { title: string; sessionResource: URI; lastMessageDate: number; icon: ThemeIcon }[] = [];
 
-				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude];
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude, AgentSessionProviders.AgentHostCopilot];
 				for await (const group of this.chatSessionsService.getChatSessionItems(sessionProviderFilter, token)) {
 					if (token.isCancellationRequested) {
 						return;
@@ -1081,7 +1119,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		return undefined;
 	}
 
-	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>, wordPattern: RegExp = BuiltinDynamicCompletions.VariableNameDef) {
+	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>, wordPattern: RegExp = BuiltinDynamicCompletions.VariableNameDef, includeAgentHost = false) {
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: `chatVarCompletions-${debugName}`,
 			triggerCharacters: [chatVariableLeader, chatAgentLeader],
@@ -1091,7 +1129,7 @@ class BuiltinDynamicCompletions extends Disposable {
 					return;
 				}
 
-				if (isAgentHostBackedWidget(widget)) {
+				if (!includeAgentHost && isAgentHostBackedWidget(widget)) {
 					// Agent-host sessions delegate completions to the host
 					// process via `AgentHostInputCompletions`.
 					return;

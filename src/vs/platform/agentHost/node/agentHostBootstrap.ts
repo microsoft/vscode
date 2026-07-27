@@ -13,12 +13,18 @@ import { ServiceCollection } from '../../instantiation/common/serviceCollection.
 import { ILogService } from '../../log/common/log.js';
 import { IPolicyService, NullPolicyService } from '../../policy/common/policy.js';
 import { IRequestService } from '../../request/common/request.js';
-import { RequestService } from '../../request/node/requestService.js';
+import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
+import { AgentHostRequestService } from './agentHostRequestService.js';
+
+export interface IAgentHostNetworkServices {
+	readonly proxyResolver: IAgentHostProxyResolver;
+	readonly requestService: IRequestService;
+}
 
 /**
- * Register `IPolicyService`, `IConfigurationService`, and `IRequestService`
- * into the agent host's DI container — the trio that `IAgentSdkDownloader`
- * depends on for proxy-aware downloads.
+ * Register `IPolicyService`, `IConfigurationService`, `IAgentHostProxyResolver`,
+ * and `IRequestService` into the agent host's DI container — the services that
+ * `IAgentSdkDownloader` (and proxy-aware network diagnostics) depend on.
  *
  * Used by both entry points (`agentHostMain.ts` and `agentHostServerMain.ts`)
  * to avoid drift between them. The order of registration matters because
@@ -41,12 +47,16 @@ export async function registerAgentHostNetworkServices(
 	environmentService: INativeEnvironmentService,
 	logService: ILogService,
 	disposables: DisposableStore,
-): Promise<void> {
+): Promise<IAgentHostNetworkServices> {
 	const policyService = new NullPolicyService();
 	diServices.set(IPolicyService, policyService);
 	const settingsResource = joinPath(environmentService.userRoamingDataHome, 'settings.json');
 	const configurationService = disposables.add(new ConfigurationService(settingsResource, fileService, policyService, logService));
 	await configurationService.initialize();
 	diServices.set(IConfigurationService, configurationService);
-	diServices.set(IRequestService, disposables.add(new RequestService('local', configurationService, environmentService, logService)));
+	const proxyResolver = new AgentHostProxyResolver(configurationService, logService);
+	diServices.set(IAgentHostProxyResolver, proxyResolver);
+	const requestService = disposables.add(new AgentHostRequestService(configurationService, environmentService, logService, proxyResolver));
+	diServices.set(IRequestService, requestService);
+	return { proxyResolver, requestService };
 }

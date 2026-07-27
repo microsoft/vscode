@@ -29,6 +29,7 @@ export interface RouterDecisionResponse {
 	hydra_scores?: Record<string, number>;
 	chosen_model?: string;
 	chosen_shortfall?: number;
+	reasoning_bucket?: string;
 }
 
 export interface RoutingContextSignals {
