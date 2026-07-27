@@ -25,11 +25,15 @@ Capability skips are tracked separately from suspected bugs. A provider that doe
 
 Distinct from individually disabled tests: whole areas where a platform or contract has no E2E coverage at all. These do not show up as skipped tests, so they are easy to miss.
 
-### Snapshot text is not normalized for line endings
+### The user name is scrubbed by naive substring replacement
 
-`normalizeSnapshotText` in `ahpSnapshot.ts` rewrites working directories, home directories, user names, shell ids, and `ls -l` listing columns, but does nothing about line endings. Most snapshots are unaffected because the `behavior` profile records no tool output, but a few carry literal `content: |-` blocks.
+`normalizeSnapshotText` in `ahpSnapshot.ts` ends with `.replaceAll(normalization.userName, '${user}')`. That is an unanchored substring replacement, so any occurrence of the account name in captured text is rewritten, whether or not it refers to the user.
 
-Any such block recorded on macOS or Linux will mismatch on Windows if the text is produced with CRLF, for a reason unrelated to the behavior under test — and it will be easy to misread as a product bug. Collapsing `\r\n` to `\n` (and trimming trailing whitespace per line) during snapshot normalization removes a whole class of confusing Windows-only failures for two lines of code. Worth doing before enabling more Windows coverage, not after.
+This is a cross-platform hazard because the account name differs per environment: a developer's own name locally, `runner` on GitHub Actions Linux, `runneradmin` on Windows. `runner` in particular is an ordinary English word, so a snapshot recorded on macOS keeps the literal text while the same run on Linux CI normalizes it to `${user}`, and the snapshot mismatches for a reason unrelated to the behavior under test.
+
+Verified against the current implementation with `userName: 'runner'`: the tool output `the runner completed` serializes as `the ${user} completed`.
+
+Home directory paths are already handled by the `${homedir}` replacement that runs just before this one, so the bare user-name pass is only needed for occurrences outside a home path. Restricting it to path-like contexts (preceded by a separator) would keep that coverage without corrupting prose. Left alone for now because no committed snapshot currently trips it — fix it alongside the first test that does.
 
 ### Windows has no permission, shell, or worktree coverage
 

@@ -511,6 +511,14 @@ function normalizeSnapshotText(value: string, normalization: IAhpSnapshotNormali
 		// The workspace can be deleted during teardown after the traffic was captured.
 	}
 	let normalized = value;
+	// Line endings first, so every line-anchored pattern below sees LF-only
+	// text. Windows produces CRLF for the same behavior a POSIX host reports
+	// with LF, which would otherwise fail a snapshot recorded on macOS/Linux
+	// for a reason unrelated to the behavior under test. The escaped form is
+	// normalized too because tool inputs are often embedded JSON, where the
+	// carriage return survives as a literal `\r` escape rather than a control
+	// character.
+	normalized = normalized.replaceAll('\r\n', '\n').replaceAll('\\r\\n', '\\n');
 	for (const workDir of [...workDirs].sort((a, b) => b.length - a.length)) {
 		normalized = normalized
 			.replaceAll(JSON.stringify(workDir).slice(1, -1), '${workdir}')
