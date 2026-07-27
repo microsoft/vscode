@@ -7,7 +7,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../../../base/co
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
-import { InitialModelSelectionResult, isAuthoritativeModelSelectionReason, ModelIdentifierResolution, ModelSelectionApplyReason, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier } from '../../../common/modelSelection.js';
+import { InitialModelSelectionResult, ModelIdentifierResolution, ModelSelectionApplyReason, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier } from '../../../common/modelSelection.js';
 import { findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, resolveModelFromSyncState, shouldDropAgnosticDraftModel, shouldResetModelToDefault, shouldResetOnModelListChange, shouldWaitForSessionModel } from './chatInputModelUtils.js';
 import { IChatModelSelectionDiagnostics, NullChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 
@@ -35,7 +35,6 @@ interface IResolvedDraftModelSelection {
 }
 
 type ModelSelectionIntent =
-	| { readonly kind: 'remembered'; readonly modelId: string }
 	| { readonly kind: 'programmatic'; readonly resolveModel: () => ILanguageModelChatMetadataAndIdentifier | undefined; readonly conversationKey: string | undefined; readonly complete: (applied: boolean) => void }
 	| { readonly kind: 'session'; readonly model: ILanguageModelChatMetadataAndIdentifier; readonly configuration: Record<string, unknown> | undefined; readonly sessionType: string | undefined; readonly conversationKey: string }
 	| { readonly kind: 'history'; readonly modelId: string; readonly conversationKey: string };
@@ -48,6 +47,14 @@ export class ChatInputModelSelectionController extends Disposable {
 	private _selectionReason: ModelSelectionApplyReason | undefined;
 	private _intent: ModelSelectionIntent | undefined;
 	private _restorePerTypeModel = false;
+	/**
+	 * The model the user is meant to be on, independent of what the catalog can currently offer.
+	 * Seeded from persisted storage by {@link initialize} and updated by every deliberate choice
+	 * (explicit pick, programmatic selection, session restore). Falling back to a default because
+	 * the catalog dropped the model is a display state, not a decision, so it deliberately leaves
+	 * this untouched — see {@link _restoreRememberedModel}.
+	 */
+	private _rememberedModelId: string | undefined;
 
 	constructor(
 		private readonly _runtime: IChatInputModelSelectionRuntime,
@@ -84,6 +91,16 @@ export class ChatInputModelSelectionController extends Disposable {
 		return !!this._intent;
 	}
 
+	/**
+	 * True while the remembered model is not selectable, i.e. whatever is currently selected is a
+	 * stand-in that {@link _restoreRememberedModel} will replace once the catalog offers the real
+	 * one. Callers use this to avoid acting on a selection that is about to change.
+	 */
+	isAwaitingRememberedModel(): boolean {
+		const modelId = this._rememberedModelId;
+		return !!modelId && !this._runtime.getModels(this._runtime.getCurrentSessionType()).some(model => model.identifier === modelId);
+	}
+
 	hasPendingProgrammaticSelection(): boolean {
 		return this._intent?.kind === 'programmatic';
 	}
@@ -106,8 +123,10 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._clearIntent();
 		const previousModel = this._currentModel.get();
 		const previousReason = this._selectionReason;
+		const previousRememberedModelId = this._rememberedModelId;
 		this._currentModel.set(model, undefined);
 		this._selectionReason = ModelSelectionReason.UserSelection;
+		this._rememberedModelId = model.identifier;
 		this._diagnostics.report('explicit-selection', { model: model.identifier }, 'info');
 		try {
 			apply();
@@ -116,6 +135,7 @@ export class ChatInputModelSelectionController extends Disposable {
 			if (rollbackOnError) {
 				this._currentModel.set(previousModel, undefined);
 				this._selectionReason = previousReason;
+				this._rememberedModelId = previousRememberedModelId;
 			}
 			this._diagnostics.report('explicit-selection-failed', { model: model.identifier, error: String(error) }, 'error');
 			throw error;
@@ -130,6 +150,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	applyProgrammaticSelection(model: ILanguageModelChatMetadataAndIdentifier): void {
 		this._clearIntent();
 		this._selectionReason = ModelSelectionReason.ProgrammaticSelection;
+		this._rememberedModelId = model.identifier;
 		this._applyModel(model);
 	}
 
@@ -156,6 +177,7 @@ export class ChatInputModelSelectionController extends Disposable {
 
 	initialize(rememberedModelId: string | undefined, onInitialSelection: (selection: InitialModelSelectionResult) => void): void {
 		this._clearIntent();
+		this._rememberedModelId = rememberedModelId;
 		const resolveSelection = (): InitialModelSelectionResult => {
 			const configuredModelValue = this._runtime.getConfiguredModelValue();
 			const models = this._runtime.getModels(this._runtime.getCurrentSessionType());
@@ -180,7 +202,8 @@ export class ChatInputModelSelectionController extends Disposable {
 			this._applyModel(selection.model);
 			this.ensureCurrentModelSupported();
 		} else if (selection.kind === 'pending') {
-			this._intent = { kind: 'remembered', modelId: selection.selection.reference };
+			// The remembered model isn't in the catalog yet. Show the default meanwhile;
+			// `_restoreRememberedModel` claims the real one as soon as it is published.
 			const fallbackModel = findDefaultModel(this._runtime.getModels(this._runtime.getCurrentSessionType()), this._runtime.location);
 			if (fallbackModel) {
 				this._selectionReason = ModelSelectionReason.FirstAvailable;
@@ -240,7 +263,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (!this._runtime.isEmpty()
 			|| this._selectionReason === ModelSelectionReason.UserSelection
 			|| this._selectionReason === ModelSelectionReason.ProgrammaticSelection
-			|| (this._intent && this._intent.kind !== 'remembered')) {
+			|| this._intent) {
 			return false;
 		}
 		const configuredValue = this._runtime.getConfiguredModelValue();
@@ -251,17 +274,12 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (!configuredModel) {
 			return false;
 		}
-		const matchesCurrent = configuredModel.identifier === this._currentModel.get()?.identifier;
-		const supersededRememberedIntent = this._intent?.kind === 'remembered';
-		if (supersededRememberedIntent) {
-			this._clearIntent();
-		}
-		if (matchesCurrent) {
+		if (configuredModel.identifier === this._currentModel.get()?.identifier) {
 			if (this._selectionReason !== ModelSelectionReason.ConfiguredDefault) {
 				this._selectionReason = ModelSelectionReason.ConfiguredDefault;
 				return true;
 			}
-			return supersededRememberedIntent;
+			return false;
 		}
 		this._selectionReason = ModelSelectionReason.ConfiguredDefault;
 		this._applyModel(configuredModel);
@@ -270,7 +288,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	reconcileModelListChange(models: readonly ILanguageModelChatMetadataAndIdentifier[]): void {
-		if (this.applyConfiguredDefault() || this._reconcileIntent()) {
+		if (this.applyConfiguredDefault() || this._reconcileIntent() || this._restoreRememberedModel()) {
 			return;
 		}
 		const currentModel = this._currentModel.get();
@@ -291,6 +309,34 @@ export class ChatInputModelSelectionController extends Disposable {
 		} else {
 			this.selectDefault();
 		}
+	}
+
+	/**
+	 * Reclaims the remembered model whenever the catalog can offer it again. A model can leave the
+	 * pool for reasons that have nothing to do with intent — an agent host that restarts drops its
+	 * whole catalog and republishes it moments later — and the default we show meanwhile is a
+	 * stand-in, not a decision. Every deliberate choice updates {@link _rememberedModelId}, so a
+	 * current model that differs from it is always a stand-in of some kind and may be superseded.
+	 * `chat.defaultModel` is the one exception: it is authoritative for new conversations without
+	 * being a remembered selection, so it holds.
+	 */
+	private _restoreRememberedModel(): boolean {
+		const modelId = this._rememberedModelId;
+		if (!modelId
+			|| this._currentModel.get()?.identifier === modelId
+			|| this._selectionReason === ModelSelectionReason.ConfiguredDefault) {
+			return false;
+		}
+		// Pool membership is the validity test: the pool is already filtered by session and mode,
+		// so a model that is absent here is genuinely not selectable right now.
+		const model = this._runtime.getModels(this._runtime.getCurrentSessionType()).find(model => model.identifier === modelId);
+		if (!model) {
+			return false;
+		}
+		this._diagnostics.report('restore-remembered-model', { model: modelId }, 'info');
+		this._selectionReason = ModelSelectionReason.Remembered;
+		this._applyModel(model);
+		return true;
 	}
 
 	syncFromConversationState(
@@ -375,6 +421,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		const match = tryMatch();
 		if (match) {
 			this._selectionReason = ModelSelectionReason.SessionRestore;
+			this._rememberedModelId = match.identifier;
 			this._applyModel(match);
 			return;
 		}
@@ -404,6 +451,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	): void {
 		this._clearIntent();
 		this._selectionReason = ModelSelectionReason.SessionRestore;
+		this._rememberedModelId = model.identifier;
 		if (configuration) {
 			this._runtime.restoreModelConfiguration(configuration.modelId, configuration.configuration);
 		}
@@ -431,27 +479,6 @@ export class ChatInputModelSelectionController extends Disposable {
 			intent.complete(true);
 			this.applyProgrammaticSelection(model);
 			return true;
-		}
-
-		if (intent.kind === 'remembered') {
-			const models = this._runtime.getModels(this._runtime.getCurrentSessionType());
-			const model = models.find(model => model.identifier === intent.modelId);
-			if (model) {
-				this._intent = undefined;
-				this._selectionReason = ModelSelectionReason.Remembered;
-				this._applyModel(model);
-				this.ensureCurrentModelSupported();
-				return true;
-			}
-			const currentModel = this._currentModel.get();
-			const replacement = models.find(model => model.metadata.isDefaultForLocation[this._runtime.location]);
-			if (replacement && currentModel?.identifier !== replacement.identifier && !isAuthoritativeModelSelectionReason(this._selectionReason)) {
-				this._selectionReason = ModelSelectionReason.FirstAvailable;
-				this._applyModel(replacement);
-				this.ensureCurrentModelSupported();
-				return true;
-			}
-			return false;
 		}
 
 		if (intent.kind === 'session') {
@@ -488,6 +515,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (model && !(models.length === 1 && model.metadata.id.toLocaleLowerCase() === 'auto')) {
 			this._intent = undefined;
 			this._selectionReason = ModelSelectionReason.SessionRestore;
+			this._rememberedModelId = model.identifier;
 			this._applyModel(model);
 			return true;
 		}
