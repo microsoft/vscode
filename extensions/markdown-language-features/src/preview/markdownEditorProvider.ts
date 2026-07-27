@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { Disposable } from '../util/dispose';
 import { MdLinkOpener } from '../util/openDocumentLink';
+import { getMarkdownLocalResourceRoots } from '../util/resources';
 
 /**
  * Experimental hybrid (WYSIWYG) Markdown editor backed by the
@@ -43,9 +44,18 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		_token: vscode.CancellationToken,
 	): Promise<void> {
 		const webview = webviewPanel.webview;
-		webview.options = { enableScripts: true, localResourceRoots: [this.#mediaRoot] };
-		webview.html = this.#getHtml(webview);
+		this.#configureWebview(document.uri, webview);
 		this.#wireSingle(document, webviewPanel);
+	}
+
+	#configureWebview(documentUri: vscode.Uri, webview: vscode.Webview): void {
+		webview.options = {
+			enableScripts: true,
+			localResourceRoots: getMarkdownLocalResourceRoots(documentUri, [this.#mediaRoot], {
+				includeWorkspaceResources: vscode.workspace.isTrusted,
+			}),
+		};
+		webview.html = this.#getHtml(documentUri, webview);
 	}
 
 	#wireSingle(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel): void {
@@ -100,6 +110,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const highlight = this.#wireHighlight(webview);
 		const quickDiff = this.#wireQuickDiff(document, webview);
 		const comments = this.#wireComments(document, webview);
+		const onDidGrantWorkspaceTrust = vscode.workspace.onDidGrantWorkspaceTrust(() => {
+			this.#configureWebview(document.uri, webview);
+		});
 
 		webviewPanel.onDidDispose(() => {
 			onMessage.dispose();
@@ -107,6 +120,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			highlight.dispose();
 			quickDiff.dispose();
 			comments.dispose();
+			onDidGrantWorkspaceTrust.dispose();
 		});
 	}
 
@@ -229,9 +243,10 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		return vscode.Disposable.from(onMessage, onThemeChange);
 	}
 
-	#getHtml(webview: vscode.Webview): string {
+	#getHtml(documentUri: vscode.Uri, webview: vscode.Webview): string {
 		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.#mediaRoot, 'editor.js'));
 		const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.#mediaRoot, 'editor.css'));
+		const baseUri = webview.asWebviewUri(documentUri);
 		const nonce = getNonce();
 
 		const body = /* html */ `
@@ -244,6 +259,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta http-equiv="Content-Security-Policy"
 		content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; img-src ${webview.cspSource} https: data:; media-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}';" />
+	<base href="${baseUri}" />
 	<link rel="stylesheet" href="${styleUri}" />
 	<title>Markdown Editor</title>
 </head>
