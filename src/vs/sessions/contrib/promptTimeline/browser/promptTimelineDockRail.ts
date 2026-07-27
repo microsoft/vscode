@@ -6,10 +6,9 @@
 import { $, addDisposableListener, append, clearNode, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
-import { disposableTimeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { MIN_HOST_WIDTH } from './promptTimelineLayout.js';
 import { PromptDiffStat, PromptFileDiff, PromptTick, IPromptScrollLayout } from './promptTimelineModel.js';
@@ -23,13 +22,6 @@ import './media/promptTimeline.css';
  * a real prompt, so the "you are here" dot always exists) and a trailing marker signals the sampling.
  */
 const MAX_REST_DOTS = 50;
-
-/**
- * Grace period (ms) before a pointer leaving the rail collapses the flyout. The handle and the
- * flyout are separate boxes, so a pointer travelling between them briefly touches neither; without
- * the delay that reads as a flicker.
- */
-const HIDE_DELAY = 150;
 
 interface IRowEntry {
 	tick: PromptTick;
@@ -76,8 +68,6 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 	private _hovering = false;
 	/** Tick index previewed by the dot currently under the pointer, or `-1` when no dot is hovered. */
 	private _previewIndex = -1;
-	/** Debounces the collapse so travelling between the handle and the flyout does not flicker. */
-	private readonly _hideScheduler = this._register(new MutableDisposable());
 
 	private readonly _onDidSelect = this._register(new Emitter<string>());
 	readonly onDidSelect: Event<string> = this._onDidSelect.event;
@@ -116,22 +106,20 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 		// Mouse: reveal while the pointer is over the rail subtree. The rail element is
 		// pointer-transparent (its children opt back in), so `mouseenter` never fires on it — bubble
 		// `mouseover`/`mouseout` from the handle and flyout instead, and only collapse once the pointer
-		// truly leaves the rail subtree. The collapse is debounced because the handle and the flyout are
-		// separate boxes: a pointer travelling between them momentarily sits over neither.
+		// truly leaves the rail subtree. The handle and the flyout are laid out flush (the flyout starts
+		// exactly at the handle's right edge — see the shared `--prompt-timeline-dock-handle-*` vars), so
+		// they form one contiguous hover region: travelling between them keeps `relatedTarget` inside the
+		// rail and never collapses, which means a leave here is always a real leave.
 		this._register(addDisposableListener(this._domNode, EventType.MOUSE_OVER, () => {
-			this._hideScheduler.clear();
 			this._hovering = true;
 			this._updateRevealed();
 		}));
 		this._register(addDisposableListener(this._domNode, EventType.MOUSE_OUT, (e: MouseEvent) => {
-			if (this._domNode.contains(e.relatedTarget as Node | null)) {
-				return;
-			}
-			this._hideScheduler.value = disposableTimeout(() => {
+			if (!this._domNode.contains(e.relatedTarget as Node | null)) {
 				this._hovering = false;
 				this._setPreview(-1);
 				this._updateRevealed();
-			}, HIDE_DELAY);
+			}
 		}));
 
 		// Once the pointer is browsing the flyout itself, the row under it is the subject; drop the

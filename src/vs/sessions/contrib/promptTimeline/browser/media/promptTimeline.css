@@ -75,11 +75,12 @@
 	pointer-events: auto;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.prompt-timeline-sticky {
-		transition: none;
-		transform: none;
-	}
+/* Reduced motion follows the workbench-managed `.monaco-reduce-motion` class rather than the
+ * `prefers-reduced-motion` media query: the class tracks the effective `workbench.reduceMotion`
+ * setting, which can force motion on or off independently of the OS preference. */
+.monaco-reduce-motion .prompt-timeline-sticky {
+	transition: none;
+	transform: none;
 }
 
 /* High-contrast themes rely on the explicit contrast border and suppress decorative shadows. */
@@ -356,10 +357,8 @@
 	opacity: 1;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.prompt-timeline-ruler-marks {
-		transition: none;
-	}
+.monaco-reduce-motion .prompt-timeline-ruler-marks {
+	transition: none;
 }
 
 /* Each mark is a >=24px hit target positioned at its proportional scroll offset. */
@@ -387,10 +386,8 @@
 	transition: top 200ms ease;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.prompt-timeline-ruler-marks.glide .prompt-timeline-ruler-mark {
-		transition: none;
-	}
+.monaco-reduce-motion .prompt-timeline-ruler-marks.glide .prompt-timeline-ruler-mark {
+	transition: none;
 }
 
 /* The visible mark: a short bar, neutral unless the turn changed code. */
@@ -413,14 +410,12 @@
 	transition: transform 90ms ease;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.prompt-timeline-ruler-bar {
-		transition: width 80ms ease, height 80ms ease, background-color 80ms ease;
-	}
+.monaco-reduce-motion .prompt-timeline-ruler-bar {
+	transition: width 80ms ease, height 80ms ease, background-color 80ms ease;
+}
 
-	.prompt-timeline-ruler-mark {
-		transition: none;
-	}
+.monaco-reduce-motion .prompt-timeline-ruler-mark {
+	transition: none;
 }
 
 /* Two-tone edited signal: a green added segment and a red removed segment, sized by the turn's split. */
@@ -478,10 +473,8 @@
 	outline-offset: 2px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.prompt-timeline-ruler-bar {
-		transition: none;
-	}
+.monaco-reduce-motion .prompt-timeline-ruler-bar {
+	transition: none;
 }
 
 /* ---- Dock rail ------------------------------------------------------------------------------
@@ -498,6 +491,12 @@
 	/* Wide enough to host the flyout as a hover surface; the rail itself is pointer-transparent and
 	 * only its children (the handle and the flyout) opt back in. */
 	width: 300px;
+	/* The handle's geometry, shared with the flyout so the two are laid out flush: the flyout starts
+	 * exactly at the handle's right edge, making them one contiguous hover region. Without that the
+	 * pointer would cross a dead gap between them and the flyout would collapse mid-travel. */
+	--prompt-timeline-dock-handle-left: 4px;
+	/* Horizontal padding (2 * 6px) plus the dot width (4px) — the handle's widest child. */
+	--prompt-timeline-dock-handle-width: 16px;
 }
 
 /* Too narrow to place the handle beside the content: hide it (the native scrollbar remains). */
@@ -511,7 +510,7 @@
  * deliberately quiet. */
 .prompt-timeline-dock-rest {
 	position: absolute;
-	left: 4px;
+	left: var(--prompt-timeline-dock-handle-left);
 	top: 50%;
 	transform: translateY(-50%);
 	display: flex;
@@ -583,15 +582,13 @@
 	opacity: 0.7;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.prompt-timeline-dock-dot {
-		transition: opacity 140ms ease, background-color 140ms ease;
-	}
+.monaco-reduce-motion .prompt-timeline-dock-dot {
+	transition: opacity 140ms ease, background-color 140ms ease;
+}
 
-	.prompt-timeline-dock-dot.active,
-	.prompt-timeline-dock-dot.preview {
-		transform: none;
-	}
+.monaco-reduce-motion .prompt-timeline-dock-dot.active,
+.monaco-reduce-motion .prompt-timeline-dock-dot.preview {
+	transform: none;
 }
 
 /* The flyout: a hover-card-styled popover listing the prompts, placed to the RIGHT of the dots so the
@@ -602,9 +599,9 @@
  * the pointer that opened it, which reads as a flicker. */
 .prompt-timeline-dock-panel {
 	position: absolute;
-	/* Flush against the handle's right edge (4px offset + 2 * 6px padding + 4px dot) so travelling
-	 * from a dot into the list never crosses a dead gap. */
-	left: 20px;
+	/* Flush against the handle's right edge, so the two form one contiguous hover region and
+	 * travelling from a dot into the list never crosses a dead gap. */
+	left: calc(var(--prompt-timeline-dock-handle-left) + var(--prompt-timeline-dock-handle-width));
 	top: 50%;
 	transform: translateY(-50%) scale(0.98);
 	transform-origin: left center;
@@ -632,15 +629,13 @@
 	pointer-events: auto;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.prompt-timeline-dock-panel {
-		transition: opacity 140ms ease;
-		transform: translateY(-50%);
-	}
+.monaco-reduce-motion .prompt-timeline-dock-panel {
+	transition: opacity 140ms ease;
+	transform: translateY(-50%);
+}
 
-	.prompt-timeline-rail-dock.revealed .prompt-timeline-dock-panel {
-		transform: translateY(-50%);
-	}
+.monaco-reduce-motion .prompt-timeline-rail-dock.revealed .prompt-timeline-dock-panel {
+	transform: translateY(-50%);
 }
 
 /* High-contrast themes suppress the decorative shadow and lean on the explicit border. */
