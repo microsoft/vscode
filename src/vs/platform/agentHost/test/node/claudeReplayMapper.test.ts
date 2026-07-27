@@ -362,20 +362,41 @@ suite('claudeReplayMapper', () => {
 			'inner Bash tool call must be reconstructed as Completed');
 	});
 
-	test('Fixture 10b: top-level assistant before any user message is still dropped', () => {
-		// Guard the narrow behavior: a top-level (non-inner) assistant envelope
-		// arriving before any user message remains anomalous and is dropped, so
-		// the synthesize-on-open path is scoped strictly to subagent transcripts.
+	test('Fixture 10b: top-level assistant before any user message is recovered under a placeholder prompt', () => {
+		// A truncated transcript slice (the SDK returns only the bytes after
+		// the last compact boundary for large sessions) can open mid-turn,
+		// with the user prompt cut off. The reply must still be recovered —
+		// dropping it empties the whole chat when the slice contains no user
+		// message at all.
 		const messages: SessionMessage[] = [
-			makeAssistantText('a1', 'orphan reply'),
+			makeAssistantText('a1', 'promptless reply'),
 			makeUser('u1', 'hello'),
 			makeAssistantText('a2', 'world'),
 		];
 
 		const turns = mapSessionMessagesToTurns(messages, session, logService);
 
-		assert.strictEqual(turns.length, 1, 'the orphan top-level assistant must NOT synthesize a turn');
-		assert.strictEqual(turns[0].id, 'u1');
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, text: turn.message.text })), [
+			{ id: 'a1', text: '<Message content could not be retrieved>' },
+			{ id: 'u1', text: 'hello' },
+		]);
+	});
+
+	test('a transcript slice with no user message at all still yields turns', () => {
+		// The reported failure mode: every envelope in the slice belonged to
+		// one long agentic turn whose prompt was truncated away, so the whole
+		// session replayed as zero turns and the chat rendered empty.
+		const messages: SessionMessage[] = [
+			makeAssistantToolUse('a1', 'tu1', 'Bash', { command: 'ls' }),
+			makeUserToolResult('r1', 'tu1', 'file.txt'),
+			makeAssistantText('a2', 'done'),
+		];
+
+		const turns = mapSessionMessagesToTurns(messages, session, logService);
+
+		assert.strictEqual(turns.length, 1);
+		assert.strictEqual(turns[0].message.text, '<Message content could not be retrieved>');
+		assert.strictEqual(turns[0].state, TurnState.Complete);
 	});
 });
 
@@ -501,6 +522,18 @@ suite('resolveForkAnchorUuid', () => {
 
 	test('turnId not found → undefined', () => {
 		assert.strictEqual(resolveForkAnchorUuid(threeTurns, 'nope'), undefined);
+	});
+
+	test('a promptless leading turn is anchorable, mirroring the replay builder', () => {
+		// The builder opens a turn keyed on the leading assistant envelope when
+		// the prompt is missing from the slice; the resolver must agree or a
+		// fork from that turn cannot be anchored.
+		const messages: SessionMessage[] = [
+			makeAssistantText('a1', 'promptless reply'),
+			makeUser('u1', 'next'),
+			makeAssistantText('a2', 'ok'),
+		];
+		assert.strictEqual(resolveForkAnchorUuid(messages, 'a1'), 'a1');
 	});
 
 	test('empty transcript → undefined', () => {
