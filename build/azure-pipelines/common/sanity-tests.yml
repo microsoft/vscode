@@ -27,15 +27,6 @@ jobs:
       os: ${{ parameters.os }}
     timeoutInMinutes: 30
     templateContext:
-      sdl:
-        binskim:
-          enabled: false
-          justificationForDisabling: Sanity jobs only publish diagnostic screenshots and crash dumps.
-        antimalwareScan:
-          enabled: false
-          justificationForDisabling: Sanity jobs only publish diagnostic screenshots and crash dumps.
-        componentgovernance:
-          enabled: false
       outputs:
         - output: pipelineArtifact
           targetPath: $(SCREENSHOTS_DIR)
