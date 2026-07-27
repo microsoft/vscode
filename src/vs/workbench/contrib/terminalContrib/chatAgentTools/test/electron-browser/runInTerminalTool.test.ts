@@ -72,6 +72,9 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	getBubblewrapHostRestrictedResult(): IToolResult {
 		return (this as unknown as Record<string, () => IToolResult>)['_getBubblewrapHostRestrictedResult']();
 	}
+	disableProcessIdAssociation(): void {
+		(this as unknown as Record<string, () => Promise<void>>)['_setupProcessIdAssociation'] = async () => { };
+	}
 
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
@@ -124,21 +127,50 @@ suite('RunInTerminalTool', () => {
 			failedCheck: undefined,
 		};
 
-		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
+		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined; getOutput(): string }>();
 		const onDisposedEmitter = new Emitter<ITerminalInstance>();
+		const onExitEmitter = new Emitter<number | undefined>();
 		const onDidAddCapabilityEmitter = new Emitter<{ id: TerminalCapability }>();
 		const onDidInputDataEmitter = new Emitter<string>();
+		const onDataEmitter = new Emitter<string>();
+		const marker = {
+			line: 0,
+			dispose: () => { },
+			onDispose: Event.None,
+		};
+		const xterm = {
+			getContentsAsText: () => '',
+			raw: {
+				onData: onDataEmitter.event,
+				registerMarker: () => marker,
+				buffer: {
+					active: {},
+					alternate: {},
+					onBufferChange: Event.None,
+				},
+			},
+		};
 		createTerminalCallCount = 0;
 		createdTerminalInstance = {
+			instanceId: 1,
+			processId: 1,
+			processReady: Promise.resolve(),
+			xtermReadyPromise: Promise.resolve(xterm),
+			onData: onDataEmitter.event,
+			onExit: onExitEmitter.event,
 			sendText: async (_text: string) => {
 				// Simulate successful command completion after sendText
-				queueMicrotask(() => commandFinishedEmitter.fire({ exitCode: 0 }));
+				queueMicrotask(() => {
+					onDataEmitter.fire('\x1b]633;C\x07\x1b]633;A\x07');
+					commandFinishedEmitter.fire({ exitCode: 0, getOutput: () => '' });
+				});
 			},
 			focus: () => { },
 			capabilities: {
 				get: (cap: TerminalCapability) => {
 					if (cap === TerminalCapability.CommandDetection) {
 						return {
+							commands: [],
 							onCommandFinished: commandFinishedEmitter.event,
 						};
 					}
@@ -148,6 +180,12 @@ suite('RunInTerminalTool', () => {
 			},
 			onDidInputData: onDidInputDataEmitter.event,
 			onDisposed: onDisposedEmitter.event,
+			dispose: () => {
+				onExitEmitter.fire(0);
+				onDisposedEmitter.fire(createdTerminalInstance);
+			},
+			getCwdResource: async () => undefined,
+			isDisposed: false,
 		} as unknown as ITerminalInstance;
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionResources: URI[]; reason: 'cleared' }>();
@@ -189,6 +227,7 @@ suite('RunInTerminalTool', () => {
 				return createdTerminalInstance;
 			},
 			foregroundInstances: [],
+			createOnInstanceCapabilityEvent: () => ({ event: Event.None, dispose: () => { } }),
 			onDidDisposeInstance: terminalServiceDisposeEmitter.event,
 			onDidChangeInstances: Event.None,
 			revealTerminal: async () => { },
@@ -622,6 +661,7 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should automatically repair AppArmor, probe again, and execute', async () => {
+			runInTerminalTool.disableProcessIdAssociation();
 			let forceRefreshCalled = false;
 			terminalSandboxService.checkForSandboxingPrereqs = async forceRefresh => {
 				forceRefreshCalled ||= forceRefresh === true;
@@ -643,6 +683,7 @@ suite('RunInTerminalTool', () => {
 			};
 
 			const result = await invokeToolTest({ command: 'echo hello' });
+			createdTerminalInstance.dispose();
 
 			strictEqual(remediationCalled, true);
 			strictEqual(forceRefreshCalled, true, 'Expected a probe after AppArmor remediation');
