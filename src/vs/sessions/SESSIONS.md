@@ -167,7 +167,7 @@ In the agent host, the real producer of read-only chats is **subagent (worker) c
 
 Subagent chats **persist** in the session catalog after the subagent completes (completion only marks the chat's turn complete; the chat is removed only when the whole session is disposed), so the read-only tab stays reviewable for the lifetime of the session.
 
-**Opening a subagent chat from the transcript.** The inline subagent block (`ChatSubagentContentPart`) renders a small pill (`OpenSubagentChatActionViewItem`) that reveals the subagent's read-only tab. The pill is a control-tier chip, not a fully rounded capsule, and is a sibling of the shared collapse button at the start of the header row. When `MenuId.ChatSubagentContent` has an action, `ChatSubagentContentPart` switches to `chat-subagent-open-chat-only` mode and directly hides the collapse button and animation container, leaving the pill as the only affordance. Do not rely on Agents-window CSS ancestry for this switch: the shared chat widget can be hosted through different DOM roots. The pill label reactively shows the subagent chat's own title, with no duplicate agent-name phrase beside it. Status uses the shared pixel spinner: the grid/dropper variant for `InProgress`, the ring variant for `NeedsInput`, and the conversation icon when complete. Normal progress remains neutral—the spinner is sufficient. A subagent with a queued confirmation gets the subtle sessions-list warning background pulse; the subagent whose confirmation is currently active above the input gets the stronger warning border/background. A numeric warning badge is shown only for two or more pending confirmations; one confirmation keeps the warning state without a redundant `1`. The carousel publishes its active subagent id for this presentation state only; confirmation ownership/routing is unchanged. The carousel's subagent reference remains scroll-to-context in regular/editor chat, but in the Agents window it invokes `workbench.action.chat.openAgentHostChat` to open the related read-only chat. A quiet italic duration sits outside the border: `Working for 10s` while active and `Worked for 10s` after completion. Timing starts from the child chat's actual first `activeTurn.startedAt`, updates once per second while active, and freezes from the completed turn duration. Those values are copied onto serialized subagent tool data so stopping or reloading cannot reset the display. `ChatSubagentContentPart` publishes timing, confirmation count, and active-confirmation state through the toolbar action context. The subagent chat resource is carried to the widget on `IChatSubagentToolInvocationData.chatResource` (populated in `stateToProgressAdapter` from `ToolResultSubagentContent.resource`). Because the chat widget is provider-agnostic and lower-layer, the link invokes `workbench.action.chat.openAgentHostChat` with the subagent chat URI; the sessions layer handler derives the chat id, finds the matching surfaced peer across visible sessions, and calls `sessionsService.openChat` to activate the existing tab.
+**Opening a subagent chat from the transcript.** The inline subagent block (`ChatSubagentContentPart`) renders a small pill (`OpenSubagentChatActionViewItem`) that reveals the subagent's read-only tab. The provider action stays disabled and out of visual and accessibility layout until its resource resolves to a surfaced peer chat, preventing a transient generic action while the chat catalog hydrates. `ChatSubagentContentPart` switches to `chat-subagent-open-chat-only` mode only while `MenuId.ChatSubagentContent` contains an enabled action; an unresolved or stale action therefore restores the normal collapsible subagent surface rather than leaving a blank row. The pill is a control-tier chip, not a fully rounded capsule, and is a sibling of the shared collapse button at the start of the header row. Do not rely on Agents-window CSS ancestry for this switch: the shared chat widget can be hosted through different DOM roots. The wider pill gives the subagent chat's own title priority as the leading label, with quiet, width-capped inline model metadata when the child turn reports its model; no duplicate agent-name phrase appears beside it. While the subagent is active, one single-line row attached below the pill shows the newest child tool with the same registered or inferred compact icon used by shared thinking-tool rendering. Terminal tools prefer the protocol's dedicated intention over their raw command invocation message; other tools use the SDK/provider-authored invocation message (falling back to the display name in the Agent Host adapter). The row uses shared chat markdown and file-widget rendering, so file references and inline commands retain the same rich tool presentation as editor chat; it reserves a fixed minimum line slot so swapping among text, code, and file chips does not shift surrounding content. Newer tool intents replace it with the rotating-placeholder wipe/shimmer transition whose phases follow the actual CSS animation lifecycle rather than duplicated delays; changes that cancel the animation or environments without animation support settle immediately. The effective `workbench.reduceMotion` preference controls both this transition and the pending-confirmation pulse, so forced motion overrides are honored and a preference change during a transition swaps immediately. Status uses the shared pixel spinner: the grid/dropper variant for `InProgress`, the ring variant for `NeedsInput`, and the conversation icon when complete. Normal progress remains neutral—the spinner is sufficient. A subagent with a queued confirmation gets the subtle sessions-list warning background pulse; the subagent whose confirmation is currently active above the input gets the stronger warning border/background. A numeric warning badge is shown only for two or more pending confirmations; one confirmation keeps the warning state without a redundant `1`. The carousel publishes its active subagent id for this presentation state only; confirmation ownership/routing is unchanged. The carousel's subagent reference remains scroll-to-context in regular/editor chat, but in the Agents window it invokes `workbench.action.chat.openAgentHostChat` to open the related read-only chat. A quiet italic duration sits outside the border: `Working for 10s` while active and `Worked for 10s` after completion. Timing starts from the child chat's actual first `activeTurn.startedAt`, updates once per second while active, and freezes from the completed turn duration. Those values are copied onto serialized subagent tool data so stopping or reloading cannot reset the display. `ChatSubagentContentPart` publishes timing, confirmation count, active-confirmation state, model name, and latest active tool label/icon through the toolbar action context. The subagent chat resource is carried to the widget on `IChatSubagentToolInvocationData.chatResource` (populated in `stateToProgressAdapter` from `ToolResultSubagentContent.resource`). Because the chat widget is provider-agnostic and lower-layer, the link invokes `workbench.action.chat.openAgentHostChat` with the subagent chat URI; the sessions layer handler derives the chat id, finds the matching surfaced peer across visible sessions, and calls `sessionsService.openChat` to activate the existing tab.
 
 **Confirmations in read-only subagent chats.** Read-only hides the composer, but the tool-confirmation carousel remains visible and keeps the input part in layout. This lets multi-chat/side-chat subagent views resolve their own confirmations without making the chat message composer interactive.
 
@@ -323,7 +323,9 @@ workspace-scoped machine storage. `NewChatWidget` saves that draft when it is
 disposed (for example, when navigating to an existing session), and the
 replacement widget restores it when the user returns to the new-session view.
 Starting a send clears the stored draft before request dispatch and any view
-replacement.
+replacement. Inputs without an explicit placeholder rotate through the shared
+friendly placeholder set; an explicitly provided placeholder, including an empty
+string, remains static.
 
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s
@@ -604,6 +606,92 @@ Tool-call confirmation bookkeeping (`_toolCallAgents`) is keyed by the same chat
 channel that received `ChatToolCallStart`/`ChatToolCallReady`; confirmations sent
 to the parent session URI are invalid and will not resolve the SDK permission
 request.
+
+##### Direct selection invocation (Agents window only)
+
+Besides typing `/btw`, a user can select assistant markdown text in a chat
+response and get an inline "Ask Question" affordance that creates the same
+kind of side chat directly from that selection. This is Agents-window-only —
+it never appears in the regular workbench chat surface — and reuses
+`ISessionsManagementService.createSideChatInSession`/`sendRequest` and
+`ISessionsService.openChat`, the identical plumbing `/btw` uses (see
+`sideChatOrchestration.ts`'s `createAndSendSideChat`/`openAndSendSideChat`
+helpers, shared by both entry points).
+
+`ResponseSelectionSideChatController` (`contrib/chat/browser/`) is owned by
+`ChatView` per chat widget. It listens for `selectionchange` on the widget's
+document and resolves the selection via `resolveResponseSelection`
+(`responseSelectionResolver.ts`), which only accepts a selection when:
+- both selection endpoints fall inside the **same** assistant response
+  (resolved through `IChatWidget.getElementFromNode`, `isResponseVM`), and
+- the selection stays within that response's rendered markdown
+  (`.chat-markdown-part`), excluding any embedded Monaco editor
+  (`.monaco-editor`) or tool-invocation UI (`.chat-tool-invocation-part`).
+
+A resolved selection shows an "Ask Question" input positioned under the
+selection, reusing the same visual/input component as the editor's feedback
+affordance: `FeedbackInputWidget` (`contrib/agentFeedback/browser/
+feedbackInputWidget.ts`), extracted from `AgentFeedbackInputWidget` so both
+consumers share one textarea/action-bar implementation. Submitting creates a
+side chat anchored to the **selected response's turn**
+(`IChatResponseViewModel.requestId`, not the chat's last turn) with
+`selection.text` set to the exact selected text, mirroring `/btw`'s
+"inherits model/agent, immutable selection snapshot" semantics. The same
+runtime capability/status gate as `/btw` applies before creating the side
+chat (`session.capabilities.get().supportsSideChat`, not `Untitled`, not
+archived); failing that gate shows a warning notification instead of
+creating a partially-supported side chat.
+
+Submitting does not eagerly dismiss the overlay: it stays visible with a busy
+state (`FeedbackInputWidget.setBusy(true, statusLabel)` — disabled input,
+hidden action bar, a spinning `Codicon.loading` indicator, `aria-busy` plus an
+`aria.status` announcement) while the create/open/send orchestration is
+in-flight, and duplicate submission is blocked both by the disabled action and
+an explicit `isBusy` guard in `_submit`. Opening the newly-created side chat
+naturally dismisses the overlay via `setChat`, which force-dismisses only when
+the chat's *resource* actually changes: `ChatView` re-invokes `setChat` for the
+same chat on unrelated status/interactivity observable updates, so a
+same-resource call must preserve a visible draft and, critically, a pending
+busy submission rather than clearing it and letting a duplicate race in. On
+failure the busy state clears, the typed question and normal controls are
+restored, and the input is refocused so the user can retry without losing
+their text — the existing warning/error notification and log call are
+unchanged. A completion/error that settles after a genuine chat navigation
+already force-dismissed the overlay (`setChat` with a different chat resource)
+is tracked via a submission generation counter bumped on that force-dismiss,
+so the stale handler no-ops instead of reopening, refocusing, or mutating the
+now-unrelated overlay. Escape, scrolling, and selection invalidation are all
+ignored while a submission is pending so they cannot race the in-flight
+request. The action-bar slot and the spinner that replaces it both size to the
+widget's shared `_LINE_HEIGHT` constant (applied as an inline style to each
+element, matching the textarea's line-height) and center via flex, rather than
+a hardcoded icon height or a positional transform — this keeps both optically
+centered on the input's single line, and still flush to the last line when the
+textarea grows multi-line (the row keeps `align-items: flex-end`).
+
+The `selectionchange` listener ignores events entirely while focus is inside
+the "Ask Question" input (`dom.isAncestorOfActiveElement`): focusing the
+textarea collapses the browser's native document selection as a side effect,
+and without this guard that collapse would dismiss the very input the user
+just focused. The captured selection is treated as an immutable snapshot for
+that reason — it is not re-read from the live DOM selection on submit.
+Escape (or any other dismissal while the input has focus) restores focus to
+the source response via `IChatWidget.focusResponseItem(true)` rather than
+letting it fall through to the document body. Plain Enter submits and
+prevents the default newline; Shift+Enter and Enter during IME composition
+(`e.browserEvent.isComposing`) are left alone so the textarea inserts a
+newline or lets composition finish. The overlay's position clamps
+both horizontally and vertically against the chat widget's own bounds and the
+visible viewport, measured after `FeedbackInputWidget.show()`/`autoSize()` so
+real dimensions are used; when there isn't room below the selection it flips
+above instead, falling back to the nearest in-bounds edge only when neither
+placement fully fits.
+
+`FeedbackInputWidget.setPlaceholder` only derives `aria-label` from the
+placeholder when the widget was constructed without an explicit
+`options.ariaLabel`; a caller (like this controller, which sets a dedicated
+accessible name) keeps its configured `aria-label` untouched across
+placeholder changes.
 
 Agent-host approval levels map to the Copilot SDK allow-all modes before each
 turn: Default approvals uses `off`, Allow all uses `on`, and Assisted permissions
