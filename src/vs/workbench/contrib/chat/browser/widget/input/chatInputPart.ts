@@ -2169,7 +2169,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Reset the input and update history.
 	 * @param userQuery If provided, this will be added to the history. Followups and programmatic queries should not be passed.
 	 */
-	async acceptInput(isUserQuery?: boolean, preserveFocus?: boolean): Promise<void> {
+	async acceptInput(isUserQuery?: boolean, preserveFocus?: boolean, preserveInput?: boolean): Promise<void> {
 		if (isUserQuery) {
 			const userQuery = this.getCurrentInputState();
 			this.history.append(this._getFilteredEntry(userQuery));
@@ -2184,6 +2184,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._chatSessionIsEmpty = false;
 			this._emptyInputState.set(undefined, undefined);
 			this._emptyInputAttachments.set([], undefined);
+		}
+
+		if (preserveInput) {
+			// The editor holds an unrelated user draft: keep it, and leave any pending
+			// dictation un-finalized since the draft is neither sent nor cleared.
+			if (!preserveFocus) {
+				this._inputEditor.focus();
+			}
+			return;
 		}
 
 		// Clear attached context, fire event to clear input state, and clear the input editor

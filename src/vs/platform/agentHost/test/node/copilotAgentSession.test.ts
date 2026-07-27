@@ -2548,6 +2548,32 @@ suite('CopilotAgentSession', () => {
 			const { session } = await createAgentSession(disposables);
 			assert.strictEqual(session.respondToPermissionRequest('unknown-id', true), false);
 		});
+
+		test('rejects permission requests for unroutable subagent tools', async () => {
+			const logService = new CapturingLogService();
+			const { runtime, mockSession, signals } = await createAgentSession(disposables, { logService });
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-orphaned-subagent-tool',
+				toolName: 'powershell',
+				arguments: { command: 'echo test' },
+			} as SessionEventPayload<'tool.execution_start'>['data'], { agentId: 'unknown-agent' });
+
+			const result = await runtime.handlePermissionRequest({
+				kind: 'shell',
+				toolCallId: 'tc-orphaned-subagent-tool',
+				fullCommandText: 'echo test',
+			});
+
+			assert.deepStrictEqual({
+				result,
+				pendingConfirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+				errors: logService.errors.map(entry => entry.first).filter(message => typeof message === 'string' && message.includes('unroutable subagent tool call')),
+			}, {
+				result: { kind: 'reject' },
+				pendingConfirmations: 0,
+				errors: ['[Copilot:test-session-1] Rejecting permission request for unroutable subagent tool call: toolCallId=tc-orphaned-subagent-tool, kind=shell'],
+			});
+		});
 	});
 
 	// ---- sendSteering ----
@@ -5335,14 +5361,7 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('pending_confirmation forwards parentToolCallId for tools inside subagents', async () => {
-			// Regression: when a client tool runs inside a subagent the
-			// permission-flow `pending_confirmation` must carry the
-			// parentToolCallId from the originating tool_start. Without it
-			// the host has no way to route the resulting
-			// ChatToolCallReady to the subagent session and emits a
-			// stray ready against the parent session (no preceding
-			// ChatToolCallStart).
+		test('pending_confirmation routes follow-up turns after subagent completion', async () => {
 			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
 
 			mockSession.fire('subagent.started', {
@@ -5352,11 +5371,22 @@ suite('CopilotAgentSession', () => {
 				agentDescription: 'Helps',
 			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-client-tool' });
 
+			mockSession.fire('subagent.completed', {
+				toolCallId: 'tc-parent-subagent',
+				agentName: 'helper',
+				agentDisplayName: 'Helper',
+				durationMs: 1,
+				totalTokens: 0,
+				totalToolCalls: 0,
+			} as SessionEventPayload<'subagent.completed'>['data'], { agentId: 'agent-client-tool' });
+
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-sub-client',
 				toolName: 'my_tool',
 				arguments: {},
 			} as SessionEventPayload<'tool.execution_start'>['data'], { agentId: 'agent-client-tool' });
+
+			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.toolCallId), ['tc-parent-subagent']);
 
 			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'custom-tool',
@@ -5371,6 +5401,17 @@ suite('CopilotAgentSession', () => {
 
 			session.respondToPermissionRequest('tc-sub-client', false);
 			await resultPromise;
+
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'hook-follow-up-stop',
+				hookType: 'agentStop',
+				success: true,
+			} as SessionEventPayload<'hook.end'>['data'], { agentId: 'agent-client-tool' });
+
+			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId), [
+				'tc-parent-subagent',
+				'tc-parent-subagent',
+			]);
 		});
 
 		test('handleClientToolCallComplete pre-completes when no handler is waiting yet', async () => {

@@ -42,7 +42,7 @@ import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService }
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { getRegisteredLanguageModels, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
+import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
@@ -50,8 +50,7 @@ import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effective
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { computeLivePullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
-import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
+import { computeSessionPullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
 import { mapProtocolStatus } from './agentHostDiffs.js';
 import { createChangesets } from './agentHostSessionChangesets.js';
@@ -623,35 +622,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return baseGitHubInfo;
 			}
 
-			const prLink = baseGitHubInfo.pullRequest.uri.toString();
-			const prModelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(
-				baseGitHubInfo.owner, baseGitHubInfo.repo, baseGitHubInfo.pullRequest.number));
-			const livePR = prModelRef.object.pullRequest.read(reader);
-
-			if (!livePR) {
-				// The live model hasn't been fetched yet (e.g. right after a PR is first
-				// detected, or right after startup). Show the last known icon from the
-				// persistent cache, falling back to a neutral open-PR icon, so the row
-				// surfaces a PR icon immediately instead of the read/unread dot while the
-				// first fetch is in flight. The agent-host git state carries no PR state,
-				// so the live model refines it (merged/closed/draft/failing checks) within
-				// a poll cycle.
-				const icon = this._pullRequestIconCache.get(prLink) ?? computePullRequestIcon(GitHubPullRequestState.Open);
-				return {
-					...baseGitHubInfo,
-					pullRequest: { ...baseGitHubInfo.pullRequest, icon }
-				};
-			}
-
-			const icon = computeLivePullRequestIcon(reader, this._gitHubService, baseGitHubInfo.owner, baseGitHubInfo.repo, livePR);
-			// Remember the freshly computed icon so the next startup can show it instantly.
-			// The cache de-duplicates unchanged icons, so this is a no-op when nothing changed.
-			this._pullRequestIconCache.set(prLink, icon);
 			return {
 				...baseGitHubInfo,
 				pullRequest: {
 					...baseGitHubInfo.pullRequest,
-					icon
+					icon: computeSessionPullRequestIcon(reader, this._gitHubService, this._pullRequestIconCache, baseGitHubInfo)
 				}
 			};
 		});
@@ -2973,6 +2948,34 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		};
 	}
 
+	/**
+	 * Resolve a remembered model selection at send time: when it is conclusively
+	 * unavailable and the harness supports Auto, return the Auto model identifier
+	 * (rather than `undefined`, which would leave an already-running chat pinned
+	 * to its stale backend model) so the request is explicitly reset to Auto.
+	 */
+	private _resolveSendModelId(sessionId: string, selectedModelId: string | undefined): string | undefined {
+		if (!selectedModelId) {
+			return selectedModelId;
+		}
+		const snapshot = this.getModelsSnapshot(sessionId, selectedModelId);
+		if (snapshot.desiredModelResolution.kind !== 'unavailable') {
+			// Available, pending (list not yet populated) or not requested: keep the selection.
+			return selectedModelId;
+		}
+		const resourceScheme = this._resolveSessionResourceScheme(sessionId);
+		const supportsAuto = !resourceScheme || this._chatSessionsService.supportsAutoModelForSessionType(resourceScheme);
+		if (!supportsAuto) {
+			return selectedModelId;
+		}
+		// Send the harness's Auto model explicitly. Returning `undefined` would
+		// omit `model` from the turn, which leaves an already-running chat on its
+		// stale backend selection and still fails on the unroutable model.
+		const autoModelId = resolveConfiguredModel('auto', snapshot.models)?.identifier;
+		this._logService.warn(`[${this.id}] Selected model '${selectedModelId}' is unavailable for session '${sessionId}'; falling back to Auto instead of sending an unroutable model.`);
+		return autoModelId;
+	}
+
 	private _resolveSessionResourceScheme(sessionId: string): string | undefined {
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
@@ -3434,7 +3437,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const sessionType = chatResource.scheme;
 		const contribution = this._chatSessionsService.getChatSessionContribution(sessionType);
 
-		const selectedModelId = cached.getChatModelId(chatResource);
+		const selectedModelId = this._resolveSendModelId(chatId, cached.getChatModelId(chatResource));
 		const selectedAgentUri = cached.getChatMode(chatResource)?.id;
 
 		const sendOptions: IChatSendRequestOptions = {
@@ -3524,7 +3527,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		newSession.setStatus(SessionStatus.InProgress);
-		const selectedModelId = newSession.getSelectedModelId();
+		const selectedModelId = this._resolveSendModelId(chatId, newSession.getSelectedModelId());
 		const selectedAgent = newSession.getSelectedAgent();
 
 		const { query, attachedContext } = options;

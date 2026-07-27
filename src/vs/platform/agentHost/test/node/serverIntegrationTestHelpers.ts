@@ -59,6 +59,7 @@ import {
 	type ProtocolMessage,
 } from '../../common/state/sessionProtocol.js';
 import { AhpSnapshotRecorder, type IAhpSnapshotNormalization, type IAhpSnapshotOptions } from './e2e/harness/ahpSnapshot.js';
+import { recordAhpSurface } from './ahpSurfaceCoverage.js';
 import { isWindows } from '../../../../base/common/platform.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
@@ -159,9 +160,15 @@ export class TestProtocolClient {
 				}
 			}
 		} else if (isJsonRpcRequest(msg)) {
+			recordAhpSurface('command', msg.method);
 			void this._handleServerRequest(msg);
 		} else if (isJsonRpcNotification(msg)) {
 			const notif = msg;
+			recordAhpSurface('notification', notif.method);
+			if (notif.method === 'action') {
+				const envelope = notif.params as unknown as ActionEnvelope | undefined;
+				recordAhpSurface('action', envelope?.action?.type ?? '');
+			}
 			this._notifications.push(notif);
 			this._flushNotificationWaiters();
 		}
@@ -401,6 +408,11 @@ export class TestProtocolClient {
 
 	/** Send a JSON-RPC notification (fire-and-forget). */
 	notify(method: string, params?: unknown): void {
+		recordAhpSurface('command', method);
+		if (method === 'dispatchAction') {
+			const dispatched = params as DispatchActionParams | undefined;
+			recordAhpSurface('action', dispatched?.action?.type ?? '');
+		}
 		const message: JsonRpcNotification = { jsonrpc: '2.0', method, params };
 		this._ahpSnapshot.record('c2s', message);
 		this._ws.send(JSON.stringify(message));
@@ -421,6 +433,7 @@ export class TestProtocolClient {
 
 	/** Send a JSON-RPC request and await the response. */
 	call<T>(method: string, params?: unknown, timeoutMs = getProtocolOperationTimeout()): Promise<T> {
+		recordAhpSurface('command', method);
 		const id = this._nextId++;
 		const message: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
 		this._ahpSnapshot.record('c2s', message);
