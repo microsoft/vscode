@@ -127,13 +127,26 @@ pub fn new_std_command(exe: impl AsRef<OsStr>) -> std::process::Command {
 ///   child runs in its own session, with no controlling terminal, and
 ///   does not receive `SIGHUP` / `SIGINT` propagated from the CLI's
 ///   terminal.
-/// * **Windows** — sets `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`
-///   creation flags. `CREATE_NEW_PROCESS_GROUP` makes the child immune to
-///   the parent's `Ctrl+C` / `Ctrl+Break`; `CREATE_NO_WINDOW` gives the
-///   child its own (hidden) console so it survives the parent console
-///   closing AND prevents `cmd.exe`-based scripts from popping a
-///   visible window the way `DETACHED_PROCESS` would (cmd.exe calls
-///   `AllocConsole` when it has no console at all).
+/// * **Windows** — sets `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`, plus
+///   `CREATE_BREAKAWAY_FROM_JOB` when the current job object permits it.
+///   `CREATE_NEW_PROCESS_GROUP` makes the child immune to the parent's
+///   `Ctrl+C` / `Ctrl+Break`; `CREATE_NO_WINDOW` gives the child its own
+///   (hidden) console so it survives the parent console closing AND
+///   prevents `cmd.exe`-based scripts from popping a visible window the way
+///   `DETACHED_PROCESS` would (cmd.exe calls `AllocConsole` when it has no
+///   console at all).
+///
+///   `CREATE_BREAKAWAY_FROM_JOB` is what makes the child survive its
+///   launching context on Windows. Win32-OpenSSH runs each exec channel in
+///   a job object carrying `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, so when
+///   the channel closes every process in the job is terminated — including
+///   an otherwise fully detached grandchild. Measured against Win32-OpenSSH
+///   on Windows 11: the exec channel's job reports limit flags `0x2800`
+///   (`BREAKAWAY_OK` set, `SILENT_BREAKAWAY_OK` clear,
+///   `KILL_ON_JOB_CLOSE` set), and a child spawned without the flag dies
+///   with the channel while one carrying it survives. Because
+///   `SILENT_BREAKAWAY_OK` is clear, the flag has to be requested
+///   explicitly — detaching alone is not enough.
 ///
 /// Callers that need the child to truly outlive the parent should also
 /// set `kill_on_drop(false)` on tokio commands and avoid retaining the
@@ -178,9 +191,7 @@ fn apply_detach_flags_std(cmd: &mut std::process::Command) {
 #[cfg(windows)]
 fn apply_detach_flags_std(cmd: &mut std::process::Command) {
 	use std::os::windows::process::CommandExt as _;
-	cmd.creation_flags(
-		winapi::um::winbase::CREATE_NEW_PROCESS_GROUP | winapi::um::winbase::CREATE_NO_WINDOW,
-	);
+	cmd.creation_flags(detach_creation_flags());
 }
 
 #[cfg(unix)]
@@ -206,9 +217,57 @@ fn apply_detach_flags_tokio(cmd: &mut tokio::process::Command) {
 	// any prior flags, so we re-include `CREATE_NO_WINDOW` (which
 	// `new_tokio_command` originally set) instead of relying on it
 	// being preserved.
-	cmd.creation_flags(
-		winapi::um::winbase::CREATE_NEW_PROCESS_GROUP | winapi::um::winbase::CREATE_NO_WINDOW,
-	);
+	cmd.creation_flags(detach_creation_flags());
+}
+
+/// Creation flags used to detach a child on Windows.
+///
+/// `CREATE_BREAKAWAY_FROM_JOB` is included only when the current job object
+/// allows it: requesting breakaway inside a job without
+/// `JOB_OBJECT_LIMIT_BREAKAWAY_OK` makes `CreateProcess` fail outright with
+/// `ERROR_ACCESS_DENIED`, which would be a worse outcome than a child that
+/// merely shares the parent's job. See [`DetachFromParent`] for why the flag
+/// matters.
+#[cfg(windows)]
+fn detach_creation_flags() -> u32 {
+	let base = winapi::um::winbase::CREATE_NEW_PROCESS_GROUP | winapi::um::winbase::CREATE_NO_WINDOW;
+	if should_use_breakaway_from_job() {
+		base | winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB
+	} else {
+		base
+	}
+}
+
+/// Whether this process may create children that break away from its job.
+///
+/// Probed once and cached: the answer is a property of the job we were
+/// launched into and cannot change for the life of the process. The probe is
+/// a real spawn, because the job's limit flags are not by themselves
+/// conclusive — nested jobs and `SILENT_BREAKAWAY_OK` both affect the
+/// outcome, and `CreateProcess` is the only authority that matters.
+#[cfg(windows)]
+fn should_use_breakaway_from_job() -> bool {
+	use std::sync::OnceLock;
+	static ALLOWED: OnceLock<bool> = OnceLock::new();
+
+	*ALLOWED.get_or_init(|| {
+		use std::os::windows::process::CommandExt as _;
+		let mut probe = std::process::Command::new("cmd");
+		probe.args(["/C", "exit 0"]);
+		probe.creation_flags(
+			winapi::um::winbase::CREATE_NO_WINDOW | winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB,
+		);
+		probe.stdin(std::process::Stdio::null());
+		probe.stdout(std::process::Stdio::null());
+		probe.stderr(std::process::Stdio::null());
+		match probe.spawn() {
+			Ok(mut child) => {
+				let _ = child.wait();
+				true
+			}
+			Err(_) => false,
+		}
+	})
 }
 
 /// Kills and processes and all of its children.

@@ -1047,7 +1047,14 @@ impl AgentHostSidecar {
 			tunnel_name.as_deref(),
 		);
 		if let Err(e) = write_agent_host_metadata(&lockfile_path, &metadata) {
-			warning!(log, "Failed to write agent host lockfile: {}", e);
+			// Fatal, not a warning. This lockfile is the only record of the
+			// supervisor: `code agent host` classifies it to decide whether to
+			// reuse or spawn, `code agent ps` lists from it, and the desktop
+			// resolves the endpoint through it. A supervisor that serves without
+			// publishing it is invisible — every later invocation spawns another
+			// one, and nothing can find any of them to clean up. Failing here
+			// keeps the invariant that readiness implies discoverability.
+			return Err(CodeError::AgentHostMetadataWriteFailed(e.to_string()).into());
 		}
 
 		Ok(Arc::new(Self {
