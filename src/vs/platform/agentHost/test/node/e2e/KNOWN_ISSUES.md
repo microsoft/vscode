@@ -198,15 +198,18 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
 ### Mid-turn abort is record-only
 
-- Test: `can abort a running turn`.
-- Scope: deterministic replay for every provider.
+- Tests:
+  - `can abort a running turn`
+  - `accepted steering followed by abort does not block the replacement turn`
+- Scope: deterministic replay for every provider (`can abort a running turn`);
+  Copilot deterministic replay (`accepted steering followed by abort does not block the replacement turn`).
 - Reason: replay serves the intentionally truncated response immediately, so there is no real streaming window in which to abort.
 - Run:
 
   ```bash
   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "can abort a running turn"
+    --grep "accepted steering followed by abort"
   ```
 
 This is an intentional test-mode limitation, not a suspected product bug.

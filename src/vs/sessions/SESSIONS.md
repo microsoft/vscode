@@ -325,9 +325,7 @@ workspace-scoped machine storage. `NewChatWidget` saves that draft when it is
 disposed (for example, when navigating to an existing session), and the
 replacement widget restores it when the user returns to the new-session view.
 Starting a send clears the stored draft before request dispatch and any view
-replacement. Inputs without an explicit placeholder rotate through the shared
-friendly placeholder set; an explicitly provided placeholder, including an empty
-string, remains static.
+replacement.
 
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s

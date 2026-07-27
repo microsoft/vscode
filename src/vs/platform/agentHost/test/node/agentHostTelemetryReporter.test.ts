@@ -110,8 +110,8 @@ suite('AgentHostTelemetryReporter', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		await reporter.modelMessageText(session, AgentHostClientType.AgentsWindow, '', 3, 'svc-1'); // dropped: no content
-		await reporter.modelMessageText(session, AgentHostClientType.AgentsWindow, 'sure, here you go', 3, 'svc-1'); // emitted
+		await reporter.modelMessageText(session, AgentHostClientType.AgentsWindow, '', 3, 'client-1'); // dropped: no content
+		await reporter.modelMessageText(session, AgentHostClientType.AgentsWindow, 'sure, here you go', 3, 'client-1'); // emitted
 
 		const expected: IRestrictedCall = {
 			eventName: 'conversation.messageText',
@@ -120,7 +120,7 @@ suite('AgentHostTelemetryReporter', () => {
 				conversationId: AgentSession.id(session),
 				initiatorClientType: 'agents_window',
 				turnIndex: '3',
-				headerRequestId: 'svc-1',
+				headerRequestId: 'client-1',
 				messageText: 'sure, here you go',
 			},
 		};
