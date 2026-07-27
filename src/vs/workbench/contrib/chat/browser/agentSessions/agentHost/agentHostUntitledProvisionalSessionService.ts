@@ -318,7 +318,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				const created = await this._agentHostService.createSession({
 					provider,
 					session: backendSession,
-					workingDirectory,
+					workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 					config: initialConfig,
 					progressToken: generateUuid(),
 				});
@@ -397,7 +397,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			created = await this._agentHostService.createSession({
 				provider,
 				session: newBackendSession,
-				workingDirectory,
+				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 				config,
 				...(imported ? { model: imported.model, importConversation: { turns: imported.turns, model: imported.model } } : {}),
 				progressToken: generateUuid(),
@@ -461,7 +461,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				created = await this._agentHostService.createSession({
 					provider,
 					session: entry.backendSession,
-					workingDirectory: newWorkingDirectory,
+					workingDirectories: [newWorkingDirectory],
 					config,
 					progressToken: generateUuid(),
 				});

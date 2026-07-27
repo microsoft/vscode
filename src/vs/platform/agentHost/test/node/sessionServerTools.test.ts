@@ -47,7 +47,7 @@ suite('SessionServerTools', () => {
 	const model: IAgentModelInfo = { provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', supportsVision: false };
 
 	function sessionMeta(id: string, status: SessionStatus, dir: URI): IAgentSessionMetadata {
-		return { session: URI.parse(`copilot:/${id}`), startTime: 0, modifiedTime: 0, status, workingDirectory: dir, summary: `title-${id}` };
+		return { session: URI.parse(`copilot:/${id}`), startTime: 0, modifiedTime: 0, status, workingDirectories: dir ? [dir] : undefined, summary: `title-${id}` };
 	}
 
 	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (session: URI, chat: URI, prompt: string) => void; onCreateChat?: (session: URI, chat: URI, options?: { title?: string; model?: IAgentModelInfo }) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
@@ -97,7 +97,7 @@ suite('SessionServerTools', () => {
 			modifiedTime: 1700000000000,
 			status: SessionStatus.InProgress,
 			activity: 'Running tests',
-			workingDirectory: workspace,
+			workingDirectories: workspace ? [workspace] : undefined,
 			project: { uri: workspace, displayName: 'app' },
 			isRead: false,
 			summary: 'Rich session',
@@ -124,7 +124,7 @@ suite('SessionServerTools', () => {
 	test('serializeSessions reports archived status for metadata-only archives', () => {
 		const metadataOnly: IAgentSessionMetadata = { ...sessionMeta('archived', SessionStatus.Idle, workspace), isArchived: true };
 		const bitOnly: IAgentSessionMetadata = { ...sessionMeta('bitArchived', SessionStatus.Idle | SessionStatus.IsArchived, workspace) };
-		const noStatus: IAgentSessionMetadata = { session: URI.parse('copilot:/noStatus'), startTime: 0, modifiedTime: 0, isArchived: true, workingDirectory: workspace };
+		const noStatus: IAgentSessionMetadata = { session: URI.parse('copilot:/noStatus'), startTime: 0, modifiedTime: 0, isArchived: true, workingDirectories: workspace ? [workspace] : undefined };
 		assert.deepStrictEqual(JSON.parse(serializeSessions([metadataOnly, bitOnly, noStatus])).sessions.map((s: { session: string; status?: string }) => ({ session: s.session, status: s.status })), [
 			{ session: 'copilot:/archived', status: 'idle,archived' },
 			{ session: 'copilot:/bitArchived', status: 'idle,archived' },
@@ -355,7 +355,7 @@ suite('SessionServerTools', () => {
 		const md = (content: string): ResponsePart => ({ kind: ResponsePartKind.Markdown, id: 'm', content });
 		const toolPart = (tc: ToolCallState): ResponsePart => ({ kind: ResponsePartKind.ToolCall, toolCall: tc });
 		const turn = (id: string, user: string, parts: ResponsePart[], state = TurnState.Complete): Turn =>
-			({ id, message: { text: user, origin: { kind: MessageKind.User } }, responseParts: parts, usage: undefined, state });
+		({ id, message: { text: user, origin: { kind: MessageKind.User } }, responseParts: parts, usage: undefined, state });
 
 		const snapshot: IChatContextSnapshot = {
 			turns: [

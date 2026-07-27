@@ -434,7 +434,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			createCount: agentHost.createCalls.length,
 			disposedOld: agentHost.disposed.some(d => d.toString() === expectedBackendUri('cwd1').toString()),
 			recreatedSession: recreate.session?.toString(),
-			recreatedCwd: recreate.workingDirectory?.toString(),
+			recreatedCwd: recreate.workingDirectories?.[0]?.toString(),
 			recreatedConfig: recreate.config?.['isolation'],
 		}, {
 			createCount: 2,
