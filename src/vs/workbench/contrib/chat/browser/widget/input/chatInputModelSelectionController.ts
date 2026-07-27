@@ -52,6 +52,33 @@ export type ModelSelectionRequest =
 	/** A mode or session forced this model. */
 	| { readonly authority: 'programmatic' };
 
+/**
+ * Reasons that represent a decision about which model to be on. Applying a model for one of these
+ * makes it the model to reclaim after an outage.
+ *
+ * Note this is a wider set than {@link isInConversationModelChoice}: a remembered or restored model
+ * is a decision worth reclaiming, but `chat.defaultModel` still outranks it on a new conversation.
+ */
+type DeliberateReason =
+	| ModelSelectionReason.UserSelection
+	| ModelSelectionReason.ProgrammaticSelection
+	| ModelSelectionReason.SessionRestore
+	| ModelSelectionReason.Remembered;
+
+/**
+ * Everything else stands in for a model that cannot currently be offered. `chat.defaultModel` lands
+ * here: it is re-derived from configuration for each new conversation rather than being something
+ * the user chose, so it must never displace what they did choose.
+ */
+type StandInReason = Exclude<ModelSelectionApplyReason, DeliberateReason>;
+
+function isDeliberateReason(reason: ModelSelectionApplyReason): reason is DeliberateReason {
+	return reason === ModelSelectionReason.UserSelection
+		|| reason === ModelSelectionReason.ProgrammaticSelection
+		|| reason === ModelSelectionReason.SessionRestore
+		|| reason === ModelSelectionReason.Remembered;
+}
+
 /** Reconciles the shared selection model with Workbench-specific input and catalog state. */
 export class ChatInputModelSelectionController extends Disposable {
 
@@ -66,7 +93,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	 * by every deliberate choice. Falling back to a default because the catalog dropped the model
 	 * is a display state, not a decision, so it deliberately leaves this untouched.
 	 */
-	private _rememberedSelection: { readonly modelId: string; readonly reason: ModelSelectionApplyReason } | undefined;
+	private _rememberedSelection: { readonly modelId: string; readonly reason: DeliberateReason } | undefined;
 
 	constructor(
 		private readonly _runtime: IChatInputModelSelectionRuntime,
@@ -143,18 +170,9 @@ export class ChatInputModelSelectionController extends Disposable {
 			reason: this._selectionReason,
 			remembered: this._rememberedSelection,
 		};
-		// Authority first: `_currentModel` is observable and notifies synchronously, so setting it
-		// last means no observer can see the new model alongside the previous authority.
-		this._selectionReason = reason;
-		this._rememberedSelection = { modelId: model.identifier, reason };
-		this._currentModel.set(model, undefined);
 		this._diagnostics.report('select', { model: model.identifier, authority: request.authority }, 'info');
 		try {
-			if (request.authority === 'user') {
-				request.effect();
-			} else {
-				this._runtime.applyModel(model);
-			}
+			this._choose(model, reason, request.authority === 'user' ? request.effect : undefined);
 			this._diagnostics.report('select-applied', { model: model.identifier, authority: request.authority }, 'info');
 		} catch (error) {
 			if (request.authority === 'user' && request.rollbackOnError) {
@@ -211,14 +229,16 @@ export class ChatInputModelSelectionController extends Disposable {
 		onInitialSelection(selection);
 		this._reportInitialization(this._runtime.getConfiguredModelValue(), rememberedModelId, selection);
 		if (selection.kind === 'apply') {
-			this._selectionReason = selection.reason;
-			this._applyModel(selection.model);
+			if (isDeliberateReason(selection.reason)) {
+				this._choose(selection.model, selection.reason);
+			} else {
+				this._standIn(selection.model, selection.reason);
+			}
 			this.ensureCurrentModelSupported();
 		} else if (selection.kind === 'pending' && fallbackModel) {
 			// The remembered model isn't in the catalog yet. Show the default meanwhile;
 			// `_restoreRememberedModel` claims the real one as soon as it is published.
-			this._selectionReason = ModelSelectionReason.FirstAvailable;
-			this._applyModel(fallbackModel);
+			this._standIn(fallbackModel, ModelSelectionReason.FirstAvailable);
 		}
 	}
 
@@ -272,7 +292,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		const candidates = this._selectablePool(sessionType).filter(model => model.identifier !== displaced?.identifier);
 		const match = findBestMatchingModel(displaced, candidates);
 		if (match) {
-			this._applyModel(match);
+			this._standIn(match, ModelSelectionReason.FirstAvailable);
 			return;
 		}
 		this.selectDefault(sessionType);
@@ -294,10 +314,13 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (!defaultModel) {
 			return;
 		}
-		if (!this.hasPendingProgrammaticSelection()) {
-			this._selectionReason = configuredModel ? ModelSelectionReason.ConfiguredDefault : ModelSelectionReason.FirstAvailable;
+		if (this.hasPendingProgrammaticSelection()) {
+			// A pending request still owns the authority; the default is only what is shown meanwhile.
+			this._currentModel.set(defaultModel, undefined);
+			this._runtime.applyModel(defaultModel);
+			return;
 		}
-		this._applyModel(defaultModel);
+		this._standIn(defaultModel, configuredModel ? ModelSelectionReason.ConfiguredDefault : ModelSelectionReason.FirstAvailable);
 	}
 
 	/**
@@ -340,8 +363,7 @@ export class ChatInputModelSelectionController extends Disposable {
 			}
 			return false;
 		}
-		this._selectionReason = ModelSelectionReason.ConfiguredDefault;
-		this._applyModel(configuredModel);
+		this._standIn(configuredModel, ModelSelectionReason.ConfiguredDefault);
 		this.ensureCurrentModelSupported();
 		return true;
 	}
@@ -356,7 +378,7 @@ export class ChatInputModelSelectionController extends Disposable {
 			&& this._selectionReason === ModelSelectionReason.FirstAvailable
 			&& locationDefault
 			&& currentModel?.identifier !== locationDefault.identifier) {
-			this._applyModel(locationDefault);
+			this._standIn(locationDefault, ModelSelectionReason.FirstAvailable);
 			return;
 		}
 		if (!shouldResetOnModelListChange(currentModel?.identifier, [...models])) {
@@ -387,8 +409,7 @@ export class ChatInputModelSelectionController extends Disposable {
 			return false;
 		}
 		this._diagnostics.report('restore-remembered-model', { model: remembered.modelId, reason: remembered.reason }, 'info');
-		this._selectionReason = remembered.reason;
-		this._applyModel(model);
+		this._choose(model, remembered.reason);
 		return true;
 	}
 
@@ -469,9 +490,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		};
 		const match = tryMatch();
 		if (match) {
-			this._selectionReason = ModelSelectionReason.SessionRestore;
-			this._rememberedSelection = { modelId: match.identifier, reason: ModelSelectionReason.SessionRestore };
-			this._applyModel(match);
+			this._choose(match, ModelSelectionReason.SessionRestore);
 			return;
 		}
 		this._intent = { kind: 'history', modelId, conversationKey };
@@ -499,14 +518,16 @@ export class ChatInputModelSelectionController extends Disposable {
 		configuration?: { readonly modelId: string; readonly configuration: Record<string, unknown> | undefined },
 	): void {
 		this._clearIntent();
-		this._selectionReason = ModelSelectionReason.SessionRestore;
-		this._rememberedSelection = { modelId: model.identifier, reason: ModelSelectionReason.SessionRestore };
+		// Configuration must be restored before the model is applied, so anything reacting to the
+		// new model already sees its settings.
 		if (configuration) {
 			this._runtime.restoreModelConfiguration(configuration.modelId, configuration.configuration);
 		}
 		if (applyModel) {
-			this._applyModel(model);
+			this._choose(model, ModelSelectionReason.SessionRestore);
+			return;
 		}
+		this._rememberChoice(model, ModelSelectionReason.SessionRestore);
 	}
 
 	private _reconcileIntent(): boolean {
@@ -563,9 +584,7 @@ export class ChatInputModelSelectionController extends Disposable {
 			?? models.find(model => model.metadata.id === intent.modelId);
 		if (model && !(models.length === 1 && model.metadata.id.toLocaleLowerCase() === 'auto')) {
 			this._intent = undefined;
-			this._selectionReason = ModelSelectionReason.SessionRestore;
-			this._rememberedSelection = { modelId: model.identifier, reason: ModelSelectionReason.SessionRestore };
-			this._applyModel(model);
+			this._choose(model, ModelSelectionReason.SessionRestore);
 			return true;
 		}
 		return false;
@@ -582,7 +601,37 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 	}
 
-	private _applyModel(model: ILanguageModelChatMetadataAndIdentifier): void {
+	/**
+	 * Records a decision without changing what is displayed — used when the model is already
+	 * shown and only its authority needs to catch up.
+	 */
+	private _rememberChoice(model: ILanguageModelChatMetadataAndIdentifier, reason: DeliberateReason): void {
+		this._selectionReason = reason;
+		this._rememberedSelection = { modelId: model.identifier, reason };
+	}
+
+	/**
+	 * Applies a model as a decision: it becomes both what is displayed and what is reclaimed once
+	 * the catalog can offer it again.
+	 */
+	private _choose(
+		model: ILanguageModelChatMetadataAndIdentifier,
+		reason: DeliberateReason,
+		effect: () => void = () => this._runtime.applyModel(model),
+	): void {
+		// Authority before display: `_currentModel` notifies synchronously, so an observer must
+		// never see the new model alongside the previous authority.
+		this._rememberChoice(model, reason);
+		this._currentModel.set(model, undefined);
+		effect();
+	}
+
+	/**
+	 * Applies a model as a stand-in for one that cannot currently be offered. Deliberately leaves
+	 * the remembered selection alone — that is what makes the fallback temporary.
+	 */
+	private _standIn(model: ILanguageModelChatMetadataAndIdentifier, reason: StandInReason): void {
+		this._selectionReason = reason;
 		this._currentModel.set(model, undefined);
 		this._runtime.applyModel(model);
 	}
