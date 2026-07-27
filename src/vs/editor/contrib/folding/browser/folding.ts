@@ -1206,7 +1206,25 @@ class RemoveFoldRangeFromSelectionAction extends FoldingAction<void> {
 			const ranges: ILineRange[] = [];
 			for (const selection of selections) {
 				const { startLineNumber, endLineNumber } = selection;
-				ranges.push(endLineNumber >= startLineNumber ? { startLineNumber, endLineNumber } : { endLineNumber, startLineNumber });
+				if (selection.isEmpty()) {
+					// For empty selections (cursor only), find the innermost manual
+					// folding range containing the cursor line instead of removing all
+					// intersecting manual ranges
+					const regions = foldingModel.regions;
+					let index = regions.findRange(startLineNumber);
+					while (index !== -1) {
+						if (regions.getSource(index) !== FoldSource.provider) {
+							ranges.push({
+								startLineNumber: regions.getStartLineNumber(index),
+								endLineNumber: regions.getEndLineNumber(index)
+							});
+							break;
+						}
+						index = regions.getParentIndex(index);
+					}
+				} else {
+					ranges.push(endLineNumber >= startLineNumber ? { startLineNumber, endLineNumber } : { endLineNumber, startLineNumber });
+				}
 			}
 			foldingModel.removeManualRanges(ranges);
 			foldingController.triggerFoldingModelChanged();
