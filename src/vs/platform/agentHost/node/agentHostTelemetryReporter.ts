@@ -288,23 +288,21 @@ export class AgentHostTelemetryReporter {
 	 * Mirrors the Copilot extension's enhanced GH `request.options.tools` event for the agent-host
 	 * flow. The extension emits it per LLM request from its model fetcher; the agent host observes
 	 * the equivalent boundary when an `assistant.message` arrives (one per model call). The
-	 * extension populates `headerRequestId` with the client-minted `x-request-id`, which the SDK
-	 * does not surface on success; we keep the same field name (so science queries are undisturbed)
-	 * but fill it with the model call's `x-copilot-service-request-id`, the per-call id the SDK does
-	 * expose. `messagesJson` is the raw tool definitions offered for the call, multiplexed across
-	 * ~8192-char chunks like the extension, so it lands identically downstream.
+	 * `headerRequestId` is the client-minted `x-request-id`, matching the extension. `messagesJson`
+	 * is the raw tool definitions offered for the call, multiplexed across ~8192-char chunks like
+	 * the extension, so it lands identically downstream.
 	 *
 	 * @param session Session URI string; its id becomes `conversationId`.
-	 * @param serviceRequestId The model call's `x-copilot-service-request-id`, mapped to the extension's `headerRequestId`. No-ops when absent (e.g. providers that don't surface it).
+	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to the extension's `headerRequestId`. No-ops when absent (e.g. providers that don't surface it).
 	 * @param tools The tool definitions offered to the model for this call.
 	 */
-	assistantMessageReceived(session: string, clientType: AgentHostClientType, serviceRequestId: string | undefined, tools: readonly ToolDefinition[]): void {
+	assistantMessageReceived(session: string, clientType: AgentHostClientType, clientRequestId: string | undefined, tools: readonly ToolDefinition[]): void {
 		const restricted = this._restricted;
-		if (!restricted || !serviceRequestId || tools.length === 0) {
+		if (!restricted || !clientRequestId || tools.length === 0) {
 			return;
 		}
 		restricted.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
-			headerRequestId: serviceRequestId,
+			headerRequestId: clientRequestId,
 			conversationId: AgentSession.id(session),
 			initiatorClientType: clientType,
 			messagesJson: JSON.stringify(tools),
