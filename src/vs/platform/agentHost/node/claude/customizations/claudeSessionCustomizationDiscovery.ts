@@ -13,6 +13,7 @@ import { makeMcpServerCustomization, parseAgentFile, toParsedAgent, type IParsed
 import { CustomizationType, type AgentSelection, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { CustomizationLoadStatus, customizationId, type AgentCustomization, type ChildCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type PluginCustomization, type RuleCustomization, type SkillCustomization } from '../../../common/state/sessionState.js';
 import type { ISdkResolvedCustomizations } from '../claudeSdkPipeline.js';
+import { isHostInjectedMcpServerName } from '../claudeSdkOptions.js';
 import { deriveMcpState } from './scan/claudeMcpScan.js';
 import { claudeMemoryFiles } from './scan/claudeRuleScan.js';
 import type { IResolvedNativePlugin } from './scan/claudeNativePluginScan.js';
@@ -354,7 +355,13 @@ export function buildDiscoveredCustomizations(
 
 	const agentNames = new Set(sdk.agents.map(a => a.name));
 	const commandNames = new Set(sdk.commands.map(c => c.name));
-	const mcpByName = new Map(sdk.mcpServers.map(s => [s.name, s] as const));
+	// The agent host's own in-process MCP servers (client-tool / server-tool
+	// bridges) are reported by the SDK alongside real servers, but they are
+	// internal plumbing: surfacing them would both show phantom entries in the
+	// customization UI and feed their names back into the session's MCP
+	// enablement reconciliation, which then tries to toggle a server the CLI
+	// has no configuration for (`Server not found: <name>`).
+	const mcpByName = new Map(sdk.mcpServers.filter(s => !isHostInjectedMcpServerName(s.name)).map(s => [s.name, s] as const));
 
 	// Keep disk entries the live session actually loaded. A loaded skill
 	// surfaces in the SDK's `supportedCommands()` set, so disk skills are

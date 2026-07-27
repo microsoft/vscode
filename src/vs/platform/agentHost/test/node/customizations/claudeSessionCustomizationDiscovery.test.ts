@@ -209,6 +209,23 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			assert.deepStrictEqual((builtin?.children ?? []).map(c => c.name), ['init', 'loop']);
 		});
 
+		test('the agent host\'s own in-process MCP servers are never surfaced', () => {
+			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'client', enabled: true, state: { kind: McpServerStatus.Starting } };
+			const sdk: ISdkResolvedCustomizations = {
+				agents: [],
+				commands: [],
+				// `client` / `host` are the agent host's in-process client-tool and
+				// server-tool bridges; only `real` is a user-configured server.
+				mcpServers: [{ name: 'client', status: 'connected' }, { name: 'host', status: 'connected' }, { name: 'real', status: 'connected' }],
+				plugins: [],
+			};
+
+			const result = buildDiscoveredCustomizations([], [diskMcp], [], [], workspace, userHome, sdk);
+			const mcps = result.filter(c => c.type === CustomizationType.McpServer) as McpServerCustomization[];
+
+			assert.deepStrictEqual(mcps.map(m => m.name), ['real']);
+		});
+
 		test('rules survive the post-materialize SDK filter (no SDK counterpart)', () => {
 			const ruleUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/CLAUDE.md' });
 			const discovered: IParsedRule[] = [{
