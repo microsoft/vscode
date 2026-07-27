@@ -35,7 +35,10 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -56,12 +59,13 @@ import { ElicitationState, IChatService, IChatToolInvocation } from '../../commo
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionResource, resolveDefaultNewChatSessionType } from '../../common/constants.js';
+import { markPreferredCopilotHarness } from '../../common/chatSessionTypePreference.js';
 import { AICustomizationManagementCommands } from '../aiCustomization/aiCustomizationManagement.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
-import { ILanguageModelToolsService, IToolData, IToolSet, isToolSet } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet, isToolSet, ToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
@@ -187,6 +191,18 @@ export interface IChatViewOpenOptions {
 	 * but explicit tool exclusions always win.
 	 */
 	toolsExclude?: string[];
+
+	/**
+	 * Submits `query` without taking over the input box, keeping any draft the user
+	 * has typed and omitting its attachments from the request. For maintenance
+	 * commands such as `/compact` that are not user messages.
+	 *
+	 * Mutually exclusive with `attachScreenshot`, `attachFiles`,
+	 * `attachHistoryItemChanges`, `attachHistoryItemChangeRanges` and `toolIds`:
+	 * those attach context via the input box, which this option deliberately
+	 * excludes from the request.
+	 */
+	preserveInput?: boolean;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -256,7 +272,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 				throw new Error(`Language model not loaded: ${id}.`);
 			}
 
-			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
+			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id }, true);
 		}
 
 		if (opts?.toolsInclude || opts?.toolsExclude) {
@@ -378,8 +394,13 @@ abstract class OpenChatGlobalAction extends Action2 {
 					await Event.toPromise(chatWidget.onDidChangeViewModel);
 				}
 				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentModeKind);
-				chatWidget.setInput(opts.query); // wait until the model is restored before setting the input, or it will be cleared when the model is restored
-				resp = chatWidget.acceptInput();
+				if (opts.preserveInput) {
+					// Submit the query directly so the user's draft is never overwritten.
+					resp = chatWidget.acceptInput(opts.query, { preserveInput: true });
+				} else {
+					chatWidget.setInput(opts.query); // wait until the model is restored before setting the input, or it will be cleared when the model is restored
+					resp = chatWidget.acceptInput();
+				}
 			}
 		}
 
@@ -451,7 +472,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 			if (!chatModeCheck) {
 				return;
 			}
-			chatWidget.input.setChatMode(switchToMode.id);
+			chatWidget.input.setChatMode(switchToMode.id, true, true);
 
 			if (chatModeCheck.needToClearSession) {
 				await commandService.executeCommand(ACTION_ID_NEW_CHAT);
@@ -573,12 +594,10 @@ export abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 export function registerChatActions() {
 	/**
 	 * Returns the session URI to use when opening a brand-new chat editor,
-	 * honoring the experimental {@link ChatConfiguration.EditorDefaultProvider}
-	 * setting. Falls back to a new local session when the setting selects
-	 * `local` or the chosen provider is unavailable.
+	 * honoring the remembered harness preference and then the configured default.
 	 */
 	function getNewChatEditorSessionUri(accessor: ServicesAccessor): URI {
-		return getDefaultNewChatSessionResource(accessor.get(IConfigurationService), accessor.get(IChatSessionsService));
+		return getDefaultNewChatSessionResource(accessor.get(IConfigurationService), accessor.get(IChatSessionsService), accessor.get(IStorageService), accessor.get(IWorkspaceContextService).getWorkspace(), accessor.get(IAgentHostEnablementService).enabled);
 	}
 
 	registerAction2(PrimaryOpenChatGlobalAction);
@@ -1116,7 +1135,8 @@ export function registerChatActions() {
 		}
 
 		async run(_accessor: ServicesAccessor, widget?: IChatWidget): Promise<void> {
-			await widget?.acceptInput('/compact');
+			// Compaction is a maintenance command, so keep any draft the user typed (#314664).
+			await widget?.acceptInput('/compact', { preserveInput: true });
 		}
 	});
 
@@ -1546,7 +1566,7 @@ export interface IToolFilteringOptions {
 }
 
 export interface IToolFilteringResult {
-	enablementMap: Map<IToolData | IToolSet, boolean>;
+	enablementMap: ToolAndToolSetEnablementMap;
 	unknownIdentifiers: string[];
 }
 
@@ -1696,7 +1716,7 @@ export function computeToolEnablementMap(options: IToolFilteringOptions): IToolF
 		enablementMap.set(toolSet, allToolsEnabled);
 	}
 
-	return { enablementMap, unknownIdentifiers };
+	return { enablementMap: ToolAndToolSetEnablementMap.fromMap(enablementMap), unknownIdentifiers };
 }
 
 
@@ -1760,23 +1780,37 @@ export interface IClearEditingSessionConfirmationOptions {
 }
 
 /**
- * Clears the current chat session and starts a new one, preserving
- * the session type (e.g. Claude, Cloud, Background) for non-local sessions
- * in the sidebar.
+ * Clears the current chat session and starts a new one using the shared
+ * new-session harness resolver.
  */
-export async function clearChatSessionPreservingType(widget: IChatWidget, viewsService: IViewsService, sessionType: string | undefined, configurationService: IConfigurationService, chatSessionsService: IChatSessionsService): Promise<void> {
+export async function clearChatSessionPreservingType(widget: IChatWidget, viewsService: IViewsService, sessionType: string | undefined, configurationService: IConfigurationService, chatSessionsService: IChatSessionsService, storageService: IStorageService, workspace: IWorkspace, agentHostEnabled: boolean): Promise<void> {
 	const currentResource = widget.viewModel?.model.sessionResource;
-	const defaultType = getDefaultNewChatSessionType(configurationService, chatSessionsService);
 	const currentSessionType = currentResource ? getChatSessionType(currentResource) : undefined;
-	const newSessionType = sessionType ?? (currentSessionType === localChatSessionType && defaultType !== localChatSessionType ? defaultType : currentSessionType ?? defaultType);
-	if (isIChatViewViewContext(widget.viewContext) && newSessionType !== localChatSessionType) {
-		// For the sidebar, we need to explicitly load a session with the same type
-		const newResource = URI.from({ scheme: newSessionType, path: `/untitled-${generateUuid()}` });
+	const { sessionType: newSessionType, isPreferCopilotHarnessSwap } = resolveDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, { explicitOverride: sessionType, currentSessionType });
+	if (isIChatViewViewContext(widget.viewContext)) {
 		const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-		await view.loadSession(newResource);
+		if (newSessionType !== localChatSessionType) {
+			// Load a session of the resolved type in the sidebar.
+			await view.loadSession(URI.from({ scheme: newSessionType, path: `/untitled-${generateUuid()}` }));
+			// Consume the one-time migration only now that the swap has been applied.
+			if (isPreferCopilotHarnessSwap) {
+				markPreferredCopilotHarness(storageService);
+			}
+		} else {
+			// The resolved type is local (an explicit request or session
+			// preservation). A plain `widget.clear()` re-acquires the computed
+			// default (a non-local harness when the agent host is enabled), so
+			// start a local session explicitly to honor the resolved type.
+			await view.startNewLocalSession();
+		}
 	} else {
-		// For the editor, widget.clear() already preserves the session type via clearChatEditor
-		await widget.clear();
+		// For the editor, thread the resolved type through the clear path so
+		// clearChatEditor opens a session of that type instead of recomputing
+		// the default (which would drop an explicit or preserved local request).
+		await widget.clear(newSessionType);
+		if (isPreferCopilotHarnessSwap) {
+			markPreferredCopilotHarness(storageService);
+		}
 	}
 }
 

@@ -13,7 +13,7 @@
  * editor foreground so it stays readable across all themes. Items that set
  * their own color (e.g. prominent, error or warning entries) keep theirs.
  */
-.style-override-statusBar .part.statusbar {
+.style-override .part.statusbar {
 	color: var(--vscode-foreground) !important;
 }
 
@@ -26,8 +26,18 @@
  * color — `--vscode-foreground` for standard items, or the kind color for
  * warning/error items — so only the background changes on hover.
  */
-.style-override-statusBar .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {
+.style-override .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {
 	color: inherit !important;
+}
+
+/*
+ * Align the standard status bar item hover background with the workbench toolbar
+ * hover background so hovering an item matches action buttons elsewhere in the
+ * modernized UI. Kind items (warning/error/prominent/remote/offline) keep their
+ * own hover backgrounds.
+ */
+.style-override .part.statusbar > .items-container > .statusbar-item:not(.warning-kind):not(.error-kind):not(.prominent-kind):not(.remote-kind):not(.offline-kind) > a:hover:not(.disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
 }
 
 /*
@@ -43,19 +53,43 @@
  * the left (square left, round right), `.compact-right` joins on the right (square
  * right, round left), and a middle item stays square on both sides.
  */
-.style-override-statusBar .part.statusbar > .items-container > .statusbar-item,
-.style-override-statusBar .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
+.style-override .part.statusbar > .items-container > .statusbar-item,
+.style-override .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
 	border-radius: var(--vscode-cornerRadius-small, 4px);
 }
 
-.style-override-statusBar .part.statusbar > .items-container > .statusbar-item.compact-left,
-.style-override-statusBar .part.statusbar > .items-container > .statusbar-item.compact-left > .statusbar-item-label {
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-left,
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-left > .statusbar-item-label {
 	border-top-left-radius: 0;
 	border-bottom-left-radius: 0;
 }
 
-.style-override-statusBar .part.statusbar > .items-container > .statusbar-item.compact-right,
-.style-override-statusBar .part.statusbar > .items-container > .statusbar-item.compact-right > .statusbar-item-label {
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-right,
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-right > .statusbar-item-label {
 	border-top-right-radius: 0;
 	border-bottom-right-radius: 0;
+}
+
+/*
+ * Compact combo controls — a left/right pair that merges into one pill — give
+ * the whole combo a single hover tint (painted inline on every sub-item's label
+ * by the part), which makes the directly hovered sub-item indistinguishable from
+ * its neighbors. The part also sets `statusBarItem.compactHoverBackground` inline
+ * on the hovered sub-item, but the base `a:hover` rule forces the label
+ * `background-color` with `!important`, so that brighter tint never shows.
+ *
+ * Stack the brighter tint via `background-image` instead: it paints on top of the
+ * `!important` `background-color`, so the hovered sub-item reads as a brighter,
+ * stacked surface over the combo's shared hover background. The default
+ * `compactHoverBackground` is translucent, so layering it over the existing hover
+ * tint doubles the alpha for a subtle lift; themes that customize the color get
+ * their own stacked tint.
+ */
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-left > a.statusbar-item-label:hover:not(.disabled),
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-right > a.statusbar-item-label:hover:not(.disabled) {
+	background-image: linear-gradient(var(--vscode-toolbar-hoverBackground), var(--vscode-toolbar-hoverBackground));
+}
+
+.style-override .part.statusbar > .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label {
+	padding: 0 var(--vscode-spacing-size60);
 }

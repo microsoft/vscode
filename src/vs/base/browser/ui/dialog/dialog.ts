@@ -58,6 +58,13 @@ export interface IDialogOptions {
 	readonly disableCloseAction?: boolean;
 	readonly disableCloseButton?: boolean;
 	readonly disableDefaultAction?: boolean;
+	/**
+	 * Temporary escape hatch for dialogs that embed widgets whose popups mount
+	 * at window root (outside the dialog DOM). Needed because the focus trap
+	 * would otherwise immediately reclaim focus from context views and pickers.
+	 * See https://github.com/microsoft/vscode/issues/323920 for removal plan.
+	 */
+	readonly isExternalFocusAllowed?: (relatedTarget: HTMLElement) => boolean;
 	readonly onVisibilityChange?: (window: Window, visible: boolean) => void;
 	readonly buttonStyles: IButtonStyles;
 	readonly checkboxStyles: ICheckboxStyles;
@@ -484,6 +491,11 @@ export class Dialog extends Disposable {
 			this._register(addDisposableListener(this.element, 'focusout', e => {
 				if (!!e.relatedTarget && !!this.element) {
 					if (!isAncestor(e.relatedTarget as HTMLElement, this.element)) {
+						// Temporary: let focus escape for body-level popups.
+						// See https://github.com/microsoft/vscode/issues/323920
+						if (this.options.isExternalFocusAllowed?.(e.relatedTarget as HTMLElement)) {
+							return;
+						}
 						this.focusToReturn = e.relatedTarget as HTMLElement;
 
 						if (e.target) {

@@ -57,13 +57,19 @@ env:
   SCENARIOS_INPUT: ${{ inputs.scenarios || '' }}
   TEST_SETTINGS_INPUT: ${{ inputs.test_settings || '' }}
   BASELINE_SETTINGS_INPUT: ${{ inputs.baseline_settings || '' }}
+  # Skip binary downloads during `npm ci` (they hang intermittently on hosted
+  # runners inside the nested postinstall installs). Electron and Playwright are
+  # fetched explicitly later via `Download Electron` and `Install Playwright
+  # Chromium`, which ignore these flags. Mirrors pr-node-modules.yml.
+  ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
 
 jobs:
   # ── Shared setup: build once, cache everything ──────────────────────
   setup:
     name: Build & Cache
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     outputs:
       test_is_version: ${{ steps.resolve.outputs.is_version }}
       test_build_arg: ${{ steps.resolve.outputs.build_arg }}
@@ -111,13 +117,33 @@ jobs:
             libasound2t64 libxshmfence1 libgtk-3-0
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          set -e
+          # Retry with a per-attempt timeout to survive transient npm registry
+          # hangs/failures on hosted runners (mirrors pr-node-modules.yml).
+          for i in {1..5}; do
+            timeout 900 npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "npm ci failed/hung too many times" >&2
+              exit 1
+            fi
+            echo "npm ci attempt $i failed or timed out, retrying..."
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install build dependencies
-        run: npm ci
         working-directory: build
+        run: |
+          set -e
+          for i in {1..5}; do
+            timeout 900 npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "npm ci failed/hung too many times" >&2
+              exit 1
+            fi
+            echo "npm ci attempt $i failed or timed out, retrying..."
+          done
 
       - name: Transpile source
         run: npm run transpile-client
@@ -210,7 +236,16 @@ jobs:
             libasound2t64 libxshmfence1 libgtk-3-0
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          set -e
+          for i in {1..5}; do
+            timeout 900 npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "npm ci failed/hung too many times" >&2
+              exit 1
+            fi
+            echo "npm ci attempt $i failed or timed out, retrying..."
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -383,7 +418,16 @@ jobs:
             libasound2t64 libxshmfence1 libgtk-3-0
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          set -e
+          for i in {1..5}; do
+            timeout 900 npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "npm ci failed/hung too many times" >&2
+              exit 1
+            fi
+            echo "npm ci attempt $i failed or timed out, retrying..."
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

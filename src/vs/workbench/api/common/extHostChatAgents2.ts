@@ -28,7 +28,7 @@ import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js'
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentInvokeResult, IChatAgentProgressShape, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IMainContext, IPluginDto, ISkillDto, ISlashCommandDto, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
+import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentInvokeResult, IChatAgentProgressShape, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatSessionCustomizationSourceFolderDto, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IMainContext, IPluginDto, ISkillDto, ISlashCommandDto, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
@@ -399,6 +399,7 @@ export class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseExternalEditPart ||
 						part instanceof extHostTypes.ChatResponseThinkingProgressPart ||
 						part instanceof extHostTypes.ChatResponsePullRequestPart ||
+						part instanceof extHostTypes.ChatResponseAutoModeResolutionPart ||
 						part instanceof extHostTypes.ChatResponseProgressPart2
 					) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -412,6 +413,9 @@ export class ChatAgentResponseStream {
 						_report(dto, part.task);
 					} else if (part instanceof extHostTypes.ChatResponseThinkingProgressPart) {
 						const dto = typeConvert.ChatResponseThinkingProgressPart.from(part);
+						_report(dto);
+					} else if (part instanceof extHostTypes.ChatResponseAutoModeResolutionPart) {
+						const dto = typeConvert.ChatResponseAutoModeResolutionPart.from(part);
 						_report(dto);
 					} else if (part instanceof extHostTypes.ChatResponseAnchorPart) {
 						const dto = typeConvert.ChatResponseAnchorPart.from(part);
@@ -852,8 +856,31 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				badgeTooltip: item.badgeTooltip,
 				extensionId: item.extensionId,
 				pluginUri: item.pluginUri,
+				pluginLabel: item.pluginLabel,
 				userInvocable: item.userInvocable,
 			} satisfies IChatSessionCustomizationItemDto));
+		} catch (err) {
+			return undefined;
+		}
+	}
+
+	async $provideSourceFolders(handle: number, sessionResource: UriComponents, type: string, token: CancellationToken): Promise<IChatSessionCustomizationSourceFolderDto[] | undefined> {
+		const providerData = this._customizationProviders.get(handle);
+		if (!providerData?.provider.provideSourceFolders) {
+			return undefined;
+		}
+
+		try {
+			const folders = await providerData.provider.provideSourceFolders(URI.revive(sessionResource), typeConvert.ChatSessionCustomizationType.to(type), token);
+			if (!folders) {
+				return undefined;
+			}
+
+			return folders.map(folder => ({
+				uri: folder.uri,
+				label: folder.label,
+				source: folder.source,
+			} satisfies IChatSessionCustomizationSourceFolderDto));
 		} catch (err) {
 			return undefined;
 		}

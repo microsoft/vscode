@@ -1,0 +1,36 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-background-activities {
+	display: inline-flex;
+	min-width: 0;
+}
+
+.session-background-activities.hidden {
+	display: none;
+}
+
+.session-background-activities .session-background-activities-button {
+	display: inline-flex;
+	width: fit-content;
+	min-width: 0;
+	max-width: 280px;
+	gap: var(--vscode-spacing-size40);
+	overflow: hidden;
+	white-space: nowrap;
+	touch-action: manipulation;
+}
+
+.session-background-activities .session-background-activities-button > span:not(.codicon) {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.session-background-activities .session-background-activities-button .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	flex-shrink: 0;
+}

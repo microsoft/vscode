@@ -9,6 +9,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { AgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 
@@ -18,19 +19,28 @@ suite('AgentHostNewSessionFolderService', () => {
 	let service: AgentHostNewSessionFolderService;
 	let cleanup: DisposableStore;
 	let onDidDisposeSession: Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>;
+	let workspaceFolders: URI[];
 
 	setup(() => {
 		onDidDisposeSession = ds.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>());
 		const chatService = new class extends mock<IChatService>() {
 			override readonly onDidDisposeSession = onDidDisposeSession.event;
 		};
-		service = ds.add(new AgentHostNewSessionFolderService(chatService));
+		workspaceFolders = [folderA, folderB];
+		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
+			override getWorkspace(): IWorkspace {
+				return { folders: workspaceFolders.map(uri => ({ uri } as IWorkspaceFolder)) } as IWorkspace;
+			}
+		};
+		service = ds.add(new AgentHostNewSessionFolderService(chatService, workspaceContextService));
 		cleanup = ds.add(new DisposableStore());
 	});
 
 	const sessionA = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-a' });
+	const sessionB = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-b' });
 	const folderA = URI.file('/repoA');
 	const folderB = URI.file('/repoB');
+	const folderC = URI.file('/repoC');
 
 	test('set/get/clear round-trips and fires onDidChange on real changes only', () => {
 		const changes: string[] = [];
@@ -71,6 +81,40 @@ suite('AgentHostNewSessionFolderService', () => {
 		}, {
 			afterDispose: undefined,
 			changes: [sessionA.toString(), sessionA.toString()],
+		});
+	});
+
+	test('getDefaultFolder returns the last chosen folder and survives session disposal', () => {
+		assert.strictEqual(service.getDefaultFolder(), undefined, 'no default before any choice');
+
+		service.setFolder(sessionA, folderA);
+		const afterFirst = service.getDefaultFolder()?.toString();
+
+		service.setFolder(sessionB, folderB);
+		const afterSecond = service.getDefaultFolder()?.toString();
+
+		// Disposing a session forgets its per-session choice but keeps the
+		// window-level default sticky so a new chat reuses the last folder.
+		onDidDisposeSession.fire({ sessionResources: [sessionB], reason: 'cleared' });
+		const afterDispose = service.getDefaultFolder()?.toString();
+
+		assert.deepStrictEqual({ afterFirst, afterSecond, afterDispose }, {
+			afterFirst: folderA.toString(),
+			afterSecond: folderB.toString(),
+			afterDispose: folderB.toString(),
+		});
+	});
+
+	test('getDefaultFolder hides a default not in the workspace and surfaces it once present', () => {
+		service.setFolder(sessionA, folderC);
+		const whileWorkspaceLacksFolder = service.getDefaultFolder();
+
+		workspaceFolders = [folderA, folderB, folderC];
+		const afterFolderAdded = service.getDefaultFolder()?.toString();
+
+		assert.deepStrictEqual({ whileWorkspaceLacksFolder, afterFolderAdded }, {
+			whileWorkspaceLacksFolder: undefined,
+			afterFolderAdded: folderC.toString(),
 		});
 	});
 });

@@ -55,6 +55,7 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 			: '- Sandboxed execution with unrestricted network access is disabled by chat.agent.sandbox.retryWithAllowNetworkRequests. Do not set requestAllowNetwork=true.\n- If the command cannot be made to work by updating sandbox rules, immediately retry it with requestUnsandboxedExecution=true and provide requestUnsandboxedExecutionReason. Do NOT ask the user - setting this flag automatically shows a confirmation prompt to the user.';
 		return `${prefix}
 - If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${fileSystemSetting}, or to add required domains to ${AgentNetworkDomainSettingId.AllowedNetworkDomains}.
+- If the output contains 'No such file or directory', treat it as a sandbox access error and immediately retry the command with requestUnsandboxedExecution=true and provide requestUnsandboxedExecutionReason.
 ${networkRecovery}
 
 Here is the output of the command:\n`;
@@ -79,7 +80,7 @@ Here is the output of the command:\n`;
  */
 export function outputLooksSandboxBlocked(output: string): boolean {
 	const normalized = output.replace(/\n/g, ' ');
-	return /Operation not permitted|Permission denied|Read-only file system|sandbox-exec|bwrap|sandbox_violation/i.test(normalized);
+	return /Operation not permitted|Permission denied|Read-only file system|sandbox-exec|bwrap|sandbox_violation|No such file or directory/i.test(normalized);
 }
 
 /**

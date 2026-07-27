@@ -9,7 +9,9 @@ import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../base/common/network.js';
 import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
+import { getAppNodeModulesPath } from './appNodeModules.js';
 import { ILogService } from '../../log/common/log.js';
+import type { AgentHostTerminalAutoApproveRuleValue, AgentHostTerminalAutoApproveRules } from '../common/agentHostSchema.js';
 
 /**
  * Redirect destinations that do not result in a write to an arbitrary file
@@ -98,22 +100,36 @@ export interface IShouldAutoApproveOptions {
 	 * sinks (e.g. `/dev/null`) downgrades the result to `noMatch`.
 	 */
 	readonly isWriteDestApproved?: (dest: string) => boolean;
+	/**
+	 * Effective VS Code `chat.tools.terminal.autoApprove` rules forwarded from
+	 * the renderer. When omitted, the agent host falls back to its bundled
+	 * default rules for compatibility with older clients.
+	 */
+	readonly autoApproveRules?: AgentHostTerminalAutoApproveRules;
 }
 
 interface IAutoApproveRule {
 	readonly regex: RegExp;
 }
 
+interface IAutoApproveRules {
+	readonly allowRules: IAutoApproveRule[];
+	readonly denyRules: IAutoApproveRule[];
+	readonly allowCommandLineRules: IAutoApproveRule[];
+	readonly denyCommandLineRules: IAutoApproveRule[];
+}
+
 const neverMatchRegex = /(?!.*)/;
 const transientEnvVarRegex = /^[A-Z_][A-Z0-9_]*=/i;
 
 /**
- * Auto-approves or denies shell commands based on default rules.
+ * Auto-approves or denies shell commands based on terminal auto-approve rules.
  *
  * Uses tree-sitter to parse compound commands (`foo && bar`) into
  * sub-commands that are individually checked against allow/deny lists.
- * The default rules mirror the VS Code `chat.tools.terminal.autoApprove`
- * setting defaults.
+ * The rules are normally forwarded from VS Code's
+ * `chat.tools.terminal.autoApprove` setting. A bundled default table is kept
+ * as a compatibility fallback for clients that have not forwarded rules yet.
  *
  * Tree-sitter is initialized eagerly; call {@link initialize} and await the
  * result before using {@link shouldAutoApprove} to guarantee synchronous
@@ -123,8 +139,9 @@ const transientEnvVarRegex = /^[A-Z_][A-Z0-9_]*=/i;
  */
 export class CommandAutoApprover extends Disposable {
 
-	private _allowRules: IAutoApproveRule[] | undefined;
-	private _denyRules: IAutoApproveRule[] | undefined;
+	private _fallbackRules: IAutoApproveRules | undefined;
+	private _cachedRuleConfig: AgentHostTerminalAutoApproveRules | undefined;
+	private _cachedRules: IAutoApproveRules | undefined;
 	private _parser: Parser | undefined;
 	private _bashLanguage: Language | undefined;
 	private _queryClass: typeof Query | undefined;
@@ -160,7 +177,7 @@ export class CommandAutoApprover extends Disposable {
 			return 'approved';
 		}
 
-		this._ensureRules();
+		const rules = this._compileRules(options?.autoApproveRules);
 
 		const parsed = this._extractSubCommands(trimmed);
 		if (!parsed) {
@@ -168,7 +185,14 @@ export class CommandAutoApprover extends Disposable {
 			return 'noMatch';
 		}
 
-		const result = this._matchSubCommands(parsed.subCommands);
+		if (this._matchesRule(trimmed, rules.denyCommandLineRules)) {
+			return 'denied';
+		}
+
+		let result = this._matchSubCommands(parsed.subCommands, rules);
+		if (result !== 'denied' && this._matchesRule(trimmed, rules.allowCommandLineRules)) {
+			result = 'approved';
+		}
 		if (result === 'approved' && parsed.unsafeWriteDests.length > 0) {
 			for (const dest of parsed.unsafeWriteDests) {
 				if (dest === undefined || !options?.isWriteDestApproved?.(dest)) {
@@ -180,7 +204,7 @@ export class CommandAutoApprover extends Disposable {
 		return result;
 	}
 
-	private _matchSubCommands(subCommands: string[]): CommandApprovalResult {
+	private _matchSubCommands(subCommands: string[], rules: IAutoApproveRules): CommandApprovalResult {
 		let allApproved = true;
 		for (const subCommand of subCommands) {
 			// Deny transient env var assignments
@@ -188,7 +212,7 @@ export class CommandAutoApprover extends Disposable {
 				return 'denied';
 			}
 
-			const result = this._matchSingleCommand(subCommand);
+			const result = this._matchSingleCommand(subCommand, rules);
 			if (result === 'denied') {
 				return 'denied';
 			}
@@ -199,22 +223,27 @@ export class CommandAutoApprover extends Disposable {
 		return allApproved ? 'approved' : 'noMatch';
 	}
 
-	private _matchSingleCommand(command: string): CommandApprovalResult {
+	private _matchSingleCommand(command: string, rules: IAutoApproveRules): CommandApprovalResult {
 		// Check deny rules first
-		for (const rule of this._denyRules!) {
-			if (rule.regex.test(command)) {
-				return 'denied';
-			}
+		if (this._matchesRule(command, rules.denyRules)) {
+			return 'denied';
 		}
 
 		// Then check allow rules
-		for (const rule of this._allowRules!) {
-			if (rule.regex.test(command)) {
-				return 'approved';
-			}
+		if (this._matchesRule(command, rules.allowRules)) {
+			return 'approved';
 		}
 
 		return 'noMatch';
+	}
+
+	private _matchesRule(command: string, rules: readonly IAutoApproveRule[]): boolean {
+		for (const rule of rules) {
+			if (rule.regex.test(command)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// ---- Tree-sitter --------------------------------------------------------
@@ -270,8 +299,11 @@ export class CommandAutoApprover extends Disposable {
 				return;
 			}
 
-			// Resolve WASM files from node_modules
-			const moduleRoot = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules', '@vscode', 'tree-sitter-wasm', 'wasm');
+			// Resolve WASM files from node_modules. In the desktop app the `.wasm`
+			// files are unpacked next to the ASAR archive (`node_modules.asar.unpacked`),
+			// while in dev and on the server (which has no ASAR) they live in a plain
+			// `node_modules`.
+			const moduleRoot = URI.joinPath(FileAccess.asFileUri(getAppNodeModulesPath()), '@vscode', 'tree-sitter-wasm', 'wasm');
 			const wasmPath = URI.joinPath(moduleRoot, 'tree-sitter.wasm').fsPath;
 
 			await TreeSitter.Parser.init({
@@ -318,25 +350,53 @@ export class CommandAutoApprover extends Disposable {
 
 	// ---- Rules --------------------------------------------------------------
 
-	private _ensureRules(): void {
-		if (this._allowRules && this._denyRules) {
-			return;
+	private _compileRules(ruleConfig: AgentHostTerminalAutoApproveRules | undefined): IAutoApproveRules {
+		if (!ruleConfig) {
+			if (!this._fallbackRules) {
+				this._fallbackRules = this._compileRuleEntries(DEFAULT_TERMINAL_AUTO_APPROVE_RULES);
+			}
+			return this._fallbackRules;
 		}
 
+		if (this._cachedRuleConfig === ruleConfig && this._cachedRules) {
+			return this._cachedRules;
+		}
+
+		this._cachedRuleConfig = ruleConfig;
+		this._cachedRules = this._compileRuleEntries(ruleConfig);
+		return this._cachedRules;
+	}
+
+	private _compileRuleEntries(ruleConfig: Readonly<Record<string, AgentHostTerminalAutoApproveRuleValue>>): IAutoApproveRules {
 		const allowRules: IAutoApproveRule[] = [];
 		const denyRules: IAutoApproveRule[] = [];
+		const allowCommandLineRules: IAutoApproveRule[] = [];
+		const denyCommandLineRules: IAutoApproveRule[] = [];
 
-		for (const [key, value] of Object.entries(DEFAULT_TERMINAL_AUTO_APPROVE_RULES)) {
+		for (const [key, value] of Object.entries(ruleConfig)) {
 			const regex = convertAutoApproveEntryToRegex(key);
 			if (value === true) {
 				allowRules.push({ regex });
 			} else if (value === false) {
 				denyRules.push({ regex });
+			} else if (value && typeof value === 'object' && typeof value.approve === 'boolean') {
+				if (value.approve) {
+					if (value.matchCommandLine === true) {
+						allowCommandLineRules.push({ regex });
+					} else {
+						allowRules.push({ regex });
+					}
+				} else {
+					if (value.matchCommandLine === true) {
+						denyCommandLineRules.push({ regex });
+					} else {
+						denyRules.push({ regex });
+					}
+				}
 			}
 		}
 
-		this._allowRules = allowRules;
-		this._denyRules = denyRules;
+		return { allowRules, denyRules, allowCommandLineRules, denyCommandLineRules };
 	}
 }
 
@@ -388,10 +448,12 @@ function convertAutoApproveEntryToRegex(value: string): RegExp {
 
 // ---- Default rules ----------------------------------------------------------
 //
-// These mirror the VS Code `chat.tools.terminal.autoApprove` setting defaults.
-// Kept in sync manually — the actual setting will be wired up later.
+// Compatibility fallback for clients that do not forward the VS Code
+// `chat.tools.terminal.autoApprove` setting.
+// TODO: Remove this fallback once all agent-host clients are guaranteed to
+// forward `chat.tools.terminal.autoApprove` before shell approvals run.
 
-const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, boolean>> = {
+const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerminalAutoApproveRuleValue>> = {
 	// Safe readonly commands
 	cd: true,
 	echo: true,

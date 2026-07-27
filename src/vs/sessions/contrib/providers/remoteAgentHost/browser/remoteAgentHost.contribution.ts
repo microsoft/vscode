@@ -878,6 +878,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
 				supportsImageAttachments: true,
+				get terminalCommandPrefix() {
+					return connection.initializeResult.get()?.terminalCommandPrefix;
+				}
 			},
 		}));
 
@@ -887,6 +890,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			sanitized,
 			connection,
 		));
+
+		const agentRegistration = agentStore.add(this._activeClientService.registerForAgent(sessionType));
+		const syncProvider = agentRegistration.syncProvider;
+
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,
 			sanitized,
 			(customization, clientId) => {
@@ -900,11 +907,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 					icon: Codicon.trash,
 					run: () => pluginController.removeConfiguredPlugin(customization),
 				}];
-			}
+			},
+			syncedUri => agentRegistration.bundler.getOrigin(syncedUri)
 		));
-
-		const agentRegistration = agentStore.add(this._activeClientService.registerForAgent(sessionType));
-		const syncProvider = agentRegistration.syncProvider;
 
 		const harnessDescriptor = createRemoteAgentHarnessDescriptor(sessionType, displayName, pluginController, itemProvider, syncProvider);
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
@@ -964,11 +969,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const authTokenCache = this._connections.get(address)?.authTokenCache;
 		provider?.setAuthenticationPending(true);
 		try {
-			await authenticateProtectedResources(agents, {
+			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache,
-				authenticationService: this._authenticationService,
 				logPrefix: '[RemoteAgentHost]',
-				logService: this._logService,
 				authenticate: request => connection.authenticate(request),
 			});
 		} catch (err) {
@@ -984,18 +987,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 */
 	private async _resolveAuthenticationInteractively(address: string, connection: IAgentConnection, protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
 		const authTokenCache = this._connections.get(address)?.authTokenCache;
-		try {
-			return await resolveAuthenticationInteractively(protectedResources, {
-				authTokenCache,
-				authenticationService: this._authenticationService,
-				logPrefix: '[RemoteAgentHost]',
-				logService: this._logService,
-				authenticate: request => connection.authenticate(request),
-			});
-		} catch (err) {
-			this._logService.error('[RemoteAgentHost] Interactive authentication failed', err);
-		}
-		return false;
+		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
+			authTokenCache,
+			logPrefix: '[RemoteAgentHost]',
+			authenticate: request => connection.authenticate(request),
+		});
 	}
 }
 

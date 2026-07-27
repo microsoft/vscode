@@ -7,6 +7,7 @@ import { Raw } from '@vscode/prompt-tsx';
 import { afterAll, beforeAll, beforeEach, expect, suite, test } from 'vitest';
 import { IChatMLFetcher } from '../../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation } from '../../../../../platform/chat/common/commonTypes';
+import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../../../platform/chat/common/sessionTranscriptService';
 import { StaticChatMLFetcher } from '../../../../../platform/chat/test/common/staticChatMLFetcher';
 import { CodeGenerationTextInstruction, ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { MockEndpoint } from '../../../../../platform/endpoint/test/node/mockEndpoint';
@@ -15,6 +16,7 @@ import { IResponseDelta } from '../../../../../platform/networking/common/fetch'
 import { IMakeChatRequestOptions } from '../../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
+import { ITokenizerProvider } from '../../../../../platform/tokenizer/node/tokenizer';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { createTextDocumentData } from '../../../../../util/common/test/shims/textDocument';
 import { URI } from '../../../../../util/vs/base/common/uri';
@@ -32,8 +34,6 @@ import { IToolsService } from '../../../../tools/common/toolsService';
 import { PromptRenderer } from '../../base/promptRenderer';
 import { AgentPrompt, AgentPromptProps } from '../agentPrompt';
 import { PromptRegistry } from '../promptRegistry';
-import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../../../platform/chat/common/sessionTranscriptService';
-import { ITokenizerProvider } from '../../../../../platform/tokenizer/node/tokenizer';
 import { appendTranscriptHintToSummary, ConversationHistorySummarizationPrompt, extractSummary, stripToolSearchMessages, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../summarizedConversationHistory';
 
 suite('Agent Summarization', () => {
@@ -519,6 +519,73 @@ suite('Agent Summarization', () => {
 		for (const request of capturedRequests) {
 			expect(request.requestOptions?.stream).not.toBe(false);
 		}
+	});
+
+	test('foreground compaction strips the <analysis> scratchpad and <summary> wrapper #321200', async () => {
+		chatResponse[0] = '<analysis>\nChronological review scratchpad that must not be kept.\n</analysis>\n<summary>\n1. Conversation Overview: the real summary.\n</summary>';
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		const result = await renderer.render();
+
+		const summaryMeta = result.metadata.get(SummarizedConversationHistoryMetadata);
+		expect(summaryMeta!.text).toBe('1. Conversation Overview: the real summary.');
+	});
+
+	test('foreground compaction keeps the raw response when the model omits <summary> tags #321200', async () => {
+		chatResponse[0] = 'A bare summary with no tags at all.';
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		const result = await renderer.render();
+
+		const summaryMeta = result.metadata.get(SummarizedConversationHistoryMetadata);
+		expect(summaryMeta!.text).toBe('A bare summary with no tags at all.');
+	});
+
+	test('summarization request explicitly opts out of the stateful marker #323554', async () => {
+		// Call-site contract only: MockEndpoint skips ChatEndpoint's defaulting, which is
+		// itself why this must be explicit (true on ChatEndpoint, false on OpenAIEndpoint).
+		chatResponse[0] = '<summary>summarized successfully!</summary>';
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const capturedRequests: IMakeChatRequestOptions[] = [];
+		const originalMakeChatRequest2 = endpoint.makeChatRequest2.bind(endpoint);
+		endpoint.makeChatRequest2 = (options, token) => {
+			capturedRequests.push(options);
+			return originalMakeChatRequest2(options, token);
+		};
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		await renderer.render();
+
+		expect(capturedRequests.length).toBeGreaterThan(0);
+		for (const request of capturedRequests) {
+			expect(request.ignoreStatefulMarker).toBe(true);
+		}
+	});
+
+	test('large <analysis> block does not push an in-budget summary over the token limit #321200', async () => {
+		// The budget check must count the extracted summary, not the raw response.
+		chatResponse[0] = `<analysis>${'verbose scratchpad '.repeat(200)}</analysis>\n<summary>short summary</summary>`;
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, {
+			...historyProps,
+			maxSummaryTokens: 20,
+		});
+		const result = await renderer.render();
+
+		expect(result.metadata.get(SummarizedConversationHistoryMetadata)!.text).toBe('short summary');
+	});
+
+	test('empty <summary> fails rather than silently compacting to nothing', async () => {
+		// Empty summaries are ignored by the truthy round.summary checks on the next render.
+		chatResponse[0] = '<analysis>reasoning</analysis>\n<summary>   </summary>';
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		await expect(renderer.render()).rejects.toThrow();
 	});
 
 	test('failed summarization does not set round.summary', async () => {

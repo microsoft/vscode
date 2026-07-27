@@ -44,7 +44,7 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): LanguageModelChatIn
 	return {
 		id: 'auto',
 		name: 'Auto',
-		tooltip: 'Auto selects the best model based on your request complexity and model performance.',
+		tooltip: 'Auto routes based on your task and real-time system health and model performance. [Learn More](https://docs.github.com/en/copilot/concepts/models/auto-model-selection)',
 		family: defaultModel?.id ?? '',
 		version: '',
 		maxInputTokens: defaultModel?.maxInputTokens ?? defaultModel?.maxContextWindowTokens ?? 0,

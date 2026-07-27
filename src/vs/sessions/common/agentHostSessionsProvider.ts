@@ -7,10 +7,10 @@ import { Event } from '../../base/common/event.js';
 import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { URI } from '../../base/common/uri.js';
-import { IAgentConnection } from '../../platform/agentHost/common/agentService.js';
+import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, Customization, McpServerStatus, RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type McpServerState, type RootState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 
@@ -32,7 +32,12 @@ export interface IAgentHostMcpServer {
 	readonly name: string;
 	readonly enabled: boolean;
 	readonly status: McpServerStatus;
+	readonly state: McpServerState;
 	readonly logOutputChannelId?: string;
+	/** Starts or restarts the server. Providers that cannot control lifecycle may no-op. */
+	start(): Promise<void>;
+	/** Stops the server. Providers that cannot control lifecycle may no-op. */
+	stop(): Promise<void>;
 	setEnabled(enabled: boolean): void;
 }
 
@@ -115,6 +120,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly onDidChangeRootConfig: Event<void>;
 	/** Returns the last-known root (agent host) configuration, or `undefined` if the host has not published any. */
 	getRootConfig(): RootConfigState | undefined;
+	getRootState(): RootState | undefined;
+	mapAgentHostResource(uri: URI): URI;
 	/**
 	 * Sets one root configuration property.
 	 *
@@ -129,6 +136,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * Unknown keys (no schema entry) are ignored.
 	 */
 	replaceRootConfig(values: Record<string, unknown>): Promise<void>;
+
+	/** Authenticate against the backing agent-host connection. */
+	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 
 	// -- Custom Agents --
 
@@ -161,9 +171,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/**
 	 * Returns the MCP servers exposed by the session as rich objects whose
-	 * {@link IAgentHostMcpServer.setEnabled} dispatches the appropriate
-	 * protocol-level toggle. Returns an empty array when the session is
-	 * unknown or exposes no MCP servers.
+	 * methods dispatch protocol-level toggle and lifecycle actions.
+	 * Returns an empty array when the session is unknown or exposes no MCP
+	 * servers.
 	 */
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[];
 

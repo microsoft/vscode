@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -12,11 +12,14 @@ import { IMenuService, MenuId } from '../../../../../platform/actions/common/act
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatWidget } from '../../../../contrib/chat/browser/chat.js';
+import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
 import { IArtifactSourceGroup } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatEditingSession } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../contrib/chat/common/languageModels.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { ComponentFixtureContext, createEditorServices } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 
@@ -24,6 +27,8 @@ export interface ChatInputFixtureOptions {
 	readonly artifacts?: readonly { label: string; uri: string; type: 'devServer' | 'screenshot' | 'plan' | undefined }[];
 	readonly editingSession?: IChatEditingSession;
 	readonly todos?: IChatTodo[];
+	/** Enables the agent sandbox setting so the permission picker renders its sandboxed state. */
+	readonly sandboxingEnabled?: boolean;
 	/**
 	 * Renders the input the way the Agents (sessions) window does: the
 	 * `.interactive-input-part` is wrapped in the sessions DOM ancestry and the
@@ -35,11 +40,15 @@ export interface ChatInputFixtureOptions {
 	readonly value?: string;
 	/** Selects this range after seeding the text, to exercise selection rendering (e.g. reverse-rounded corners). */
 	readonly selection?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
+	/** Sets the fixture width, useful for exercising the compact picker layout. */
+	readonly width?: number;
+	/** Supplies models so the picker renders provider icons. */
+	readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[];
 }
 
 export async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, models = [] } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
 
@@ -47,6 +56,34 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
 			registerChatFixtureServices(reg, { artifactGroups: artifactsObs, todos });
+			if (models.length > 0) {
+				const modelsById = new Map(models.map(model => [model.identifier, model]));
+				reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
+					override onDidChangeLanguageModels = Event.None;
+					override onDidChangeModelVisibility = Event.None;
+					override onDidChangePinnedModels = Event.None;
+					override getLanguageModelIds() { return [...modelsById.keys()]; }
+					override getHiddenModelIds() { return []; }
+					override getVendors() {
+						return [...new Set(models.map(model => model.metadata.vendor))].map(vendor => ({
+							vendor,
+							displayName: vendor,
+							isDefault: false,
+							configuration: undefined,
+							managementCommand: undefined,
+							when: undefined,
+						}));
+					}
+					override isModelHidden() { return false; }
+					override getRecentlyUsedModelIds() { return []; }
+					override getPinnedModelIds() { return []; }
+					override getModelsControlManifest() { return { free: {}, paid: {} }; }
+					override lookupLanguageModel(modelId: string) { return modelsById.get(modelId)?.metadata; }
+					override getModelConfiguration() { return undefined; }
+					override getLanguageModelGroups() { return []; }
+					override hasResolvedVendor() { return true; }
+				}());
+			}
 		},
 	});
 
@@ -55,7 +92,13 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		await configService.setUserConfiguration(ChatConfiguration.ArtifactsEnabled, true);
 	}
 
-	container.style.width = '500px';
+	if (sandboxingEnabled) {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
+		await configService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+	}
+
+	container.style.width = `${width}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 	container.classList.add('monaco-workbench');
 
@@ -80,6 +123,9 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		widgetViewKindTag: 'view',
 		inputEditorMinLines: 2,
 		isSessionsWindow,
+		// The sandbox toggle is specific to the local harness, so present the
+		// input as the local session type when exercising the sandboxed state.
+		sessionTypePickerDelegate: sandboxingEnabled ? { getActiveSessionProvider: () => SessionType.Local } : undefined,
 	};
 	const styles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-editor-background)',
@@ -97,12 +143,12 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	}();
 
 	inputPart.render(session, '', mockWidget);
-	inputPart.layout(500);
+	inputPart.layout(width);
 	await new Promise(r => setTimeout(r, 100));
-	inputPart.layout(500);
+	inputPart.layout(width);
 	if (value !== undefined) {
 		inputPart.setValue(value, true);
-		inputPart.layout(500);
+		inputPart.layout(width);
 		if (selection) {
 			inputPart.inputEditor.setSelection(selection);
 		}
@@ -114,6 +160,6 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	if (editingSession) {
 		inputPart.renderChatEditingSessionState(editingSession);
 		await new Promise(r => setTimeout(r, 50));
-		inputPart.layout(500);
+		inputPart.layout(width);
 	}
 }

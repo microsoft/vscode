@@ -14,8 +14,9 @@ import { AgentSessionsSorter, groupAgentSessionsByDate } from './agentSessionsVi
 import { IAgentSession } from './agentSessionsModel.js';
 import { openSession } from './agentSessionsOpener.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
-import { archiveButton, deleteButton, getSessionButtons, getSessionDescription, renameButton, shouldShowSessionInPicker, unarchiveButton } from './agentSessionsPicker.js';
+import { createAgentSessionArchiveButtons, deleteButton, getSessionButtons, getSessionDescription, renameButton, shouldShowSessionInPicker } from './agentSessionsPicker.js';
 import { AgentSessionsFilter } from './agentSessionsFilter.js';
 
 export const AGENT_SESSIONS_QUICK_ACCESS_PREFIX = 'agent ';
@@ -29,6 +30,7 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(AGENT_SESSIONS_QUICK_ACCESS_PREFIX, {
 			canAcceptInBackground: true,
@@ -36,7 +38,6 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 				label: localize('noAgentSessionResults', "No matching agent sessions")
 			}
 		});
-
 		this.filter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {}));
 	}
 
@@ -66,7 +67,8 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 
 	private toPickItem(session: IAgentSession, highlights: IMatch[]): IPickerQuickAccessItem {
 		const description = getSessionDescription(session);
-		const buttons = getSessionButtons(session);
+		const archiveButtons = createAgentSessionArchiveButtons(this.configurationService);
+		const buttons = getSessionButtons(session, archiveButtons);
 
 		return {
 			label: session.label,
@@ -83,8 +85,8 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 					case deleteButton:
 						await this.commandService.executeCommand(AGENT_SESSION_DELETE_ACTION_ID, session);
 						return TriggerAction.REFRESH_PICKER;
-					case archiveButton:
-					case unarchiveButton: {
+					case archiveButtons.archive:
+					case archiveButtons.unarchive: {
 						const newArchivedState = !session.isArchived();
 						session.setArchived(newArchivedState);
 						return TriggerAction.REFRESH_PICKER;

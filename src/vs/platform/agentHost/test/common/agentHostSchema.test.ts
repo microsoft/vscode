@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createSchema, migrateLegacyAutopilotConfig, platformSessionSchema, schemaProperty, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
+import { createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -284,13 +285,29 @@ suite('agentHostSchema', () => {
 	suite('platformSessionSchema', () => {
 
 		test('validates the autoApprove levels', () => {
-			const levels: AutoApproveLevel[] = ['default', 'autoApprove'];
+			const levels: AutoApproveLevel[] = ['default', 'assisted', 'autoApprove'];
 			for (const level of levels) {
 				assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, level), true, level);
 			}
-			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'assisted'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'autopilot'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'bogus'), false);
+		});
+
+		test('exposes approval choices in picker order with current copy', () => {
+			const property = platformSessionSchema.toProtocol().properties[SessionConfigKey.AutoApprove];
+			assert.deepStrictEqual({
+				enum: property.enum,
+				enumLabels: property.enumLabels,
+				enumDescriptions: property.enumDescriptions,
+			}, {
+				enum: ['default', 'assisted', 'autoApprove'],
+				enumLabels: ['Default approvals', 'Assisted permissions', 'Allow all'],
+				enumDescriptions: [
+					'Asks when approval settings don\'t apply',
+					'Evaluates risk before running tools',
+					'Runs tool calls without asking',
+				],
+			});
 		});
 
 		test('validates permissions shape', () => {
@@ -343,6 +360,58 @@ suite('agentHostSchema', () => {
 
 		test('handles undefined', () => {
 			assert.strictEqual(migrateLegacyAutopilotConfig(undefined), undefined);
+		});
+	});
+
+	// ---- terminal auto-approve rule forwarding -----------------------------
+
+	suite('normalizeAgentHostTerminalAutoApproveRulesConfig', () => {
+
+		test('keeps null entries and object rules', () => {
+			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {};
+			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
+				echo: null,
+				python: true,
+				'/^npm run build$/': { approve: true, matchCommandLine: true },
+			}, inspectValue, false);
+
+			assert.deepStrictEqual(result, {
+				echo: null,
+				python: true,
+				'/^npm run build$/': { approve: true, matchCommandLine: true },
+			});
+		});
+
+		test('removes default-only entries when default rules are ignored', () => {
+			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {
+				default: { value: { echo: true, ls: true, python: false } },
+				user: { value: { echo: null } },
+			};
+			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
+				echo: null,
+				ls: true,
+				python: true,
+			}, inspectValue, true);
+
+			assert.deepStrictEqual(result, {
+				echo: null,
+				python: true,
+			});
+		});
+
+		test('keeps entries that match defaults when they come from a non-default target', () => {
+			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {
+				default: { value: { echo: true, ls: true } },
+				userValue: { ls: true },
+			};
+			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
+				echo: true,
+				ls: true,
+			}, inspectValue, true);
+
+			assert.deepStrictEqual(result, {
+				ls: true,
+			});
 		});
 	});
 });

@@ -8,7 +8,6 @@ import { localize } from '../../../../../nls.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
-import { hasModelsTargetingSession } from '../widget/input/chatModelSelectionLogic.js';
 
 /**
  * Why a session type cannot currently be selected, or
@@ -17,6 +16,8 @@ import { hasModelsTargetingSession } from '../widget/input/chatModelSelectionLog
 export enum SessionTypeAvailability {
 	/** Selectable — has an Auto fallback or at least one targeted/BYOK model. */
 	Available,
+	/** Unusable until the user signs in (the type needs a Copilot account; BYOK is not supported here). */
+	SignInRequired,
 	/** Unusable, but the user can resolve it by upgrading (Copilot Free / Student). */
 	UpgradeRequired,
 	/** Unusable with no upgrade path — no models target it and the user is already on a paid plan. */
@@ -35,8 +36,11 @@ export enum SessionTypeAvailability {
  * see an Upgrade affordance ({@link SessionTypeAvailability.UpgradeRequired});
  * paid users whose type genuinely requires its own models but has none simply
  * have no models ({@link SessionTypeAvailability.NoModels}) and are shown an
- * explanation with no upgrade button. Unavailable types are greyed out in the
- * picker either way.
+ * explanation with no upgrade button. A signed-out user gets a Sign-in
+ * affordance ({@link SessionTypeAvailability.SignInRequired}) for Copilot-backed
+ * types ({@link IChatSessionsService.requiresCopilotSignInForSessionType}), unless
+ * anonymous access is enabled; types that don't depend on Copilot stay usable
+ * while signed out. Unavailable types are greyed out in the picker either way.
  *
  * While the type's contribution isn't registered yet (e.g. during a window
  * reload before the extension host re-registers), this returns
@@ -53,30 +57,30 @@ export function getSessionTypeAvailability(
 	languageModelsService: ILanguageModelsService,
 	type: string,
 ): SessionTypeAvailability {
-	if (chatSessionsService.supportsAutoModelForSessionType(type) || hasModelsTargetingSessionType(languageModelsService, type)) {
-		return SessionTypeAvailability.Available;
-	}
-	// The "no Auto" signal comes from the type's contribution, which loads
-	// asynchronously. While it's missing — e.g. during a window reload before the
-	// extension host re-registers contributions — we can't conclude the type
-	// requires explicit models, so stay selectable (the model picker is the
-	// backstop and shows "No models available" for an active session). This also
-	// keeps harnesses that do support Auto, like the Copilot CLI, from flashing a
-	// locked state before their contribution loads.
+	// Contribution loads asynchronously; while missing (e.g. during a reload) we
+	// can't judge the type, so stay selectable to avoid locking it prematurely.
 	if (!chatSessionsService.getChatSessionContribution(type)) {
 		return SessionTypeAvailability.Available;
 	}
-	// No Auto fallback and no targeted models. Copilot Free / Student users must
-	// upgrade to unlock such a type (e.g. the cloud delegation agent is a paid
-	// feature), so they always get the Upgrade affordance.
+	// Copilot-backed types need a Copilot account (BYOK isn't supported here), so a signed-out user can't use them —
+	// unless anonymous access is enabled, which grants access without signing in.
 	const entitlement = chatEntitlementService.entitlement;
+	if (entitlement === ChatEntitlement.Unknown && !chatEntitlementService.anonymous && chatSessionsService.requiresCopilotSignInForSessionType(type)) {
+		return SessionTypeAvailability.SignInRequired;
+	}
+	// Signed in: a model targeting the type (e.g. BYOK) or an "Auto" fallback
+	// (e.g. the Copilot CLI harness) makes it usable.
+	if (hasModelsTargetingSessionType(languageModelsService, type) || chatSessionsService.supportsAutoModelForSessionType(type)) {
+		return SessionTypeAvailability.Available;
+	}
+	// No Auto fallback and no targeted models: Free / Student users must upgrade
+	// to unlock the type (e.g. the cloud delegation agent is a paid feature).
 	const canUpgrade = entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.EDU;
 	if (canUpgrade) {
 		return SessionTypeAvailability.UpgradeRequired;
 	}
-	// On a paid plan only types that genuinely need their own models are unusable
-	// here. A type that does not require custom models (e.g. the cloud delegation
-	// agent, which runs remotely without a local model) stays selectable.
+	// On a paid plan only types that genuinely need their own models are unusable.
+	// A type not requiring custom models (e.g. the remote cloud agent) stays usable.
 	return chatSessionsService.requiresCustomModelsForSessionType(type)
 		? SessionTypeAvailability.NoModels
 		: SessionTypeAvailability.Available;
@@ -90,7 +94,7 @@ export function getSessionTypeAvailability(
 function hasModelsTargetingSessionType(languageModelsService: ILanguageModelsService, type: string): boolean {
 	return languageModelsService.getLanguageModelIds().some(id => {
 		const metadata = languageModelsService.lookupLanguageModel(id);
-		return !!metadata && hasModelsTargetingSession([{ identifier: id, metadata }], type);
+		return metadata?.targetChatSessionType === type;
 	});
 }
 
@@ -101,6 +105,11 @@ function hasModelsTargetingSessionType(languageModelsService: ILanguageModelsSer
  */
 export function getSessionTypeUnavailableDescription(availability: SessionTypeAvailability): IMarkdownString | undefined {
 	switch (availability) {
+		case SessionTypeAvailability.SignInRequired:
+			return new MarkdownString(
+				localize('chat.sessionType.signInLink', "[Sign in](command:workbench.action.chat.triggerSetup)"),
+				{ isTrusted: { enabledCommands: ['workbench.action.chat.triggerSetup'] } }
+			);
 		case SessionTypeAvailability.UpgradeRequired:
 			return new MarkdownString(
 				localize('chat.sessionType.upgradeLink', "[Upgrade](command:workbench.action.chat.upgradePlan)"),
@@ -120,6 +129,11 @@ export function getSessionTypeUnavailableDescription(availability: SessionTypeAv
  */
 export function getSessionTypeUnavailableHover(availability: SessionTypeAvailability): IMarkdownString | undefined {
 	switch (availability) {
+		case SessionTypeAvailability.SignInRequired: {
+			const hover = new MarkdownString('', { isTrusted: { enabledCommands: ['workbench.action.chat.triggerSetup'] }, supportThemeIcons: true });
+			hover.appendMarkdown(localize('chat.sessionType.signInHover', "[Sign in to GitHub Copilot](command:workbench.action.chat.triggerSetup) to use this agent."));
+			return hover;
+		}
 		case SessionTypeAvailability.UpgradeRequired: {
 			const hover = new MarkdownString('', { isTrusted: { enabledCommands: ['workbench.action.chat.upgradePlan'] }, supportThemeIcons: true });
 			hover.appendMarkdown(localize('chat.sessionType.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan) to use this agent."));
@@ -138,6 +152,8 @@ export function getSessionTypeUnavailableHover(availability: SessionTypeAvailabi
  */
 export function getSessionTypeUnavailableLabel(availability: SessionTypeAvailability): string | undefined {
 	switch (availability) {
+		case SessionTypeAvailability.SignInRequired:
+			return localize('chat.sessionType.signInMobile', "Requires sign in");
 		case SessionTypeAvailability.UpgradeRequired:
 			return localize('chat.sessionType.upgradeMobile', "Requires GitHub Copilot Pro");
 		case SessionTypeAvailability.NoModels:

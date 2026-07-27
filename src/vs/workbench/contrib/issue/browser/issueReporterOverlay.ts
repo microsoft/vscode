@@ -175,16 +175,19 @@ export class IssueReporterOverlay {
 		private readonly resolveKeybinding?: (commandId: string) => ResolvedKeybinding | undefined,
 	) {
 		this._hideToolbarInScreenshots = initialHideToolbar;
+		const hasStandaloneExtensionData = !!data.data && !data.extensionId;
+		this.includeExtensionData = hasStandaloneExtensionData;
 		this.model = new IssueReporterModel({
 			...data,
 			issueType: data.issueType || IssueType.Bug,
 			allExtensions: data.enabledExtensions,
+			extensionData: hasStandaloneExtensionData ? data.data : undefined,
 			includeSystemInfo: true,
 			includeWorkspaceInfo: true,
 			includeProcessInfo: true,
 			includeExtensions: true,
 			includeExperiments: true,
-			includeExtensionData: false,
+			includeExtensionData: hasStandaloneExtensionData,
 		});
 		this.selectedIssueType = data.issueType;
 		this.selectedIssueSource = data.issueSource ?? (data.extensionId ? IssueSource.Extension : undefined);
@@ -2186,7 +2189,7 @@ export class IssueReporterOverlay {
 		];
 
 		if (this.includeExtensionData && modelData.extensionData) {
-			sections.push(this.createDetails('Extension Data', this.createCodeBlock(modelData.extensionData)));
+			sections.push(this.createDetails('Extension Data', modelData.extensionData));
 		}
 
 		if (this.includeSystemInfo && (modelData.versionInfo || modelData.systemInfo || modelData.systemInfoWeb)) {
@@ -2614,6 +2617,10 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		if (this.recordingElapsedTimer !== undefined) {
 			getWindow(this.container).clearInterval(this.recordingElapsedTimer);
 		}
+		if (this.similarIssuesHandle !== undefined) {
+			clearTimeout(this.similarIssuesHandle);
+		}
+		this.similarIssuesRequest++;
 		this.reviewRenderDisposables.dispose();
 		this.similarIssuesDisposables.dispose();
 		this.descriptionGuidanceDisposables.dispose();

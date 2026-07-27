@@ -1,0 +1,49 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Read nested/value.txt and reply with its exact contents only.
+    response:
+      content:
+        - type: text
+          text: I’m reading `nested/value.txt` now and will return its contents exactly with no extra text.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: cat nested/value.txt
+            workdir: ${workdir}/ahp-coverage-nested-read-${temp}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Read nested/value.txt and reply with its exact contents only.
+        - role: assistant
+          content: I’m reading `nested/value.txt` now and will return its contents exactly with no extra text.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: cat nested/value.txt
+                workdir: ${workdir}/ahp-coverage-nested-read-${temp}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: 12dcaf
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 4
+                Output:
+                NESTED_VALUE_42
+    response:
+      content: NESTED_VALUE_42
+      stopReason: end_turn

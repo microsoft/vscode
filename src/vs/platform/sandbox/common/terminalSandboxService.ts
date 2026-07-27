@@ -32,6 +32,7 @@ export interface ITerminalSandboxPrerequisiteCheckResult {
 	sandboxConfigPath: string | undefined;
 	failedCheck: TerminalSandboxPrerequisiteCheck | undefined;
 	missingDependencies?: string[];
+	canInstallMissingDependencies?: boolean;
 	remediations?: readonly TerminalSandboxPreCheckRemediation[];
 	detail?: string;
 }
@@ -115,10 +116,8 @@ export interface ITerminalSandboxService {
 	 * but when provided they are used to derive command-specific read/write
 	 * allow-list entries. When explicitly requested, `requestAllowNetwork`
 	 * retains sandbox execution while using a network-unrestricted config.
-	 * `forceSandboxed` prevents an initial access elevation, including both
-	 * unsandboxed execution and unrestricted network access.
 	 */
-	wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[], requestAllowNetwork?: boolean, forceSandboxed?: boolean): Promise<ITerminalSandboxWrapResult>;
+	wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[], requestAllowNetwork?: boolean): Promise<ITerminalSandboxWrapResult>;
 	checkFileAccess(permission: TerminalSandboxFileAccessPermission, paths: readonly string[], precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxFileAccessCheckResult>;
 	getSandboxConfigPath(forceRefresh?: boolean, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<string | undefined>;
 	getTempDir(): URI | undefined;

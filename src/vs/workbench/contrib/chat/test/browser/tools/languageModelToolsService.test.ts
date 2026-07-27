@@ -27,7 +27,7 @@ import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel, Too
 import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
 import { IChatService, IChatProgress, IChatInfoMessage, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
-import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet, IToolResultTextPart } from '../../../common/tools/languageModelToolsService.js';
+import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, IToolResultTextPart, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -814,7 +814,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with some enabled tool
 		{
 			// creating a map by hand is a no-go, we just do it for this test
-			const map = new Map<IToolData | ToolSet, boolean>([[tool1, true], [extTool1, true], [mcpToolSet, true], [mcpTool1, true]]);
+			const map = ToolAndToolSetEnablementMap.fromEntries([[tool1, true], [extTool1, true], [mcpToolSet, true], [mcpTool1, true]]);
 			const fullReferenceNames = service.toFullReferenceNames(map);
 			const expectedFullReferenceNames = ['tool1RefName', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*'];
 			assert.deepStrictEqual(fullReferenceNames.sort(), expectedFullReferenceNames.sort(), 'toFullReferenceNames should return the original enabled names');
@@ -822,7 +822,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with user data
 		{
 			// creating a map by hand is a no-go, we just do it for this test
-			const map = new Map<IToolData | ToolSet, boolean>([[tool1, true], [userToolSet, true], [internalToolSet, false], [internalTool, true]]);
+			const map = ToolAndToolSetEnablementMap.fromEntries([[tool1, true], [userToolSet, true], [internalToolSet, false], [internalTool, true]]);
 			const fullReferenceNames = service.toFullReferenceNames(map);
 			const expectedFullReferenceNames = ['tool1RefName', 'internalToolSetRefName/internalToolSetTool1RefName'];
 			assert.deepStrictEqual(fullReferenceNames.sort(), expectedFullReferenceNames.sort(), 'toFullReferenceNames should return the original enabled names');
@@ -830,7 +830,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with unknown tool and tool set
 		{
 			// creating a map by hand is a no-go, we just do it for this test
-			const map = new Map<IToolData | ToolSet, boolean>([[unknownTool, true], [unknownToolSet, true], [internalToolSet, true], [internalTool, true]]);
+			const map = ToolAndToolSetEnablementMap.fromEntries([[unknownTool, true], [unknownToolSet, true], [internalToolSet, true], [internalTool, true]]);
 			const fullReferenceNames = service.toFullReferenceNames(map);
 			const expectedFullReferenceNames = ['internalToolSetRefName'];
 			assert.deepStrictEqual(fullReferenceNames.sort(), expectedFullReferenceNames.sort(), 'toFullReferenceNames should return the original enabled names');
@@ -4983,6 +4983,98 @@ suite('LanguageModelToolsService', () => {
 
 			// Updated parameters should be applied since validation passed
 			assert.deepStrictEqual(receivedParameters, { command: 'safe-command' });
+		});
+	});
+
+	suite('preApproved (out-of-band auto-approval)', () => {
+		let preApprovedService: LanguageModelToolsService;
+		let preApprovedChatService: MockChatService;
+
+		setup(() => {
+			const setup = createTestToolsService(store);
+			preApprovedService = setup.service;
+			preApprovedChatService = setup.chatService;
+		});
+
+		test('a confirmable tool with dto.preApproved never enters WaitingForConfirmation', async () => {
+			let invokeCompleted = false;
+			const tool = registerToolForTest(preApprovedService, store, 'preApprovedTool', {
+				invoke: async () => {
+					invokeCompleted = true;
+					return { content: [{ kind: 'text', value: 'success' }] };
+				},
+				prepareToolInvocation: async () => ({
+					confirmationMessages: {
+						title: 'Confirm this action?',
+						message: 'This tool would normally require confirmation',
+						allowAutoConfirm: true,
+					},
+				}),
+			});
+
+			const capture: { invocation?: ChatToolInvocation } = {};
+			stubGetSession(preApprovedChatService, 'pre-approved', { requestId: 'req1', capture });
+
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'pre-approved' });
+			dto.preApproved = { type: ToolConfirmKind.Setting, id: 'autoApprove' };
+
+			// Start the invocation without awaiting so the state at publish time is
+			// observable: an auto-approved call must be published already executing
+			// and must never surface a confirmation prompt (which would flicker
+			// "needs input" in the sessions list).
+			const invokePromise = preApprovedService.invokeTool(dto, async () => 0, CancellationToken.None);
+			const invocation = await waitForPublishedInvocation(capture);
+			const publishedState = invocation.state.get().type;
+
+			// If the fix regressed, the call would be stuck awaiting confirmation;
+			// confirm it so the promise resolves and the assertion below (rather
+			// than a test timeout) reports the failure.
+			if (publishedState === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+				IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction });
+			}
+			const result = await invokePromise;
+
+			assert.deepStrictEqual(
+				{
+					invokeCompleted,
+					value: (result.content[0] as IToolResultTextPart).value,
+					publishedWaitingForConfirmation: publishedState === IChatToolInvocation.StateKind.WaitingForConfirmation,
+				},
+				{
+					invokeCompleted: true,
+					value: 'success',
+					publishedWaitingForConfirmation: false,
+				},
+			);
+		});
+
+		test('dto.preApproved does not override a preToolUse hook that returned ask', async () => {
+			const tool = registerToolForTest(preApprovedService, store, 'preApprovedAskTool', {
+				invoke: async () => ({ content: [{ kind: 'text', value: 'success' }] }),
+				prepareToolInvocation: async () => ({
+					confirmationMessages: {
+						title: 'Confirm this action?',
+						message: 'This tool requires confirmation',
+						allowAutoConfirm: true,
+					},
+				}),
+			});
+
+			const capture: { invocation?: ChatToolInvocation } = {};
+			stubGetSession(preApprovedChatService, 'pre-approved-ask', { requestId: 'req1', capture });
+
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'pre-approved-ask' });
+			dto.preApproved = { type: ToolConfirmKind.Setting, id: 'autoApprove' };
+			dto.preToolUseResult = { permissionDecision: 'ask', permissionDecisionReason: 'Requires user confirmation' };
+
+			const invokePromise = preApprovedService.invokeTool(dto, async () => 0, CancellationToken.None);
+			const invocation = await waitForPublishedInvocation(capture);
+
+			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation,
+				'preApproved must not override an explicit hook ask');
+
+			IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction });
+			await invokePromise;
 		});
 	});
 });

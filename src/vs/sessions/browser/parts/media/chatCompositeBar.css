@@ -19,9 +19,12 @@
 }
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats.
-	It lives in the same centered session-view content host as the header. */
+	It lives in the same centered session-view content host as the header.
+	The left padding adds the header's status-icon column (icon + gap) on top of
+	the shared 10px so the first tab aligns under the title/meta main column
+	rather than under the status icon. */
 .chat-composite-bar.session-chat-tabs-bar {
-	padding: 0 10px;
+	padding: 0 10px 0 calc(10px + var(--vscode-codiconFontSize, 16px) + 6px);
 	box-sizing: border-box;
 	container-type: inline-size;
 
@@ -148,7 +151,9 @@
 	margin-left: auto;
 }
 
-/* Meta row: workspace · diff stats */
+/* Meta row: workspace + contributed changes / pull request buttons.
+	No `overflow: hidden` here — it would clip the meta buttons' focus ring at the
+	row's 22px height. The workspace label self-truncates via its own containers. */
 .chat-composite-bar-meta-row {
 	display: flex;
 	align-items: center;
@@ -158,72 +163,75 @@
 	font-weight: var(--vscode-agents-fontWeight-regular, 400);
 	line-height: 18px;
 	color: var(--chat-tab-inactive-foreground, var(--session-view-foreground));
-	overflow: hidden;
 	white-space: nowrap;
 }
 
-.chat-composite-bar-meta-workspace-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	min-width: 0;
-}
-
-.chat-composite-bar-meta-workspace {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	min-width: 0;
-	overflow: hidden;
-}
-
-.monaco-workbench .chat-composite-bar-meta-workspace-icon.codicon[class*='codicon-'] {
-	display: inline-flex;
-	align-items: center;
-	font-size: var(--vscode-codiconFontSize-compact, 12px);
-	flex-shrink: 0;
-}
-
-.chat-composite-bar-meta-separator::before {
-	content: '\00B7';
-	opacity: 0.8;
-}
-
-/* Flatten the session header meta toolbar action bar so contributed items such as the diff-stats +/- counts read as inline, clickable labels rather than buttons. */
+/* Session header meta toolbar: contributed actions render as compact secondary buttons. */
 .chat-composite-bar-meta-toolbar,
 .chat-composite-bar-meta-toolbar .monaco-action-bar,
 .chat-composite-bar-meta-toolbar .actions-container {
 	display: inline-flex;
 	align-items: center;
 	height: 100%;
+	min-width: 0;
+	max-width: 100%;
 }
 
-.chat-composite-bar-meta-diff {
+/* Spacing between the contributed meta buttons (e.g. changes · pull request). */
+.chat-composite-bar-meta-toolbar .actions-container {
+	gap: 6px;
+}
+
+.chat-composite-bar-meta-item {
 	display: inline-flex;
 	align-items: center;
 	flex-shrink: 0;
 }
 
-.chat-composite-bar-meta-diff .action-label {
+.chat-composite-bar-meta-item.chat-composite-bar-meta-workspace-item {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+/* Inline, auto-width layout only — the secondary-button sizing/colors come from the standard
+	`.monaco-text-button.small.secondary` styles. */
+.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button {
+	display: inline-flex;
+	width: auto;
+	gap: 4px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-workspace-button {
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+}
+
+.chat-composite-bar-meta-workspace-button .chat-composite-bar-meta-item-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Tighten the focus ring on these compact pills. The base `.monaco-text-button`
+	uses `outline-offset: 2px`, which on a small pill reads as a bloated ring
+	detached from the border — hug the border instead. */
+.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button:focus {
+	outline-offset: 0 !important;
+}
+
+.monaco-workbench .chat-composite-bar-meta-item-icon.codicon[class*='codicon-'] {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
-	color: inherit;
-	font: inherit;
-	font-variant-numeric: tabular-nums;
-	cursor: pointer;
-	padding: 0 2px;
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.chat-composite-bar-meta-diff .action-label:hover {
-	color: inherit;
-	text-decoration: none;
-}
-
-.chat-composite-bar-meta-diff .action-label:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact, 12px);
+	height: var(--vscode-codiconFontSize-compact, 12px);
+	margin: 0;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	flex-shrink: 0;
 }
 
 .chat-composite-bar-meta-added {
@@ -253,7 +261,41 @@
 	display: flex;
 	align-items: center;
 	height: 100%;
-	gap: 0;
+	gap: 4px;
+}
+
+/* "New Chat" button pinned at the end of the tab strip, after the Conversations menu. */
+.chat-composite-bar-tabs-row > .chat-composite-bar-new-chat {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	margin-left: 4px;
+}
+
+.chat-composite-bar-tabs-row > .chat-composite-bar-new-chat.hidden {
+	display: none;
+}
+
+.chat-composite-bar-new-chat .action-item .action-label {
+	box-sizing: border-box;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--chat-tab-inactive-foreground, currentColor);
+}
+
+.chat-composite-bar-new-chat .action-item .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--chat-tab-active-foreground);
+}
+
+.chat-composite-bar-new-chat .action-item .action-label:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .chat-composite-bar-toolbar {
@@ -267,6 +309,10 @@
 	height: 20px;
 	line-height: 20px;
 	padding: 0 2px;
+}
+
+.chat-composite-bar-toolbar .monaco-action-bar .actions-container {
+	gap: 4px;
 }
 
 /* Floating variant: a lightweight, absolutely positioned toolbar with no header chrome */
@@ -296,6 +342,7 @@
 	line-height: 22px;
 	height: 26px;
 	border-radius: var(--vscode-cornerRadius-small);
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 4%, transparent);
 	user-select: none;
 	flex-shrink: 0;
 	max-width: var(--chat-tab-max-width);
@@ -308,6 +355,23 @@
 	min-width: 0;
 }
 
+/* Lock icon for read-only (non-interactive) chats, shown before the label.
+	The element carries the `codicon` class, whose base rule
+	`.codicon[class*='codicon-'] { display: inline-block }` has specificity (0,2,0),
+	so these hide/show rules are scoped to the tab to win on specificity —
+	otherwise the lock would show on every tab regardless of read-only state. */
+.chat-composite-bar-tab .chat-composite-bar-tab-lock.codicon {
+	display: none;
+	flex-shrink: 0;
+	align-items: center;
+	margin-right: 4px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
+.chat-composite-bar-tab.read-only .chat-composite-bar-tab-lock.codicon {
+	display: inline-flex;
+}
+
 /* While editing, the tab expands to its max width. */
 .chat-composite-bar-tab.editing {
 	cursor: default;
@@ -318,6 +382,7 @@
 
 /* Hide the label and adornments so the input fills the tab while editing. */
 .session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-label,
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-lock,
 .session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-indicator,
 .session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-actions {
 	display: none;
@@ -348,6 +413,7 @@
 
 .chat-composite-bar-tab:hover {
 	color: var(--chat-tab-active-foreground);
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 8%, transparent);
 }
 
 /* Active state: background container instead of underline — mirrors auxiliarybar checked */
@@ -356,7 +422,7 @@
 }
 
 .session-view.is-active .chat-composite-bar-tab.active {
-	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent);
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 10%, transparent);
 }
 
 /* Reduce right padding when close button is present to avoid excess spacing */
