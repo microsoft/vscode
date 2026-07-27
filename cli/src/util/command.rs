@@ -364,6 +364,59 @@ pub async fn kill_tree(process_id: u32) -> Result<(), CodeError> {
 	Ok(())
 }
 
+#[cfg(all(test, windows))]
+mod windows_tests {
+	use super::*;
+
+	/// The flag must be included whenever the job we are in permits it —
+	/// this is the whole reason a supervisor survives the SSH exec channel
+	/// that launched it, and nothing else in the flag set escapes a job.
+	#[test]
+	fn detach_flags_carry_breakaway_when_the_job_permits_it() {
+		let flags = detach_creation_flags();
+		let base =
+			winapi::um::winbase::CREATE_NEW_PROCESS_GROUP | winapi::um::winbase::CREATE_NO_WINDOW;
+
+		assert_eq!(
+			flags & base,
+			base,
+			"detached children must keep their own process group and stay windowless"
+		);
+		assert_eq!(
+			flags & winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB != 0,
+			should_use_breakaway_from_job(),
+			"breakaway must be requested exactly when the probe says it is allowed"
+		);
+	}
+
+	/// The probe is a real spawn, so it must agree with itself: a cached
+	/// wrong answer would either strand children in the job or make every
+	/// later spawn fail with access denied.
+	#[test]
+	fn breakaway_probe_is_stable() {
+		let first = should_use_breakaway_from_job();
+		assert_eq!(first, should_use_breakaway_from_job());
+	}
+
+	/// A child spawned with the detach flags must actually start; if the
+	/// job forbade breakaway and we asked for it anyway, `CreateProcess`
+	/// would fail with access denied instead.
+	#[test]
+	fn a_detached_child_spawns_with_those_flags() {
+		use std::os::windows::process::CommandExt as _;
+
+		let mut cmd = std::process::Command::new("cmd");
+		cmd.args(["/C", "exit 0"]);
+		cmd.creation_flags(detach_creation_flags());
+		cmd.stdin(std::process::Stdio::null());
+		cmd.stdout(std::process::Stdio::null());
+		cmd.stderr(std::process::Stdio::null());
+
+		let mut child = cmd.spawn().expect("detached child failed to spawn");
+		assert!(child.wait().expect("could not await child").success());
+	}
+}
+
 #[cfg(all(test, not(windows)))]
 mod tests {
 	use super::*;

@@ -138,6 +138,30 @@ suite('PosixRemotePlatform', () => {
 				},
 			);
 		});
+
+		test('accepts the expanded absolute paths discovery actually reports', () => {
+			// The shell expands `~` before `ls` runs, so every candidate coming
+			// back from a real remote is absolute.
+			const p = linuxPlatform();
+			assert.deepStrictEqual(
+				{
+					pinned: p.parseFallbackCliPath(`/home/u/${sdf}/code-insiders-${commit}`, sdf, quality),
+					legacy: p.parseFallbackCliPath('/home/u/.vscode-cli-insider/code-insiders', sdf, quality),
+					otherHome: p.parseFallbackCliPath(`/Users/u/${sdf}/code-insiders-${commit}`, sdf, quality),
+					wrongDir: p.parseFallbackCliPath(`/home/u/.evil/code-insiders-${commit}`, sdf, quality),
+					wrongName: p.parseFallbackCliPath(`/home/u/${sdf}/evil-${commit}`, sdf, quality),
+					relative: p.parseFallbackCliPath(`${sdf}/code-insiders-${commit}`, sdf, quality),
+				},
+				{
+					pinned: `/home/u/${sdf}/code-insiders-${commit}` as RemotePath,
+					legacy: '/home/u/.vscode-cli-insider/code-insiders' as RemotePath,
+					otherHome: `/Users/u/${sdf}/code-insiders-${commit}` as RemotePath,
+					wrongDir: undefined,
+					wrongName: undefined,
+					relative: undefined,
+				},
+			);
+		});
 	});
 
 	suite('predicate operations emit exact commands', () => {

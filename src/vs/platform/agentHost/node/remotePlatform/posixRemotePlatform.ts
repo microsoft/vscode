@@ -58,20 +58,29 @@ export class PosixRemotePlatform implements IRemotePlatform {
 	}
 
 	parseFallbackCliPath(candidate: string, serverDataFolderName: string, quality: string): RemotePath | undefined {
-		const root = this.installRoot(serverDataFolderName);
 		const archive = this.cliArchiveName(quality);
 		const q = validateShellToken(quality, 'quality');
 		const legacyDir = q === 'stable' ? '~/.vscode-cli' : `~/.vscode-cli-${q}`;
-		const legacyBin = `${legacyDir}/${archive}`;
-		if (candidate === legacyBin) {
+
+		const slash = candidate.lastIndexOf('/');
+		if (slash < 0) {
+			return undefined;
+		}
+		const dir = candidate.slice(0, slash);
+		const name = candidate.slice(slash + 1);
+
+		// The shell expands `~` before `ls` runs, so discovery reports absolute
+		// paths. Accept either form, or nothing is ever recognised.
+		const inDir = (expected: string): boolean =>
+			dir === expected || (dir.startsWith('/') && dir.endsWith(expected.slice(1)));
+
+		if (inDir(legacyDir) && name === archive) {
 			return _asRemotePath(candidate);
 		}
-		const pinnedPrefix = `${root}/${archive}-`;
-		if (candidate.startsWith(pinnedPrefix)) {
-			const suffix = candidate.slice(pinnedPrefix.length);
-			if (COMMIT_HEX_RE.test(suffix)) {
-				return _asRemotePath(candidate);
-			}
+		if (inDir(this.installRoot(serverDataFolderName))
+			&& name.startsWith(`${archive}-`)
+			&& COMMIT_HEX_RE.test(name.slice(archive.length + 1))) {
+			return _asRemotePath(candidate);
 		}
 		return undefined;
 	}
