@@ -9,7 +9,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { IAgentEditorComment, IAgentEditorCommentsBridge, IAgentEditorCommentsProvider } from '../../../../workbench/services/agentEditorComments/common/agentEditorComments.js';
+import { IAgentEditorComment, IAgentEditorCommentRevealEvent, IAgentEditorCommentsBridge, IAgentEditorCommentsProvider } from '../../../../workbench/services/agentEditorComments/common/agentEditorComments.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { getSessionEditorComments, fromSessionEditorCommentId, SessionEditorCommentSource } from './sessionEditorComments.js';
 
@@ -25,6 +25,7 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 	static readonly ID = 'workbench.contrib.agentEditorCommentsProvider';
 
 	readonly onDidChangeComments: Event<void>;
+	readonly onDidRevealComment: Event<IAgentEditorCommentRevealEvent>;
 
 	constructor(
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
@@ -32,6 +33,7 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 	) {
 		super();
 		this.onDidChangeComments = Event.signal(Event.any(this._agentFeedbackService.onDidChangeFeedback, this._agentFeedbackService.onDidChangeFeedbackScope));
+		this.onDidRevealComment = Event.map(this._agentFeedbackService.onDidRevealSessionComment, event => ({ resource: event.resourceUri, id: event.commentId }));
 		this._register(bridge.registerProvider(this));
 	}
 
