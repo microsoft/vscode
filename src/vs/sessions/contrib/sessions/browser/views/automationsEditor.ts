@@ -396,11 +396,15 @@ export class AutomationsCardsWidget extends Disposable {
 			errorEl.textContent = run.errorMessage;
 		}
 
-		if (sessionExists) {
+		if (run.sessionResource) {
 			card.classList.add('clickable');
 			card.setAttribute('tabindex', '0');
 			card.setAttribute('role', 'button');
 			this.historyDisposables.add(DOM.addDisposableListener(card, 'click', () => {
+				const session = this.sessionsManagementService.getSession(URI.parse(run.sessionResource!));
+				if (!session) {
+					return;
+				}
 				this.sessionsService.openSession(URI.parse(run.sessionResource!), { preserveFocus: false });
 				this.markRunRead(run.id);
 			}));
