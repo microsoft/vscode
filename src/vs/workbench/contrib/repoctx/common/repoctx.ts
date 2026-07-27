@@ -16,7 +16,11 @@ export interface IRepoctxGateToolEvidence {
 	readonly summary: string;
 }
 
-export type RepoctxGateEvidence = Partial<Record<RepoctxGateToolId, IRepoctxGateToolEvidence>>;
+export interface RepoctxGateEvidence {
+	readonly verdict: RepoctxGateToolEvidenceStatus | undefined;
+	readonly scope: 'staged' | 'working-tree' | undefined;
+	readonly tools: Partial<Record<RepoctxGateToolId, IRepoctxGateToolEvidence>>;
+}
 
 export const repoctxAgentContextEnabledSetting = 'repoctx.agentContext.enabled';
 
@@ -113,9 +117,13 @@ const gateToolByCheckName: Readonly<Record<string, RepoctxGateToolId>> = {
 
 export function parseRepoctxGateEvidence(content: string): RepoctxGateEvidence {
 	try {
-		const parsed = JSON.parse(content) as { readonly checks?: readonly { readonly name?: unknown; readonly status?: unknown; readonly summary?: unknown }[] };
+		const parsed = JSON.parse(content) as { readonly verdict?: unknown; readonly scope?: unknown; readonly checks?: readonly { readonly name?: unknown; readonly status?: unknown; readonly summary?: unknown }[] };
 		if (Array.isArray(parsed.checks)) {
-			return parseRepoctxGateChecks(parsed.checks);
+			return {
+				verdict: parseGateStatus(parsed.verdict),
+				scope: parseGateScope(parsed.scope),
+				tools: parseRepoctxGateChecks(parsed.checks),
+			};
 		}
 	} catch {
 		// The durable default is Markdown. Fall through to its headings.
@@ -135,11 +143,15 @@ export function parseRepoctxGateEvidence(content: string): RepoctxGateEvidence {
 		});
 	}
 
-	return parseRepoctxGateChecks(checks);
+	return {
+		verdict: parseGateStatus(/^Verdict:\s+\*\*(PASS|WARN|FAIL)\*\*\s*$/m.exec(content)?.[1]),
+		scope: parseGateScope(/^Scope:\s+`(staged|working-tree)`\s*$/m.exec(content)?.[1]),
+		tools: parseRepoctxGateChecks(checks),
+	};
 }
 
-function parseRepoctxGateChecks(checks: readonly { readonly name?: unknown; readonly status?: unknown; readonly summary?: unknown }[]): RepoctxGateEvidence {
-	const evidence: RepoctxGateEvidence = {};
+function parseRepoctxGateChecks(checks: readonly { readonly name?: unknown; readonly status?: unknown; readonly summary?: unknown }[]): Partial<Record<RepoctxGateToolId, IRepoctxGateToolEvidence>> {
+	const evidence: Partial<Record<RepoctxGateToolId, IRepoctxGateToolEvidence>> = {};
 	for (const check of checks) {
 		if (typeof check.name !== 'string' || typeof check.status !== 'string') {
 			continue;
@@ -155,6 +167,15 @@ function parseRepoctxGateChecks(checks: readonly { readonly name?: unknown; read
 		};
 	}
 	return evidence;
+}
+
+function parseGateStatus(value: unknown): RepoctxGateToolEvidenceStatus | undefined {
+	const status = typeof value === 'string' ? value.toLowerCase() : '';
+	return status === 'pass' || status === 'warn' || status === 'fail' ? status : undefined;
+}
+
+function parseGateScope(value: unknown): 'staged' | 'working-tree' | undefined {
+	return value === 'staged' || value === 'working-tree' ? value : undefined;
 }
 
 export function buildRepoctxAgentContext(options: IRepoctxAgentContextOptions): string | undefined {
@@ -306,7 +327,7 @@ export function getRepoctxStageInvocation(stageId: RepoctxEvidenceStageId, task:
 			return {
 				stageId,
 				title: 'Repoctx Gate',
-				args: ['gate', '.', '--base', 'origin/main', '--request', normalizedTask, '--out', '.dev-context/gate.md'],
+				args: ['gate', '.', '--staged', '--base', 'origin/main', ...(normalizedTask ? ['--request', normalizedTask] : []), '--out', '.dev-context/gate.md'],
 				artifactPath: 'gate.md',
 			};
 		case 'audit':

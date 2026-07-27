@@ -60,14 +60,20 @@ suite('Repoctx evidence', () => {
 		].join('\n'));
 
 		assert.deepStrictEqual(evidence, {
-			tieline: { status: 'pass', summary: 'No frontend↔backend contract drift detected (tieline).' },
-			bouncer: { status: 'warn', summary: '1 control could not be determined (bouncer).' },
-			aiglare: { status: 'fail', summary: '1 irreversible AI surface lacks required guardrails (aiglare).' },
+			verdict: undefined,
+			scope: undefined,
+			tools: {
+				tieline: { status: 'pass', summary: 'No frontend↔backend contract drift detected (tieline).' },
+				bouncer: { status: 'warn', summary: '1 control could not be determined (bouncer).' },
+				aiglare: { status: 'fail', summary: '1 irreversible AI surface lacks required guardrails (aiglare).' },
+			},
 		});
 	});
 
 	test('parses Gate JSON and leaves unconfigured tools explicit', () => {
 		const evidence = parseRepoctxGateEvidence(JSON.stringify({
+			verdict: 'PASS',
+			scope: 'staged',
 			checks: [
 				{ name: 'AI governance', status: 'PASS', summary: '16 AI surfaces inspected.' },
 				{ name: 'Validation commands', status: 'PASS', summary: 'Tests are configured.' },
@@ -75,10 +81,12 @@ suite('Repoctx evidence', () => {
 		}));
 
 		assert.deepStrictEqual(evidence, {
-			aiglare: { status: 'pass', summary: '16 AI surfaces inspected.' },
+			verdict: 'pass',
+			scope: 'staged',
+			tools: { aiglare: { status: 'pass', summary: '16 AI surfaces inspected.' } },
 		});
-		assert.strictEqual(evidence.tieline, undefined);
-		assert.strictEqual(evidence.bouncer, undefined);
+		assert.strictEqual(evidence.tools.tieline, undefined);
+		assert.strictEqual(evidence.tools.bouncer, undefined);
 	});
 
 	test('derives explicit stage states in priority order', () => {
@@ -107,7 +115,7 @@ suite('Repoctx evidence', () => {
 		assert.deepStrictEqual(getRepoctxStageInvocation('gate', '  add Stripe refunds  '), {
 			stageId: 'gate',
 			title: 'Repoctx Gate',
-			args: ['gate', '.', '--base', 'origin/main', '--request', 'add Stripe refunds', '--out', '.dev-context/gate.md'],
+			args: ['gate', '.', '--staged', '--base', 'origin/main', '--request', 'add Stripe refunds', '--out', '.dev-context/gate.md'],
 			artifactPath: 'gate.md',
 		});
 	});

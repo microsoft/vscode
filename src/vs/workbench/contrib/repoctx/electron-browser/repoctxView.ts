@@ -5,8 +5,9 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
@@ -32,6 +33,7 @@ import { IViewDescriptorService } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { ITerminalService } from '../../terminal/browser/terminal.js';
+import { ISCMRepository, ISCMService } from '../../scm/common/scm.js';
 import { findRepoctxEvidence, getRepoctxStageInvocation, getRepoctxStageState, parseRepoctxGateEvidence, RepoctxEvidence, RepoctxEvidenceStageId, RepoctxGateEvidence, RepoctxGateToolId, RepoctxStageState, repoctxAgentContextEnabledSetting } from '../common/repoctx.js';
 
 import '../browser/media/repoctxView.css';
@@ -72,8 +74,11 @@ export class RepoctxTrustViewPane extends ViewPane {
 	private requestHelp: HTMLElement | undefined;
 	private workflow: HTMLElement | undefined;
 	private evidence: RepoctxEvidence | undefined;
-	private gateEvidence: RepoctxGateEvidence = {};
+	private gateEvidence: RepoctxGateEvidence = { verdict: undefined, scope: undefined, tools: {} };
 	private readonly stageControls = new Map<RepoctxEvidenceStageId, IRepoctxStageControl>();
+	private readonly scmRepositoryDisposables = this._register(new DisposableMap<ISCMRepository, DisposableStore>());
+	private readonly automaticGateScheduler = this._register(new RunOnceScheduler(() => void this.runAutomaticGate(), 800));
+	private automaticGatePending = false;
 	private refreshToken = 0;
 
 	constructor(
@@ -93,6 +98,7 @@ export class RepoctxTrustViewPane extends ViewPane {
 		@ICommandService private readonly commandService: ICommandService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@ISCMService private readonly scmService: ISCMService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -114,6 +120,11 @@ export class RepoctxTrustViewPane extends ViewPane {
 				void this.refresh();
 			}
 		}));
+		this._register(this.scmService.onDidAddRepository(repository => this.watchScmRepository(repository)));
+		this._register(this.scmService.onDidRemoveRepository(repository => this.scmRepositoryDisposables.deleteAndDispose(repository)));
+		for (const repository of this.scmService.repositories) {
+			this.watchScmRepository(repository);
+		}
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -121,6 +132,7 @@ export class RepoctxTrustViewPane extends ViewPane {
 		container.classList.add('repoctx-trust-view');
 		this.content = DOM.append(container, DOM.$('.repoctx-trust-body'));
 		void this.refresh();
+		this.scheduleAutomaticGate();
 	}
 
 	async refresh(): Promise<void> {
@@ -138,7 +150,7 @@ export class RepoctxTrustViewPane extends ViewPane {
 		this.renderLoading(folder.name);
 		const evidenceRoot = URI.joinPath(folder.uri, '.dev-context');
 		const evidence = await findRepoctxEvidence(relativePath => this.fileService.exists(URI.joinPath(evidenceRoot, relativePath)));
-		let gateEvidence: RepoctxGateEvidence = {};
+		let gateEvidence: RepoctxGateEvidence = { verdict: undefined, scope: undefined, tools: {} };
 		if (evidence.gate) {
 			try {
 				const content = await this.fileService.readFile(URI.joinPath(evidenceRoot, evidence.gate));
@@ -285,7 +297,7 @@ export class RepoctxTrustViewPane extends ViewPane {
 		const stages = this.getStagePresentations();
 		const completed = stages.filter(stage => Boolean(evidence[stage.id])).length;
 		const hasRequest = Boolean(this.taskRequest.trim());
-		const nextStage = stages.find(stage => !evidence[stage.id] && (!stage.requiresTask || hasRequest));
+		const nextStage = stages.find(stage => stage.id !== 'gate' && !evidence[stage.id] && (!stage.requiresTask || hasRequest));
 		const nextSibling = this.workflow?.nextSibling;
 		this.workflow?.remove();
 		const workflow = DOM.$('.repoctx-workflow');
@@ -337,11 +349,16 @@ export class RepoctxTrustViewPane extends ViewPane {
 		const titleRow = DOM.append(content, DOM.$('.repoctx-stage-title-row'));
 		DOM.append(titleRow, DOM.$('span.repoctx-stage-title', undefined, stage.title));
 		const stateElement = DOM.append(titleRow, DOM.$('span.repoctx-stage-state', { role: 'status' }, this.getStageStateLabel(state)));
-		DOM.append(content, DOM.$('span.repoctx-stage-description', undefined, stage.description));
+		DOM.append(content, DOM.$('span.repoctx-stage-description', undefined, this.getStageDescription(stage)));
 		if (stage.tools?.length) {
 			this.renderGateTools(content, stage.tools, artifactPath);
 		}
 		DOM.append(content, DOM.$('code.repoctx-stage-evidence', undefined, artifactPath ? `.dev-context/${artifactPath}` : stage.command));
+
+		if (stage.id === 'gate' && !artifactPath) {
+			DOM.append(content, DOM.$('span.repoctx-stage-evidence', undefined, localize('repoctxGateAutomatic', "Watching staged changes automatically.")));
+			return;
+		}
 
 		const action = DOM.append(content, DOM.$('button.repoctx-stage-action')) as HTMLButtonElement;
 		action.type = 'button';
@@ -361,7 +378,7 @@ export class RepoctxTrustViewPane extends ViewPane {
 	private renderGateTools(container: HTMLElement, tools: readonly { readonly id: RepoctxGateToolId; readonly name: string; readonly purpose: string }[], artifactPath: string | undefined): void {
 		const list = DOM.append(container, DOM.$('.repoctx-stage-tools', { role: 'list', 'aria-label': localize('repoctxGateTools', "Gate tools") }));
 		for (const tool of tools) {
-			const evidence = this.gateEvidence[tool.id];
+			const evidence = this.gateEvidence.tools[tool.id];
 			const state: RepoctxGateToolState = this.runningStage === 'gate'
 				? 'running'
 				: evidence?.status ?? (artifactPath ? 'not-configured' : 'ready');
@@ -381,6 +398,19 @@ export class RepoctxTrustViewPane extends ViewPane {
 			DOM.append(identity, DOM.$('span', undefined, tool.purpose));
 			DOM.append(item, DOM.$('span.repoctx-stage-tool-state', { role: 'status' }, stateLabel));
 		}
+	}
+
+	private getStageDescription(stage: IRepoctxStagePresentation): string {
+		if (stage.id !== 'gate') {
+			return stage.description;
+		}
+		if (!this.gateEvidence.verdict) {
+			return localize('repoctxGateWatchingDescription', "Watching staged changes and checking them automatically before commit.");
+		}
+		const scope = this.gateEvidence.scope === 'staged'
+			? localize('repoctxGateStagedScope', "staged change")
+			: localize('repoctxGateWorkingTreeScope', "working change");
+		return localize('repoctxGateAutomaticResult', "Automatic {0} check: {1}.", scope, this.getGateToolStateLabel(this.gateEvidence.verdict));
 	}
 
 	private getGateToolIcon(state: RepoctxGateToolState): ThemeIcon {
@@ -487,11 +517,39 @@ export class RepoctxTrustViewPane extends ViewPane {
 		}
 		const hasTask = Boolean(this.taskRequest.trim());
 		this.requestHelp.textContent = hasTask
-			? localize('repoctxChangeRequestReady', "Request ready. Context, Impact, Gate, and Audit are unlocked.")
-			: localize('repoctxChangeRequestHelp', "Add a request to unlock Context, Impact, Gate, and Audit. Review can run now.");
+			? localize('repoctxChangeRequestReady', "Request ready. Context, Impact, and Audit are unlocked; Gate watches staged changes automatically.")
+			: localize('repoctxChangeRequestHelp', "Add a request to unlock Context, Impact, and Audit. Review can run now; Gate watches staged changes automatically.");
 	}
 
 	private async runStage(stage: IRepoctxStagePresentation): Promise<void> {
+		return this.runStageInternal(stage, false);
+	}
+
+	private scheduleAutomaticGate(): void {
+		if (this.runningStage === 'gate') {
+			this.automaticGatePending = true;
+			return;
+		}
+		this.automaticGateScheduler.schedule();
+	}
+
+	private watchScmRepository(repository: ISCMRepository): void {
+		if (this.scmRepositoryDisposables.has(repository)) {
+			return;
+		}
+		const disposables = new DisposableStore();
+		disposables.add(repository.provider.onDidChangeResources(() => this.scheduleAutomaticGate()));
+		this.scmRepositoryDisposables.set(repository, disposables);
+	}
+
+	private async runAutomaticGate(): Promise<void> {
+		const gate = this.getStagePresentations().find(stage => stage.id === 'gate');
+		if (gate) {
+			await this.runStageInternal(gate, true);
+		}
+	}
+
+	private async runStageInternal(stage: IRepoctxStagePresentation, automatic: boolean): Promise<void> {
 		const folder = this.workspaceContextService.getWorkspace().folders[0];
 		if (!folder || this.runningStage) {
 			return;
@@ -511,7 +569,9 @@ export class RepoctxTrustViewPane extends ViewPane {
 		if (this.failedStage === stage.id) {
 			this.failedStage = undefined;
 		}
-		this.runNotice = { kind: 'info', message: localize('repoctxStageStarted', "{0} is running in the integrated terminal.", stage.title) };
+		this.runNotice = automatic
+			? { kind: 'info', message: localize('repoctxAutomaticGateStarted', "Checking staged changes automatically.") }
+			: { kind: 'info', message: localize('repoctxStageStarted', "{0} is running in the integrated terminal.", stage.title) };
 		await this.refresh();
 
 		try {
@@ -531,23 +591,35 @@ export class RepoctxTrustViewPane extends ViewPane {
 						REPOCTX_BOUNCER_BIN: this.bundledToolBinary('bouncer'),
 						REPOCTX_AIGLARE_BIN: this.bundledToolBinary('aiglare'),
 					},
-					waitOnExit: true,
+					waitOnExit: !automatic,
 				},
 			});
-			this.terminalService.setActiveInstance(terminal);
-			await this.terminalService.revealActiveTerminal(true);
+			if (!automatic) {
+				this.terminalService.setActiveInstance(terminal);
+				await this.terminalService.revealActiveTerminal(true);
+			}
 
-			this._register(terminal.onExit(result => {
+			const onExit = terminal.onExit(result => {
 				this.runningStage = undefined;
 				if (result === 0) {
 					this.failedStage = undefined;
-					this.runNotice = { kind: 'info', message: localize('repoctxStageComplete', "{0} evidence is ready.", stage.title) };
+					this.runNotice = automatic
+						? { kind: 'info', message: localize('repoctxAutomaticGateComplete', "Staged change evidence is up to date.") }
+						: { kind: 'info', message: localize('repoctxStageComplete', "{0} evidence is ready.", stage.title) };
 				} else {
 					this.failedStage = stage.id;
 					this.runNotice = { kind: 'error', message: localize('repoctxStageFailed', "{0} did not complete. Check the Repoctx terminal for details.", stage.title) };
 				}
+				onExit.dispose();
+				if (automatic) {
+					terminal.dispose();
+				}
+				if (this.automaticGatePending) {
+					this.automaticGatePending = false;
+					this.scheduleAutomaticGate();
+				}
 				void this.refresh();
-			}));
+			});
 		} catch {
 			this.runningStage = undefined;
 			this.failedStage = stage.id;
@@ -592,7 +664,7 @@ export class RepoctxTrustViewPane extends ViewPane {
 				description: localize('repoctxGateDescription', "Decide merge readiness from deterministic checks."),
 				command: 'repoctx gate',
 				icon: Codicon.shield,
-				requiresTask: true,
+				requiresTask: false,
 				tools: [
 					{ id: 'tieline', name: 'Tieline', purpose: localize('repoctxTielinePurpose', "contracts") },
 					{ id: 'bouncer', name: 'Bouncer', purpose: localize('repoctxBouncerPurpose', "compliance") },

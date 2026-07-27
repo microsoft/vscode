@@ -44,11 +44,11 @@ flowchart LR
 │  │  Changed-file validation       │
 │  │  Run Review                    │
 │  │                                 │
-│  ◇  Gate           Needs request │
+│  ◉  Gate                 Checking │
 │  │  ○ Tieline  contracts    Ready │
 │  │  ○ Bouncer  compliance   Ready │
 │  │  ○ Aiglare  governance   Ready │
-│  │  Run Gate                      │
+│  │  Watching staged changes       │
 │  │                                 │
 │  ◇  Audit          Needs request │
 │     Recomputable receipt           │
@@ -82,9 +82,9 @@ stateDiagram-v2
 - Failed stages retain a visible `Failed` state and a one-click retry action instead of returning to an ambiguous idle state.
 - The bundled Repoctx CLI is launched through Repoctx IDE's own runtime as a direct integrated-terminal process with structured arguments. Users do not need a separate global install, task text is never composed into a shell command, and Electron archive handling is disabled for repository scans so ordinary `.asar` fixture files stay quiet.
 - A successful stage writes a named artifact into `.dev-context` and the rail refreshes from the filesystem.
-- Gate runs the bundled Tieline contract, Bouncer compliance, and Aiglare AI-governance checks. Each tool remains visible while it is checking and resolves to `Pass`, `Warning`, `Fail`, or `Not configured` from `gate.md`; status is never inferred from process activity alone.
+- Gate automatically runs against the staged Git index after Source Control changes, writing `gate.md` as a durable receipt. It shows `Pass`, `Warning`, or `Fail` for the exact change about to be committed, then separately leaves GitHub-only review, CI, protection, and mergeability evidence to PR mode. The bundled Tieline contract, Bouncer compliance, and Aiglare AI-governance checks remain visible while checking and resolve from the receipt; status is never inferred from process activity alone.
 - A failed stage points to the visible Repoctx terminal output.
-- Context, Impact, Gate, and Audit require a change request. Review can inspect the current diff without one.
+- Context, Impact, and Audit require a change request. Review can inspect the current diff without one, while Gate automatically watches staged changes.
 - The next useful action stays beside the evidence it creates.
 
 ## Repoctx engine updates
