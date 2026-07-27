@@ -12,7 +12,7 @@
 	position: absolute;
 	inset: var(--vscode-spacing-size20);
 	border-radius: var(--vscode-cornerRadius-circle);
-	box-shadow: 0 0 var(--vscode-spacing-size80) var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+	box-shadow: 0 0 var(--vscode-spacing-size80) var(--vscode-focusBorder);
 	pointer-events: none;
 }
 
