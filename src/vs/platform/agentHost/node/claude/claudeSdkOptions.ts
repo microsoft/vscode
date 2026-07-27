@@ -9,15 +9,35 @@ import { tmpdir } from 'os';
 import { delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
+import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { resolveClaudeEffort } from '../../common/claudeModelConfig.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
-import { buildClientToolMcpServer } from './clientTools/claudeClientToolMcpServer.js';
+import { CLAUDE_SERVER_TOOL_MCP_SERVER_NAME } from './claudeServerToolMcpServer.js';
+import { buildClientToolMcpServer, CLAUDE_CLIENT_MCP_SERVER_NAME } from './clientTools/claudeClientToolMcpServer.js';
 import { toSdkModelId } from './claudeModelId.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
+
+/**
+ * The in-process MCP servers the agent host injects into
+ * `Options.mcpServers` itself: the client-tool bridge and the server-tool
+ * bridge. They are internal plumbing — the SDK reports them alongside real,
+ * user-configured servers in `mcpServerStatus()`, but they have no on-disk
+ * definition, cannot be toggled through the CLI's MCP control requests, and
+ * must never surface as user-visible MCP customizations.
+ */
+const HOST_INJECTED_MCP_SERVER_NAMES: ReadonlySet<string> = new Set([
+	CLAUDE_CLIENT_MCP_SERVER_NAME,
+	CLAUDE_SERVER_TOOL_MCP_SERVER_NAME,
+]);
+
+/** Whether `name` is one of the {@link HOST_INJECTED_MCP_SERVER_NAMES}. */
+export function isHostInjectedMcpServerName(name: string): boolean {
+	return HOST_INJECTED_MCP_SERVER_NAMES.has(name);
+}
 
 /**
  * Inputs to {@link buildOptions} that vary per startup. Pure-data: no
@@ -110,6 +130,12 @@ export async function buildOptions(
 			: {}),
 		CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 		USE_BUILTIN_RIPGREP: '0',
+		// Attribute the CLI's tool subprocesses (`gh`, …) to VS Code.
+		// `settings.env` is what the CLI layers onto the commands it runs, so it
+		// needs the marker in addition to the spawn env below. Note the CLI
+		// re-stamps `AI_AGENT` as `claude-code_<version>_agent` for its own Bash
+		// tool, so commands from that tool are not attributed to VS Code.
+		[AiAgentEnvVar]: AiAgentEnvValue,
 		PATH: `${dirname(resolvedRgDiskPath)}${delimiter}${process.env.PATH ?? ''}`,
 	};
 
@@ -215,8 +241,9 @@ export function buildModelEnumerationOptions(): Options {
  *
  * In both modes the agent host's own `NODE_OPTIONS`, `ELECTRON_*`, and
  * `VSCODE_*` variables are stripped (they break the Electron-node subprocess),
- * and `ELECTRON_RUN_AS_NODE=1` is set. Mirror of CopilotAgent's strip pattern
- * at copilotAgent.ts:434-450.
+ * `ELECTRON_RUN_AS_NODE=1` is set, and `AI_AGENT` is pinned so the sparse
+ * proxied env still announces the originating VS Code surface. Mirror of the
+ * strip pattern in `CopilotAgent._ensureClient()`.
  *
  * Exported for unit testing as a pure function over `process.env`.
  */
@@ -234,6 +261,9 @@ export function buildSubprocessEnv(proxied: boolean = true): Record<string, stri
 			USERPROFILE: process.env['USERPROFILE'],
 		}
 		: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_OPTIONS: undefined };
+	// Replace semantics mean the sparse (proxied) env would otherwise drop the
+	// agent host's own marker, so set it in both modes. See `AiAgentEnvVar`.
+	env[AiAgentEnvVar] = AiAgentEnvValue;
 	for (const key of Object.keys(process.env)) {
 		if (key === 'ELECTRON_RUN_AS_NODE') { continue; }
 		if (key.startsWith('VSCODE_') || key.startsWith('ELECTRON_')) {

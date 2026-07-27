@@ -726,6 +726,10 @@ export class ActionListWidget<T> extends Disposable {
 		this._register(dom.addDisposableListener(this._submenuContainer, 'mouseleave', () => {
 			this._scheduleSubmenuHide();
 		}));
+		// A panel scheduled while crossing a row must not pop up after the pointer has left.
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_LEAVE, () => {
+			this._cancelSubmenuShow();
+		}));
 		this._register(toDisposable(() => {
 			this._cancelSubmenuHide();
 			this._cancelSubmenuShow();
@@ -872,6 +876,9 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			const text = dom.append(this._headerContainer, dom.$('span.action-list-header-text'));
 			text.textContent = this._options.headerText;
+
+			// The banner is chrome, not an item: pointing at it dismisses a row's hover panel.
+			this._register(dom.addDisposableListener(this._headerContainer, dom.EventType.MOUSE_ENTER, () => this._hideSubmenu()));
 
 			if (this._options.headerLink) {
 				const { label, uri } = this._options.headerLink;

@@ -12,11 +12,13 @@ import type { ErrorInfo, MessageAttachment, SessionInputRequestKind, ToolDefinit
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
 import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
+import type { AgentHostClientType } from '../common/agentHostClientInfo.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
 export interface IAgentHostUserMessageSentEvent {
 	provider: string;
+	initiatorClientType: AgentHostClientType;
 	agentSessionId: string;
 	source: AgentHostUserMessageSentSource;
 	isSubagentSession: boolean;
@@ -29,6 +31,7 @@ export interface IAgentHostUserMessageSentEvent {
 
 export type IAgentHostUserMessageSentClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	initiatorClientType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of AHP client that initiated the user message.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user message was sent directly or from the queued-message flow.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the message was sent to a subagent session.' };
@@ -135,6 +138,7 @@ export interface IAgentHostToolInvokedReport {
 export interface IAgentHostToolCallDetailsReport {
 	session: string;
 	turnId: string;
+	clientType: AgentHostClientType;
 	model: string | undefined;
 	responseType: string;
 	/** Count of invocations keyed by tool name, across all rounds in the turn. */
@@ -260,12 +264,13 @@ export class AgentHostTelemetryReporter {
 		return typeof ts.sendEnhancedGHTelemetryEvent === 'function' ? ts as IAgentHostRestrictedTelemetry : undefined;
 	}
 
-	userMessageSent(provider: string, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
+	userMessageSent(provider: string, clientType: AgentHostClientType, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
 		const attachmentCount = attachments?.length ?? 0;
 		const activeClients = sessionState?.activeClients ?? [];
 		const sessionUri = isAhpChatChannel(session) ? parseRequiredSessionUriFromChatUri(session) : session;
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {
 			provider,
+			initiatorClientType: clientType,
 			agentSessionId: AgentSession.id(sessionUri),
 			source,
 			isSubagentSession: isSubagentSession(sessionUri),
@@ -293,7 +298,7 @@ export class AgentHostTelemetryReporter {
 	 * @param serviceRequestId The model call's `x-copilot-service-request-id`, mapped to the extension's `headerRequestId`. No-ops when absent (e.g. providers that don't surface it).
 	 * @param tools The tool definitions offered to the model for this call.
 	 */
-	assistantMessageReceived(session: string, serviceRequestId: string | undefined, tools: readonly ToolDefinition[]): void {
+	assistantMessageReceived(session: string, clientType: AgentHostClientType, serviceRequestId: string | undefined, tools: readonly ToolDefinition[]): void {
 		const restricted = this._restricted;
 		if (!restricted || !serviceRequestId || tools.length === 0) {
 			return;
@@ -301,6 +306,7 @@ export class AgentHostTelemetryReporter {
 		restricted.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
 			headerRequestId: serviceRequestId,
 			conversationId: AgentSession.id(session),
+			initiatorClientType: clientType,
 			messagesJson: JSON.stringify(tools),
 		}));
 	}
@@ -318,7 +324,7 @@ export class AgentHostTelemetryReporter {
 	 * @param content The user's prompt text. No-ops when empty.
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here (a non-numeric id lands empty).
 	 */
-	userMessageText(session: string, content: string, turnIndex: number): void {
+	userMessageText(session: string, clientType: AgentHostClientType, content: string, turnIndex: number): void {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
@@ -326,6 +332,7 @@ export class AgentHostTelemetryReporter {
 		const properties = multiplexProperties({
 			source: 'user',
 			conversationId: AgentSession.id(session),
+			initiatorClientType: clientType,
 			turnIndex: String(turnIndex),
 			messageText: content,
 		});
@@ -346,7 +353,7 @@ export class AgentHostTelemetryReporter {
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here.
 	 * @param serviceRequestId The model call's `x-copilot-service-request-id`, mapped to `headerRequestId`.
 	 */
-	modelMessageText(session: string, content: string, turnIndex: number, serviceRequestId: string | undefined): void {
+	modelMessageText(session: string, clientType: AgentHostClientType, content: string, turnIndex: number, serviceRequestId: string | undefined): void {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
@@ -354,6 +361,7 @@ export class AgentHostTelemetryReporter {
 		const properties = multiplexProperties({
 			source: 'model',
 			conversationId: AgentSession.id(session),
+			initiatorClientType: clientType,
 			turnIndex: String(turnIndex),
 			...(serviceRequestId ? { headerRequestId: serviceRequestId } : {}),
 			messageText: content,
@@ -386,6 +394,7 @@ export class AgentHostTelemetryReporter {
 			conversationId: AgentSession.id(session),
 			requestId: report.turnId,
 			messageId: report.turnId,
+			initiatorClientType: report.clientType,
 			responseType: report.responseType,
 			...(report.model ? { model: report.model } : {}),
 			toolCounts: JSON.stringify(report.toolCounts),

@@ -15,13 +15,14 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
+import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type Message, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -1101,9 +1102,9 @@ export function subagentChatTitle(taskDescription: string | undefined, agentDisp
 }
 
 /**
- * Maps agent `subagent_*` signals to the unified chat catalog's
- * spawn/end events. Shared by the agents' spawn bridges and the orchestrator so
- * subagent membership has one derivation.
+ * Maps agent `subagent_started` signals to the unified chat catalog's spawn
+ * events. Shared by the agents' spawn bridges and the orchestrator so subagent
+ * membership has one derivation.
  */
 export namespace SubagentChatSignal {
 
@@ -1185,7 +1186,7 @@ export interface IAgentChats {
 	 * Send a user message into `chat`; on first send, the host passes the resolved
 	 * working directory (or `undefined` for workspace-less sessions).
 	 */
-	sendMessage(chat: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void>;
+	sendMessage(chat: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType?: AgentHostClientType): Promise<void>;
 
 	/** Abort the in-flight turn for `chat`. */
 	abort(chat: URI): Promise<void>;
@@ -1244,6 +1245,7 @@ export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentToolPendingConfirmationSignal
 	| IAgentSubagentStartedSignal
+	| IAgentSubagentResumedSignal
 	| IAgentSubagentCompletedSignal
 	| IAgentSteeringConsumedSignal;
 
@@ -1356,11 +1358,19 @@ export interface IAgentSubagentStartedSignal {
 }
 
 /**
- * A subagent has finished — either successfully or with an error. The host
- * uses this to tear down the child session after all of its events have been
- * routed. The parent tool call completing is not a reliable signal for this
- * because background subagents (e.g. Copilot's `mode: background` task) keep
- * emitting events after their parent tool call returns immediately.
+ * A previously completed subagent started another turn after being steered.
+ */
+export interface IAgentSubagentResumedSignal {
+	readonly kind: 'subagent_resumed';
+	readonly chat: URI;
+	readonly toolCallId: string;
+	readonly message?: Message;
+}
+
+/**
+ * A subagent turn has finished — either successfully or with an error. The
+ * child chat and its routing remain live because the same subagent can be
+ * steered into another turn.
  */
 export interface IAgentSubagentCompletedSignal {
 	readonly kind: 'subagent_completed';
@@ -1626,6 +1636,19 @@ export interface IAgent {
 
 	/** Available models from this provider. */
 	readonly models: IObservable<readonly IAgentModelInfo[]>;
+
+	/**
+	 * Re-enumerate this provider's model list and publish the result to
+	 * {@link models}. Called both on provider-owned triggers (authentication,
+	 * transport changes) and periodically by the host's model-refresh
+	 * scheduler, so implementations MUST coalesce concurrent calls into a
+	 * single backend request and MUST NOT reject: a failed refresh is logged
+	 * and leaves the last known-good list in place.
+	 *
+	 * Optional so providers without a dynamic model catalog (mocks, test
+	 * agents) need not implement it.
+	 */
+	refreshModels?(): Promise<void>;
 
 	/** List persisted sessions from this provider. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
@@ -1981,7 +2004,7 @@ export interface IAgentService {
 	 * rather than {@link URI} objects so that authority-less scheme URIs
 	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientType?: AgentHostClientType): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
