@@ -75,10 +75,6 @@ export class ChatInputModelSelectionController extends Disposable {
 		return this._selectionReason;
 	}
 
-	get userExplicitlySelectedModel(): boolean {
-		return this._selectionReason === ModelSelectionReason.UserSelection;
-	}
-
 	beginSessionSwitch(isEmpty: boolean, ownsPool: boolean, hadIncomingModel: boolean): void {
 		this._selectionReason = undefined;
 		this._restorePerTypeModel = isEmpty && ownsPool && !hadIncomingModel;
@@ -385,6 +381,10 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 	}
 
+	/**
+	 * Validate that the current model belongs to the current session's pool.
+	 * Called when switching sessions to prevent cross-contamination.
+	 */
 	ensureCurrentModelInSessionPool(): void {
 		const currentModel = this._currentModel.get();
 		if (currentModel && !isModelValidForSession(currentModel, this._runtime.getAllModels(), this._runtime.getCurrentSessionType())) {
@@ -392,6 +392,10 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 	}
 
+	/**
+	 * Reconcile the current model after an explicit session-type pick: restore persisted →
+	 * best-match previous → default.
+	 */
 	revalidateForSessionType(initialize: () => void): void {
 		const previousModel = this._currentModel.get();
 		this._selectionReason = undefined;

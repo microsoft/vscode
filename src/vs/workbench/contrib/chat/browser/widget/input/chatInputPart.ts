@@ -800,7 +800,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.chatSessionSupportsDelegationKey.set(this.chatSessionsService.supportsDelegationForSessionType(newSessionType));
 				this.updateWidgetLockStateFromSessionType(newSessionType);
 				this.checkModeInSessionPool(newSessionType);
-				this.revalidateModelForSessionType();
+				this._modelSelectionController.revalidateForSessionType(() => this.initSelectedModel());
 				this.refreshChatSessionPickers();
 			}));
 		}
@@ -902,7 +902,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.initSelectedModel();
 
 		this._register(this._onDidChangeCurrentChatMode.event(() => {
-			this.checkModelSupported();
+			this._modelSelectionController.ensureCurrentModelSupported();
 		}));
 
 		const updateAfterModelListChange = (reconcileSelection: boolean) => {
@@ -1066,7 +1066,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (isUserAction) {
 				this.setCurrentLanguageModel(model, true, storeSelection);
 			} else {
-				this._applyProgrammaticLanguageModel(model);
+				this._modelSelectionController.applyProgrammaticSelection(model);
 			}
 			return true;
 		}
@@ -1078,7 +1078,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		for (const qualifiedModelName of qualifiedModelNames) {
 			const model = models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedModelName, m.metadata));
 			if (model) {
-				this._applyProgrammaticLanguageModel(model);
+				this._modelSelectionController.applyProgrammaticSelection(model);
 				return true;
 			}
 		}
@@ -1514,7 +1514,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Be deterministic for anonymous users to support
 			// agentic flows with default model.
 			this.setChatMode(ChatModeKind.Agent, false);
-			this.checkModelSupported();
+			this._modelSelectionController.ensureCurrentModelSupported();
 			return;
 		}
 
@@ -1530,7 +1530,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (resolved) {
 					this.logService.trace(`[ChatInputPart] Applying default mode from setting: ${defaultMode} -> ${resolved.id}`);
 					this.setChatMode(resolved.id, false);
-					this.checkModelSupported();
+					this._modelSelectionController.ensureCurrentModelSupported();
 				}
 			}
 		}
@@ -1658,10 +1658,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	private _applyProgrammaticLanguageModel(model: ILanguageModelChatMetadataAndIdentifier): void {
-		this._modelSelectionController.applyProgrammaticSelection(model);
-	}
-
 	private _requestProgrammaticLanguageModel(resolveModel: () => ILanguageModelChatMetadataAndIdentifier | undefined): Promise<boolean> {
 		const result = this._modelSelectionController.requestProgrammaticSelection(
 			resolveModel,
@@ -1670,10 +1666,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._updateInputContentContextKeys();
 		void result.finally(() => this._updateInputContentContextKeys());
 		return result;
-	}
-
-	private checkModelSupported(): void {
-		this._modelSelectionController.ensureCurrentModelSupported();
 	}
 
 	/**
@@ -1796,14 +1788,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * Validate that the current model belongs to the current session's pool.
-	 * Called when switching sessions to prevent cross-contamination.
-	 */
-	private checkModelInSessionPool(): void {
-		this._modelSelectionController.ensureCurrentModelInSessionPool();
-	}
-
-	/**
 	 * If the current model is absent from the destination session's filtered pool,
 	 * re-initialize from storage to restore the user's previous selection for this
 	 * pool, then validate. Uses the filtered pool (same as `revalidateForSessionType`)
@@ -1818,15 +1802,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const pool = this.getModelsForSessionType(this.getCurrentSessionType());
 		if (!pool.some(m => m.identifier === currentModel.identifier)) {
 			this.initSelectedModel();
-			this.checkModelInSessionPool();
+			this._modelSelectionController.ensureCurrentModelInSessionPool();
 		}
-	}
-
-	/**
-	 * Reconcile the current model after an explicit session-type pick: restore persisted → best-match previous → default.
-	 */
-	private revalidateModelForSessionType(): void {
-		this._modelSelectionController.revalidateForSessionType(() => this.initSelectedModel());
 	}
 
 	/**
@@ -1896,10 +1873,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._modelSelectionController.preselectFromHistory(lastModelId, sessionResource.toString());
 	}
 
-	private setCurrentLanguageModelToDefault(forSessionType?: string) {
-		this._modelSelectionController.selectDefault(forSessionType ?? this.getCurrentSessionType());
-	}
-
 	/**
 	 * The raw configured default-model value from the
 	 * {@link ChatConfiguration.DefaultModel} setting (which may
@@ -1914,7 +1887,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/** Resets the language model to the location default and cancels any pending model-selection intent. */
 	public resetLanguageModelToDefault(): void {
 		this._modelSelectionController.clearIntent();
-		this.setCurrentLanguageModelToDefault();
+		this._modelSelectionController.selectDefault(this.getCurrentSessionType());
 	}
 
 	/**
@@ -2839,7 +2812,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			logChangesToStateModel(this._inputModel, `[CVVM].1 onDidChangeViewModel -> session change: ${this._currentSessionType} -> ${newSessionType} in ${this._currentSessionKey}, ${e.currentSessionResource.toString()}`, undefined, this._inputModel?.state.get(), this.logService);
 			this._currentSessionTypeObservable.set(newSessionType, transaction);
 			this.initSelectedModel();
-			this.checkModelInSessionPool();
+			this._modelSelectionController.ensureCurrentModelInSessionPool();
 			this.checkModeInSessionPool();
 		} else if (e.currentSessionResource) {
 			logChangesToStateModel(this._inputModel, `[CVVM].2 onDidChangeViewModel -> session change: ${this._currentSessionType} -> ${newSessionType} in ${this._currentSessionKey}, ${e.currentSessionResource.toString()}`, undefined, this._inputModel?.state.get(), this.logService);
@@ -2862,7 +2835,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this._modelSelectionController.restorePerTypeModel) {
 			this.initSelectedModel();
 			if (!this._modelSelectionController.hasPendingIntent() && !this._modelSelectionController.isAwaitingRememberedModel()) {
-				this.checkModelInSessionPool();
+				this._modelSelectionController.ensureCurrentModelInSessionPool();
 			}
 		}
 	}
@@ -3184,7 +3157,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					if (action.id === OpenModelPickerAction.ID && action instanceof MenuItemAction) {
 						if (!this._currentLanguageModel.get()) {
 							logChangesToStateModel(this._inputModel, `actionViewItemProvider[phone]: _currentLanguageModel is undefined at toolbar build, forcing default for ${this._currentSessionKey}`, undefined, undefined, this.logService);
-							this.setCurrentLanguageModelToDefault();
+							this._modelSelectionController.selectDefault(this.getCurrentSessionType());
 						}
 						const modelDelegate = this._createModelPickerDelegate();
 						const modeDelegate = this._createModePickerDelegate();
@@ -3197,7 +3170,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (action.id === OpenModelPickerAction.ID && action instanceof MenuItemAction) {
 					if (!this._currentLanguageModel.get()) {
 						logChangesToStateModel(this._inputModel, `actionViewItemProvider[desktop]: _currentLanguageModel is undefined at toolbar build, forcing default for ${this._currentSessionKey}`, undefined, undefined, this.logService);
-						this.setCurrentLanguageModelToDefault();
+						this._modelSelectionController.selectDefault(this.getCurrentSessionType());
 					}
 
 					const itemDelegate: IModelPickerDelegate = this._createModelPickerDelegate();

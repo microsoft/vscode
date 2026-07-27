@@ -80,14 +80,14 @@ suite('ChatInputModelSelectionController', () => {
 		controller.applyAutomaticSelection(first, () => { });
 		const automatic = {
 			current: controller.currentModel.get()?.identifier,
-			explicit: controller.userExplicitlySelectedModel,
+			explicit: controller.selectionReason === ModelSelectionReason.UserSelection,
 		};
 		controller.applyExplicitSelection(second, () => { }, false);
 
 		assert.deepStrictEqual({
 			automatic,
 			current: controller.currentModel.get()?.identifier,
-			explicitAfterUserSelection: controller.userExplicitlySelectedModel,
+			explicitAfterUserSelection: controller.selectionReason === ModelSelectionReason.UserSelection,
 		}, {
 			automatic: { current: first.identifier, explicit: false },
 			current: second.identifier,
@@ -977,7 +977,7 @@ suite('ChatInputModelSelectionController', () => {
 		controller.applyExplicitSelection(opus, () => applied.push(opus.identifier), false);
 		const configuredApplied = controller.applyConfiguredDefault();
 
-		assert.deepStrictEqual({ configuredApplied, applied, current: controller.currentModel.get()?.identifier, userPicked: controller.userExplicitlySelectedModel }, {
+		assert.deepStrictEqual({ configuredApplied, applied, current: controller.currentModel.get()?.identifier, userPicked: controller.selectionReason === ModelSelectionReason.UserSelection }, {
 			configuredApplied: false,
 			applied: [opus.identifier],
 			current: opus.identifier,
