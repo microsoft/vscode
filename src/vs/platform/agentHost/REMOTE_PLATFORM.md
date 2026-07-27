@@ -431,6 +431,18 @@ child_plain      DEAD    <- reaped with the job
 child_breakaway  ALIVE
 ```
 
+The same result holds for the real CLI, as an A/B against one Windows 11 remote,
+launching through `buildLaunchCommand` exactly as the desktop does:
+
+| Build | While the channel is open | After it closes |
+|---|---|---|
+| With `CREATE_BREAKAWAY_FROM_JOB` | supervisor running | running, listening, accepts a connection |
+| Flag removed, otherwise identical | already gone | gone; port dead |
+
+Both builds print the endpoint banner, so the failure is invisible to anything
+that only watches for readiness — the desktop would connect to a supervisor that
+no longer exists.
+
 Two consequences follow. **Detachment alone does not save a process** — the plain
 child was fully detached and still died, so redirecting stdio and daemonizing, as
 the supervisor already does, is not sufficient. And because
@@ -444,9 +456,8 @@ actionable error rather than let the agent host die seconds later for no visible
 reason.
 
 This failure mode is invisible to unit tests and to a local PowerShell run: it
-requires a real Win32-OpenSSH exec channel, which is how it went unnoticed
-through five design reviews. §13 verifies it first, because every other Windows
-behaviour depends on the supervisor still being alive.
+requires a real Win32-OpenSSH exec channel. §13 verifies it first, because every
+other Windows behaviour depends on the supervisor still being alive.
 
 ---
 
