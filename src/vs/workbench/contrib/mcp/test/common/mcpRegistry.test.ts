@@ -39,8 +39,9 @@ import { IMcpSandboxService } from '../../common/mcpSandboxService.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpCollisionEnablementModel } from '../../common/mcpService.js';
 import { McpTaskManager } from '../../common/mcpTaskManager.js';
-import { IMcpPotentialSandboxBlock, LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
+import { IMcpPotentialSandboxBlock, LazyCollectionState, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
+import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 
 class TestConfigurationResolverService {
 	declare readonly _serviceBrand: undefined;
@@ -258,6 +259,33 @@ suite('Workbench - MCP - Registry', () => {
 
 		disposable.dispose();
 		assert.strictEqual(registry.collections.get().length, 0);
+	});
+
+	test('strict plugin-only customization hides non-plugin MCP collections and blocks direct lookup', () => {
+		store.add(registry.registerCollection(testCollection));
+		const pluginCollection = {
+			...testCollection,
+			id: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}test`,
+			provenance: McpCollectionProvenance.Plugin,
+			serverDefinitions: observableValue<McpServerDefinition[]>('pluginDefinitions', [baseDefinition]),
+		};
+		store.add(registry.registerCollection(pluginCollection));
+		const spoofedCollection = {
+			...testCollection,
+			id: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}spoofed-extension/collection`,
+			serverDefinitions: observableValue<McpServerDefinition[]>('spoofedDefinitions', [baseDefinition]),
+		};
+		store.add(registry.registerCollection(spoofedCollection));
+
+		configurationService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['mcpServers']);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: (key: string) => key === COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG,
+		} as unknown as IConfigurationChangeEvent);
+
+		assert.deepStrictEqual(registry.collections.get().map(collection => collection.id), [pluginCollection.id]);
+		assert.deepStrictEqual(registry.getServerDefinition(testCollection, baseDefinition).get(), { collection: undefined, server: undefined });
+		assert.deepStrictEqual(registry.getServerDefinition(spoofedCollection, baseDefinition).get(), { collection: undefined, server: undefined });
+		assert.strictEqual(registry.getServerDefinition(pluginCollection, baseDefinition).get().server, baseDefinition);
 	});
 
 	test('collections are not visible when not enabled', () => {

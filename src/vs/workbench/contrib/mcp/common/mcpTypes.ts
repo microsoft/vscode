@@ -44,6 +44,11 @@ export const extensionMcpCollectionPrefix = 'ext.';
  * {@link IMcpConfigPath.id} of the originating config path.
  */
 export const MCP_CONFIGURATION_COLLECTION_ID_PREFIX = 'mcp.config.';
+export const MCP_PLUGIN_COLLECTION_ID_PREFIX = 'plugin.';
+
+export const enum McpCollectionProvenance {
+	Plugin = 'plugin',
+}
 
 export function extensionPrefixedIdentifier(identifier: ExtensionIdentifier, id: string): string {
 	return ExtensionIdentifier.toKey(identifier) + '/' + id;
@@ -58,6 +63,7 @@ export interface McpCollectionDefinition {
 	readonly remoteAuthority: string | null;
 	/** Globally-unique, stable ID for this definition */
 	readonly id: string;
+	readonly provenance?: McpCollectionProvenance;
 	/** Human-readable label for the definition */
 	readonly label: string;
 	/** Definitions this collection contains. */

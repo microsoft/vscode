@@ -56,6 +56,7 @@ import { MockContextKeyService } from '../../../../../../../platform/keybinding/
 import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
 import { PluginFormat } from '../../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
+import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 
 class TestPromptContextKeyService extends MockContextKeyService {
 	private readonly _onDidChangeContextEmitter = new Emitter<IContextKeyChangeEvent>();
@@ -4534,6 +4535,84 @@ suite('PromptsService', () => {
 		});
 	});
 
+	suite('customization lockdown', () => {
+		test('selective agent lockdown filters workspace agents without affecting prompts', async () => {
+			const rootFolderUri = URI.file('/lockdown-agents');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['agents']);
+
+			await mockFiles(fileService, [
+				{
+					path: '/lockdown-agents/.github/agents/reviewer.agent.md',
+					contents: ['---', 'description: "Review code"', '---'],
+				},
+				{
+					path: '/lockdown-agents/.github/prompts/review.prompt.md',
+					contents: ['---', 'description: "Review prompt"', '---'],
+				},
+			]);
+
+			assert.deepStrictEqual(await service.getCustomAgents(CancellationToken.None), []);
+			assert.strictEqual((await service.listPromptFiles(PromptsType.prompt, CancellationToken.None)).length, 1);
+		});
+
+		test('skill lockdown filters standalone skills before discovery and preserves plugin skills', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['skills']);
+			const rootFolderUri = URI.file('/lockdown-skills');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [{
+				path: '/lockdown-skills/.github/skills/workspace-skill/SKILL.md',
+				contents: ['---', 'name: "workspace-skill"', 'description: "Workspace"', '---'],
+			}, {
+				path: '/plugins/managed/skills/plugin-skill/SKILL.md',
+				contents: ['---', 'name: "plugin-skill"', 'description: "Plugin"', '---'],
+			}]);
+
+			const plugin: IAgentPlugin = {
+				uri: URI.file('/plugins/managed'),
+				format: PluginFormat.Copilot,
+				label: 'managed',
+				enablement: observableValue('lockdownPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
+				hooks: observableValue('lockdownPluginHooks', []),
+				commands: observableValue('lockdownPluginCommands', []),
+				skills: observableValue<readonly IAgentPluginSkill[]>('lockdownPluginSkills', [{ uri: URI.file('/plugins/managed/skills/plugin-skill/SKILL.md'), name: 'plugin-skill' }]),
+				agents: observableValue('lockdownPluginAgents', []),
+				instructions: observableValue('lockdownPluginInstructions', []),
+				mcpServerDefinitions: observableValue('lockdownPluginMcpServers', []),
+			};
+			testPluginsObservable.set([plugin], undefined);
+
+			const skills = await service.findAgentSkills(CancellationToken.None);
+			assert.deepStrictEqual(skills?.map(skill => ({ name: skill.name, storage: skill.storage })), [
+				{ name: 'plugin-skill', storage: PromptsStorage.plugin },
+			]);
+		});
+
+		test('hook lockdown removes hooks embedded in standalone agents', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['hooks']);
+			const rootFolderUri = URI.file('/lockdown-agent-hooks');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [{
+				path: '/lockdown-agent-hooks/.github/agents/reviewer.agent.md',
+				contents: [
+					'---',
+					'description: "Review code"',
+					'hooks:',
+					'  PreToolUse:',
+					'    - type: command',
+					'      command: "echo blocked"',
+					'---',
+				],
+			}]);
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+			assert.strictEqual(agents.length, 1);
+			assert.strictEqual(agents[0].hooks, undefined);
+		});
+	});
+
 	suite('hooks', () => {
 		const createTestPlugin = (path: string, initialHooks: readonly IAgentPluginHook[]): { plugin: IAgentPlugin; hooks: ISettableObservable<readonly IAgentPluginHook[]> } => {
 			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
@@ -4633,6 +4712,30 @@ suite('PromptsService', () => {
 				command: 'echo from-plugin',
 				sourceUri: URI.file('/plugins/test-plugin/hooks.json'),
 			}], 'Expected plugin hooks to be included in computed hooks');
+		});
+
+		test('managed-only hooks block standalone and unmanaged plugin hooks', async function () {
+			const rootFolderUri = URI.file('/managed-hooks-only');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, { [HOOKS_SOURCE_FOLDER]: true });
+			testConfigService.setUserConfiguration(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, true);
+			fireConfigChange(testConfigService, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG);
+			await mockFiles(fileService, [{
+				path: '/managed-hooks-only/.github/hooks/hooks.json',
+				contents: [JSON.stringify({ hooks: { [HookType.PreToolUse]: [{ type: 'command', command: 'echo workspace' }] } })],
+			}]);
+
+			const { plugin } = createTestPlugin('/plugins/unmanaged', [{
+				type: HookType.PreToolUse,
+				originalId: 'plugin-hook',
+				hooks: [{ command: 'echo plugin' }],
+				uri: URI.file('/plugins/unmanaged/hooks.json'),
+			}]);
+			testPluginsObservable.set([plugin], undefined);
+
+			assert.strictEqual(await service.getHooks(CancellationToken.None), undefined);
+			assert.deepStrictEqual(await service.listPromptFiles(PromptsType.hook, CancellationToken.None), []);
 		});
 
 		test('recomputes hooks when agent plugin hooks change', async function () {
