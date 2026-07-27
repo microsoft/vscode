@@ -2582,19 +2582,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const settingId = AgentSandboxSettingId.AgentSandboxEnabled;
 		const message = localize(
 			'runInTerminal.bubblewrap.hostRestriction',
-			"The sandbox could not be created because the host restricts bubblewrap. Set `{0}` to `off` and retry the command.",
+			"Sandbox creation failed due to host restrictions. Disable sandboxing (`{0}`).",
 			settingId,
 		);
-		const settingsCommandArgs = encodeURIComponent(JSON.stringify([`@id:${settingId}`]));
-		const toolResultMessage = new MarkdownString(localize(
-			'runInTerminal.bubblewrap.hostRestrictionWithSettingsLink',
-			"The sandbox could not be created because the host restricts bubblewrap. [Open the `{0}` setting](command:workbench.action.openSettings?{1} \"Open Settings\"), set it to `off`, and retry the command.",
-			settingId,
-			settingsCommandArgs,
-		), { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } });
 		return {
 			content: [{ kind: 'text', value: message }],
-			toolResultMessage,
+			toolResultMessage: message,
 		};
 	}
 
