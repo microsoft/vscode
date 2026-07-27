@@ -4210,6 +4210,72 @@ suite('AgentSideEffects', () => {
 			subState = stateManager.getSessionState(subagentUri);
 			assert.strictEqual(subState!.activeTurn, undefined, 'subagent turn should be completed');
 			assert.strictEqual(subState!.turns.length, 1);
+
+			agent.fireProgress({
+				kind: 'subagent_resumed',
+				chat: URI.parse(defaultChatUri),
+				toolCallId: 'tc-1',
+				message: { text: 'Follow up', origin: { kind: MessageKind.User } },
+			});
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-1',
+				action: {
+					type: ActionType.ChatResponsePart,
+					turnId: 'parent-turn',
+					part: { kind: ResponsePartKind.Markdown, id: 'follow-up-part', content: 'Follow-up response' },
+				},
+			});
+
+			subState = stateManager.getSessionState(subagentUri);
+			assert.deepStrictEqual({
+				message: subState?.activeTurn?.message.text,
+				response: subState?.activeTurn?.responseParts[0],
+				completedTurns: subState?.turns.length,
+			}, {
+				message: 'Follow up',
+				response: { kind: ResponsePartKind.Markdown, id: 'follow-up-part', content: 'Follow-up response' },
+				completedTurns: 1,
+			});
+		});
+
+		test('permission requests for inactive and unroutable subagents are denied', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-inactive', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
+			agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId: 'tc-inactive' });
+
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-starting',
+				action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-starting-permission', toolName: 'shell', displayName: 'Shell' },
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation',
+				chat: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-starting',
+				state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-starting-permission', toolName: 'shell', displayName: 'Shell', invocationMessage: 'Run command' },
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation',
+				chat: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-inactive',
+				state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-inactive-permission', toolName: 'shell', displayName: 'Shell', invocationMessage: 'Run command' },
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation',
+				chat: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-missing',
+				state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-missing-permission', toolName: 'shell', displayName: 'Shell', invocationMessage: 'Run command' },
+			});
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-inactive-permission', approved: false },
+				{ requestId: 'tc-missing-permission', approved: false },
+			]);
 		});
 
 		test('cancelSubagentSessions cancels all subagent chats', () => {

@@ -13,6 +13,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { type IObservable, observableValue } from '../../../../base/common/observable.js';
 import { basename, dirname, isAbsolute, join, resolve, sep } from '../../../../base/common/path.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -3145,6 +3146,43 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private async _adoptWorkingDirectoryBeforeSend(session: ICodexSession, workingDirectory: URI | undefined): Promise<void> {
+		if (!workingDirectory || isEqual(session.workingDirectory, workingDirectory)) {
+			return;
+		}
+		if (session.prewarmClaimed) {
+			if (session.threadId === undefined && !session.materializePromise) {
+				session.workingDirectory = workingDirectory;
+			}
+			return;
+		}
+
+		this._claimPrewarm(session);
+		const materializePromise = session.materializePromise;
+		if (materializePromise) {
+			try {
+				await materializePromise;
+			} catch (err) {
+				this._logService.info(`[Codex] stale prewarm failed before working directory changed for session=${session.sessionUri.toString()}: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+
+		const threadId = session.threadId;
+		if (threadId !== undefined) {
+			session.threadId = undefined;
+			this._sessionIdByThreadId.delete(threadId);
+			const conn = this._connection;
+			if (conn.kind === 'ready') {
+				try {
+					await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId });
+				} catch (err) {
+					this._logService.warn(`[Codex] stale prewarm unsubscribe failed session=${session.sessionUri.toString()} threadId=${threadId}: ${err instanceof Error ? err.message : String(err)}`);
+				}
+			}
+		}
+		session.workingDirectory = workingDirectory;
+	}
+
 	private _startTurnStopWatch(session: ICodexSession): StopWatch {
 		const stopWatch = StopWatch.create(false);
 		session.turnStopWatch = stopWatch;
@@ -3165,12 +3203,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session) {
 			throw new Error(`Codex session not found: ${sessionUri.toString()}`);
 		}
-		// The host hands us the resolved working directory (an isolated worktree for
-		// worktree isolation) on the first send; adopt it before materialize locks
-		// the codex subprocess cwd. The agent stays unaware of worktrees.
-		if (workingDirectory && session.threadId === undefined) {
-			session.workingDirectory = workingDirectory;
-		}
+		await this._adoptWorkingDirectoryBeforeSend(session, workingDirectory);
 		const conn = await this._ensureConnection();
 		const effectiveTurnId = turnId ?? generateUuid();
 
