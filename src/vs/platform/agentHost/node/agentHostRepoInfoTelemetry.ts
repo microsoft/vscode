@@ -314,7 +314,7 @@ export class AgentHostRepoInfoTelemetry extends Disposable {
 		if (this._isDisposed || !isContextCurrent()) {
 			return result;
 		}
-		this._reporter.reportRepoInfo(telemetryContext, {
+		void this._reporter.reportRepoInfo(telemetryContext, {
 			telemetryMessageId,
 			location,
 			remoteUrl: repoInfo.remoteUrl,
@@ -329,7 +329,7 @@ export class AgentHostRepoInfoTelemetry extends Disposable {
 			workspaceFileCount,
 			changedFileCount,
 			diffSizeBytes,
-		});
+		}).catch(err => this._logService.trace(`[AgentHostRepoInfoTelemetry] Failed to report repo info: ${err instanceof Error ? err.message : String(err)}`));
 		return result;
 	}
 }
