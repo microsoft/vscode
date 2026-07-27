@@ -1206,6 +1206,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				return undefined;
 			}
 
+			// Only treat this as "file does not exist" if the file genuinely does not exist.
+			// The doCreate call can fail for other reasons (e.g., notebook model resolution
+			// failures over SSH remote). If the file already exists, re-throw the original error.
+			if (await this._fileService.exists(notebookUri)) {
+				throw err;
+			}
+
 			// this file does not exist yet, create it and try again
 			await this._bulkEditService.apply({ edits: [{ newResource: resource }] });
 			if (this.configurationService.getValue<boolean>('accessibility.openChatEditedFiles')) {
