@@ -248,9 +248,6 @@ type DictationBackend = 'nemo' | 'mai';
 const MAI_CONNECT_TIMEOUT_MS = 8000;
 /** How long to wait after `ptt_end` for the backend's final transcript before returning what we have. */
 const MAI_FINAL_TIMEOUT_MS = 4000;
-/** How long to wait for the backend to acknowledge the opened session before streaming audio anyway. */
-const MAI_SESSION_INIT_TIMEOUT_MS = 4000;
-
 type SpeechToTextSessionEvent = {
 	outcome: 'completed' | 'cancelled' | 'error';
 	backend: string;
@@ -995,9 +992,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		await this._awaitVoiceConnected();
 
 		// The backend drops PTT audio until a session is opened, so establish a
-		// minimal (session-less) dictation session and wait for the backend to
-		// acknowledge it before streaming audio. The websocket preserves order,
-		// but the ack guarantees the session exists server-side first.
+		// minimal (session-less) dictation session first. The websocket preserves
+		// message order, so the following PTT start reaches the backend afterward
+		// without adding a session-init round trip to dictation startup.
 		//
 		// Dictation is one continuous turn: the user taps to start, speaks
 		// several phrases with pauses in between, and taps to stop. Disable the
@@ -1007,33 +1004,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		const context: IVoiceSessionContext = { sessions: [], display_locale: '' };
 		const turnConfig: IVoiceTurnConfig = { auto_end_mode: 'off', silence_ms: 0, stop_phrases: [], vad_gate_asr: false };
 		this._voiceClientService.sendStartSession(context, this._telemetryService.machineId, undefined, turnConfig);
-		await this._awaitSessionInit();
 
-		// Session is live; drop the connecting spinner so the mic reads as
-		// recording when start() transitions to the Recording state.
+		// Session startup is queued; drop the connecting spinner so the mic reads
+		// as recording when start() transitions to the Recording state.
 		this._setPreparingModel(false);
 		this._voiceClientService.sendPttStart(this._maiTurnId);
-	}
-
-	/**
-	 * Wait for the backend to acknowledge the opened session (`onSessionInit`),
-	 * resolving on a timeout so a missing ack cannot wedge dictation: the
-	 * websocket preserves order, so `ptt_start` still follows `start_session`.
-	 */
-	private async _awaitSessionInit(): Promise<void> {
-		await new Promise<void>(resolve => {
-			const store = new DisposableStore();
-			this._maiSessionDisposables.add(store);
-			const timer = setTimeout(() => {
-				store.dispose();
-				resolve();
-			}, MAI_SESSION_INIT_TIMEOUT_MS);
-			store.add(toDisposable(() => clearTimeout(timer)));
-			store.add(this._voiceClientService.onSessionInit(() => {
-				store.dispose();
-				resolve();
-			}));
-		});
 	}
 
 	/**

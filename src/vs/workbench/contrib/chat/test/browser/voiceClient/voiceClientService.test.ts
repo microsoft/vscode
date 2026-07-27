@@ -249,6 +249,19 @@ suite('VoiceClientService', () => {
 		]);
 	});
 
+	test('preserves websocket order for back-to-back session and PTT start', async () => {
+		const { service } = createService();
+
+		await service.connect(createTestWindow());
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+		service.sendPttStart('turn-1');
+
+		assert.deepStrictEqual(socket().sent.map(message => message.type), [
+			'start_session',
+			'ptt_start',
+		]);
+	});
+
 	test('flags a passive ptt_start for hands-free barge-in listens', async () => {
 		const { service } = createService();
 
