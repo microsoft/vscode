@@ -8,7 +8,7 @@
 Verification:
 - Full agent-host unit suite 1807/1807 passing.
 - Agent-host integration suite 86/86 passing.
-- `npm run compile-check-ts-native` clean.
+- `npm run typecheck-client` clean.
 - Live workbench E2E executed against `--agents` Code OSS (run dir `/tmp/phase10.5-e2e/logs/20260521T114550`). Validated live:
   - Provider registration + proxy startup + auth path.
   - Three Claude sessions created via local agent host (`b0b896c5-...`, `e40afbbb-...`, `749dc491-...`).

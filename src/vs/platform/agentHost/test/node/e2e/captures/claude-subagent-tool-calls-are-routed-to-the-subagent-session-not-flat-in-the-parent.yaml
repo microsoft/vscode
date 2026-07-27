@@ -1,0 +1,141 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the `Task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only tool (e.g. `view` or shell with `ls`) to enumerate the directory. Do not enumerate the directory yourself — delegate to the subagent.
+    response:
+      content:
+        - type: text
+          text: I'll delegate the directory listing to a subagent.
+        - type: tool_use
+          id: toolcall_0
+          name: Agent
+          input:
+            description: List files in working directory
+            prompt: 'List the files in the current working directory by calling a single read-only tool: run the shell command `ls -la` (one Bash tool call). Then report back the exact list of files and directories you found. Do not run any other tools or make any modifications.'
+            subagent_type: general-purpose
+            run_in_background: false
+      stopReason: tool_use
+      usage:
+        inputTokens: 6837
+        outputTokens: 342
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: 'List the files in the current working directory by calling a single read-only tool: run the shell command `ls -la` (one Bash tool call). Then report back the exact list of files and directories you found. Do not run any other tools or make any modifications.'
+    response:
+      content:
+        - type: text
+          text: I'll run the command.
+        - type: tool_use
+          id: toolcall_1
+          name: Bash
+          input:
+            command: ls -la
+            description: List files in current working directory
+      stopReason: tool_use
+      usage:
+        inputTokens: 2675
+        outputTokens: 85
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: 'List the files in the current working directory by calling a single read-only tool: run the shell command `ls -la` (one Bash tool call). Then report back the exact list of files and directories you found. Do not run any other tools or make any modifications.'
+        - role: assistant
+          content:
+            - type: text
+              text: I'll run the command.
+            - type: tool_use
+              name: Bash
+              input:
+                command: ls -la
+                description: List files in current working directory
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                total 16
+                drwx------     4 ${user}  staff    128 Jul  9 16:55 .
+                drwx------@ 1145 ${user}  staff  36640 Jul  9 16:55 ..
+                -rw-r--r--     1 ${user}  staff      5 Jul  9 16:55 file-a.txt
+                -rw-r--r--     1 ${user}  staff      4 Jul  9 16:55 file-b.txt
+    response:
+      content: |-
+        The `ls -la` command returned the following contents of the current working directory:
+
+        Directories:
+        - `.` (current directory)
+        - `..` (parent directory)
+
+        Files:
+        - `file-a.txt` (5 bytes)
+        - `file-b.txt` (4 bytes)
+
+        The working directory contains two regular files, `file-a.txt` and `file-b.txt`, and no subdirectories other than the standard `.` and `..` entries.
+      stopReason: end_turn
+      usage:
+        inputTokens: 4165
+        outputTokens: 139
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the `Task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only tool (e.g. `view` or shell with `ls`) to enumerate the directory. Do not enumerate the directory yourself — delegate to the subagent.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: text
+              text: I'll delegate the directory listing to a subagent.
+            - type: tool_use
+              name: Agent
+              input:
+                description: List files in working directory
+                prompt: 'List the files in the current working directory by calling a single read-only tool: run the shell command `ls -la` (one Bash tool call). Then report back the exact list of files and directories you found. Do not run any other tools or make any modifications.'
+                subagent_type: general-purpose
+                run_in_background: false
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content:
+                - type: text
+                  text: |-
+                    The `ls -la` command returned the following contents of the current working directory:
+
+                    Directories:
+                    - `.` (current directory)
+                    - `..` (parent directory)
+
+                    Files:
+                    - `file-a.txt` (5 bytes)
+                    - `file-b.txt` (4 bytes)
+
+                    The working directory contains two regular files, `file-a.txt` and `file-b.txt`, and no subdirectories other than the standard `.` and `..` entries.
+                - type: text
+                  text: |-
+                    agentId: a80367f6909b49ab9 (use SendMessage with to: 'a80367f6909b49ab9', summary: '<5-10 word recap>' to continue this agent)
+                    <usage>subagent_tokens: 25794
+                    tool_uses: 1
+                    duration_ms: 5122</usage>
+    response:
+      content: |-
+        The subagent enumerated the directory with a single `ls -la` call. The working directory contains two files:
+
+        - `file-a.txt` (5 bytes)
+        - `file-b.txt` (4 bytes)
+
+        No subdirectories (other than `.` and `..`).
+      stopReason: end_turn
+      usage:
+        inputTokens: 2
+        outputTokens: 85

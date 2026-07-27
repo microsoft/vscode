@@ -111,10 +111,10 @@ suite('AgentHostFileCompletionProvider', () => {
 				provider: 'copilot',
 				title: 't',
 				status: SessionStatus.Idle,
-				createdAt: 0,
-				modifiedAt: 0,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
 				project: { uri: 'file:///project', displayName: 'Project' },
-				workingDirectory,
+				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			};
 		}
 

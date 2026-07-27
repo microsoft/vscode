@@ -14,6 +14,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IRemoteAuthorityResolverService, ResolverResult } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { getRemoteAuthority } from '../../../../platform/remote/common/remoteHosts.js';
 import { isVirtualResource } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISingleFolderWorkspaceIdentifier, isSavedWorkspace, isSingleFolderWorkspaceIdentifier, isTemporaryWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, toWorkspaceIdentifier, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse, IWorkspaceTrustEnablementService, ResourceTrustRequestOptions } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -446,7 +447,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private isTrustedVirtualResource(uri: URI): boolean {
-		return isVirtualResource(uri) && uri.scheme !== 'vscode-vfs';
+		// `vscode-vfs` (e.g. GitHub Repositories) and `vscode-agent-host`
+		// (remote agent host folders) represent real, writable resources where
+		// code can run or files can change, so they must go through normal
+		// workspace trust rather than being auto-trusted as virtual resources.
+		return isVirtualResource(uri) && uri.scheme !== 'vscode-vfs' && uri.scheme !== AGENT_HOST_SCHEME;
 	}
 
 	private isTrustedByRemote(uri: URI): boolean {

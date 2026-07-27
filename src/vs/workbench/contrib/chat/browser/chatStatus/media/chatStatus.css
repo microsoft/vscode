@@ -274,6 +274,10 @@
 	border-radius: 4px;
 }
 
+.chat-status-bar-entry-tooltip .quota-indicator.muted {
+	opacity: 0.5;
+}
+
 /* Compact Quota Indicator (2x2 grid: plan name + percentage, reset + label) */
 
 .chat-status-bar-entry-tooltip .quota-indicator.compact {

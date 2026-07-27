@@ -1,0 +1,49 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Try to read missing.txt. If it does not exist, reply exactly "missing".
+    response:
+      content:
+        - type: text
+          text: Checking whether `missing.txt` exists, and I’ll return its contents if present or `missing` if not.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: if [ -f missing.txt ]; then cat missing.txt; else echo missing; fi
+            workdir: ${workdir}/ahp-coverage-missing-${temp}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Try to read missing.txt. If it does not exist, reply exactly "missing".
+        - role: assistant
+          content: Checking whether `missing.txt` exists, and I’ll return its contents if present or `missing` if not.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: if [ -f missing.txt ]; then cat missing.txt; else echo missing; fi
+                workdir: ${workdir}/ahp-coverage-missing-${temp}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: 7ca4b0
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 2
+                Output:
+                missing
+    response:
+      content: missing
+      stopReason: end_turn

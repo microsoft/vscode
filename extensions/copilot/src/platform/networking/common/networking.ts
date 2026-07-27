@@ -75,7 +75,7 @@ export interface IEndpointBody {
 	prediction?: Prediction;
 	messages?: any[];
 	n?: number;
-	reasoning?: { effort?: string; summary?: string; context?: 'current_turn' | 'all_turns' };
+	reasoning?: { effort?: string; summary?: string };
 	tool_choice?: OptionalChatRequestParams['tool_choice'] | { type: 'function'; name: string } | string;
 	top_logprobs?: number;
 	intent?: boolean;
@@ -119,7 +119,8 @@ export interface IEndpointBody {
 		budget_tokens?: number;
 	};
 	output_config?: {
-		effort?: 'low' | 'medium' | 'high';
+		/** Validated against the endpoint's declared `reasoning_effort` levels, not a hardcoded set. */
+		effort?: string;
 	};
 
 	/** ChatCompletions API for Anthropic models */
@@ -205,6 +206,8 @@ export interface IMakeChatRequestOptions {
 	source?: Source;
 	/** Conversation identifier used for request-scoped state (for example WebSocket connection reuse). */
 	conversationId?: string;
+	/** Optional identifier for an independent WebSocket connection within a conversation. */
+	webSocketConnectionId?: string;
 	/** Identifier for a single tool-calling turn within a conversation. */
 	turnId?: string;
 	/** Additional request options */
@@ -291,7 +294,9 @@ export interface ITokenPriceTier {
 	/** Cost in AICs per million output tokens */
 	readonly outputPrice: number;
 	/** Cost in AICs per million cached (read) tokens */
-	readonly cacheReadTokenPrice: number;
+	readonly cacheReadTokenPrice: number | undefined;
+	/** Cost in AICs per million cache-write tokens */
+	readonly cacheWriteTokenPrice: number | undefined;
 	/**
 	 * The largest prompt size (in tokens) billed at this tier's rates.
 	 * Derived from CAPI `billing.token_prices.<tier>.context_max`.
@@ -335,6 +340,8 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly showInModelPicker: boolean;
 	readonly isPremium?: boolean;
 	readonly degradationReason?: string;
+	readonly warningText?: Record<string, string>;
+	readonly promo?: { id: string; discountPercent: number; endsAt: string; message: string };
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
 	/**
@@ -344,6 +351,7 @@ export interface IChatEndpoint extends IEndpoint {
 	 */
 	readonly tokenPricing?: IChatEndpointTokenPricing;
 	readonly priceCategory?: string;
+	readonly modelPickerCategory?: string;
 	readonly isFallback: boolean;
 	readonly customModel?: CustomModel;
 	readonly isExtensionContributed?: boolean;

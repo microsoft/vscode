@@ -22,7 +22,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
 import { AccountPolicyService } from '../../common/accountPolicyService.js';
-import { MultiplexPolicyService } from '../../common/multiplexPolicyService.js';
+import { MultiplexPolicyService } from '../../../../../platform/policy/common/multiplexPolicyService.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: {
@@ -43,6 +43,7 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	readonly onDidChangeCopilotTokenInfo = Event.None;
 	readonly managedSettingsFetchStatus: null = null;
 	readonly managedSettingsFetchedAt: null = null;
+	readonly managedSettingsRawResponse: unknown = null;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,
@@ -141,6 +142,28 @@ suite('MultiplexPolicyService', () => {
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
 					value: policyData => policyData.cloud_session_storage_enabled === false ? false : undefined,
+				}
+			},
+			'setting.G': {
+				'type': ['array', 'null'],
+				'default': null,
+				policy: {
+					name: 'PolicySettingG',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' } },
+					value: policyData => policyData.chat_preview_features_enabled === false ? JSON.stringify(['policyValueG1', 'policyValueG2']) : undefined,
+				}
+			},
+			'setting.H': {
+				'type': ['array', 'null'],
+				'default': null,
+				policy: {
+					name: 'PolicySettingH',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' } },
+					value: policyData => policyData.chat_preview_features_enabled === false ? JSON.stringify([]) : undefined,
 				}
 			},
 		}
@@ -367,5 +390,42 @@ suite('MultiplexPolicyService', () => {
 
 		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), undefined);
 		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.F'), undefined);
+	});
+
+	test('union-typed (array | null) policy registers and parses JSON string value', async () => {
+		await clear();
+
+		const policyData: IPolicyData = { chat_preview_features_enabled: false };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingG'), JSON.stringify(['policyValueG1', 'policyValueG2']));
+		assert.deepStrictEqual(policyConfiguration.configurationModel.getValue('setting.G'), ['policyValueG1', 'policyValueG2']);
+	});
+
+	test('union-typed (array | null) policy preserves an empty array (lockdown) distinct from unset', async () => {
+		await clear();
+
+		// Policy set to an empty array (e.g. a lockdown allowlist): must round-trip to `[]`, not `undefined`.
+		const setPolicyData: IPolicyData = { chat_preview_features_enabled: false };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, setPolicyData));
+		await defaultAccountService.refresh();
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingH'), JSON.stringify([]));
+		assert.deepStrictEqual(policyConfiguration.configurationModel.getValue('setting.H'), []);
+	});
+
+	test('union-typed (array | null) policy unset leaves the setting at its default (distinct from empty array)', async () => {
+		await clear();
+
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, {}));
+		await defaultAccountService.refresh();
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingH'), undefined);
+		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.H'), undefined);
 	});
 });
