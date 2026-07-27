@@ -676,6 +676,38 @@ suite('ChatInputModelSelectionController', () => {
 		assert.deepStrictEqual({ current: controller.currentModel.get()?.identifier }, { current: agentCapable.identifier });
 	});
 
+	test('a remembered model is not reclaimed while the current mode cannot use it', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const agentCapable = targetedModel('agent-host/capable', 'agent-host');
+		const withAgentMode: ILanguageModelChatMetadataAndIdentifier = {
+			...agentCapable,
+			metadata: { ...agentCapable.metadata, capabilities: { toolCalling: true, agentMode: true } },
+		};
+		// Remembered from an Ask-mode session; agent mode cannot use it.
+		const askOnly = targetedModel('agent-host/ask-only', 'agent-host');
+		const state: IRuntimeState = {
+			models: [withAgentMode, askOnly],
+			resolved: true,
+			sessionType: 'agent-host',
+			modeKind: ChatModeKind.Agent,
+		};
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
+
+		controller.initialize(askOnly.identifier, () => { });
+		const awaiting = controller.isAwaitingRememberedModel();
+		controller.applyAutomaticSelection(withAgentMode, () => { });
+		modelChanges.fire('refresh');
+
+		assert.deepStrictEqual({
+			awaiting,
+			current: controller.currentModel.get()?.identifier,
+		}, {
+			// The model is in the raw pool but unusable here, so it counts as unavailable.
+			awaiting: true,
+			current: withAgentMode.identifier,
+		});
+	});
+
 	test('applies a fallback while the configured default loads, then upgrades it', () => {
 		const byok = model('openai/byok');
 		const configured = model('copilot/configured');

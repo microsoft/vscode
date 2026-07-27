@@ -96,7 +96,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	 */
 	isAwaitingRememberedModel(): boolean {
 		const modelId = this._rememberedSelection?.modelId;
-		return !!modelId && !this._runtime.getModels(this._runtime.getCurrentSessionType()).some(model => model.identifier === modelId);
+		return !!modelId && !this._selectablePool(this._runtime.getCurrentSessionType()).some(model => model.identifier === modelId);
 	}
 
 	hasPendingProgrammaticSelection(): boolean {
@@ -298,6 +298,10 @@ export class ChatInputModelSelectionController extends Disposable {
 	resetToDefault(sessionType = this._runtime.getCurrentSessionType()): void {
 		this._clearIntent();
 		this._rememberedSelection = undefined;
+		// Drop the authority too: `selectDefault` overwrites it whenever it applies something, but
+		// leaving a stale `UserSelection` behind on an empty pool would keep blocking
+		// `chat.defaultModel` from ever seeding this conversation.
+		this._selectionReason = undefined;
 		this.selectDefault(sessionType);
 	}
 
@@ -368,9 +372,9 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (this._selectionReason === ModelSelectionReason.ConfiguredDefault && !isInConversationModelChoice(remembered.reason)) {
 			return false;
 		}
-		// Pool membership is the validity test: the pool is already filtered by session and mode,
-		// so a model that is absent here is genuinely not selectable right now.
-		const model = this._runtime.getModels(this._runtime.getCurrentSessionType()).find(model => model.identifier === remembered.modelId);
+		// Selectability is the validity test: a model that is not offered here — because the
+		// catalog dropped it, or because this mode cannot use it — is not restorable right now.
+		const model = this._selectablePool(this._runtime.getCurrentSessionType()).find(model => model.identifier === remembered.modelId);
 		if (!model) {
 			return false;
 		}
