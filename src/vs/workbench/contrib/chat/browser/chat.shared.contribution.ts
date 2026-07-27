@@ -296,7 +296,7 @@ configurationRegistry.registerConfiguration({
 		[DictationSettingId.ShowTranscript]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('dictation.showTranscript', "Controls whether the transcript is shown while dictating. The final transcript is inserted when dictation ends."),
-			default: false,
+			default: true,
 			tags: ['experimental']
 		},
 		'dictation.experimental.llmCleanup': {
