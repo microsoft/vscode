@@ -613,7 +613,6 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		});
 	});
 
-	// Claude's shared SDK process loses its `host` MCP server after the preceding peer-lifecycle sequence.
 	providerTest('fresh peer chat does not inherit default chat context', async function () {
 		const { sessionUri, defaultChatUri } = await createSession('fresh-context');
 		await driveTurn(defaultChatUri, 'default-secret', 'Remember the code word DEFAULTSECRET. Reply exactly "ready".', 1);
@@ -624,7 +623,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const messages = observedModelMessages(context.observedModelRequestBodies.at(-1) ?? '');
 
 		assert.strictEqual(messages.some(message => message.content.includes('DEFAULTSECRET')), false);
-	}, config.supportsMultipleChats && config.provider !== 'claude');
+	}, config.supportsMultipleChats);
 
 	providerTest('side chat receives bounded source context without copied history', async function () {
 		const { sessionUri, defaultChatUri } = await createSession('side-context');

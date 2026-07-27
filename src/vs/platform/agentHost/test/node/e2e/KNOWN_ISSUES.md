@@ -57,26 +57,6 @@ that capability.
 
   Temporarily enable `supportsChatForkE2E` to execute the disabled test.
 
-### Claude fresh peer context after a long shared-suite sequence
-
-- Test: `fresh peer chat does not inherit default chat context`.
-- Scope: Claude deterministic replay with the shared provider process.
-- Expected: materializing a fresh peer after using the default chat succeeds,
-  and the peer request does not contain the default chat's history.
-- Observed: after the preceding peer-lifecycle sequence, the peer turn can fail
-  with `sendFailed: Server not found: host`. The same test passes by itself and
-  while recording with a per-test process.
-- Gate: disabled only for Claude.
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts
-  ```
-
-  Temporarily enable the Claude variant. Run the whole provider file; a focused
-  run does not reproduce the shared-process symptom.
-
 ### Copilot file-operation turns that do not complete reliably
 
 - Scope: Copilot.
