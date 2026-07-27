@@ -784,6 +784,29 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
+	test('keeps a reopened conversation on its own model instead of the configured default', () => {
+		// Switching back to a chat that already has history must not re-seed it from
+		// `chat.defaultModel` — that busts the prompt cache on every switch.
+		const gpt = model('test/gpt');
+		const opus = model('test/opus');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(
+			{ models: [gpt, opus], resolved: true, sessionType: 'test', configuredModel: gpt.metadata.id, isEmpty: false },
+			modelChanges,
+			applied)));
+
+		controller.beginSessionSwitch(false, false, true);
+		controller.initialize(opus.identifier, () => { });
+		const configuredApplied = controller.applyConfiguredDefault();
+
+		assert.deepStrictEqual({ configuredApplied, applied, current: controller.currentModel.get()?.identifier }, {
+			configuredApplied: false,
+			applied: [opus.identifier],
+			current: opus.identifier,
+		});
+	});
+
 	test('preserves an explicit user pick on an empty session over the configured default', () => {
 		const gpt = model('test/gpt');
 		const opus = model('test/opus');
