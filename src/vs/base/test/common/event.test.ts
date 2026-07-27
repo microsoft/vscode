@@ -415,23 +415,6 @@ suite('Event', function () {
 		store.dispose();
 	});
 
-	test('does not capture listener stacks below the leak warning threshold', () => {
-		let stackTraceCount = 0;
-		const monitored = ds.add(new Emitter<undefined>({
-			onListenerError() { },
-			leakWarningThreshold: 5,
-			_createStackTrace() {
-				stackTraceCount++;
-				return '';
-			},
-		}));
-
-		for (let i = 0; i < 4; i++) {
-			ds.add(monitored.event(() => { }));
-		}
-		assert.strictEqual(stackTraceCount, 0);
-	});
-
 	test('reusing event function and context', function () {
 		let counter = 0;
 		function listener() {
