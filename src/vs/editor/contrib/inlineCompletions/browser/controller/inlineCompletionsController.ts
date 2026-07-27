@@ -345,7 +345,12 @@ export class InlineCompletionsController extends Disposable {
 				if (state.kind === 'ghostText') {
 					this._provideScreenReaderUpdate(state.primaryGhostText.renderForScreenReader(lineText));
 				} else {
-					this._provideScreenReaderUpdate(''); // Only announce Alt+F2
+					const lineNumber = state.inlineSuggestion.targetRange.startLineNumber;
+					const cursorAtInlineEdit = state.cursorAtInlineEdit.get();
+					const content = cursorAtInlineEdit
+						? localize('nextEditSuggestionAccept', "Next edit suggestion available on line {0}, press Tab to accept", lineNumber)
+						: localize('nextEditSuggestionJump', "Next edit suggestion available on line {0}, press Tab to jump", lineNumber);
+					this._provideScreenReaderUpdate(content);
 				}
 			}
 		}));
