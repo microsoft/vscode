@@ -152,6 +152,16 @@ export interface IAgentHostToolCallDetailsReport {
 	parallelToolCallsTotal: number;
 }
 
+export interface IAgentHostAutoModeRouterDecisionReport {
+	session: string;
+	turnId: string;
+	chosenModel: string;
+	predictedLabel: string | undefined;
+	confidence: number | undefined;
+	candidateModels: readonly string[] | undefined;
+	categoryScores: Readonly<Record<string, number | undefined>> | undefined;
+}
+
 export interface IAgentHostSkillContentReadReport {
 	/** The skill name. */
 	name: string;
@@ -406,6 +416,42 @@ export class AgentHostTelemetryReporter {
 		};
 		restricted.sendEnhancedGHTelemetryEvent('toolCallDetailsExternal', properties, measurements);
 		restricted.sendInternalMSFTTelemetryEvent('toolCallDetailsInternal', properties, measurements);
+	}
+
+	/**
+	 * Emits the subset of the extension's restricted `automode.routerDecisionRestricted` event
+	 * available from the SDK's `session.auto_mode_resolved` event. Router-only fields that the SDK
+	 * does not expose are omitted rather than synthesized.
+	 */
+	autoModeRouterDecision(report: IAgentHostAutoModeRouterDecisionReport): void {
+		const restricted = this._restricted;
+		if (!restricted) {
+			return;
+		}
+
+		const categoryScores = report.categoryScores ?? {};
+		const isBinary = categoryScores.needs_reasoning !== undefined || categoryScores.no_reasoning !== undefined;
+		const scoreKeys = Object.keys(categoryScores).filter(key => categoryScores[key] !== undefined);
+		const routingMethod = isBinary ? 'binary' : scoreKeys.length > 0 ? 'hydra' : undefined;
+		const candidateModels = report.candidateModels ?? [];
+		const properties = {
+			conversationId: AgentSession.id(report.session),
+			vscodeRequestId: report.turnId,
+			...(report.predictedLabel !== undefined ? { predictedLabel: report.predictedLabel } : {}),
+			...(routingMethod !== undefined ? { routingMethod } : {}),
+			candidateModel: candidateModels[0] ?? '',
+			chosenModel: report.chosenModel,
+			candidateModels: JSON.stringify(candidateModels),
+			...(scoreKeys.length > 0 ? {
+				[isBinary ? 'binaryScores' : 'hydraScores']: JSON.stringify(categoryScores),
+			} : {}),
+		};
+		const measurements = {
+			...(report.confidence !== undefined ? { confidence: report.confidence } : {}),
+			...(categoryScores.needs_reasoning !== undefined ? { scoreNeedsReasoning: categoryScores.needs_reasoning } : {}),
+			...(categoryScores.no_reasoning !== undefined ? { scoreNoReasoning: categoryScores.no_reasoning } : {}),
+		};
+		restricted.sendEnhancedGHTelemetryEvent('automode.routerDecisionRestricted', properties, measurements);
 	}
 
 	/**
