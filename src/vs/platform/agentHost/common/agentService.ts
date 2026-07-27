@@ -22,7 +22,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type Message, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -1102,9 +1102,9 @@ export function subagentChatTitle(taskDescription: string | undefined, agentDisp
 }
 
 /**
- * Maps agent `subagent_*` signals to the unified chat catalog's
- * spawn/end events. Shared by the agents' spawn bridges and the orchestrator so
- * subagent membership has one derivation.
+ * Maps agent `subagent_started` signals to the unified chat catalog's spawn
+ * events. Shared by the agents' spawn bridges and the orchestrator so subagent
+ * membership has one derivation.
  */
 export namespace SubagentChatSignal {
 
@@ -1245,6 +1245,7 @@ export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentToolPendingConfirmationSignal
 	| IAgentSubagentStartedSignal
+	| IAgentSubagentResumedSignal
 	| IAgentSubagentCompletedSignal
 	| IAgentSteeringConsumedSignal;
 
@@ -1357,11 +1358,19 @@ export interface IAgentSubagentStartedSignal {
 }
 
 /**
- * A subagent has finished — either successfully or with an error. The host
- * uses this to tear down the child session after all of its events have been
- * routed. The parent tool call completing is not a reliable signal for this
- * because background subagents (e.g. Copilot's `mode: background` task) keep
- * emitting events after their parent tool call returns immediately.
+ * A previously completed subagent started another turn after being steered.
+ */
+export interface IAgentSubagentResumedSignal {
+	readonly kind: 'subagent_resumed';
+	readonly chat: URI;
+	readonly toolCallId: string;
+	readonly message?: Message;
+}
+
+/**
+ * A subagent turn has finished — either successfully or with an error. The
+ * child chat and its routing remain live because the same subagent can be
+ * steered into another turn.
  */
 export interface IAgentSubagentCompletedSignal {
 	readonly kind: 'subagent_completed';
