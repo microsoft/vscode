@@ -68,7 +68,7 @@ interface IWaitForAssertOptions {
 	readonly timeoutMs?: number;
 	readonly pollIntervalMs?: number;
 	/** Run before each attempt, inside the same try/catch as the assertion. */
-	readonly beforeAttempt?: () => Promise<void>;
+	readonly beforeAttempt?: () => Promise<void> | void;
 }
 
 async function waitForAssert(

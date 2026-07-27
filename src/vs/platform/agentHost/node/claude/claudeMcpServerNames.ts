@@ -13,7 +13,11 @@ import { CLAUDE_CLIENT_MCP_SERVER_NAME } from './clientTools/claudeClientToolMcp
  * They are internal plumbing — the SDK reports them alongside real,
  * user-configured servers in `mcpServerStatus()`, but they have no definition
  * the user can act on and cannot be toggled through the CLI's MCP control
- * requests.
+ * requests. An SDK-reported server under one of these names must therefore
+ * never surface as a user-visible MCP customization: doing so shows a phantom
+ * entry AND feeds the name into the session's MCP enablement reconciliation,
+ * which then fails with `Server not found: <name>` and takes the turn down
+ * with it.
  */
 const HOST_INJECTED_MCP_SERVER_NAMES: ReadonlySet<string> = new Set([
 	CLAUDE_CLIENT_MCP_SERVER_NAME,
