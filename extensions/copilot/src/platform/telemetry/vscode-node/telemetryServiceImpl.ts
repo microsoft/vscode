@@ -19,6 +19,20 @@ import { ITelemetryUserConfig, TelemetryTrustedValue } from '../common/telemetry
 import { GitHubTelemetrySender } from './githubTelemetrySender';
 import { MicrosoftTelemetrySender } from './microsoftTelemetrySender';
 
+/**
+ * The shared telemetry property carrying the CAPI flight assignment context.
+ * Kept in sync with `CAPI_ASSIGNMENT_CONTEXT_PROPERTY` in the VS Code core
+ * (`src/vs/workbench/api/browser/mainThreadTelemetry.ts`).
+ */
+const CAPI_ASSIGNMENT_CONTEXT_PROPERTY = 'capi.assignmentcontext';
+
+/**
+ * Private core command that forwards the CAPI assignment context onto core
+ * telemetry events. Kept in sync with `SET_CAPI_ASSIGNMENT_CONTEXT_COMMAND` in
+ * `src/vs/workbench/api/browser/mainThreadTelemetry.ts`.
+ */
+const SET_CAPI_ASSIGNMENT_CONTEXT_COMMAND = '_telemetry.setCapiAssignmentContext';
+
 export class TelemetryService extends BaseTelemetryService {
 	declare readonly _serviceBrand: undefined;
 	constructor(
@@ -126,10 +140,12 @@ export class TelemetryService extends BaseTelemetryService {
 	override setSharedProperty(name: string, value: string): void {
 		super.setSharedProperty(name, value);
 
-		// Forward CAPI assignment context to the core telemetry pipeline
-		// so it appears on all telemetry events from the current window.
-		if (name === 'capi.assignmentcontext') {
-			vscode.commands.executeCommand('_telemetry.setCapiAssignmentContext', value);
+		// Forward the CAPI assignment context to the core telemetry pipeline so it
+		// appears on all telemetry events from the current window (same scope as
+		// `abexp.assignmentcontext`). The core side (`mainThreadTelemetry.ts`)
+		// validates the value before trusting it onto telemetry events.
+		if (name === CAPI_ASSIGNMENT_CONTEXT_PROPERTY) {
+			vscode.commands.executeCommand(SET_CAPI_ASSIGNMENT_CONTEXT_COMMAND, value);
 		}
 	}
 }
