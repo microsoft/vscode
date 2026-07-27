@@ -117,6 +117,7 @@ suite('RunInTerminalTool', () => {
 
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
+		setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, Object.freeze({ path: 'bash' }));
 		setConfig(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
 		setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		setConfig(AgentSandboxSettingId.AgentSandboxAllowAutoApprove, false);
@@ -596,6 +597,7 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should automatically schedule AppArmor remediation without a repair prompt', async () => {
+			setAutoApprove({ echo: true });
 			sandboxPrereqResult = {
 				enabled: true,
 				sandboxConfigPath: '/tmp/sandbox.json',
