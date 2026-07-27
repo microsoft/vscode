@@ -176,6 +176,7 @@ export class AhpSnapshotRecorder {
 		}
 
 		for (const round of rounds) {
+			round.serverToClient = dropEmptyReasoningParts(round.serverToClient);
 			normalizeSnapshotObjects(round.clientToServer, this._normalization);
 			normalizeSnapshotObjects(round.serverToClient, this._normalization);
 		}
@@ -367,7 +368,7 @@ function projectAction(
 				type: action.type,
 				turnId: normalizeIdentifier(action.turnId, 'turn', turns),
 				toolCallId: normalizeIdentifier(action.toolCallId, 'toolCall', toolCalls),
-				toolName: action.toolName,
+				toolName: normalizeShellToolName(action.toolName),
 				...(profile === 'protocol' ? {
 					displayName: action.displayName,
 					contributor: projectContributor(action.contributor),
@@ -420,6 +421,54 @@ function projectAction(
 		default:
 			return { type: action.type };
 	}
+}
+
+/**
+ * Drops reasoning parts that never received any content.
+ *
+ * A provider can open a reasoning part and then close it without emitting a
+ * delta. Live recording sees that empty part on the wire, but replay rebuilds
+ * the stream from the fixture's aggregated message content, where an empty
+ * reasoning block leaves no trace — so it can never be reproduced. Keeping it
+ * would make any snapshot recorded during such a turn permanently unreplayable.
+ *
+ * Runs after projection because `ChatDelta` fills in content by mutating the
+ * part recorded here, so a part's final content is only known once every
+ * message has been projected.
+ */
+function dropEmptyReasoningParts(actions: object[]): object[] {
+	return actions.filter(entry => {
+		const action = (entry as { action?: { type?: string; part?: { kind?: string; content?: string } } }).action;
+		return !(action?.type === ActionType.ChatResponsePart
+			&& action.part?.kind === ResponsePartKind.Reasoning
+			&& action.part.content === '');
+	});
+}
+
+/**
+ * Collapses the platform-specific Copilot shell tool names to stable
+ * placeholders.
+ *
+ * The Copilot CLI names its shell tools after the shell it runs: `bash` and
+ * friends on POSIX, `powershell` and friends on Windows. That name reaches the
+ * client verbatim in `chat/toolCallStart`, so a snapshot recorded on macOS or
+ * Linux can never match the same behavior on Windows even when the recorded
+ * command itself is portable.
+ *
+ * Only the names that actually vary by platform are mapped. Claude's `Bash` and
+ * Codex's `shell` are fixed strings their SDKs use everywhere, so they are left
+ * alone — rewriting them would hide a genuine provider change.
+ */
+function normalizeShellToolName(toolName: string): string {
+	const shellToolPlaceholders: Record<string, string> = {
+		bash: '${shell}', powershell: '${shell}',
+		read_bash: '${read_shell}', read_powershell: '${read_shell}',
+		write_bash: '${write_shell}', write_powershell: '${write_shell}',
+		stop_bash: '${stop_shell}', stop_powershell: '${stop_shell}',
+		bash_shutdown: '${shell_shutdown}', powershell_shutdown: '${shell_shutdown}',
+		list_bash: '${list_shell}', list_powershell: '${list_shell}',
+	};
+	return shellToolPlaceholders[toolName] ?? toolName;
 }
 
 function isBehaviorSnapshotNoise(type: ActionType): boolean {

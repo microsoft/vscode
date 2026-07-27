@@ -59,6 +59,39 @@ const HOMEDIR_PLACEHOLDER = '${homedir}';
 const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
 const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test|coverage-[a-z-]+)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
 const FILE_LISTING_DATE_RE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(?:\d{2}:\d{2}|\d{4})\b/g;
+
+/**
+ * The Copilot CLI names its shell tools after the shell it runs — `bash` and
+ * friends on POSIX, `powershell` and friends on Windows — so a fixture recorded
+ * on one platform instructs the agent to call a tool that does not exist on the
+ * other, and the turn fails with "Tool does not exist".
+ *
+ * Store the platform-neutral placeholder in the fixture and expand it back to
+ * the running platform's name on replay, so a single capture drives every
+ * platform. Only the names that actually vary are mapped: Claude's `Bash` and
+ * Codex's `shell` are fixed strings their SDKs use everywhere.
+ */
+const SHELL_TOOL_SUFFIXES = ['', 'read_', 'write_', 'stop_', 'list_'] as const;
+const SHELL_TOOL_PLACEHOLDERS = new Map<string, string>();
+const SHELL_TOOL_EXPANSIONS = new Map<string, string>();
+for (const prefix of SHELL_TOOL_SUFFIXES) {
+	const placeholder = `\${${prefix}shell}`;
+	SHELL_TOOL_PLACEHOLDERS.set(`${prefix}bash`, placeholder);
+	SHELL_TOOL_PLACEHOLDERS.set(`${prefix}powershell`, placeholder);
+	SHELL_TOOL_EXPANSIONS.set(placeholder, `${prefix}${process.platform === 'win32' ? 'powershell' : 'bash'}`);
+}
+SHELL_TOOL_PLACEHOLDERS.set('bash_shutdown', '${shell_shutdown}');
+SHELL_TOOL_PLACEHOLDERS.set('powershell_shutdown', '${shell_shutdown}');
+SHELL_TOOL_EXPANSIONS.set('${shell_shutdown}', process.platform === 'win32' ? 'powershell_shutdown' : 'bash_shutdown');
+
+function normalizeShellToolNameForCapture(toolName: string): string {
+	return SHELL_TOOL_PLACEHOLDERS.get(toolName) ?? toolName;
+}
+
+function expandShellToolName(toolName: string): string {
+	return SHELL_TOOL_EXPANSIONS.get(toolName) ?? toolName;
+}
+
 /**
  * Placeholder for the recorder's OS username. It appears in captured tool output
  * (e.g. the owner column of `ls -la`) where it is not part of a path, so
@@ -734,7 +767,7 @@ export class CapiReplayProxy {
 			} catch {
 				// non-serializable input; keep as-is
 			}
-			return { type: 'tool_use', id: block.id, name: block.name, input };
+			return { type: 'tool_use', id: block.id, name: normalizeShellToolNameForCapture(block.name), input };
 		});
 	}
 
@@ -769,7 +802,7 @@ export class CapiReplayProxy {
 			...message,
 			content: message.content.map(block => block.type === 'text'
 				? { ...block, text: this._expandReplayPlaceholders(block.text) }
-				: { ...block, input: this._expandReplayValue(block.input) }),
+				: { ...block, name: expandShellToolName(block.name), input: this._expandReplayValue(block.input) }),
 		};
 	}
 

@@ -14,7 +14,7 @@ import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineFileOperationsTests(context: IAgentHostE2ETestContext): void {
-	const { config, createdSessions, tempDirs, shellToolReplayEnabled, stableNewScenarioResponse } = context;
+	const { config, createdSessions, tempDirs, shellToolReplayEnabled, portableShellToolReplayEnabled, stableNewScenarioResponse } = context;
 	const BEHAVIOR_SNAPSHOT = { profile: 'behavior' } as const;
 	// Expected to pass, but Copilot never completed this turn during recording and Codex duplicates its response.
 	(stableNewScenarioResponse && config.provider === 'claude' ? test : test.skip)('reads an existing text file', async function () {
@@ -167,14 +167,19 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(shellToolReplayEnabled && stableNewScenarioResponse ? test : test.skip)('runs a deterministic shell command', async function () {
+	(portableShellToolReplayEnabled && stableNewScenarioResponse ? test : test.skip)('runs a deterministic shell command', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-shell-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `coverage-shell-${config.provider}`, createdSessions, URI.file(workspace));
 
 		context.client.beginAhpSnapshotRound();
-		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-shell', 'Run a shell command that prints SHELL_VALUE_73, then reply with that exact value only.', 1);
+		// The command is pinned rather than described so the recorded capture is
+		// platform-neutral: `echo` behaves the same under cmd/PowerShell and
+		// POSIX shells. Left to its own devices the model picks a different
+		// command per provider (Copilot chose `echo`, Claude chose `printf`),
+		// and whichever it picks is frozen into the fixture.
+		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-shell', 'Run exactly this shell command, with no modifications: `echo SHELL_VALUE_73`. Then reply with that exact value only.', 1);
 		assert.match(result.responseText, /SHELL_VALUE_73/);
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});

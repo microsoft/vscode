@@ -30,7 +30,7 @@ rounds:
           type: chat/toolCallStart
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
-          toolName: bash
+          toolName: ${shell}
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete
@@ -43,7 +43,7 @@ rounds:
           type: chat/toolCallStart
           turnId: ${turn_0}
           toolCallId: ${toolCall_1}
-          toolName: bash
+          toolName: ${shell}
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete
