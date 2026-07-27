@@ -21,12 +21,13 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
-import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
+import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, ISideChatSelection, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 /** Storage key for the last session type used to create a quick chat. */
 const LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY = 'sessions.quickChat.lastUsedSessionType';
@@ -96,6 +97,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IStorageService private readonly storageService: IStorageService,
 		@IPathService private readonly pathService: IPathService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -316,19 +318,21 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	/**
 	 * Resolve the provider and session type to use for a new session in the
-	 * given folder, applying the same selection rules as
-	 * {@link createNewSession}. Throws when no provider/type can be resolved.
+	 * given folder. Includes that provider's resolved workspace so headless
+	 * callers can enforce provider-specific trust without resolving it again.
 	 */
-	private _resolveProviderForNewSession(folderUri: URI, options?: ICreateNewSessionOptions): { provider: ISessionsProvider; sessionTypeId: string } {
+	private _resolveProviderForNewSession(folderUri: URI, options?: ICreateNewSessionOptions): { provider: ISessionsProvider; sessionTypeId: string; workspace: ISessionWorkspace } {
 		const providers = this.sessionsProvidersService.getProviders();
 		let provider: ISessionsProvider | undefined;
+		let workspace: ISessionWorkspace | undefined;
 
 		if (options?.providerId) {
 			provider = providers.find(p => p.id === options.providerId);
 			if (!provider) {
 				throw new Error(`Sessions provider '${options.providerId}' not found`);
 			}
-			if (!provider.resolveWorkspace(folderUri)) {
+			workspace = provider.resolveWorkspace(folderUri);
+			if (!workspace) {
 				throw new Error(`Sessions provider '${options.providerId}' cannot resolve folder '${folderUri.toString()}'`);
 			}
 			if (options.sessionTypeId && !provider.getSessionTypes(folderUri).some(type => type.id === options.sessionTypeId)) {
@@ -339,16 +343,18 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			// When a specific session type was requested, also require the provider to
 			// advertise that type for the folder.
 			for (const candidate of providers) {
-				if (!candidate.resolveWorkspace(folderUri)) {
+				const candidateWorkspace = candidate.resolveWorkspace(folderUri);
+				if (!candidateWorkspace) {
 					continue;
 				}
 				if (options?.sessionTypeId && !candidate.getSessionTypes(folderUri).some(t => t.id === options.sessionTypeId)) {
 					continue;
 				}
 				provider = candidate;
+				workspace = candidateWorkspace;
 				break;
 			}
-			if (!provider) {
+			if (!provider || !workspace) {
 				throw new Error(`No sessions provider can resolve folder '${folderUri.toString()}'`);
 			}
 		}
@@ -359,7 +365,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				throw new Error(`No session types available for provider '${provider.id}'`);
 			}
 		}
-		return { provider, sessionTypeId };
+		return { provider, sessionTypeId, workspace };
 	}
 
 	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
@@ -618,7 +624,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * disposed through its provider and the error is rethrown.
 	 */
 	async createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
-		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, createOptions);
+		const { provider, sessionTypeId, workspace } = this._resolveProviderForNewSession(folderUri, createOptions);
+		if (workspace.requiresWorkspaceTrust) {
+			const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(folderUri);
+			if (!trustInfo.trusted) {
+				throw new WorkspaceNotTrustedError();
+			}
+		}
 		const session = provider.createNewSession(folderUri, sessionTypeId);
 		const supportsWorktreeConfiguration = provider.getSessionTypes(folderUri)
 			.find(sessionType => sessionType.id === sessionTypeId)?.supportsWorktreeConfiguration === true;

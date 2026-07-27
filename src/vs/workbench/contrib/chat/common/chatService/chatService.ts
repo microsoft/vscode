@@ -1766,6 +1766,20 @@ export const enum ChatRequestQueueKind {
 	Steering = 'steering'
 }
 
+/**
+ * A queued or steering message that was authored outside of this client, e.g.
+ * by another window connected to the same server-managed session.
+ */
+export interface IRemotePendingRequest {
+	/** Stable id of the message, as known by the server. */
+	readonly id: string;
+	readonly kind: ChatRequestQueueKind;
+	/** The raw message text. */
+	readonly message: string;
+	readonly variableData?: IChatRequestVariableData;
+	readonly timestamp?: number;
+}
+
 export interface IChatSendRequestOptions {
 	modeInfo?: IChatRequestModeInfo;
 	userSelectedModelId?: string;
@@ -1937,6 +1951,11 @@ export interface IChatService {
 	 * Adding new requests should go through sendRequest with the queue option.
 	 */
 	setPendingRequests(sessionResource: URI, requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void;
+	/**
+	 * Atomically reconciles the pending queue with messages authored by another client.
+	 * Preserves remote ids and existing matching requests, and no-ops when already equal.
+	 */
+	syncPendingRequestsFromRemote(sessionResource: URI, requests: readonly IRemotePendingRequest[]): void;
 	/**
 	 * Ensures pending requests for the session are processing. If restoring from
 	 * storage or after an error, pending requests may be present without an

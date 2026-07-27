@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { match } from '../../../../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
@@ -264,6 +266,31 @@ suite('PromptsService', () => {
 			const instructions = await service.getVoiceInstructions(CancellationToken.None);
 
 			assert.strictEqual(instructions, 'Use short paragraphs.');
+		});
+
+		test('cancels in-flight voice instruction reads', async () => {
+			const cts = new CancellationTokenSource();
+			const readStarted = new DeferredPromise<void>();
+			const readFileStub = sinon.stub(fileService, 'readFile').callsFake(async (_resource, _options, token) => {
+				readStarted.complete();
+				await new Promise<void>(resolve => {
+					const listener = token!.onCancellationRequested(() => {
+						listener.dispose();
+						resolve();
+					});
+				});
+				throw new CancellationError();
+			});
+
+			try {
+				const instructions = service.getVoiceInstructions(cts.token);
+				await readStarted.p;
+				cts.cancel();
+				assert.strictEqual(await instructions, undefined);
+			} finally {
+				readFileStub.restore();
+				cts.dispose();
+			}
 		});
 	});
 

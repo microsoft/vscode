@@ -824,9 +824,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	public async getVoiceInstructions(token: CancellationToken): Promise<string | undefined> {
 		const userHome = await this.pathService.userHome();
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 		const candidates = [joinPath(userHome, COPILOT_CONFIG_FOLDER, VOICE_INSTRUCTIONS_FILENAME)];
 		if (this.workspaceTrustService.isWorkspaceTrusted()) {
 			const workspaceRoots = await this.fileLocator.getWorkspaceFolderRoots(false);
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
 			candidates.push(...workspaceRoots.map(root => joinPath(root, GITHUB_CONFIG_FOLDER, VOICE_INSTRUCTIONS_FILENAME)));
 		}
 
@@ -836,11 +842,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 				return undefined;
 			}
 			try {
-				const content = (await this.fileService.readFile(candidate)).value.toString().trim();
+				const content = (await this.fileService.readFile(candidate, undefined, token)).value.toString().trim();
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
 				if (content) {
 					contents.push(content);
 				}
 			} catch (error) {
+				if (token.isCancellationRequested || isCancellationError(error)) {
+					return undefined;
+				}
 				if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
 					this.logger.warn(`[PromptsService] Failed to read voice instructions from ${candidate.toString()}: ${error}`);
 				}

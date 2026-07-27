@@ -216,15 +216,15 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 
 		const repositoryUrls = this._collectWorkspaceRepositories();
 
-		this._telemetryService.sendEnhancedGHTelemetryEvent(NES_GH_TELEMETRY_EVENT_NAME,
-			multiplexProperties({
-				continuous: 'true',
-				recording: JSON.stringify(recording),
-				// `activeDocumentRepository` is intentionally omitted: a continuous slice spans many
-				// documents across `WINDOW_MS`, so there's no single "active" doc that meaningfully
-				// applies. The full workspace repo set is reported via `repositories` instead.
-				repositories: repositoryUrls === undefined ? undefined : JSON.stringify(repositoryUrls),
-			}),
+		void multiplexProperties({
+			continuous: 'true',
+			recording: JSON.stringify(recording),
+			// `activeDocumentRepository` is intentionally omitted: a continuous slice spans many
+			// documents across `WINDOW_MS`, so there's no single "active" doc that meaningfully
+			// applies. The full workspace repo set is reported via `repositories` instead.
+			repositories: repositoryUrls === undefined ? undefined : JSON.stringify(repositoryUrls),
+		}).then(properties => this._telemetryService.sendEnhancedGHTelemetryEvent(NES_GH_TELEMETRY_EVENT_NAME,
+			properties,
 			{
 				continuousWindowDurationMs: ContinuousEnhancedTelemetrySender.WINDOW_MS,
 				continuousOverlapMs: ContinuousEnhancedTelemetrySender.OVERLAP_MS,
@@ -232,7 +232,7 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 				continuousEntriesSize: entriesSize,
 				continuousSequenceNumber: sequenceNumber,
 			}
-		);
+		)).catch(() => { /* best-effort telemetry */ });
 	}
 
 	private _collectWorkspaceRepositories(): string[] | undefined {

@@ -13,10 +13,10 @@ import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
+import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatDictationSurface, ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
-import { getDictationPreparingLabel } from './dictationDownloadRing.js';
 
 /**
  * Inline decoration class for the still-processing tail of not-yet-finalized
@@ -77,6 +77,8 @@ class LiveTranscriptInserter {
 	private _shimmerDecorations: IEditorDecorationsCollection | undefined;
 	private _prevInterimText = '';
 	private _finalized = false;
+	private _isApplyingEdit = false;
+	private _userModified = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -96,7 +98,11 @@ class LiveTranscriptInserter {
 	 * overwrite the final text and re-apply the shimmer.
 	 */
 	update(fullText: string, interim: boolean = true, finalizedText: string = ''): void {
-		this._logService.trace(`${LOG_PREFIX} inserter.update interim=${interim} finalized=${this._finalized} len=${fullText.length}`);
+		this._logService.trace(`${LOG_PREFIX} inserter.update interim=${interim} finalized=${this._finalized} userModified=${this._userModified} len=${fullText.length}`);
+		if (this._userModified) {
+			this._logService.trace(`${LOG_PREFIX} inserter.update ignored (user modified transcript)`);
+			return;
+		}
 		if (this._finalized && interim) {
 			this._logService.trace(`${LOG_PREFIX} inserter.update ignored (already finalized)`);
 			return;
@@ -138,14 +144,35 @@ class LiveTranscriptInserter {
 		// is passed as executeEdits' endCursorState so the editor never briefly
 		// places it at the end of the applied edit first.
 		const caret = interim ? this._anchor : this._end;
-		this._editor.executeEdits(
-			'chatSpeechToText',
-			[{ range: replaceRange, text, forceMoveMarkers: true }],
-			[Selection.fromPositions(caret)],
-		);
+		this._isApplyingEdit = true;
+		try {
+			this._editor.executeEdits(
+				'chatSpeechToText',
+				[{ range: replaceRange, text, forceMoveMarkers: true }],
+				[Selection.fromPositions(caret)],
+			);
+		} finally {
+			this._isApplyingEdit = false;
+		}
 
 		this._updateInterimDecorations(text, fullText, interim, finalizedText);
 		this._prevInterimText = interim ? fullText : '';
+	}
+
+	onDidChangeModelContent(event: IModelContentChangedEvent): void {
+		if (this._isApplyingEdit || !this._anchor || !this._end) {
+			return;
+		}
+		const affectsTranscript = event.changes.some(change => Position.isBeforeOrEqual(
+			new Position(change.range.startLineNumber, change.range.startColumn),
+			this._end!,
+		));
+		if (!affectsTranscript) {
+			return;
+		}
+		this._logService.trace(`${LOG_PREFIX} transcript invalidated by user edit`);
+		this._userModified = true;
+		this.clearShimmer();
 	}
 
 	/** Position of the given character offset within the inserted `text`. */
@@ -256,7 +283,7 @@ class LiveTranscriptInserter {
 	 * the dictated span for accuracy telemetry after the session ends.
 	 */
 	finalizedRange(): Range | undefined {
-		if (!this._anchor || !this._end) {
+		if (this._userModified || !this._anchor || !this._end) {
 			return undefined;
 		}
 		const start = this._needsLeadingSpace
@@ -328,27 +355,29 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	const HIDE_CURSOR_CLASS = 'dictation-hide-cursor';
 	editor.getDomNode()?.classList.add(HIDE_CURSOR_CLASS);
 	disposables.add(toDisposable(() => editor.getDomNode()?.classList.remove(HIDE_CURSOR_CLASS)));
-	// Show a "Listening…" placeholder once the session is actually connected
-	// and recording, i.e. the service is in the Recording state and the
-	// on-device model has finished preparing. While the model is still being
-	// prepared on first use (downloading/loading, which can take a while), show
-	// a "Preparing…/Downloading… X%" placeholder instead so the user knows why
-	// dictation has not started yet rather than staring at an idle editor. The
-	// placeholder must not appear during microphone acquisition. It remains
-	// visible until transcript text is inserted, and is restored to its
-	// previous value when the session ends.
+	// Show a "Listening…" placeholder once the session is actually connected,
+	// recording, and the on-device model has finished preparing. While the model
+	// is still being prepared on first use (downloading/loading, which can take a
+	// while), the toolbar mic shows a determinate download spinner
+	// (DictationDownloadRing), so the placeholder stays on its previous value
+	// instead of churning through "Downloading… X%" text. The placeholder must
+	// not appear during microphone acquisition. It remains visible until
+	// transcript text is inserted, and is restored to its previous value when the
+	// session ends.
 	const previousPlaceholder = editor.getOption(EditorOption.placeholder);
 	const listeningPlaceholder = localize('chatStt.listening', "Listening…");
-	// The placeholder we last applied (listening or a preparing label), so we
-	// only ever restore the previous placeholder when it was ours to restore.
+	// The placeholder we last applied, so we only ever restore the previous
+	// placeholder when it was ours to restore.
 	let appliedPlaceholder: string | undefined;
 	const applyPlaceholder = () => {
 		if (!editor.getModel()) {
 			return;
 		}
 		const recording = service.state === ChatSpeechToTextState.Recording;
-		const desired = recording
-			? (service.isPreparingModel ? getDictationPreparingLabel(service) : listeningPlaceholder)
+		// Only surface "Listening…" once the model is ready; while it prepares the
+		// mic icon spinner conveys download/load progress.
+		const desired = recording && !service.isPreparingModel
+			? listeningPlaceholder
 			: undefined;
 		if (desired !== undefined) {
 			if (appliedPlaceholder !== desired) {
@@ -373,14 +402,22 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	const idleSettle = disposables.add(new MutableDisposable());
 	disposables.add(service.onDidUpdateTranscript(update => {
 		logService.trace(`${LOG_PREFIX} onDidUpdateTranscript len=${update.text.length} finalized=${update.finalizedText.length} state=${service.state}`);
+		if (!service.showTranscriptWhileDictating) {
+			// The setting is read live (not snapshotted) so transcript rendering
+			// and the hidden-transcript mic glow always react to configuration
+			// changes together. If the transcript is hidden mid-session, drop any
+			// lingering interim shimmer so hidden mode renders no transcript at all.
+			inserter.clearShimmer();
+			idleSettle.clear();
+			return;
+		}
 		inserter.update(update.text, true, update.finalizedText);
 		// Restart the idle timer: if no further transcript arrives, the user has
 		// paused, so stop shimmering the trailing (still-interim) words.
 		idleSettle.value = disposableTimeout(() => inserter.settleShimmer(), IDLE_SETTLE_MS);
 	}));
+	disposables.add(editor.onDidChangeModelContent(event => inserter.onDidChangeModelContent(event)));
 	disposables.add(service.onDidChangePreparingModel(() => applyPlaceholder()));
-	// Refresh the "Downloading… X%" placeholder as the download progresses.
-	disposables.add(service.onDidChangeModelDownloadProgress(() => applyPlaceholder()));
 	disposables.add(service.onDidChangeState(state => {
 		logService.trace(`${LOG_PREFIX} onDidChangeState ${state}`);
 		if (state === ChatSpeechToTextState.Idle && _active?.service === service) {

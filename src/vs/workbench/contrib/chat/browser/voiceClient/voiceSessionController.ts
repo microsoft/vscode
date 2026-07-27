@@ -1115,6 +1115,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				}
 				this._telemetryLastConnectMs = now;
 				const voiceInstructions = await this.promptsService.getVoiceInstructions(CancellationToken.None);
+				if (
+					connectAttemptGeneration !== this._connectAttemptGeneration ||
+					!this.voiceClientService.isConnected ||
+					(!this._isConnecting.get() && !this._isReconnecting.get())
+				) {
+					return;
+				}
 				if (isResuming) {
 					this.voiceClientService.sendResumeSession(this._buildSessionContext(), this._getMachineId(), voiceInstructions);
 				} else {
