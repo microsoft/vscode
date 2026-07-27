@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from '../../../../../../base/common/assert.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
@@ -53,30 +54,49 @@ export type ModelSelectionRequest =
 	| { readonly authority: 'programmatic' };
 
 /**
- * Reasons that represent a decision about which model to be on. Applying a model for one of these
- * makes it the model to reclaim after an outage.
+ * Reasons whose model should outlive a catalog outage: applying a model for one of these makes it
+ * the model to reclaim once it can be offered again.
  *
- * Note this is a wider set than {@link isInConversationModelChoice}: a remembered or restored model
- * is a decision worth reclaiming, but `chat.defaultModel` still outranks it on a new conversation.
+ * Note this is a wider set than {@link isInConversationModelChoice}. A remembered or restored model
+ * is durable, but `chat.defaultModel` still outranks it on a new conversation.
  */
-type DeliberateReason =
+type DurableReason =
 	| ModelSelectionReason.UserSelection
 	| ModelSelectionReason.ProgrammaticSelection
 	| ModelSelectionReason.SessionRestore
 	| ModelSelectionReason.Remembered;
 
 /**
- * Everything else stands in for a model that cannot currently be offered. `chat.defaultModel` lands
- * here: it is re-derived from configuration for each new conversation rather than being something
- * the user chose, so it must never displace what they did choose.
+ * Reasons that only stand in for a model that cannot currently be offered. `chat.defaultModel`
+ * lands here: it is re-derived from configuration for each new conversation rather than being
+ * something the user chose, so it must never displace what they did choose.
  */
-type StandInReason = Exclude<ModelSelectionApplyReason, DeliberateReason>;
+type TransientReason =
+	| ModelSelectionReason.ConfiguredDefault
+	| ModelSelectionReason.FirstAvailable
+	| ModelSelectionReason.RemovedModelFallback
+	| ModelSelectionReason.NewChatRepush;
 
-function isDeliberateReason(reason: ModelSelectionApplyReason): reason is DeliberateReason {
-	return reason === ModelSelectionReason.UserSelection
-		|| reason === ModelSelectionReason.ProgrammaticSelection
-		|| reason === ModelSelectionReason.SessionRestore
-		|| reason === ModelSelectionReason.Remembered;
+/**
+ * Every reason must be classified as durable or transient. The exhaustive switch means adding a
+ * `ModelSelectionReason` without deciding which it is fails to compile, rather than silently
+ * defaulting to one.
+ */
+function isDurableReason(reason: ModelSelectionApplyReason): reason is DurableReason {
+	switch (reason) {
+		case ModelSelectionReason.UserSelection:
+		case ModelSelectionReason.ProgrammaticSelection:
+		case ModelSelectionReason.SessionRestore:
+		case ModelSelectionReason.Remembered:
+			return true;
+		case ModelSelectionReason.ConfiguredDefault:
+		case ModelSelectionReason.FirstAvailable:
+		case ModelSelectionReason.RemovedModelFallback:
+		case ModelSelectionReason.NewChatRepush:
+			return false;
+		default:
+			assertNever(reason);
+	}
 }
 
 /** Reconciles the shared selection model with Workbench-specific input and catalog state. */
@@ -93,7 +113,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	 * by every deliberate choice. Falling back to a default because the catalog dropped the model
 	 * is a display state, not a decision, so it deliberately leaves this untouched.
 	 */
-	private _rememberedSelection: { readonly modelId: string; readonly reason: DeliberateReason } | undefined;
+	private _rememberedSelection: { readonly modelId: string; readonly reason: DurableReason } | undefined;
 
 	constructor(
 		private readonly _runtime: IChatInputModelSelectionRuntime,
@@ -158,8 +178,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	 */
 	select(model: ILanguageModelChatMetadataAndIdentifier, request: ModelSelectionRequest): void {
 		if (request.authority === 'automatic') {
-			this._currentModel.set(model, undefined);
-			request.effect();
+			this._display(model, request.effect);
 			return;
 		}
 
@@ -229,7 +248,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		onInitialSelection(selection);
 		this._reportInitialization(this._runtime.getConfiguredModelValue(), rememberedModelId, selection);
 		if (selection.kind === 'apply') {
-			if (isDeliberateReason(selection.reason)) {
+			if (isDurableReason(selection.reason)) {
 				this._choose(selection.model, selection.reason);
 			} else {
 				this._standIn(selection.model, selection.reason);
@@ -316,8 +335,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 		if (this.hasPendingProgrammaticSelection()) {
 			// A pending request still owns the authority; the default is only what is shown meanwhile.
-			this._currentModel.set(defaultModel, undefined);
-			this._runtime.applyModel(defaultModel);
+			this._display(defaultModel);
 			return;
 		}
 		this._standIn(defaultModel, configuredModel ? ModelSelectionReason.ConfiguredDefault : ModelSelectionReason.FirstAvailable);
@@ -602,10 +620,24 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	/**
+	 * Displays a model without saying anything about authority, leaving both the current reason and
+	 * the remembered selection alone. For callers that have already decided the authority question
+	 * elsewhere — a caller applying its own choice, or a fallback shown while a pending request
+	 * still owns the selection.
+	 */
+	private _display(
+		model: ILanguageModelChatMetadataAndIdentifier,
+		effect: () => void = () => this._runtime.applyModel(model),
+	): void {
+		this._currentModel.set(model, undefined);
+		effect();
+	}
+
+	/**
 	 * Records a decision without changing what is displayed — used when the model is already
 	 * shown and only its authority needs to catch up.
 	 */
-	private _rememberChoice(model: ILanguageModelChatMetadataAndIdentifier, reason: DeliberateReason): void {
+	private _rememberChoice(model: ILanguageModelChatMetadataAndIdentifier, reason: DurableReason): void {
 		this._selectionReason = reason;
 		this._rememberedSelection = { modelId: model.identifier, reason };
 	}
@@ -616,24 +648,22 @@ export class ChatInputModelSelectionController extends Disposable {
 	 */
 	private _choose(
 		model: ILanguageModelChatMetadataAndIdentifier,
-		reason: DeliberateReason,
-		effect: () => void = () => this._runtime.applyModel(model),
+		reason: DurableReason,
+		effect?: () => void,
 	): void {
 		// Authority before display: `_currentModel` notifies synchronously, so an observer must
 		// never see the new model alongside the previous authority.
 		this._rememberChoice(model, reason);
-		this._currentModel.set(model, undefined);
-		effect();
+		this._display(model, effect);
 	}
 
 	/**
 	 * Applies a model as a stand-in for one that cannot currently be offered. Deliberately leaves
 	 * the remembered selection alone — that is what makes the fallback temporary.
 	 */
-	private _standIn(model: ILanguageModelChatMetadataAndIdentifier, reason: StandInReason): void {
+	private _standIn(model: ILanguageModelChatMetadataAndIdentifier, reason: TransientReason): void {
 		this._selectionReason = reason;
-		this._currentModel.set(model, undefined);
-		this._runtime.applyModel(model);
+		this._display(model);
 	}
 
 	private _reportInitialization(configuredModel: string | undefined, rememberedModel: string | undefined, selection: InitialModelSelectionResult): void {
