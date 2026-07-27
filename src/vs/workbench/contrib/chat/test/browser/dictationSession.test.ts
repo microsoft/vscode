@@ -23,21 +23,25 @@ suite('DictationSession', () => {
 		const transcript = 'hello world';
 		const onDidUpdateTranscript = store.add(new Emitter<IChatDictationTranscript>());
 		const onDidChangeState = store.add(new Emitter<ChatSpeechToTextState>());
+		const onDidChangePreparingModel = store.add(new Emitter<boolean>());
 		let state = ChatSpeechToTextState.Idle;
+		let isPreparingModel = false;
 		let placeholderDuringStart: string | undefined;
 		const service: IChatSpeechToTextService = {
 			_serviceBrand: undefined,
 			onDidUpdateTranscript: onDidUpdateTranscript.event,
 			onDidChangeState: onDidChangeState.event,
-			onDidChangePreparingModel: store.add(new Emitter<boolean>()).event,
+			onDidChangePreparingModel: onDidChangePreparingModel.event,
 			onDidChangeModelDownloadProgress: store.add(new Emitter<void>()).event,
 			get state() { return state; },
 			get isConfigured() { return true; },
-			get isPreparingModel() { return false; },
-			get modelDownloadProgress() { return undefined; },
-			get currentBackend() { return 'mai' as const; },
+			get isPreparingModel() { return isPreparingModel; },
+			get modelDownloadProgress() { return 0.5; },
+			get currentBackend() { return 'local' as const; },
 			async start() {
 				placeholderDuringStart = editor.getOption(EditorOption.placeholder);
+				isPreparingModel = true;
+				onDidChangePreparingModel.fire(true);
 				state = ChatSpeechToTextState.Recording;
 				onDidChangeState.fire(state);
 			},
@@ -53,19 +57,24 @@ suite('DictationSession', () => {
 		const editor = store.add(createTestCodeEditor(model, { placeholder: 'Ask a question' }));
 
 		await startDictation(service, editor, mainWindow, new NullLogService());
-		const activePlaceholder = editor.getOption(EditorOption.placeholder);
+		const downloadingPlaceholder = editor.getOption(EditorOption.placeholder);
+		isPreparingModel = false;
+		onDidChangePreparingModel.fire(false);
+		const listeningPlaceholder = editor.getOption(EditorOption.placeholder);
 		onDidUpdateTranscript.fire({ text: transcript, finalizedText: '' });
 		editor.executeEdits('test', [{ range: new Range(1, 1, 1, transcript.length + 1), text: '' }]);
 		await stopDictation();
 
 		assert.deepStrictEqual({
 			placeholderDuringStart,
-			activePlaceholder,
+			downloadingPlaceholder,
+			listeningPlaceholder,
 			placeholderAfterStop: editor.getOption(EditorOption.placeholder),
 			value: editor.getValue(),
 		}, {
-			placeholderDuringStart: '',
-			activePlaceholder: 'Listening\u2026',
+			placeholderDuringStart: 'Ask a question',
+			downloadingPlaceholder: 'Downloading speech-to-text model\u2026 50%',
+			listeningPlaceholder: 'Listening\u2026',
 			placeholderAfterStop: 'Ask a question',
 			value: '',
 		});
