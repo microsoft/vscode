@@ -449,7 +449,8 @@ suite('ChatInputModelSelectionController', () => {
 		}, {
 			duringRestart: other.identifier,
 			current: selected.identifier,
-			reason: ModelSelectionReason.Remembered,
+			// The restore reinstates the original authority rather than downgrading to `Remembered`.
+			reason: ModelSelectionReason.UserSelection,
 			pending: false,
 			applied: [other.identifier, selected.identifier],
 		});
@@ -540,6 +541,45 @@ suite('ChatInputModelSelectionController', () => {
 			reason: ModelSelectionReason.UserSelection,
 			pending: false,
 			applied: [other.identifier],
+		});
+	});
+
+	test('reclaims an explicit pick that was displaced while chat.defaultModel stood in', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const configured = model('test/configured');
+		const picked = model('test/picked');
+		const state: IRuntimeState = {
+			models: [configured, picked],
+			resolved: true,
+			sessionType: 'local',
+			configuredModel: configured.metadata.id,
+		};
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.applyExplicitSelection(picked, () => { }, false);
+		state.models = [configured];
+		modelChanges.fire('picked-gone');
+		const duringOutage = controller.currentModel.get()?.identifier;
+		const reasonDuringOutage = controller.selectionReason;
+		state.models = [configured, picked];
+		modelChanges.fire('picked-back');
+		const afterReturn = controller.currentModel.get()?.identifier;
+		// A later refresh must not let the configured default reclaim an explicit pick.
+		modelChanges.fire('later-refresh');
+
+		assert.deepStrictEqual({
+			duringOutage,
+			reasonDuringOutage,
+			afterReturn,
+			afterRefresh: controller.currentModel.get()?.identifier,
+			reason: controller.selectionReason,
+		}, {
+			duringOutage: configured.identifier,
+			reasonDuringOutage: ModelSelectionReason.ConfiguredDefault,
+			afterReturn: picked.identifier,
+			afterRefresh: picked.identifier,
+			reason: ModelSelectionReason.UserSelection,
 		});
 	});
 
