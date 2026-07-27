@@ -106,7 +106,11 @@
           "keyword.operator.relational.ts",
           "storage.type.function.arrow.ts",
           "keyword.operator.bitwise.shift.ts",
-          "keyword.operator.assignment.compound.bitwise.ts"
+          "keyword.operator.assignment.compound.bitwise.ts",
+          "keyword.operator.relational.tsx",
+          "storage.type.function.arrow.tsx",
+          "keyword.operator.bitwise.shift.tsx",
+          "keyword.operator.assignment.compound.bitwise.tsx"
         ]
       }
     ],
