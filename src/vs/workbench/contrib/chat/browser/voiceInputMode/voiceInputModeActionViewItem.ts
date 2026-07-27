@@ -33,6 +33,7 @@ import { IVoiceSessionController } from '../voiceClient/voiceSessionController.j
 import { IMicCaptureService } from '../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../voiceClient/ttsPlaybackService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
+import { setupDictationMicGlow } from '../speechToText/dictationMicGlow.js';
 import { getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
 import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkthroughVersion } from './voiceInputMode.js';
@@ -364,6 +365,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			() => getDictationContextMenuActions(this.commandService, this.configurationService, this.keybindingService, DICTATION_TOGGLE_COMMAND_ID),
 			this.contextMenuService,
 		));
+		this._register(setupDictationMicGlow(this._dictationCell, this.chatSpeechToTextService, this.configurationService, this.accessibilityService));
 
 		// --- Voice cell: a single waveform that transforms across states (no glyph). ---
 		this._voiceCell = dom.append(this._reel, dom.$('button.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell.voice'));

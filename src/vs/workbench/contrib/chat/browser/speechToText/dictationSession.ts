@@ -348,6 +348,7 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 		return;
 	}
 	const inserter = new LiveTranscriptInserter(editor, logService);
+	const showTranscriptWhileDictating = service.showTranscriptWhileDictating;
 	const disposables = new DisposableStore();
 	// Hide the editor's blinking caret for the duration of the dictation
 	// session. During dictation the caret is parked at the start of the dictated
@@ -401,6 +402,9 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	const idleSettle = disposables.add(new MutableDisposable());
 	disposables.add(service.onDidUpdateTranscript(update => {
 		logService.trace(`${LOG_PREFIX} onDidUpdateTranscript len=${update.text.length} finalized=${update.finalizedText.length} state=${service.state}`);
+		if (!showTranscriptWhileDictating) {
+			return;
+		}
 		inserter.update(update.text, true, update.finalizedText);
 		// Restart the idle timer: if no further transcript arrives, the user has
 		// paused, so stop shimmering the trailing (still-interim) words.

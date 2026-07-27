@@ -13,6 +13,8 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IChatSpeechToTextService } from './chatSpeechToTextService.js';
+import { setupDictationMicGlow } from './dictationMicGlow.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions } from './micButtonMenuActions.js';
 
 /**
@@ -34,9 +36,10 @@ export class DictationActionViewItem extends MenuEntryActionViewItem {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IAccessibilityService private readonly _dictationAccessibilityService: IAccessibilityService,
+		@IChatSpeechToTextService private readonly _speechToTextService: IChatSpeechToTextService,
 	) {
-		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
+		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _dictationAccessibilityService);
 	}
 
 	override render(container: HTMLElement): void {
@@ -47,5 +50,6 @@ export class DictationActionViewItem extends MenuEntryActionViewItem {
 			() => getDictationContextMenuActions(this._commandService, this._configurationService, this._keybindingService, this._action.id),
 			this._contextMenuService,
 		));
+		this._register(setupDictationMicGlow(container, this._speechToTextService, this._configurationService, this._dictationAccessibilityService));
 	}
 }

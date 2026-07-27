@@ -85,6 +85,7 @@ import { IChatStatusItemService } from '../../../../workbench/contrib/chat/brows
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browser/speechToText/dictationMicGlow.js';
 import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { IVoiceInputModeService } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
 import { toAction } from '../../../../base/common/actions.js';
@@ -346,6 +347,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@ICommandService private readonly commandService: ICommandService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 		@IVoiceInputModeService private readonly voiceInputModeService: IVoiceInputModeService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
@@ -880,6 +882,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		renderState();
 		this._register(sttService.onDidChangeState(renderState));
 		this._register(sttService.onDidChangePreparingModel(renderState));
+		this._register(setupDictationMicGlow(button, sttService, this.configurationService, this.accessibilityService));
 
 		const updateVisibility = () => {
 			// Mirror the `MenuId.ChatExecute` dictation gate: hide while
