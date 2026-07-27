@@ -106,6 +106,30 @@ suite('codexReplayMapper', () => {
 		assert.deepStrictEqual(turns.map(t => t.id), ['t1', 't2']);
 	});
 
+	test('adjacent agentMessages in a turn are separated so a heading keeps its own line', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u', content: [{ type: 'text', text: 'go on', text_elements: [] }] },
+					{ type: 'agentMessage', id: 'm1', text: 'Consolidating the recommendation and tradeoffs.', phase: null, memoryCitation: null },
+					{ type: 'agentMessage', id: 'm2', text: '## Conclusion\n\nDone.', phase: null, memoryCitation: null },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+		// History replay emits one markdownContent per Markdown part; the chat
+		// model coalesces adjacent ones by plain concatenation, so the joined
+		// text must keep `## Conclusion` at the start of a line.
+		const joined = turns[0].responseParts
+			.map(part => part.kind === ResponsePartKind.Markdown ? (part as { content: string }).content : '')
+			.join('');
+		assert.strictEqual(joined, 'Consolidating the recommendation and tradeoffs.\n\n## Conclusion\n\nDone.');
+	});
+
 	test('commandExecution renders a completed terminal tool call', () => {
 		const turns = replayThreadToTurns({
 			id: 'thr',

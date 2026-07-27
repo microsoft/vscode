@@ -98,13 +98,8 @@ export interface ICodexSessionMapState {
 	 */
 	pendingPreflight: ICodexPendingPreflight | undefined;
 	/**
-	 * Number of `agentMessage` markdown parts started in the current turn. Codex
-	 * can emit several `agentMessage` items per turn (e.g. an interim
-	 * "commentary" preamble followed by the "final_answer"), each becoming its
-	 * own markdown response part. The chat model coalesces adjacent markdown
-	 * parts without a separator, so the 2nd+ message is seeded with a leading
-	 * block boundary to keep it a distinct block (see {@link mapItemStartedBody}).
-	 * Reset per turn by {@link resetCodexTurnMapState}.
+	 * Count of `agentMessage` markdown parts started in the current turn. Reset
+	 * per turn by {@link resetCodexTurnMapState}; see {@link mapItemStartedBody}.
 	 */
 	agentMessagePartCount: number;
 }
@@ -464,17 +459,8 @@ function mapItemStartedBody(
 	if (params.item.type === 'agentMessage') {
 		const partId = generateUuid();
 		state.itemToPartId.set(params.item.id, partId);
-		// Codex can emit several `agentMessage` items in a single turn (e.g. an
-		// interim "commentary" preamble followed by the "final_answer"), each of
-		// which becomes its own markdown response part. The chat model coalesces
-		// adjacent markdown parts by concatenating their text with no separator,
-		// which would glue the previous message's trailing text to this one
-		// (e.g. `...tradeoffs.` + `## Conclusion` -> `...tradeoffs.## Conclusion`,
-		// so the heading no longer starts a line and renders as inline text).
-		// Seed a leading block boundary on every message after the first so each
-		// renders as its own block. `phase` would in theory distinguish preamble
-		// from final answer, but providers don't emit it reliably, so we separate
-		// on position instead.
+		// Separate consecutive agent messages so the chat model's separator-less
+		// markdown coalescing doesn't glue a following heading onto the prior line.
 		const separator = state.agentMessagePartCount > 0 ? '\n\n' : '';
 		state.agentMessagePartCount++;
 		return [

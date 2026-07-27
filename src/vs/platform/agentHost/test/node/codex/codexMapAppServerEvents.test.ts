@@ -244,8 +244,7 @@ suite('codexMapAppServerEvents', () => {
 		const state = createCodexSessionMapState();
 		mapItemStarted(state, { item: { type: 'agentMessage', id: 'm1', text: 'a', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 });
 		mapItemStarted(state, { item: { type: 'agentMessage', id: 'm2', text: 'b', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 });
-		// A new turn resets the per-turn bookkeeping, so its first agentMessage is
-		// not seeded with a separator.
+		// A new turn resets the counter, so its first agentMessage is unseeded.
 		resetCodexTurnMapState(state);
 		const firstOfNextTurn = mapItemStarted(state, { item: { type: 'agentMessage', id: 'm3', text: 'c', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_b', startedAtMs: 0 });
 		assert.strictEqual(markdownPartContent(firstOfNextTurn[0]), 'c');
@@ -271,17 +270,14 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1',
 			turn: { id: 'turn_a', items: [], itemsView: { type: 'full' } as never, status: 'inProgress' as never, error: null, startedAt: null, completedAt: null, durationMs: null },
 		}, 'prompt'));
-		// Preamble (commentary) message, then the final-answer message; both
-		// arrive as distinct codex `agentMessage` items with no separator of
-		// their own.
+		// Preamble message, then the final-answer message; two distinct items.
 		apply(mapItemStarted(state, { item: { type: 'agentMessage', id: 'm1', text: '', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 }));
 		apply(mapAgentMessageDelta(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'm1', delta: 'Consolidating the recommendation and tradeoffs.' }));
 		apply(mapItemStarted(state, { item: { type: 'agentMessage', id: 'm2', text: '', phase: null, memoryCitation: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 }));
 		apply(mapAgentMessageDelta(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'm2', delta: '## Conclusion\n\nDone.' }));
 
-		// The chat model coalesces adjacent markdown parts by plain concatenation
-		// (appendMarkdownString), so the joined text must keep `## Conclusion` at
-		// the start of a line for it to render as a heading rather than inline.
+		// Adjacent markdown parts are coalesced by plain concatenation, so the
+		// joined text must keep `## Conclusion` at the start of a line.
 		const joined = (chat.activeTurn?.responseParts ?? [])
 			.map(part => part.kind === ResponsePartKind.Markdown ? part.content : '')
 			.join('');
