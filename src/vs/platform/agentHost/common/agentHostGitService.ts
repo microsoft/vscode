@@ -340,22 +340,22 @@ export interface IAgentHostGitService {
 	getDiffPatchBetweenRefs(workingDirectory: URI, options: { readonly fromRef: string; readonly toRef: string; readonly paths: readonly string[]; readonly maxBuffer: number }): Promise<IDiffPatchResult | undefined>;
 }
 
-function getCommonBranchPriority(branch: string): number {
-	if (branch === 'main') {
+function getBranchPriority(branch: string, currentBranch: string | undefined, defaultBranch: string | undefined): number {
+	if (branch === currentBranch) {
 		return 0;
 	}
-	if (branch === 'master') {
+	if (branch === defaultBranch) {
 		return 1;
 	}
 	return 2;
 }
 
-export function getBranchCompletions(branches: readonly string[], options?: { readonly query?: string; readonly limit?: number }): string[] {
+export function getBranchCompletions(branches: readonly string[], options?: { readonly currentBranch?: string; readonly defaultBranch?: string; readonly query?: string; readonly limit?: number }): string[] {
 	const normalizedQuery = options?.query?.toLowerCase();
 	const filtered = normalizedQuery
 		? branches.filter(branch => branch.toLowerCase().includes(normalizedQuery))
 		: [...branches];
 
-	filtered.sort((a, b) => getCommonBranchPriority(a) - getCommonBranchPriority(b));
+	filtered.sort((a, b) => getBranchPriority(a, options?.currentBranch, options?.defaultBranch) - getBranchPriority(b, options?.currentBranch, options?.defaultBranch));
 	return options?.limit ? filtered.slice(0, options.limit) : filtered;
 }
