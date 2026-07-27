@@ -757,7 +757,6 @@ describe('Edit Notebook Tool', () => {
 		const [editTool] = initialize(notebook.document);
 
 		const staleCellId = '#VSC-deadbeef';
-		const validIds = notebook.document.getCells().map(cell => getCellId(cell));
 		await expect(invokeOneTool(notebook, editTool, {
 			filePath: notebook.uri.toString(),
 			editType: 'edit',
