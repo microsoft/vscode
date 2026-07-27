@@ -544,16 +544,22 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		providedCodeActionKinds: [CodeActionKind.QuickFix]
 	}));
 
-	client.sendNotification(SchemaAssociationNotification.type, await getSchemaAssociations(false));
-
 	let schemaAssociationRefreshGeneration = 0;
 	let schemaAssociationRefreshTrigger: Disposable | undefined;
+	let schemaAssociationRefreshIncludesRemoteRegistries = false;
+	const getRemoteSchemaRegistryContent = (uri: string): Promise<string> => {
+		let timeout: Disposable | undefined;
+		return new Promise<string>((resolve, reject) => {
+			timeout = runtime.timer.setTimeout(() => reject(new Error(`Timed out while loading schema registry ${uri}`)), 5000);
+			getSchemaContent(uri, false).then(resolve, reject);
+		}).finally(() => timeout?.dispose());
+	};
 	const refreshSchemaAssociations = () => {
 		const generation = ++schemaAssociationRefreshGeneration;
 		schemaAssociationRefreshTrigger?.dispose();
 		schemaAssociationRefreshTrigger = runtime.timer.setTimeout(async () => {
 			schemaAssociationRefreshTrigger = undefined;
-			const associations = await getSchemaAssociations(true);
+			const associations = await getSchemaAssociations(true, schemaAssociationRefreshIncludesRemoteRegistries);
 			if (generation === schemaAssociationRefreshGeneration) {
 				client.sendNotification(SchemaAssociationNotification.type, associations);
 			}
@@ -563,6 +569,12 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		schemaAssociationRefreshGeneration++;
 		schemaAssociationRefreshTrigger?.dispose();
 	}));
+
+	client.sendNotification(SchemaAssociationNotification.type, await getSchemaAssociations(false, false));
+	getSchemaAssociations(true, true).then(associations => {
+		schemaAssociationRefreshIncludesRemoteRegistries = true;
+		client.sendNotification(SchemaAssociationNotification.type, associations);
+	});
 
 	const registryWatchers = new Map<string, Disposable>();
 	const updateRegistryWatchers = () => {
@@ -689,9 +701,9 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		return settingsCache;
 	}
 
-	async function getSchemaAssociations(forceRefresh: boolean): Promise<ISchemaAssociation[]> {
+	async function getSchemaAssociations(forceRefresh: boolean, includeRemoteRegistries: boolean): Promise<ISchemaAssociation[]> {
 		if (!schemaAssociationsCache || forceRefresh) {
-			schemaAssociationsCache = computeSchemaAssociations(uri => getSchemaContent(uri, false));
+			schemaAssociationsCache = computeSchemaAssociations(getRemoteSchemaRegistryContent, includeRemoteRegistries);
 		}
 		return schemaAssociationsCache;
 	}
@@ -708,7 +720,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		}
 
 		if (allowKnownSchemaAssociations) {
-			const knownAssociations = await getSchemaAssociations(false);
+			const knownAssociations = await getSchemaAssociations(false, schemaAssociationRefreshIncludesRemoteRegistries);
 			for (const association of knownAssociations) {
 				if (association.uri === uriString) {
 					return true;
@@ -809,9 +821,9 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	};
 }
 
-async function computeSchemaAssociations(getRegistryContent: (uri: string) => Promise<string>): Promise<ISchemaAssociation[]> {
+async function computeSchemaAssociations(getRegistryContent: (uri: string) => Promise<string>, includeRemoteRegistries: boolean): Promise<ISchemaAssociation[]> {
 	const extensionAssociations = getSchemaExtensionAssociations();
-	return extensionAssociations.concat(await getSchemaRegistryAssociations(getRegistryContent));
+	return extensionAssociations.concat(await getSchemaRegistryAssociations(getRegistryContent, includeRemoteRegistries));
 }
 
 function resolveExtensionResource(extensionUri: Uri, resource: string): Uri {
@@ -873,15 +885,16 @@ function isWatchableRegistryUri(uri: Uri): boolean {
 	return uri.scheme !== 'http' && uri.scheme !== 'https';
 }
 
-async function getSchemaRegistryAssociations(getRegistryContent: (uri: string) => Promise<string>): Promise<ISchemaAssociation[]> {
-	const result: ISchemaAssociation[] = [];
-	for (const registryUri of getSchemaRegistryUris()) {
+async function getSchemaRegistryAssociations(getRegistryContent: (uri: string) => Promise<string>, includeRemoteRegistries: boolean): Promise<ISchemaAssociation[]> {
+	const registryUris = getSchemaRegistryUris().filter(uri => includeRemoteRegistries || isWatchableRegistryUri(uri));
+	const registryAssociations = await Promise.all(registryUris.map(async registryUri => {
 		try {
 			const rawStr = isWatchableRegistryUri(registryUri)
 				? new TextDecoder().decode(await workspace.fs.readFile(registryUri))
 				: await getRegistryContent(registryUri.toString(true));
 			const registry = <{ schemas?: { url?: string; fileMatch?: string[] }[] }>JSON.parse(rawStr);
 			if (Array.isArray(registry.schemas)) {
+				const result: ISchemaAssociation[] = [];
 				for (const schema of registry.schemas) {
 					if (typeof schema.url === 'string' && Array.isArray(schema.fileMatch) && schema.fileMatch.every(fileMatch => typeof fileMatch === 'string')) {
 						result.push({
@@ -890,12 +903,14 @@ async function getSchemaRegistryAssociations(getRegistryContent: (uri: string) =
 						});
 					}
 				}
+				return result;
 			}
 		} catch {
 			// Ignore unavailable or invalid registry.
 		}
-	}
-	return result;
+		return [];
+	}));
+	return registryAssociations.flat();
 }
 
 
