@@ -432,13 +432,11 @@ export class AgentHostTelemetryReporter {
 		const categoryScores = report.categoryScores ?? {};
 		const isBinary = categoryScores.needs_reasoning !== undefined || categoryScores.no_reasoning !== undefined;
 		const scoreKeys = Object.keys(categoryScores).filter(key => categoryScores[key] !== undefined);
-		const routingMethod = isBinary ? 'binary' : scoreKeys.length > 0 ? 'hydra' : undefined;
 		const candidateModels = report.candidateModels ?? [];
 		const properties = {
 			conversationId: AgentSession.id(report.session),
 			vscodeRequestId: report.turnId,
 			...(report.predictedLabel !== undefined ? { predictedLabel: report.predictedLabel } : {}),
-			...(routingMethod !== undefined ? { routingMethod } : {}),
 			candidateModel: candidateModels[0] ?? '',
 			chosenModel: report.chosenModel,
 			candidateModels: JSON.stringify(candidateModels),

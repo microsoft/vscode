@@ -7163,7 +7163,6 @@ suite('CopilotAgentSession', () => {
 						conversationId: 'test-session-1',
 						vscodeRequestId: 'turn-auto',
 						predictedLabel: 'needs_reasoning',
-						routingMethod: 'binary',
 						candidateModel: 'gpt-5',
 						chosenModel: 'gpt-5',
 						candidateModels: JSON.stringify(['gpt-5', 'gpt-4.1']),
