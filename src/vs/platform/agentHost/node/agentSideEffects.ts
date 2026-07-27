@@ -25,6 +25,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
+import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
 import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type SessionInputRequest } from '../common/state/protocol/state.js';
 import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
@@ -59,7 +60,7 @@ import {
 } from '../common/state/sessionState.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
 import { AgentHostTelemetryReporter, type AgentHostModelTelemetryKind, type AgentHostTurnFailureStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
@@ -1658,35 +1659,29 @@ export class AgentSideEffects extends Disposable {
 			if (attachment.type !== MessageAttachmentKind.Chat) {
 				return attachment;
 			}
-			const sourceSession = isAhpChatChannel(attachment.resource)
-				? parseRequiredSessionUriFromChatUri(attachment.resource)
+			const parsedChat = isAhpChatChannel(attachment.resource) ? parseChatUri(attachment.resource) : undefined;
+			const sourceSession = parsedChat
+				? parsedChat.session
 				: URI.parse(attachment.resource).toString();
 			if (sourceSession !== URI.parse(sessionChannel).toString()) {
 				throw new Error(`Chat attachment source must belong to the target session: ${attachment.resource}`);
 			}
-			const sourceState = this._resolveSourceChatState(attachment.resource);
+			const sourceState = resolveChatStateForUri(this._stateManager, attachment.resource);
 			if (sourceState?.activeTurn?.id === attachment.endTurn) {
 				throw new Error(`Chat attachment endTurn must reference a completed turn: ${attachment.resource}#${attachment.endTurn}`);
 			}
 			const sourceTurns = await this._options.resolveChatAttachmentTurns?.(attachment.resource)
 				?? sourceState?.turns
 				?? [];
-			return resolveChatAttachment(attachment, sourceTurns);
+			// An `agent-host-session://` link that identifies the referenced chat.
+			// The default chat is addressed by its session (no chat id); peer chats
+			// carry their chat id so the link opens that specific chat.
+			const openLink = buildOpenSessionLinkForChatResource(attachment.resource);
+			if (openLink === undefined) {
+				throw new Error(`Chat attachment resource cannot be resolved to an open-session link: ${attachment.resource}`);
+			}
+			return resolveChatAttachment(attachment, sourceTurns, openLink);
 		}));
-	}
-
-	private _resolveSourceChatState(sourceUri: string) {
-		const peerState = this._stateManager.getChatState(sourceUri);
-		if (peerState) {
-			return peerState;
-		}
-		if (!isAhpChatChannel(sourceUri)) {
-			return this._stateManager.getDefaultChatState(sourceUri);
-		}
-		if (isDefaultChatUri(sourceUri)) {
-			return this._stateManager.getDefaultChatState(parseRequiredSessionUriFromChatUri(sourceUri));
-		}
-		return undefined;
 	}
 
 	/**

@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MessageAttachmentKind, ResponsePartKind, type MessageChatAttachment, type SimpleMessageAttachment, type Turn } from './protocol/state.js';
+import { SessionServerToolName } from '../serverToolNames.js';
 
 /**
- * Model-facing preamble that frames the resolved transcript for the SDK. It is
- * intentionally hard-coded English (like Claude's `<system-reminder>` text):
- * this string is consumed by the model, not shown in the UI, so it must not be
- * localized.
+ * Maximum number of characters of the bounded transcript inlined as a tail
+ * excerpt in a chat attachment's model representation. The transcript itself is
+ * unbounded, so instead of inlining it whole we point the model at the source
+ * chat (via an open link + the `get_session_context` tool) and only include the
+ * most recent slice as a taste of the content.
  */
-const CHAT_TRANSCRIPT_PREAMBLE =
-	'The user referenced another chat in the same session. ' +
-	'The transcript below is that chat up to the selected turn, provided as background context. ' +
-	'Treat it as reference material that may or may not be relevant to the new question.';
+export const MAX_CHAT_ATTACHMENT_EXCERPT_CHARS = 1000;
 
 /**
  * Returns the referenced chat's turns bounded through {@link endTurn}, inclusive.
@@ -55,22 +54,64 @@ export function formatChatTranscript(turns: readonly Turn[]): string {
 }
 
 /**
+ * Keeps the last {@link maxChars} characters of {@link text}, dropping the
+ * front. Unlike the middle-truncation used for side-chat context (which
+ * preserves both ends), this keeps only the tail so the most recent transcript
+ * content survives.
+ */
+function truncateFront(text: string, maxChars: number): string {
+	return text.length <= maxChars ? text : text.slice(text.length - maxChars);
+}
+
+/**
+ * Builds the model-facing pointer for a chat attachment: it names the
+ * referenced chat, gives an {@link openLink} that identifies it, inlines a short
+ * tail excerpt of the bounded transcript, and tells the model it can call the
+ * `get_session_context` server tool with that link to read the full transcript.
+ *
+ * The text is intentionally hard-coded English (like Claude's
+ * `<system-reminder>` text): it is consumed by the model, not shown in the UI,
+ * so it must not be localized.
+ */
+function buildChatAttachmentPointer(label: string, openLink: string, transcript: string): string {
+	const intro =
+		`The user referenced another chat in the same session, "${label}". ` +
+		`That chat is identified by the link ${openLink}. ` +
+		`To read its full transcript, call the ${SessionServerToolName.GetSessionContext} server tool with its "session" argument set to that link.`;
+
+	if (!transcript) {
+		return `${intro}\n\nThe referenced chat has no transcript content up to the selected turn.`;
+	}
+
+	if (transcript.length > MAX_CHAT_ATTACHMENT_EXCERPT_CHARS) {
+		const excerpt = truncateFront(transcript, MAX_CHAT_ATTACHMENT_EXCERPT_CHARS);
+		return `${intro}\n\nThe excerpt below is only the tail end of that transcript up to the selected turn (about the last ${MAX_CHAT_ATTACHMENT_EXCERPT_CHARS} characters; the earlier part was omitted to keep the most recent content):\n\n${excerpt}`;
+	}
+
+	return `${intro}\n\nThe excerpt below is that chat's full transcript up to the selected turn:\n\n${transcript}`;
+}
+
+/**
  * Resolves a {@link MessageChatAttachment} into an SDK-compatible
- * {@link SimpleMessageAttachment}: the bounded transcript rendered as the
- * attachment's {@link SimpleMessageAttachment.modelRepresentation}. Every
+ * {@link SimpleMessageAttachment}: a pointer to the referenced chat carried as
+ * the attachment's {@link SimpleMessageAttachment.modelRepresentation}. Every
  * provider adapter already inlines a `Simple` attachment's model
- * representation, so this keeps transcript formatting in one place instead of
- * duplicating it per agent.
+ * representation, so this keeps the framing in one place instead of duplicating
+ * it per agent.
+ *
+ * Rather than inlining the (unbounded) transcript, the representation names the
+ * chat ({@link MessageChatAttachment.label}), gives {@link openLink} — an
+ * `agent-host-session://` link that identifies the referenced chat — inlines a
+ * short tail excerpt of the bounded transcript, and points the model at the
+ * `get_session_context` server tool to read the rest.
  *
  * The resolution is non-recursive: it renders {@link sourceTurns} directly and
  * never re-resolves chat attachments found within them.
  */
-export function resolveChatAttachment(attachment: MessageChatAttachment, sourceTurns: readonly Turn[]): SimpleMessageAttachment {
+export function resolveChatAttachment(attachment: MessageChatAttachment, sourceTurns: readonly Turn[], openLink: string): SimpleMessageAttachment {
 	const bounded = boundChatTranscriptTurns(sourceTurns, attachment.endTurn);
 	const transcript = formatChatTranscript(bounded);
-	const modelRepresentation = transcript
-		? `${CHAT_TRANSCRIPT_PREAMBLE}\n\n${transcript}`
-		: CHAT_TRANSCRIPT_PREAMBLE;
+	const modelRepresentation = buildChatAttachmentPointer(attachment.label, openLink, transcript);
 	return {
 		type: MessageAttachmentKind.Simple,
 		label: attachment.label,

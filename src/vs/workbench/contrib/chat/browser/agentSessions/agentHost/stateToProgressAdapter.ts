@@ -42,6 +42,7 @@ import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
+import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChatReferenceAttachment.js';
 
 export const BOOLEAN_TRUE_OPTION_ID = 'true';
 export const BOOLEAN_FALSE_OPTION_ID = 'false';
@@ -1016,6 +1017,10 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 			isURL: false,
 			_meta: attachment._meta,
 		};
+	}
+
+	if (attachment.type === MessageAttachmentKind.Chat) {
+		return restoreChatReferenceVariableEntryFromAttachment(attachment);
 	}
 
 	const agentHostCompletionKind = getAgentHostCompletionKind(attachment);

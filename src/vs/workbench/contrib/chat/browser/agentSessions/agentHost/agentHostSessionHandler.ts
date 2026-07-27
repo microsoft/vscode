@@ -43,7 +43,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentChatUri, ChatOriginKind, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type StringOrMarkdown, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, ChatOriginKind, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type StringOrMarkdown, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -61,8 +61,10 @@ import {
 	getAgentHostCompletionReferenceKind,
 	isAgentFeedbackVariableEntry,
 	isBrowserViewVariableEntry,
+	isChatReferenceVariableEntry,
 	isImageVariableEntry,
 	type IAgentFeedbackVariableEntry,
+	type IChatRequestChatReferenceVariableEntry,
 	type IChatRequestVariableEntry,
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
@@ -973,6 +975,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					uri,
 					displayName: attachment.label,
 					isDirectory: attachment.displayKind === 'directory',
+					...(attachment._meta !== undefined && { _meta: attachment._meta }),
+				});
+			}
+			case MessageAttachmentKind.Chat: {
+				return this._createCompletionItem(raw, text, {
+					kind: 'chat',
+					uri: URI.parse(attachment.resource),
+					endTurn: attachment.endTurn,
+					title: attachment.label,
+					displayName: attachment.label,
 					...(attachment._meta !== undefined && { _meta: attachment._meta }),
 				});
 			}
@@ -4681,7 +4693,26 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (agentHostCompletionKind === AgentHostCompletionReferenceKind.Skill) {
 			return this._toSimpleAttachment(v.name, undefined, v._meta, 'skill', referenceRange);
 		}
+		if (isChatReferenceVariableEntry(v)) {
+			return this._toChatReferenceAttachment(v, referenceRange);
+		}
 		return undefined;
+	}
+
+	private _toChatReferenceAttachment(v: IChatRequestChatReferenceVariableEntry, range?: MessageAttachment['range']): MessageAttachment {
+		const attachment: MessageChatAttachment = {
+			type: MessageAttachmentKind.Chat,
+			resource: v.value.toString(),
+			endTurn: v.endTurn,
+			label: v.name,
+		};
+		if (range) {
+			attachment.range = range;
+		}
+		if (v._meta) {
+			attachment._meta = v._meta;
+		}
+		return attachment;
 	}
 
 	private _toSessionReferenceAttachment(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string, range?: MessageAttachment['range']): MessageAttachment {

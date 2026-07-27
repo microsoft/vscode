@@ -564,6 +564,121 @@ export function isBrowserViewVariableEntry(entry: IChatRequestVariableEntry): en
 	return entry.kind === 'browserView';
 }
 
+/**
+ * A first-class reference to another agent-host chat, produced when the user
+ * types `#chat:<title>` in an agent-host chat input. Carries everything needed
+ * to send an agent-host chat attachment and to render the reference chip: the
+ * referenced chat's {@link value resource} and the {@link endTurn last completed
+ * turn} included in the transcript. The display title lives on
+ * {@link IBaseChatRequestVariableEntry.name name}.
+ */
+export interface IChatRequestChatReferenceVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'chatReference';
+	/** The referenced chat's resource. */
+	readonly value: URI;
+	/** Last completed turn included in the referenced transcript. */
+	readonly endTurn: string;
+}
+
+/**
+ * Type guard for a {@link IChatRequestChatReferenceVariableEntry chat-reference entry}.
+ */
+export function isChatReferenceVariableEntry(entry: IChatRequestVariableEntry): entry is IChatRequestChatReferenceVariableEntry {
+	return entry.kind === 'chatReference';
+}
+
+/**
+ * Stable, dedupe-friendly id for a chat reference, derived from the referenced
+ * chat resource and the last completed turn. Re-accepting the same reference
+ * therefore produces the same id.
+ *
+ * @param chatResource The resource of the referenced chat.
+ * @param endTurn The last completed turn included in the referenced transcript.
+ */
+export function chatReferenceVariableEntryId(chatResource: URI, endTurn: string): string {
+	return `agent-host-chat:${chatResource.toString()}\u0000${endTurn}`;
+}
+
+/**
+ * Build the first-class {@link IChatRequestChatReferenceVariableEntry chat-reference entry}
+ * (the input pill) for a referenced chat.
+ *
+ * @param chatResource The resource of the referenced chat.
+ * @param endTurn The last completed turn included in the referenced transcript.
+ * @param title The chat title used as the display label.
+ * @param _meta Provider-supplied `_meta` to preserve on the entry.
+ * @param range The offset-range of the reference in the prompt, when typed out.
+ */
+export function createChatReferenceVariableEntry(chatResource: URI, endTurn: string, title: string, _meta?: Record<string, unknown>, range?: IOffsetRange): IChatRequestChatReferenceVariableEntry {
+	return {
+		kind: 'chatReference',
+		id: chatReferenceVariableEntryId(chatResource, endTurn),
+		name: title,
+		value: chatResource,
+		endTurn,
+		range,
+		_meta,
+	};
+}
+
+/**
+ * Transient value carried on a chat-reference dynamic variable (via its `data`
+ * channel) so the request parser can rebuild the first-class
+ * {@link IChatRequestChatReferenceVariableEntry} without an out-of-band `_meta`
+ * bag. This never becomes the entry's `value` — see
+ * {@link chatReferenceVariableEntryFromDynamicValue}.
+ */
+export interface IChatReferenceDynamicVariableValue {
+	readonly $mid: 'agentHostChatReference';
+	readonly chatResource: string;
+	readonly endTurn: string;
+}
+
+/**
+ * Build the {@link IChatReferenceDynamicVariableValue dynamic-variable transport}
+ * for a chat reference.
+ */
+export function toChatReferenceDynamicVariableValue(chatResource: URI, endTurn: string): IChatReferenceDynamicVariableValue {
+	return { $mid: 'agentHostChatReference', chatResource: chatResource.toString(), endTurn };
+}
+
+/**
+ * Type guard for a {@link IChatReferenceDynamicVariableValue}.
+ */
+export function isChatReferenceDynamicVariableValue(value: IChatRequestVariableValue): value is IChatReferenceDynamicVariableValue {
+	return typeof value === 'object' && value !== null && (value as { $mid?: unknown }).$mid === 'agentHostChatReference';
+}
+
+/**
+ * Rebuild a first-class {@link IChatRequestChatReferenceVariableEntry} from a
+ * chat-reference {@link IChatReferenceDynamicVariableValue dynamic-variable value}
+ * carried through the request parser. Returns `undefined` when the resource
+ * cannot be parsed.
+ *
+ * @param value The dynamic-variable transport value.
+ * @param id The stable dynamic-variable id.
+ * @param name The display title for the reference.
+ * @param range The offset-range of the reference in the prompt.
+ * @param _meta Provider-supplied `_meta` to preserve on the entry.
+ */
+export function chatReferenceVariableEntryFromDynamicValue(value: IChatReferenceDynamicVariableValue, id: string, name: string, range: IOffsetRange | undefined, _meta: Record<string, unknown> | undefined): IChatRequestChatReferenceVariableEntry | undefined {
+	let chatResource: URI;
+	try {
+		chatResource = URI.parse(value.chatResource);
+	} catch {
+		return undefined;
+	}
+	return {
+		kind: 'chatReference',
+		id,
+		name,
+		value: chatResource,
+		endTurn: value.endTurn,
+		range,
+		_meta,
+	};
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
@@ -571,7 +686,7 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
 	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry
-	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry | IBrowserViewVariableEntry;
+	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry | IBrowserViewVariableEntry | IChatRequestChatReferenceVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 

@@ -494,7 +494,7 @@ export interface IChatInputCompletionItem {
 	readonly start?: IPosition;
 	readonly end?: IPosition;
 	/** Attachment associated with the item. */
-	readonly attachment: IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment;
+	readonly attachment: IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment | IChatInputCompletionChatAttachment;
 }
 
 /**
@@ -538,6 +538,30 @@ export interface IChatInputCompletionSkillAttachment {
 	readonly uri: URI;
 	readonly displayName?: string;
 	readonly description?: string;
+	/**
+	 * Implementation-defined metadata that MUST be preserved by the
+	 * workbench when the accepted completion is sent back as part of a
+	 * user message attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
+}
+
+/**
+ * Chat attachment associated with a completion item. References another chat's
+ * transcript through a fixed completed turn. The workbench adds it to the
+ * input's variable model when the item is accepted so it round-trips back to
+ * the provider as a chat attachment on the outgoing user message.
+ */
+export interface IChatInputCompletionChatAttachment {
+	readonly kind: 'chat';
+	/** The resource of the referenced chat. */
+	readonly uri: URI;
+	/** The last completed turn included in the referenced transcript. */
+	readonly endTurn: string;
+	/** The chat title, used as the display label. */
+	readonly title: string;
+	/** Display label shown in the completion picker; defaults to {@link title}. */
+	readonly displayName?: string;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the
 	 * workbench when the accepted completion is sent back as part of a

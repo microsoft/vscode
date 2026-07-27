@@ -56,6 +56,7 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
+import { AgentHostChatCompletionProvider } from './agentHostChatCompletionProvider.js';
 import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
 import { AgentHostRenameCompletionProvider } from './agentHostRenameCommand.js';
 import { AgentHostSkillCompletionProvider } from './agentHostSkillCompletionProvider.js';
@@ -460,6 +461,11 @@ export class AgentService extends Disposable implements IAgentService {
 		const workspaceFiles = this._register(instantiationService.createInstance(AgentHostWorkspaceFiles));
 		this._register(this._completions.registerProvider(
 			new AgentHostFileCompletionProvider(this._stateManager, workspaceFiles),
+		));
+		// Built-in generic provider: completes `#chat:<title>` references to other
+		// chats in the same session, attaching a chat transcript attachment.
+		this._register(this._completions.registerProvider(
+			new AgentHostChatCompletionProvider(this._stateManager),
 		));
 		// Built-in generic provider: offers the `/rename` slash command for any
 		// session that already has history. Execution is handled server-side in

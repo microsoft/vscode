@@ -102,7 +102,7 @@ import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTy
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import type { IChatModel, IChatModelInputState, IChatPendingRequest, IChatRequestModel, IInputModel } from '../../../common/model/chatModel.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
-import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -1527,6 +1527,33 @@ suite('AgentHostChatContribution', () => {
 				language: undefined,
 				pastedLines: undefined,
 				fileName: undefined,
+			}]);
+		});
+
+		test('restores chat attachments as chat reference variable entries', () => {
+			const chatResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/session-1/chat-2' });
+			const variableData = messageAttachmentsToVariableData([{
+				type: MessageAttachmentKind.Chat,
+				label: 'Design chat',
+				resource: chatResource.toString(),
+				endTurn: 'turn-5',
+				_meta: { source: 'test' },
+			}], 'test');
+
+			assert.deepStrictEqual(variableData?.variables.map(variable => ({
+				kind: variable.kind,
+				id: variable.id,
+				name: variable.name,
+				value: URI.isUri(variable.value) ? variable.value.toString() : variable.value,
+				endTurn: isChatReferenceVariableEntry(variable) ? variable.endTurn : undefined,
+				_meta: variable._meta,
+			})), [{
+				kind: 'chatReference',
+				id: `agent-host-chat:${chatResource.toString()}\u0000turn-5`,
+				name: 'Design chat',
+				value: chatResource.toString(),
+				endTurn: 'turn-5',
+				_meta: { source: 'test' },
 			}]);
 		});
 
@@ -6330,6 +6357,45 @@ suite('AgentHostChatContribution', () => {
 					},
 				},
 			}]);
+		}));
+
+		test('chat reference variable entry becomes a chat attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const chatResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/session-1/chat-2' });
+			const chatEntry = createChatReferenceVariableEntry(chatResource, 'turn-5', 'Design chat', { source: 'test' });
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'compare with #chat:Design chat',
+				variables: {
+					variables: [
+						upcastPartial({ ...chatEntry, range: { start: 13, endExclusive: 30 } }),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [{
+				type: MessageAttachmentKind.Chat,
+				resource: chatResource.toString(),
+				endTurn: 'turn-5',
+				label: 'Design chat',
+				range: {
+					start: { line: 0, character: 13 },
+					end: { line: 0, character: 30 },
+				},
+				_meta: { source: 'test' },
+			}]);
+
+			// Re-round-trip: replaying the outgoing attachment must restore an
+			// entry with an identical, stable id and the same flat _meta.
+			const restored = messageAttachmentsToVariableData([turnAction.message.attachments[0]], 'test')?.variables[0];
+			assert.deepStrictEqual({ id: restored?.id, _meta: restored?._meta }, {
+				id: chatEntry.id,
+				_meta: { source: 'test' },
+			});
 		}));
 
 		test('extension host Copilot CLI session reference becomes simple and trajectory attachments', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
