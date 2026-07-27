@@ -5,6 +5,7 @@
 
 import * as sqlite3 from '@vscode/sqlite3';
 import * as fs from 'fs';
+import { homedir } from 'os';
 import { Suite, Context } from 'mocha';
 import { dirname, join } from 'path';
 import { Application, ApplicationOptions, Logger } from '../../automation';
@@ -200,14 +201,23 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
 	// local runs don't accumulate sessions that slow down `listSessions`
 	// and other startup paths.
 	let xdgStateHome: string | undefined;
+	let copilotHome: string | undefined;
 	if (opts?.userDataDir) {
 		xdgStateHome = `${opts.userDataDir}-copilot-state`;
+		// Anchor the Copilot runtime's home (`COPILOT_HOME`) at the same
+		// `.copilot` directory the extension resolves from `XDG_STATE_HOME`,
+		// so the runtime's process logs land in a known, per-run location we
+		// can attach on failure (see `getCopilotRuntimeLogDirs` /
+		// `dumpFailureDiagnostics`). The runtime resolves its process-log dir
+		// as `${COPILOT_HOME}/logs` and is NOT influenced by `XDG_STATE_HOME`,
+		// so without this the logs would go to the agent's real `~/.copilot`.
+		copilotHome = join(xdgStateHome, '.copilot');
 		try {
-			fs.mkdirSync(xdgStateHome, { recursive: true });
+			fs.mkdirSync(copilotHome, { recursive: true });
 		} catch {
 			// best effort — the dir will be created by the extension on first
 			// write if mkdir fails here (e.g. due to a race with a sibling
-			// suite). The env var is still honoured.
+			// suite). The env vars are still honoured.
 		}
 	}
 
@@ -224,7 +234,25 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
 		IS_SCENARIO_AUTOMATION: '1',
 		VSCODE_COPILOT_CHAT_TOKEN: mockServer ? buildCopilotChatToken(getMockLlmServerUrl(mockServer)) : undefined,
 		XDG_STATE_HOME: xdgStateHome,
+		COPILOT_HOME: copilotHome,
 	};
+}
+
+/**
+ * Candidate directories that hold the Copilot runtime's `process-*.log` files
+ * for a smoke run, newest-first preference handled by the caller. The runtime
+ * writes them to `${COPILOT_HOME}/logs`; smoke runs pin `COPILOT_HOME` to
+ * `${userDataDir}-copilot-state/.copilot` (see `getCopilotSmokeTestEnv`). The
+ * real `~/.copilot/logs` is included as a fallback for suites that did not pin
+ * a per-run `COPILOT_HOME`.
+ */
+export function getCopilotRuntimeLogDirs(userDataPath: string | undefined): string[] {
+	const dirs: string[] = [];
+	if (userDataPath) {
+		dirs.push(join(`${userDataPath}-copilot-state`, '.copilot', 'logs'));
+	}
+	dirs.push(join(homedir(), '.copilot', 'logs'));
+	return [...new Set(dirs)];
 }
 
 export function getRandomUserDataDir(baseUserDataDir: string): string {
@@ -309,6 +337,12 @@ export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: 
  *    an `exthost/GitHub.copilot-chat/` subfolder. This surfaces extension-side
  *    errors directly in the runner log so a CI failure does not require
  *    downloading the per-platform `logs-*-*-1` artifact.
+ *  - The Copilot runtime (`@github/copilot` CLI) `process-*.log` files: the
+ *    most recent are copied into `<logsPath>/copilot-runtime-logs/` (so they
+ *    ship in the published `logs-*` artifact that the SDK-integration canary
+ *    and bump workflows consume) and their tail is written into the runner
+ *    log. These are the SDK/CLI's own diagnostics — the key signal when an
+ *    SDK-backed session hangs and the test only reports a timeout.
  *
  * All steps are wrapped in try/catch — this helper must never throw, since
  * it runs inside a test's `catch` block right before re-throwing the
@@ -382,5 +416,77 @@ export async function dumpFailureDiagnostics(
 		}
 	} catch (err) {
 		logger.log(`[${label}] failed to enumerate window* logs under ${logsPath}: ${err instanceof Error ? err.message : String(err)}`);
+	}
+
+	// 4. Capture the Copilot runtime (`@github/copilot` CLI) process logs.
+	//    These are the SDK/CLI's OWN diagnostics — the single most useful
+	//    signal when an SDK-backed session (Copilot CLI / Copilot) hangs or
+	//    times out, which the mocha "Timed out waiting for response" failure
+	//    on its own does not explain. The runtime writes `process-*.log` files
+	//    to `${COPILOT_HOME}/logs`; smoke runs pin `COPILOT_HOME` under the
+	//    per-run `userDataDir` (see `getCopilotSmokeTestEnv`). We copy the most
+	//    recent log(s) into the suite `logsPath` so they ship in the published
+	//    `logs-*` build artifact (the SDK-integration canary + bump workflows
+	//    read these), and tail them into the runner log for quick triage.
+	try {
+		const logDirs = getCopilotRuntimeLogDirs(app.userDataPath);
+		const collected: { path: string; mtimeMs: number }[] = [];
+		for (const dir of logDirs) {
+			let names: string[];
+			try {
+				names = await fs.promises.readdir(dir);
+			} catch {
+				continue; // directory absent for this suite — expected
+			}
+			for (const name of names) {
+				if (!/^process-.*\.log$/.test(name)) {
+					continue;
+				}
+				const full = join(dir, name);
+				try {
+					const stat = await fs.promises.stat(full);
+					collected.push({ path: full, mtimeMs: stat.mtimeMs });
+				} catch {
+					// racing cleanup — skip
+				}
+			}
+		}
+		if (collected.length === 0) {
+			logger.log(`[${label}] no Copilot runtime process-*.log found under ${logDirs.join(', ')}`);
+		} else {
+			// Newest first; the active session's log is the relevant one. Cap
+			// at the two most recent to bound noise/artifact size.
+			collected.sort((a, b) => b.mtimeMs - a.mtimeMs);
+			const runtimeLogsDest = join(logsPath, 'copilot-runtime-logs');
+			try {
+				await fs.promises.mkdir(runtimeLogsDest, { recursive: true });
+			} catch {
+				// best effort — copy below still logs on failure
+			}
+			for (const { path: logPath } of collected.slice(0, 2)) {
+				try {
+					const content = await fs.promises.readFile(logPath, 'utf8');
+					// Persist the full file into the uploaded artifact bundle.
+					const destName = logPath.split(/[\\/]/).pop() ?? 'process.log';
+					try {
+						await fs.promises.copyFile(logPath, join(runtimeLogsDest, destName));
+					} catch (copyErr) {
+						logger.log(`[${label}] failed to copy ${logPath} into ${runtimeLogsDest}: ${copyErr instanceof Error ? copyErr.message : String(copyErr)}`);
+					}
+					// Tail into the runner log for immediate triage.
+					const lines = content.split(/\r?\n/);
+					const tail = lines.slice(-200);
+					logger.log(`[${label}] --- BEGIN copilot runtime ${destName} (${logPath}; last ${tail.length} of ${lines.length} lines) ---`);
+					for (const ln of tail) {
+						logger.log(`[${label}] # ${ln}`);
+					}
+					logger.log(`[${label}] --- END copilot runtime ${destName} ---`);
+				} catch (readErr) {
+					logger.log(`[${label}] failed to read runtime log ${logPath}: ${readErr instanceof Error ? readErr.message : String(readErr)}`);
+				}
+			}
+		}
+	} catch (err) {
+		logger.log(`[${label}] failed to capture Copilot runtime logs: ${err instanceof Error ? err.message : String(err)}`);
 	}
 }

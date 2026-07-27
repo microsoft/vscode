@@ -85,6 +85,10 @@ async function preseedChatSessionProfile(userDataDir: string | undefined, mockSe
 		'github.copilot.chat.claudeAgent.enabled': true,
 		'github.copilot.chat.claudeAgent.useSdkExtension': false,
 		'chat.tools.riskAssessment.enabled': false,
+		// Force the Copilot runtime to verbose logging so the captured
+		// `process-*.log` (see dumpFailureDiagnostics) has enough detail to
+		// diagnose a hang/timeout in CI.
+		'chat.agentHost.copilotSdk.logLevel': 'trace',
 	}, undefined, '\t'));
 
 	await preseedChatExtensionEnablement(userDataDir);
@@ -153,7 +157,7 @@ export function setup(logger: Logger) {
 		});
 
 		installAllHandlers(logger, opts => {
-			const copilotEnv = getCopilotSmokeTestEnv(mockServer);
+			const copilotEnv = getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir });
 			logger.log(`[Chat Sessions] extraEnv keys for app: ${Object.keys(copilotEnv).join(', ')} (token len=${(copilotEnv.VSCODE_COPILOT_CHAT_TOKEN ?? '').length})`);
 			return {
 				...opts,

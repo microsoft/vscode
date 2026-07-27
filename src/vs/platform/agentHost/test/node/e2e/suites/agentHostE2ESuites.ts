@@ -85,6 +85,11 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			// killed) the shared host; restart it so the failure does not cascade
 			// into the next, unrelated test.
 			const failed = this.currentTest?.state === 'failed';
+			if (failed) {
+				// Surface the Copilot runtime's own logs for a hang/timeout before
+				// the server is restarted and its temp home is eventually removed.
+				lease.dumpRuntimeLogsOnFailure(this.currentTest?.title ?? 'unknown');
+			}
 			await lease.release(createdSessions, failed);
 		});
 

@@ -149,7 +149,7 @@ export function setup(logger: Logger): void {
 			...opts,
 			extraEnv: {
 				...(opts.extraEnv ?? {}),
-				...getCopilotSmokeTestEnv(mockServer),
+				...getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir }),
 			},
 		}), app => preseedChatExtensionEnablement(app.userDataPath));
 
@@ -172,6 +172,8 @@ export function setup(logger: Logger): void {
 				// from being retried with relaxed network access or outside the sandbox.
 				['chat.agent.sandbox.retryWithAllowNetworkRequests', 'false'],
 				['chat.agent.sandbox.allowUnsandboxedCommands', 'false'],
+				// Verbose Copilot runtime logging for capturable failure diagnostics.
+				['chat.agentHost.copilotSdk.logLevel', '"trace"'],
 			]);
 			await app.workbench.quickaccess.runCommand('workbench.action.closeActiveEditor');
 		});
