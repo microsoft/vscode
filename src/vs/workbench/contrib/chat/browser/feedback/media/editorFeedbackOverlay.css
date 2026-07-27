@@ -4,33 +4,86 @@
  *--------------------------------------------------------------------------------------------*/
 
 .agent-feedback-editor-overlay-widget {
-	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size40);
 	color: var(--vscode-foreground);
 	background-color: var(--vscode-editorWidget-background);
 	border-radius: var(--vscode-cornerRadius-medium);
 	border: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
 	display: flex;
 	align-items: center;
-	justify-content: center;
-	gap: var(--vscode-spacing-size40);
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size60);
 	z-index: 10;
 	box-shadow: var(--vscode-shadow-lg);
 	overflow: visible;
+	max-width: calc(100% - var(--vscode-spacing-size400));
+	box-sizing: border-box;
 }
 
 .agent-feedback-editor-overlay-input {
-	width: 200px;
-	min-width: 100px;
+	flex: 0 1 240px;
+	width: 240px;
+	min-width: 120px;
 }
 
 .agent-feedback-editor-overlay-widget .inputbox-container {
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
+.agent-feedback-editor-overlay-widget .monaco-inputbox,
+.agent-feedback-editor-overlay-widget .monaco-inputbox > .ibwrapper,
+.agent-feedback-editor-overlay-widget .monaco-inputbox > .ibwrapper > .input {
+	height: 24px;
+	min-height: 24px;
+	box-sizing: border-box;
+}
+
+.agent-feedback-editor-overlay-toolbar {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
 .agent-feedback-editor-plan-actions {
 	display: flex;
 	align-items: center;
-	gap: var(--vscode-spacing-size40);
+	gap: var(--vscode-spacing-size60);
+	flex-shrink: 0;
+}
+
+.agent-feedback-editor-plan-actions > .monaco-button,
+.agent-feedback-editor-plan-actions > .monaco-button-dropdown {
+	width: auto;
+	min-width: auto;
+	height: 24px;
+}
+
+.agent-feedback-editor-plan-actions > .monaco-button {
+	padding: 0 var(--vscode-spacing-size100);
+	white-space: nowrap;
+}
+
+.agent-feedback-editor-plan-actions > .monaco-button-dropdown > .monaco-button {
+	width: auto;
+	min-width: auto;
+	height: 24px;
+	box-sizing: border-box;
+	white-space: nowrap;
+}
+
+.agent-feedback-editor-plan-actions > .monaco-button-dropdown > .monaco-button.monaco-text-button {
+	padding: 0 var(--vscode-spacing-size100);
+}
+
+.agent-feedback-editor-plan-actions > .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	padding: 0 var(--vscode-spacing-size40);
+}
+
+.agent-feedback-editor-plan-actions > .monaco-button-dropdown > .monaco-button-dropdown-separator {
+	height: 24px;
+	padding: var(--vscode-spacing-size20) 0;
+	box-sizing: border-box;
 }
 
 .agent-feedback-editor-overlay-widget .action-item > .action-label {
@@ -42,6 +95,7 @@
 
 .agent-feedback-editor-overlay-widget .monaco-action-bar .actions-container {
 	gap: var(--vscode-spacing-size40);
+	align-items: center;
 }
 
 .agent-feedback-editor-overlay-widget .action-item.primary > .action-label {

@@ -94,7 +94,51 @@ function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions
 	context.container.appendChild(widget.getDomNode());
 }
 
+function renderPlanWidget(context: ComponentFixtureContext, feedbackCount: number): void {
+	const scopedDisposables = context.disposableStore.add(new DisposableStore());
+	context.container.classList.add('monaco-workbench');
+	context.container.style.width = '720px';
+	context.container.style.height = '64px';
+	context.container.style.padding = '12px';
+	context.container.style.background = 'var(--vscode-editor-background)';
+
+	const instantiationService = createEditorServices(scopedDisposables, {
+		colorTheme: context.theme,
+		additionalServices: registerWorkbenchServices,
+	});
+	const widget = scopedDisposables.add(instantiationService.createInstance(AgentFeedbackOverlayWidget));
+	widget.showPlan({
+		key: 'fixture-plan',
+		actions: [
+			{ id: 'autopilot', label: 'Implement with Autopilot Fleet', default: true },
+			{ id: 'approve', label: 'Approve Plan' },
+		],
+		feedbackCount,
+		input: {
+			placeholder: 'Overall Feedback',
+			ariaLabel: 'Overall plan feedback',
+		},
+		submitFeedbackLabel: 'Submit Feedback',
+		submitFeedbackWithCountLabel: count => `Submit Feedback (${count})`,
+		rejectLabel: 'Reject',
+		onSubmitFeedback: async () => { },
+		onSubmitAction: async () => { },
+		onReject: async () => { },
+	});
+	context.container.appendChild(widget.getDomNode());
+}
+
 export default defineThemedFixtureGroup({ path: 'sessions/agentFeedback/' }, {
+	PlanActions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderPlanWidget(context, 0),
+	}),
+
+	PlanFeedback: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderPlanWidget(context, 1),
+	}),
+
 	ZeroOfZero: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderWidget(context, {
