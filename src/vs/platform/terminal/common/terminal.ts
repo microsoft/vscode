@@ -30,6 +30,9 @@ export const enum TerminalSettingId {
 	AutomationProfileLinux = 'terminal.integrated.automationProfile.linux',
 	AutomationProfileMacOs = 'terminal.integrated.automationProfile.osx',
 	AutomationProfileWindows = 'terminal.integrated.automationProfile.windows',
+	AgentHostProfileLinux = 'terminal.integrated.agentHostProfile.linux',
+	AgentHostProfileMacOs = 'terminal.integrated.agentHostProfile.osx',
+	AgentHostProfileWindows = 'terminal.integrated.agentHostProfile.windows',
 	ProfilesWindows = 'terminal.integrated.profiles.windows',
 	ProfilesMacOs = 'terminal.integrated.profiles.osx',
 	ProfilesLinux = 'terminal.integrated.profiles.linux',
@@ -153,6 +156,7 @@ export const enum WindowsShellType {
 export const enum GeneralShellType {
 	Claude = 'claude',
 	Codex = 'codex',
+	CommandCode = 'commandcode',
 	Copilot = 'copilot',
 	Gemini = 'gemini',
 	PowerShell = 'pwsh',

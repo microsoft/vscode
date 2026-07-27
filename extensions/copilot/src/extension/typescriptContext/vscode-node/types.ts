@@ -15,7 +15,7 @@ export type ResolvedRunnableResult = {
 	items: protocol.FullContextItem[];
 	cache?: protocol.CacheInfo;
 	debugPath?: protocol.ContextRunnableResultId | undefined;
-}
+};
 export namespace ResolvedRunnableResult {
 	export function from(result: protocol.ContextRunnableResult, items: protocol.FullContextItem[]): ResolvedRunnableResult {
 		return {
@@ -34,7 +34,7 @@ export type ContextComputedEvent = {
 	position: vscode.Position;
 	source?: string;
 	summary: ContextItemSummary;
-}
+};
 
 export type OnCachePopulatedEvent = ContextComputedEvent & { items: ReadonlyArray<ResolvedRunnableResult> };
 export type OnContextComputedEvent = ContextComputedEvent & { items: ReadonlyArray<ContextItem> };

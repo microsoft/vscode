@@ -30,10 +30,6 @@ import './inline/inlineExplain.stest';
 import './inline/inlineGenerateCode.stest';
 import './inline/multiFileEdit.stest';
 import './inline/review.stest';
-import './inline/slashDoc.cpp.stest';
-import './inline/slashDoc.java.stest';
-import './inline/slashDoc.rb.stest';
-import './inline/slashDoc.ts.stest';
 import './intent/inlineChatIntent.stest';
 import './intent/panelChatIntent.stest';
 import './prompts/customInstructions.stest';
@@ -57,4 +53,3 @@ import './simulation/slash-test/testGen.js.stest';
 import './simulation/slash-test/testGen.py.stest';
 import './simulation/slash-test/testGen.ts.stest';
 import './simulation/tools/toolcall.stest';
-

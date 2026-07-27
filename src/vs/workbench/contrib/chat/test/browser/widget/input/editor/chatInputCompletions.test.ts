@@ -4,14 +4,110 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
+import { DisposableStore, IDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
+import { CompletionItem, CompletionItemKind, CompletionTriggerKind } from '../../../../../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../../../../../editor/common/model.js';
+import { LanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeaturesService.js';
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
-import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
-import { computeCompletionRanges, escapeForCharClass } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
+import { AgentHostInputCompletionsBase } from '../../../../../browser/widget/input/editor/agentHostInputCompletionsBase.js';
+import { attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
+import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
+import { MockChatSessionsService } from '../../../../common/mockChatSessionsService.js';
+
+class TestChatSessionsService extends MockChatSessionsService {
+	override async provideChatInputCompletions(_sessionResource: URI, _params: IChatInputCompletionsParams, _token: CancellationToken): Promise<IChatInputCompletionsResult> {
+		return {
+			items: [{
+				insertText: '#roadmap.md',
+				attachment: {
+					kind: 'resource',
+					uri: URI.file('/workspace/roadmap.md'),
+				},
+			}],
+		};
+	}
+}
+
+class TestAgentHostInputCompletions extends AgentHostInputCompletionsBase<void> {
+	constructor(
+		languageFeaturesService: LanguageFeaturesService,
+		chatSessionsService: IChatSessionsService,
+		private readonly _completionKind = CompletionItemKind.File,
+	) {
+		super(languageFeaturesService, chatSessionsService);
+	}
+
+	register(): IDisposable {
+		return this._registerProvider({ scheme: 'test' }, 'testAgentHostInputCompletions', ['#'], undefined);
+	}
+
+	protected override _resolveContext(_model: ITextModel): { sessionResource: URI; context: void } {
+		return { sessionResource: URI.parse('test:session'), context: undefined };
+	}
+
+	protected override _buildItem(position: Position, item: IChatInputCompletionItem): CompletionItem {
+		return {
+			label: item.insertText,
+			insertText: item.insertText,
+			range: Range.fromPositions(position),
+			kind: this._completionKind,
+		};
+	}
+}
+
+suite('AgentHostInputCompletionsBase', () => {
+
+	const store = new DisposableStore();
+
+	teardown(() => store.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('marks results incomplete so the host is queried as the token changes', async () => {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new TestChatSessionsService()));
+		store.add(completions.register());
+		const model = store.add(createTextModel('#', null, undefined, URI.parse('test:input')));
+		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
+
+		const result = await provider.provideCompletionItems(model, new Position(1, 2), { triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: '#' }, CancellationToken.None);
+
+		assert.deepStrictEqual(result, {
+			suggestions: [{
+				label: '#roadmap.md',
+				insertText: '#roadmap.md',
+				range: new Range(1, 2, 1, 2),
+				kind: CompletionItemKind.File,
+			}],
+			incomplete: true,
+		});
+	});
+
+	test('marks non-file results incomplete so the host can fuzzy match them', async () => {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new TestChatSessionsService(), CompletionItemKind.Text));
+		store.add(completions.register());
+		const model = store.add(createTextModel('#', null, undefined, URI.parse('test:input')));
+		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
+
+		const result = await provider.provideCompletionItems(model, new Position(1, 2), { triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: '#' }, CancellationToken.None);
+
+		assert.deepStrictEqual(result, {
+			suggestions: [{
+				label: '#roadmap.md',
+				insertText: '#roadmap.md',
+				range: new Range(1, 2, 1, 2),
+				kind: CompletionItemKind.Text,
+			}],
+			incomplete: true,
+		});
+	});
+});
 
 suite('escapeForCharClass', () => {
 
@@ -51,6 +147,24 @@ suite('escapeForCharClass', () => {
 		assert.ok(re.test('@'));
 		assert.ok(!re.test('a'));
 		assert.ok(!re.test('/'));
+	});
+});
+
+suite('attached context completion ranking', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('sorts before other chat input completions', () => {
+		assert.ok(attachedContextCompletionSortText < ' ');
+	});
+
+	test('matches bare and partial leaders from the start of filter text', () => {
+		assert.deepStrictEqual({
+			at: getAttachedContextCompletionFilterText('@', 'Screen Recording.mov', 'file'),
+			hash: getAttachedContextCompletionFilterText('#', 'Screen Recording.mov', 'file'),
+		}, {
+			at: '@Screen Recording.mov @attachment:Screen Recording.mov Screen Recording.mov file',
+			hash: '#Screen Recording.mov #attachment:Screen Recording.mov Screen Recording.mov file',
+		});
 	});
 });
 
@@ -271,5 +385,81 @@ suite('computeCompletionRanges', () => {
 			assert.ok(result);
 			assert.strictEqual(result.varWord?.word, '@file');
 		});
+	});
+});
+
+suite('isAtTriggerCharacterToken', () => {
+
+	let store: DisposableStore;
+
+	setup(() => {
+		store = new DisposableStore();
+	});
+
+	teardown(() => {
+		store.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const triggerChars = ['@', '#'];
+
+	function check(text: string, column: number, expected: boolean): void {
+		const model = store.add(createTextModel(text, null, undefined, URI.parse('test:input')));
+		assert.strictEqual(
+			isAtTriggerCharacterToken(model, new Position(1, column), triggerChars),
+			expected,
+			`text=${JSON.stringify(text)} column=${column}`,
+		);
+	}
+
+	test('cursor right after a trigger character at start of line', () => {
+		check('@', 2, true);
+	});
+
+	test('cursor inside a trigger-led token at start of line', () => {
+		check('@file', 4, true);
+	});
+
+	test('cursor at end of a trigger-led token at start of line', () => {
+		check('@file', 6, true);
+	});
+
+	test('cursor inside a trigger-led token mid-line', () => {
+		check('hello @file', 10, true);
+	});
+
+	test('cursor inside a # trigger-led token', () => {
+		check('hello #file', 10, true);
+	});
+
+	test('cursor inside a non-trigger-led word at start of line', () => {
+		check('hello', 4, false);
+	});
+
+	test('cursor inside a non-trigger-led word mid-line', () => {
+		check('say hello', 8, false);
+	});
+
+	test('cursor at start of empty line', () => {
+		check('', 1, false);
+	});
+
+	test('cursor right after whitespace, no token yet', () => {
+		check('hello ', 7, false);
+	});
+
+	test('cursor after a trigger-led token followed by space', () => {
+		// Cursor sits in the empty token after the space, not in the @file token.
+		check('@file ', 7, false);
+	});
+
+	test('cursor in token whose first char is not a trigger char', () => {
+		check('abc@def', 8, false); // first char of token is 'a', not '@'
+	});
+
+	test('returns false when no trigger characters are configured', () => {
+		const model = store.add(createTextModel('@file', null, undefined, URI.parse('test:input')));
+		assert.strictEqual(isAtTriggerCharacterToken(model, new Position(1, 4), []), false);
 	});
 });

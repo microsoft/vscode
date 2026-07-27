@@ -9,6 +9,7 @@ import { createHash } from 'crypto';
 import type WebSocket from 'ws';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { raceTimeout } from '../../../base/common/async.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import {
@@ -26,6 +27,35 @@ import {
 const LOG_PREFIX = '[TunnelAgentHost]';
 
 /**
+ * Per-step timeout for the dev-tunnels SDK calls inside {@link TunnelAgentHostMainService.connect}.
+ *
+ * Without this, a silently dropped network (TCP half-open, host gone but relay still
+ * accepting our messages) can leave `relayClient.connect()`,
+ * `waitForForwardedPort()`, `connectToForwardedPort()`, or the WebSocket `'open'`
+ * event pending forever — which in turn hangs the renderer's
+ * `_tunnelService.connect(...)` await, leaving the per-host `_pendingConnects`
+ * flag set and effectively disabling auto-reconnect for the lifetime of the
+ * shared process.
+ */
+export const TUNNEL_STEP_TIMEOUT_MS = 30_000;
+
+export async function withTimeout<T>(
+	op: () => Promise<T>,
+	timeoutMs: number,
+	stepName: string,
+): Promise<T> {
+	// Use raceTimeout so the timer is cleared in `finally` once `op` settles
+	// (avoids stray timers across frequent reconnect attempts). The void-return
+	// disambiguation is handled by the onTimeout callback flag below.
+	let timedOut = false;
+	const result = await raceTimeout(op(), timeoutMs, () => { timedOut = true; });
+	if (timedOut) {
+		throw new Error(`${LOG_PREFIX} ${stepName} timed out after ${timeoutMs}ms`);
+	}
+	return result as T;
+}
+
+/**
  * Derive a connection token from a tunnel ID using the same convention
  * as the VS Code CLI (see `get_connection_token` in cli/src/commands/tunnels.rs).
  */
@@ -34,7 +64,7 @@ function deriveConnectionToken(tunnelId: string): string {
 	hash.update(tunnelId);
 	let result = hash.digest('base64url');
 	if (result.startsWith('-')) {
-		result = 'a' + result;
+		result = `a${result}`;
 	}
 	return result;
 }
@@ -180,15 +210,31 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 			relayClient.endpoints = resolved.endpoints;
 		}
 
-		await relayClient.connect(resolved);
-		this._logService.info(`${LOG_PREFIX} Tunnel relay connected, waiting for port ${TUNNEL_AGENT_HOST_PORT}...`);
+		// Bound each SDK step. A silently dead network can leave any of these
+		// pending forever, which would hang the renderer's
+		// `_tunnelService.connect(...)` await and prevent auto-reconnect from
+		// re-arming until the app is restarted.
+		let portStream: NodeJS.ReadWriteStream;
+		try {
+			await withTimeout(() => relayClient.connect(resolved), TUNNEL_STEP_TIMEOUT_MS, 'tunnel relay connect');
+			this._logService.info(`${LOG_PREFIX} Tunnel relay connected, waiting for port ${TUNNEL_AGENT_HOST_PORT}...`);
 
-		// Wait for the agent host port to become available
-		await relayClient.waitForForwardedPort(TUNNEL_AGENT_HOST_PORT);
+			// Wait for the agent host port to become available
+			await withTimeout(() => relayClient.waitForForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `wait for forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
 
-		// Connect to the forwarded port — returns a Duplex stream
-		const portStream = await relayClient.connectToForwardedPort(TUNNEL_AGENT_HOST_PORT);
-		this._logService.info(`${LOG_PREFIX} Connected to forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
+			// Connect to the forwarded port — returns a Duplex stream
+			portStream = await withTimeout(() => relayClient.connectToForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `connect to forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
+			this._logService.info(`${LOG_PREFIX} Connected to forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
+		} catch (err) {
+			// Clean up the dev-tunnels relay client so we don't leak an
+			// orphan client when the SDK call hangs or fails.
+			try {
+				relayClient.dispose();
+			} catch {
+				// ignore — best-effort cleanup
+			}
+			throw err;
+		}
 
 		// Derive connection token from tunnel ID (matches CLI convention)
 		const connectionToken = deriveConnectionToken(tunnelId);
@@ -198,11 +244,21 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 		const name = tags.name || resolved.name || tunnelId;
 
 		// Create WebSocket over the port stream
-		const relay = await this._createWebSocketRelay(
-			portStream,
-			connectionToken,
-			connectionId,
-		);
+		let relay: { send: (data: string) => void; close: () => void };
+		try {
+			relay = await withTimeout(
+				() => this._createWebSocketRelay(portStream, connectionToken, connectionId),
+				TUNNEL_STEP_TIMEOUT_MS,
+				'WebSocket relay open',
+			);
+		} catch (err) {
+			try {
+				relayClient.dispose();
+			} catch {
+				// ignore
+			}
+			throw err;
+		}
 
 		const conn = new TunnelConnection(
 			connectionId,
@@ -317,7 +373,8 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 				this._onDidRelayMessage.fire({ connectionId, data: text });
 			});
 
-			ws.on('close', () => {
+			ws.on('close', (code: number, reason: Buffer) => {
+				this._logService.info(`${LOG_PREFIX} WebSocket relay closed for connection ${connectionId}; code=${code}, reason=${reason?.toString() || '(empty)'}`);
 				const conn = this._connections.get(connectionId);
 				if (conn) {
 					conn.dispose();

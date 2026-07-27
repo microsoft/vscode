@@ -6,5 +6,6 @@
 .disable-animations {
 	* {
 		transition: none !important;
+		animation: none !important;
 	}
 }

@@ -17,9 +17,10 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
-import { createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
+import { createZeroDiffComputeService, TestDiffComputeService } from '../common/sessionTestHelpers.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { FileEditTracker, buildSessionDbUri, parseSessionDbUri } from '../../node/copilot/fileEditTracker.js';
+import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
+import { FileEditTracker, buildSessionDbUri, parseSessionDbUri } from '../../node/shared/fileEditTracker.js';
 
 suite('FileEditTracker', () => {
 
@@ -40,6 +41,7 @@ suite('FileEditTracker', () => {
 		services.set(ILogService, new NullLogService());
 		services.set(IFileService, fileService);
 		services.set(IDiffComputeService, createZeroDiffComputeService());
+		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		tracker = instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', db);
 	});
@@ -57,7 +59,7 @@ suite('FileEditTracker', () => {
 		await fileService.writeFile(URI.file('/workspace/test.txt'), VSBuffer.fromString('modified content\nline 2\nline 3'));
 		await tracker.completeEdit('/workspace/test.txt');
 
-		const fileEdit = await tracker.takeCompletedEdit('turn-1', 'tc-1', '/workspace/test.txt');
+		const fileEdit = await tracker.takeCompletedEdit('turn-1', 'tc-1', '/workspace/test.txt', '', undefined, undefined);
 		assert.ok(fileEdit);
 		assert.strictEqual(fileEdit.type, ToolResultContentType.FileEdit);
 
@@ -87,7 +89,7 @@ suite('FileEditTracker', () => {
 		await fileService.writeFile(URI.file('/workspace/new-file.txt'), VSBuffer.fromString('new file\ncontent'));
 		await tracker.completeEdit('/workspace/new-file.txt');
 
-		const fileEdit = await tracker.takeCompletedEdit('turn-1', 'tc-2', '/workspace/new-file.txt');
+		const fileEdit = await tracker.takeCompletedEdit('turn-1', 'tc-2', '/workspace/new-file.txt', '', undefined, undefined);
 		assert.ok(fileEdit);
 
 		// Wait for the fire-and-forget DB write to complete
@@ -100,8 +102,44 @@ suite('FileEditTracker', () => {
 	});
 
 	test('takeCompletedEdit returns undefined for unknown file path', async () => {
-		const result = await tracker.takeCompletedEdit('turn-1', 'tc-x', '/nonexistent');
+		const result = await tracker.takeCompletedEdit('turn-1', 'tc-x', '/nonexistent', '', undefined, undefined);
 		assert.strictEqual(result, undefined);
+	});
+
+	test('Write to non-existent file records kind=create with removed=0', async () => {
+		// When a file did not exist before the edit, the tracker clamps
+		// `removed` to 0 (the differ otherwise reports 1 for an empty
+		// before-content vs. a one-line after-content) and records
+		// `kind=create` instead of `edit`. `added` is passed through
+		// from the diff service unchanged.
+		const services = new ServiceCollection();
+		services.set(ILogService, new NullLogService());
+		services.set(IFileService, fileService);
+		services.set(IDiffComputeService, new TestDiffComputeService({ added: 1, removed: 1 }));
+		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
+		const inst: IInstantiationService = disposables.add(new InstantiationService(services));
+		const localTracker = inst.createInstance(FileEditTracker, 'copilot:/test-session', db);
+
+		await localTracker.trackEditStart('/workspace/brand-new.txt');
+		await fileService.writeFile(URI.file('/workspace/brand-new.txt'), VSBuffer.fromString('fresh'));
+		await localTracker.completeEdit('/workspace/brand-new.txt');
+
+		const fileEdit = await localTracker.takeCompletedEdit('turn-1', 'tc-create', '/workspace/brand-new.txt', '', undefined, undefined);
+		assert.ok(fileEdit);
+
+		const records = await db.getAllFileEdits();
+		const created = records.find(r => r.toolCallId === 'tc-create');
+		assert.deepStrictEqual({
+			diff: fileEdit.diff,
+			kind: created?.kind,
+			addedLines: created?.addedLines,
+			removedLines: created?.removedLines,
+		}, {
+			diff: { added: 1, removed: 0 },
+			kind: 'create',
+			addedLines: 1,
+			removedLines: 0,
+		});
 	});
 
 	test('before and after content can be read from database', async () => {
@@ -111,10 +149,7 @@ suite('FileEditTracker', () => {
 		await fileService.writeFile(URI.file('/workspace/file.ts'), VSBuffer.fromString('modified'));
 		await tracker.completeEdit('/workspace/file.ts');
 
-		await tracker.takeCompletedEdit('turn-1', 'tc-3', '/workspace/file.ts');
-
-		// Wait for the fire-and-forget DB write to complete
-		await new Promise(r => setTimeout(r, 50));
+		await tracker.takeCompletedEdit('turn-1', 'tc-3', '/workspace/file.ts', '', undefined, undefined);
 
 		const content = await db.readFileEditContent('tc-3', '/workspace/file.ts');
 		assert.ok(content);
@@ -163,5 +198,17 @@ suite('buildSessionDbUri / parseSessionDbUri', () => {
 		assert.strictEqual(parseSessionDbUri('session-db:copilot:/s1'), undefined);
 		assert.strictEqual(parseSessionDbUri('session-db:copilot:/s1?toolCallId=tc-1'), undefined);
 		assert.strictEqual(parseSessionDbUri('session-db:copilot:/s1?toolCallId=tc-1&filePath=/f&part=middle'), undefined);
+	});
+
+	test('URI path ends with the basename of the file', () => {
+		const uri = buildSessionDbUri('copilot:/s1', 'tc-1', '/workspace/src/index.ts', 'before');
+		const parsed = URI.parse(uri);
+		assert.ok(parsed.path.endsWith('/index.ts'));
+	});
+
+	test('URI path ends with basename for files with spaces and special chars', () => {
+		const uri = buildSessionDbUri('copilot:/s1', 'tc-1', '/work space/file (1).ts', 'after');
+		const parsed = URI.parse(uri);
+		assert.ok(parsed.path.endsWith('/file (1).ts'));
 	});
 });

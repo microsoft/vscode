@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
@@ -29,6 +29,7 @@ import { DeepPartial } from '../../../../base/common/types.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
+import { EditorPartModalVisibleContext } from '../../../common/contextkeys.js';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -63,8 +64,13 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	declare readonly _serviceBrand: undefined;
 
 	readonly mainPart: MainEditorPart;
+	private readonly modalEditorVisibleContext: IContextKey<boolean>;
 
-	private mostRecentActiveParts: MainEditorPart[];
+	// Most recently active parts across all windows. Multiple parts can
+	// share the same window (e.g. main part and modal part both live in
+	// the main window) so this list also acts as a per-window MRU when
+	// filtered by document. See `getMostRecentlyActivePartByDocument`.
+	private mostRecentActiveParts: EditorPart[];
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -74,6 +80,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super('workbench.editorParts', themeService, storageService);
+		this.modalEditorVisibleContext = EditorPartModalVisibleContext.bindTo(this.contextKeyService);
 
 		this.editorWorkingSets = (() => {
 			const workingSetsRaw = this.storageService.get(EditorParts.EDITOR_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
@@ -182,6 +189,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	private modalEditorSidebarWidth: number | undefined;
 	private modalEditorSidebarHidden: boolean | undefined;
 
+	// Tracks an in-flight creation so concurrent callers await and reuse the
+	// same singleton instance instead of each racing to create their own.
+	private modalEditorPartCreatePromise: Promise<IModalEditorPart> | undefined;
+
 	async createModalEditorPart(options?: IModalEditorPartOptions): Promise<IModalEditorPart> {
 
 		// Reuse existing modal editor part if it exists
@@ -191,17 +202,43 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			return this.modalEditorPart;
 		}
 
-		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(ModalEditorPart, this).create({
-			...options,
-			maximized: options?.maximized ?? this.modalEditorMaximized,
-			size: options?.size ?? this.modalEditorSize,
-			position: options?.position ?? this.modalEditorPosition,
-			sidebar: options?.sidebar ? {
-				...options.sidebar,
-				sidebarWidth: options.sidebar.sidebarWidth ?? this.modalEditorSidebarWidth,
-				sidebarHidden: options.sidebar.sidebarHidden ?? this.modalEditorSidebarHidden
-			} : undefined
+		// Another creation is already in flight: await it instead of starting
+		// a second one, then apply this call's options to the shared instance
+		if (this.modalEditorPartCreatePromise) {
+			const part = await this.modalEditorPartCreatePromise;
+			part.updateOptions(options);
+
+			return part;
+		}
+
+		const createPromise = this.doCreateModalEditorPart(options).finally(() => {
+			this.modalEditorPartCreatePromise = undefined;
 		});
+		this.modalEditorPartCreatePromise = createPromise;
+
+		return createPromise;
+	}
+
+	private async doCreateModalEditorPart(options: IModalEditorPartOptions | undefined): Promise<IModalEditorPart> {
+		this.modalEditorVisibleContext.set(true);
+		let result;
+		try {
+			result = await this.instantiationService.createInstance(ModalEditorPart, this).create({
+				...options,
+				maximized: options?.maximized ?? this.modalEditorMaximized,
+				size: options?.size ?? this.modalEditorSize,
+				position: options?.position ?? this.modalEditorPosition,
+				sidebar: options?.sidebar ? {
+					...options.sidebar,
+					sidebarWidth: options.sidebar.sidebarWidth ?? this.modalEditorSidebarWidth,
+					sidebarHidden: options.sidebar.sidebarHidden ?? this.modalEditorSidebarHidden
+				} : undefined
+			});
+		} catch (error) {
+			this.modalEditorVisibleContext.set(false);
+			throw error;
+		}
+		const { part, instantiationService, disposables } = result;
 
 		// Keep instantiation service and reference to reuse
 		this.modalEditorPart = part;
@@ -219,6 +256,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 			this.modalPartInstantiationService = undefined;
 			this.modalEditorPart = undefined;
+			this.modalEditorVisibleContext.set(false);
 		}));
 
 		// Events
@@ -281,7 +319,19 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		disposables.add(part.onDidAddGroup(group => this._onDidAddGroup.fire(group)));
 		disposables.add(part.onDidRemoveGroup(group => this._onDidRemoveGroup.fire(group)));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
-		disposables.add(part.onDidActivateGroup(e => this._onDidActivateGroup.fire(e)));
+		disposables.add(part.onDidActivateGroup(e => {
+			// A part-close activation means a modal or auxiliary editor part is
+			// closing and another part is being made the active one. Update our
+			// MRU eagerly here so that downstream queries during the close flow
+			// (e.g. `getPartByDocument` triggered by `onDidRemoveGroup` from the
+			// closing part) see the new active part instead of the closing one
+			// which has not yet been unregistered.
+			if (e.reason === GroupActivationReason.PART_CLOSE) {
+				this.doUpdateMostRecentActive(part, true);
+			}
+
+			this._onDidActivateGroup.fire(e);
+		}));
 		disposables.add(part.onDidChangeGroupMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
 
 		disposables.add(part.onDidChangeGroupIndex(group => this._onDidChangeGroupIndex.fire(group)));
@@ -311,21 +361,23 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	//#region Helpers
 
 	protected override getPartByDocument(document: Document): EditorPart {
-		if (this._parts.size > 1) {
+		// Multiple editor parts can share the same document because
+		// the main part and a modal part both live in the main window.
+
+		const mruParts = this.mostRecentActiveParts;
+		const mruDocumentParts = mruParts.filter(part => part.element?.ownerDocument === document);
+		if (mruDocumentParts.length > 1) {
+			// First try to find the part that has the currently focused element, which is the most likely candidate to be the active part for that document.
 			const activeElement = getActiveElement();
-
-			// Find parts that match the document and check if any
-			// non-main part contains the active element. This handles
-			// modal parts that share the same document as the main part.
-
-			for (const part of this._parts) {
-				if (part !== this.mainPart && part.element?.ownerDocument === document) {
-					const container = part.getContainer();
-					if (container && isAncestor(activeElement, container)) {
-						return part;
-					}
+			for (const part of mruDocumentParts) {
+				const container = part.getContainer();
+				if (container && isAncestor(activeElement, container)) {
+					return part;
 				}
 			}
+
+			// Pick the part that was set active last for that document
+			return mruDocumentParts[0];
 		}
 
 		return super.getPartByDocument(document);

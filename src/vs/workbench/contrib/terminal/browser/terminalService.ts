@@ -8,7 +8,7 @@ import * as cssValue from '../../../../base/browser/cssValue.js';
 import { DeferredPromise, timeout, type MaybePromise } from '../../../../base/common/async.js';
 import { debounce, memoize } from '../../../../base/common/decorators.js';
 import { DynamicListEventMultiplexer, Emitter, Event, IDynamicListEventMultiplexer } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -74,7 +74,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	private _isShuttingDown: boolean = false;
 	private _backgroundedTerminalInstances: IBackgroundTerminal[] = [];
-	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
+	private readonly _backgroundedTerminalDisposables = this._register(new DisposableMap<number>());
 	private _processSupportContextKey: IContextKey<boolean>;
 
 	private _primaryBackend?: ITerminalBackend;
@@ -736,7 +736,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	@debounce(500)
 	private _updateTitle(instance: ITerminalInstance | undefined): void {
-		if (!this._terminalConfigurationService.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.title || instance.isDisposed) {
+		if (!this._terminalConfigurationService.config.enablePersistentSessions || !instance || instance.shellLaunchConfig.customPtyImplementation || !instance.persistentProcessId || !instance.title || instance.isDisposed) {
 			return;
 		}
 		if (instance.staticTitle) {
@@ -748,7 +748,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	@debounce(500)
 	private _updateIcon(instance: ITerminalInstance, userInitiated: boolean): void {
-		if (!this._terminalConfigurationService.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.icon || instance.isDisposed) {
+		if (!this._terminalConfigurationService.config.enablePersistentSessions || !instance || instance.shellLaunchConfig.customPtyImplementation || !instance.persistentProcessId || !instance.icon || instance.isDisposed) {
 			return;
 		}
 		this._primaryBackend?.updateIcon(instance.persistentProcessId, userInitiated, instance.icon, instance.color);
@@ -1041,6 +1041,31 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 
 		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
+			const resolvedLocation = await this.resolveLocation(options?.location);
+			let location: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean } | undefined;
+			if (splitActiveTerminal) {
+				location = resolvedLocation === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
+			} else {
+				location = typeof options?.location === 'object' && hasKey(options.location, { viewColumn: true }) ? options.location : resolvedLocation;
+			}
+			const instanceHost = resolvedLocation === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
+			for (const fallbackProfile of this._terminalProfileService.contributedProfiles) {
+				const instanceCount = instanceHost.instances.length;
+				await this.createContributedTerminalProfile(fallbackProfile.extensionIdentifier, fallbackProfile.id, {
+					icon: fallbackProfile.icon,
+					color: fallbackProfile.color,
+					location,
+					cwd: shellLaunchConfig.cwd,
+					titleTemplate: fallbackProfile.titleTemplate,
+				});
+				const instance = instanceHost.instances[instanceCount];
+				if (!instance) {
+					continue;
+				}
+				await instance.focusWhenReady();
+				this._terminalHasBeenCreated.set(true);
+				return instance;
+			}
 			throw new Error('Could not create terminal when process support is not registered');
 		}
 
@@ -1050,15 +1075,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		if (shellLaunchConfig.hideFromUser) {
 			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, location);
 			this._backgroundedTerminalInstances.push({ instance, terminalLocationOptions: options?.location });
-			this._backgroundedTerminalDisposables.set(instance.instanceId, [
-				instance.onDisposed(instance => {
-					const idx = this._backgroundedTerminalInstances.findIndex(bg => bg.instance === instance);
-					if (idx !== -1) {
-						this._backgroundedTerminalInstances.splice(idx, 1);
-					}
-					this._onDidDisposeInstance.fire(instance);
-				})
-			]);
+			this._backgroundedTerminalDisposables.set(instance.instanceId, instance.onDisposed(instance => this._onBackgroundTerminalDisposed(instance)));
 			this._onDidChangeInstances.fire();
 			return instance;
 		}
@@ -1180,10 +1197,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 		let instance;
 		// Use the URI from the base instance if it exists, this will correctly split local terminals
 		if (typeof shellLaunchConfig.cwd !== 'object' && typeof parent.shellLaunchConfig.cwd === 'object') {
+			let path = shellLaunchConfig.cwd || parent.shellLaunchConfig.cwd.path;
+			if (parent.shellLaunchConfig.cwd.authority && path && path[0] !== '/') {
+				path = '/' + path;
+			}
 			shellLaunchConfig.cwd = URI.from({
 				scheme: parent.shellLaunchConfig.cwd.scheme,
 				authority: parent.shellLaunchConfig.cwd.authority,
-				path: shellLaunchConfig.cwd || parent.shellLaunchConfig.cwd.path
+				path
 			});
 		}
 		if (location === TerminalLocation.Editor || parent.target === TerminalLocation.Editor) {
@@ -1293,22 +1314,18 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 		// Track in background
 		this._backgroundedTerminalInstances.push({ instance, terminalLocationOptions: instance.target === TerminalLocation.Editor ? { viewColumn: ACTIVE_GROUP } : undefined });
-		this._backgroundedTerminalDisposables.set(instance.instanceId, [
-			instance.onDisposed(instance => {
-				const idx = this._backgroundedTerminalInstances.findIndex(bg => bg.instance === instance);
-				if (idx !== -1) {
-					this._backgroundedTerminalInstances.splice(idx, 1);
-				}
-				const disposables = this._backgroundedTerminalDisposables.get(instance.instanceId);
-				if (disposables) {
-					dispose(disposables);
-				}
-				this._backgroundedTerminalDisposables.delete(instance.instanceId);
-				this._onDidDisposeInstance.fire(instance);
-			})
-		]);
+		this._backgroundedTerminalDisposables.set(instance.instanceId, instance.onDisposed(instance => this._onBackgroundTerminalDisposed(instance)));
 
 		this._onDidChangeInstances.fire();
+	}
+
+	private _onBackgroundTerminalDisposed(instance: ITerminalInstance): void {
+		const index = this._backgroundedTerminalInstances.findIndex(backgrounded => backgrounded.instance === instance);
+		if (index !== -1) {
+			this._backgroundedTerminalInstances.splice(index, 1);
+		}
+		this._backgroundedTerminalDisposables.deleteAndDispose(instance.instanceId);
+		this._onDidDisposeInstance.fire(instance);
 	}
 
 	public async showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): Promise<void> {
@@ -1318,11 +1335,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 		const backgroundTerminal = this._backgroundedTerminalInstances[index];
 		this._backgroundedTerminalInstances.splice(index, 1);
-		const disposables = this._backgroundedTerminalDisposables.get(instance.instanceId);
-		if (disposables) {
-			dispose(disposables);
-		}
-		this._backgroundedTerminalDisposables.delete(instance.instanceId);
+		this._backgroundedTerminalDisposables.deleteAndDispose(instance.instanceId);
 		if (instance.target === TerminalLocation.Panel) {
 			this._terminalGroupService.createGroup(instance);
 

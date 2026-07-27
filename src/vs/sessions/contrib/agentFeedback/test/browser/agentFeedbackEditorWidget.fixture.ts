@@ -12,12 +12,14 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { TokenizationRegistry } from '../../../../../editor/common/languages.js';
-import { IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
-import { AgentFeedbackEditorWidget } from '../../browser/agentFeedbackEditorWidgetContribution.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AgentFeedbackEditorWidget, AgentFeedbackEditorWidgetContribution } from '../../browser/agentFeedbackEditorWidgetContribution.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ICodeReviewService, ICodeReviewSuggestion } from '../../../codeReview/browser/codeReviewService.js';
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 import { ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 
 const sessionResource = URI.parse('vscode-agent-session://fixture/session-1');
 const fileResource = URI.parse('inmemory://model/agent-feedback-widget.ts');
@@ -40,6 +42,20 @@ const sampleCode = [
 	'}',
 ].join('\n');
 
+const longSampleCode = Array.from({ length: 100 }, (_, i) => {
+	const line = i + 1;
+	if (line % 6 === 1) {
+		return `function fn${line}() {`;
+	}
+	if (line % 6 === 0) {
+		return '}';
+	}
+	if (line % 6 === 5) {
+		return `\treturn value${line};`;
+	}
+	return `\tconst value${line} = ${line} + compute${line}();`;
+}).join('\n');
+
 interface IFixtureOptions {
 	readonly expanded?: boolean;
 	readonly focusedCommentId?: string;
@@ -56,39 +72,19 @@ function createRange(startLineNumber: number, endLineNumber: number = startLineN
 	};
 }
 
-function createFeedbackComment(id: string, text: string, startLineNumber: number, endLineNumber: number = startLineNumber, suggestion?: ICodeReviewSuggestion): ISessionEditorComment {
+function createFeedbackComment(id: string, text: string, startLineNumber: number, endLineNumber: number = startLineNumber, suggestion?: ICodeReviewSuggestion, replies?: readonly string[]): ISessionEditorComment {
 	return {
 		id: `agentFeedback:${id}`,
 		sourceId: id,
 		source: SessionEditorCommentSource.AgentFeedback,
+		kind: AgentFeedbackKind.UserReview,
 		sessionResource,
 		resourceUri: fileResource,
 		range: createRange(startLineNumber, endLineNumber),
 		text,
 		suggestion,
 		canConvertToAgentFeedback: false,
-	};
-}
-
-function createReviewComment(id: string, text: string, startLineNumber: number, endLineNumber: number = startLineNumber, suggestion?: ICodeReviewSuggestion): ISessionEditorComment {
-	const range: IRange = {
-		startLineNumber,
-		startColumn: 1,
-		endLineNumber,
-		endColumn: 1,
-	};
-
-	return {
-		id: `codeReview:${id}`,
-		sourceId: id,
-		source: SessionEditorCommentSource.CodeReview,
-		text,
-		resourceUri: fileResource,
-		range,
-		sessionResource,
-		suggestion,
-		severity: 'warning',
-		canConvertToAgentFeedback: true,
+		replies,
 	};
 }
 
@@ -97,6 +93,7 @@ function createPRReviewComment(id: string, text: string, startLineNumber: number
 		id: `prReview:${id}`,
 		sourceId: id,
 		source: SessionEditorCommentSource.PRReview,
+		kind: AgentFeedbackKind.PRReview,
 		text,
 		resourceUri: fileResource,
 		range: createRange(startLineNumber, endLineNumber),
@@ -109,12 +106,18 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
+		override readonly onDidAddFeedback = Event.None;
+		override readonly onDidConvertFeedback = Event.None;
+		override readonly onDidAddReply = Event.None;
+		override readonly onDidSubmitFeedback = Event.None;
 
 		override addFeedback(): IAgentFeedback {
 			throw new Error('Not implemented for fixture');
 		}
 
 		override removeFeedback(): void { }
+
+		override addReply(): void { }
 
 		override getFeedback(): readonly IAgentFeedback[] {
 			return [];
@@ -213,6 +216,7 @@ function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions
 		editor,
 		options.commentItems,
 		sessionResource,
+		undefined,
 	));
 
 	widget.layout(options.commentItems[0].range.startLineNumber);
@@ -233,6 +237,92 @@ function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions
 	}
 }
 
+/**
+ * Renders the agent feedback widgets the same way production does: by
+ * instantiating the real {@link AgentFeedbackEditorWidgetContribution} and
+ * feeding it comments through the services. This exercises the production
+ * grouping (far-apart comments become separate widgets) and scroll handling
+ * (widgets follow their anchor line as the editor scrolls), which a directly
+ * constructed {@link AgentFeedbackEditorWidget} does not.
+ */
+function renderViaContribution(context: ComponentFixtureContext, code: string, comments: readonly ISessionEditorComment[]): void {
+	const scopedDisposables = context.disposableStore.add(new DisposableStore());
+	context.container.style.width = '760px';
+	context.container.style.height = '420px';
+	context.container.style.border = '1px solid var(--vscode-editorWidget-border)';
+	context.container.style.background = 'var(--vscode-editor-background)';
+
+	ensureTokenColorMap();
+
+	const feedback: readonly IAgentFeedback[] = comments.map(comment => ({
+		id: comment.sourceId,
+		text: comment.text,
+		resourceUri: comment.resourceUri,
+		range: comment.range,
+		sessionResource: comment.sessionResource,
+		suggestion: comment.suggestion,
+		kind: comment.kind,
+		replies: comment.replies,
+		state: comment.state ?? AgentFeedbackState.Accepted,
+	}));
+
+	const agentFeedbackService = new class extends mock<IAgentFeedbackService>() {
+		override readonly onDidChangeFeedback = Event.None;
+		override readonly onDidChangeNavigation = Event.None;
+
+		override getSessionForFile(resourceUri: URI): ISession | undefined {
+			// eslint-disable-next-line local/code-no-dangerous-type-assertions
+			return resourceUri.toString() === fileResource.toString() ? { resource: sessionResource } as ISession : undefined;
+		}
+
+		override getFeedback(resource: URI): readonly IAgentFeedback[] {
+			return resource.toString() === sessionResource.toString() ? feedback : [];
+		}
+
+		override getNavigationBearing() {
+			return { activeIdx: -1, totalCount: feedback.length };
+		}
+	}();
+
+	const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+		override getSession(): ISession | undefined {
+			return undefined;
+		}
+	}();
+
+	const codeReviewService = createMockCodeReviewService();
+	const instantiationService = createEditorServices(scopedDisposables, {
+		colorTheme: context.theme,
+		additionalServices: reg => {
+			reg.defineInstance(IAgentFeedbackService, agentFeedbackService);
+			reg.defineInstance(ISessionsManagementService, sessionsManagementService);
+			reg.defineInstance(ICodeReviewService, codeReviewService);
+			reg.define(IMarkdownRendererService, MarkdownRendererService);
+		},
+	});
+	const model = scopedDisposables.add(createTextModel(instantiationService, code, fileResource, 'typescript'));
+
+	const editor = scopedDisposables.add(instantiationService.createInstance(
+		CodeEditorWidget,
+		context.container,
+		{
+			automaticLayout: true,
+			lineNumbers: 'on',
+			minimap: { enabled: false },
+			scrollBeyondLastLine: false,
+			fontSize: 13,
+			lineHeight: 20,
+		},
+		{ contributions: [] }
+	));
+
+	editor.setModel(model);
+
+	// The contribution builds, groups, positions and keeps the widgets in sync
+	// with editor scroll — exactly as in production.
+	scopedDisposables.add(instantiationService.createInstance(AgentFeedbackEditorWidgetContribution, editor));
+}
+
 const singleFeedback = [
 	createFeedbackComment('f-1', 'Prefer a clearer variable name on this line.', 2),
 ];
@@ -244,13 +334,13 @@ const groupedFeedback = [
 ];
 
 const reviewOnly = [
-	createReviewComment('r-1', 'Handle the null case before returning here.', 7),
-	createReviewComment('r-2', 'This branch needs a stronger explanation.', 8),
+	createFeedbackComment('r-1', 'Handle the null case before returning here.', 7),
+	createFeedbackComment('r-2', 'This branch needs a stronger explanation.', 8),
 ];
 
 const mixedComments = [
 	createFeedbackComment('f-1', 'Prefer a clearer variable name on this line.', 2),
-	createReviewComment('r-1', 'This should be extracted into a helper.', 3),
+	createFeedbackComment('r-1', 'This should be extracted into a helper.', 3),
 	createFeedbackComment('f-2', 'Consider renaming this for readability.', 4),
 ];
 
@@ -261,7 +351,7 @@ const reviewSuggestion: ICodeReviewSuggestion = {
 };
 
 const suggestionMix = [
-	createReviewComment('r-3', 'Prefer using the helper so the intent is explicit.', 8, 8, reviewSuggestion),
+	createFeedbackComment('r-3', 'Prefer using the helper so the intent is explicit.', 8, 8, reviewSuggestion),
 	createFeedbackComment('f-3', 'Keep the helper name aligned with the domain concept.', 9),
 ];
 
@@ -270,11 +360,30 @@ const prReviewOnly = [
 	createPRReviewComment('pr-2', 'Please add error handling for the edge case when second is zero.', 7, 8),
 ];
 
+const threadedFeedback = [
+	createFeedbackComment(
+		'f-thread',
+		'Consider extracting this into a helper function.',
+		7,
+		7,
+		undefined,
+		[
+			'I agree, and we should also unit test the helper.',
+			'Make sure the helper name matches the domain concept.',
+		],
+	),
+];
+
 const allSourcesMixed = [
 	createFeedbackComment('f-1', 'Prefer a clearer variable name on this line.', 2),
 	createPRReviewComment('pr-1', 'Our style guide says to use descriptive names here.', 3),
-	createReviewComment('r-1', 'This should be extracted into a helper.', 6),
+	createFeedbackComment('r-1', 'This should be extracted into a helper.', 6),
 	createPRReviewComment('pr-2', 'This logic duplicates what we have in utils.ts — consider reusing.', 8, 9),
+];
+
+const longFileFeedback = [
+	createFeedbackComment('lf-1', 'Consider validating this input before using it.', 5),
+	createFeedbackComment('lf-2', 'This computation is duplicated further down — extract a helper.', 20),
 ];
 
 export default defineThemedFixtureGroup({ path: 'sessions/agentFeedback/' }, {
@@ -338,7 +447,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/agentFeedback/' }, {
 		render: context => renderWidget(context, {
 			commentItems: mixedComments,
 			expanded: true,
-			focusedCommentId: 'codeReview:r-1',
+			focusedCommentId: 'agentFeedback:r-1',
 		}),
 	}),
 
@@ -375,11 +484,24 @@ export default defineThemedFixtureGroup({ path: 'sessions/agentFeedback/' }, {
 		}),
 	}),
 
+	ExpandedThreadedFeedback: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: threadedFeedback,
+			expanded: true,
+		}),
+	}),
+
 	HiddenWidget: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderWidget(context, {
 			commentItems: mixedComments,
 			hidden: true,
 		}),
+	}),
+
+	LongFileTwoComments: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderViaContribution(context, longSampleCode, longFileFeedback),
 	}),
 });

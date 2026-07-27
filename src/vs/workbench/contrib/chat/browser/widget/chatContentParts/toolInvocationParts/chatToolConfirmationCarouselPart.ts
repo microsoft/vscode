@@ -27,7 +27,7 @@ const EXPANDABLE_CONTENT_SELECTOR = '.interactive-result-editor, .chat-markdown-
 
 export type ToolInvocationPartFactory = (tool: IChatToolInvocation) => ChatToolInvocationPart;
 
-export type ScrollToSubagentCallback = (subAgentInvocationId: string) => void;
+export type RevealSubagentCallback = (subAgentInvocationId: string) => void;
 
 interface ICarouselToolItem {
 	readonly tool: IChatToolInvocation;
@@ -35,7 +35,8 @@ interface ICarouselToolItem {
 	readonly disposables: DisposableStore;
 	readonly subAgentInvocationId?: string;
 	readonly agentName?: string;
-	readonly scrollToSubagent?: ScrollToSubagentCallback;
+	readonly revealSubagent?: RevealSubagentCallback;
+	readonly revealSubagentLabel?: string;
 	ownsToolPart: boolean;
 	toolPart?: ChatToolInvocationPart;
 }
@@ -45,6 +46,8 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 	private readonly _onDidEmpty = this._register(new Emitter<void>());
 	readonly onDidEmpty = this._onDidEmpty.event;
+	private readonly _onDidChangeActiveSubagent = this._register(new Emitter<string | undefined>());
+	readonly onDidChangeActiveSubagent = this._onDidChangeActiveSubagent.event;
 
 	private readonly items: ICarouselToolItem[] = [];
 	private readonly toolCallIds = new Set<string>();
@@ -58,11 +61,10 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	private readonly nextButton: Button;
 	private readonly allowAllButton: Button;
 	private readonly expandContentButton: Button;
-	private readonly collapseButton: Button;
+	private readonly dismissButton: Button;
 	private readonly activeContentDisposables: DisposableStore;
 	private readonly contentResizeObserver: dom.DisposableResizeObserver;
 	private readonly updateContentExpansionStateScheduler: dom.AnimationFrameScheduler;
-	private _isCollapsed = false;
 	private _isContentExpanded = false;
 	private canExpandContent = false;
 	private maxHeight: number | undefined;
@@ -70,7 +72,8 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	constructor(
 		private readonly toolPartFactory: ToolInvocationPartFactory,
 		initialTools: IChatToolInvocation[],
-		private readonly scrollToSubagent?: ScrollToSubagentCallback,
+		private readonly revealSubagent?: RevealSubagentCallback,
+		private readonly initialRevealSubagentLabel?: string,
 		private readonly initialSubAgentInvocationId?: string,
 		private readonly initialAgentName?: string,
 	) {
@@ -101,7 +104,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this.stepIndicator = elements.stepIndicator;
 		this.activeContentDisposables = this._register(new DisposableStore());
 		this.updateContentExpansionStateScheduler = this._register(new dom.AnimationFrameScheduler(this.domNode, () => this.updateContentExpansionState()));
-		this.contentResizeObserver = this._register(new dom.DisposableResizeObserver(() => this.updateContentExpansionStateScheduler.schedule()));
+		this.contentResizeObserver = this._register(new dom.DisposableResizeObserver('ChatToolConfirmationCarouselPart.contentExpansion', () => this.updateContentExpansionStateScheduler.schedule()));
 		this._register(this.contentResizeObserver.observe(this.contentContainer));
 
 		this.allowAllButton = this._register(new Button(elements.overlayActions, { ...defaultButtonStyles, small: true }));
@@ -116,13 +119,15 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		dom.hide(this.expandContentButton.element);
 		this._register(this.expandContentButton.onDidClick(() => this.toggleContentExpanded()));
 
-		this.collapseButton = this._register(new Button(elements.overlayActions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		this.collapseButton.element.classList.add('chat-tool-carousel-header-button');
-		this.collapseButton.label = `$(${Codicon.chevronDown.id})`;
-		this.collapseButton.element.setAttribute('aria-label', localize('collapse', "Collapse"));
-		this.collapseButton.element.setAttribute('aria-controls', this.contentContainer.id);
-		this.collapseButton.element.setAttribute('aria-expanded', 'true');
-		this._register(this.collapseButton.onDidClick(() => this.toggleCollapse()));
+		this.dismissButton = this._register(new Button(elements.overlayActions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		this.dismissButton.element.classList.add('chat-tool-carousel-dismiss-button');
+		this.dismissButton.label = `$(${Codicon.close.id})`;
+		const dismissButtonLabel = this.items.length === 1
+			? localize('skip', "Skip")
+			: localize('skipAll', "Skip All");
+		this.dismissButton.element.setAttribute('aria-label', dismissButtonLabel);
+		this.dismissButton.element.title = dismissButtonLabel;
+		this._register(this.dismissButton.onDidClick(() => this.skipAll()));
 
 		this.prevButton = this._register(new Button(elements.navArrows, {
 			...defaultButtonStyles,
@@ -146,18 +151,22 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 		this._register(dom.addDisposableListener(this.agentLabel, 'click', e => {
 			e.preventDefault();
-			this.scrollToActiveSubagent();
+			this.revealActiveSubagent();
 		}));
 
 		this._register(dom.addDisposableListener(this.domNode, 'keydown', e => this.onKeydown(e)));
 
 		for (const tool of initialTools) {
-			this.addToolInvocation(tool, this.initialSubAgentInvocationId, this.initialAgentName, this.scrollToSubagent);
+			this.addToolInvocation(tool, this.initialSubAgentInvocationId, this.initialAgentName, this.revealSubagent, this.initialRevealSubagentLabel);
 		}
 	}
 
 	get pendingCount(): number {
 		return this.items.length;
+	}
+
+	get activeSubAgentInvocationId(): string | undefined {
+		return this.items[this.activeIndex]?.subAgentInvocationId;
 	}
 
 	setMaxHeight(maxHeight: number | undefined): void {
@@ -169,7 +178,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		return this.toolCallIds.has(toolCallId);
 	}
 
-	addToolInvocation(tool: IChatToolInvocation, subAgentInvocationId?: string, agentName?: string, scrollToSubagent?: ScrollToSubagentCallback, toolPart?: ChatToolInvocationPart): void {
+	addToolInvocation(tool: IChatToolInvocation, subAgentInvocationId?: string, agentName?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): void {
 		if (this.toolCallIds.has(tool.toolCallId)) {
 			const existing = this.items.find(item => item.toolCallId === tool.toolCallId);
 			if (existing && toolPart && !existing.toolPart) {
@@ -188,7 +197,8 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			disposables,
 			subAgentInvocationId,
 			agentName,
-			scrollToSubagent,
+			revealSubagent,
+			revealSubagentLabel,
 			ownsToolPart: !toolPart,
 			toolPart,
 		};
@@ -275,6 +285,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 		if (this.items.length === 0) {
 			dom.hide(this.domNode);
+			this._onDidChangeActiveSubagent.fire(undefined);
 			this._onDidEmpty.fire();
 			return;
 		}
@@ -285,12 +296,14 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 		this.updateUI();
 		this.renderActiveContent();
+		this._onDidChangeActiveSubagent.fire(this.activeSubAgentInvocationId);
 	}
 
 	private setActiveIndex(index: number): void {
 		this.activeIndex = index;
 		this.updateUI();
 		this.renderActiveContent();
+		this._onDidChangeActiveSubagent.fire(this.activeSubAgentInvocationId);
 	}
 
 	private navigateRelative(delta: number): void {
@@ -357,48 +370,16 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this.domNode.focus();
 	}
 
-	private toggleCollapse(): void {
-		this._isCollapsed = !this._isCollapsed;
-		this.domNode.classList.toggle('chat-tool-carousel-collapsed', this._isCollapsed);
-		this.collapseButton.label = this._isCollapsed
-			? `$(${Codicon.chevronUp.id})`
-			: `$(${Codicon.chevronDown.id})`;
-		this.collapseButton.element.setAttribute('aria-label',
-			this._isCollapsed ? localize('expand', "Expand") : localize('collapse', "Collapse")
-		);
-		this.collapseButton.element.setAttribute('aria-expanded', String(!this._isCollapsed));
-		if (this._isCollapsed) {
-			this._isContentExpanded = false;
-		}
-		this.updateUI();
-		this.updateContentExpansionState();
-	}
-
-	private toggleContentExpanded(): void {
-		if (!this.canExpandContent) {
-			return;
-		}
-
-		this._isContentExpanded = !this._isContentExpanded;
-		this.updateContentExpansionState();
-	}
-
 	private updateUI(): void {
 		const item = this.items[this.activeIndex];
 
-		if (this._isCollapsed) {
-			this.collapsedTitle.textContent = this.items.length === 1
-				? localize('confirmTool', "Confirm tool?")
-				: localize('confirmTools', "Confirm {0} tools?", this.items.length);
-		} else {
-			this.collapsedTitle.textContent = this.getToolTitle(item) ?? '';
-		}
-		dom.setVisibility(this._isCollapsed || !!this.collapsedTitle.textContent, this.collapsedTitle);
+		this.collapsedTitle.textContent = this.getToolTitle(item) ?? '';
+		dom.setVisibility(!!this.collapsedTitle.textContent, this.collapsedTitle);
 
 		if (item?.agentName) {
 			this.agentLabel.textContent = `\u2014 ${item.agentName}`;
-			this.agentLabel.disabled = !item.subAgentInvocationId || !item.scrollToSubagent;
-			this.agentLabel.title = localize('scrollToSubagent', "Scroll to {0}", item.agentName);
+			this.agentLabel.disabled = !item.subAgentInvocationId || !item.revealSubagent;
+			this.agentLabel.title = item.revealSubagentLabel ?? localize('scrollToSubagent', "Scroll to {0}", item.agentName);
 			this.agentLabel.setAttribute('aria-label', this.agentLabel.title);
 			dom.show(this.agentLabel);
 		} else {
@@ -416,8 +397,8 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		dom.setVisibility(multi, this.stepIndicator);
 		dom.setVisibility(multi, this.prevButton.element);
 		dom.setVisibility(multi, this.nextButton.element);
-		dom.setVisibility(this._isCollapsed || multi, this.allowAllButton.element);
-		dom.setVisibility(!this._isCollapsed && this.canExpandContent, this.expandContentButton.element);
+		dom.setVisibility(multi, this.allowAllButton.element);
+		dom.setVisibility(this.canExpandContent, this.expandContentButton.element);
 
 		this.allowAllButton.label = multi
 			? localize('allowAll', "Allow All")
@@ -450,15 +431,24 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this.updateContentExpansionStateScheduler.schedule();
 	}
 
+	private toggleContentExpanded(): void {
+		if (!this.canExpandContent) {
+			return;
+		}
+
+		this._isContentExpanded = !this._isContentExpanded;
+		this.updateContentExpansionState();
+	}
+
 	private updateContentExpansionState(): void {
-		this.canExpandContent = !this._isCollapsed && this.items.length > 0 && this.isActiveContentLargerThanCollapsedLimit();
+		this.canExpandContent = this.items.length > 0 && this.isActiveContentLargerThanCollapsedLimit();
 		if (!this.canExpandContent) {
 			this._isContentExpanded = false;
 		}
 
 		this.domNode.classList.toggle('chat-tool-carousel-content-expanded', this.canExpandContent && this._isContentExpanded);
 		this.updateMaxHeightStyle();
-		dom.setVisibility(!this._isCollapsed && this.canExpandContent, this.expandContentButton.element);
+		dom.setVisibility(this.canExpandContent, this.expandContentButton.element);
 		this.updateExpandContentButton();
 	}
 
@@ -553,6 +543,12 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		}
 	}
 
+	private skipAll(): void {
+		for (const item of [...this.items]) {
+			IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.Skipped });
+		}
+	}
+
 	private getToolTitle(item: ICarouselToolItem | undefined): string | undefined {
 		if (!item) {
 			return undefined;
@@ -590,10 +586,10 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		}
 	}
 
-	private scrollToActiveSubagent(): void {
+	private revealActiveSubagent(): void {
 		const item = this.items[this.activeIndex];
 		if (item?.subAgentInvocationId) {
-			item.scrollToSubagent?.(item.subAgentInvocationId);
+			item.revealSubagent?.(item.subAgentInvocationId);
 		}
 	}
 

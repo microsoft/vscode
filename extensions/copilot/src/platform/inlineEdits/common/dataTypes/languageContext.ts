@@ -11,13 +11,13 @@ export type LanguageContextEntry = {
 	context: ContextItem;
 	timeStamp: number;
 	onTimeout: boolean;
-}
+};
 
 export type LanguageContextResponse = {
 	start: number;
 	end: number;
 	items: LanguageContextEntry[];
-}
+};
 
 type SerializedSnippetContext = {
 	kind: ContextKind.Snippet;
@@ -25,21 +25,21 @@ type SerializedSnippetContext = {
 	uri: string;
 	additionalUris?: string[];
 	value: string;
-}
+};
 
 type SerializedTraitContext = {
 	kind: ContextKind.Trait;
 	priority: number;
 	name: string;
 	value: string;
-}
+};
 
 type SerializedDiagnosticBagContext = {
 	kind: ContextKind.DiagnosticBag;
 	priority: number;
 	uri: string;
 	values: Omit<SerializedDiagnostic, 'uri'>[];
-}
+};
 
 type SerializedContextItem = SerializedSnippetContext | SerializedTraitContext | SerializedDiagnosticBagContext;
 
@@ -50,7 +50,7 @@ export type SerializedContextResponse = {
 		context: SerializedContextItem;
 		timeStamp: number;
 	}[];
-}
+};
 
 export function serializeLanguageContext(response: LanguageContextResponse): SerializedContextResponse {
 	return {
@@ -113,7 +113,7 @@ export type SerializedDiagnostic = {
 	source: string;
 	code: string | number | undefined;
 	range: string;
-}
+};
 
 function serializeDiagnostic(diagnostic: Diagnostic): Omit<SerializedDiagnostic, 'uri'>;
 function serializeDiagnostic(diagnostic: Diagnostic, resource: Uri): SerializedDiagnostic;

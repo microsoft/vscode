@@ -1,0 +1,81 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Hide the container when no goal is active. */
+.interactive-session .interactive-input-part > .chat-goal-banner-container:not(.has-goal) {
+	display: none;
+}
+
+/* Pull the banner toward the input below it so they read as a stack. */
+.interactive-session .interactive-input-part > .chat-goal-banner-container {
+	margin-bottom: -10px;
+}
+
+.interactive-session .interactive-input-part > .chat-goal-banner-container .chat-goal-banner {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px 10px 8px;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-bottom: none;
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-agents-fontSize-label1);
+	line-height: 18px;
+	min-width: 0;
+}
+
+.chat-goal-banner .chat-goal-banner-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	color: var(--vscode-focusBorder);
+}
+
+.chat-goal-banner .chat-goal-banner-label {
+	flex-shrink: 0;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+.chat-goal-banner .chat-goal-banner-text {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--vscode-foreground);
+}
+
+.chat-goal-banner .chat-goal-banner-text.loading {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+.chat-goal-banner .chat-goal-banner-dismiss {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+.chat-goal-banner .chat-goal-banner-dismiss:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-goal-banner .chat-goal-banner-dismiss:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}

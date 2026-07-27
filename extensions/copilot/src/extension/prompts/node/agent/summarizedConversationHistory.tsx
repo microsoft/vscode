@@ -7,9 +7,10 @@ import * as l10n from '@vscode/l10n';
 import { BasePromptElementProps, PrioritizedList, PromptElement, PromptMetadata, PromptSizing, Raw, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
 import { BudgetExceededError } from '@vscode/prompt-tsx/dist/base/materialized';
 import { ChatMessage } from '@vscode/prompt-tsx/dist/base/output/rawTypes';
-import type { ChatResponsePart, ChatResultPromptTokenDetail, LanguageModelToolInformation, NotebookDocument, Progress } from 'vscode';
+import type { ChatLanguageModelToolReference, ChatResponsePart, ChatResultPromptTokenDetail, LanguageModelToolInformation, NotebookDocument, Progress } from 'vscode';
 import { IChatHookService, PreCompactHookInput } from '../../../../platform/chat/common/chatHookService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse, FetchSuccess } from '../../../../platform/chat/common/commonTypes';
+import { getTextPart } from '../../../../platform/chat/common/globalStringUtils';
 import { IHistoricalTurn, ISessionTranscriptService } from '../../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { isAnthropicFamily, isGeminiFamily } from '../../../../platform/endpoint/common/chatModelCapabilities';
@@ -41,6 +42,32 @@ import { ChatToolCalls } from '../panel/toolCalling';
 import { AgentUserMessage, AgentUserMessageCustomizations, getUserMessagePropsFromAgentProps, getUserMessagePropsFromTurn } from './agentPrompt';
 import { DefaultOpenAIKeepGoingReminder } from './openai/defaultOpenAIPrompt';
 import { SimpleSummarizedHistory } from './simpleSummarizedHistoryPrompt';
+
+/* __GDPR__FRAGMENT__
+	"SummarizedConversationHistoryData" : {
+		"summarizationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "An ID to join all attempts of this summarization task." },
+		"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The success state or failure reason of the summarization." },
+		"detailedOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "A more detailed error message." },
+		"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used for the summarization." },
+		"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID from the summarization call." },
+		"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID that this summarization ran during." },
+		"promptTypes": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Role and character count of each prompt message in order, as a proxy for cache hit rate (e.g. system:1234,user:567)." },
+		"numRounds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The number of tool call rounds before this summarization was triggered." },
+		"numRoundsSinceLastSummarization": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The number of tool call rounds since the last summarization." },
+		"turnIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current turn." },
+		"curTurnRoundIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current round within the current turn." },
+		"lastUsedTool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the last tool used before summarization." },
+		"isDuringToolCalling": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether this summarization was triggered during a tool calling loop." },
+		"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
+		"hasWorkingNotebook": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the conversation summary includes a working notebook." },
+		"mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The mode of the conversation summary." },
+		"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The mode of the conversation summary." },
+		"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The duration of the summarization attempt in ms." },
+		"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, server side counted", "isMeasurement": true },
+		"promptCacheTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens hitting cache as reported by server", "isMeasurement": true },
+		"responseTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated tokens", "isMeasurement": true }
+	}
+*/
 
 export interface ConversationHistorySummarizationPromptProps extends SummarizedAgentHistoryProps {
 	readonly simpleMode?: boolean;
@@ -262,7 +289,7 @@ class ConversationHistory extends PromptElement<SummarizedAgentHistoryProps> {
 				userQueryTagName: this.props.userQueryTagName,
 				ReminderInstructionsClass: this.props.ReminderInstructionsClass,
 				ToolReferencesHintClass: this.props.ToolReferencesHintClass,
-			})} />);
+			})} customizationsIndexUpdate={this.props.customizationsIndexUpdate} />);
 		}
 
 		// We may have a summary from earlier in the conversation, but skip history if we have a new summary
@@ -405,8 +432,13 @@ export interface SummarizedAgentHistoryProps extends BasePromptElementProps, Age
 	readonly maxSummaryTokens?: number;
 	/** Optional custom instructions to include in the summarization prompt */
 	readonly summarizationInstructions?: string;
-	/** Whether this summarization was triggered as a background or foreground operation. Defaults to 'foreground'. */
-	readonly summarizationSource?: 'background' | 'foreground';
+	/** Skip Full mode and go straight to Simple mode for foreground budget-exceeded recovery. */
+	readonly forceSimpleSummary?: boolean;
+	/**
+	 * Forwarded to the latest user message when the customizations-index has
+	 * drifted from its frozen snapshot. See {@link AgentUserMessageProps.customizationsIndexUpdate}.
+	 */
+	readonly customizationsIndexUpdate?: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined };
 }
 
 /**
@@ -424,8 +456,6 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 	override async render(state: void, sizing: PromptSizing, progress: Progress<ChatResponsePart> | undefined, token: CancellationToken | undefined) {
 		const promptContext = { ...this.props.promptContext };
 		let historyMetadata: SummarizedConversationHistoryMetadata | undefined;
-		// Resolve transcript path and flush to disk so the model can read the up-to-date file
-		let transcriptPath: string | undefined;
 		const sessionId = this.props.promptContext.conversation?.sessionId;
 		if (sessionId) {
 			// Lazily start the transcript session now (before summarization) so it
@@ -433,10 +463,8 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 			// idempotent — if hooks already started it, this is a no-op.
 			await this.ensureTranscriptSession();
 
-			const transcriptUri = this.sessionTranscriptService.getTranscriptPath(sessionId);
-			if (transcriptUri) {
+			if (this.sessionTranscriptService.getTranscriptPath(sessionId)) {
 				await this.sessionTranscriptService.flush(sessionId);
-				transcriptPath = transcriptUri.fsPath;
 			}
 		}
 
@@ -445,20 +473,7 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 			const summarizer = this.instantiationService.createInstance(ConversationHistorySummarizer, this.props, sizing, progress, token);
 			const summResult = await summarizer.summarizeHistory();
 			if (summResult) {
-				// Bake the transcript hint into the summary text so it is
-				// frozen at compaction time and never changes on subsequent renders
-				// (preserving Anthropic prompt cache stability).
-				let summary = summResult.summary;
-				if (transcriptPath) {
-					const lineCount = this.sessionTranscriptService.getLineCount(sessionId!);
-					summary += `\nIf you need specific details from before compaction (such as exact code snippets, error messages, tool results, or content you previously generated), use the ${ToolName.ReadFile} tool to look up the full uncompacted conversation transcript at: "${transcriptPath}"`;
-					if (lineCount !== undefined) {
-						summary += `\nAt the time of this request, the transcript has ${lineCount} lines.`;
-					}
-					summary += `\nExample usage: ${ToolName.ReadFile}(filePath: "${transcriptPath}")`;
-				}
-
-				historyMetadata = new SummarizedConversationHistoryMetadata(summResult.toolCallRoundId, summary, {
+				historyMetadata = new SummarizedConversationHistoryMetadata(summResult.toolCallRoundId, summResult.summary, {
 					thinking: summResult.thinking,
 					usage: summResult.usage,
 					promptTokenDetails: summResult.promptTokenDetails,
@@ -468,7 +483,7 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 					numRoundsSinceLastSummarization: summResult.numRoundsSinceLastSummarization,
 					durationMs: summResult.durationMs,
 				});
-				this.addSummaryToHistory(summary, summResult.toolCallRoundId, summResult.thinking);
+				this.addSummaryToHistory(summResult.summary, summResult.toolCallRoundId, summResult.thinking);
 			}
 		}
 
@@ -569,27 +584,34 @@ class ConversationHistorySummarizer {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatHookService private readonly chatHookService: IChatHookService,
+		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
 	) { }
 
-	async summarizeHistory(): Promise<{ summary: string; toolCallRoundId: string; thinking?: ThinkingData; usage?: APIUsage; promptTokenDetails?: readonly ChatResultPromptTokenDetail[]; model?: string; summarizationMode?: string; numRounds?: number; numRoundsSinceLastSummarization?: number; durationMs?: number }> {
+	async summarizeHistory(): Promise<{ summary: string; toolCallRoundId: string; thinking?: ThinkingData; usage?: APIUsage; promptTokenDetails?: readonly ChatResultPromptTokenDetail[]; model?: string; summarizationMode?: string; numRounds?: number; numRoundsSinceLastSummarization?: number; durationMs?: number } | undefined> {
 		// Execute pre-compact hook before summarization to allow hooks to archive transcripts or perform cleanup
 		await this.executePreCompactHook();
 
 		// Just a function for test to create props and call this
 		const propsInfo = this.instantiationService.createInstance(SummarizedConversationHistoryPropsBuilder).getProps(this.props);
+		if (!propsInfo) {
+			this.logService.info('[ConversationHistorySummarizer] no prior content to summarize, skipping');
+			return undefined;
+		}
 
 		const summaryPromise = this.getSummaryWithFallback(propsInfo);
 		this.progress?.report(new ChatResponseProgressPart2(l10n.t('Compacting conversation...'), async () => {
 			try {
 				await summaryPromise;
-			} catch { }
+			} catch {
+				return l10n.t('Could not compact conversation');
+			}
 			return l10n.t('Compacted conversation');
 		}));
 
 		const summary = await summaryPromise;
-		const { numRounds, numRoundsSinceLastSummarization } = this.computeRoundCounts();
+		const { numRounds, numRoundsSinceLastSummarization } = computeSummarizationRoundCounts(this.props.promptContext.history, this.props.promptContext.toolCallRounds);
 		return {
-			summary: summary.result.value,
+			summary: this.appendTranscriptHint(summary.result.value),
 			toolCallRoundId: propsInfo.summarizedToolCallRoundId,
 			thinking: propsInfo.summarizedThinking,
 			usage: summary.result.usage,
@@ -602,8 +624,33 @@ class ConversationHistorySummarizer {
 		};
 	}
 
+	/**
+	 * Strips the `<analysis>` scratchpad and `<summary>` wrapper from a compaction
+	 * response. Falls back to the raw text when the model omits the tags.
+	 */
+	private unwrapSummary(responseText: string): string {
+		const extracted = extractSummary(responseText);
+		if (extracted === undefined) {
+			this.logService.debug('[ConversationHistorySummarizer] no <summary> tags in compaction response, using raw response text');
+			return responseText;
+		}
+		return extracted;
+	}
+
+	private appendTranscriptHint(summary: string): string {
+		const sessionId = this.props.promptContext.conversation?.sessionId;
+		if (!sessionId) {
+			return summary;
+		}
+		return appendTranscriptHintToSummary(summary, sessionId, this.sessionTranscriptService);
+	}
+
 	private async getSummaryWithFallback(propsInfo: ISummarizedConversationHistoryInfo): Promise<SummarizationResult> {
 		const forceMode = this.configurationService.getConfig<string | undefined>(ConfigKey.Advanced.AgentHistorySummarizationMode);
+		if (this.props.forceSimpleSummary && forceMode !== SummaryMode.Full) {
+			// Foreground budget-exceeded recovery — go straight to Simple.
+			return await this.getSummary(SummaryMode.Simple, propsInfo);
+		}
 		if (forceMode === SummaryMode.Simple) {
 			return await this.getSummary(SummaryMode.Simple, propsInfo);
 		} else {
@@ -679,6 +726,7 @@ class ConversationHistorySummarizer {
 		}
 
 		let summaryResponse: ChatResponse;
+		let promptTypes: string | undefined;
 		try {
 			const normalizedTools = mode === SummaryMode.Full ? normalizeToolSchema(
 				endpoint.family,
@@ -739,18 +787,22 @@ class ConversationHistorySummarizer {
 				}
 			}
 
+			promptTypes = messages.map(msg => `${msg.role}${'name' in msg && msg.name ? `-${msg.name}` : ''}:${getTextPart(msg.content).length}`).join(',');
 			summaryResponse = await endpoint.makeChatRequest2({
 				debugName: `summarizeConversationHistory-${mode}`,
 				messages,
+				// Compaction is a standalone turn. Explicit because the default differs per
+				// endpoint: true on ChatEndpoint (HTTP), false on OpenAIEndpoint (#323554).
+				ignoreStatefulMarker: true,
 				finishedCb: undefined,
-				location: ChatLocation.Other,
+				location: ChatLocation.Agent,
 				requestOptions: {
 					temperature: 0,
-					stream: false,
 					...toolOpts
 				},
 				telemetryProperties: associatedRequestId ? { associatedRequestId } : undefined,
-				enableRetryOnFilter: true
+				enableRetryOnFilter: true,
+				interactionTypeOverride: 'conversation-compaction',
 			}, this.token ?? CancellationToken.None);
 		} catch (e) {
 			this.logInfo(`Error from summarization request. ${e.message}`, mode);
@@ -768,7 +820,7 @@ class ConversationHistorySummarizer {
 
 		const durationMs = stopwatch.elapsed();
 		return {
-			result: await this.handleSummarizationResponse(summaryResponse, mode, durationMs),
+			result: await this.handleSummarizationResponse(summaryResponse, mode, durationMs, promptTypes),
 			promptTokenDetails,
 			model: endpoint.model,
 			summarizationMode: mode,
@@ -776,11 +828,11 @@ class ConversationHistorySummarizer {
 		};
 	}
 
-	private async handleSummarizationResponse(response: ChatResponse, mode: SummaryMode, elapsedTime: number): Promise<FetchSuccess<string>> {
+	private async handleSummarizationResponse(response: ChatResponse, mode: SummaryMode, elapsedTime: number, promptTypes?: string): Promise<FetchSuccess<string>> {
 		if (response.type !== ChatFetchResponseType.Success) {
 			const outcome = response.type;
-			this.sendSummarizationTelemetry(outcome, response.requestId, this.props.endpoint.model, mode, elapsedTime, undefined, response.reason);
-			this.logInfo(`Summarization request failed. ${response.type} ${response.reason}`, mode);
+			this.sendSummarizationTelemetry(outcome, response.requestId, this.props.endpoint.model, mode, elapsedTime, undefined, response.reason ?? response.type);
+			this.logInfo(`Summarization request failed. ${response.type} ${response.reason ?? response.type}`, mode);
 			if (response.type === ChatFetchResponseType.Canceled) {
 				throw new CancellationError();
 			}
@@ -788,7 +840,15 @@ class ConversationHistorySummarizer {
 			throw new Error('Summarization request failed');
 		}
 
-		const summarySize = await this.sizing.countTokens(response.value);
+		// Count what is actually stored: the <analysis> block would otherwise blow the budget.
+		const summaryText = this.unwrapSummary(response.value);
+		// Empty summaries are ignored by the truthy round.summary checks, so fail into the Simple-mode fallback.
+		if (!summaryText.trim()) {
+			this.sendSummarizationTelemetry('empty', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage, 'summary was empty after extraction');
+			this.logInfo('Summarization produced an empty summary', mode);
+			throw new Error('Summarization request failed');
+		}
+		const summarySize = await this.sizing.countTokens(summaryText);
 		const effectiveBudget =
 			!!this.props.maxSummaryTokens
 				? Math.min(this.sizing.tokenBudget, this.props.maxSummaryTokens)
@@ -799,33 +859,9 @@ class ConversationHistorySummarizer {
 			throw new Error('Summary too large');
 		}
 
-		this.sendSummarizationTelemetry('success', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage);
+		this.sendSummarizationTelemetry('success', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage, undefined, promptTypes);
 		this.logInfo(`Summarization usage: prompt=${response.usage?.prompt_tokens ?? '?'}, cached=${response.usage?.prompt_tokens_details?.cached_tokens ?? '?'}, completion=${response.usage?.completion_tokens ?? '?'}`, mode);
-		return response;
-	}
-
-	private computeRoundCounts(): { numRounds: number; numRoundsSinceLastSummarization: number } {
-		const numRoundsInHistory = this.props.promptContext.history
-			.map(turn => turn.rounds.length)
-			.reduce((a, b) => a + b, 0);
-		const numRoundsInCurrentTurn = this.props.promptContext.toolCallRounds?.length ?? 0;
-		const numRounds = numRoundsInHistory + numRoundsInCurrentTurn;
-
-		const reversedCurrentRounds = [...(this.props.promptContext.toolCallRounds ?? [])].reverse();
-		let numRoundsSinceLastSummarization = reversedCurrentRounds.findIndex(round => round.summary) ?? -1;
-		if (numRoundsSinceLastSummarization === -1) {
-			let count = numRoundsInCurrentTurn;
-			outer: for (const turn of Iterable.reverse(Array.from(this.props.promptContext.history))) {
-				for (const round of Iterable.reverse(Array.from(turn.rounds ?? []))) {
-					if (round.summary) {
-						numRoundsSinceLastSummarization = count;
-						break outer;
-					}
-					count++;
-				}
-			}
-		}
-		return { numRounds, numRoundsSinceLastSummarization };
+		return { ...response, value: summaryText };
 	}
 
 	/**
@@ -837,9 +873,10 @@ class ConversationHistorySummarizer {
 	 * @param elapsedTime Total time in milliseconds taken for the summarization request
 	 * @param usage Token usage information for the summarization request, if available
 	 * @param detailedOutcome Optional detailed reason for non-success outcomes (for example, error or cancellation reason)
+	 * @param promptTypes Optional pre-computed promptTypes string for the summarization request
 	 */
-	private sendSummarizationTelemetry(outcome: string, requestId: string, model: string, mode: SummaryMode, elapsedTime: number, usage: APIUsage | undefined, detailedOutcome?: string): void {
-		const { numRounds, numRoundsSinceLastSummarization } = this.computeRoundCounts();
+	private sendSummarizationTelemetry(outcome: string, requestId: string, model: string, mode: SummaryMode, elapsedTime: number, usage: APIUsage | undefined, detailedOutcome?: string, promptTypes?: string): void {
+		const { numRounds, numRoundsSinceLastSummarization } = computeSummarizationRoundCounts(this.props.promptContext.history, this.props.promptContext.toolCallRounds);
 
 		const turnIndex = this.props.promptContext.history.length;
 		const curTurnRoundIndex = this.props.promptContext.toolCallRounds?.length ?? 0;
@@ -855,27 +892,7 @@ class ConversationHistorySummarizer {
 			"summarizedConversationHistory" : {
 				"owner": "roblourens",
 				"comment": "Tracks when summarization happens and what the outcome was",
-				"summarizationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "An ID to join all attempts of this summarization task." },
-				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The success state or failure reason of the summarization." },
-				"detailedOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "A more detailed error message." },
-				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used for the summarization." },
-				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID from the summarization call." },
-				"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID that this summarization ran during." },
-				"numRounds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The number of tool call rounds before this summarization was triggered." },
-				"numRoundsSinceLastSummarization": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The number of tool call rounds since the last summarization." },
-				"turnIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current turn." },
-				"curTurnRoundIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current round within the current turn" },
-				"lastUsedTool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the last tool used before summarization." },
-				"isDuringToolCalling": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether this summarization was triggered during a tool calling loop." },
-				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
-				"hasWorkingNotebook": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the conversation summary includes a working notebook." },
-				"mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The mode of the conversation summary." },
-				"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The mode of the conversation summary." },
-				"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The duration of the summarization attempt in ms." },
-				"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, server side counted", "isMeasurement": true },
-				"promptCacheTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens hitting cache as reported by server", "isMeasurement": true },
-				"responseTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated tokens", "isMeasurement": true },
-				"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the summarization was triggered as a background or foreground operation." }
+				"${include}": [ "${SummarizedConversationHistoryData}" ]
 			}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
@@ -889,7 +906,7 @@ class ConversationHistorySummarizer {
 			conversationId,
 			mode,
 			summarizationMode: mode, // Try to unstick GDPR
-			source: this.props.summarizationSource ?? 'foreground',
+			promptTypes,
 		}, {
 			numRounds,
 			numRoundsSinceLastSummarization,
@@ -905,7 +922,7 @@ class ConversationHistorySummarizer {
 	}
 }
 
-function stripCacheBreakpoints(messages: ChatMessage[]): void {
+export function stripCacheBreakpoints(messages: ChatMessage[]): void {
 	messages.forEach(message => {
 		message.content = message.content.filter(part => {
 			return part.type !== Raw.ChatCompletionContentPartKind.CacheBreakpoint;
@@ -913,7 +930,7 @@ function stripCacheBreakpoints(messages: ChatMessage[]): void {
 	});
 }
 
-function replaceImageContentWithPlaceholders(messages: ChatMessage[]): void {
+export function replaceImageContentWithPlaceholders(messages: ChatMessage[]): void {
 	messages.forEach(message => {
 		message.content = message.content.map(part => {
 			if (part.type === Raw.ChatCompletionContentPartKind.Image) {
@@ -922,6 +939,59 @@ function replaceImageContentWithPlaceholders(messages: ChatMessage[]): void {
 			return part;
 		});
 	});
+}
+
+/**
+ * Bake a stable transcript pointer into a freshly-produced summary text.
+ *
+ * Shared by both the full/simple summarization path
+ * ({@link ConversationHistorySummarizer}) and the background summarization
+ * path in `agentIntent.ts`. The hint is appended exactly once, at summary
+ * creation time, so the resulting string is frozen from then on and replayed
+ * verbatim — preserving Anthropic prompt cache hits across subsequent renders.
+ *
+ * Returns the input unchanged when there is no transcript on disk for the
+ * session.
+ */
+export function appendTranscriptHintToSummary(summary: string, sessionId: string, sessionTranscriptService: ISessionTranscriptService): string {
+	const transcriptUri = sessionTranscriptService.getTranscriptPath(sessionId);
+	if (!transcriptUri) {
+		return summary;
+	}
+	const transcriptPath = transcriptUri.fsPath;
+	const lineCount = sessionTranscriptService.getLineCount(sessionId);
+	let out = summary;
+	out += `\nIf you need specific details from before compaction (such as exact code snippets, error messages, tool results, or content you previously generated), use the ${ToolName.ReadFile} tool to look up the full uncompacted conversation transcript at: "${transcriptPath}"`;
+	if (lineCount !== undefined) {
+		out += `\nAt the time this summary was created, the transcript had ${lineCount} lines.`;
+	}
+	out += `\nExample usage: ${ToolName.ReadFile}(filePath: "${transcriptPath}")`;
+	return out;
+}
+
+export function computeSummarizationRoundCounts(
+	history: IBuildPromptContext['history'],
+	currentRounds: readonly IToolCallRound[] | undefined,
+): { numRounds: number; numRoundsSinceLastSummarization: number } {
+	const numRoundsInHistory = history.reduce((sum, turn) => sum + turn.rounds.length, 0);
+	const numRoundsInCurrentTurn = currentRounds?.length ?? 0;
+	const numRounds = numRoundsInHistory + numRoundsInCurrentTurn;
+
+	const reversedCurrentRounds = [...(currentRounds ?? [])].reverse();
+	let numRoundsSinceLastSummarization = reversedCurrentRounds.findIndex(round => round.summary);
+	if (numRoundsSinceLastSummarization === -1) {
+		let count = numRoundsInCurrentTurn;
+		outer: for (const turn of Iterable.reverse(Array.from(history))) {
+			for (const round of Iterable.reverse(Array.from(turn.rounds ?? []))) {
+				if (round.summary) {
+					numRoundsSinceLastSummarization = count;
+					break outer;
+				}
+				count++;
+			}
+		}
+	}
+	return { numRounds, numRoundsSinceLastSummarization };
 }
 
 /**
@@ -979,7 +1049,7 @@ export class SummarizedConversationHistoryPropsBuilder {
 
 	getProps(
 		props: SummarizedAgentHistoryProps
-	): ISummarizedConversationHistoryInfo {
+	): ISummarizedConversationHistoryInfo | undefined {
 		let toolCallRounds = props.promptContext.toolCallRounds;
 		let isContinuation = props.promptContext.isContinuation;
 		let summarizedToolCallRoundId = '';
@@ -996,7 +1066,7 @@ export class SummarizedConversationHistoryPropsBuilder {
 			toolCallRounds = [];
 			summarizedToolCallRoundId = props.promptContext.history.at(-1)!.rounds.at(-1)!.id;
 		} else {
-			throw new Error('Nothing to summarize');
+			return undefined;
 		}
 
 		// For Anthropic models with thinking enabled, find the last assistant message with thinking
@@ -1071,17 +1141,17 @@ class SummaryMessageElement extends PromptElement<SummaryMessageProps> {
 	}
 }
 
-export interface InlineSummarizationUserMessageProps extends BasePromptElementProps {
+export interface SummarizationUserMessageProps extends BasePromptElementProps {
 	readonly endpoint: IChatEndpoint;
 }
 
 /**
- * User message appended to the agent prompt when inline summarization is triggered.
- * Instructs the model to output ONLY a summary wrapped in `<summary>` tags, with
- * no tool calls. The summary is extracted from the response and stored on the round
- * for the next iteration.
+ * User message appended to the agent prompt when background summarization is
+ * triggered. Instructs the model to output ONLY a summary wrapped in
+ * `<summary>` tags, with no tool calls. The summary is extracted from the
+ * response and stored on the round for the next iteration.
  */
-export class InlineSummarizationUserMessage extends PromptElement<InlineSummarizationUserMessageProps> {
+export class SummarizationUserMessage extends PromptElement<SummarizationUserMessageProps> {
 	override async render(state: void, sizing: PromptSizing) {
 		const isOpus = this.props.endpoint.model.startsWith('claude-opus');
 		return <UserMessage priority={1000}>
@@ -1100,7 +1170,7 @@ export class InlineSummarizationUserMessage extends PromptElement<InlineSummariz
 }
 
 /**
- * Extracts an inline summary from the model's response text.
+ * Extracts a summary from the model's response text.
  *
  * Parsing strategy (multi-level fallback):
  * 1. Clean `<summary>...</summary>` tags → extracts content between them
@@ -1109,7 +1179,7 @@ export class InlineSummarizationUserMessage extends PromptElement<InlineSummariz
  *
  * @returns The extracted summary text, or `undefined` if no summary could be found.
  */
-export function extractInlineSummary(responseText: string): string | undefined {
+export function extractSummary(responseText: string): string | undefined {
 	// 1. Try clean <summary>...</summary> extraction
 	const openTag = '<summary>';
 	const closeTag = '</summary>';
