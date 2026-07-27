@@ -17,7 +17,7 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationRunTrigger, AutomationTarget, IAutomation, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
+import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -138,10 +138,9 @@ class RecordingAutomationRunner extends mock<IAutomationRunner>() {
 	readonly tokens: CancellationToken[] = [];
 	whenDispatched: Promise<void> = Promise.resolve();
 	whenCompleted: Promise<void> = Promise.resolve();
-	createRun = true;
 	runStatus: IAutomationRun['status'] = 'running';
-	sessionResource: string | undefined = SESSION_RESOURCE.toString();
-	errorMessage: string | undefined;
+	/** When set, dispatch reports this outcome instead of starting a session. */
+	notStarted: (IAutomationRunDispatch & { kind: 'notStarted' }) | undefined;
 
 	constructor(private readonly automationService: FakeAutomationService) {
 		super();
@@ -155,19 +154,27 @@ class RecordingAutomationRunner extends mock<IAutomationRunner>() {
 			cancelled: token.isCancellationRequested,
 		});
 		this.tokens.push(token);
-		const whenDispatched = this.whenDispatched.then(() => {
-			if (this.createRun) {
-				this.automationService.addRun({
-					id: 'run-1',
-					automationId: automation.id,
-					status: this.runStatus,
-					trigger,
-					sessionResource: this.sessionResource,
-					startedAt: NOW,
-					errorMessage: this.errorMessage,
-					leaderWindowId,
-				});
+		const whenDispatched = this.whenDispatched.then<IAutomationRunDispatch>(() => {
+			// Mirrors the real runner: the atomic claim decides who gets to dispatch.
+			const activeRun = this.automationService.getActiveRunFor(automation.id);
+			if (activeRun) {
+				return { kind: 'alreadyRunning', activeRun };
 			}
+			if (this.notStarted) {
+				return this.notStarted;
+			}
+			const sessionResource = SESSION_RESOURCE.toString();
+			const run: IAutomationRun = {
+				id: 'run-1',
+				automationId: automation.id,
+				status: this.runStatus,
+				trigger,
+				sessionResource,
+				startedAt: NOW,
+				leaderWindowId,
+			};
+			this.automationService.addRun(run);
+			return { kind: 'started', run, sessionResource };
 		});
 		return {
 			whenDispatched,
@@ -465,7 +472,7 @@ suite('AutomationTools', () => {
 		});
 	});
 
-	test('runAutomation reports an existing active run without dispatching another', async () => {
+	test('runAutomation reports the active run when the runner declines to claim it', async () => {
 		const automation = createAutomation();
 		const automationService = new FakeAutomationService([automation]);
 		automationService.addRun({
@@ -490,11 +497,12 @@ suite('AutomationTools', () => {
 
 		assert.deepStrictEqual({
 			confirmation: prepared.confirmationMessages,
-			calls: runner.calls,
+			// The runner owns the claim, so the tool still dispatches and lets it decline.
+			runsCreated: automationService.runs.get().length,
 			result: JSON.parse(getText(result)),
 		}, {
 			confirmation: undefined,
-			calls: [],
+			runsCreated: 1,
 			result: {
 				status: 'already_running',
 				automation: { id: 'automation-1', name: 'Daily review' },
@@ -511,7 +519,7 @@ suite('AutomationTools', () => {
 		const automation = createAutomation();
 		const automationService = new FakeAutomationService([automation]);
 		const runner = new RecordingAutomationRunner(automationService);
-		runner.createRun = false;
+		runner.notStarted = { kind: 'notStarted', reason: 'targetUnavailable' };
 		const tool = new RunAutomationTool(automationService, runner, createConfigurationService());
 
 		const result = await invoke(tool, { automationId: automation.id });
@@ -520,7 +528,7 @@ suite('AutomationTools', () => {
 			error: result.toolResultError,
 			calls: runner.calls.length,
 		}, {
-			error: 'Automation "automation-1" did not start. Its configured agent may be unavailable.',
+			error: 'Automation "automation-1" did not start. Its configured agent is unavailable.',
 			calls: 1,
 		});
 	});

@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAutomation, IAutomationRun, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
+import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationMutationGuard, ConfigureAutomationToolReferenceName, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatAutomationConfiguredData } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -215,47 +215,29 @@ export class RunAutomationTool implements IToolImpl {
 			throw error;
 		}
 
-		const activeRun = this.automationService.getActiveRunFor(automation.id);
-		if (activeRun) {
-			return automationAlreadyRunning(automation, activeRun);
-		}
-
-		const previousRunIds = new Set(this.automationService.runsFor(automation.id).get().map(run => run.id));
 		const dispatchCancellation = new CancellationTokenSource(token);
 		const operation = this.automationRunner.runOnce(automation, 'manual', manualRunLeaderWindowId, dispatchCancellation.token);
+		let dispatch: IAutomationRunDispatch;
 		try {
-			await operation.whenDispatched;
+			dispatch = await operation.whenDispatched;
 		} finally {
 			dispatchCancellation.dispose();
 		}
 
-		const run = this.automationService.runsFor(automation.id).get().find(candidate => !previousRunIds.has(candidate.id));
-		if (!run) {
-			const concurrentRun = this.automationService.getActiveRunFor(automation.id);
-			if (concurrentRun) {
-				return automationAlreadyRunning(automation, concurrentRun);
-			}
-			if (token.isCancellationRequested) {
-				return automationRunCancelled();
-			}
-			return automationToolError(`Automation "${automation.id}" did not start. Its configured agent may be unavailable.`);
+		if (dispatch.kind === 'alreadyRunning') {
+			return automationAlreadyRunning(automation, dispatch.activeRun);
 		}
-		if (run.status === 'failed') {
-			if (token.isCancellationRequested && !run.sessionResource) {
-				return automationRunCancelled();
-			}
-			return automationToolError(run.errorMessage
-				? `Automation "${automation.id}" failed to start: ${run.errorMessage}`
-				: `Automation "${automation.id}" failed to start.`);
+		if (dispatch.kind === 'notStarted') {
+			return automationNotStarted(automation, dispatch);
 		}
 
 		const result = automationToolResult(JSON.stringify({
 			status: 'started',
 			automation: { id: automation.id, name: automation.name },
 			run: {
-				id: run.id,
-				status: run.status,
-				sessionResource: run.sessionResource ?? null,
+				id: dispatch.run.id,
+				status: dispatch.run.status,
+				sessionResource: dispatch.sessionResource,
 			},
 		}, undefined, 2));
 		result.toolResultMessage = localize('automation.tool.run.started', "Started automation {0}", automation.name);
@@ -965,6 +947,22 @@ function automationAlreadyRunning(automation: IAutomation, run: IAutomationRun):
 	}, undefined, 2));
 	result.toolResultMessage = localize('automation.tool.run.alreadyRunningResult', "Automation {0} is already running", automation.name);
 	return result;
+}
+
+/** Turns a dispatch that never produced a session into an actionable agent-facing message. */
+function automationNotStarted(automation: IAutomation, dispatch: IAutomationRunDispatch & { kind: 'notStarted' }): IToolResult {
+	if (dispatch.reason === 'cancelled') {
+		return automationRunCancelled();
+	}
+	if (dispatch.reason === 'deleted') {
+		return automationToolError(`Automation "${automation.id}" no longer exists.`);
+	}
+	if (dispatch.reason === 'targetUnavailable') {
+		return automationToolError(`Automation "${automation.id}" did not start. Its configured agent is unavailable.`);
+	}
+	return automationToolError(dispatch.run?.errorMessage
+		? `Automation "${automation.id}" failed to start: ${dispatch.run.errorMessage}`
+		: `Automation "${automation.id}" failed to start.`);
 }
 
 function resolveAutomationInput(automationService: IAutomationService, rawInput: unknown, toolName: 'runAutomation' | 'deleteAutomation'): IAutomation {
