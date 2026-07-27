@@ -303,6 +303,22 @@
 }
 
 /*
+ * Hover pill on `.action-item` for panel and secondary side bar composite tabs.
+ * Side-bar hover paints `.active-item-indicator`, but that path does not work
+ * here: icon tabs hide the indicator, and the side-bar hover selector only
+ * matches `.icon` (panel text tabs never hit it). Active state already uses
+ * `.action-item.checked`, so hover belongs on the same element. Skip while
+ * dragging so drop indicators stay clear. Uses list-hoverBackground (same as
+ * the side bar); checked still uses a foreground color-mix until themed
+ * (#327267). See https://github.com/microsoft/vscode/issues/327676
+ */
+.style-override .part.panel > .title > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item:not(.checked):hover,
+.style-override .part.auxiliarybar > .title > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item:not(.checked):hover,
+.style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item:not(.checked):hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/*
  * Drop the underline active indicator in favour of the pill background. The
  * base rules (auxiliaryBarPart.css / paneCompositePart.css) paint the indicator
  * with `!important` from `.part.auxiliarybar` selectors, so match their
