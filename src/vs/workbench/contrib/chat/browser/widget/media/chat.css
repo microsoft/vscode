@@ -1287,7 +1287,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 2px;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .chat-editing-session-list .monaco-scrollable-element:has(.visible.scrollbar.vertical) .monaco-list-row .monaco-icon-label {
+/* Toggled in chatInputPart.ts when the working set overflows. Do not replace
+ * with :has(): workbench-wide invalidation hazard (microsoft/vscode#324985). */
+.interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .chat-editing-session-list.overflowing .monaco-list-row .monaco-icon-label {
 	padding-right: 12px;
 }
 

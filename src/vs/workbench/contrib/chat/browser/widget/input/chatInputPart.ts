@@ -4434,6 +4434,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			list.layout(height);
 			list.getHTMLElement().style.height = `${height}px`;
 			list.splice(0, list.length, allEntries);
+			workingSetContainer.classList.toggle('overflowing', allEntries.length > maxItemsShown);
 		}));
 	}
 
