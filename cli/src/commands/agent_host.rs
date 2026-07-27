@@ -18,7 +18,7 @@ use crate::log;
 use crate::state::LauncherPaths;
 use crate::tunnels::agent_host::{
 	classify_agent_host_lockfile, AgentHostConfig, AgentHostLockfileDecision, AgentHostManager,
-	AgentHostSidecar, LoopbackAuth,
+	AgentHostSidecar, LoopbackAuth, AGENT_HOST_TOKEN_FILE_NAME,
 };
 use crate::tunnels::agent_host_metadata::remove_agent_host_metadata;
 use crate::tunnels::code_server::CodeServerArgs;
@@ -77,6 +77,14 @@ async fn run_foreground(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 	let lockfile_path = ctx.paths.agent_host_lockfile();
 
 	let decision = classify_agent_host_lockfile(&ctx.log, &lockfile_path);
+
+	if let AgentHostLockfileDecision::RefuseInsecure { reason } = &decision {
+		ctx.log.result(format!(
+			"Refusing to use the running agent host: {reason}.\n\
+			 Run `code agent kill` and start it again to mint fresh credentials."
+		));
+		return Ok(2);
+	}
 
 	if let AgentHostLockfileDecision::Reuse {
 		pid,
@@ -178,7 +186,7 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 				.map_err(CodeError::CouldNotReadConnectionTokenFile)?;
 			args.connection_token = Some(token.trim().to_string());
 		} else {
-			let token_path = ctx.paths.root().join("agent-host-token");
+			let token_path = ctx.paths.root().join(AGENT_HOST_TOKEN_FILE_NAME);
 			let token = mint_connection_token(&token_path, args.connection_token.clone())
 				.map_err(CodeError::CouldNotCreateConnectionTokenFile)?;
 			args.connection_token = Some(token);
@@ -256,6 +264,7 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		listen_addr,
 		args.host.clone(),
 		loopback_auth,
+		args.connection_token_file.clone(),
 		tunnel_name.clone(),
 		ctx.paths.agent_host_lockfile(),
 	)
@@ -529,20 +538,27 @@ pub async fn ensure_supervisor_running(
 	log: &log::Logger,
 ) -> Result<ActiveAgentHost, AnyError> {
 	let lockfile_path = launcher_paths.agent_host_lockfile();
-	if let AgentHostLockfileDecision::Reuse {
-		pid,
-		host,
-		port,
-		token,
-		..
-	} = classify_agent_host_lockfile(log, &lockfile_path)
-	{
-		return Ok(ActiveAgentHost {
+	match classify_agent_host_lockfile(log, &lockfile_path) {
+		AgentHostLockfileDecision::Reuse {
 			pid,
 			host,
 			port,
 			token,
-		});
+			..
+		} => {
+			return Ok(ActiveAgentHost {
+				pid,
+				host,
+				port,
+				token,
+			});
+		}
+		// Starting a rival supervisor would leave the untrusted one running
+		// and listening, so surface the problem instead.
+		AgentHostLockfileDecision::RefuseInsecure { reason } => {
+			return Err(CodeError::AgentHostInsecureCredentials(reason).into());
+		}
+		AgentHostLockfileDecision::SpawnFresh => {}
 	}
 
 	info!(
@@ -613,6 +629,9 @@ pub async fn ensure_supervisor_running(
 			port,
 			token,
 		}),
+		AgentHostLockfileDecision::RefuseInsecure { reason } => {
+			Err(CodeError::AgentHostInsecureCredentials(reason).into())
+		}
 		AgentHostLockfileDecision::SpawnFresh => Err(CodeError::CouldNotListenOnInterface(
 			std::io::Error::other("agent host supervisor signalled ready but lockfile is missing"),
 		)

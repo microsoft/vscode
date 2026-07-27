@@ -24,6 +24,39 @@ pub fn restrict_to_owner(_path: &Path) -> io::Result<()> {
 	Ok(())
 }
 
+/// Whether `path` is readable only by its owner.
+///
+/// Reports the state rather than changing it, so a caller deciding whether to
+/// trust an existing secret can refuse instead of tightening a file whose
+/// contents may already have leaked. A missing file is not owner-only.
+#[cfg(not(windows))]
+pub fn is_restricted_to_owner(path: &Path) -> io::Result<bool> {
+	use std::os::unix::fs::PermissionsExt;
+	let mode = std::fs::metadata(path)?.permissions().mode();
+	Ok(mode & 0o077 == 0)
+}
+
+/// Whether `path` is readable only by its owner.
+///
+/// Reports the state rather than changing it, so a caller deciding whether to
+/// trust an existing secret can refuse instead of tightening a file whose
+/// contents may already have leaked. `SYSTEM` and `Administrators` are
+/// permitted, matching [`restrict_to_owner`].
+#[cfg(windows)]
+pub fn is_restricted_to_owner(path: &Path) -> io::Result<bool> {
+	if !path.exists() {
+		return Err(io::Error::new(
+			io::ErrorKind::NotFound,
+			format!("{} does not exist", path.display()),
+		));
+	}
+	match verify_no_broad_access(path) {
+		Ok(()) => Ok(true),
+		Err(err) if err.kind() == io::ErrorKind::Other => Ok(false),
+		Err(err) => Err(err),
+	}
+}
+
 /// Restrict `path` so that only its owner may read it.
 ///
 /// Drops inheritance from the parent directory and grants access to the

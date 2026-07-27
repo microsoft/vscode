@@ -33,6 +33,14 @@ pub struct AgentHostMetadata {
 	pub host: Option<String>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub connection_token: Option<String>,
+	/// Absolute path of the file the supervisor's connection token was
+	/// minted into. Recorded so a process deciding whether to reuse this
+	/// supervisor can check *that* file's permissions rather than guessing
+	/// a location — `--connection-token-file` can place it anywhere.
+	/// Absent for a tokenless supervisor and for lockfiles written before
+	/// this field existed.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub connection_token_file: Option<String>,
 	pub protocol_version: String,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub quality: Option<String>,
@@ -48,6 +56,7 @@ impl AgentHostMetadata {
 			port,
 			host: None,
 			connection_token: None,
+			connection_token_file: None,
 			protocol_version: AGENT_HOST_PROTOCOL_VERSION.to_string(),
 			quality: None,
 			tunnel_name: None,

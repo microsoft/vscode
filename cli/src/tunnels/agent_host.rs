@@ -1021,6 +1021,7 @@ impl AgentHostSidecar {
 		addr: SocketAddr,
 		host_label: Option<String>,
 		loopback_auth: LoopbackAuth,
+		connection_token_file: Option<String>,
 		tunnel_name: Option<String>,
 		lockfile_path: PathBuf,
 	) -> Result<Arc<Self>, AnyError> {
@@ -1044,6 +1045,7 @@ impl AgentHostSidecar {
 			host,
 			bound_addr.port(),
 			public_token.clone(),
+			connection_token_file,
 			tunnel_name.as_deref(),
 		);
 		if let Err(e) = write_agent_host_metadata(&lockfile_path, &metadata) {
@@ -1161,15 +1163,21 @@ fn build_metadata(
 	host: String,
 	port: u16,
 	connection_token: Option<String>,
+	connection_token_file: Option<String>,
 	tunnel_name: Option<&str>,
 ) -> AgentHostMetadata {
 	let mut metadata = AgentHostMetadata::new(pid, port);
 	metadata.host = Some(host);
 	metadata.connection_token = connection_token;
+	metadata.connection_token_file = connection_token_file;
 	metadata.quality = VSCODE_CLI_QUALITY.map(str::to_string);
 	metadata.tunnel_name = tunnel_name.map(str::to_string);
 	metadata
 }
+
+/// Name of the file `code agent host` mints its connection token into,
+/// relative to the launcher root, when `--connection-token-file` is absent.
+pub const AGENT_HOST_TOKEN_FILE_NAME: &str = "agent-host-token";
 
 /// How the loopback TCP accept loop authenticates incoming connections.
 /// Forces callers to make a deliberate choice rather than accidentally
@@ -1244,6 +1252,50 @@ pub enum AgentHostLockfileDecision {
 		token: Option<String>,
 		tunnel_name: Option<String>,
 	},
+	/// A live supervisor owns the lockfile, but one of the files carrying
+	/// its connection token is readable beyond its owner, or the token file
+	/// could not be located at all. Its secrets cannot be trusted and the
+	/// supervisor is shared, so callers must surface `reason` and let the
+	/// user restart it rather than reusing or killing it.
+	RefuseInsecure { reason: String },
+}
+
+/// Where a supervisor's connection token lives, resolved from its lockfile.
+enum TokenFileLocation {
+	/// The supervisor recorded the exact path.
+	Recorded(std::path::PathBuf),
+	/// A lockfile predating that field, matched to a known default root by
+	/// exact token content.
+	MatchedLegacy(std::path::PathBuf),
+	/// A token-bearing lockfile whose token file could not be found.
+	Unresolved,
+}
+
+/// Locate the token file of the supervisor described by `metadata`.
+///
+/// Prefers the recorded path. Falling back to the default roots is what keeps
+/// a supervisor started by an older CLI usable, but only when the candidate
+/// holds exactly this supervisor's token — otherwise it is some other
+/// installation's file and proves nothing about this one.
+fn locate_token_file(
+	metadata: &AgentHostMetadata,
+	token: &str,
+	legacy_roots: &[std::path::PathBuf],
+) -> TokenFileLocation {
+	if let Some(recorded) = &metadata.connection_token_file {
+		return TokenFileLocation::Recorded(std::path::PathBuf::from(recorded));
+	}
+
+	for root in legacy_roots {
+		let candidate = root.join(AGENT_HOST_TOKEN_FILE_NAME);
+		if let Ok(contents) = std::fs::read_to_string(&candidate) {
+			if contents.trim() == token {
+				return TokenFileLocation::MatchedLegacy(candidate);
+			}
+		}
+	}
+
+	TokenFileLocation::Unresolved
 }
 
 /// Inspect the agent host lockfile at `path` and decide whether the caller
@@ -1253,6 +1305,25 @@ pub enum AgentHostLockfileDecision {
 pub fn classify_agent_host_lockfile(
 	log: &log::Logger,
 	path: &std::path::Path,
+) -> AgentHostLockfileDecision {
+	classify_agent_host_lockfile_with_roots(log, path, &default_legacy_token_roots())
+}
+
+/// Default locations a pre-`connectionTokenFile` supervisor could have minted
+/// its token into. Separated so tests can supply their own.
+fn default_legacy_token_roots() -> Vec<std::path::PathBuf> {
+	crate::state::LauncherPaths::new(None)
+		.map(|paths| vec![paths.root().to_owned()])
+		.unwrap_or_default()
+}
+
+/// See [`classify_agent_host_lockfile`]; `legacy_token_roots` are the
+/// directories searched for the token file of a lockfile that predates the
+/// recorded path.
+fn classify_agent_host_lockfile_with_roots(
+	log: &log::Logger,
+	path: &std::path::Path,
+	legacy_token_roots: &[std::path::PathBuf],
 ) -> AgentHostLockfileDecision {
 	use super::agent_host_metadata::read_agent_host_metadata;
 	use crate::util::machine::process_exists;
@@ -1281,12 +1352,58 @@ pub fn classify_agent_host_lockfile(
 		return AgentHostLockfileDecision::SpawnFresh;
 	}
 
+	// The lockfile itself carries the token, and a writable one could also
+	// redirect callers to an endpoint of someone else's choosing.
+	if let Some(reason) = insecure_reason(path, "lockfile") {
+		return AgentHostLockfileDecision::RefuseInsecure { reason };
+	}
+
+	if let Some(token) = metadata.connection_token.as_deref() {
+		match locate_token_file(&metadata, token, legacy_token_roots) {
+			TokenFileLocation::Recorded(p) | TokenFileLocation::MatchedLegacy(p) => {
+				if let Some(reason) = insecure_reason(&p, "connection token file") {
+					return AgentHostLockfileDecision::RefuseInsecure { reason };
+				}
+			}
+			TokenFileLocation::Unresolved => {
+				return AgentHostLockfileDecision::RefuseInsecure {
+					reason: format!(
+						"the connection token file of the agent host running as PID {} could not be located, \
+						 so its permissions cannot be verified",
+						metadata.pid
+					),
+				};
+			}
+		}
+	}
+
 	AgentHostLockfileDecision::Reuse {
 		pid: metadata.pid,
 		host: metadata.host,
 		port: metadata.port,
 		token: metadata.connection_token,
 		tunnel_name: metadata.tunnel_name,
+	}
+}
+
+/// Describe why `path` cannot be trusted, or `None` when it is owner-only.
+///
+/// A file that is readable beyond its owner is refused rather than tightened:
+/// its contents may already have been read.
+fn insecure_reason(path: &std::path::Path, label: &str) -> Option<String> {
+	match crate::util::file_permissions::is_restricted_to_owner(path) {
+		Ok(true) => None,
+		Ok(false) => Some(format!(
+			"the agent host {} at {} is readable by other users on this machine",
+			label,
+			path.display()
+		)),
+		Err(e) => Some(format!(
+			"the permissions of the agent host {} at {} could not be checked: {}",
+			label,
+			path.display(),
+			e
+		)),
 	}
 }
 
@@ -1506,6 +1623,7 @@ mod tests {
 			"127.0.0.1".to_string(),
 			8080,
 			Some("tok".to_string()),
+			Some("/tmp/agent-host-token".to_string()),
 			None,
 		);
 
@@ -1513,13 +1631,24 @@ mod tests {
 		assert_eq!(metadata.host.as_deref(), Some("127.0.0.1"));
 		assert_eq!(metadata.port, 8080);
 		assert_eq!(metadata.connection_token.as_deref(), Some("tok"));
+		assert_eq!(
+			metadata.connection_token_file.as_deref(),
+			Some("/tmp/agent-host-token")
+		);
 		assert_eq!(metadata.protocol_version, AGENT_HOST_PROTOCOL_VERSION);
 		assert_eq!(metadata.tunnel_name, None);
 	}
 
 	#[test]
 	fn metadata_records_tunnel_name() {
-		let metadata = build_metadata(42, "0.0.0.0".to_string(), 8080, None, Some("my-tunnel"));
+		let metadata = build_metadata(
+			42,
+			"0.0.0.0".to_string(),
+			8080,
+			None,
+			None,
+			Some("my-tunnel"),
+		);
 
 		assert_eq!(metadata.host.as_deref(), Some("0.0.0.0"));
 		assert_eq!(metadata.tunnel_name.as_deref(), Some("my-tunnel"));
@@ -1537,6 +1666,7 @@ mod tests {
 			SocketAddr::from(([127, 0, 0, 1], 0)),
 			Some("localhost".to_string()),
 			LoopbackAuth::Token("tok".to_string()),
+			None,
 			Some("my-tunnel".to_string()),
 			lockfile.clone(),
 		)
@@ -1566,6 +1696,7 @@ mod tests {
 				None,
 				LoopbackAuth::Disabled,
 				None,
+				None,
 				lockfile.clone(),
 			)
 			.await
@@ -1588,6 +1719,7 @@ mod tests {
 			SocketAddr::from(([127, 0, 0, 1], 0)),
 			None,
 			LoopbackAuth::Disabled,
+			None,
 			None,
 			lockfile.clone(),
 		)
@@ -1634,10 +1766,12 @@ mod tests {
 	fn classify_returns_reuse_for_live_compatible_lockfile() {
 		let dir = tempfile::tempdir().unwrap();
 		let lockfile = dir.path().join("agent-host.lock");
+		let token_file = write_secure_token_file(dir.path(), "tok");
 		let pid = std::process::id();
 		let mut metadata = AgentHostMetadata::new(pid, 4321);
 		metadata.host = Some("127.0.0.1".to_string());
 		metadata.connection_token = Some("tok".to_string());
+		metadata.connection_token_file = Some(token_file.to_string_lossy().to_string());
 		write_agent_host_metadata(&lockfile, &metadata).unwrap();
 
 		let decision = classify_agent_host_lockfile(&log::Logger::test(), &lockfile);
@@ -1661,10 +1795,12 @@ mod tests {
 		// it as reusable rather than refusing to share it.
 		let dir = tempfile::tempdir().unwrap();
 		let lockfile = dir.path().join("agent-host.lock");
+		let token_file = write_secure_token_file(dir.path(), "tok");
 		let pid = std::process::id();
 		let mut metadata = AgentHostMetadata::new(pid, 4321);
 		metadata.protocol_version = "9.9.9".to_string();
 		metadata.connection_token = Some("tok".to_string());
+		metadata.connection_token_file = Some(token_file.to_string_lossy().to_string());
 		write_agent_host_metadata(&lockfile, &metadata).unwrap();
 
 		let decision = classify_agent_host_lockfile(&log::Logger::test(), &lockfile);
@@ -1686,6 +1822,159 @@ mod tests {
 		let uri: ::http::Uri = "/path".parse().unwrap();
 		let out = inject_connection_token(&uri, "abc def");
 		assert_eq!(out.path_and_query().unwrap().as_str(), "/path?tkn=abc+def");
+	}
+
+	/// Write a token file the classifier will accept, mirroring how the
+	/// supervisor mints one.
+	fn write_secure_token_file(dir: &std::path::Path, token: &str) -> std::path::PathBuf {
+		let path = dir.join(AGENT_HOST_TOKEN_FILE_NAME);
+		std::fs::write(&path, token).unwrap();
+		crate::util::file_permissions::restrict_to_owner(&path).unwrap();
+		path
+	}
+
+	/// Open `path` up to every local account, as a legacy file written
+	/// before the agent host protected its secrets would have been.
+	#[cfg(windows)]
+	fn grant_everyone(path: &std::path::Path) {
+		std::process::Command::new("icacls")
+			.arg(path)
+			.args(["/grant", "*S-1-1-0:(F)"])
+			.output()
+			.unwrap();
+	}
+
+	#[cfg(not(windows))]
+	fn grant_everyone(path: &std::path::Path) {
+		use std::os::unix::fs::PermissionsExt;
+		std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o644)).unwrap();
+	}
+
+	#[test]
+	fn classify_refuses_a_token_file_it_cannot_locate() {
+		// A token-bearing supervisor whose token file is nowhere to be
+		// found cannot be vouched for, so it must not be reused.
+		let dir = tempfile::tempdir().unwrap();
+		let lockfile = dir.path().join("agent-host.lock");
+		let mut metadata = AgentHostMetadata::new(std::process::id(), 4321);
+		metadata.connection_token = Some("tok".to_string());
+		write_agent_host_metadata(&lockfile, &metadata).unwrap();
+
+		let decision = classify_agent_host_lockfile_with_roots(
+			&log::Logger::test(),
+			&lockfile,
+			&[dir.path().to_owned()],
+		);
+
+		assert!(
+			matches!(decision, AgentHostLockfileDecision::RefuseInsecure { .. }),
+			"got {decision:?}"
+		);
+	}
+
+	#[test]
+	fn classify_reuses_a_legacy_lockfile_whose_token_file_matches() {
+		// No recorded path, but a default root holds exactly this
+		// supervisor's token — enough to verify the real file.
+		let dir = tempfile::tempdir().unwrap();
+		let lockfile = dir.path().join("agent-host.lock");
+		write_secure_token_file(dir.path(), "tok");
+		let pid = std::process::id();
+		let mut metadata = AgentHostMetadata::new(pid, 4321);
+		metadata.connection_token = Some("tok".to_string());
+		write_agent_host_metadata(&lockfile, &metadata).unwrap();
+
+		let decision = classify_agent_host_lockfile_with_roots(
+			&log::Logger::test(),
+			&lockfile,
+			&[dir.path().to_owned()],
+		);
+
+		assert_eq!(
+			decision,
+			AgentHostLockfileDecision::Reuse {
+				pid,
+				host: None,
+				port: 4321,
+				token: Some("tok".to_string()),
+				tunnel_name: None,
+			}
+		);
+	}
+
+	#[test]
+	fn classify_refuses_a_legacy_token_file_holding_a_different_token() {
+		// Some other installation's token file proves nothing about this
+		// supervisor, so it must not stand in for the real one.
+		let dir = tempfile::tempdir().unwrap();
+		let lockfile = dir.path().join("agent-host.lock");
+		write_secure_token_file(dir.path(), "someone-elses-token");
+		let mut metadata = AgentHostMetadata::new(std::process::id(), 4321);
+		metadata.connection_token = Some("tok".to_string());
+		write_agent_host_metadata(&lockfile, &metadata).unwrap();
+
+		let decision = classify_agent_host_lockfile_with_roots(
+			&log::Logger::test(),
+			&lockfile,
+			&[dir.path().to_owned()],
+		);
+
+		assert!(
+			matches!(decision, AgentHostLockfileDecision::RefuseInsecure { .. }),
+			"got {decision:?}"
+		);
+	}
+
+	#[test]
+	fn classify_reuses_a_tokenless_supervisor_without_a_token_file() {
+		// `--without-connection-token` leaves no token file to check, so
+		// the lockfile's own permissions are the whole question.
+		let dir = tempfile::tempdir().unwrap();
+		let lockfile = dir.path().join("agent-host.lock");
+		let pid = std::process::id();
+		write_agent_host_metadata(&lockfile, &AgentHostMetadata::new(pid, 4321)).unwrap();
+
+		let decision = classify_agent_host_lockfile_with_roots(
+			&log::Logger::test(),
+			&lockfile,
+			&[dir.path().to_owned()],
+		);
+
+		assert_eq!(
+			decision,
+			AgentHostLockfileDecision::Reuse {
+				pid,
+				host: None,
+				port: 4321,
+				token: None,
+				tunnel_name: None,
+			}
+		);
+	}
+
+	#[test]
+	fn classify_refuses_a_token_file_readable_by_everyone() {
+		let dir = tempfile::tempdir().unwrap();
+		let lockfile = dir.path().join("agent-host.lock");
+		let token_file = dir.path().join(AGENT_HOST_TOKEN_FILE_NAME);
+		std::fs::write(&token_file, "tok").unwrap();
+		grant_everyone(&token_file);
+
+		let mut metadata = AgentHostMetadata::new(std::process::id(), 4321);
+		metadata.connection_token = Some("tok".to_string());
+		metadata.connection_token_file = Some(token_file.to_string_lossy().to_string());
+		write_agent_host_metadata(&lockfile, &metadata).unwrap();
+
+		let decision = classify_agent_host_lockfile_with_roots(
+			&log::Logger::test(),
+			&lockfile,
+			&[dir.path().to_owned()],
+		);
+
+		assert!(
+			matches!(decision, AgentHostLockfileDecision::RefuseInsecure { .. }),
+			"got {decision:?}"
+		);
 	}
 
 	#[test]

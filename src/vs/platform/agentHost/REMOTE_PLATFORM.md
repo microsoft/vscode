@@ -565,15 +565,18 @@ than the `0600`/`0700` the POSIX path enforces.
   (`cli/src/commands/args.rs:249-254`). Recording only the launcher root is
   therefore still insufficient: the validator could inspect a stale default-root
   file, pass, and never see the live supervisor's token.
-  The lockfile records the **exact token-file path**. For metadata predating that
-  field: a tokenless supervisor has no token file, so validating the metadata ACL
-  alone is correct and reuse proceeds; a token-bearing one is matched against a
-  finite set of known legacy roots, requiring both an exact token-content match
-  and a secure ACL, and only an unresolved case produces the actionable restart
-  error. A blanket refusal would strand users behind a supervisor that §4 forbids
-  the desktop from killing.
+  The lockfile records the **exact token-file path** in `connectionTokenFile`.
+  For metadata predating that field: a tokenless supervisor has no token file, so
+  validating the metadata ACL alone is correct and reuse proceeds; a token-bearing
+  one is matched against a finite set of known legacy roots, requiring both an
+  exact token-content match and a secure ACL, and only an unresolved case produces
+  the actionable restart error. A blanket refusal would strand users behind a
+  supervisor that §4 forbids the desktop from killing.
   A token found under a broad ACL is **not** reused after tightening it — it may
   already have leaked; the supervisor is refused instead.
+  `classify_agent_host_lockfile` performs this check and returns
+  `RefuseInsecure { reason }`, which every caller surfaces: reuse and spawning a
+  rival are both wrong while an untrusted supervisor holds the port.
 - **The install boundary is protected.** We execute the binary we install, so
   another local account with modify rights on a permissive install root could
   replace it between install and launch; `--version` proves it runs, not that it
