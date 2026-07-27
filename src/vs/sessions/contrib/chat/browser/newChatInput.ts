@@ -93,7 +93,7 @@ import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser
 import { notifyDictationSubmitted } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { DictationDownloadRing, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
+import { DictationDownloadRing, getDictationDownloadHoverMarkdown, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ChatPetWidget } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 
@@ -842,11 +842,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		button.role = 'button';
 		const micLabel = localize('sessionsStt.dictate', "Dictate (Speech to Text)");
 		const stopLabel = localize('sessionsStt.stop', "Stop Dictation");
-		this._register(this.hoverService.setupDelayedHover(button, {
-			content: micLabel,
+		this._register(this.hoverService.setupDelayedHover(button, () => ({
+			// While the model prepares, surface the download/connecting hover
+			// (which invites the user to click to cancel) so this composer matches
+			// the main chat toolbar affordance.
+			content: sttService.isPreparingModel
+				? getDictationDownloadHoverMarkdown(sttService)
+				: (sttService.state !== ChatSpeechToTextState.Idle ? stopLabel : micLabel),
 			position: { hoverPosition: HoverPosition.BELOW },
 			appearance: { showPointer: true }
-		}));
+		})));
 
 		const downloadRing = this._register(new MutableDisposable<DictationDownloadRing>());
 		const renderState = () => {
