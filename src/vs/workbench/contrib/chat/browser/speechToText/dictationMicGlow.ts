@@ -9,7 +9,7 @@ import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { readVoiceGlowIntensity } from '../voiceClient/voiceGlow.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService, SHOW_TRANSCRIPT_SETTING } from './chatSpeechToTextService.js';
+import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService } from './chatSpeechToTextService.js';
 
 const SPEAKING_THRESHOLD = 0.08;
 const GLOW_LEVEL_CLASSES = [
@@ -75,7 +75,7 @@ export function setupDictationMicGlow(
 
 	store.add(service.onDidChangeState(update));
 	store.add(configurationService.onDidChangeConfiguration(event => {
-		if (event.affectsConfiguration(SHOW_TRANSCRIPT_SETTING)) {
+		if (event.affectsConfiguration(DictationSettingId.ShowTranscript)) {
 			update();
 		}
 	}));

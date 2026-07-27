@@ -105,7 +105,7 @@ import { registerChatExecuteActions } from './actions/chatExecuteActions.js';
 import { ChatVoiceInputModeAction, ChatVoiceInputModeToggleListenAction, registerVoiceInputModeSimulateActions } from './voiceInputMode/voiceInputModeActionViewItem.js';
 import './voiceInputMode/voiceInputMode.js';
 import { registerChatSpeechToTextActions } from './actions/chatSpeechToTextActions.js';
-import { ChatSpeechToTextService, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextService, DictationSettingId, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
 import { registerChatFileTreeActions } from './actions/chatFileTreeActions.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
 import { registerChatExportActions } from './actions/chatImportExport.js';
@@ -293,7 +293,7 @@ configurationRegistry.registerConfiguration({
 			default: 'nemotron-speech-streaming-en-0.6b',
 			tags: ['experimental']
 		},
-		'dictation.showTranscript': {
+		[DictationSettingId.ShowTranscript]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('dictation.showTranscript', "Controls whether the transcript is shown while dictating. The final transcript is inserted when dictation ends."),
 			default: false,

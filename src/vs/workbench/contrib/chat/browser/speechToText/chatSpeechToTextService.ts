@@ -194,8 +194,9 @@ const ENABLED_SETTING = 'dictation.enabled';
  */
 const MODEL_SETTING = 'dictation.model';
 
-/** Controls whether interim transcript text is rendered while dictating. */
-export const SHOW_TRANSCRIPT_SETTING = 'dictation.showTranscript';
+export const enum DictationSettingId {
+	ShowTranscript = 'dictation.showTranscript',
+}
 
 /** `dictation.model` sentinel selecting the cloud voice backend used by Voice Mode. */
 const MAI_MODEL_ID = 'mai';
@@ -521,7 +522,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	get showTranscriptWhileDictating(): boolean {
-		return this._configurationService.getValue<boolean>(SHOW_TRANSCRIPT_SETTING) === true;
+		return this._configurationService.getValue<boolean>(DictationSettingId.ShowTranscript) === true;
 	}
 
 	get analyserNode(): AnalyserNode | undefined {
