@@ -42,6 +42,8 @@ interface IRuntimeState {
 	configuredModel?: string;
 	/** Defaults to `true` (a new/empty session). Set to `false` to model a reopened conversation with history. */
 	isEmpty?: boolean;
+	/** Defaults to `Ask`. Set to `Agent` to exercise mode-based model invalidation. */
+	modeKind?: ChatModeKind;
 }
 
 function createRuntime(
@@ -51,7 +53,7 @@ function createRuntime(
 ): IChatInputModelSelectionRuntime {
 	return {
 		location: ChatAgentLocation.Chat,
-		getCurrentModeKind: () => ChatModeKind.Ask,
+		getCurrentModeKind: () => state.modeKind ?? ChatModeKind.Ask,
 		getCurrentSessionType: () => state.sessionType,
 		isEmpty: () => state.isEmpty ?? true,
 		getModels: () => state.models,
@@ -614,6 +616,64 @@ suite('ChatInputModelSelectionController', () => {
 			current: remembered.identifier,
 			reason: ModelSelectionReason.UserSelection,
 		});
+	});
+
+	test('a deliberate reset to default is not undone when the old model returns', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const picked = model('test/picked');
+		const base = model('test/default');
+		const locationDefault: ILanguageModelChatMetadataAndIdentifier = {
+			...base,
+			metadata: { ...base.metadata, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } },
+		};
+		const state: IRuntimeState = { models: [picked, locationDefault], resolved: true, sessionType: 'local' };
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
+
+		controller.applyExplicitSelection(picked, () => { }, false);
+		state.models = [locationDefault];
+		controller.reconcileModelListChange(state.models);
+		// The user deliberately asks for the default while the pick is unavailable.
+		controller.resetToDefault();
+		const afterReset = controller.currentModel.get()?.identifier;
+		state.models = [picked, locationDefault];
+		modelChanges.fire('picked-back');
+
+		assert.deepStrictEqual({
+			afterReset,
+			afterPickReturns: controller.currentModel.get()?.identifier,
+		}, {
+			afterReset: locationDefault.identifier,
+			afterPickReturns: locationDefault.identifier,
+		});
+	});
+
+	test('a mode-invalid model in an unfiltered targeted pool is not reapplied to itself', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		// Targeted session pools are not mode-filtered, so the pool still offers models that agent
+		// mode cannot use — including the one being replaced.
+		const invalid = targetedModel('agent-host/invalid', 'agent-host');
+		const agentCapable: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'agent-host/capable',
+			metadata: {
+				...invalid.metadata,
+				id: 'agent-host/capable',
+				name: 'agent-host/capable',
+				family: 'capable',
+				capabilities: { toolCalling: true, agentMode: true },
+			},
+		};
+		const state: IRuntimeState = {
+			models: [invalid, agentCapable],
+			resolved: true,
+			sessionType: 'agent-host',
+			modeKind: ChatModeKind.Agent,
+		};
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
+
+		controller.applyAutomaticSelection(invalid, () => { });
+		controller.ensureCurrentModelSupported();
+
+		assert.deepStrictEqual({ current: controller.currentModel.get()?.identifier }, { current: agentCapable.identifier });
 	});
 
 	test('applies a fallback while the configured default loads, then upgrades it', () => {

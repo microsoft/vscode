@@ -8,7 +8,7 @@ import { IObservable, observableValue } from '../../../../../../base/common/obse
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { InitialModelSelectionResult, isInConversationModelChoice, ModelIdentifierResolution, ModelSelectionApplyReason, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier } from '../../../common/modelSelection.js';
-import { findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, resolveModelFromSyncState, shouldDropAgnosticDraftModel, shouldResetModelToDefault, shouldResetOnModelListChange, shouldWaitForSessionModel } from './chatInputModelUtils.js';
+import { findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelSupportedForInlineChat, isModelSupportedForMode, isModelValidForSession, resolveModelFromSyncState, shouldDropAgnosticDraftModel, shouldResetModelToDefault, shouldResetOnModelListChange, shouldWaitForSessionModel } from './chatInputModelUtils.js';
 import { IChatModelSelectionDiagnostics, NullChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 
 /** Supplies Workbench chat's filtered model catalog and conversation effects. */
@@ -178,37 +178,32 @@ export class ChatInputModelSelectionController extends Disposable {
 		// Storage records only explicit picks, but it is not an in-conversation choice: a new
 		// conversation still lets `chat.defaultModel` take precedence over it.
 		this._rememberedSelection = rememberedModelId ? { modelId: rememberedModelId, reason: ModelSelectionReason.Remembered } : undefined;
-		const resolveSelection = (): InitialModelSelectionResult => {
-			const configuredModelValue = this._runtime.getConfiguredModelValue();
-			const models = this._runtime.getModels(this._runtime.getCurrentSessionType());
-			// `chat.defaultModel` seeds new conversations only; a conversation with history keeps
-			// the model it was started with.
-			const configuredModel = this._runtime.isEmpty() ? resolveConfiguredModel(configuredModelValue, models) : undefined;
-			const resolution = resolveModelIdentifier(models, rememberedModelId, false);
-			return resolveInitialModelSelection({
-				configuredModel,
-				desiredModelResolution: resolution,
-				desiredReason: ModelSelectionReason.Remembered,
-				fallbackModel: findDefaultModel(models, this._runtime.location),
-				fallbackReason: ModelSelectionReason.FirstAvailable,
-			});
-		};
+		// One catalog snapshot for the whole decision, so the fallback we fall back *to* is the
+		// same one the precedence rules were evaluated against.
+		const models = this._runtime.getModels(this._runtime.getCurrentSessionType());
+		const fallbackModel = findDefaultModel(models, this._runtime.location);
+		// `chat.defaultModel` seeds new conversations only; a conversation with history keeps
+		// the model it was started with.
+		const configuredModel = this._runtime.isEmpty() ? resolveConfiguredModel(this._runtime.getConfiguredModelValue(), models) : undefined;
+		const selection = resolveInitialModelSelection({
+			configuredModel,
+			desiredModelResolution: resolveModelIdentifier(models, rememberedModelId, false),
+			desiredReason: ModelSelectionReason.Remembered,
+			fallbackModel,
+			fallbackReason: ModelSelectionReason.FirstAvailable,
+		});
 
-		const selection = resolveSelection();
 		onInitialSelection(selection);
 		this._reportInitialization(this._runtime.getConfiguredModelValue(), rememberedModelId, selection);
 		if (selection.kind === 'apply') {
 			this._selectionReason = selection.reason;
 			this._applyModel(selection.model);
 			this.ensureCurrentModelSupported();
-		} else if (selection.kind === 'pending') {
+		} else if (selection.kind === 'pending' && fallbackModel) {
 			// The remembered model isn't in the catalog yet. Show the default meanwhile;
 			// `_restoreRememberedModel` claims the real one as soon as it is published.
-			const fallbackModel = findDefaultModel(this._runtime.getModels(this._runtime.getCurrentSessionType()), this._runtime.location);
-			if (fallbackModel) {
-				this._selectionReason = ModelSelectionReason.FirstAvailable;
-				this._applyModel(fallbackModel);
-			}
+			this._selectionReason = ModelSelectionReason.FirstAvailable;
+			this._applyModel(fallbackModel);
 		}
 	}
 
@@ -234,6 +229,21 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	/**
+	 * The pool to choose a replacement from. {@link filterModelsForSession} only applies mode and
+	 * inline-chat filtering to the general pool, so a targeted session pool can still offer models
+	 * the current mode cannot use — including the one being replaced. Prefer the usable subset, but
+	 * fall back to the raw pool rather than selecting nothing when a provider advertises no usable
+	 * model at all.
+	 */
+	private _selectablePool(sessionType: string | undefined): ILanguageModelChatMetadataAndIdentifier[] {
+		const models = this._runtime.getModels(sessionType);
+		const selectable = models.filter(model =>
+			isModelSupportedForMode(model, this._runtime.getCurrentModeKind())
+			&& isModelSupportedForInlineChat(model, this._runtime.location));
+		return selectable.length > 0 ? selectable : models;
+	}
+
+	/**
 	 * Replaces a selection that is no longer valid, applying the precedence every such path shares:
 	 * the remembered selection if the catalog can offer it, else the closest match for what was
 	 * displaced, else the default.
@@ -249,7 +259,8 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (this._restoreRememberedModel()) {
 			return;
 		}
-		const match = findBestMatchingModel(displaced, this._runtime.getModels(sessionType));
+		const candidates = this._selectablePool(sessionType).filter(model => model.identifier !== displaced?.identifier);
+		const match = findBestMatchingModel(displaced, candidates);
 		if (match) {
 			this._applyModel(match);
 			return;
@@ -262,7 +273,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (sessionType && this._runtime.requiresCustomModels(sessionType) && !hasModelsTargetingSession(allModels, sessionType)) {
 			return;
 		}
-		const models = this._runtime.getModels(sessionType);
+		const models = this._selectablePool(sessionType);
 		const configuredModel = resolveConfiguredModel(this._runtime.getConfiguredModelValue(), models);
 		const defaultModel = configuredModel ?? findDefaultModel(models, this._runtime.location);
 		this._diagnostics.report('select-default', {
@@ -277,6 +288,17 @@ export class ChatInputModelSelectionController extends Disposable {
 			this._selectionReason = configuredModel ? ModelSelectionReason.ConfiguredDefault : ModelSelectionReason.FirstAvailable;
 		}
 		this._applyModel(defaultModel);
+	}
+
+	/**
+	 * Falls back to the default because the user asked for it, as opposed to because the current
+	 * model stopped being valid. That makes it a deliberate choice, so it discards the remembered
+	 * selection: a model that reappears later must not reclaim the input behind the user's back.
+	 */
+	resetToDefault(sessionType = this._runtime.getCurrentSessionType()): void {
+		this._clearIntent();
+		this._rememberedSelection = undefined;
+		this.selectDefault(sessionType);
 	}
 
 	applyConfiguredDefault(): boolean {
