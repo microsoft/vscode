@@ -355,7 +355,7 @@ suite('SessionServerTools', () => {
 		const md = (content: string): ResponsePart => ({ kind: ResponsePartKind.Markdown, id: 'm', content });
 		const toolPart = (tc: ToolCallState): ResponsePart => ({ kind: ResponsePartKind.ToolCall, toolCall: tc });
 		const turn = (id: string, user: string, parts: ResponsePart[], state = TurnState.Complete): Turn =>
-		({ id, message: { text: user, origin: { kind: MessageKind.User } }, responseParts: parts, usage: undefined, state });
+			({ id, message: { text: user, origin: { kind: MessageKind.User } }, responseParts: parts, usage: undefined, state });
 
 		const snapshot: IChatContextSnapshot = {
 			turns: [
