@@ -3254,12 +3254,12 @@ export class CopilotAgentSession extends Disposable {
 			this._resumeSubagentForEvent(e);
 			// Report the enhanced GH `request.options.tools` event for this model call — parity with
 			// the Copilot extension, which emits it per LLM request. `assistant.message` is the
-			// agent-host's per-model-call boundary; we correlate on its `x-copilot-service-request-id`.
+			// agent-host's per-model-call boundary; we correlate on its client-minted `x-request-id`.
 			// Main agent only: `_appliedSnapshot.tools` is the session's tool set, which does not
 			// describe a subagent's model call, so subagent messages (mapped or dropped) are skipped.
 			if (!e.agentId) {
 				const clientType = this._currentTurn?.clientType ?? AgentHostClientType.Unknown;
-				this._telemetryReporter.assistantMessageReceived(this.sessionUri.toString(), clientType, e.data.serviceRequestId, this._appliedSnapshot.tools);
+				this._telemetryReporter.assistantMessageReceived(this.sessionUri.toString(), clientType, e.data.clientRequestId, this._appliedSnapshot.tools);
 				// Restricted `conversation.messageText` (source=model): the model's raw response text.
 				this._telemetryReporter.modelMessageText(this.sessionUri.toString(), clientType, e.data.content, this._turnOrdinal, e.data.serviceRequestId);
 				// Accumulate the per-turn tool-call aggregate for the restricted `toolCallDetails` event.
