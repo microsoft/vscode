@@ -268,6 +268,11 @@ Review-capable changesets expose `setReviewState(resource, reviewed)`. Agent-hos
    case) via the returned `trustDeclined` flag rather than treating any falsy
    `session` the same way.
 
+   Consumers that require asynchronous workspace acceptance must use
+   `WorkspacePicker`'s `canSelectWorkspace` option so the decision runs before
+   the selection is committed and remains covered by the picker's stale-selection
+   generation guard.
+
 2. User picks a different session type for the same folder
    → SessionTypePicker queries getSessionTypesForFolder(folderUri),
      groups entries by provider, shows them in the dropdown
