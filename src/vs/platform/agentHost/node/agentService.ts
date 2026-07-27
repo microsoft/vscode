@@ -1543,8 +1543,9 @@ export class AgentService extends Disposable implements IAgentService {
 			workingDirectories: primaryWorkingDir ? [primaryWorkingDir] : undefined,
 			// Workspace-less is inferred at create from an absent input
 			// `workingDirectory` (the host assigns a scratch cwd, so it can't be
-			// re-inferred later) and tagged on the generic `_meta` bag.
-			...(config && !config.fork && !config.workingDirectory ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
+			// re-inferred later) and tagged on the generic `_meta` bag. The
+			// condition mirrors the agents' own inference against `config ?? {}`.
+			...(!config?.fork && !config?.workingDirectory ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
 		};
 	}
 

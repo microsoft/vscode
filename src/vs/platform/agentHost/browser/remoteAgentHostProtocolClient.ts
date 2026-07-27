@@ -1054,6 +1054,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			isRead: !!(s.status & SessionStatus.IsRead),
 			isArchived: !!(s.status & SessionStatus.IsArchived),
 			changes: s.changes,
+			// Carry `_meta` so a session first materialized from a listing (window
+			// reload, list refresh) resolves its kind correctly.
+			...(s._meta !== undefined ? { _meta: s._meta } : {}),
 		}));
 	}
 
