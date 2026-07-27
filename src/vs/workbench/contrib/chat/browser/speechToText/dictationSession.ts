@@ -17,7 +17,6 @@ import { IModelContentChangedEvent } from '../../../../../editor/common/textMode
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatDictationSurface, ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
-import { getDictationPreparingLabel } from './dictationDownloadRing.js';
 
 /**
  * Inline decoration class for the still-processing tail of not-yet-finalized
@@ -356,27 +355,29 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	const HIDE_CURSOR_CLASS = 'dictation-hide-cursor';
 	editor.getDomNode()?.classList.add(HIDE_CURSOR_CLASS);
 	disposables.add(toDisposable(() => editor.getDomNode()?.classList.remove(HIDE_CURSOR_CLASS)));
-	// Show a "Listening…" placeholder once the session is actually connected
-	// and recording, i.e. the service is in the Recording state and the
-	// on-device model has finished preparing. While the model is still being
-	// prepared on first use (downloading/loading, which can take a while), show
-	// a "Preparing…/Downloading… X%" placeholder instead so the user knows why
-	// dictation has not started yet rather than staring at an idle editor. The
-	// placeholder must not appear during microphone acquisition. It remains
-	// visible until transcript text is inserted, and is restored to its
-	// previous value when the session ends.
+	// Show a "Listening…" placeholder once the session is actually connected,
+	// recording, and the on-device model has finished preparing. While the model
+	// is still being prepared on first use (downloading/loading, which can take a
+	// while), the toolbar mic shows a determinate download spinner
+	// (DictationDownloadRing), so the placeholder stays on its previous value
+	// instead of churning through "Downloading… X%" text. The placeholder must
+	// not appear during microphone acquisition. It remains visible until
+	// transcript text is inserted, and is restored to its previous value when the
+	// session ends.
 	const previousPlaceholder = editor.getOption(EditorOption.placeholder);
 	const listeningPlaceholder = localize('chatStt.listening', "Listening…");
-	// The placeholder we last applied (listening or a preparing label), so we
-	// only ever restore the previous placeholder when it was ours to restore.
+	// The placeholder we last applied, so we only ever restore the previous
+	// placeholder when it was ours to restore.
 	let appliedPlaceholder: string | undefined;
 	const applyPlaceholder = () => {
 		if (!editor.getModel()) {
 			return;
 		}
 		const recording = service.state === ChatSpeechToTextState.Recording;
-		const desired = recording
-			? (service.isPreparingModel ? getDictationPreparingLabel(service) : listeningPlaceholder)
+		// Only surface "Listening…" once the model is ready; while it prepares the
+		// mic icon spinner conveys download/load progress.
+		const desired = recording && !service.isPreparingModel
+			? listeningPlaceholder
 			: undefined;
 		if (desired !== undefined) {
 			if (appliedPlaceholder !== desired) {
@@ -417,8 +418,6 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	}));
 	disposables.add(editor.onDidChangeModelContent(event => inserter.onDidChangeModelContent(event)));
 	disposables.add(service.onDidChangePreparingModel(() => applyPlaceholder()));
-	// Refresh the "Downloading… X%" placeholder as the download progresses.
-	disposables.add(service.onDidChangeModelDownloadProgress(() => applyPlaceholder()));
 	disposables.add(service.onDidChangeState(state => {
 		logService.trace(`${LOG_PREFIX} onDidChangeState ${state}`);
 		if (state === ChatSpeechToTextState.Idle && _active?.service === service) {
