@@ -19,23 +19,9 @@ export interface IAgentEditorComment {
 	readonly body: string;
 }
 
-export interface IAgentEditorReviewAction {
-	readonly id: string;
-	readonly label: string;
-	readonly description?: string;
-	readonly default?: boolean;
-}
-
 export interface IAgentEditorReview {
-	readonly actions: readonly IAgentEditorReviewAction[];
-	readonly feedbackCount: number;
 	readonly activeFeedbackId?: string;
 	readonly activeFeedbackRequestId: number;
-	readonly overallFeedbackLabel: string;
-	readonly rejectLabel: string;
-	readonly submitFeedbackLabel: string;
-	readonly submitFeedbackWithCountLabel: string;
-	readonly approvePlanLabel: string;
 }
 
 /**
@@ -50,9 +36,6 @@ export interface IAgentEditorCommentsProvider {
 	updateCommentRange?(resource: URI, id: string, range: IRange): void;
 	deleteComment(resource: URI, id: string): void;
 	getReview?(resource: URI): IAgentEditorReview | undefined;
-	submitFeedback?(resource: URI, overallFeedback: string | undefined): Promise<void>;
-	submitAction?(resource: URI, actionId: string): Promise<void>;
-	reject?(resource: URI): Promise<void>;
 }
 
 /**
@@ -72,9 +55,6 @@ export interface IAgentEditorCommentsBridge {
 	updateCommentRange(resource: URI, id: string, range: IRange): void;
 	deleteComment(resource: URI, id: string): void;
 	getReview(resource: URI): IAgentEditorReview | undefined;
-	submitFeedback(resource: URI, overallFeedback: string | undefined): Promise<void>;
-	submitAction(resource: URI, actionId: string): Promise<void>;
-	reject(resource: URI): Promise<void>;
 
 	/** Register a provider. The most recently registered provider that accepts a resource handles it. */
 	registerProvider(provider: IAgentEditorCommentsProvider): IDisposable;
@@ -128,18 +108,6 @@ export class AgentEditorCommentsBridge extends Disposable implements IAgentEdito
 
 	getReview(resource: URI): IAgentEditorReview | undefined {
 		return this._getProvider(resource)?.getReview?.(resource);
-	}
-
-	submitFeedback(resource: URI, overallFeedback: string | undefined): Promise<void> {
-		return this._getProvider(resource)?.submitFeedback?.(resource, overallFeedback) ?? Promise.resolve();
-	}
-
-	submitAction(resource: URI, actionId: string): Promise<void> {
-		return this._getProvider(resource)?.submitAction?.(resource, actionId) ?? Promise.resolve();
-	}
-
-	reject(resource: URI): Promise<void> {
-		return this._getProvider(resource)?.reject?.(resource) ?? Promise.resolve();
 	}
 
 	private _getProvider(resource: URI): IAgentEditorCommentsProvider | undefined {

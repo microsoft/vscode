@@ -32,23 +32,6 @@ interface PersistedViewState {
 	selection?: { anchor: number; active: number };
 }
 
-interface PlanReview {
-	readonly actions: readonly {
-		readonly id: string;
-		readonly label: string;
-		readonly description?: string;
-		readonly default?: boolean;
-	}[];
-	readonly feedbackCount: number;
-	readonly activeFeedbackId?: string;
-	readonly activeFeedbackRequestId: number;
-	readonly overallFeedbackLabel: string;
-	readonly rejectLabel: string;
-	readonly submitFeedbackLabel: string;
-	readonly submitFeedbackWithCountLabel: string;
-	readonly approvePlanLabel: string;
-}
-
 function createStringEdit(previousValue: string, nextValue: string): StringEdit {
 	let start = 0;
 	while (start < previousValue.length && start < nextValue.length && previousValue[start] === nextValue[start]) {
@@ -61,203 +44,6 @@ function createStringEdit(previousValue: string, nextValue: string): StringEdit 
 		nextEnd--;
 	}
 	return StringEdit.replace(OffsetRange.fromTo(start, previousEnd), nextValue.slice(start, nextEnd));
-}
-
-class PlanReviewToolbar extends Disposable {
-
-	readonly #element: HTMLElement;
-	readonly #overallFeedback: HTMLInputElement;
-	readonly #primaryGroup: HTMLElement;
-	readonly #primaryAction: HTMLButtonElement;
-	readonly #actionToggle: HTMLButtonElement;
-	readonly #actionMenu: HTMLElement;
-	readonly #rejectAction: HTMLButtonElement;
-	#review: PlanReview | undefined;
-	#selectedActionId = '';
-
-	constructor(host: HTMLElement, postMessage: (message: unknown) => void) {
-		super();
-
-		this.#element = document.createElement('div');
-		this.#element.className = 'md-plan-review-toolbar-host';
-		this.#element.style.display = 'none';
-		const toolbar = document.createElement('div');
-		toolbar.className = 'md-plan-review-toolbar';
-		toolbar.setAttribute('role', 'toolbar');
-		this.#element.appendChild(toolbar);
-		host.appendChild(this.#element);
-		this._register({ dispose: () => this.#element.remove() });
-		const resizeObserver = new ResizeObserver(entries => {
-			const width = entries[0]?.contentRect.width ?? host.clientWidth;
-			toolbar.classList.toggle('compact', width < 760);
-			toolbar.classList.toggle('narrow', width < 480);
-			this.#element.classList.toggle('narrow', width < 480);
-		});
-		resizeObserver.observe(host);
-		this._register({ dispose: () => resizeObserver.disconnect() });
-
-		this.#overallFeedback = document.createElement('input');
-		this.#overallFeedback.className = 'md-plan-review-overall-feedback';
-		this.#overallFeedback.type = 'text';
-		toolbar.appendChild(this.#overallFeedback);
-
-		this.#primaryGroup = document.createElement('div');
-		this.#primaryGroup.className = 'md-plan-review-primary-group';
-		toolbar.appendChild(this.#primaryGroup);
-
-		this.#primaryAction = document.createElement('button');
-		this.#primaryAction.className = 'md-plan-review-primary-action';
-		this.#primaryAction.type = 'button';
-		this.#primaryGroup.appendChild(this.#primaryAction);
-
-		this.#actionToggle = document.createElement('button');
-		this.#actionToggle.className = 'md-plan-review-action-toggle';
-		this.#actionToggle.type = 'button';
-		this.#actionToggle.setAttribute('aria-haspopup', 'menu');
-		this.#actionToggle.setAttribute('aria-expanded', 'false');
-		this.#primaryGroup.appendChild(this.#actionToggle);
-
-		this.#actionMenu = document.createElement('div');
-		this.#actionMenu.className = 'md-plan-review-action-menu';
-		this.#actionMenu.setAttribute('role', 'menu');
-		this.#actionMenu.hidden = true;
-		this.#primaryGroup.appendChild(this.#actionMenu);
-
-		this.#rejectAction = document.createElement('button');
-		this.#rejectAction.className = 'md-plan-review-reject-action';
-		this.#rejectAction.type = 'button';
-		toolbar.appendChild(this.#rejectAction);
-
-		const updatePrimaryAction = () => this.#updatePrimaryAction();
-		this.#overallFeedback.addEventListener('input', updatePrimaryAction);
-		this._register({ dispose: () => this.#overallFeedback.removeEventListener('input', updatePrimaryAction) });
-
-		const submitPrimaryAction = () => {
-			const review = this.#review;
-			if (!review) {
-				return;
-			}
-			const overallFeedback = this.#overallFeedback.value.trim();
-			if (review.feedbackCount > 0 || overallFeedback) {
-				postMessage({ type: 'submitFeedback', overallFeedback: overallFeedback || undefined });
-			} else {
-				postMessage({ type: 'submitAction', actionId: this.#selectedActionId });
-			}
-		};
-		this.#primaryAction.addEventListener('click', submitPrimaryAction);
-		this._register({ dispose: () => this.#primaryAction.removeEventListener('click', submitPrimaryAction) });
-
-		const toggleMenu = () => this.#setMenuOpen(!!this.#actionMenu.hidden);
-		this.#actionToggle.addEventListener('click', toggleMenu);
-		this._register({ dispose: () => this.#actionToggle.removeEventListener('click', toggleMenu) });
-
-		const onDocumentPointerDown = (event: PointerEvent) => {
-			if (!this.#actionMenu.hidden && !this.#primaryGroup.contains(event.target as Node)) {
-				this.#setMenuOpen(false);
-			}
-		};
-		document.addEventListener('pointerdown', onDocumentPointerDown);
-		this._register({ dispose: () => document.removeEventListener('pointerdown', onDocumentPointerDown) });
-
-		const onMenuKeyDown = (event: KeyboardEvent) => {
-			const items = Array.from(this.#actionMenu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
-			const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
-			if (event.key === 'Escape') {
-				event.preventDefault();
-				this.#setMenuOpen(false);
-				this.#actionToggle.focus();
-			} else if (event.key === 'Tab') {
-				this.#setMenuOpen(false);
-			} else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-				event.preventDefault();
-				const delta = event.key === 'ArrowDown' ? 1 : -1;
-				items[(currentIndex + delta + items.length) % items.length]?.focus();
-			}
-		};
-		this.#actionMenu.addEventListener('keydown', onMenuKeyDown);
-		this._register({ dispose: () => this.#actionMenu.removeEventListener('keydown', onMenuKeyDown) });
-		const onMenuClick = (event: MouseEvent) => {
-			const target = event.target as HTMLButtonElement;
-			const actionId = target.dataset.actionId;
-			if (!actionId) {
-				return;
-			}
-			this.#setMenuOpen(false);
-			this.#primaryAction.focus();
-			postMessage({ type: 'submitAction', actionId });
-		};
-		this.#actionMenu.addEventListener('click', onMenuClick);
-		this._register({ dispose: () => this.#actionMenu.removeEventListener('click', onMenuClick) });
-
-		const reject = () => postMessage({ type: 'rejectReview' });
-		this.#rejectAction.addEventListener('click', reject);
-		this._register({ dispose: () => this.#rejectAction.removeEventListener('click', reject) });
-	}
-
-	update(review: PlanReview | undefined): void {
-		this.#review = review;
-		if (!review) {
-			this.#element.style.display = 'none';
-			this.#overallFeedback.value = '';
-			return;
-		}
-
-		this.#element.querySelector('[role="toolbar"]')?.setAttribute('aria-label', review.approvePlanLabel);
-		this.#overallFeedback.placeholder = review.overallFeedbackLabel;
-		this.#overallFeedback.setAttribute('aria-label', review.overallFeedbackLabel);
-		this.#actionToggle.setAttribute('aria-label', review.approvePlanLabel);
-		this.#rejectAction.textContent = review.rejectLabel;
-		this.#selectedActionId = review.actions.find(action => action.default)?.id ?? review.actions[0]?.id ?? '';
-		this.#renderActionMenu();
-		this.#setMenuOpen(false);
-		this.#element.style.display = '';
-		this.#updatePrimaryAction();
-	}
-
-	#updatePrimaryAction(): void {
-		const review = this.#review;
-		if (!review) {
-			return;
-		}
-		const hasFeedback = review.feedbackCount > 0 || this.#overallFeedback.value.trim().length > 0;
-		const selectedAction = review.actions.find(action => action.id === this.#selectedActionId) ?? review.actions[0];
-		const showActionToggle = !hasFeedback && review.actions.length > 1;
-		this.#actionToggle.style.display = showActionToggle ? '' : 'none';
-		this.#primaryGroup.classList.toggle('has-dropdown', showActionToggle);
-		if (!showActionToggle) {
-			this.#setMenuOpen(false);
-		}
-		this.#primaryAction.textContent = hasFeedback
-			? review.feedbackCount > 0
-				? review.submitFeedbackWithCountLabel.replace('{0}', String(review.feedbackCount))
-				: review.submitFeedbackLabel
-			: selectedAction?.label ?? review.approvePlanLabel;
-		this.#primaryAction.title = hasFeedback ? review.submitFeedbackLabel : selectedAction?.description ?? '';
-	}
-
-	#renderActionMenu(): void {
-		this.#actionMenu.replaceChildren();
-		for (const action of this.#review?.actions ?? []) {
-			if (action.id === this.#selectedActionId) {
-				continue;
-			}
-			const item = document.createElement('button');
-			item.type = 'button';
-			item.setAttribute('role', 'menuitem');
-			item.textContent = action.label;
-			item.title = action.description ?? '';
-			item.dataset.actionId = action.id;
-			this.#actionMenu.appendChild(item);
-		}
-	}
-
-	#setMenuOpen(open: boolean): void {
-		this.#actionMenu.hidden = !open;
-		this.#actionToggle.setAttribute('aria-expanded', String(open));
-		if (open) {
-			this.#actionMenu.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
-		}
-	}
 }
 
 class EditableCommentModeController extends Disposable {
@@ -432,7 +218,6 @@ class Editor extends Disposable {
 	#revealGeneration = 0;
 
 	readonly #comments = new CommentsModel();
-	readonly #review = observableValue<PlanReview | undefined>('planReview', undefined);
 	/** Whether the workbench feedback store currently accepts new comments for this resource. */
 	readonly #acceptsComments = observableValue<boolean>('acceptsComments', false);
 	readonly #vscode = acquireVsCodeApi();
@@ -482,7 +267,6 @@ class Editor extends Disposable {
 					this.#comments.set(comments);
 					this.#isUpdatingComments = false;
 					this.#acceptsComments.set(!!message.acceptsComments, undefined);
-					this.#review.set(message.review, undefined);
 					this.#activeFeedbackId = message.review?.activeFeedbackId;
 					const activeFeedbackRequestId = message.review?.activeFeedbackRequestId ?? 0;
 					if (activeFeedbackRequestId !== this.#activeFeedbackRequestId) {
@@ -561,8 +345,6 @@ class Editor extends Disposable {
 
 		this._register(new EditorController(model, view));
 		host.appendChild(view.element);
-		const reviewToolbar = this._register(new PlanReviewToolbar(host, message => this.#vscode.postMessage(message)));
-		this._register(autorun(reader => reviewToolbar.update(reader.readObservable(this.#review))));
 
 		// Render comments as the VS Code V2 markdown cards. The card colours come
 		// from the webview's own `--vscode-*` theme variables; `theme` only picks

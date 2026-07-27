@@ -78,9 +78,18 @@ function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions
 	});
 
 	const widget = scopedDisposables.add(instantiationService.createInstance(AgentFeedbackOverlayWidget));
-	widget.show(
+	widget.showMenu(
 		options.navigationBearings,
 		options.acceptedFeedbackCount ?? (options.hasAgentFeedbackActions === false ? 0 : options.navigationBearings.totalCount),
+		{
+			menuId: MenuId.for('agentFeedback.fixture'),
+			navigationBearingActionId: navigationBearingFakeActionId,
+			navigatePreviousActionId: navigatePreviousFeedbackActionId,
+			navigateNextActionId: navigateNextFeedbackActionId,
+			submitActionId: submitFeedbackActionId,
+			clearActionId: clearAllFeedbackActionId,
+			submitLabel: count => `Submit ${count}`,
+		},
 	);
 	context.container.appendChild(widget.getDomNode());
 }

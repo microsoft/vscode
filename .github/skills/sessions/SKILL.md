@@ -26,6 +26,8 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 ## Common Pitfalls
 
+- **Custom-editor feedback controls belong in the group-level feedback overlay, not inside each webview**: the editor-group overlay already spans text and custom editors and owns idle-session submission. Extend and reuse that widget for plan review, giving an active plan registration precedence; keep custom editors responsible only for rendering and authoring shared inline comments.
+
 - **A sash element's `left`/`top` is the hit-area edge, not the split boundary**: `SplitView.getSashPosition` returns the exact boundary after the preceding view, then `Sash.layout` subtracts half the sash size so the draggable element is centered on that boundary. Align the Sessions/Editor and bottom-Panel grid sash hit areas to `agents.layout.floatingPanelGap`; do not apply that token to independent geometry such as the Auxiliary Bar's leading padding.
 - **Wrong menu IDs**: Never use `MenuId.*` from `vs/platform/actions` for Agents window UI. Always use `Menus.*` from `browser/menus.ts`.
 - **Durable chat source/origin references**: Store only `turnId` in durable fork/side-chat references. Active versus historical is mutable lifecycle state that consumers must resolve against the current `activeTurn` and retained `turns` when needed; do not encode lifecycle state in the reference type.

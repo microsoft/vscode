@@ -2209,20 +2209,8 @@ export interface IAgentEditorCommentDto {
 }
 
 export interface IAgentEditorReviewDto {
-	actions: readonly {
-		id: string;
-		label: string;
-		description?: string;
-		default?: boolean;
-	}[];
-	feedbackCount: number;
 	activeFeedbackId?: string;
 	activeFeedbackRequestId: number;
-	overallFeedbackLabel: string;
-	rejectLabel: string;
-	submitFeedbackLabel: string;
-	submitFeedbackWithCountLabel: string;
-	approvePlanLabel: string;
 }
 
 export interface MainThreadAgentEditorCommentsShape extends IDisposable {
@@ -2230,9 +2218,6 @@ export interface MainThreadAgentEditorCommentsShape extends IDisposable {
 	$addComment(handle: number, range: IRange, body: string): Promise<void>;
 	$updateCommentRange(handle: number, id: string, range: IRange): Promise<void>;
 	$deleteComment(handle: number, id: string): Promise<void>;
-	$submitAgentEditorFeedback(handle: number, overallFeedback: string | undefined): Promise<void>;
-	$submitAgentEditorAction(handle: number, actionId: string): Promise<void>;
-	$rejectAgentEditorReview(handle: number): Promise<void>;
 	$disposeAgentEditorComments(handle: number): Promise<void>;
 }
 

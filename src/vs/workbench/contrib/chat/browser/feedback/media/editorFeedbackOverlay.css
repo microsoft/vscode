@@ -4,29 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 .agent-feedback-editor-overlay-widget {
-	padding: 2px 4px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
 	color: var(--vscode-foreground);
 	background-color: var(--vscode-editorWidget-background);
 	border-radius: var(--vscode-cornerRadius-medium);
-	border: 1px solid var(--vscode-editorHoverWidget-border);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: 4px;
+	gap: var(--vscode-spacing-size40);
 	z-index: 10;
 	box-shadow: var(--vscode-shadow-lg);
-	overflow: hidden;
+	overflow: visible;
+}
+
+.agent-feedback-editor-overlay-input {
+	width: 200px;
+	min-width: 100px;
+}
+
+.agent-feedback-editor-overlay-widget .inputbox-container {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.agent-feedback-editor-plan-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
 }
 
 .agent-feedback-editor-overlay-widget .action-item > .action-label {
-	padding: 4px 6px;
-	font-size: var(--vscode-agents-fontSize-body2);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-body2);
 	line-height: 14px;
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .agent-feedback-editor-overlay-widget .monaco-action-bar .actions-container {
-	gap: 4px;
+	gap: var(--vscode-spacing-size40);
 }
 
 .agent-feedback-editor-overlay-widget .action-item.primary > .action-label {
@@ -43,7 +58,7 @@
 	width: 22px;
 	height: 22px;
 	padding: 0;
-	font-size: 16px;
+	font-size: var(--vscode-codiconFontSize);
 	line-height: 22px;
 	display: flex;
 	align-items: center;

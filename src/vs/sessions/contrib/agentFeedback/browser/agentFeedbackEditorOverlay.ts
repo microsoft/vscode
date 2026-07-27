@@ -3,184 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/agentFeedbackEditorOverlay.css';
-import { Disposable, DisposableMap, DisposableStore, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableFromEvent, observableSignalFromEvent, observableValue, type IObservable } from '../../../../base/common/observable.js';
-import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { ActionRunner, IAction } from '../../../../base/common/actions.js';
+import { DisposableMap, DisposableStore, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Event } from '../../../../base/common/event.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { EditorGroupView } from '../../../../workbench/browser/parts/editor/editorGroupView.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
-import { hasUnsubmittedAgentFeedback, hasSessionEditorComments, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
-import { assertType } from '../../../../base/common/types.js';
+import { clearAllFeedbackActionId, hasUnsubmittedAgentFeedback, hasSessionEditorComments, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
 import { localize } from '../../../../nls.js';
 import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { getAcceptedAgentFeedbackCommentCount, getSessionEditorComments } from './sessionEditorComments.js';
+import { EditorFeedbackOverlayWidget } from '../../../../workbench/contrib/chat/browser/feedback/editorFeedbackOverlayWidget.js';
+import { IPlanReviewFeedbackService } from '../../../../workbench/contrib/chat/browser/planReviewFeedback/planReviewFeedbackService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { isActiveSessionStatus } from '../../../services/sessions/common/session.js';
 
-class SubmitFeedbackActionRunner extends ActionRunner {
-
-	constructor(private readonly _editorGroup: IEditorGroup) {
-		super();
-	}
-
-	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
-		const editorToClose = action.id === submitFeedbackActionId ? this._editorGroup.activeEditor : undefined;
-		const didSubmit = await action.run(context);
-		if (didSubmit === true && editorToClose) {
-			await this._editorGroup.closeEditor(editorToClose);
-		}
-	}
-}
-
-class AgentFeedbackActionViewItem extends ActionViewItem {
-
-	constructor(
-		action: IAction,
-		options: IBaseActionViewItemOptions,
-		private readonly _keybindingService: IKeybindingService,
-		private readonly _acceptedFeedbackCount?: IObservable<number>,
-		private readonly _editorGroup?: IEditorGroup,
-		private readonly _primaryActionIds: readonly string[] = [submitFeedbackActionId],
-	) {
-		const isIconOnly = action.id === navigatePreviousFeedbackActionId || action.id === navigateNextFeedbackActionId;
-		super(undefined, action, { ...options, icon: isIconOnly, label: !isIconOnly, keybindingNotRenderedWithLabel: true });
-
-		if (this._editorGroup && this._action.id === submitFeedbackActionId) {
-			this.actionRunner = this._register(new SubmitFeedbackActionRunner(this._editorGroup));
-		}
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-		if (this._primaryActionIds.includes(this._action.id)) {
-			this.element?.classList.add('primary');
-		}
-
-		const acceptedFeedbackCount = this._acceptedFeedbackCount;
-		if (this._action.id === submitFeedbackActionId && acceptedFeedbackCount) {
-			this._store.add(autorun(r => {
-				acceptedFeedbackCount.read(r);
-				this.updateLabel();
-				this.updateTooltip();
-			}));
-		}
-	}
-
-	protected override updateLabel(): void {
-		if (this._action.id === submitFeedbackActionId && this.label) {
-			this.label.textContent = this._getSubmitLabel();
-			return;
-		}
-		super.updateLabel();
-	}
-
-	protected override getTooltip(): string | undefined {
-		const value = this._action.id === submitFeedbackActionId ? this._getSubmitLabel() : super.getTooltip();
-		if (!value || this.options.keybinding) {
-			return value;
-		}
-		return this._keybindingService.appendKeybinding(value, this._action.id);
-	}
-
-	private _getSubmitLabel(): string {
-		const acceptedFeedbackCount = this._acceptedFeedbackCount?.get();
-		if (acceptedFeedbackCount === undefined) {
-			return this._action.label;
-		}
-		return localize('agentFeedback.submitCountShort', 'Submit {0}', acceptedFeedbackCount);
-	}
-}
-
-export class AgentFeedbackOverlayWidget extends Disposable {
-
-	private readonly _domNode: HTMLElement;
-	private readonly _toolbarNode: HTMLElement;
-	private readonly _showStore = this._store.add(new DisposableStore());
-	private readonly _navigationBearings = observableValue<{ activeIdx: number; totalCount: number }>(this, { activeIdx: -1, totalCount: 0 });
-	private readonly _acceptedFeedbackCount = observableValue<number>(this, 0);
-
-	constructor(
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-	) {
-		super();
-
-		this._domNode = document.createElement('div');
-		this._domNode.classList.add('agent-feedback-editor-overlay-widget');
-
-		this._toolbarNode = document.createElement('div');
-		this._toolbarNode.classList.add('agent-feedback-editor-overlay-toolbar');
-	}
-
-	getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	show(navigationBearings: { activeIdx: number; totalCount: number }, acceptedFeedbackCount: number, editorGroup?: IEditorGroup): void {
-		this._showStore.clear();
-		this._navigationBearings.set(navigationBearings, undefined);
-		this._acceptedFeedbackCount.set(acceptedFeedbackCount, undefined);
-
-		if (!this._domNode.contains(this._toolbarNode)) {
-			this._domNode.appendChild(this._toolbarNode);
-		}
-
-		this._showStore.add(this._instaService.createInstance(MenuWorkbenchToolBar, this._toolbarNode, Menus.AgentFeedbackEditorContent, {
-			telemetrySource: 'agentFeedback.overlayToolbar',
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			toolbarOptions: {
-				primaryGroup: () => true,
-				useSeparatorsInPrimaryActions: true
-			},
-			menuOptions: { renderShortTitle: true },
-			actionViewItemProvider: (action, options) => {
-				if (action.id === navigationBearingFakeActionId) {
-					const that = this;
-					return new class extends ActionViewItem {
-						constructor() {
-							super(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
-						}
-
-						override render(container: HTMLElement): void {
-							super.render(container);
-							container.classList.add('label-item');
-
-							this._store.add(autorun(r => {
-								assertType(this.label);
-								const { activeIdx, totalCount } = that._navigationBearings.read(r);
-								if (totalCount > 0) {
-									const current = activeIdx === -1 ? 1 : activeIdx + 1;
-									this.label.innerText = localize('nOfM', '{0}/{1}', current, totalCount);
-								} else {
-									this.label.innerText = localize('zero', '0/0');
-								}
-							}));
-						}
-					};
-				}
-
-				return new AgentFeedbackActionViewItem(action, options, this._keybindingService, this._acceptedFeedbackCount, editorGroup);
-			},
-		}));
-		this._showStore.add(toDisposable(() => this._toolbarNode.remove()));
-	}
-
-	hide(): void {
-		this._showStore.clear();
-		this._navigationBearings.set({ activeIdx: -1, totalCount: 0 }, undefined);
-		this._acceptedFeedbackCount.set(0, undefined);
-		this._toolbarNode.remove();
-	}
-}
+export { EditorFeedbackOverlayWidget as AgentFeedbackOverlayWidget };
 
 class AgentFeedbackOverlayController {
 
@@ -194,6 +39,8 @@ class AgentFeedbackOverlayController {
 		@IInstantiationService instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeReviewService codeReviewService: ICodeReviewService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@IPlanReviewFeedbackService planReviewFeedbackService: IPlanReviewFeedbackService,
 	) {
 		this._domNode.classList.add('agent-feedback-editor-overlay');
 		this._domNode.style.position = 'absolute';
@@ -201,7 +48,7 @@ class AgentFeedbackOverlayController {
 		this._domNode.style.right = '24px';
 		this._domNode.style.zIndex = '100';
 
-		const widget = this._store.add(instaService.createInstance(AgentFeedbackOverlayWidget));
+		const widget = this._store.add(instaService.createInstance(EditorFeedbackOverlayWidget));
 		this._domNode.appendChild(widget.getDomNode());
 		this._store.add(toDisposable(() => this._domNode.remove()));
 		const hasCommentsContext = hasSessionEditorComments.bindTo(contextKeyService);
@@ -225,26 +72,38 @@ class AgentFeedbackOverlayController {
 			group.onDidModelChange,
 			agentFeedbackService.onDidChangeFeedback,
 			agentFeedbackService.onDidChangeNavigation,
+			planReviewFeedbackService.onDidChangeRegistrations,
 		));
 
 		this._store.add(autorun(r => {
 			activeSignal.read(r);
 
 			const candidates = getActiveResourceCandidates(group.activeEditorPane?.input);
+			if (candidates.some(candidate => planReviewFeedbackService.isActivePlanReview(candidate))) {
+				hasCommentsContext.set(false);
+				hasAgentFeedbackContext.set(false);
+				hide();
+				return;
+			}
 			let navigationBearings = undefined;
 			let acceptedFeedbackCount = 0;
+			let sessionResource: URI | undefined;
+			let canSubmitOverallFeedback = false;
 			for (const candidate of candidates) {
-				const sessionResource = agentFeedbackService.getSessionForFile(candidate)?.resource;
-				if (!sessionResource) {
+				const candidateSessionResource = agentFeedbackService.getSessionForFile(candidate)?.resource;
+				if (!candidateSessionResource) {
 					continue;
 				}
+				sessionResource = candidateSessionResource;
+				const session = sessionsManagementService.getSession(sessionResource);
+				canSubmitOverallFeedback = !!session && !isActiveSessionStatus(session.status.read(r));
 
 				const comments = getSessionEditorComments(
 					sessionResource,
 					agentFeedbackService.getFeedback(sessionResource),
 					codeReviewService.getPRReviewState(sessionResource).read(r),
 				);
-				if (comments.length > 0) {
+				if (comments.length > 0 || canSubmitOverallFeedback) {
 					navigationBearings = agentFeedbackService.getNavigationBearing(sessionResource, comments);
 					acceptedFeedbackCount = getAcceptedAgentFeedbackCommentCount(comments);
 					break;
@@ -258,9 +117,27 @@ class AgentFeedbackOverlayController {
 				return;
 			}
 
-			hasCommentsContext.set(true);
-			hasAgentFeedbackContext.set(acceptedFeedbackCount > 0);
-			widget.show(navigationBearings, acceptedFeedbackCount, group);
+			hasCommentsContext.set(navigationBearings.totalCount > 0);
+			hasAgentFeedbackContext.set(acceptedFeedbackCount > 0 || (canSubmitOverallFeedback && widget.inputValue.trim().length > 0));
+			widget.showMenu(navigationBearings, acceptedFeedbackCount, {
+				menuId: Menus.AgentFeedbackEditorContent,
+				navigationBearingActionId: navigationBearingFakeActionId,
+				navigatePreviousActionId: navigatePreviousFeedbackActionId,
+				navigateNextActionId: navigateNextFeedbackActionId,
+				submitActionId: submitFeedbackActionId,
+				clearActionId: clearAllFeedbackActionId,
+				submitLabel: count => count > 0
+					? localize('agentFeedback.submitCountShort', 'Submit {0}', count)
+					: localize('agentFeedback.submitFeedback', 'Submit Feedback'),
+				editorGroup: group,
+				input: canSubmitOverallFeedback && sessionResource ? {
+					key: sessionResource.toString(),
+					placeholder: localize('agentFeedback.overallFeedbackPlaceholder', "Add overall feedback"),
+					ariaLabel: localize('agentFeedback.overallFeedbackAriaLabel', "Overall session feedback"),
+					onDidChange: value => hasAgentFeedbackContext.set(acceptedFeedbackCount > 0 || value.trim().length > 0),
+					onSubmit: value => agentFeedbackService.submitFeedback(sessionResource, value),
+				} : undefined,
+			});
 			show();
 		}));
 	}

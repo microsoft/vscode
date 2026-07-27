@@ -630,5 +630,10 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			state: AgentFeedbackState.Submitted,
 		});
 	});
-});
 
+	test('includes overall feedback in the act-on-feedback request', async () => {
+		await service.submitFeedback(session, 'Please simplify the whole change');
+
+		assert.ok(widgetOps.includes('accept:/act-on-feedback Please simplify the whole change'));
+	});
+});

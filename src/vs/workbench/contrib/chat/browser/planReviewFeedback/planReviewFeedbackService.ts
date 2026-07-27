@@ -11,7 +11,6 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IChatPlanApprovalAction } from '../../common/chatService/chatService.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { IAgentEditorComment, IAgentEditorCommentsBridge, IAgentEditorCommentsProvider, IAgentEditorReview } from '../../../../services/agentEditorComments/common/agentEditorComments.js';
-import { localize } from '../../../../../nls.js';
 
 export interface IPlanReviewFeedbackItem {
 	readonly id: string;
@@ -24,6 +23,7 @@ export interface IPlanReviewFeedbackItem {
 
 export interface IPlanReviewFeedbackRegistration {
 	readonly actions: readonly IChatPlanApprovalAction[];
+	readonly canProvideFeedback: boolean;
 	readonly submitFeedback: (overallFeedback?: string) => Promise<void>;
 	readonly submitAction: (action: IChatPlanApprovalAction) => Promise<void>;
 	readonly reject: () => Promise<void>;
@@ -40,6 +40,7 @@ export interface IPlanReviewFeedbackService {
 
 	registerPlanReview(planUri: URI, registration: IPlanReviewFeedbackRegistration): IDisposable;
 	isActivePlanReview(uri: URI): boolean;
+	canProvideFeedback(uri: URI): boolean;
 	getPlanReview(uri: URI): IPlanReviewFeedbackRegistration | undefined;
 	addFeedback(planUri: URI, line: number, column: number, text: string): string;
 	addFeedbackForRange(planUri: URI, range: IRange, text: string): string;
@@ -101,6 +102,10 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 		return this._registrations.has(uri.toString());
 	}
 
+	canProvideFeedback(uri: URI): boolean {
+		return this._registrations.get(uri.toString())?.review.canProvideFeedback ?? false;
+	}
+
 	getPlanReview(uri: URI): IPlanReviewFeedbackRegistration | undefined {
 		return this._registrations.get(uri.toString())?.review;
 	}
@@ -117,7 +122,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	addFeedbackForRange(planUri: URI, range: IRange, text: string): string {
 		const key = planUri.toString();
 		const registration = this._registrations.get(key);
-		if (!registration) {
+		if (!registration?.review.canProvideFeedback) {
 			return '';
 		}
 
@@ -285,7 +290,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	}
 
 	acceptsComments(resource: URI): boolean {
-		return this.isActivePlanReview(resource);
+		return this.canProvideFeedback(resource);
 	}
 
 	getComments(resource: URI): readonly IAgentEditorComment[] {
@@ -319,34 +324,8 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 			return undefined;
 		}
 		return {
-			actions: registration.review.actions.map((action, index) => ({
-				id: action.id ?? `action-${index}`,
-				label: action.label,
-				description: action.description,
-				default: action.default,
-			})),
-			feedbackCount: registration.items.length,
 			activeFeedbackId: registration.navigationAnchor,
 			activeFeedbackRequestId: registration.navigationRequestId,
-			overallFeedbackLabel: localize('planReviewFeedback.overallFeedback', 'Overall Feedback'),
-			rejectLabel: localize('planReviewFeedback.reject', 'Reject'),
-			submitFeedbackLabel: localize('planReviewFeedback.submitFeedback', 'Submit Feedback'),
-			submitFeedbackWithCountLabel: localize('planReviewFeedback.submitFeedbackWithCount', 'Submit Feedback ({0})'),
-			approvePlanLabel: localize('planReviewFeedback.approvePlan', 'Approve Plan'),
 		};
-	}
-
-	submitFeedback(resource: URI, overallFeedback: string | undefined): Promise<void> {
-		return this._registrations.get(resource.toString())?.review.submitFeedback(overallFeedback) ?? Promise.resolve();
-	}
-
-	submitAction(resource: URI, actionId: string): Promise<void> {
-		const registration = this._registrations.get(resource.toString());
-		const action = registration?.review.actions.find((candidate, index) => (candidate.id ?? `action-${index}`) === actionId);
-		return registration && action ? registration.review.submitAction(action) : Promise.resolve();
-	}
-
-	reject(resource: URI): Promise<void> {
-		return this._registrations.get(resource.toString())?.review.reject() ?? Promise.resolve();
 	}
 }

@@ -22,20 +22,8 @@ declare module 'vscode' {
 	}
 
 	export interface AgentEditorReview {
-		readonly actions: readonly {
-			readonly id: string;
-			readonly label: string;
-			readonly description?: string;
-			readonly default?: boolean;
-		}[];
-		readonly feedbackCount: number;
 		readonly activeFeedbackId?: string;
 		readonly activeFeedbackRequestId: number;
-		readonly overallFeedbackLabel: string;
-		readonly rejectLabel: string;
-		readonly submitFeedbackLabel: string;
-		readonly submitFeedbackWithCountLabel: string;
-		readonly approvePlanLabel: string;
 	}
 
 	/**
@@ -90,12 +78,6 @@ declare module 'vscode' {
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		deleteComment(id: string): void;
-		// eslint-disable-next-line local/vscode-dts-provider-naming
-		submitFeedback(overallFeedback?: string): Thenable<void>;
-		// eslint-disable-next-line local/vscode-dts-provider-naming
-		submitAction(actionId: string): Thenable<void>;
-		// eslint-disable-next-line local/vscode-dts-provider-naming
-		reject(): Thenable<void>;
 	}
 
 	export namespace window {
