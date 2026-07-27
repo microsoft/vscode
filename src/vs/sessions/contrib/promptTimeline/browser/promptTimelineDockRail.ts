@@ -17,8 +17,9 @@ import './media/promptTimeline.css';
 
 /**
  * Upper bound on the number of resting dots drawn on the handle. The flyout list is uncapped (it
- * lists every prompt), but the dot preview would grow unboundedly tall for very long sessions, so
- * it is capped and an overflow indicator is shown once there are more prompts than dots.
+ * lists every prompt), but the dot column would grow unboundedly tall for very long sessions, so it
+ * is capped: past the cap the dots are evenly sampled across the session (every dot still stands for
+ * a real prompt, so the "you are here" dot always exists) and a trailing marker signals the sampling.
  */
 const MAX_REST_DOTS = 50;
 
@@ -34,10 +35,12 @@ let dockIdSeq = 0;
 
 /**
  * A minimal, left-edge prompt timeline. At rest it is only a small handle in the transcript's left
- * gutter (one dot per prompt) — no per-prompt marks, no diff colour — so the transcript stays calm.
- * Hovering, tapping, or focusing the handle expands a flyout listing every prompt (its text and a
- * diff badge); activating a row reveals that prompt and closes the flyout. Because the list is
- * evenly spaced and never derived from response heights, it stays stable under virtualization.
+ * gutter (one dot per prompt, the current prompt's dot accented) — no per-prompt marks, no diff
+ * colour — so the transcript stays calm. Hovering, tapping, or focusing the handle expands a flyout
+ * listing every prompt (its text and a diff badge) to the *right* of the dots, so the dots stay
+ * visible and keep working as a scrubber: hovering an individual dot previews its prompt in the
+ * flyout. Activating a row reveals that prompt and closes the flyout. Because the list is evenly
+ * spaced and never derived from response heights, it stays stable under virtualization.
  *
  * The handle is an accessible disclosure button (`aria-expanded`/`aria-controls`) wired for mouse,
  * touch (via {@link Gesture}) and keyboard; the flyout is a single-tab-stop toolbar whose rows are
@@ -54,12 +57,17 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 	private readonly _list: HTMLElement;
 	private readonly _rowDisposables = this._register(new DisposableStore());
 	private readonly _rows: IRowEntry[] = [];
+	/** The resting dots, in order; `_dotTicks[i]` is the tick index dot `i` stands for. */
+	private readonly _dots: HTMLElement[] = [];
+	private readonly _dotTicks: number[] = [];
 	private _activeRequestId: string | undefined;
 	private _hostWidth = Number.POSITIVE_INFINITY;
 	/** Disclosure held open by explicit activation (handle click/tap/keyboard, or a row focused via keyboard). */
 	private _open = false;
 	/** Pointer is over the rail; reveals the flyout transiently (independent of {@link _open}). */
 	private _hovering = false;
+	/** Tick index previewed by the dot currently under the pointer, or `-1` when no dot is hovered. */
+	private _previewIndex = -1;
 
 	private readonly _onDidSelect = this._register(new Emitter<string>());
 	readonly onDidSelect: Event<string> = this._onDidSelect.event;
@@ -83,7 +91,8 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 		const panelId = `prompt-timeline-dock-panel-${dockIdSeq++}`;
 
 		// The resting affordance is a disclosure button that expands the flyout. It carries one dot per
-		// prompt (built in `setTicks`); the dots are decorative, so the button owns the accessible name.
+		// prompt (built in `setTicks`); the dots are decorative — pointer targets only, never focusable —
+		// so the button owns the accessible name and the flyout rows carry the per-prompt semantics.
 		this._rest = append(this._domNode, $<HTMLButtonElement>('button.prompt-timeline-dock-rest'));
 		this._rest.setAttribute('aria-haspopup', 'true');
 		this._rest.setAttribute('aria-expanded', 'false');
@@ -97,7 +106,10 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 		// Mouse: reveal while the pointer is over the rail subtree. The rail element is
 		// pointer-transparent (its children opt back in), so `mouseenter` never fires on it — bubble
 		// `mouseover`/`mouseout` from the handle and flyout instead, and only collapse once the pointer
-		// truly leaves the rail subtree.
+		// truly leaves the rail subtree. The handle and the flyout are laid out flush (the flyout starts
+		// exactly at the handle's right edge — see the shared `--prompt-timeline-dock-handle-*` vars), so
+		// they form one contiguous hover region: travelling between them keeps `relatedTarget` inside the
+		// rail and never collapses, which means a leave here is always a real leave.
 		this._register(addDisposableListener(this._domNode, EventType.MOUSE_OVER, () => {
 			this._hovering = true;
 			this._updateRevealed();
@@ -105,9 +117,14 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 		this._register(addDisposableListener(this._domNode, EventType.MOUSE_OUT, (e: MouseEvent) => {
 			if (!this._domNode.contains(e.relatedTarget as Node | null)) {
 				this._hovering = false;
+				this._setPreview(-1);
 				this._updateRevealed();
 			}
 		}));
+
+		// Once the pointer is browsing the flyout itself, the row under it is the subject; drop the
+		// dot-driven preview so only one row reads as highlighted.
+		this._register(addDisposableListener(this._list, EventType.MOUSE_OVER, () => this._setPreview(-1)));
 
 		// Touch + click + keyboard toggle on the handle (iOS needs both click and tap per Sessions guidance).
 		this._register(Gesture.addTarget(this._rest));
@@ -169,16 +186,65 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 		// The dock does not surface per-file changes; the ruler rail's hover card does.
 	}
 
-	/** Rebuilds the resting handle's dots so there is one per prompt, capped at {@link MAX_REST_DOTS}. */
+	/**
+	 * Rebuilds the resting handle's dots. There is one dot per prompt up to {@link MAX_REST_DOTS};
+	 * beyond that the dots are evenly sampled across the session so every dot still stands for a real
+	 * prompt (and the active prompt always maps to one), with a trailing marker signalling the sampling.
+	 */
 	private _renderDots(count: number): void {
 		clearNode(this._rest);
+		this._dots.length = 0;
+		this._dotTicks.length = 0;
 		const dots = Math.min(count, MAX_REST_DOTS);
 		for (let i = 0; i < dots; i++) {
-			append(this._rest, $('.prompt-timeline-dock-dot'));
+			const dot = append(this._rest, $('.prompt-timeline-dock-dot'));
+			const tickIndex = dots === count ? i : Math.round(i * (count - 1) / (dots - 1));
+			this._dots.push(dot);
+			this._dotTicks.push(tickIndex);
+			// Hovering a dot previews the prompt it stands for: the flyout is already revealed by the
+			// bubbling `mouseover`, so this just brings that row into view and highlights it.
+			this._rowDisposables.add(addDisposableListener(dot, EventType.MOUSE_OVER, () => this._setPreview(tickIndex)));
 		}
-		// More prompts than dots: a small trailing marker signals the count is truncated.
+		// The dots are sampled rather than one-per-prompt: a small trailing marker signals the elision.
 		if (count > MAX_REST_DOTS) {
 			append(this._rest, $('.prompt-timeline-dock-dot-more'));
+		}
+	}
+
+	/** Previews the prompt a hovered dot stands for by highlighting its row and scrolling it into view. */
+	private _setPreview(index: number): void {
+		if (this._previewIndex === index) {
+			return;
+		}
+		this._previewIndex = index;
+		for (let i = 0; i < this._rows.length; i++) {
+			this._rows[i].button.classList.toggle('preview', i === index);
+		}
+		for (let i = 0; i < this._dots.length; i++) {
+			this._dots[i].classList.toggle('preview', this._dotTicks[i] === index);
+		}
+		if (index >= 0) {
+			this._revealRow(index);
+		}
+	}
+
+	/**
+	 * Scrolls a row into view inside the flyout. Done by hand rather than with `scrollIntoView` so a
+	 * hover can never scroll the transcript (or any other ancestor) behind the rail.
+	 */
+	private _revealRow(index: number): void {
+		const button = this._rows[index]?.button;
+		if (!button) {
+			return;
+		}
+		const top = button.offsetTop;
+		const bottom = top + button.offsetHeight;
+		const viewTop = this._list.scrollTop;
+		const viewBottom = viewTop + this._list.clientHeight;
+		if (top < viewTop) {
+			this._list.scrollTop = top;
+		} else if (bottom > viewBottom) {
+			this._list.scrollTop = bottom - this._list.clientHeight;
 		}
 	}
 
@@ -196,8 +262,9 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 
 		this._rowDisposables.clear();
 		this._rows.length = 0;
+		this._previewIndex = -1;
 		clearNode(this._list);
-		// One resting dot per prompt, so the handle previews how many prompts the flyout holds.
+		// The resting dots preview how many prompts the flyout holds and where the transcript is.
 		this._renderDots(ticks.length);
 
 		for (const tick of ticks) {
@@ -286,9 +353,14 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 	}
 
 	private _updateActiveClasses(): void {
-		for (const row of this._rows) {
+		let activeIndex = -1;
+		for (let i = 0; i < this._rows.length; i++) {
+			const row = this._rows[i];
 			const active = this._activeRequestId !== undefined
 				&& (row.tick.requestId === this._activeRequestId || row.tick.allRequestIds.includes(this._activeRequestId));
+			if (active) {
+				activeIndex = i;
+			}
 			row.button.classList.toggle('active', active);
 			// Expose the current prompt to assistive tech, mirroring the overview-ruler rail.
 			if (active) {
@@ -296,6 +368,29 @@ export class PromptTimelineDockRail extends Disposable implements IPromptTimelin
 			} else {
 				row.button.removeAttribute('aria-current');
 			}
+		}
+		this._updateActiveDot(activeIndex);
+	}
+
+	/**
+	 * Accents the dot standing for the prompt the transcript is scrolled to, so the resting handle
+	 * reads as a "you are here" and tracks scrolling. Once the dots are sampled
+	 * ({@link MAX_REST_DOTS}) the nearest dot stands in for the active prompt.
+	 */
+	private _updateActiveDot(activeIndex: number): void {
+		let activeDot = -1;
+		if (activeIndex >= 0) {
+			let bestDelta = Number.POSITIVE_INFINITY;
+			for (let i = 0; i < this._dotTicks.length; i++) {
+				const delta = Math.abs(this._dotTicks[i] - activeIndex);
+				if (delta < bestDelta) {
+					bestDelta = delta;
+					activeDot = i;
+				}
+			}
+		}
+		for (let i = 0; i < this._dots.length; i++) {
+			this._dots[i].classList.toggle('active', i === activeDot);
 		}
 	}
 
