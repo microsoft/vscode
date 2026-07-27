@@ -17,7 +17,8 @@ import '../common/voiceTranscriptStore.js';
 // Register the Voice Transcripts view + show-command + chat-menu entry
 import './transcriptsView/voiceTranscripts.contribution.js';
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { addDisposableListener } from '../../../../base/browser/dom.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { FileAccess } from '../../../../base/common/network.js';
@@ -34,9 +35,9 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_DISABLE_COMMAND_ID, AGENTS_VOICE_LISTENING, AGENTS_VOICE_PREVIEW_COMMAND_ID } from '../common/agentsVoice.js';
+import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONFIGURE_COMMAND_ID, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_DISABLE_COMMAND_ID, AGENTS_VOICE_LISTENING, AGENTS_VOICE_PREVIEW_COMMAND_ID } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import {
 	VoiceEnabledClassification, VoiceEnabledEvent,
@@ -162,7 +163,7 @@ class AgentsVoiceOnboardingBannerContribution extends Disposable implements IWor
 			id: AGENTS_VOICE_ONBOARDING_BANNER_ID,
 			icon: Codicon.voiceMode,
 			message,
-			ariaLabel: nls.localize('agentsVoice.onboardingBanner.ariaLabel', "{0} Use the banner actions to configure settings, preview the voice, or disable Voice Mode.", message),
+			ariaLabel: nls.localize('agentsVoice.onboardingBanner.ariaLabel', "{0} Use the banner actions to configure settings, preview or choose the voice, or disable Voice Mode.", message),
 			actions: [
 				{
 					label: nls.localize('agentsVoice.onboardingBanner.configure', "Configure Settings"),
@@ -171,6 +172,10 @@ class AgentsVoiceOnboardingBannerContribution extends Disposable implements IWor
 				{
 					label: nls.localize('agentsVoice.onboardingBanner.preview', "Preview Voice"),
 					href: `command:${AGENTS_VOICE_PREVIEW_COMMAND_ID}`,
+				},
+				{
+					label: nls.localize('agentsVoice.onboardingBanner.chooseVoice', "Choose Voice"),
+					href: `command:${AGENTS_VOICE_CONFIGURE_COMMAND_ID}`,
 				},
 				{
 					label: nls.localize('agentsVoice.onboardingBanner.disable', "Disable Voice Mode"),
@@ -467,8 +472,41 @@ function isVoicePreview(voice: string): voice is VoicePreview {
 	return Object.prototype.hasOwnProperty.call(voicePreviewFiles, voice);
 }
 
+let currentVoicePreview: { audio: HTMLAudioElement; endedListener: IDisposable } | undefined;
+
+function stopVoicePreview(): void {
+	if (!currentVoicePreview) {
+		return;
+	}
+
+	const { audio, endedListener } = currentVoicePreview;
+	currentVoicePreview = undefined;
+	audio.pause();
+	endedListener.dispose();
+}
+
+async function playVoicePreview(voice: VoicePreview, notificationService: INotificationService): Promise<void> {
+	stopVoicePreview();
+
+	const audio = new mainWindow.Audio(FileAccess.asBrowserUri(`vs/workbench/contrib/agentsVoice/browser/media/${voicePreviewFiles[voice]}`).toString(true));
+	const endedListener = addDisposableListener(audio, 'ended', () => {
+		if (currentVoicePreview?.audio === audio) {
+			stopVoicePreview();
+		}
+	});
+	currentVoicePreview = { audio, endedListener };
+
+	try {
+		await audio.play();
+	} catch {
+		if (currentVoicePreview?.audio === audio) {
+			stopVoicePreview();
+			notificationService.error(nls.localize('agentsVoice.previewVoiceFailed', "Unable to preview the selected Voice Mode voice."));
+		}
+	}
+}
+
 class PreviewVoiceAction extends Action2 {
-	private static currentAudio: HTMLAudioElement | undefined;
 
 	constructor() {
 		super({
@@ -485,28 +523,57 @@ class PreviewVoiceAction extends Action2 {
 		const configuredVoice = configurationService.getValue<string>('agents.voice.voice') ?? 'maya_neutral';
 		const voice = isVoicePreview(configuredVoice) ? configuredVoice : 'maya_neutral';
 
-		PreviewVoiceAction.currentAudio?.pause();
-
-		const audio = new mainWindow.Audio(FileAccess.asBrowserUri(`vs/workbench/contrib/agentsVoice/browser/media/${voicePreviewFiles[voice]}`).toString(true));
-		PreviewVoiceAction.currentAudio = audio;
-		audio.onended = () => {
-			if (PreviewVoiceAction.currentAudio === audio) {
-				PreviewVoiceAction.currentAudio = undefined;
-			}
-		};
-
-		try {
-			await audio.play();
-		} catch {
-			if (PreviewVoiceAction.currentAudio === audio) {
-				PreviewVoiceAction.currentAudio = undefined;
-				notificationService.error(nls.localize('agentsVoice.previewVoiceFailed', "Unable to preview the selected Voice Mode voice."));
-			}
-		}
+		await playVoicePreview(voice, notificationService);
 	}
 }
 
 registerAction2(PreviewVoiceAction);
+
+interface VoiceQuickPickItem extends IQuickPickItem {
+	readonly voice: VoicePreview;
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: AGENTS_VOICE_CONFIGURE_COMMAND_ID,
+			title: nls.localize2('agentsVoice.configureVoice', "Voice Mode: Configure Voice"),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const notificationService = accessor.get(INotificationService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const configuredVoice = configurationService.getValue<string>('agents.voice.voice') ?? 'maya_neutral';
+		const items: VoiceQuickPickItem[] = [
+			{ label: nls.localize('agentsVoice.voice.victoria', "Victoria"), voice: 'victoria_neutral' },
+			{ label: nls.localize('agentsVoice.voice.kevin', "Kevin"), voice: 'kevin_neutral' },
+			{ label: nls.localize('agentsVoice.voice.maya', "Maya"), voice: 'maya_neutral' },
+			{ label: nls.localize('agentsVoice.voice.daniel', "Daniel"), voice: 'daniel_neutral' },
+		];
+		const activeItem = items.find(item => item.voice === configuredVoice) ?? items[2];
+		let selectedItem: VoiceQuickPickItem | undefined;
+
+		try {
+			selectedItem = await quickInputService.pick(items, {
+				title: nls.localize('agentsVoice.configureVoice.title', "Select Voice Mode Voice"),
+				placeHolder: nls.localize('agentsVoice.configureVoice.placeholder', "Focus a voice to preview it"),
+				activeItem,
+				onDidFocus: item => {
+					void playVoicePreview(item.voice, notificationService);
+				},
+			});
+		} finally {
+			stopVoicePreview();
+		}
+
+		if (selectedItem) {
+			await configurationService.updateValue('agents.voice.voice', selectedItem.voice);
+		}
+	}
+});
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -704,7 +771,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('agents.voice.voice.maya', "Maya."),
 				nls.localize('agents.voice.voice.daniel', "Daniel."),
 			],
-			description: nls.localize('agents.voice.voice', "The voice used when the assistant reads responses aloud. Changing this while voice mode is connected takes effect immediately."),
+			markdownDescription: nls.localize('agents.voice.voice', "The voice used when the assistant reads responses aloud. [Choose a voice and preview samples](command:{0}). Changing this while voice mode is connected takes effect immediately.", AGENTS_VOICE_CONFIGURE_COMMAND_ID),
 			default: 'maya_neutral',
 			scope: ConfigurationScope.APPLICATION,
 		},
