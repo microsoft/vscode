@@ -14,24 +14,22 @@ import { EditorOption } from '../../../../editor/common/config/editorOptions.js'
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
-import { addStandardDisposableListener, getWindow, isHTMLElement, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
+import { addStandardDisposableListener, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Event } from '../../../../base/common/event.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { FeedbackInputWidget } from './feedbackInputWidget.js';
 
 const addFeedbackAtCurrentLineActionId = 'agentFeedbackEditor.action.addAtCurrentLine';
 const agentFeedbackHoverGlyphClassName = 'agent-feedback-glyph';
@@ -40,113 +38,41 @@ const hasAgentFeedbackSessionForEditor = new RawContextKey<boolean>('agentFeedba
 /**
  * The inline "Add Feedback" input shown in the editor when the user selects a
  * range to comment on. Exported so it can be rendered in a component fixture;
- * it only depends on {@link ICodeEditor} for its layout geometry.
+ * it only depends on {@link ICodeEditor} for its layout geometry. Wraps the
+ * reusable {@link FeedbackInputWidget} core as an {@link IOverlayWidget}.
  */
 export class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 
 	private static readonly _ID = 'agentFeedback.inputWidget';
-	private static readonly _MIN_WIDTH = 150;
-	private static readonly _MAX_WIDTH = 400;
-	// The input should never be wider than the editor itself. Cap it to this
-	// fraction of the editor width so it doesn't render past the editor bounds
-	// on narrow editors.
-	private static readonly _MAX_WIDTH_EDITOR_FRACTION = 0.9;
 
 	readonly allowEditorOverflow = false;
 
-	private readonly _domNode: HTMLElement;
-	private readonly _inputElement: HTMLTextAreaElement;
-	private readonly _measureElement: HTMLElement;
-	private readonly _actionBar: ActionBar;
-	private readonly _addAction: Action;
-	private readonly _addAndSubmitAction: Action;
+	private readonly _core: FeedbackInputWidget;
 	private _position: IOverlayWidgetPosition | null = null;
-	private _lineHeight = 0;
 
-	private readonly _onDidTriggerAdd = this._register(new Emitter<void>());
-	readonly onDidTriggerAdd: Event<void> = this._onDidTriggerAdd.event;
-
-	private readonly _onDidTriggerAddAndSubmit = this._register(new Emitter<void>());
-	readonly onDidTriggerAddAndSubmit: Event<void> = this._onDidTriggerAddAndSubmit.event;
+	readonly onDidTriggerAdd: Event<void>;
+	readonly onDidTriggerAddAndSubmit: Event<void>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 	) {
 		super();
-		this._domNode = document.createElement('div');
-		this._domNode.classList.add('agent-feedback-input-widget');
-		this._domNode.style.display = 'none';
-
-		this._inputElement = document.createElement('textarea');
-		this._inputElement.rows = 1;
-		this._inputElement.placeholder = localize('agentFeedback.addFeedback', "Add Feedback");
-		this._domNode.appendChild(this._inputElement);
-
-		// Hidden element used to measure text width for auto-growing
-		this._measureElement = document.createElement('span');
-		this._measureElement.classList.add('agent-feedback-input-measure');
-		this._domNode.appendChild(this._measureElement);
-
-		// Action bar with add/submit actions
-		const actionsContainer = document.createElement('div');
-		actionsContainer.classList.add('agent-feedback-input-actions');
-		this._domNode.appendChild(actionsContainer);
-
-		this._addAction = this._register(new Action(
-			'agentFeedback.add',
-			localize('agentFeedback.add', "Add Feedback"),
-			ThemeIcon.asClassName(Codicon.plus),
-			false,
-			() => { this._onDidTriggerAdd.fire(); return Promise.resolve(); }
-		));
-
-		this._addAndSubmitAction = this._register(new Action(
-			'agentFeedback.addAndSubmit',
-			localize('agentFeedback.addAndSubmit', "Add Feedback and Submit"),
-			ThemeIcon.asClassName(Codicon.send),
-			false,
-			() => { this._onDidTriggerAddAndSubmit.fire(); return Promise.resolve(); }
-		));
-
-		this._actionBar = this._register(new ActionBar(actionsContainer));
-		this._actionBar.push(this._addAction, { icon: true, label: false, keybinding: localize('enter', "Enter") });
-
-		// Toggle to alt action when Alt key is held
-		const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
-		this._register(modifierKeyEmitter.event(status => {
-			this._updateActionForAlt(status.altKey);
+		this._core = this._register(new FeedbackInputWidget({
+			placeholder: localize('agentFeedback.addFeedback', "Add Feedback"),
+			getMaxContentWidth: () => this._computeContentWidth(),
+			primaryAction: {
+				label: localize('agentFeedback.add', "Add Feedback"),
+				icon: Codicon.plus,
+				keybindingLabel: localize('enter', "Enter"),
+			},
+			secondaryAction: {
+				label: localize('agentFeedback.addAndSubmit', "Add Feedback and Submit"),
+				icon: Codicon.send,
+				keybindingLabel: localize('altEnter', "Alt+Enter"),
+			},
 		}));
-
-		// Focus the input when clicking anywhere on the widget that isn't the
-		// textarea itself or the action bar (e.g. padding around the textarea).
-		this._register(addStandardDisposableListener(this._domNode, 'mousedown', e => {
-			const target = e.target as Node | null;
-			if (target === this._inputElement) {
-				return;
-			}
-			if (actionsContainer.contains(target)) {
-				return;
-			}
-			e.preventDefault();
-			this._inputElement.focus();
-		}));
-
-		this._lineHeight = 22;
-		this._inputElement.style.lineHeight = `${this._lineHeight}px`;
-	}
-
-	private _isShowingAlt = false;
-
-	private _updateActionForAlt(altKey: boolean): void {
-		if (altKey && !this._isShowingAlt) {
-			this._isShowingAlt = true;
-			this._actionBar.clear();
-			this._actionBar.push(this._addAndSubmitAction, { icon: true, label: false, keybinding: localize('altEnter', "Alt+Enter") });
-		} else if (!altKey && this._isShowingAlt) {
-			this._isShowingAlt = false;
-			this._actionBar.clear();
-			this._actionBar.push(this._addAction, { icon: true, label: false, keybinding: localize('enter', "Enter") });
-		}
+		this.onDidTriggerAdd = this._core.onDidTriggerPrimary;
+		this.onDidTriggerAddAndSubmit = this._core.onDidTriggerSecondary;
 	}
 
 	getId(): string {
@@ -154,7 +80,7 @@ export class AgentFeedbackInputWidget extends Disposable implements IOverlayWidg
 	}
 
 	getDomNode(): HTMLElement {
-		return this._domNode;
+		return this._core.domNode;
 	}
 
 	getPosition(): IOverlayWidgetPosition | null {
@@ -162,7 +88,7 @@ export class AgentFeedbackInputWidget extends Disposable implements IOverlayWidg
 	}
 
 	get inputElement(): HTMLTextAreaElement {
-		return this._inputElement;
+		return this._core.inputElement;
 	}
 
 	setPosition(position: IOverlayWidgetPosition | null): void {
@@ -171,75 +97,36 @@ export class AgentFeedbackInputWidget extends Disposable implements IOverlayWidg
 	}
 
 	show(): void {
-		this._domNode.style.display = '';
+		this._core.show();
 	}
 
 	hide(): void {
-		this._domNode.style.display = 'none';
+		this._core.hide();
 	}
 
 	clearInput(): void {
-		this._inputElement.value = '';
-		this._updateActionEnabled();
-		this._autoSize();
+		this._core.clearInput();
 	}
 
 	setPlaceholder(placeholder: string): void {
-		if (this._inputElement.placeholder === placeholder) {
-			return;
-		}
-		this._inputElement.placeholder = placeholder;
-		this._autoSize();
+		this._core.setPlaceholder(placeholder);
 	}
 
 	autoSize(): void {
-		this._autoSize();
+		this._core.autoSize();
 	}
 
 	updateActionEnabled(): void {
-		this._updateActionEnabled();
+		this._core.updateActionEnabled();
 	}
 
-	private _updateActionEnabled(): void {
-		const hasText = this._inputElement.value.trim().length > 0;
-		this._addAction.enabled = hasText;
-		this._addAndSubmitAction.enabled = hasText;
-	}
-
-	private _autoSize(): void {
-		const text = this._inputElement.value || this._inputElement.placeholder;
-
-		// Measure the text width using the hidden span
-		this._measureElement.textContent = text;
-		const textWidth = this._measureElement.scrollWidth;
-
-		// Clamp width between min and a max that never exceeds the editor width.
-		// On very narrow editors the max can drop below the nominal minimum, so
-		// derive an effective minimum that never exceeds the max and apply it
-		// inline to override the CSS `min-width` (otherwise the textarea would be
-		// forced back up to its CSS minimum and overflow the editor).
-		const maxWidth = this._computeMaxWidth();
-		const minWidth = Math.min(AgentFeedbackInputWidget._MIN_WIDTH, maxWidth);
-		const desiredWidth = Math.max(minWidth, textWidth + 10);
-		const width = Math.min(desiredWidth, maxWidth);
-		this._inputElement.style.minWidth = `${minWidth}px`;
-		this._inputElement.style.width = `${width}px`;
-
-		// Reset height to auto then expand to fit all content, with a minimum of 1 line
-		this._inputElement.style.height = 'auto';
-		const newHeight = Math.max(this._inputElement.scrollHeight, this._lineHeight);
-		this._inputElement.style.height = `${newHeight}px`;
-	}
-
-	private _computeMaxWidth(): number {
+	private _computeContentWidth(): number {
 		// The widget sticks to the editor's content left edge, so the space it
 		// has available is the content area width (to the right of the line
 		// numbers/glyph margin), not the full editor width.
 		const layoutInfo = this._editor.getLayoutInfo();
-		const contentWidth = Math.max(0, layoutInfo.width - layoutInfo.contentLeft);
-		return Math.min(AgentFeedbackInputWidget._MAX_WIDTH, contentWidth * AgentFeedbackInputWidget._MAX_WIDTH_EDITOR_FRACTION);
+		return Math.max(0, layoutInfo.width - layoutInfo.contentLeft);
 	}
-
 }
 
 export class AgentFeedbackEditorInputContribution extends Disposable implements IEditorContribution {

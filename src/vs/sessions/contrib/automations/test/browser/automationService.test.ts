@@ -24,6 +24,19 @@ function dailySchedule(hour = 9, minute = 0): IAutomationSchedule {
 	return { interval: 'daily', scheduleHour: hour, scheduleMinute: minute, scheduleDay: 0 };
 }
 
+function serializeLedgerAutomation(id: string, name: string) {
+	return {
+		id,
+		name,
+		prompt: 'p',
+		schedule: dailySchedule(),
+		target: { kind: 'workspace', folderUri: FOLDER.toJSON(), isolation: { kind: 'default' } },
+		enabled: true,
+		createdAt: '2026-01-01T00:00:00.000Z',
+		updatedAt: '2026-01-01T00:00:00.000Z',
+	};
+}
+
 suite('AutomationService', () => {
 
 	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
@@ -538,6 +551,45 @@ suite('AutomationService', () => {
 		await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
 		const after = JSON.parse(storage.get('chat.automations.ledger', -1)!);
 		assert.ok(after.revision > 5000, `expected revision > 5000, got ${after.revision}`);
+	});
+
+	test('successful CAS accepts a restored lower revision without accepting stale notifications', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		storage.store('chat.automations.ledger', JSON.stringify({
+			schemaVersion: 3,
+			revision: 40,
+			automations: [serializeLedgerAutomation('newer', 'Before restore')],
+			runs: [],
+		}), -1, 1);
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
+		const restoredLedger = JSON.stringify({
+			schemaVersion: 3,
+			revision: 1,
+			automations: [serializeLedgerAutomation('restored', 'Restored')],
+			runs: [],
+		});
+		storage.store('chat.automations.ledger', restoredLedger, -1, 1);
+
+		const created = await service.createAutomation({
+			name: 'After restore',
+			prompt: 'p',
+			schedule: dailySchedule(),
+			target: workspaceTarget(),
+		});
+		const persisted = JSON.parse(storage.get('chat.automations.ledger', -1)!);
+		storage.store('chat.automations.ledger', restoredLedger, -1, 1);
+
+		assert.deepStrictEqual({
+			createdName: created.name,
+			persistedRevision: persisted.revision,
+			persistedNames: persisted.automations.map((automation: { name: string }) => automation.name),
+			inMemoryNames: service.automations.get().map(automation => automation.name),
+		}, {
+			createdName: 'After restore',
+			persistedRevision: 2,
+			persistedNames: ['After restore', 'Restored'],
+			inMemoryNames: ['After restore', 'Restored'],
+		});
 	});
 
 	test('reading a corrupt ledger leaves observables empty without throwing', () => {

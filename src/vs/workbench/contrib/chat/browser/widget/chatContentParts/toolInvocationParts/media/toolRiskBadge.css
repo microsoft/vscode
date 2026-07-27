@@ -31,10 +31,6 @@
 	color: var(--tool-risk-accent, var(--vscode-descriptionForeground));
 }
 
-.chat-confirmation-widget2 > .tool-risk-badge.red .tool-risk-icon {
-	font-weight: 900;
-}
-
 .chat-confirmation-widget2 > .tool-risk-badge .tool-risk-text {
 	min-width: 0;
 	flex: 1 1 auto;

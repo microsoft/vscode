@@ -2797,9 +2797,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._tryObserveSubagentToolCall(tc, invocation, store, opts, subagentContext);
 
 			if ((status === ToolCallStatus.Completed || status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(invocation)) {
-				// Revive terminal before finalizing — handles the case where
-				// Running was skipped (e.g. throttling) and terminal content
-				// only appears at Completed time.
+				// Detach live non-PTY output before completion synchronously rebuilds the terminal subpart.
 				this._ensureLeftStreaming(invocation, tc, opts);
 				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession, outputTerminalAttachment);
 				const fileEdits = finalizeToolInvocation(invocation, tc, opts.backendSession, this._config.connectionAuthority);
@@ -3430,10 +3428,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
-	 * Detects terminal content in a tool call and creates a local terminal
-	 * instance backed by the agent host connection. Updates the invocation's
-	 * `toolSpecificData` to `kind: 'terminal'` and clears
-	 * `HiddenAfterComplete` so the terminal UI stays visible.
+	 * Synchronizes PTY and non-PTY terminal content, including the live-to-retained output handoff, and updates invocation metadata.
 	 */
 	private _reviveTerminalIfNeeded(
 		invocation: ChatToolInvocation,
@@ -3457,11 +3452,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const terminalCommandUri = URI.parse(terminalUri);
 		const isPty = terminalContent.isPty !== false;
 		const terminalInstance = isPty ? this._ensureTerminalInstance(terminalUri, sessionId) : undefined;
-		const hasStaticNonPtyResult = tc.status === ToolCallStatus.Completed
+		const hasRetainedNonPtySnapshot = tc.status === ToolCallStatus.Completed
 			&& !isPty
 			&& terminalContent.result?.exitCode !== undefined
 			&& terminalContent.result.preview !== undefined;
-		if (!isPty && !hasStaticNonPtyResult && outputTerminalAttachment.sessionId !== sessionId) {
+		if (hasRetainedNonPtySnapshot) {
+			outputTerminalAttachment.disposable.clear();
+			outputTerminalAttachment.sessionId = undefined;
+		} else if (!isPty && outputTerminalAttachment.sessionId !== sessionId) {
 			outputTerminalAttachment.disposable.value = this._agentHostTerminalService.attachOutputTerminal(this._config.connection, terminalCommandUri, sessionId);
 			outputTerminalAttachment.sessionId = sessionId;
 		}

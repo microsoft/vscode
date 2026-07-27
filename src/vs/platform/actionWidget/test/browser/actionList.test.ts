@@ -316,6 +316,55 @@ suite('ActionListWidget', () => {
 		);
 	});
 
+	test('shows a row hover panel once the hover delay elapses', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('auto'), hover: { content: 'Auto routes based on your task' } }, action('other')],
+			listOptions: { headerText: 'Cache hint' },
+		});
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		await timeout(1000);
+
+		assert.deepStrictEqual({ display: panel.style.display, text: panel.textContent }, { display: '', text: 'Auto routes based on your task' });
+	}));
+
+	test('does not open a row hover panel once the pointer has left the list', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('auto'), hover: { content: 'Auto routes based on your task' } }, action('other')],
+			listOptions: { headerText: 'Cache hint' },
+		});
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+
+		// The banner is a sibling of the list, so reaching it drags the pointer across a row.
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		widget.domNode.dispatchEvent(new MouseEvent('mouseleave'));
+		await timeout(1000);
+
+		assert.deepStrictEqual({ display: panel.style.display, text: panel.textContent }, { display: 'none', text: '' });
+	}));
+
+	test('dismisses an open row hover panel when the pointer reaches the header banner', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('auto'), hover: { content: 'Auto routes based on your task' } }, action('other')],
+			listOptions: { headerText: 'Cache hint' },
+		});
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+
+		// Dwelling on the row long enough for the panel to open, then continuing to the banner.
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		await timeout(600);
+		const openedWhileOnRow = panel.textContent;
+
+		widget.domNode.dispatchEvent(new MouseEvent('mouseleave'));
+		widget.headerContainer!.dispatchEvent(new MouseEvent('mouseenter'));
+
+		assert.deepStrictEqual(
+			{ openedWhileOnRow, display: panel.style.display, text: panel.textContent },
+			{ openedWhileOnRow: 'Auto routes based on your task', display: 'none', text: '' },
+		);
+	}));
+
 	test('header renders a "Learn more" link to the given uri', () => {
 		const widget = createActionListWidget(disposables, {
 			listOptions: { headerText: 'Cache hint', headerLink: { label: 'Learn more', uri: URI.parse('https://aka.ms/test') } },

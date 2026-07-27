@@ -31,6 +31,8 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentHostCodexAgentEnabledSettingId, AgentHostSystemProxyEnabledSettingId } from '../../common/agentService.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostCodexEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AUTO_REPLY_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import type { Implementation } from '../../common/state/protocol/common/commands.js';
+import { agentsWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 type RootConfigValue = boolean | string | AgentHostTerminalAutoApproveRules | undefined;
@@ -199,8 +201,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 		};
 	}
 
-	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
-		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, loadEstimator, clientId, logService, permissionService, configurationService));
+	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
+		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, loadEstimator, clientId, clientInfo, logService, permissionService, configurationService));
 		return { client, transport, configurationService };
 	}
 
@@ -738,9 +740,10 @@ suite('RemoteAgentHostProtocolClient', () => {
 		assert.strictEqual(transport.sentMessages.length, 0);
 	});
 
-	test('initialize handshake offers PROTOCOL_VERSION as a SemVer array', async () => {
+	test('initialize handshake includes protocol version and client info', async () => {
 		const transport = disposables.add(new TestClientProtocolTransport());
-		const { client } = createClient(transport, undefined, undefined, undefined, undefined, 'renderer-client-id');
+		const clientInfo = agentsWindowAgentHostClientInfo;
+		const { client } = createClient(transport, undefined, undefined, undefined, undefined, 'renderer-client-id', clientInfo);
 		const connectPromise = client.connect();
 
 		transport.connectDeferred.complete();
@@ -752,9 +755,16 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		const sent = transport.sentMessages[0] as JsonRpcRequest;
 		assert.strictEqual(sent.method, 'initialize');
-		const params = sent.params as { protocolVersions: readonly string[]; clientId: string };
-		assert.deepStrictEqual(params.protocolVersions, [PROTOCOL_VERSION]);
-		assert.strictEqual(params.clientId, 'renderer-client-id');
+		const params = sent.params as { protocolVersions: readonly string[]; clientId: string; clientInfo?: Implementation };
+		assert.deepStrictEqual({
+			protocolVersions: params.protocolVersions,
+			clientId: params.clientId,
+			clientInfo: params.clientInfo,
+		}, {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'renderer-client-id',
+			clientInfo,
+		});
 
 		// Reply with a successful handshake so `connect()` resolves and the
 		// test can finish cleanly.
@@ -1460,7 +1470,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService()): { client: RemoteAgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation): { client: RemoteAgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -1468,7 +1478,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				return t;
 			};
 			const client = disposables.add(new RemoteAgentHostProtocolClient(
-				'test.example:1234', factory, undefined, undefined, new NullLogService(), permissionService, new TestConfigurationService(),
+				'test.example:1234', factory, undefined, undefined, clientInfo, new NullLogService(), permissionService, new TestConfigurationService(),
 			));
 			return { client, transports };
 		}
@@ -1511,9 +1521,42 @@ suite('RemoteAgentHostProtocolClient', () => {
 					jsonrpc: '2.0', id: reconnect.id,
 					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
 				});
+
 				await flushMicrotasks();
 				client.dispose();
 			});
+		});
+
+		test('falls back to initialize with client info when the server forgot the client', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient(createPermissionService(), agentsWindowAgentHostClientInfo);
+			try {
+				const connectPromise = client.connect();
+				await completeHandshake(transports[0], connectPromise);
+
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const reconnectTransport = await waitForTransport(transports, 1);
+				reconnectTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0',
+					id: reconnect.id,
+					error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+				});
+
+				const initialize = await waitForRequest(reconnectTransport, 'initialize');
+				assert.deepStrictEqual((initialize.params as { clientInfo?: Implementation }).clientInfo, agentsWindowAgentHostClientInfo);
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0',
+					id: initialize.id,
+					result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+				});
+				await flushMicrotasks();
+				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+			} finally {
+				client.dispose();
+			}
 		});
 
 		test('replays pending optimistic actions after reconnect', async function () {

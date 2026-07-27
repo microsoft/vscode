@@ -5435,7 +5435,7 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		});
 
-		test('output-only terminal attaches to chat without reviving a terminal instance', async () => {
+		test('completed output-only terminal retires its live attachment before finalizing its retained snapshot', async () => {
 			let reviveCalls = 0;
 			let attachmentDisposed = false;
 			let attached: { terminalUri: string; terminalToolSessionId: string } | undefined;
@@ -5471,6 +5471,20 @@ suite('AgentHostChatContribution', () => {
 				terminalUri: 'agenthost-terminal://shell/output',
 				terminalToolSessionId: JSON.stringify({ terminal: 'agenthost-terminal://shell/output', session: 'copilot:/new-turntest' }),
 			});
+			let stateNotifications = 0;
+			let firstCompletedObservation: { attachmentDisposed: boolean; output: string | undefined } | undefined;
+			disposables.add(autorun(reader => {
+				const state = invocation.state.read(reader);
+				stateNotifications++;
+				if (state.type === IChatToolInvocation.StateKind.Completed && !firstCompletedObservation) {
+					const completedTerminalData = invocation.toolSpecificData?.kind === 'terminal' ? invocation.toolSpecificData : undefined;
+					firstCompletedObservation = {
+						attachmentDisposed,
+						output: completedTerminalData?.terminalCommandOutput?.text,
+					};
+				}
+			}));
+			const notificationsBeforeCompletion = stateNotifications;
 
 			fire({
 				type: 'chat/toolCallComplete',
@@ -5493,16 +5507,23 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual({
 				output: completedTerminalData?.terminalCommandOutput?.text,
 				attachmentDisposed,
+				firstCompletedObservation,
+				stateNotificationDelta: stateNotifications - notificationsBeforeCompletion,
 			}, {
 				output: 'final output\r\n',
-				attachmentDisposed: false,
+				attachmentDisposed: true,
+				firstCompletedObservation: {
+					attachmentDisposed: true,
+					output: 'final output\r\n',
+				},
+				stateNotificationDelta: 1,
 			});
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 			assert.strictEqual(attachmentDisposed, true);
 		});
 
-		test('completed output-only terminal with static output never attaches to the live resource', async () => {
+		test('completed output-only terminal with a retained snapshot never attaches to the live resource', async () => {
 			let attachCalls = 0;
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
 				agentHostTerminalServiceOverride: {

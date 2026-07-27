@@ -66,6 +66,9 @@ Adapts an existing `IAgentSession` from the chat layer into the `ISession` facad
 - Constructs with initial values from the agent session's metadata and timing
 - `update(session)` performs a batched observable transaction to update all reactive properties
 - Extracts workspace info, changes, description, and GitHub info from session metadata
+- Treats a cloud provider's `pullRequestUrl` as authoritative for owner, repository, and PR number (including URL-only metadata), and falls back to resolving the PR from `owner`/`name`/`branch` when the URL is absent
+- PR-less task cards must carry `diffRefs.headRef` into their session metadata as `branch`; repository-only metadata cannot drive the branch fallback
+- Uses the shared GitHub PR model, background polling contribution, and persistent icon cache for github.com; provider-reported GitHub Enterprise links retain their provider state icon but skip the public `api.github.com` polling path
 - Maps `ChatSessionStatus` → `SessionStatus`
 - Handles both CLI and Cloud session metadata formats for repository resolution
 

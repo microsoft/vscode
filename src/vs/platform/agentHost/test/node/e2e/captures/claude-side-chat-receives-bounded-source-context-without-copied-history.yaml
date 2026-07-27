@@ -8,11 +8,11 @@ exchanges:
         - role: user
           content: Remember the exact token SIDECHAT42 for a later question. Reply with exactly "ready".
     response:
-      content: ready
+      content: |-
+        I'll remember the token SIDECHAT42.
+
+        ready
       stopReason: end_turn
-      usage:
-        inputTokens: 2686
-        outputTokens: 4
   - request:
       model: claude-opus-4.8
       system: ${system}
@@ -20,12 +20,22 @@ exchanges:
         - role: user
           content: Remember the exact token SIDECHAT42 for a later question. Reply with exactly "ready".
         - role: assistant
-          content: ready
+          content: |-
+            I'll remember the token SIDECHAT42.
+
+            ready
         - role: user
-          content: What exact token did I ask you to remember? Reply with only the token.
+          content: |-
+            <side-chat-context>
+            length=159
+            This is a side conversation. Prefer explanation over action; do not make changes or carry out work unless the user explicitly asks.
+
+            Selected text:
+
+            MOONVALE99
+            </side-chat-context>
+
+            Reply with the exact remembered token, then a space, then the exact selected text given to you as context — nothing else.
     response:
-      content: SIDECHAT42
+      content: SIDECHAT42 MOONVALE99
       stopReason: end_turn
-      usage:
-        inputTokens: 2
-        outputTokens: 10

@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAutomation, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { ConfigureAutomationToolReferenceName, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationMutationGuard, ConfigureAutomationToolReferenceName, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatAutomationConfiguredData } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -78,6 +78,12 @@ type IAutomationProposal =
 	};
 
 class AutomationToolInputError extends Error { }
+
+class AutomationToolMutationBlockedError extends Error {
+	constructor(readonly result: IToolResult) {
+		super('Automation mutation blocked');
+	}
+}
 
 export class ListAutomationsTool implements IToolImpl {
 
@@ -206,13 +212,31 @@ export class DeleteAutomationTool implements IToolImpl {
 			return automationDeleteCancelled();
 		}
 
-		await this.automationService.deleteAutomation(automation.id);
+		try {
+			await this.automationService.deleteAutomation(automation.id, this.createMutationGuard(token));
+		} catch (error) {
+			if (error instanceof AutomationToolMutationBlockedError) {
+				return error.result;
+			}
+			throw error;
+		}
 		const result = automationToolResult(JSON.stringify({
 			status: 'deleted',
 			automation: { id: automation.id, name: automation.name },
 		}));
 		result.toolResultMessage = localize('automation.tool.delete.deleted', "Deleted automation {0}", automation.name);
 		return result;
+	}
+
+	private createMutationGuard(token: CancellationToken): AutomationMutationGuard {
+		return () => {
+			if (!isAutomationsEnabled(this.configurationService)) {
+				throw new AutomationToolMutationBlockedError(automationToolError('Automations are disabled.'));
+			}
+			if (token.isCancellationRequested) {
+				throw new AutomationToolMutationBlockedError(automationDeleteCancelled());
+			}
+		};
 	}
 
 	private resolveAutomation(rawInput: unknown): IAutomation {
@@ -436,6 +460,9 @@ The change uses the current tool-approval policy. When approval is required, the
 			}
 			return await this.applyUpdate(proposal.existing, patch, token);
 		} catch (error) {
+			if (error instanceof AutomationToolMutationBlockedError) {
+				return error.result;
+			}
 			if (error instanceof AutomationToolInputError) {
 				return automationToolError(error.message);
 			}
@@ -448,7 +475,7 @@ The change uses the current tool-approval policy. When approval is required, the
 		if (blocked) {
 			return blocked;
 		}
-		const created = await this.automationService.createAutomation(options);
+		const created = await this.automationService.createAutomation(options, this.createMutationGuard(token));
 		const result = automationToolResult(JSON.stringify({ status: 'created', automation: toAutomationToolOutput(created) }, undefined, 2));
 		result.toolSpecificData = toAutomationConfiguredData(created, 'created');
 		result.toolResultMessage = localize('automation.tool.configure.created', "Created automation {0}", created.name);
@@ -460,7 +487,7 @@ The change uses the current tool-approval policy. When approval is required, the
 		if (blocked) {
 			return blocked;
 		}
-		const updateResult = await this.automationService.updateAutomationIfUnchanged(existing.id, patch, existing);
+		const updateResult = await this.automationService.updateAutomationIfUnchanged(existing.id, patch, existing, this.createMutationGuard(token));
 		if (updateResult.kind === 'conflict' && !updateResult.current) {
 			return automationToolError(`Automation "${existing.id}" was deleted before the update was applied. No changes were made.`);
 		}
@@ -472,6 +499,15 @@ The change uses the current tool-approval policy. When approval is required, the
 		result.toolSpecificData = toAutomationConfiguredData(updated, 'updated');
 		result.toolResultMessage = localize('automation.tool.configure.updated', "Updated automation {0}", updated.name);
 		return result;
+	}
+
+	private createMutationGuard(token: CancellationToken): AutomationMutationGuard {
+		return () => {
+			const blocked = this.getMutationBlockedResult(token);
+			if (blocked) {
+				throw new AutomationToolMutationBlockedError(blocked);
+			}
+		};
 	}
 
 	private getMutationBlockedResult(token: CancellationToken): IToolResult | undefined {

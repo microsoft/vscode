@@ -1814,6 +1814,134 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		/**
+		 * Signals the turn-ended hook the agent wires into every chat it creates
+		 * (`onTurnEnded`), which stub-injected chats bypass.
+		 */
+		function reportChatTurnEnded(agent: CopilotAgent): void {
+			(agent as unknown as { _onChatTurnEnded(): void })._onChatTurnEnded();
+		}
+
+		/** A stub chat whose in-flight turn can be ended by the test. */
+		function busyChatStub(): { hasActiveTurn: boolean; disposed: boolean; dispose(): void; destroySession(): Promise<void> } {
+			return {
+				hasActiveTurn: true,
+				disposed: false,
+				dispose() { this.disposed = true; },
+				destroySession: async () => { },
+			};
+		}
+
+		test('defers the restart until an in-flight turn ends', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				const chat = busyChatStub();
+				setDefaultSessionStub(agent, 'busy', chat);
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				await timeout(0);
+				const duringTurn = { stopCount: client.stopCount, disposed: chat.disposed };
+
+				chat.hasActiveTurn = false;
+				reportChatTurnEnded(agent);
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					duringTurn,
+					afterTurn: { stopCount: client.stopCount, disposed: chat.disposed },
+				}, {
+					duringTurn: { stopCount: 0, disposed: false },
+					afterTurn: { stopCount: 1, disposed: true },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('keeps deferring while another chat is still running its turn', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				const first = busyChatStub();
+				const second = busyChatStub();
+				setDefaultSessionStub(agent, 'busy-1', first);
+				setDefaultSessionStub(agent, 'busy-2', second);
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				await timeout(0);
+
+				first.hasActiveTurn = false;
+				reportChatTurnEnded(agent);
+				await timeout(0);
+				const afterFirst = client.stopCount;
+
+				second.hasActiveTurn = false;
+				reportChatTurnEnded(agent);
+				await timeout(0);
+
+				assert.deepStrictEqual({ afterFirst, afterSecond: client.stopCount }, { afterFirst: 0, afterSecond: 1 });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('applies a deferred restart when the busy session is disposed instead', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				setDefaultSessionStub(agent, 'busy', busyChatStub());
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				await timeout(0);
+				const duringTurn = client.stopCount;
+
+				// A disposed session never reports its turn ending, so disposal
+				// must drain the parked restart itself.
+				await agent.disposeSession(AgentSession.uri('copilotcli', 'busy'));
+
+				assert.deepStrictEqual({ duringTurn, afterDispose: client.stopCount }, { duringTurn: 0, afterDispose: 1 });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not restart a client that was already stopped', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				const chat = busyChatStub();
+				setDefaultSessionStub(agent, 'busy', chat);
+
+				// Two startup values change while the turn runs; the first
+				// restart to actually run satisfies both.
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace' });
+				await timeout(0);
+
+				chat.hasActiveTurn = false;
+				reportChatTurnEnded(agent);
+				reportChatTurnEnded(agent);
+				await timeout(0);
+
+				assert.strictEqual(client.stopCount, 1);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	test('models include billing multiplier metadata when SDK provides it', async () => {

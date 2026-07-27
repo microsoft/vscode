@@ -78,6 +78,7 @@ import { IChatAttachmentResolveService } from '../attachments/chatAttachmentReso
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
+import { getRandomChatInputPlaceholder, installRotatingChatPlaceholder } from './input/chatInputPlaceholderRotation.js';
 import { IChatListItemTemplate } from './chatListRenderer.js';
 import { ChatListWidget } from './chatListWidget.js';
 import { ChatEditorOptions } from './chatOptions.js';
@@ -346,6 +347,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _goalSummaryTokenSource: CancellationTokenSource | undefined;
 	private _goalBannerDismissedForCurrentRequest = false;
 	private readonly _goalBannerDismissListener = this._register(new MutableDisposable<IDisposable>());
+
+	private readonly _rotatingPlaceholder = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
@@ -2294,14 +2297,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.setViewModel(this.viewModel);
 
 		if (this._lockedAgent) {
-			let placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
-			if (!placeholder) {
-				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
+			const contributedPlaceholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
+			const staticPlaceholder = contributedPlaceholder ?? localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
+			this.viewModel.setInputPlaceholder(staticPlaceholder);
+
+			const isEmptyAgentHostSession = !!this._lockedAgent.agentHostProviderId && !contributedPlaceholder && model.getRequests().length === 0;
+			if (isEmptyAgentHostSession) {
+				this.inputEditor.updateOptions({ placeholder: getRandomChatInputPlaceholder() });
+				this._rotatingPlaceholder.value = installRotatingChatPlaceholder(this.inputEditor);
+			} else {
+				this._rotatingPlaceholder.clear();
+				this.inputEditor.updateOptions({ placeholder: staticPlaceholder });
 			}
-			this.viewModel.setInputPlaceholder(placeholder);
-			this.inputEditor.updateOptions({ placeholder });
-		} else if (this.viewModel.inputPlaceholder) {
-			this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+		} else {
+			this._rotatingPlaceholder.clear();
+			if (this.viewModel.inputPlaceholder) {
+				this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+			}
 		}
 
 		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange), (events => {
@@ -2314,17 +2326,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.hasActiveRequest.set(this.viewModel.model.hasActiveRequest.get());
 			this.updateWorkingProgressBorder();
 
-			// Update the editor's placeholder text when it changes in the view model
-			if (events?.some(e => e?.kind === 'changePlaceholder')) {
+			if (events?.some(e => e?.kind === 'changePlaceholder') && !this._rotatingPlaceholder.value) {
 				this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
 			}
 
 			this.onDidChangeItems();
-			if (events?.some(e => e?.kind === 'addRequest') && this.visible) {
-				this.listWidget.scrollToEnd();
+			if (events?.some(e => e?.kind === 'addRequest')) {
+				if (this._rotatingPlaceholder.value) {
+					this._rotatingPlaceholder.clear();
+					this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+				}
+				if (this.visible) {
+					this.listWidget.scrollToEnd();
+				}
 			}
 		})));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
+			this._rotatingPlaceholder.clear();
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
 			if (this.viewModel?.editing) {
 				this.finishedEditing();
@@ -2430,6 +2448,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	setInputPlaceholder(placeholder: string): void {
+		this._rotatingPlaceholder.clear();
 		this.viewModel?.setInputPlaceholder(placeholder);
 	}
 
@@ -2496,6 +2515,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.renderWelcomeViewContentIfNeeded();
 
 		// Reset to default placeholder
+		this._rotatingPlaceholder.clear();
 		if (this.viewModel) {
 			this.viewModel.resetInputPlaceholder();
 		}
@@ -2722,12 +2742,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}
 
-		this._onDidAcceptInput.fire();
+		if (!options.preserveInput) {
+			// Would stop dictation the preserved draft may still be using.
+			this._onDidAcceptInput.fire();
+		}
 		this.listWidget.setScrollLock(this.isLockedToCodingAgent || !!checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll));
 
 		const requestInputs: IChatRequestInputOptions = {
 			input: inputValue,
-			attachedContext: options?.enableImplicitContext === false ? this.input.getAttachedContext() : this.input.getAttachedAndImplicitContext(),
+			// preserveInput means the input box holds an unrelated draft, so its
+			// attachments belong to that draft and must not be sent with this query.
+			attachedContext: options?.preserveInput
+				? new ChatRequestVariableSet()
+				: options?.enableImplicitContext === false ? this.input.getAttachedContext() : this.input.getAttachedAndImplicitContext(),
 		};
 
 		if (this.viewModel.model.requestInProgress.get() && await this._executeSlashCommandDuringRequest(requestInputs.input, isUserQuery, options.preserveFocus)) {
@@ -2793,9 +2820,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// process the prompt command
-		const promptApplied = await this._applyPromptFileIfSet(requestInputs, this.viewModel.sessionResource);
-		if (!promptApplied) {
-			return;
+		// Skipped for preserveInput: parsedInput is the draft, and an agent switch can clear the session.
+		if (!options.preserveInput) {
+			const promptApplied = await this._applyPromptFileIfSet(requestInputs, this.viewModel.sessionResource);
+			if (!promptApplied) {
+				return;
+			}
 		}
 
 		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit) {
@@ -2892,16 +2922,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// visibility sync before firing events to hide the welcome view
 		this.updateChatViewVisibility();
-		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus);
+		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus, options?.preserveInput);
 
-		this._maybeStartGoalSummary(requestInputs.input);
+		if (!options.preserveInput) {
+			// A maintenance command is not the user's goal.
+			this._maybeStartGoalSummary(requestInputs.input);
+		}
 
 		const sent = ChatSendResult.isQueued(result) ? await result.deferred : result;
 		if (!ChatSendResult.isSent(sent)) {
 			return;
 		}
 
-		this._onDidSubmitAgent.fire({ agent: sent.data.agent, slashCommand: sent.data.slashCommand });
+		if (!options.preserveInput) {
+			// Not a user submission; listeners would consume draft state. Also skips editor pinning.
+			this._onDidSubmitAgent.fire({ agent: sent.data.agent, slashCommand: sent.data.slashCommand });
+		}
 		this.handleDelegationExitIfNeeded(this._lockedAgent, sent.data.agent);
 
 		// If the session was replaced (untitled -> real contributed session), swap the widget's model
@@ -3137,6 +3173,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined {
 		return this.listWidget.getLastFocusedFileTreeForResponse(response);
+	}
+
+	getElementFromNode(node: HTMLElement): ChatTreeItem | undefined {
+		return this.listWidget.getElementFromNode(node);
 	}
 
 	focusResponseItem(lastFocused?: boolean): void {

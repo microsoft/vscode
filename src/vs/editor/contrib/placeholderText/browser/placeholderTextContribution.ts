@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from '../../../../base/browser/dom.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, DebugOwner, derivedObservableWithCache, derivedOpts, derived, IObservable, IReader } from '../../../../base/common/observable.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, constObservable, DebugOwner, derivedObservableWithCache, derivedOpts, derived, IObservable, IReader, observableFromEvent } from '../../../../base/common/observable.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -31,8 +33,20 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 
 	private readonly _view;
 
+	/** Whether visible placeholder changes use a one-shot shimmer transition. */
+	private _animateTransitions = false;
+
+	/**
+	 * Enable or disable the shimmer transition that plays when the placeholder
+	 * text changes while it is visible.
+	 */
+	public setAnimateTransitions(animate: boolean): void {
+		this._animateTransitions = animate;
+	}
+
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this._editorObs = observableCodeEditor(this._editor);
@@ -44,16 +58,72 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 			return { placeholder: p };
 		});
 		this._shouldViewBeAlive = isOrWasTrue(this, reader => this._state.read(reader)?.placeholder !== undefined);
+		const reducedMotion = observableFromEvent(this, this._accessibilityService.onDidChangeReducedMotion, () => this._accessibilityService.isMotionReduced());
 		this._view = derived((reader) => {
 			if (!this._shouldViewBeAlive.read(reader)) { return; }
 
 			const element = h('div.editorPlaceholder');
 
+			const FADE_OUT_MS = 220;
+			const FADE_IN_MS = 480;
+			const transitionTimer = reader.store.add(new MutableDisposable());
+			let displayedText: string | undefined = undefined;
+			let targetText = '';
+			let phase: 'idle' | 'out' | 'in' = 'idle';
+
+			const clearAnimClasses = () => element.root.classList.remove('editorPlaceholder-fade-in', 'editorPlaceholder-fade-out');
+			const setText = (text: string) => {
+				element.root.innerText = text;
+				displayedText = text;
+			};
+			const restartAnimation = (className: string) => {
+				clearAnimClasses();
+				// Force a reflow so a just-removed animation class can restart.
+				void element.root.offsetWidth;
+				element.root.classList.add(className);
+			};
+			const runTransition = () => {
+				if (phase !== 'idle' || targetText === displayedText) {
+					return;
+				}
+				phase = 'out';
+				restartAnimation('editorPlaceholder-fade-out');
+				transitionTimer.value = disposableTimeout(() => {
+					phase = 'in';
+					setText(targetText);
+					restartAnimation('editorPlaceholder-fade-in');
+					transitionTimer.value = disposableTimeout(() => {
+						clearAnimClasses();
+						phase = 'idle';
+						runTransition();
+					}, FADE_IN_MS);
+				}, FADE_OUT_MS);
+			};
+
 			reader.store.add(autorun(reader => {
 				const data = this._state.read(reader);
 				const shouldBeVisibile = data?.placeholder !== undefined;
+				const text = data?.placeholder ?? '';
 				element.root.style.display = shouldBeVisibile ? 'block' : 'none';
-				element.root.innerText = data?.placeholder ?? '';
+				targetText = text;
+
+				const wantAnimate = this._animateTransitions
+					&& !reducedMotion.read(reader)
+					&& shouldBeVisibile
+					&& displayedText !== undefined
+					&& displayedText !== ''
+					&& text !== displayedText;
+
+				if (wantAnimate) {
+					runTransition();
+				} else {
+					transitionTimer.clear();
+					phase = 'idle';
+					clearAnimClasses();
+					if (displayedText !== text) {
+						setText(text);
+					}
+				}
 			}));
 			reader.store.add(autorun(reader => {
 				const info = this._editorObs.layoutInfo.read(reader);

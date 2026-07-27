@@ -49,7 +49,7 @@ import {
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
-import type { InitializeResult } from '../common/state/protocol/common/commands.js';
+import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
 import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
@@ -90,6 +90,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	};
 
 	constructor(
+		private readonly _clientInfo: Implementation,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -123,6 +124,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			transport,
 			undefined,
 			this.clientId,
+			this._clientInfo,
 		));
 		this._register(this._protocolClient.onDidClose(() => this._onAgentHostExit.fire(0)));
 		void this._connect().catch(error => {

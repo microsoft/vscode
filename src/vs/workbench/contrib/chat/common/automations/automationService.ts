@@ -11,6 +11,9 @@ import { IAutomation, IAutomationRun, AutomationRunTrigger, IAutomationSchedule,
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
 
+/** Invoked immediately before each storage CAS attempt; throwing aborts before that attempt. */
+export type AutomationMutationGuard = () => void;
+
 /**
  * Input for `createAutomation`. The service fills in `id`, timestamps, and
  * `nextRunAt`.
@@ -116,16 +119,16 @@ export interface IAutomationService {
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]>;
 
 	/** Creates and persists an automation after validating the complete definition. */
-	createAutomation(options: ICreateAutomationOptions): Promise<IAutomation>;
+	createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomation>;
 	/** Applies a patch to the latest automation state; throws when `id` does not exist. */
 	updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation>;
 	/**
 	 * Applies `patch` only when the current editable fields still match `expected`.
 	 * Runtime timestamps may change without conflicting, so reviewed edits preserve scheduler progress.
 	 */
-	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation): Promise<IGuardedAutomationUpdateResult>;
+	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult>;
 	/** Deletes an automation and its retained run history; missing IDs are ignored. */
-	deleteAutomation(id: string): Promise<void>;
+	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void>;
 
 	/** Records a new run as `pending` and advances the schedule for scheduled/catch-up runs. Throws if the automation does not exist. */
 	recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRun>;

@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-haiku-4.5
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
@@ -10,11 +10,8 @@ exchanges:
     response:
       content: ready
       stopReason: end_turn
-      usage:
-        inputTokens: 9
-        outputTokens: 65
   - request:
-      model: claude-haiku-4.5
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
@@ -22,10 +19,17 @@ exchanges:
         - role: assistant
           content: ready
         - role: user
-          content: What exact token did I ask you to remember? Reply with only the token.
+          content: |-
+            <side-chat-context>
+            length=159
+            This is a side conversation. Prefer explanation over action; do not make changes or carry out work unless the user explicitly asks.
+
+            Selected text:
+
+            MOONVALE99
+            </side-chat-context>
+
+            Reply with the exact remembered token, then a space, then the exact selected text given to you as context — nothing else.
     response:
-      content: SIDECHAT42
+      content: SIDECHAT42 MOONVALE99
       stopReason: end_turn
-      usage:
-        inputTokens: 9
-        outputTokens: 61
