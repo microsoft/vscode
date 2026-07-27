@@ -229,8 +229,32 @@ export class ChatInputModelSelectionController extends Disposable {
 			willReset,
 		}, willReset ? 'info' : 'debug');
 		if (willReset) {
-			this.selectDefault(sessionType);
+			this._replaceInvalidSelection(currentModel, sessionType);
 		}
+	}
+
+	/**
+	 * Replaces a selection that is no longer valid, applying the precedence every such path shares:
+	 * the remembered selection if the catalog can offer it, else the closest match for what was
+	 * displaced, else the default.
+	 *
+	 * The callers differ only in *why* the current model stopped being valid — unsupported for the
+	 * mode, outside the session pool, withdrawn from the catalog. Routing them all through here
+	 * keeps that difference from turning into a difference in what replaces it.
+	 */
+	private _replaceInvalidSelection(
+		displaced: ILanguageModelChatMetadataAndIdentifier | undefined,
+		sessionType: string | undefined,
+	): void {
+		if (this._restoreRememberedModel()) {
+			return;
+		}
+		const match = findBestMatchingModel(displaced, this._runtime.getModels(sessionType));
+		if (match) {
+			this._applyModel(match);
+			return;
+		}
+		this.selectDefault(sessionType);
 	}
 
 	selectDefault(sessionType = this._runtime.getCurrentSessionType()): void {
@@ -302,12 +326,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (!shouldResetOnModelListChange(currentModel?.identifier, [...models])) {
 			return;
 		}
-		const match = findBestMatchingModel(currentModel, models);
-		if (match) {
-			this._applyModel(match);
-		} else {
-			this.selectDefault();
-		}
+		this._replaceInvalidSelection(currentModel, this._runtime.getCurrentSessionType());
 	}
 
 	/**
@@ -388,7 +407,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	ensureCurrentModelInSessionPool(): void {
 		const currentModel = this._currentModel.get();
 		if (currentModel && !isModelValidForSession(currentModel, this._runtime.getAllModels(), this._runtime.getCurrentSessionType())) {
-			this.selectDefault();
+			this._replaceInvalidSelection(currentModel, this._runtime.getCurrentSessionType());
 		}
 	}
 
@@ -406,14 +425,13 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (restoredModel && models.some(model => model.identifier === restoredModel.identifier)) {
 			return;
 		}
-		const match = findBestMatchingModel(previousModel, models);
-		if (match) {
-			this._applyModel(match);
-		} else if (models.length === 0) {
+		// A destination pool that has published nothing yet has no stand-in to offer, so clear the
+		// selection rather than reaching into another pool for one.
+		if (models.length === 0) {
 			this._currentModel.set(undefined, undefined);
-		} else {
-			this.selectDefault(sessionType);
+			return;
 		}
+		this._replaceInvalidSelection(previousModel, sessionType);
 	}
 
 	preselectFromHistory(modelId: string, conversationKey: string): void {

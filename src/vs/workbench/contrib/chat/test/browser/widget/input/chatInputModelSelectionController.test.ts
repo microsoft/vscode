@@ -583,6 +583,39 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
+	test('an invalid selection is replaced by the remembered model, not the default', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const remembered = model('test/remembered');
+		const standIn = model('test/stand-in');
+		const base = model('test/location-default');
+		const locationDefault: ILanguageModelChatMetadataAndIdentifier = {
+			...base,
+			metadata: { ...base.metadata, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } },
+		};
+		const state: IRuntimeState = { models: [remembered, standIn], resolved: true, sessionType: 'local' };
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
+
+		controller.applyExplicitSelection(remembered, () => { }, false);
+		// The pick disappears and the stand-in takes over.
+		state.models = [standIn];
+		controller.reconcileModelListChange(state.models);
+		const displaced = controller.currentModel.get()?.identifier;
+		// The pick returns while the stand-in itself becomes invalid. `ensureCurrentModelSupported`
+		// must reclaim the pick rather than settle for the location default.
+		state.models = [remembered, locationDefault];
+		controller.ensureCurrentModelSupported();
+
+		assert.deepStrictEqual({
+			displaced,
+			current: controller.currentModel.get()?.identifier,
+			reason: controller.selectionReason,
+		}, {
+			displaced: standIn.identifier,
+			current: remembered.identifier,
+			reason: ModelSelectionReason.UserSelection,
+		});
+	});
+
 	test('applies a fallback while the configured default loads, then upgrades it', () => {
 		const byok = model('openai/byok');
 		const configured = model('copilot/configured');
