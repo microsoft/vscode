@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { LanguageModelToolInformation } from 'vscode';
-import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { ConfigKey, HARD_TOOL_LIMIT, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IEmbeddingsComputer } from '../../../../platform/embeddings/common/embeddingsComputer';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../../platform/log/common/logService';
@@ -22,7 +22,7 @@ import { EMBEDDING_TYPE_FOR_TOOL_GROUPING } from './preComputedToolEmbeddingsCac
 import { IToolEmbeddingsComputer } from './toolEmbeddingsComputer';
 import { EMBEDDINGS_GROUP_NAME, VIRTUAL_TOOL_NAME_PREFIX, VirtualTool } from './virtualTool';
 import * as Constant from './virtualToolsConstants';
-import { TOOLS_AND_GROUPS_LIMIT } from './virtualToolsConstants';
+import { TOOLS_AND_GROUPS_LIMIT, UNCATEGORIZED_TOOLS_GROUP_NAME, UNCATEGORIZED_TOOLS_GROUP_SUMMARY } from './virtualToolsConstants';
 import { describeBulkToolGroups } from './virtualToolSummarizer';
 import { ISummarizedToolCategory, ISummarizedToolCategoryUpdatable, IToolCategorization, IToolGroupingCache } from './virtualToolTypes';
 
@@ -115,19 +115,27 @@ export class VirtualToolGrouper implements IToolCategorization {
 		if (toolsetEntries.length > 0) {
 			// Calculate available slots after accounting for builtin tools/groups
 			const builtinSlotCount = groupedResults.length;
-			const availableSlots = TOOLS_AND_GROUPS_LIMIT - builtinSlotCount;
+			const availableSlots = Math.max(0, TOOLS_AND_GROUPS_LIMIT - builtinSlotCount);
 			const slotAllocation = this._allocateSlots(toolsetEntries, availableSlots);
 
+			const funded = toolsetEntries.filter(([key]) => (slotAllocation.get(key) ?? 0) > 0);
+			const unfunded = toolsetEntries.filter(([key]) => (slotAllocation.get(key) ?? 0) <= 0);
+
 			// Process each toolset individually
-			const toolsetGrouped = await Promise.all([...toolsetEntries].map(async ([toolsetKey, tools]) => {
-				const allocatedSlots = slotAllocation.get(toolsetKey) || 0;
-				return allocatedSlots > 0 ? await this._processToolset(tools, allocatedSlots, token) : [];
-			}));
+			const toolsetGrouped = await Promise.all(funded.map(([toolsetKey, tools]) =>
+				this._processToolset(tools, slotAllocation.get(toolsetKey)!, token)));
 
 			groupedResults.push(...toolsetGrouped.flat());
+
+			// Toolsets too numerous to each get a slot share one group rather than being dropped.
+			if (unfunded.length > 0) {
+				const shared = unfunded.flatMap(([, tools]) => tools);
+				groupedResults.push(...await this._processToolset(shared, 1, token));
+			}
 		}
 
 		this._cache.flush();
+		this._recoverUngroupedTools(groupedResults, tools);
 		root.contents = VirtualToolGrouper.deduplicateGroups(groupedResults);
 
 		// Send telemetry for per-toolset processing
@@ -178,6 +186,22 @@ export class VirtualToolGrouper implements IToolCategorization {
 	}
 
 	private _addPredictedToolsGroup(root: VirtualTool, predictedTools: LanguageModelToolInformation[]): void {
+		const currentlyAvailable = new Set<string>();
+		for (const item of root.contents) {
+			if (item.name === EMBEDDINGS_GROUP_NAME) {
+				continue;
+			}
+
+			if (item instanceof VirtualTool) {
+				for (const tool of item.tools()) {
+					currentlyAvailable.add(tool.name);
+				}
+			} else {
+				currentlyAvailable.add(item.name);
+			}
+		}
+
+		let remainingSlots = Math.max(0, HARD_TOOL_LIMIT - currentlyAvailable.size);
 		const newGroup = new VirtualTool(EMBEDDINGS_GROUP_NAME, 'Tools with high predicted relevancy for this query', Infinity, {
 			wasEmbeddingsMatched: true,
 			wasExpandedByDefault: true,
@@ -186,6 +210,9 @@ export class VirtualToolGrouper implements IToolCategorization {
 
 		newGroup.isExpanded = true;
 		for (const tool of predictedTools) {
+			if (!currentlyAvailable.has(tool.name) && remainingSlots-- <= 0) {
+				continue;
+			}
 			newGroup.contents.push(tool);
 		}
 
@@ -228,6 +255,35 @@ export class VirtualToolGrouper implements IToolCategorization {
 		}
 	}
 
+	/** Collects any tool categorization failed to place, so that grouping stays lossless. */
+	private _recoverUngroupedTools(grouped: (VirtualTool | LanguageModelToolInformation)[], tools: readonly LanguageModelToolInformation[]): void {
+		const placed = new Set<string>();
+		for (const item of grouped) {
+			if (item instanceof VirtualTool) {
+				for (const nested of item.all()) {
+					placed.add(nested.name);
+				}
+			} else {
+				placed.add(item.name);
+			}
+		}
+
+		const missing = tools.filter(tool => !placed.has(tool.name));
+		if (missing.length === 0) {
+			return;
+		}
+
+		this._logService.warn(`[virtual-tools] Categorization dropped ${missing.length} tools (${missing.map(t => t.name).join(', ')}); recovering them into ${UNCATEGORIZED_TOOLS_GROUP_NAME}`);
+
+		grouped.push(new VirtualTool(
+			VIRTUAL_TOOL_NAME_PREFIX + UNCATEGORIZED_TOOLS_GROUP_NAME,
+			SUMMARY_PREFIX + UNCATEGORIZED_TOOLS_GROUP_SUMMARY + SUMMARY_SUFFIX,
+			0,
+			{},
+			missing,
+		));
+	}
+
 	public static deduplicateGroups(grouped: readonly (VirtualTool | LanguageModelToolInformation)[]) {
 		const seen = new Set<string>();
 		const result: (VirtualTool | LanguageModelToolInformation)[] = [];
@@ -262,10 +318,12 @@ export class VirtualToolGrouper implements IToolCategorization {
 	private _allocateSlots(toolsetEntries: Array<[string, LanguageModelToolInformation[]]>, availableSlots: number): Map<string, number> {
 		const allocation = new Map<string, number>();
 
-		// If we have more toolsets than slots, give each one slot
+		// More toolsets than slots: fund what we can, keeping one slot free for the
+		// shared group that the rest are folded into.
 		if (toolsetEntries.length >= availableSlots) {
+			const fundable = Math.max(0, availableSlots - 1);
 			for (let i = 0; i < toolsetEntries.length; i++) {
-				allocation.set(toolsetEntries[i][0], i < availableSlots ? 1 : 0);
+				allocation.set(toolsetEntries[i][0], i < fundable ? 1 : 0);
 			}
 			return allocation;
 		}

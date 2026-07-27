@@ -795,6 +795,13 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 			}
 		}
 
+		// A registry change can trigger regrouping before the previous round's tool
+		// calls are processed. Expand those paths while the new tree is built so the
+		// prompt context does not capture a stale tool list that rejects the calls.
+		for (const call of this.currentToolCallRounds.at(-1)?.toolCalls ?? []) {
+			this.toolGrouping.ensureExpanded(call.name);
+		}
+
 		const computePromise = this.toolGrouping.compute(this.options.request.prompt, token);		// Show progress if this takes a moment...
 		const timeout = setTimeout(() => {
 			outputStream?.progress(l10n.t('Optimizing tool selection'), async () => {

@@ -274,8 +274,8 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 			if (toolResult === undefined) {
 				try {
 					if (promptContext.tools && !promptContext.tools.availableTools.find(t => t.name === props.toolCall.name)) {
-						outcome = ToolInvocationOutcome.DisabledByUser;
-						throw new Error(`Tool ${props.toolCall.name} is currently disabled by the user, and cannot be called.`);
+						outcome = ToolInvocationOutcome.NotInRequestToolset;
+						throw new Error(`Tool ${props.toolCall.name} is not part of this request's toolset, so it cannot be called. It is either disabled in Configure Tools, or grouped behind an activate_* tool that has not been called yet.`);
 					}
 
 					if (copilotTool?.resolveInput) {
@@ -344,7 +344,7 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 					if (errResult.isCancelled) {
 						outcome = ToolInvocationOutcome.Cancelled;
 					} else {
-						outcome = outcome === ToolInvocationOutcome.DisabledByUser ? outcome : ToolInvocationOutcome.Error;
+						outcome = outcome === ToolInvocationOutcome.NotInRequestToolset ? outcome : ToolInvocationOutcome.Error;
 						extraMetadata.push(new ToolFailureEncountered(props.toolCall.id));
 						logService.error(`Error from tool ${props.toolCall.name} with args ${props.toolCall.arguments}`, toErrorMessage(err, true));
 					}
@@ -403,7 +403,7 @@ async function sendToolCallTelemetry(props: ToolResultOpts, promptContext: IBuil
 			"owner": "donjayamanne",
 			"comment": "Details about invocation of tools",
 			"validateOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the tool input validation. valid, invalid and unknown" },
-			"invokeOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the tool Invokcation. invalidInput, disabledByUser, success, error, cancelled" },
+			"invokeOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the tool invocation. invalidInput, notInRequestToolset, success, error, cancelled" },
 			"toolName": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the tool being invoked." },
 			"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that invoked the tool" }
 		}
@@ -547,7 +547,7 @@ enum ToolValidationOutcome {
 
 enum ToolInvocationOutcome {
 	InvalidInput = 'invalidInput',
-	DisabledByUser = 'disabledByUser',
+	NotInRequestToolset = 'notInRequestToolset',
 	Success = 'success',
 	Error = 'error',
 	Cancelled = 'cancelled',
@@ -1087,7 +1087,7 @@ function sendNotebookEditToolValidationTelemetry(invokeOutcome: ToolInvocationOu
 			"owner": "donjayamanne",
 			"comment": "Validation failure for a Edit Notebook tool invocation",
 			"validationResult": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The result of the tool input validation. valid, invalid and unknown" },
-			"invokeOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The result of the tool Invocation. invalidInput, disabledByUser, success, error, cancelled" },
+			"invokeOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The result of the tool invocation. invalidInput, notInRequestToolset, success, error, cancelled" },
 			"editType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The type of edit that was attempted. insert, delete, edit or unknown" },
 			"unknownProps": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "List of unknown properties in the input" },
 			"missingProps": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "List of missing properties in the input" },

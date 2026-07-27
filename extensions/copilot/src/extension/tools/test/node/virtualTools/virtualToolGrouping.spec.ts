@@ -150,6 +150,19 @@ describe('Virtual Tools - Grouping', () => {
 			// Should not be marked as outdated since names are the same
 			expect(grouping.tools).toEqual(tools2);
 		});
+
+		it('does not regroup when the same tools are reordered', async () => {
+			const addGroups = vi.spyOn(mockGrouper, 'addGroups');
+			const tools = [makeTool('test1'), makeTool('test2')];
+			grouping.tools = tools;
+			await grouping.compute('', CancellationToken.None);
+
+			grouping.tools = [tools[1], tools[0]];
+			await grouping.compute('', CancellationToken.None);
+
+			expect({ addGroupsCalls: addGroups.mock.calls.length, stableOrder: grouping.tools.map(tool => tool.name) })
+				.toEqual({ addGroupsCalls: 1, stableOrder: ['test1', 'test2'] });
+		});
 	});
 
 	describe('compute()', () => {
@@ -280,6 +293,22 @@ describe('Virtual Tools - Grouping', () => {
 			// Second compute - should now return the expanded tools
 			result = await grouping.compute('', CancellationToken.None);
 			expect(result).toEqual(tools);
+		});
+
+		it('keeps a previously called real tool expanded after regrouping', async () => {
+			mockGrouper = createGroupingGrouper();
+			grouping = accessor.get(IInstantiationService).createInstance(TestToolGrouping, []);
+			const tools = [makeTool('file_read'), makeTool('file_write'), makeTool('file_delete')];
+			grouping.tools = tools;
+			await grouping.compute('', CancellationToken.None);
+			grouping.didCall(0, `${VIRTUAL_TOOL_NAME_PREFIX}file`);
+			await grouping.compute('', CancellationToken.None);
+			grouping.didCall(0, 'file_read');
+
+			grouping.tools = [...tools, makeTool('other_tool')];
+			const result = await grouping.compute('', CancellationToken.None);
+
+			expect(result.map(tool => tool.name)).toContain('file_read');
 		});
 	});
 

@@ -7,7 +7,7 @@ import type { LanguageModelToolInformation } from 'vscode';
 import { ConfigKey, HARD_TOOL_LIMIT, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
-import { equals as arraysEqual, uniqueFilter } from '../../../../util/vs/base/common/arrays';
+import { uniqueFilter } from '../../../../util/vs/base/common/arrays';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Iterable } from '../../../../util/vs/base/common/iterator';
 import { IObservable } from '../../../../util/vs/base/common/observableInternal';
@@ -17,6 +17,16 @@ import { EMBEDDINGS_GROUP_NAME, VIRTUAL_TOOL_NAME_PREFIX, VirtualTool } from './
 import { VirtualToolGrouper } from './virtualToolGrouper';
 import * as Constant from './virtualToolsConstants';
 import { IToolCategorization, IToolGrouping } from './virtualToolTypes';
+
+/** Whether both lists contain the same tool names, regardless of order. */
+function sameToolNames(a: readonly LanguageModelToolInformation[], b: readonly LanguageModelToolInformation[]): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+
+	const names = new Set(a.map(t => t.name));
+	return b.every(t => names.has(t.name));
+}
 
 export function computeToolGroupingMinThreshold(experimentationService: IExperimentationService, configurationService: IConfigurationService): IObservable<number> {
 	return configurationService.getExperimentBasedConfigObservable(ConfigKey.VirtualToolThreshold, experimentationService).map(configured => {
@@ -32,13 +42,17 @@ export class ToolGrouping implements IToolGrouping {
 	private _turnNo = 0;
 	private _trimOnNextCompute = false;
 	private _expandOnNext?: Set<string>;
+	/** Real tools called this session, and the turn they were last called on. */
+	private readonly _calledTools = new Map<string, number>();
 
 	public get tools(): readonly LanguageModelToolInformation[] {
 		return this._tools;
 	}
 
 	public set tools(tools: readonly LanguageModelToolInformation[]) {
-		if (!arraysEqual(this._tools, tools, (a, b) => a.name === b.name)) {
+		// Order-insensitive: repacking on a reordering alone would reshuffle the
+		// serialized tool list and invalidate provider-side prompt caches.
+		if (!sameToolNames(this._tools, tools)) {
 			this._tools = tools;
 			// Keep the root so that we can still expand any in-flight requests.
 			this._didToolsChange = true;
@@ -91,6 +105,7 @@ export class ToolGrouping implements IToolGrouping {
 		}
 
 		if (!(tool instanceof VirtualTool)) {
+			this._calledTools.set(tool.name, this._turnNo);
 			return;
 		}
 
@@ -129,18 +144,28 @@ export class ToolGrouping implements IToolGrouping {
 		return this._root.contents;
 	}
 
+	private _expandPathTo(toolName: string, turn: number): void {
+		this._root.find(toolName)?.path.forEach(p => {
+			p.isExpanded = true;
+			p.lastUsedOnTurn = Math.max(p.lastUsedOnTurn, turn);
+		});
+	}
+
 	private async _doCompute(query: string, token: CancellationToken) {
 		if (this._didToolsChange) {
 			await this._grouper.addGroups(query, this._root, this._tools.slice(), token);
 			this._didToolsChange = false;
+
+			// Regrouping builds a fresh tree, so re-pin tools already in use. Restoring
+			// the turn each was last called on keeps the trim order meaningful.
+			for (const [toolName, turn] of this._calledTools) {
+				this._expandPathTo(toolName, turn);
+			}
 		}
 
 		if (this._expandOnNext) {
 			for (const toolName of this._expandOnNext) {
-				this._root.find(toolName)?.path.forEach(p => {
-					p.isExpanded = true;
-					p.lastUsedOnTurn = this._turnNo;
-				});
+				this._expandPathTo(toolName, this._turnNo);
 			}
 			this._expandOnNext = undefined;
 		}
