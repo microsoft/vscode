@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -1115,14 +1115,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			// undefined value means "not included" (e.g. a summary path that
 			// omits it), not "cleared". The authoritative git-state `_meta`
 			// still flows via `setMeta` from `SessionState` subscriptions.
-			if (metadata._meta !== undefined) {
-				this._meta = metadata._meta;
-				this._metaObs.set(this._meta, tx);
-			}
-			// Promote before recomputing the workspace below, so a session the
-			// listing reports workspace-less never assigns itself a workspace
-			// rooted at its scratch cwd, even transiently.
-			if (this._promoteToQuickChatIfWorkspaceless(tx)) {
+			//
+			// `setMeta` already promotes the session kind and rebuilds the
+			// workspace, so it runs here — before the project/working-directory
+			// rebuild below reads the workspace back — rather than a second time
+			// at the end of the update.
+			if (metadata._meta !== undefined && this.setMeta(metadata._meta, tx)) {
 				didChange = true;
 			}
 			const workspace = this._computeWorkspace();
@@ -1151,10 +1149,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				this._activity.set(metadata.activity, tx);
 				didChange = true;
 			}
-
-			if (metadata._meta !== undefined && this.setMeta(metadata._meta)) {
-				didChange = true;
-			}
 		});
 
 		return didChange;
@@ -1180,11 +1174,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * workspace-less, and rebuild the workspace if the git state changed.
 	 * Returns `true` iff anything observable changed, so the list regroups a
 	 * session that became a quick chat without ever having had a workspace.
+	 *
+	 * Callers that are already inside a transaction MUST pass it: a plain
+	 * `transaction()` here would finish (and therefore notify) mid-way through
+	 * the enclosing one, letting observers of `_meta` / `isQuickChat` /
+	 * `workspace` read a torn snapshot of the fields the caller has not applied
+	 * yet.
 	 */
-	setMeta(meta: SessionMeta | undefined): boolean {
+	setMeta(meta: SessionMeta | undefined, tx?: ITransaction): boolean {
 		this._meta = meta;
 		let didChange = false;
-		transaction(tx => {
+		subtransaction(tx, tx => {
 			this._metaObs.set(this._meta, tx);
 			didChange = this._promoteToQuickChatIfWorkspaceless(tx);
 			const workspace = this._computeWorkspace();
@@ -4545,7 +4545,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				didChange = true;
 			}
 
-			if (changes._meta !== undefined && cached.setMeta(changes._meta)) {
+			if (changes._meta !== undefined && cached.setMeta(changes._meta, tx)) {
 				didChange = true;
 			}
 
