@@ -138,6 +138,7 @@ export class ChatPetWidget extends Disposable {
 	private readonly _eyes: HTMLElement;
 	private readonly _pupils: HTMLElement[] = [];
 	private readonly _gazeScheduler: dom.AnimationFrameScheduler;
+	private readonly _dragBoundsReflowScheduler: dom.AnimationFrameScheduler;
 	private readonly _dragMonitor = this._register(new GlobalPointerMoveMonitor());
 	private readonly _idleExpired = observableValue(this, false);
 	private readonly _transientState = observableValue<ChatPetState | undefined>(this, undefined);
@@ -171,10 +172,13 @@ export class ChatPetWidget extends Disposable {
 			ariaLabel: localize('chatPet.interact', "Interact with the VS Code pet"),
 		}));
 		this._button.element.classList.add('chat-pet-button');
-		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatPetWidget.dragBounds', () => {
+		this._dragBoundsReflowScheduler = this._register(new dom.AnimationFrameScheduler(this._button.element, () => {
 			if (this._hasCustomPosition) {
 				this._setHorizontalPosition(this._getCurrentLeft());
 			}
+		}));
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatPetWidget.dragBounds', () => {
+			this._dragBoundsReflowScheduler.schedule();
 		}, dom.getWindow(this._button.element)));
 		this._register(resizeObserver.observe(this.dragBounds));
 		this._images = [0, 1].map(() => {
