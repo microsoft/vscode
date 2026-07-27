@@ -202,6 +202,28 @@ encoding, and a defined redaction rule — it carries a token, and the existing
 `redactToken` only recognises `?tkn=` in URLs, so a JSON-shaped line would leak
 into trace logs. Machine lines are structurally redacted before logging.
 
+#### The endpoint line
+
+```
+__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=<dial-host> port=<port> [token=<token>]
+```
+
+| Property | Rule |
+|---|---|
+| Channel | stdout, on its own line, on both the fresh-spawn and reuse paths |
+| Encoding | ASCII; space-separated `key=value`; no value contains a space |
+| `host` | The address to dial, already resolved from the bind address — wildcards map to the loopback of the *matching* family (`0.0.0.0` → `127.0.0.1`, `::` → `::1`). Never bracketed here; bracketing is the consumer's job when it builds an authority. |
+| `port` | Decimal. |
+| `token` | Present only when a connection token is in use; raw, not URL-encoded. |
+| Unknown keys | Ignored, so fields can be added without a version bump. |
+| Redaction | `token=<value>` → `token=***`, applied before the line reaches any log. |
+| Unknown `v=` | Treated as if the line were absent. |
+
+A CLI too old to emit the line leaves the desktop on the human banner, which
+means loopback — the behaviour it already had. That fallback is what keeps a
+mismatched pair working, and it is why the line is additive rather than a
+replacement for the banner.
+
 **IPv6 does not compose today**, so promising an IPv6-capable endpoint means
 fixing the consumers rather than just the producer: the WebSocket URL is built by
 string concatenation that yields an invalid authority for a bare IPv6 literal

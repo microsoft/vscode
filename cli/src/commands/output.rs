@@ -403,3 +403,46 @@ pub fn print_network_lines(port: u16, listen_ip: IpAddr, token_suffix: &str) {
 		print_banner_line("Network", &format!("ws://{listen_ip}:{port}{token_suffix}"));
 	}
 }
+
+// ---- Machine-readable lines -------------------------------------------------
+
+/// Marker that opens the machine-readable agent host endpoint line.
+const AGENT_HOST_ENDPOINT_MARKER: &str = "__VSCODE_AGENT_HOST_ENDPOINT__";
+
+/// Prints the machine-readable agent host endpoint line that clients
+/// scrape from `code agent host` stdout to learn where to dial.
+/// `host` must already be resolved to a dialable, unbracketed address.
+pub fn print_agent_host_endpoint_line(host: &str, port: u16, token: Option<&str>) {
+	println!("{}", format_agent_host_endpoint_line(host, port, token));
+}
+
+/// Formats the endpoint line as ASCII space-separated `key=value` pairs.
+/// `token` is emitted raw (not URL-encoded) and only when present.
+fn format_agent_host_endpoint_line(host: &str, port: u16, token: Option<&str>) -> String {
+	let mut line = format!("{AGENT_HOST_ENDPOINT_MARKER} v=1 host={host} port={port}");
+	if let Some(token) = token {
+		line.push_str(&format!(" token={token}"));
+	}
+	line
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn agent_host_endpoint_line_carries_token_when_used() {
+		assert_eq!(
+			format_agent_host_endpoint_line("::1", 8000, Some("9c8b7a-token")),
+			"__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=::1 port=8000 token=9c8b7a-token"
+		);
+	}
+
+	#[test]
+	fn agent_host_endpoint_line_omits_token_when_unused() {
+		assert_eq!(
+			format_agent_host_endpoint_line("127.0.0.1", 31545, None),
+			"__VSCODE_AGENT_HOST_ENDPOINT__ v=1 host=127.0.0.1 port=31545"
+		);
+	}
+}

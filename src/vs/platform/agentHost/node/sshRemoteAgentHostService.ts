@@ -29,9 +29,11 @@ import {
 	type ISSHResolvedConfig,
 } from '../common/sshRemoteAgentHost.js';
 import type { IRelayMessage } from '../common/relayTransport.js';
+import { formatHostPortAuthority } from '../../../base/common/network.js';
 import {
 	buildCLIDownloadUrl,
 	extractAgentHostWebSocketURL,
+	parseAgentHostEndpointLine,
 	redactToken,
 	type ISshExec,
 } from './sshRemoteAgentHostHelpers.js';
@@ -320,7 +322,7 @@ function startRemoteAgentHost(
 	cliBin: string | undefined,
 	cliDataDir: string | undefined,
 	commandOverride?: string,
-): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
+): Promise<{ host: string; port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
 	return new Promise((resolve, reject) => {
 		if (!commandOverride && (!cliBin || !cliDataDir)) {
 			reject(new Error(`${LOG_PREFIX} startRemoteAgentHost requires either a cliBin+cliDataDir pair or a commandOverride`));
@@ -366,12 +368,25 @@ function startRemoteAgentHost(
 				}
 
 				if (!resolved) {
+					// The machine-readable line carries the address the
+					// supervisor actually bound to; the banner always says
+					// loopback. Fall back to it only for a CLI too old to
+					// emit the line.
+					const endpoint = parseAgentHostEndpointLine(clean);
+					if (endpoint) {
+						resolved = true;
+						clearTimeout(timeout);
+						logService.info(`${LOG_PREFIX} Remote agent host listening on ${formatHostPortAuthority(endpoint.host, endpoint.port)}`);
+						resolve({ host: endpoint.host, port: endpoint.port, connectionToken: endpoint.token, pid, stream });
+						return;
+					}
+
 					const match = extractAgentHostWebSocketURL(clean);
 					if (match) {
 						resolved = true;
 						clearTimeout(timeout);
 						logService.info(`${LOG_PREFIX} Remote agent host listening on port ${match.port}`);
-						resolve({ port: match.port, connectionToken: match.token, pid, stream });
+						resolve({ host: match.host, port: match.port, connectionToken: match.token, pid, stream });
 					}
 				}
 			};
@@ -444,7 +459,7 @@ function createWebSocketRelay(
 			}
 
 			const WS = nativeRequire('ws') as typeof WebSocket;
-			let url = `ws://${dstHost}:${dstPort}`;
+			let url = `ws://${formatHostPortAuthority(dstHost, dstPort)}`;
 			if (connectionToken) {
 				url += `?tkn=${encodeURIComponent(connectionToken)}`;
 			}
@@ -518,6 +533,7 @@ class SSHConnection extends Disposable {
 		readonly address: string,
 		readonly name: string,
 		readonly connectionToken: string | undefined,
+		readonly remoteHost: string,
 		readonly remotePort: number,
 		readonly sshClient: SSHClient,
 		private readonly _relay: { send: (data: string) => void; close: () => void },
@@ -642,7 +658,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// the same dispose-and-recreate pattern as TunnelAgentHostMainService.
 				// The SSH client is detached so only the WebSocket relay is closed.
 				this._logService.info(`${LOG_PREFIX} Reconnecting relay for existing SSH tunnel ${connectionKey}`);
-				const { sshClient, remotePort, connectionToken } = existing;
+				const { sshClient, remoteHost, remotePort, connectionToken } = existing;
 
 				// Remove from map and detach SSH client before disposing so
 				// the old relay's close handler (conn?.dispose()) is a no-op.
@@ -662,7 +678,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					const timeoutMs = this.relayCreationTimeoutMs;
 					const relay = await raceTimeout(
 						this._createWebSocketRelay(
-							sshClient, '127.0.0.1', remotePort, connectionToken,
+							sshClient, remoteHost, remotePort, connectionToken,
 							(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
 							() => { conn?.dispose(); },
 						),
@@ -674,7 +690,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 					conn = new SSHConnection(
 						config, connectionId, connectionKey, config.name,
-						connectionToken, remotePort, sshClient, relay, undefined,
+						connectionToken, remoteHost, remotePort, sshClient, relay, undefined,
 						this._logService,
 					);
 
@@ -734,10 +750,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			// 2. Resolve the CLI and launch the agent host. The CLI foreground
 			//    itself classifies its lockfile and either reuses the live
-			//    supervisor or spawns a fresh one; both paths print the same
-			//    `ws://127.0.0.1:PORT[?tkn=TOKEN]` banner we parse. The
-			//    desktop therefore neither reads, writes nor cleans up remote
-			//    lifecycle state — the CLI owns it. See REMOTE_PLATFORM.md section 4.
+			//    supervisor or spawns a fresh one; both paths report the same
+			//    endpoint line we parse. The desktop therefore neither reads,
+			//    writes nor cleans up remote lifecycle state — the CLI owns
+			//    it. See REMOTE_PLATFORM.md section 4.
 			if (config.remoteAgentHostCommand) {
 				this._logService.info(`${LOG_PREFIX} Using custom agent host command: ${config.remoteAgentHostCommand}`);
 			} else {
@@ -754,11 +770,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			const remotePort = result.port;
 			const connectionToken = result.connectionToken;
 			const agentStream = result.stream;
-			// The CLI's human banner always reports loopback, so we dial
-			// loopback. A machine-readable endpoint line from the CLI will
-			// later carry a non-loopback or IPv6 dial host — see
-			// REMOTE_PLATFORM.md section 4.
-			const remoteHost = '127.0.0.1';
+			const remoteHost = result.host;
 
 			// 3. Connect to remote agent host via WebSocket relay (no local
 			//    TCP port). A relay failure surfaces to the caller instead
@@ -782,6 +794,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				address,
 				config.name,
 				connectionToken,
+				remoteHost,
 				remotePort,
 				sshClient,
 				relay,
@@ -1334,7 +1347,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	protected _startRemoteAgentHost(
 		client: SSHClient, cliBin: string | undefined, cliDataDir: string | undefined, commandOverride?: string,
 		platform?: IRemotePlatform,
-	): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
+	): Promise<{ host: string; port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
 		// The detected platform is threaded in so the launch is rendered by the
 		// same platform that installed the CLI. It is absent only on the
 		// `remoteAgentHostCommand` path, which skips detection and is POSIX-only

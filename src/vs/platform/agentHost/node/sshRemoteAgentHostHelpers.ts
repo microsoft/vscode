@@ -263,7 +263,9 @@ export function isValidFallbackCLIPath(candidate: string, serverDataFolderName: 
 
 /** Redact connection tokens from log output. */
 export function redactToken(text: string): string {
-	return text.replace(/\?tkn=[^\s&]+/g, '?tkn=***');
+	return text
+		.replace(/\?tkn=[^\s&]+/g, '?tkn=***')
+		.replace(/\btoken=\S+/g, 'token=***');
 }
 
 /**
@@ -290,6 +292,51 @@ export function extractAgentHostWebSocketURL(text: string): { url: string; host:
 		port: parseInt(match[1], 10),
 		token: match[2] || undefined,
 	};
+}
+
+/** Endpoint reported by `code agent host`, as the desktop should dial it. */
+export interface IAgentHostEndpoint {
+	/** Dial host, unbracketed even when it is an IPv6 literal. */
+	readonly host: string;
+	readonly port: number;
+	readonly token: string | undefined;
+}
+
+const AGENT_HOST_ENDPOINT_MARKER = '__VSCODE_AGENT_HOST_ENDPOINT__';
+const AGENT_HOST_ENDPOINT_LINE_RE = new RegExp(`${AGENT_HOST_ENDPOINT_MARKER}\\s+(\\S.*)$`, 'm');
+
+/**
+ * Parse the machine-readable endpoint line `code agent host` prints alongside
+ * its banner (see `REMOTE_PLATFORM.md` §4). Returns `undefined` when the line is
+ * absent, carries a version this build does not understand, or is malformed —
+ * in each case the caller falls back to the human banner, which means loopback.
+ */
+export function parseAgentHostEndpointLine(text: string): IAgentHostEndpoint | undefined {
+	const match = text.match(AGENT_HOST_ENDPOINT_LINE_RE);
+	if (!match) {
+		return undefined;
+	}
+
+	const fields = new Map<string, string>();
+	for (const field of match[1].trim().split(/\s+/)) {
+		const eq = field.indexOf('=');
+		if (eq > 0) {
+			fields.set(field.slice(0, eq), field.slice(eq + 1));
+		}
+	}
+
+	if (fields.get('v') !== '1') {
+		return undefined;
+	}
+
+	const host = fields.get('host');
+	const port = Number(fields.get('port'));
+	if (!host || !Number.isInteger(port) || port <= 0 || port > 65535) {
+		return undefined;
+	}
+
+	const token = fields.get('token');
+	return { host, port, token: token || undefined };
 }
 
 /**

@@ -201,8 +201,8 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	execResponses: Array<{ stdout: string; code: number }> = [];
 
 	/** What _startRemoteAgentHost will resolve with. */
-	startResult: { port: number; connectionToken: string | undefined; pid: number | undefined } = {
-		port: 9999, connectionToken: 'tok-abc', pid: 42,
+	startResult: { host: string; port: number; connectionToken: string | undefined; pid: number | undefined } = {
+		host: '127.0.0.1', port: 9999, connectionToken: 'tok-abc', pid: 42,
 	};
 	startCalled = 0;
 

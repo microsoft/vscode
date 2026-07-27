@@ -298,6 +298,11 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	output::print_network_lines(bound_port, banner_listen_ip, &token_suffix);
 	output::print_banner_line("Manage", "code agent ps  |  code agent kill");
 	output::print_banner_footer();
+	output::print_agent_host_endpoint_line(
+		dial_host(args.host.as_deref()),
+		bound_port,
+		args.connection_token.as_deref(),
+	);
 	let _ = std::io::stdout().flush();
 
 	// Signal readiness to the foreground parent (if any) and then sever
@@ -369,6 +374,7 @@ fn print_reuse_banner(
 	output::print_network_lines(port, banner_listen_ip, &token_suffix);
 	output::print_banner_line("Manage", "code agent ps  |  code agent kill");
 	output::print_banner_footer();
+	output::print_agent_host_endpoint_line(dial_host(host), port, token);
 	let _ = std::io::stdout().flush();
 	log.result(format!(
 		"Agent host supervisor already running (PID {pid}). \
@@ -629,11 +635,8 @@ pub struct ActiveAgentHost {
 }
 
 impl ActiveAgentHost {
-	/// Loopback address callers should dial to reach this supervisor.
-	/// Maps IPv4/IPv6 wildcards (`0.0.0.0` / `::`) to the corresponding
-	/// loopback; passes specific hosts (e.g. `::1`, `localhost`,
-	/// `10.0.0.5`) through unchanged. Missing host (older lockfile)
-	/// falls back to IPv4 loopback to preserve the prior behaviour.
+	/// Address callers should dial to reach this supervisor. See
+	/// [`dial_host`].
 	pub fn dial_host(&self) -> &str {
 		dial_host(self.host.as_deref())
 	}
@@ -650,10 +653,15 @@ impl ActiveAgentHost {
 	}
 }
 
-/// See [`ActiveAgentHost::dial_host`].
+/// Address to dial a supervisor that is bound to `bound`. Wildcards map
+/// to the loopback of the matching family (`0.0.0.0` -> `127.0.0.1`,
+/// `::` / `[::]` -> `::1`); specific hosts (e.g. `::1`, `localhost`,
+/// `10.0.0.5`) pass through unchanged, and are never bracketed. A missing
+/// host (lockfile written by an older CLI) falls back to IPv4 loopback.
 pub fn dial_host(bound: Option<&str>) -> &str {
 	match bound {
-		Some("0.0.0.0") | Some("::") | Some("[::]") | None => "127.0.0.1",
+		Some("::") | Some("[::]") => "::1",
+		Some("0.0.0.0") | None => "127.0.0.1",
 		Some(other) => other,
 	}
 }
@@ -780,5 +788,18 @@ mod tests {
 		let token = mint_connection_token(&path, Some("override".to_string())).unwrap();
 		assert_eq!(token, "override");
 		assert_eq!(fs::read_to_string(&path).unwrap(), "override");
+	}
+
+	#[test]
+	fn dial_host_maps_wildcards_to_matching_family_loopback() {
+		assert_eq!(dial_host(Some("0.0.0.0")), "127.0.0.1");
+		assert_eq!(dial_host(Some("::")), "::1");
+		assert_eq!(dial_host(Some("[::]")), "::1");
+
+		// Older lockfiles omit the host; assume the IPv4 loopback default
+		assert_eq!(dial_host(None), "127.0.0.1");
+
+		// A specific bind address is dialable as-is
+		assert_eq!(dial_host(Some("10.0.0.5")), "10.0.0.5");
 	}
 }

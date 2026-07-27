@@ -160,16 +160,17 @@ suite('remotePlatformDetection', () => {
 				{ match: /^powershell /, stdout: 'windows-junk', stderr: 'win-err', code: 1 },
 			]);
 			await assert.rejects(() => detectRemotePlatform(fake.exec), (err: Error) => {
-				const msg = err.message;
-				return msg.includes('Could not detect remote platform')
-					&& msg.includes('POSIX probe')
-					&& msg.includes('"garbage"')
-					&& msg.includes('"posix-err"')
-					&& msg.includes('Windows probe')
-					&& msg.includes('"windows-junk"')
-					&& msg.includes('"win-err"');
+				assert.deepStrictEqual({
+					message: err.message,
+					callCount: fake.calls.length,
+				}, {
+					message: 'Could not determine the operating system of the remote.\n'
+						+ 'POSIX probe exited 0: "garbage posix-err"\n'
+						+ 'Windows probe exited 1: "windows-junk win-err"',
+					callCount: 2,
+				});
+				return true;
 			});
-			assert.strictEqual(fake.calls.length, 2);
 		});
 	});
 });
