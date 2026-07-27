@@ -108,14 +108,6 @@ jobs:
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Mixin distro node modules
 
-      - script: |
-          set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Create node_modules archive
-
       - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
 
@@ -363,6 +355,14 @@ jobs:
           echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.new.txt"
         displayName: "Build merged NOTICE (scan extensions + merge into .new.txt)"
         continueOnError: true
+
+      - script: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Create node_modules archive
 
       - task: AzureCLI@2
         displayName: Fetch secrets
