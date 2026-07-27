@@ -294,8 +294,11 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	/** fileResource → sessionResource active when the editor for that file was first seen */
 	private readonly _fileToSession = new ResourceMap<URI>();
 
-	/** Workspace the shared new-session comments are currently bound to. */
-	private _newSessionWorkspaceKey: string | undefined;
+	/** Workspace the shared new-session comments are bound to; `undefined` when there are none. */
+	private _boundNewSessionWorkspaceKey: string | undefined;
+
+	/** Workspace of the draft the new-session scope currently targets. */
+	private readonly _newSessionWorkspaceKey: IObservable<string | undefined>;
 
 	/** In-memory store used for every non-agent-host provider. */
 	private readonly _inMemoryBackend = this._register(new InMemoryAgentFeedbackItemsBackend());
@@ -339,23 +342,39 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		// active) or the draft's workspace has not resolved yet. Neither is a
 		// workspace change, so the comments stay bound to the last known one and a
 		// draft swap (which briefly drops the workspace) does not discard them.
-		const newSessionWorkspaceKey = derived(this, reader => {
+		this._newSessionWorkspaceKey = derived(this, reader => {
 			const activeSession = this._sessionsService.activeSession.read(reader);
 			if (!activeSession || activeSession.isCreated.read(reader)) {
 				return undefined;
 			}
 			return workspaceFoldersKey(activeSession.workspace.read(reader));
 		});
-		this._newSessionWorkspaceKey = newSessionWorkspaceKey.get();
-		this._register(runOnChange(newSessionWorkspaceKey, key => {
+		this._register(runOnChange(this._newSessionWorkspaceKey, key => {
 			if (key === undefined) {
 				return;
 			}
-			if (this._newSessionWorkspaceKey !== undefined && this._newSessionWorkspaceKey !== key) {
+			if (this._boundNewSessionWorkspaceKey !== undefined && this._boundNewSessionWorkspaceKey !== key) {
 				this.clearFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE);
 			}
-			this._newSessionWorkspaceKey = key;
+			// Comments written before any workspace was picked adopt this selection.
+			this._rebindNewSessionWorkspace();
 		}));
+	}
+
+	/**
+	 * The shared new-session comments belong to the workspace of the draft they
+	 * were written for. An empty set releases the binding so the next draft can
+	 * adopt its own workspace instead of being measured against a stale one.
+	 */
+	private _rebindNewSessionWorkspace(): void {
+		if (!this.getFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE).length) {
+			this._boundNewSessionWorkspaceKey = undefined;
+			return;
+		}
+		const key = this._newSessionWorkspaceKey.get();
+		if (key !== undefined) {
+			this._boundNewSessionWorkspaceKey = key;
+		}
 	}
 
 	/** Resolves the storage backend that owns feedback for the given session. */
@@ -393,6 +412,9 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 		this._onDidChangeNavigation.fire(sessionResource);
+		if (isEqual(sessionResource, AGENT_FEEDBACK_NEW_SESSION_RESOURCE)) {
+			this._rebindNewSessionWorkspace();
+		}
 	}
 
 	private _trackVisibleEditorResources(): void {

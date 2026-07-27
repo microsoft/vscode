@@ -111,9 +111,11 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 			}());
 			reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 				override readonly onDidChangeFeedback = Event.None;
+				override readonly onDidChangeFeedbackScope = Event.None;
 				override getFeedback(sessionResource: URI): readonly IAgentFeedback[] {
 					return sessionResource.toString() === AGENT_FEEDBACK_NEW_SESSION_RESOURCE.toString() ? feedbackItems : [];
 				}
+				override getFeedbackSessionResource() { return undefined; }
 				override async revealFeedback(): Promise<void> { }
 			}());
 			reg.defineInstance(IHistoryService, new class extends mock<IHistoryService>() { }());

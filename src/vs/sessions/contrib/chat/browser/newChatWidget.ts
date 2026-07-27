@@ -6,7 +6,7 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -68,8 +68,8 @@ export class NewChatWidget extends Disposable {
 	/** Draft comments shared by every uncreated new-session composer. */
 	private readonly _feedbackItems: IObservable<readonly IAgentFeedback[]>;
 
-	/** Pending background send waiting to confirm before its comments are cleared. */
-	private readonly _pendingBackgroundSend = this._register(new MutableDisposable());
+	/** In-flight background sends awaiting confirmation before their comments are cleared. */
+	private readonly _pendingBackgroundSends = this._register(new DisposableMap<object>());
 
 	/** The workspace-row container hosting the inline harness picker (desktop, non-quick-chat). */
 	private _workspacePickerRow: HTMLElement | undefined;
@@ -545,8 +545,9 @@ export class NewChatWidget extends Disposable {
 			return false;
 		}
 		const feedbackItems = [...this._feedbackItems.get()];
-		const workspaceRoot = session.workspace.get()?.folders[0]?.root ?? this._workspacePicker.selectedFolderUri;
-		const request = buildNewSessionPrompt(query, feedbackItems, workspaceRoot);
+		const workspaceRoots = session.workspace.get()?.folders.map(folder => folder.root)
+			?? (this._workspacePicker.selectedFolderUri ? [this._workspacePicker.selectedFolderUri] : []);
+		const request = buildNewSessionPrompt(query, feedbackItems, workspaceRoots);
 
 		// Capture the composer's workspace selection before the send: a
 		// background send consumes the in-flight new session and resets the
@@ -561,22 +562,23 @@ export class NewChatWidget extends Disposable {
 				this.agentFeedbackService.removeFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, item.id);
 			}
 		};
-		// A background send is fire-and-forget, so the comments can only be
-		// cleared once the request is confirmed sent — correlated by the options
-		// object the send was started with.
+		// A background send is fire-and-forget and the composer immediately reseeds
+		// for the next one, so several can be in flight at once. Each is tracked
+		// separately, keyed by the options object it was started with, so one
+		// send's outcome never clears another's comments.
 		if (background) {
-			this._pendingBackgroundSend.value = Event.once(
+			this._pendingBackgroundSends.set(sendOptions, Event.once(
 				Event.filter(this.sessionsManagementService.onDidSendRequest, event => event.options === sendOptions)
 			)(() => {
 				clearFeedback();
-				this._pendingBackgroundSend.clear();
-			});
+				this._pendingBackgroundSends.deleteAndDispose(sendOptions);
+			}));
 		}
 
 		try {
 			await this.sessionsManagementService.sendNewChatRequest(session, sendOptions);
 		} catch (e) {
-			this._pendingBackgroundSend.clear();
+			this._pendingBackgroundSends.deleteAndDispose(sendOptions);
 			this.logService.error('Failed to send request:', e);
 			return false;
 		}

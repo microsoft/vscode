@@ -415,6 +415,24 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		});
 	});
 
+	test('lets a workspace-less draft adopt its first selection after the comments were cleared', () => {
+		const draftInF = makeSession(sessionS1, SessionStatus.Untitled, { folders: [URI.file('/f')] });
+		const workspacelessDraft = makeSession(sessionS2, SessionStatus.Untitled);
+		const draftInG = makeSession(sessionS2, SessionStatus.Untitled, { folders: [URI.file('/g')] });
+
+		setActiveSession(draftInF);
+		const first = service.addFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, URI.file('/f/a.ts'), new Range(1, 1, 1, 2), 'Fix this');
+		service.removeFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, first.id);
+
+		// The set is empty again, so the binding to /f is released and the comment
+		// written without a workspace adopts the next selection instead.
+		setActiveSession(workspacelessDraft);
+		service.addFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, URI.file('/g/b.ts'), new Range(1, 1, 1, 2), 'Rename this');
+		setActiveSession(draftInG);
+
+		assert.strictEqual(service.getFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE).length, 1);
+	});
+
 	test('uses the created session feedback scope after leaving the new-session view', () => {
 		setActiveSession(makeSession(sessionS1, SessionStatus.Untitled));
 		const draftScope = service.getFeedbackSessionResource(fileA);

@@ -89,7 +89,7 @@ export function buildAgentFeedbackValue(feedbackItems: readonly IAgentFeedback[]
 }
 
 /** Appends draft feedback comments to a new-session prompt. */
-export function buildNewSessionPrompt(prompt: string, feedbackItems: readonly IAgentFeedback[], workspaceRoot: URI | undefined): string {
+export function buildNewSessionPrompt(prompt: string, feedbackItems: readonly IAgentFeedback[], workspaceRoots: readonly URI[]): string {
 	const parts: string[] = [];
 	const trimmedPrompt = prompt.trim();
 	if (trimmedPrompt) {
@@ -98,7 +98,7 @@ export function buildNewSessionPrompt(prompt: string, feedbackItems: readonly IA
 
 	const useCommentBullets = !!trimmedPrompt || feedbackItems.length !== 1;
 	for (const item of feedbackItems) {
-		const location = formatFeedbackLocation(item, workspaceRoot);
+		const location = formatFeedbackLocation(item, workspaceRoots);
 		parts.push(formatPromptLine(`${item.text} (${location})`, useCommentBullets ? '- ' : '', useCommentBullets ? '  ' : ''));
 		for (const reply of item.replies ?? []) {
 			parts.push(formatPromptLine(`reply: ${reply}`, '  - ', '    '));
@@ -108,10 +108,9 @@ export function buildNewSessionPrompt(prompt: string, feedbackItems: readonly IA
 	return parts.join('\n');
 }
 
-function formatFeedbackLocation(item: IAgentFeedback, workspaceRoot: URI | undefined): string {
-	const workspaceRelativePath = workspaceRoot && isEqualOrParent(item.resourceUri, workspaceRoot)
-		? relativePath(workspaceRoot, item.resourceUri)
-		: undefined;
+function formatFeedbackLocation(item: IAgentFeedback, workspaceRoots: readonly URI[]): string {
+	const containingRoot = workspaceRoots.find(root => isEqualOrParent(item.resourceUri, root));
+	const workspaceRelativePath = containingRoot && relativePath(containingRoot, item.resourceUri);
 	const resourcePath = workspaceRelativePath || (item.resourceUri.scheme === Schemas.file ? item.resourceUri.fsPath.replaceAll('\\', '/') : item.resourceUri.path);
 	return `${resourcePath}:${item.range.startLineNumber}:${item.range.startColumn}-${item.range.endLineNumber}:${item.range.endColumn}`;
 }
