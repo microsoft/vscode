@@ -500,7 +500,9 @@ function getInvalidCellErrorMessage(cellId: string, notebook?: vscode.NotebookDo
 		let msg = `None of the edits were applied as provided cell id: '${cellId}' is invalid. Notebook may have been modified, try reading the Notebook file again or use the ${ToolName.GetNotebookSummary} to get a list of the notebook cells, types and Cell Ids`;
 		if (notebook) {
 			const validIds = notebook.getCells().map(cell => getCellId(cell)).join(', ');
-			msg += `. Valid cell Ids in the current notebook are: ${validIds}`;
+			msg += validIds
+				? `. Valid cell Ids in the current notebook are: ${validIds}`
+				: '. The current notebook has no cells.';
 		}
 		return msg;
 	}
