@@ -274,6 +274,42 @@ class TestCopilotApiService implements ICopilotApiService {
 	async resolveApiEndpoint() { return this.apiEndpoint; }
 }
 
+class CapturingRestrictedTelemetryService implements ITelemetryService, IAgentHostRestrictedTelemetry {
+	declare readonly _serviceBrand: undefined;
+	readonly telemetryLevel = TelemetryLevel.USAGE;
+	readonly sendErrorTelemetry = true;
+	readonly sessionId = 'sessionId';
+	readonly machineId = 'machineId';
+	readonly sqmId = 'sqmId';
+	readonly devDeviceId = 'devDeviceId';
+	readonly firstSessionDate = 'firstSessionDate';
+	readonly events: Array<{ destination: 'enhanced' | 'internal'; eventName: string; properties: TelemetryProps | undefined }> = [];
+
+	publicLog(): void { }
+	publicLog2(): void { }
+	publicLogError(): void { }
+	publicLogError2(): void { }
+	setExperimentProperty(): void { }
+	setCommonProperty(): void { }
+	sendGHTelemetryEvent(): void { }
+	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
+		this.events.push({ destination: 'enhanced', eventName, properties });
+	}
+	sendEnhancedGHTelemetryEventForContext(_context: IAgentHostRestrictedTelemetryContext, eventName: string, properties?: TelemetryProps): void {
+		this.events.push({ destination: 'enhanced', eventName, properties });
+	}
+	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
+		this.events.push({ destination: 'internal', eventName, properties });
+	}
+	sendInternalMSFTTelemetryEventForContext(_context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps): void {
+		this.events.push({ destination: 'internal', eventName, properties });
+	}
+	setCopilotTrackingId(): void { }
+	setRestrictedTelemetryEndpoint(): void { }
+	setRestrictedTelemetryEnabled(): void { }
+	setInternalTelemetryContext(): void { }
+}
+
 class CapturingLogService extends NullLogService {
 	readonly errors: Array<{ first: string | Error; args: unknown[] }> = [];
 	readonly warnings: Array<{ message: string; args: unknown[] }> = [];
@@ -6940,43 +6976,36 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	suite('restricted telemetry', () => {
+		test('uses the client request id for model conversation.messageText', async () => {
+			const telemetryService = new CapturingRestrictedTelemetryService();
+			const { mockSession } = await createAgentSession(disposables, {
+				telemetryService,
+				restrictedTelemetryContext: {
+					restrictedTelemetryEnabled: true,
+					trackingId: 'tracking-id',
+					telemetryEndpoint: 'https://telemetry.example',
+				},
+			});
+
+			mockSession.fire('assistant.message', {
+				messageId: 'message-1',
+				content: 'model response',
+				clientRequestId: 'client-request-id',
+				serviceRequestId: 'service-request-id',
+			} as SessionEventPayload<'assistant.message'>['data']);
+			await timeout(0);
+
+			assert.deepStrictEqual(telemetryService.events
+				.filter(event => event.eventName === 'conversation.messageText')
+				.map(event => ({ destination: event.destination, headerRequestId: event.properties?.headerRequestId })), [
+				{ destination: 'enhanced', headerRequestId: 'client-request-id' },
+				{ destination: 'internal', headerRequestId: 'client-request-id' },
+			]);
+		});
+	});
+
 	suite('repoInfo telemetry', () => {
-		class CapturingRestrictedTelemetryService implements ITelemetryService, IAgentHostRestrictedTelemetry {
-			declare readonly _serviceBrand: undefined;
-			readonly telemetryLevel = TelemetryLevel.USAGE;
-			readonly sendErrorTelemetry = true;
-			readonly sessionId = 'sessionId';
-			readonly machineId = 'machineId';
-			readonly sqmId = 'sqmId';
-			readonly devDeviceId = 'devDeviceId';
-			readonly firstSessionDate = 'firstSessionDate';
-			readonly events: Array<{ destination: 'enhanced' | 'internal'; eventName: string; properties: TelemetryProps | undefined }> = [];
-
-			publicLog(): void { }
-			publicLog2(): void { }
-			publicLogError(): void { }
-			publicLogError2(): void { }
-			setExperimentProperty(): void { }
-			setCommonProperty(): void { }
-			sendGHTelemetryEvent(): void { }
-			sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
-				this.events.push({ destination: 'enhanced', eventName, properties });
-			}
-			sendEnhancedGHTelemetryEventForContext(_context: IAgentHostRestrictedTelemetryContext, eventName: string, properties?: TelemetryProps): void {
-				this.events.push({ destination: 'enhanced', eventName, properties });
-			}
-			sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
-				this.events.push({ destination: 'internal', eventName, properties });
-			}
-			sendInternalMSFTTelemetryEventForContext(_context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps): void {
-				this.events.push({ destination: 'internal', eventName, properties });
-			}
-			setCopilotTrackingId(): void { }
-			setRestrictedTelemetryEndpoint(): void { }
-			setRestrictedTelemetryEnabled(): void { }
-			setInternalTelemetryContext(): void { }
-		}
-
 		test('captures one begin and end across root SDK rounds', async () => {
 			const workingDirectory = URI.file('/repo');
 			const gitService: IAgentHostGitService = {

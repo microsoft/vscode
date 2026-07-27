@@ -342,16 +342,15 @@ export class AgentHostTelemetryReporter {
 	/**
 	 * The model-message counterpart to {@link userMessageText}. Emitted when an `assistant.message`
 	 * arrives (the agent host's per-model-call boundary), carrying the assistant's response text.
-	 * `headerRequestId` is filled with the model call's `x-copilot-service-request-id` (the id the
-	 * SDK exposes), mirroring the field the extension populates from the client-minted request id.
-	 * VS Code-only enrichment dims (code-block languages/counts) are not reconstructed here.
+	 * `headerRequestId` is filled with the model call's client-minted `x-request-id`, matching the
+	 * extension. VS Code-only enrichment dims (code-block languages/counts) are not reconstructed here.
 	 *
 	 * @param session Session URI string; its id becomes `conversationId`.
 	 * @param content The assistant's response text. No-ops when empty.
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here.
-	 * @param serviceRequestId The model call's `x-copilot-service-request-id`, mapped to `headerRequestId`.
+	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to `headerRequestId`.
 	 */
-	async modelMessageText(session: string, clientType: AgentHostClientType, content: string, turnIndex: number, serviceRequestId: string | undefined): Promise<void> {
+	async modelMessageText(session: string, clientType: AgentHostClientType, content: string, turnIndex: number, clientRequestId: string | undefined): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
@@ -361,7 +360,7 @@ export class AgentHostTelemetryReporter {
 			conversationId: AgentSession.id(session),
 			initiatorClientType: clientType,
 			turnIndex: String(turnIndex),
-			...(serviceRequestId ? { headerRequestId: serviceRequestId } : {}),
+			...(clientRequestId ? { headerRequestId: clientRequestId } : {}),
 			messageText: content,
 		});
 		const measurements = { messageCharLen: content.length };
