@@ -67,6 +67,7 @@ Sequencing: do this *after* the recorded commands are made portable. Turning req
 - Expected: a side chat materializes with the host's server-tool MCP server (`host`) registered, so a replayed turn can call a server tool.
 - Observed: the turn fails with `sendFailed` / `Error: Server not found: host`, raised by the Claude CLI. `host` is `CLAUDE_SERVER_TOOL_MCP_SERVER_NAME`, which is only registered when a `serverToolHost` is present at materialization, so the replayed turn reaches the provider before the server-tool MCP server is wired for that session.
 - Gate: `sideChatServerToolWiringUnstable: true`.
+- Tracked by [#327567](https://github.com/microsoft/vscode/issues/327567).
 - This is a race, not a stale capture. The test passes in isolation and fails only under a dense sequence of model-backed turns, so **do not re-record the capture** to make it pass — that would hide the race behind a different tool plan.
 
 Measured while separating the conformance and parity tiers, which concentrated the Claude parity suite into consecutive model-backed turns (43 tests in ~21s) where the interleaved host-only tests previously spaced them out (101 tests in ~26s):
