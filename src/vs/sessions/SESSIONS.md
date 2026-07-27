@@ -374,7 +374,12 @@ the pending/active session or navigating the current view — the started sessio
 just appears in the sessions list once the provider commits it. It shares the
 underlying commit helper with the composer's background send; if the send fails
 it disposes the stranded draft via `deleteNewSession` and rejects so the caller
-can react.
+can react. After resolving
+the exact provider/session type and workspace once, it checks that workspace's
+`requiresWorkspaceTrust` policy and queries resource trust before
+`provider.createNewSession`. An untrusted required workspace rejects with
+`WorkspaceNotTrustedError`, so headless callers fail closed before provider code
+can load workspace-controlled configuration or run commands.
 
 ### Adding a Chat to an Existing Session (Agent Host Multi-Chat)
 
