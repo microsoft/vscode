@@ -133,6 +133,17 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 
 			const { promise, resolve } = promiseWithResolvers<void>();
 			this._awaitingRevival.set(viewType, { webview, resolve });
+
+			// If the caller is cancelled (e.g. the view pane is torn down or re-activated)
+			// before a resolver registers, drop the pending entry so a later resolve for the
+			// same view type does not throw "View already awaiting revival".
+			cancellation.onCancellationRequested(() => {
+				if (this._awaitingRevival.get(viewType)?.resolve === resolve) {
+					this._awaitingRevival.delete(viewType);
+					resolve();
+				}
+			});
+
 			return promise;
 		}
 
