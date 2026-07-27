@@ -902,10 +902,11 @@ suite('RunInTerminalTool', () => {
 
 		test('should direct the user to disable sandboxing when bubblewrap is restricted by the host', () => {
 			const result = runInTerminalTool.getBubblewrapHostRestrictedResult();
+			const message = (result.content[0] as { value?: string }).value;
 
-			ok((result.content[0] as { value?: string }).value?.includes(AgentSandboxSettingId.AgentSandboxEnabled));
-			ok((result.content[0] as { value?: string }).value?.includes('retry the command'));
-			ok(typeof result.toolResultMessage !== 'string' && result.toolResultMessage?.value.includes('command:workbench.action.openSettings'));
+			ok(message?.includes(AgentSandboxSettingId.AgentSandboxEnabled));
+			ok(message?.includes('Disable sandboxing'));
+			strictEqual(result.toolResultMessage, message);
 		});
 
 		test('should not retry when unsandboxed commands are disabled', () => {
