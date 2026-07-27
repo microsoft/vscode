@@ -40,48 +40,27 @@ type ModelSelectionIntent =
 	| { readonly kind: 'session'; readonly model: ILanguageModelChatMetadataAndIdentifier; readonly configuration: Record<string, unknown> | undefined; readonly sessionType: string | undefined; readonly conversationKey: string }
 	| { readonly kind: 'history'; readonly modelId: string; readonly conversationKey: string };
 
-/**
- * How a model came to be selected. Modelled as a union so the caller cannot ask for a combination
- * that has no meaning — an automatic selection has nothing to roll back to, and a programmatic one
- * has no caller-supplied effect.
- */
+/** A union so meaningless combinations — a rollback for an automatic pick — cannot be expressed. */
 export type ModelSelectionRequest =
-	/** The user picked from the model picker. `effect` persists and lays out; it may throw. */
 	| { readonly authority: 'user'; readonly effect: () => void; readonly rollbackOnError?: boolean }
-	/** The caller already decided; only the displayed model changes. */
 	| { readonly authority: 'automatic'; readonly effect: () => void }
-	/** A mode or session forced this model. */
 	| { readonly authority: 'programmatic' };
 
-/**
- * Reasons whose model should outlive a catalog outage: applying a model for one of these makes it
- * the model to reclaim once it can be offered again.
- *
- * Note this is a wider set than {@link isInConversationModelChoice}. A remembered or restored model
- * is durable, but `chat.defaultModel` still outranks it on a new conversation.
- */
+/** Wider than {@link isInConversationModelChoice}: `chat.defaultModel` still outranks these on a new conversation. */
 type DurableReason =
 	| ModelSelectionReason.UserSelection
 	| ModelSelectionReason.ProgrammaticSelection
 	| ModelSelectionReason.SessionRestore
 	| ModelSelectionReason.Remembered;
 
-/**
- * Reasons that only stand in for a model that cannot currently be offered. `chat.defaultModel`
- * lands here: it is re-derived from configuration for each new conversation rather than being
- * something the user chose, so it must never displace what they did choose.
- */
+/** `chat.defaultModel` is here: re-derived per conversation, so it must never displace a real choice. */
 type TransientReason =
 	| ModelSelectionReason.ConfiguredDefault
 	| ModelSelectionReason.FirstAvailable
 	| ModelSelectionReason.RemovedModelFallback
 	| ModelSelectionReason.NewChatRepush;
 
-/**
- * Every reason must be classified as durable or transient. The exhaustive switch means adding a
- * `ModelSelectionReason` without deciding which it is fails to compile, rather than silently
- * defaulting to one.
- */
+/** Exhaustive so a new `ModelSelectionReason` cannot compile until it is classified. */
 function isDurableReason(reason: ModelSelectionApplyReason): reason is DurableReason {
 	switch (reason) {
 		case ModelSelectionReason.UserSelection:
@@ -107,12 +86,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	private _selectionReason: ModelSelectionApplyReason | undefined;
 	private _intent: ModelSelectionIntent | undefined;
 	private _restorePerTypeModel = false;
-	/**
-	 * The model the user is meant to be on, independent of what the catalog can currently offer,
-	 * with the authority that put them there. Seeded from storage by {@link initialize} and updated
-	 * by every deliberate choice. Falling back to a default because the catalog dropped the model
-	 * is a display state, not a decision, so it deliberately leaves this untouched.
-	 */
+	/** What the user is meant to be on, regardless of what the catalog can currently offer. */
 	private _rememberedSelection: { readonly modelId: string; readonly reason: DurableReason } | undefined;
 
 	constructor(
@@ -142,11 +116,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._restorePerTypeModel = false;
 	}
 
-	/**
-	 * True while the selection is provisional — either an async intent is pending, or the
-	 * remembered model is not selectable and whatever is shown is standing in for it. Callers use
-	 * this to avoid acting on a selection that is about to change.
-	 */
+	/** True while what is shown is provisional: a pending request, or a stand-in for an absent model. */
 	isAwaitingModel(): boolean {
 		if (this._intent) {
 			return true;
@@ -169,13 +139,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 	}
 
-	/**
-	 * Applies a model and records where the choice came from.
-	 *
-	 * `user` and `programmatic` are deliberate, so they become the remembered selection and will be
-	 * reclaimed after an outage. `automatic` only changes what is displayed — the caller has
-	 * already decided — so it neither records authority nor disturbs what is remembered.
-	 */
+	/** `user` and `programmatic` are decisions; `automatic` only changes what is displayed. */
 	select(model: ILanguageModelChatMetadataAndIdentifier, request: ModelSelectionRequest): void {
 		if (request.authority === 'automatic') {
 			this._display(model, request.effect);
@@ -282,10 +246,9 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	/**
-	 * The pool to select from. {@link filterModelsForSession} only applies mode and inline-chat
-	 * filtering to the general pool, so a targeted session pool can still offer models the current
-	 * mode cannot use — including one being replaced *because* it is unusable. Falls back to the
-	 * raw pool rather than selecting nothing when a provider declares no capabilities at all.
+	 * {@link filterModelsForSession} only mode-filters the general pool, so a targeted pool can offer
+	 * models this mode cannot use — including one being replaced *because* it is unusable. Falls back
+	 * to the raw pool rather than selecting nothing when a provider declares no capabilities.
 	 */
 	private _selectablePool(sessionType: string | undefined): ILanguageModelChatMetadataAndIdentifier[] {
 		const models = this._runtime.getModels(sessionType);
@@ -295,12 +258,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		return selectable.length > 0 ? selectable : models;
 	}
 
-	/**
-	 * Replaces a selection that is no longer valid. The callers differ only in *why* the model
-	 * stopped being valid — unsupported for the mode, outside the session pool, withdrawn from the
-	 * catalog — and routing them all through here keeps that from turning into a difference in
-	 * what replaces it.
-	 */
+	/** Callers differ only in *why* the model became invalid; sharing this keeps that from changing what replaces it. */
 	private _replaceInvalidSelection(
 		displaced: ILanguageModelChatMetadataAndIdentifier | undefined,
 		sessionType: string | undefined,
@@ -341,11 +299,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._standIn(defaultModel, configuredModel ? ModelSelectionReason.ConfiguredDefault : ModelSelectionReason.FirstAvailable);
 	}
 
-	/**
-	 * Falls back to the default because the user asked for it, as opposed to because the current
-	 * model stopped being valid. That makes it a deliberate choice, so it discards the remembered
-	 * selection: a model that reappears later must not reclaim the input behind the user's back.
-	 */
+	/** The user asked for the default, so the remembered selection is discarded rather than reclaimed later. */
 	resetToDefault(sessionType = this._runtime.getCurrentSessionType()): void {
 		this._clearIntent();
 		this._rememberedSelection = undefined;
@@ -406,11 +360,9 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	/**
-	 * Reclaims the remembered model once the catalog can offer it again. A model can leave the pool
-	 * for reasons that have nothing to do with intent — an agent host restarting republishes its
-	 * catalog moments later — so the default shown meanwhile is a stand-in, not a decision.
-	 * `chat.defaultModel` outranks a merely remembered model but never an in-conversation choice,
-	 * which is why the displaced authority is restored along with the model.
+	 * Reclaims the remembered model once it can be offered again — an agent host restart empties the
+	 * catalog and refills it moments later. `chat.defaultModel` outranks a merely remembered model
+	 * but never an in-conversation choice, so the displaced authority is restored with it.
 	 */
 	private _restoreRememberedModel(): boolean {
 		const remembered = this._rememberedSelection;
@@ -461,18 +413,15 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 
 		const pool = this._runtime.getModels(sessionType);
-		const match = findBestMatchingModel(desiredModel, pool) ?? findBestMatchingModel(currentModel, pool);
-		if (match) {
-			this._applySessionRestore(match, true);
-		} else if (resolution.kind === 'pending' && shouldWaitForSessionModel(desiredModel, sessionType, allModels)) {
+		const canSubstitute = !!(findBestMatchingModel(desiredModel, pool) ?? findBestMatchingModel(currentModel, pool));
+		if (!canSubstitute && resolution.kind === 'pending' && shouldWaitForSessionModel(desiredModel, sessionType, allModels)) {
 			this._clearIntent();
 			this._intent = { kind: 'session', model: desiredModel, configuration: modelConfiguration, sessionType, conversationKey };
-		} else {
-			this._clearIntent();
-			this.selectDefault(sessionType);
+			return;
 		}
+		this._clearIntent();
+		this._substituteForConversationModel(desiredModel, currentModel, sessionType);
 	}
-
 	/**
 	 * Reconcile the current model after an explicit session-type pick: restore persisted →
 	 * best-match previous → default.
@@ -554,11 +503,17 @@ export class ChatInputModelSelectionController extends Disposable {
 			return false;
 		}
 
+		// Every intent belongs to a conversation. `history` tracks the visible one because it is
+		// resolved for what the user is looking at; the others track the bound input model.
+		const conversationKey = intent.kind === 'history'
+			? this._runtime.getVisibleConversationKey()
+			: this._runtime.getBoundConversationKey();
+		if (conversationKey !== intent.conversationKey) {
+			this._clearIntent();
+			return true;
+		}
+
 		if (intent.kind === 'programmatic') {
-			if (this._runtime.getBoundConversationKey() !== intent.conversationKey) {
-				this._clearIntent();
-				return true;
-			}
 			const model = intent.resolveModel();
 			if (!model) {
 				return false;
@@ -570,10 +525,6 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 
 		if (intent.kind === 'session') {
-			if (this._runtime.getBoundConversationKey() !== intent.conversationKey) {
-				this._clearIntent();
-				return true;
-			}
 			const resolution = this._runtime.resolveModelIdentifier(intent.model.identifier);
 			if (resolution.kind === 'available') {
 				this._intent = undefined;
@@ -582,21 +533,12 @@ export class ChatInputModelSelectionController extends Disposable {
 			}
 			if (resolution.kind === 'unavailable') {
 				this._intent = undefined;
-				const match = findBestMatchingModel(intent.model, this._runtime.getModels(intent.sessionType));
-				if (match) {
-					this._applySessionRestore(match, true);
-				} else {
-					this.selectDefault(intent.sessionType);
-				}
+				this._substituteForConversationModel(intent.model, undefined, intent.sessionType);
 				return true;
 			}
 			return false;
 		}
 
-		if (this._runtime.getVisibleConversationKey() !== intent.conversationKey) {
-			this._clearIntent();
-			return true;
-		}
 		const models = this._runtime.getModels(this._runtime.getCurrentSessionType());
 		const model = models.find(model => model.identifier === intent.modelId)
 			?? models.find(model => model.metadata.id === intent.modelId);
@@ -606,6 +548,21 @@ export class ChatInputModelSelectionController extends Disposable {
 			return true;
 		}
 		return false;
+	}
+
+	/** The model a conversation asked for is unusable here: take the closest match, else the default. */
+	private _substituteForConversationModel(
+		desired: ILanguageModelChatMetadataAndIdentifier,
+		currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		sessionType: string | undefined,
+	): void {
+		const pool = this._runtime.getModels(sessionType);
+		const match = findBestMatchingModel(desired, pool) ?? findBestMatchingModel(currentModel, pool);
+		if (match) {
+			this._applySessionRestore(match, true);
+			return;
+		}
+		this.selectDefault(sessionType);
 	}
 
 	private _clearIntent(): void {
@@ -619,12 +576,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 	}
 
-	/**
-	 * Displays a model without saying anything about authority, leaving both the current reason and
-	 * the remembered selection alone. For callers that have already decided the authority question
-	 * elsewhere — a caller applying its own choice, or a fallback shown while a pending request
-	 * still owns the selection.
-	 */
+	/** Displays a model and says nothing about authority; both reason and remembered are left alone. */
 	private _display(
 		model: ILanguageModelChatMetadataAndIdentifier,
 		effect: () => void = () => this._runtime.applyModel(model),
@@ -633,19 +585,13 @@ export class ChatInputModelSelectionController extends Disposable {
 		effect();
 	}
 
-	/**
-	 * Records a decision without changing what is displayed — used when the model is already
-	 * shown and only its authority needs to catch up.
-	 */
+	/** Records a decision for a model that is already displayed. */
 	private _rememberChoice(model: ILanguageModelChatMetadataAndIdentifier, reason: DurableReason): void {
 		this._selectionReason = reason;
 		this._rememberedSelection = { modelId: model.identifier, reason };
 	}
 
-	/**
-	 * Applies a model as a decision: it becomes both what is displayed and what is reclaimed once
-	 * the catalog can offer it again.
-	 */
+	/** Applies a model as a decision: displayed now, and reclaimed after an outage. */
 	private _choose(
 		model: ILanguageModelChatMetadataAndIdentifier,
 		reason: DurableReason,
@@ -657,10 +603,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._display(model, effect);
 	}
 
-	/**
-	 * Applies a model as a stand-in for one that cannot currently be offered. Deliberately leaves
-	 * the remembered selection alone — that is what makes the fallback temporary.
-	 */
+	/** Stands in for a model that cannot be offered. Leaving `_rememberedSelection` alone is what makes it temporary. */
 	private _standIn(model: ILanguageModelChatMetadataAndIdentifier, reason: TransientReason): void {
 		this._selectionReason = reason;
 		this._display(model);
