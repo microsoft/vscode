@@ -5,6 +5,7 @@
 
 import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import assert from 'assert';
+import * as zlib from 'zlib';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentHostGitHubTelemetryRouter } from '../../node/agentHostGitHubTelemetryRouter.js';
 import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
@@ -63,11 +64,11 @@ function notification(kind: string, restricted = true): GitHubTelemetryNotificat
 suite('AgentHostGitHubTelemetryRouter', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('routes the explicit restricted target allowlist to the exact sinks', () => {
+	test('routes the explicit restricted target allowlist to the exact sinks', async () => {
 		const telemetry = new TestRestrictedTelemetry();
 		const router = new AgentHostGitHubTelemetryRouter(telemetry);
 
-		const handled = [
+		const handled = await Promise.all([
 			'engine.messages',
 			'engine.messages.length',
 			'model.message.added',
@@ -75,7 +76,7 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 			'model.modelCall.output',
 			'model.request.added',
 			'model.request.options.added',
-		].map(kind => router.route(notification(kind), internalContext));
+		].map(kind => router.route(notification(kind), internalContext)));
 
 		assert.deepStrictEqual({
 			handled,
@@ -95,13 +96,13 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 		});
 	});
 
-	test('falls back for unknown events and consumes misclassified target events', () => {
+	test('falls back for unknown events and consumes misclassified target events', async () => {
 		const telemetry = new TestRestrictedTelemetry();
 		const router = new AgentHostGitHubTelemetryRouter(telemetry);
 
-		const unknownHandled = router.route(notification('unknown', false));
-		const misclassifiedTargetHandled = router.route(notification('engine.messages', false));
-		const missingContextHandled = router.route(notification('engine.messages'));
+		const unknownHandled = await router.route(notification('unknown', false));
+		const misclassifiedTargetHandled = await router.route(notification('engine.messages', false));
+		const missingContextHandled = await router.route(notification('engine.messages'));
 
 		assert.deepStrictEqual({ unknownHandled, misclassifiedTargetHandled, missingContextHandled, events: telemetry.events }, {
 			unknownHandled: false,
@@ -111,20 +112,20 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 		});
 	});
 
-	test('forwards properties and metrics and maps model_call_id without overwriting modelCallId', () => {
+	test('forwards properties and metrics and maps model_call_id without overwriting modelCallId', async () => {
 		const telemetry = new TestRestrictedTelemetry();
 		const router = new AgentHostGitHubTelemetryRouter(telemetry);
 
-		router.route(notification('engine.messages'), internalContext);
+		await router.route(notification('engine.messages'), internalContext, { initiatorClientType: 'agents_window' });
 		const existingModelCallId = notification('engine.messages');
 		existingModelCallId.event.properties.modelCallId = 'existing-model-call';
-		router.route(existingModelCallId, internalContext);
+		await router.route(existingModelCallId, internalContext);
 
 		assert.deepStrictEqual(telemetry.events, [
 			{
 				destination: 'enhancedGH',
 				eventName: 'engine.messages',
-				properties: { existing: 'value', modelCallId: 'model-call-1' },
+				properties: { existing: 'value', modelCallId: 'model-call-1', initiatorClientType: 'agents_window' },
 				measurements: { count: 2 },
 			},
 			{
@@ -136,24 +137,28 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 		]);
 	});
 
-	test('multiplexes long properties before routing to either sink', () => {
+	test('multiplexes long properties before routing to either sink', async () => {
 		const telemetry = new TestRestrictedTelemetry();
 		const router = new AgentHostGitHubTelemetryRouter(telemetry);
 		const longNotification = notification('engine.messages.length');
-		longNotification.event.properties.messagesJson = 'x'.repeat(16_385);
+		const original = 'x'.repeat(16_385);
+		longNotification.event.properties.messagesJson = original;
 
-		router.route(longNotification, internalContext);
+		await router.route(longNotification, internalContext);
 
+		const gunzip = (chunks: (string | undefined)[]): string =>
+			zlib.gunzipSync(Buffer.from(chunks.join(''), 'base64')).toString('utf8');
 		assert.deepStrictEqual(telemetry.events.map(event => ({
 			destination: event.destination,
-			chunkLengths: [
-				event.properties?.messagesJson?.length,
-				event.properties?.messagesJson_02?.length,
-				event.properties?.messagesJson_03?.length,
-			],
+			// The original column carries just the first uncompressed chunk.
+			original: event.properties?.messagesJson,
+			// No plain continuation family is produced.
+			plainContinuation: event.properties?.messagesJson_02,
+			// The full value round-trips from the compressed chunk family.
+			roundTrip: gunzip([event.properties?.messagesJsonChunk, event.properties?.messagesJsonChunk_2]),
 		})), [
-			{ destination: 'enhancedGH', chunkLengths: [8192, 8192, 1] },
-			{ destination: 'internalMSFT', chunkLengths: [8192, 8192, 1] },
+			{ destination: 'enhancedGH', original: original.slice(0, 8192), plainContinuation: undefined, roundTrip: original },
+			{ destination: 'internalMSFT', original: original.slice(0, 8192), plainContinuation: undefined, roundTrip: original },
 		]);
 	});
 

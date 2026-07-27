@@ -103,6 +103,7 @@ ToolRegistry.registerModelSpecificTool(
 			{ family: 'claude-opus-4.6' },
 			{ family: 'claude-opus-4.7' },
 			{ family: 'claude-opus-4.8' },
+			{ family: 'claude-opus-5' },
 			{ family: 'claude-fable-5' },
 		],
 	},

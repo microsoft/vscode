@@ -880,11 +880,18 @@
 	box-sizing: border-box;
 }
 
+.ai-customization-management-editor .prompt-migration-list-scrollable {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+}
+
 .ai-customization-management-editor .prompt-migration-list {
+	position: absolute;
+	inset: 0;
 	display: flex;
 	flex-direction: column;
-	flex: 1;
-	overflow: auto;
+	overflow: hidden;
 	padding-bottom: 6px;
 }
 
@@ -902,12 +909,38 @@
 	margin-bottom: 2px;
 }
 
-.ai-customization-management-editor .prompt-migration-group-header:hover {
-	background-color: transparent;
+.ai-customization-management-editor .prompt-migration-group-header:focus-within {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-list-focusOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
 }
 
 .ai-customization-management-editor .prompt-migration-group-checkbox {
 	margin-right: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-group-toggle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 1;
+	min-width: 0;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .prompt-migration-group-toggle:focus {
+	outline: none;
+}
+
+.ai-customization-management-editor .prompt-migration-group-items {
+	display: flex;
+	flex-direction: column;
 }
 
 .ai-customization-management-editor .prompt-migration-item {

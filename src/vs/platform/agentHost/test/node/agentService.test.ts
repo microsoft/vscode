@@ -1122,7 +1122,18 @@ suite('AgentService (node dispatcher)', () => {
 			service.registerProvider(copilotAgent);
 
 			const session = await service.createSession();
-			assert.strictEqual(AgentSession.provider(session), 'copilot');
+			// A create with no config at all is still workspace-less: the agent
+			// infers that from the absent working directory and assigns a
+			// scratch cwd, so the service must tag it to match — otherwise the
+			// session comes back looking workspace-bound, rooted at that scratch
+			// dir.
+			assert.deepStrictEqual({
+				provider: AgentSession.provider(session),
+				meta: service.stateManager.getSessionState(session.toString())?._meta,
+			}, {
+				provider: 'copilot',
+				meta: { workspaceless: true },
+			});
 		});
 
 		test('throws when no providers are registered at all', async () => {
@@ -1744,6 +1755,8 @@ suite('AgentService (node dispatcher)', () => {
 				_serviceBrand: undefined,
 				getCurrentBranch: async () => undefined,
 				getDefaultBranch: async () => undefined,
+				getBranch: async () => undefined,
+				getRefs: async () => [],
 				getBranches: async () => [],
 				getRepositoryRoot: async () => undefined,
 				getWorktreeRoots: async () => [],
@@ -1848,6 +1861,8 @@ suite('AgentService (node dispatcher)', () => {
 				_serviceBrand: undefined,
 				getCurrentBranch: async () => undefined,
 				getDefaultBranch: async () => undefined,
+				getBranch: async () => undefined,
+				getRefs: async () => [],
 				getBranches: async () => [],
 				getRepositoryRoot: async () => undefined,
 				getWorktreeRoots: async () => [],

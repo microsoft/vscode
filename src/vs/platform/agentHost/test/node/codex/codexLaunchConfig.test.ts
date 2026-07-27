@@ -11,16 +11,21 @@ suite('CodexLaunchConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	test('copilot config injects proxy credentials and provider overrides', () => {
 		const config = buildCodexLaunchConfig('copilot', { PATH: '/bin', OPENAI_API_KEY: 'personal' }, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, ['--log-level=debug']);
-		assert.deepStrictEqual(config.env, { PATH: '/bin', OPENAI_API_KEY: 'nonce' });
+		assert.deepStrictEqual(config.env, { PATH: '/bin', OPENAI_API_KEY: 'nonce', AI_AGENT: 'github_copilot_vscode_agent' });
 		assert.ok(config.args.includes('model_provider="vscode-proxy"'));
 		assert.ok(config.args.includes('features.image_generation=false'));
+		assert.ok(config.args.includes('shell_environment_policy.set.AI_AGENT="github_copilot_vscode_agent"'));
 		assert.strictEqual(config.args.at(-1), '--log-level=debug');
 	});
 
 	test('openai config preserves user credentials and omits proxy overrides', () => {
 		const config = buildCodexLaunchConfig('openai', { PATH: '/bin', OPENAI_API_KEY: 'personal', CODEX_HOME: '/codex' }, undefined, []);
-		assert.deepStrictEqual(config.env, { PATH: '/bin', OPENAI_API_KEY: 'personal', CODEX_HOME: '/codex' });
-		assert.deepStrictEqual(config.args, ['app-server', '-c', 'features.tool_call_mcp_elicitation=false']);
+		assert.deepStrictEqual(config.env, { PATH: '/bin', OPENAI_API_KEY: 'personal', CODEX_HOME: '/codex', AI_AGENT: 'github_copilot_vscode_agent' });
+		assert.deepStrictEqual(config.args, [
+			'app-server',
+			'-c', 'shell_environment_policy.set.AI_AGENT="github_copilot_vscode_agent"',
+			'-c', 'features.tool_call_mcp_elicitation=false',
+		]);
 	});
 
 	test('identifies provider-compatible threads', () => {

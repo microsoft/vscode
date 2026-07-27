@@ -13,6 +13,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { type IObservable, observableValue } from '../../../../base/common/observable.js';
 import { basename, dirname, isAbsolute, join, resolve, sep } from '../../../../base/common/path.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -1021,14 +1022,24 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private _queueModelRefresh(): void {
+	/**
+	 * {@link IAgent.refreshModels}. Coalesces onto an in-flight refresh — from
+	 * an account/usage-source change or an earlier tick — rather than issuing a
+	 * second enumeration, and never rejects: {@link _refreshModels} logs and
+	 * applies its own stale-write guards on failure.
+	 */
+	refreshModels(): Promise<void> {
+		return this._modelsRefreshPromise ?? this._queueModelRefresh();
+	}
+
+	private _queueModelRefresh(): Promise<void> {
 		const refreshPromise = this._refreshModels().finally(() => {
 			if (this._modelsRefreshPromise === refreshPromise) {
 				this._modelsRefreshPromise = undefined;
 			}
 		});
 		this._modelsRefreshPromise = refreshPromise;
-		void this._modelsRefreshPromise;
+		return refreshPromise;
 	}
 
 	private _ensureAuthenticated(): string | undefined {
@@ -1234,9 +1245,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._models.set(models, undefined);
 		} catch (err) {
 			this._logService.warn(`[Codex] Failed to refresh models: ${err instanceof Error ? err.message : String(err)}`);
-			if (this._usageSource === usageSource && this._githubToken === token) {
-				this._models.set([], undefined);
-			}
+			// Keep the last known-good catalog. Usage-source changes clear the
+			// list in `_applyUsageSourceChange`; a transient periodic failure
+			// must not make every model disappear.
 		}
 	}
 
@@ -1268,9 +1279,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		} catch (err) {
 			this._logService.warn(`[Codex] Failed to refresh OpenAI models: ${err instanceof Error ? err.message : String(err)}`);
-			if (this._usageSource === 'openai') {
-				this._models.set([], undefined);
-			}
+			// Keep the last known-good catalog. Usage-source changes clear the
+			// list in `_applyUsageSourceChange`; a transient periodic failure
+			// must not make every model disappear.
 		}
 	}
 
@@ -3135,6 +3146,43 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private async _adoptWorkingDirectoryBeforeSend(session: ICodexSession, workingDirectory: URI | undefined): Promise<void> {
+		if (!workingDirectory || isEqual(session.workingDirectory, workingDirectory)) {
+			return;
+		}
+		if (session.prewarmClaimed) {
+			if (session.threadId === undefined && !session.materializePromise) {
+				session.workingDirectory = workingDirectory;
+			}
+			return;
+		}
+
+		this._claimPrewarm(session);
+		const materializePromise = session.materializePromise;
+		if (materializePromise) {
+			try {
+				await materializePromise;
+			} catch (err) {
+				this._logService.info(`[Codex] stale prewarm failed before working directory changed for session=${session.sessionUri.toString()}: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+
+		const threadId = session.threadId;
+		if (threadId !== undefined) {
+			session.threadId = undefined;
+			this._sessionIdByThreadId.delete(threadId);
+			const conn = this._connection;
+			if (conn.kind === 'ready') {
+				try {
+					await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId });
+				} catch (err) {
+					this._logService.warn(`[Codex] stale prewarm unsubscribe failed session=${session.sessionUri.toString()} threadId=${threadId}: ${err instanceof Error ? err.message : String(err)}`);
+				}
+			}
+		}
+		session.workingDirectory = workingDirectory;
+	}
+
 	private _startTurnStopWatch(session: ICodexSession): StopWatch {
 		const stopWatch = StopWatch.create(false);
 		session.turnStopWatch = stopWatch;
@@ -3155,12 +3203,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session) {
 			throw new Error(`Codex session not found: ${sessionUri.toString()}`);
 		}
-		// The host hands us the resolved working directory (an isolated worktree for
-		// worktree isolation) on the first send; adopt it before materialize locks
-		// the codex subprocess cwd. The agent stays unaware of worktrees.
-		if (workingDirectory && session.threadId === undefined) {
-			session.workingDirectory = workingDirectory;
-		}
+		await this._adoptWorkingDirectoryBeforeSend(session, workingDirectory);
 		const conn = await this._ensureConnection();
 		const effectiveTurnId = turnId ?? generateUuid();
 
@@ -3282,13 +3325,16 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	setPendingMessages(sessionUri: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
 		// Queued messages are consumed server-side (AgentSideEffects drives a
 		// fresh turn per `idle`); only the single steering message reaches the
 		// agent for mid-turn injection.
 		if (!steeringMessage) {
 			return;
 		}
+		// Codex is single-chat: a session owns exactly one (default) chat, so
+		// the addressed chat channel always resolves to its owning session.
+		const sessionUri = this._sessionUriFromChat(chat);
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (!session) {

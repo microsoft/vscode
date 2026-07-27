@@ -169,7 +169,7 @@ The chat view inside a session view is one of three kinds (`ChatViewKind` in [br
 
 Concrete implementations live under `contrib/chat/` and are obtained via `IChatViewFactory` so the `browser/` layer doesn't have to import contrib code.
 
-The `NewChatView` input uses the control-tier corner radius for its send button, so the primary action is a rounded square in both desktop and phone layouts rather than a circular control. The focus outline follows the same control-tier shape.
+The `NewChatView` input uses the control-tier corner radius for its send button, so the primary action is a rounded square in both desktop and phone layouts rather than a circular control. The focus outline follows the same control-tier shape. The input toolbar owns the spacing between adjacent actions through a shared flex gap rather than button-specific margins.
 
 `ChatView` mounts session input banners directly above the chat input. The CI failures banner uses the orange accent for the card border/icon and for the primary Fix Checks button background/border.
 
