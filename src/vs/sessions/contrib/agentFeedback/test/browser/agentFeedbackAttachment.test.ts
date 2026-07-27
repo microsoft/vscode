@@ -17,6 +17,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentFeedbackAttachmentContribution } from '../../browser/agentFeedbackAttachment.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { buildNewSessionPrompt } from '../../browser/agentFeedbackAttachmentEntry.js';
 
 suite('AgentFeedbackAttachmentContribution', () => {
 	const store = new DisposableStore();
@@ -66,5 +67,31 @@ suite('AgentFeedbackAttachmentContribution', () => {
 		listener!({ sessionResource, feedbackItems: [feedback] });
 
 		assert.strictEqual(getWidgetCallCount, 0);
+	});
+
+	test('formats new-session prompts with comment locations and nested replies', () => {
+		const sessionResource = URI.parse('agent-feedback:/new-session');
+		const feedback = (id: string, text: string, path: string, range: Range, replies?: readonly string[]): IAgentFeedback => ({
+			id,
+			text,
+			resourceUri: URI.file(`/workspace/${path}`),
+			range,
+			sessionResource,
+			kind: AgentFeedbackKind.UserReview,
+			state: AgentFeedbackState.Accepted,
+			replies,
+		});
+		const first = feedback('one', 'Fix this', 'src/a.ts', new Range(10, 2, 12, 4), ['Also cover null', 'Keep the\nerror detail']);
+		const second = feedback('two', 'Rename this', 'src/b.ts', new Range(3, 1, 3, 8));
+
+		assert.deepStrictEqual({
+			promptAndComments: buildNewSessionPrompt('Implement the change', [first, second], URI.file('/workspace')),
+			singleComment: buildNewSessionPrompt('', [first], URI.file('/workspace')),
+			multipleComments: buildNewSessionPrompt('', [first, second], URI.file('/workspace')),
+		}, {
+			promptAndComments: 'Implement the change\n- Fix this (src/a.ts:10:2-12:4)\n  - reply: Also cover null\n  - reply: Keep the\n    error detail\n- Rename this (src/b.ts:3:1-3:8)',
+			singleComment: 'Fix this (src/a.ts:10:2-12:4)\n  - reply: Also cover null\n  - reply: Keep the\n    error detail',
+			multipleComments: '- Fix this (src/a.ts:10:2-12:4)\n  - reply: Also cover null\n  - reply: Keep the\n    error detail\n- Rename this (src/b.ts:3:1-3:8)',
+		});
 	});
 });

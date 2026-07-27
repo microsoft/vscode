@@ -11,7 +11,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { getSessionEditorComments } from '../../browser/sessionEditorComments.js';
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -307,6 +307,7 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		return {
 			resource,
 			status: observableValue<SessionStatus>('status', status),
+			isCreated: observableValue('isCreated', status !== SessionStatus.Untitled),
 			workspace: observableValue('workspace', workspace),
 			changes: observableValue('changes', changes),
 		} as unknown as ISession;
@@ -360,6 +361,73 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 
 	test('returns undefined when there is no active session and no tracked file', () => {
 		assert.strictEqual(service.getSessionForFile(fileA), undefined);
+	});
+
+	test('uses one shared feedback scope for undefined and workspace-less drafts', () => {
+		const firstDraft = makeSession(sessionS1, SessionStatus.Untitled);
+		const secondDraft = makeSession(sessionS2, SessionStatus.Untitled);
+
+		const withoutSession = service.getFeedbackSessionResource(fileA);
+		setActiveSession(firstDraft);
+		const withFirstDraft = service.getFeedbackSessionResource(fileA);
+		setActiveSession(secondDraft);
+		const withSecondDraft = service.getFeedbackSessionResource(fileA);
+
+		assert.deepStrictEqual(
+			[withoutSession, withFirstDraft, withSecondDraft].map(resource => resource?.toString()),
+			Array(3).fill(AGENT_FEEDBACK_NEW_SESSION_RESOURCE.toString()),
+		);
+	});
+
+	test('scopes a draft that already picked a workspace to that workspace', () => {
+		setActiveSession(makeSession(sessionS1, SessionStatus.Untitled, { folders: [URI.file('/workspace')] }));
+
+		assert.deepStrictEqual({
+			inWorkspace: service.getFeedbackSessionResource(URI.file('/workspace/a.ts'))?.toString(),
+			outsideWorkspace: service.getFeedbackSessionResource(URI.file('/elsewhere/a.ts'))?.toString(),
+		}, {
+			inWorkspace: AGENT_FEEDBACK_NEW_SESSION_RESOURCE.toString(),
+			outsideWorkspace: undefined,
+		});
+	});
+
+	test('discards the shared new-session comments when the draft workspace changes', () => {
+		const draftInF = makeSession(sessionS1, SessionStatus.Untitled, { folders: [URI.file('/f')] });
+		const draftInG = makeSession(sessionS2, SessionStatus.Untitled, { folders: [URI.file('/g')] });
+
+		setActiveSession(draftInF);
+		service.addFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, URI.file('/f/a.ts'), new Range(1, 1, 1, 2), 'Fix this');
+
+		// Visiting a created session leaves the scope dormant, so the comments
+		// survive the round trip back to the same draft workspace.
+		setActiveSession(sessions.get(sessionS2.toString())!);
+		setActiveSession(draftInF);
+		const afterCreatedSessionRoundTrip = service.getFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE).length;
+
+		setActiveSession(draftInG);
+
+		assert.deepStrictEqual({
+			afterCreatedSessionRoundTrip,
+			afterWorkspaceChange: service.getFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE).length,
+		}, {
+			afterCreatedSessionRoundTrip: 1,
+			afterWorkspaceChange: 0,
+		});
+	});
+
+	test('uses the created session feedback scope after leaving the new-session view', () => {
+		setActiveSession(makeSession(sessionS1, SessionStatus.Untitled));
+		const draftScope = service.getFeedbackSessionResource(fileA);
+		setActiveSession(sessions.get(sessionS2.toString())!);
+		const createdScope = service.getFeedbackSessionResource(fileA);
+
+		assert.deepStrictEqual({
+			draftScope: draftScope?.toString(),
+			createdScope: createdScope?.toString(),
+		}, {
+			draftScope: AGENT_FEEDBACK_NEW_SESSION_RESOURCE.toString(),
+			createdScope: sessionS2.toString(),
+		});
 	});
 
 	test('untracked file falls back to the active session', () => {

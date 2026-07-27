@@ -327,6 +327,24 @@ replacement. Inputs without an explicit placeholder rotate through the shared
 friendly placeholder set; an explicitly provided placeholder, including an empty
 string, remains static.
 
+Agent feedback created while the active session is undefined or uncreated uses
+one shared new-session feedback scope, so it follows every undefined/uncreated
+new-session view. The comments belong to the draft's workspace: a draft that has
+already picked one scopes its comments to that workspace's folders exactly like a
+created session, and selecting a different workspace in the picker discards them.
+A draft without a workspace accepts comments on any file and simply adopts the
+first selection. The composer shows a non-dismissible `N comments` banner above
+the input; **Reveal** opens the first comment through the editor feedback UI, and
+normal feedback navigation reaches the others. Comments make an otherwise-empty
+composer sendable. On send, the prompt is followed by one bullet per comment in
+`comment (workspace/relative/path:line:column-line:column)` form, with replies as
+nested `reply:` bullets. The sole comment omits its leading bullet when the typed
+prompt is empty. A successful send removes the comments; a failed foreground send
+keeps them. Editor **Submit Feedback** delegates to this same live composer path,
+opening the composer first when it is not mounted in the grid, and opens the
+workspace picker without clearing input or comments when no concrete draft exists
+yet.
+
 Per-session view state (the last active chat, the set of closed chats, grid
 order, stickiness, and which slot was active) is held in `SessionsService`'s
 `_sessionStates` map and serialized to workspace-scoped machine storage. The

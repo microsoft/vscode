@@ -5,8 +5,9 @@
 
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedObservableWithCache, autorun, IObservable } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -27,6 +28,10 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
+import { buildNewSessionPrompt } from '../../agentFeedback/browser/agentFeedbackAttachmentEntry.js';
+import { SessionInputBannerWidget } from '../../sessionInputBanners/browser/sessionInputBannerWidget.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 // #region --- New Chat Widget ---
 
@@ -60,6 +65,12 @@ export class NewChatWidget extends Disposable {
 	/** Whether the active draft is a workspace-less quick chat (hides the workspace picker). */
 	private readonly _isQuickChatComposer: IObservable<boolean>;
 
+	/** Draft comments shared by every uncreated new-session composer. */
+	private readonly _feedbackItems: IObservable<readonly IAgentFeedback[]>;
+
+	/** Pending background send waiting to confirm before its comments are cleared. */
+	private readonly _pendingBackgroundSend = this._register(new MutableDisposable());
+
 	/** The workspace-row container hosting the inline harness picker (desktop, non-quick-chat). */
 	private _workspacePickerRow: HTMLElement | undefined;
 
@@ -83,6 +94,7 @@ export class NewChatWidget extends Disposable {
 		@IAquariumService private readonly aquariumService: IAquariumService,
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
 	) {
 		super();
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
@@ -112,6 +124,13 @@ export class NewChatWidget extends Disposable {
 			return session?.isQuickChat?.read(reader) ?? false;
 		});
 
+		const feedbackChanged = observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback);
+		this._feedbackItems = derived(this, reader => {
+			feedbackChanged.read(reader);
+			return this.agentFeedbackService.getFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE)
+				.filter(item => item.state === AgentFeedbackState.Accepted);
+		});
+
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
 			if (!session) {
@@ -127,12 +146,16 @@ export class NewChatWidget extends Disposable {
 			const session = this._session.read(reader);
 			return session?.loading.read(reader) ?? false;
 		});
+		const hasFeedback = derived(this, reader => this._feedbackItems.read(reader).length > 0);
+		const canSubmitWithoutSession = derived(this, reader => !this._session.read(reader) && hasFeedback.read(reader));
 
 		const newChatInput = this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
 			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
+			canSubmitWithoutSession,
+			hasAdditionalSendContent: hasFeedback,
 			loading,
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
@@ -201,6 +224,7 @@ export class NewChatWidget extends Disposable {
 			this._quickChatHeaderPickerHost = dom.append(quickChatHeaderRow, dom.$('.new-chat-quick-chat-header-picker-host'));
 		}
 
+		this._renderFeedbackBanner(chatWidgetContent);
 		this._newChatInput.render(chatWidgetContent, parent);
 
 		// Quick chat composer: hide the workspace picker for workspace-less
@@ -514,12 +538,15 @@ export class NewChatWidget extends Disposable {
 
 	// --- Send ---
 
-	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean): Promise<void> {
+	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean): Promise<boolean> {
 		const session = this._session.get();
 		if (!session) {
 			this._workspacePicker.showPicker();
-			return;
+			return false;
 		}
+		const feedbackItems = [...this._feedbackItems.get()];
+		const workspaceRoot = session.workspace.get()?.folders[0]?.root ?? this._workspacePicker.selectedFolderUri;
+		const request = buildNewSessionPrompt(query, feedbackItems, workspaceRoot);
 
 		// Capture the composer's workspace selection before the send: a
 		// background send consumes the in-flight new session and resets the
@@ -528,11 +555,34 @@ export class NewChatWidget extends Disposable {
 		// have no workspace, so they re-seed via openQuickChat instead.
 		const wasQuickChat = this._isQuickChatComposer.get();
 		const reseedFolderUri = background && !wasQuickChat ? this._workspacePicker.selectedFolderUri : undefined;
+		const sendOptions = { query: request, attachedContext, background };
+		const clearFeedback = () => {
+			for (const item of feedbackItems) {
+				this.agentFeedbackService.removeFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, item.id);
+			}
+		};
+		// A background send is fire-and-forget, so the comments can only be
+		// cleared once the request is confirmed sent — correlated by the options
+		// object the send was started with.
+		if (background) {
+			this._pendingBackgroundSend.value = Event.once(
+				Event.filter(this.sessionsManagementService.onDidSendRequest, event => event.options === sendOptions)
+			)(() => {
+				clearFeedback();
+				this._pendingBackgroundSend.clear();
+			});
+		}
 
 		try {
-			await this.sessionsManagementService.sendNewChatRequest(session, { query, attachedContext, background });
+			await this.sessionsManagementService.sendNewChatRequest(session, sendOptions);
 		} catch (e) {
+			this._pendingBackgroundSend.clear();
 			this.logService.error('Failed to send request:', e);
+			return false;
+		}
+
+		if (!background) {
+			clearFeedback();
 		}
 
 		// A background send graduated the composer's in-flight session and
@@ -548,6 +598,38 @@ export class NewChatWidget extends Disposable {
 				await this._createNewSession(reseedFolderUri);
 			}
 		}
+		return true;
+	}
+
+	private _renderFeedbackBanner(container: HTMLElement): void {
+		const host = dom.append(container, dom.$('.session-input-banners.new-session-feedback-banners'));
+		const content = this._register(new MutableDisposable<DisposableStore>());
+		this._register(autorun(reader => {
+			const feedbackItems = this._feedbackItems.read(reader);
+			content.clear();
+			dom.clearNode(host);
+			if (!feedbackItems.length) {
+				return;
+			}
+
+			const count = feedbackItems.length;
+			const text = count === 1
+				? localize('newSessionFeedback.one', "1 comment")
+				: localize('newSessionFeedback.many', "{0} comments", count);
+			const store = new DisposableStore();
+			content.value = store;
+			const banner = store.add(this.instantiationService.createInstance(SessionInputBannerWidget, {
+				icon: Codicon.commentDiscussion,
+				accent: false,
+				text,
+				ariaLabel: text,
+				actions: [{
+					label: localize('newSessionFeedback.reveal', "Reveal"),
+					run: () => this.agentFeedbackService.revealFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, feedbackItems[0].id),
+				}],
+			}));
+			host.appendChild(banner.domNode);
+		}));
 	}
 
 	saveState(): void {
@@ -606,6 +688,14 @@ export class NewChatWidget extends Disposable {
 
 	sendQuery(text: string): void {
 		this._newChatInput.sendQuery(text);
+	}
+
+	submitInput(): Promise<boolean> {
+		if (!this._session.get()) {
+			this._workspacePicker.showPicker();
+			return Promise.resolve(false);
+		}
+		return this._newChatInput.submit();
 	}
 
 	attach(uris: URI[]): void {

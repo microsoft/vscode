@@ -116,6 +116,10 @@ export interface ISendRequestSentEvent {
 	readonly chat: IChat;
 	readonly isNewSession: boolean;
 	readonly isNewChat: boolean;
+	/**
+	 * The exact options object the send was started with, so callers can
+	 * correlate a fire-and-forget (background) send with its completion.
+	 */
 	readonly options: ISendRequestOptions;
 }
 
