@@ -39,6 +39,19 @@ type ModelSelectionIntent =
 	| { readonly kind: 'session'; readonly model: ILanguageModelChatMetadataAndIdentifier; readonly configuration: Record<string, unknown> | undefined; readonly sessionType: string | undefined; readonly conversationKey: string }
 	| { readonly kind: 'history'; readonly modelId: string; readonly conversationKey: string };
 
+/**
+ * How a model came to be selected. Modelled as a union so the caller cannot ask for a combination
+ * that has no meaning — an automatic selection has nothing to roll back to, and a programmatic one
+ * has no caller-supplied effect.
+ */
+export type ModelSelectionRequest =
+	/** The user picked from the model picker. `effect` persists and lays out; it may throw. */
+	| { readonly authority: 'user'; readonly effect: () => void; readonly rollbackOnError?: boolean }
+	/** The caller already decided; only the displayed model changes. */
+	| { readonly authority: 'automatic'; readonly effect: () => void }
+	/** A mode or session forced this model. */
+	| { readonly authority: 'programmatic' };
+
 /** Reconciles the shared selection model with Workbench-specific input and catalog state. */
 export class ChatInputModelSelectionController extends Disposable {
 
@@ -113,44 +126,43 @@ export class ChatInputModelSelectionController extends Disposable {
 	 * Applies a model and records where the choice came from.
 	 *
 	 * `user` and `programmatic` are deliberate, so they become the remembered selection and will be
-	 * reclaimed after an outage. `automatic` only changes what is displayed — it is the caller
-	 * having already decided, so it neither records authority nor disturbs what is remembered.
-	 *
-	 * `effect` runs the caller's side of the application (layout, persistence). For a `user`
-	 * selection it may throw, in which case `rollbackOnError` restores every piece of state,
-	 * including what was remembered.
+	 * reclaimed after an outage. `automatic` only changes what is displayed — the caller has
+	 * already decided — so it neither records authority nor disturbs what is remembered.
 	 */
-	select(
-		model: ILanguageModelChatMetadataAndIdentifier,
-		authority: 'user' | 'automatic' | 'programmatic',
-		options?: { readonly effect?: () => void; readonly rollbackOnError?: boolean },
-	): void {
-		if (authority === 'automatic') {
+	select(model: ILanguageModelChatMetadataAndIdentifier, request: ModelSelectionRequest): void {
+		if (request.authority === 'automatic') {
 			this._currentModel.set(model, undefined);
-			options?.effect?.();
+			request.effect();
 			return;
 		}
 
 		this._clearIntent();
-		const reason = authority === 'user' ? ModelSelectionReason.UserSelection : ModelSelectionReason.ProgrammaticSelection;
+		const reason = request.authority === 'user' ? ModelSelectionReason.UserSelection : ModelSelectionReason.ProgrammaticSelection;
 		const previous = {
 			model: this._currentModel.get(),
 			reason: this._selectionReason,
 			remembered: this._rememberedSelection,
 		};
-		this._currentModel.set(model, undefined);
+		// Authority first: `_currentModel` is observable and notifies synchronously, so setting it
+		// last means no observer can see the new model alongside the previous authority.
 		this._selectionReason = reason;
 		this._rememberedSelection = { modelId: model.identifier, reason };
-		this._diagnostics.report('select', { model: model.identifier, authority }, 'info');
+		this._currentModel.set(model, undefined);
+		this._diagnostics.report('select', { model: model.identifier, authority: request.authority }, 'info');
 		try {
-			(options?.effect ?? (() => this._runtime.applyModel(model)))();
+			if (request.authority === 'user') {
+				request.effect();
+			} else {
+				this._runtime.applyModel(model);
+			}
+			this._diagnostics.report('select-applied', { model: model.identifier, authority: request.authority }, 'info');
 		} catch (error) {
-			if (options?.rollbackOnError) {
-				this._currentModel.set(previous.model, undefined);
+			if (request.authority === 'user' && request.rollbackOnError) {
 				this._selectionReason = previous.reason;
 				this._rememberedSelection = previous.remembered;
+				this._currentModel.set(previous.model, undefined);
 			}
-			this._diagnostics.report('select-failed', { model: model.identifier, authority, error: String(error) }, 'error');
+			this._diagnostics.report('select-failed', { model: model.identifier, authority: request.authority, error: String(error) }, 'error');
 			throw error;
 		}
 	}
@@ -514,7 +526,7 @@ export class ChatInputModelSelectionController extends Disposable {
 			}
 			this._intent = undefined;
 			intent.complete(true);
-			this.select(model, 'programmatic');
+			this.select(model, { authority: 'programmatic' });
 			return true;
 		}
 

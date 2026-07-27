@@ -12,6 +12,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { resolveModelIdentifier } from '../../../../common/modelSelection.js';
 import { ChatInputModelSelectionController } from '../../../../browser/widget/input/chatInputModelSelectionController.js';
+import { filterModelsForSession } from '../../../../browser/widget/input/chatInputModelUtils.js';
 
 /**
  * Characterization tests for chat model selection.
@@ -93,12 +94,14 @@ class ModelSelectionHarness {
 			getCurrentModeKind: () => this._world.mode ?? ChatModeKind.Ask,
 			getCurrentSessionType: () => this._world.sessionType,
 			isEmpty: () => !this._world.hasHistory,
-			// A targeted pool is filtered by session only; the general pool is also filtered by
-			// mode. This mirrors `filterModelsForSession` and is what makes mode-invalid models
-			// reachable in targeted pools.
-			getModels: sessionType => sessionType
-				? this._models.filter(model => model.metadata.targetChatSessionType === sessionType)
-				: this._models.filter(model => !model.metadata.targetChatSessionType),
+			// Mirror production pool selection by delegating to the same helper `ChatInputPart`
+			// uses, rather than reimplementing it — otherwise a scenario could pass against
+			// filtering rules that do not exist.
+			getModels: sessionType => filterModelsForSession(
+				[...this._models].sort((a, b) => a.metadata.name.localeCompare(b.metadata.name)),
+				sessionType,
+				this._world.mode ?? ChatModeKind.Ask,
+				ChatAgentLocation.Chat),
 			getAllModels: () => this._models,
 			requiresCustomModels: () => false,
 			getConfiguredModelValue: () => this._world.defaultModelSetting,
@@ -124,7 +127,7 @@ class ModelSelectionHarness {
 
 	/** The user picks a model from the picker. */
 	pick(id: string): this {
-		this._controller.select(this._find(id), 'user', { effect: () => { }, rollbackOnError: false });
+		this._controller.select(this._find(id), { authority: 'user', effect: () => { }, rollbackOnError: false });
 		return this;
 	}
 

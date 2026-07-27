@@ -79,12 +79,12 @@ suite('ChatInputModelSelectionController', () => {
 		const first = model('test/first');
 		const second = model('test/second');
 
-		controller.select(first, 'automatic', { effect: () => { } });
+		controller.select(first, { authority: 'automatic', effect: () => { } });
 		const automatic = {
 			current: controller.currentModel.get()?.identifier,
 			explicit: controller.selectionReason === ModelSelectionReason.UserSelection,
 		};
-		controller.select(second, 'user', { effect: () => { }, rollbackOnError: false });
+		controller.select(second, { authority: 'user', effect: () => { }, rollbackOnError: false });
 
 		assert.deepStrictEqual({
 			automatic,
@@ -102,9 +102,9 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime({ models: [], resolved: true, sessionType: 'test' }, modelChanges, [])));
 		const first = model('test/first');
 		const second = model('test/second');
-		controller.select(first, 'automatic', { effect: () => { } });
+		controller.select(first, { authority: 'automatic', effect: () => { } });
 
-		assert.throws(() => controller.select(second, 'user', { effect: () => { throw new Error('rejected'); }, rollbackOnError: true }), /rejected/);
+		assert.throws(() => controller.select(second, { authority: 'user', effect: () => { throw new Error('rejected'); }, rollbackOnError: true }), /rejected/);
 		assert.deepStrictEqual({
 			current: controller.currentModel.get()?.identifier,
 			reason: controller.selectionReason,
@@ -246,7 +246,7 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
 		controller.initialize(remembered.identifier, () => { });
-		controller.select(explicit, 'user', { effect: () => applied.push(explicit.identifier), rollbackOnError: false });
+		controller.select(explicit, { authority: 'user', effect: () => applied.push(explicit.identifier), rollbackOnError: false });
 		state.models = [fallback, explicit, remembered];
 		modelChanges.fire('loaded');
 
@@ -271,7 +271,7 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
 		controller.initialize(remembered.identifier, () => { });
-		controller.select(programmatic, 'programmatic');
+		controller.select(programmatic, { authority: 'programmatic' });
 		state.models = [fallback, programmatic, remembered];
 		modelChanges.fire('loaded');
 
@@ -330,7 +330,7 @@ suite('ChatInputModelSelectionController', () => {
 			() => state.models.find(model => model.identifier === requested.identifier),
 			'chat:one',
 		);
-		controller.select(explicit, 'user', { effect: () => applied.push(explicit.identifier), rollbackOnError: false });
+		controller.select(explicit, { authority: 'user', effect: () => applied.push(explicit.identifier), rollbackOnError: false });
 		state.models = [explicit, requested];
 		modelChanges.fire('loaded');
 
@@ -435,7 +435,7 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.select(selected, 'user', { effect: () => { }, rollbackOnError: false });
+		controller.select(selected, { authority: 'user', effect: () => { }, rollbackOnError: false });
 		state.models = [other];
 		modelChanges.fire('agent-host-restarting');
 		const duringRestart = controller.currentModel.get()?.identifier;
@@ -498,7 +498,7 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.select(selected, 'user', { effect: () => { }, rollbackOnError: false });
+		controller.select(selected, { authority: 'user', effect: () => { }, rollbackOnError: false });
 		state.models = [substitute];
 		modelChanges.fire('model-gone');
 		const duringOutage = controller.currentModel.get()?.identifier;
@@ -526,10 +526,10 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.select(selected, 'user', { effect: () => { }, rollbackOnError: false });
+		controller.select(selected, { authority: 'user', effect: () => { }, rollbackOnError: false });
 		state.models = [other, chosen];
 		modelChanges.fire('model-removed');
-		controller.select(chosen, 'user', { effect: () => { }, rollbackOnError: false });
+		controller.select(chosen, { authority: 'user', effect: () => { }, rollbackOnError: false });
 		state.models = [selected, other, chosen];
 		modelChanges.fire('model-back');
 
@@ -559,7 +559,7 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.select(picked, 'user', { effect: () => { }, rollbackOnError: false });
+		controller.select(picked, { authority: 'user', effect: () => { }, rollbackOnError: false });
 		state.models = [configured];
 		modelChanges.fire('picked-gone');
 		const duringOutage = controller.currentModel.get()?.identifier;
@@ -597,7 +597,7 @@ suite('ChatInputModelSelectionController', () => {
 		const state: IRuntimeState = { models: [remembered, standIn], resolved: true, sessionType: 'local' };
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
 
-		controller.select(remembered, 'user', { effect: () => { }, rollbackOnError: false });
+		controller.select(remembered, { authority: 'user', effect: () => { }, rollbackOnError: false });
 		// The pick disappears and the stand-in takes over.
 		state.models = [standIn];
 		controller.reconcileModelListChange(state.models);
@@ -629,7 +629,7 @@ suite('ChatInputModelSelectionController', () => {
 		const state: IRuntimeState = { models: [picked, locationDefault], resolved: true, sessionType: 'local' };
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
 
-		controller.select(picked, 'user', { effect: () => { }, rollbackOnError: false });
+		controller.select(picked, { authority: 'user', effect: () => { }, rollbackOnError: false });
 		state.models = [locationDefault];
 		controller.reconcileModelListChange(state.models);
 		// The user deliberately asks for the default while the pick is unavailable.
@@ -670,7 +670,7 @@ suite('ChatInputModelSelectionController', () => {
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
 
-		controller.select(invalid, 'automatic', { effect: () => { } });
+		controller.select(invalid, { authority: 'automatic', effect: () => { } });
 		controller.ensureCurrentModelSupported();
 
 		assert.deepStrictEqual({ current: controller.currentModel.get()?.identifier }, { current: agentCapable.identifier });
@@ -695,7 +695,7 @@ suite('ChatInputModelSelectionController', () => {
 
 		controller.initialize(askOnly.identifier, () => { });
 		const awaiting = controller.isAwaitingModel();
-		controller.select(withAgentMode, 'automatic', { effect: () => { } });
+		controller.select(withAgentMode, { authority: 'automatic', effect: () => { } });
 		modelChanges.fire('refresh');
 
 		assert.deepStrictEqual({
@@ -727,7 +727,7 @@ suite('ChatInputModelSelectionController', () => {
 		const applied: string[] = [];
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 
-		controller.select(agentCapable, 'automatic', { effect: () => { } });
+		controller.select(agentCapable, { authority: 'automatic', effect: () => { } });
 		applied.length = 0;
 		modelChanges.fire('refresh-one');
 		modelChanges.fire('refresh-two');
@@ -782,8 +782,8 @@ suite('ChatInputModelSelectionController', () => {
 		const state: IRuntimeState = { models: [picked, rejected, standIn], resolved: true, sessionType: 'local' };
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, [])));
 
-		controller.select(picked, 'user', { effect: () => { }, rollbackOnError: false });
-		assert.throws(() => controller.select(rejected, 'user', { effect: () => { throw new Error('nope'); }, rollbackOnError: true }), /nope/);
+		controller.select(picked, { authority: 'user', effect: () => { }, rollbackOnError: false });
+		assert.throws(() => controller.select(rejected, { authority: 'user', effect: () => { throw new Error('nope'); }, rollbackOnError: true }), /nope/);
 		// The rollback must restore the remembered selection too, not just what is displayed:
 		// otherwise the rejected model would be reclaimed after an outage.
 		state.models = [standIn];
@@ -925,7 +925,7 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
 		controller.initialize(undefined, () => { });
-		controller.select(explicit, 'user', { effect: () => applied.push(explicit.identifier), rollbackOnError: false });
+		controller.select(explicit, { authority: 'user', effect: () => applied.push(explicit.identifier), rollbackOnError: false });
 		models = [byok, explicit, configured];
 		controller.reconcileModelListChange(models);
 
@@ -1191,7 +1191,7 @@ suite('ChatInputModelSelectionController', () => {
 			createRuntime({ models: [gpt, opus], resolved: true, sessionType: 'test', configuredModel: gpt.metadata.id }, modelChanges, applied)));
 
 		controller.beginSessionSwitch(true, false, false);
-		controller.select(opus, 'user', { effect: () => applied.push(opus.identifier), rollbackOnError: false });
+		controller.select(opus, { authority: 'user', effect: () => applied.push(opus.identifier), rollbackOnError: false });
 		const configuredApplied = controller.applyConfiguredDefault();
 
 		assert.deepStrictEqual({ configuredApplied, applied, current: controller.currentModel.get()?.identifier, userPicked: controller.selectionReason === ModelSelectionReason.UserSelection }, {
@@ -1576,7 +1576,7 @@ suite('ChatInputModelSelectionController', () => {
 			},
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
-		controller.select(general, 'automatic', { effect: () => { } });
+		controller.select(general, { authority: 'automatic', effect: () => { } });
 		state.sessionType = 'agent-host-test';
 
 		controller.revalidateForSessionType(() => { });
@@ -1614,7 +1614,7 @@ suite('ChatInputModelSelectionController', () => {
 			applyModel: selected => applied.push(selected.identifier),
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
-		controller.select(general, 'automatic', { effect: () => { } });
+		controller.select(general, { authority: 'automatic', effect: () => { } });
 
 		state.sessionType = sessionType;
 		controller.revalidateForSessionType(() => { });
@@ -1744,7 +1744,7 @@ suite('ChatInputModelSelectionController', () => {
 
 		controller.initialize(remembered.identifier, () => { });
 		const pendingAfterInit = controller.isAwaitingModel();
-		controller.select(explicit, 'user', { effect: () => applied.push(explicit.identifier), rollbackOnError: false });
+		controller.select(explicit, { authority: 'user', effect: () => applied.push(explicit.identifier), rollbackOnError: false });
 		const pendingAfterExplicit = controller.isAwaitingModel();
 		models = [fallback, explicit, remembered];
 		modelChanges.fire('loaded');
