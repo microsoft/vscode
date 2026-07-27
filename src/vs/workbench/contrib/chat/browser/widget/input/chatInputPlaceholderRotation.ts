@@ -9,6 +9,7 @@ import { localize } from '../../../../../../nls.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../../../editor/common/config/editorOptions.js';
 import { PlaceholderTextContribution } from '../../../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
+import { activeDictationEditor } from '../../speechToText/dictationSession.js';
 
 /**
  * Friendly placeholders shared by empty Agents window and agent host chat inputs.
@@ -72,6 +73,13 @@ export function installRotatingChatPlaceholder(editor: ICodeEditor, options?: IR
 		index = Math.floor(Math.random() * placeholders.length);
 	}
 	store.add(disposableWindowInterval(getWindow(editor.getDomNode()), () => {
+		// While this editor is being dictated into, the dictation session owns the
+		// placeholder ("Listening", or the preserved value while the model
+		// prepares - progress is conveyed by the mic download spinner). Skip
+		// rotating so we don't clobber it; rotation resumes once dictation ends.
+		if (activeDictationEditor() === editor) {
+			return;
+		}
 		index = (index + 1) % placeholders.length;
 		editor.updateOptions({ placeholder: placeholders[index] });
 	}, intervalMs));

@@ -30,6 +30,8 @@ suite('DictationSession', () => {
 			onDidChangePreparingModel: store.add(new Emitter<boolean>()).event,
 			onDidChangeModelDownloadProgress: store.add(new Emitter<void>()).event,
 			get state() { return state; },
+			get showTranscriptWhileDictating() { return true; },
+			get analyserNode() { return undefined; },
 			get isConfigured() { return true; },
 			get isPreparingModel() { return false; },
 			get modelDownloadProgress() { return undefined; },
@@ -55,5 +57,46 @@ suite('DictationSession', () => {
 		await stopDictation();
 
 		assert.strictEqual(editor.getValue(), '');
+	});
+
+	test('hides interim transcript and inserts final transcript when stopped', async () => {
+		const transcript = 'hello world';
+		const onDidUpdateTranscript = store.add(new Emitter<IChatDictationTranscript>());
+		const onDidChangeState = store.add(new Emitter<ChatSpeechToTextState>());
+		let state = ChatSpeechToTextState.Idle;
+		const service: IChatSpeechToTextService = {
+			_serviceBrand: undefined,
+			onDidUpdateTranscript: onDidUpdateTranscript.event,
+			onDidChangeState: onDidChangeState.event,
+			onDidChangePreparingModel: store.add(new Emitter<boolean>()).event,
+			onDidChangeModelDownloadProgress: store.add(new Emitter<void>()).event,
+			get state() { return state; },
+			get showTranscriptWhileDictating() { return false; },
+			get analyserNode() { return undefined; },
+			get isConfigured() { return true; },
+			get isPreparingModel() { return false; },
+			get modelDownloadProgress() { return undefined; },
+			get currentBackend() { return 'mai' as const; },
+			async start() {
+				state = ChatSpeechToTextState.Recording;
+				onDidChangeState.fire(state);
+			},
+			async stopAndTranscribe() {
+				state = ChatSpeechToTextState.Idle;
+				onDidChangeState.fire(state);
+				return transcript;
+			},
+			cancel() { },
+			logDictationAccuracy() { },
+		};
+		const model = store.add(createTextModel(''));
+		const editor = store.add(createTestCodeEditor(model));
+
+		await startDictation(service, editor, mainWindow, new NullLogService());
+		onDidUpdateTranscript.fire({ text: transcript, finalizedText: '' });
+		const interimValue = editor.getValue();
+		await stopDictation();
+
+		assert.deepStrictEqual([interimValue, editor.getValue()], ['', transcript]);
 	});
 });
