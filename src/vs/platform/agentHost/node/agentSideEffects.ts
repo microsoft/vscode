@@ -547,6 +547,11 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 
+		if (signal.kind === 'subagent_resumed') {
+			this._resumeSubagentSession(signal.chat.toString(), signal.toolCallId, signal.message);
+			return;
+		}
+
 		if (signal.kind === 'subagent_completed') {
 			this.completeSubagentSession(signal.chat.toString(), signal.toolCallId);
 			return;
@@ -576,14 +581,26 @@ export class AgentSideEffects extends Disposable {
 				const subTurnId = this._stateManager.getActiveTurnId(subagentSession.chatUri);
 				if (subTurnId) {
 					this._dispatchActionForSession(signal, subagentSession.chatUri, subTurnId, 'remap', agent);
+				} else {
+					this._logService.error(`[AgentSideEffects] Dropping ${this._describeSignal(signal)} for inactive subagent ${sessionKey}/${parentToolCallId}`);
+					if (signal.kind === 'pending_confirmation') {
+						agent.respondToPermissionRequest(signal.state.toolCallId, false);
+					}
 				}
+				return;
+			}
+
+			const pendingSignals = this._pendingSubagentSignals.get(sessionKey, parentToolCallId);
+			if (signal.kind === 'pending_confirmation' && !pendingSignals) {
+				this._logService.error(`[AgentSideEffects] Denying permission for unroutable subagent ${sessionKey}/${parentToolCallId}: toolCallId=${signal.state.toolCallId}`);
+				agent.respondToPermissionRequest(signal.state.toolCallId, false);
 				return;
 			}
 
 			// Subagent session does not exist yet — buffer the signal so we can
 			// replay it after `subagent_started` arrives.
 			this._logService.trace(`[AgentSideEffects] Buffering ${this._describeSignal(signal)} for pending subagent ${sessionKey}/${parentToolCallId}`);
-			let buffer = this._pendingSubagentSignals.get(sessionKey, parentToolCallId);
+			let buffer = pendingSignals;
 			if (!buffer) {
 				buffer = [];
 				this._pendingSubagentSignals.set(buffer, sessionKey, parentToolCallId);
@@ -728,10 +745,8 @@ export class AgentSideEffects extends Disposable {
 
 			// Drop any events that were buffered for a subagent whose
 			// `subagent_started` never arrived (e.g. the parent tool failed
-			// before the subagent was created). The actual subagent session
-			// teardown is driven by the `subagent_completed` signal because
-			// background subagents (`mode: background`) continue running
-			// after the parent tool call returns.
+			// before the subagent was created). A registered child chat remains
+			// available across completed turns so it can be steered again.
 			this._pendingSubagentSignals.delete(sessionKey, action.toolCallId);
 			if (getToolFileEdits(action.result).length > 0) {
 				this._changesets.onToolCallEditsApplied(sessionUri, turnId);
@@ -869,8 +884,9 @@ export class AgentSideEffects extends Disposable {
 		const parentSessionUri = parseRequiredSessionUriFromChatUri(chatURI);
 		const subagentChatUri = buildSubagentChatUri(parentSessionUri, toolCallId);
 
-		// Already tracking this subagent
-		if (this._subagentChats.get(chatURI, toolCallId)) {
+		const existing = this._subagentChats.get(chatURI, toolCallId);
+		if (existing) {
+			this._resumeSubagentSession(chatURI, toolCallId, taskPrompt ? { text: taskPrompt, origin: { kind: MessageKind.User } } : undefined);
 			return;
 		}
 
@@ -940,6 +956,27 @@ export class AgentSideEffects extends Disposable {
 		return typeof elapsed === 'number' && Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
 	}
 
+	private _resumeSubagentSession(parentChatURI: ProtocolURI, toolCallId: string, message: Message | undefined): void {
+		const subagent = this._subagentChats.get(parentChatURI, toolCallId);
+		if (!subagent) {
+			this._logService.error(`[AgentSideEffects] Cannot resume unknown subagent ${parentChatURI}/${toolCallId}`);
+			return;
+		}
+		if (this._stateManager.getActiveTurnId(subagent.chatUri)) {
+			return;
+		}
+
+		const turnId = generateUuid();
+		this._logService.info(`[AgentSideEffects] Resuming subagent turn: ${subagent.chatUri} (parent=${parentChatURI}, toolCallId=${toolCallId})`);
+		this._stateManager.dispatchServerAction(subagent.chatUri, {
+			type: ActionType.ChatTurnStarted,
+			turnId,
+			startedAt: new Date().toISOString(),
+			message: message ?? { text: '', origin: { kind: MessageKind.User } },
+		});
+		this._subagentChats.set({ ...subagent, turnStopWatch: StopWatch.create(false) }, parentChatURI, toolCallId);
+	}
+
 	/**
 	 * Cancels all active subagent sessions for a given parent session.
 	 */
@@ -962,11 +999,8 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
-	 * Completes the subagent session associated with a parent tool call.
-	 * Driven by the `subagent_completed` signal from the agent (which the
-	 * SDK fires on both `subagent.completed` and `subagent.failed`), not by
-	 * parent tool call completion — background subagents keep running after
-	 * their parent tool returns.
+	 * Completes the active turn for the subagent associated with a parent tool
+	 * call. The chat remains registered so a later steered turn can resume it.
 	 */
 	completeSubagentSession(parentChatURI: ProtocolURI, toolCallId: string): void {
 		// Drop any events that were buffered waiting for a `subagent_started`
@@ -988,7 +1022,6 @@ export class AgentSideEffects extends Disposable {
 				duration: this._turnDuration(subagent.turnStopWatch),
 			});
 		}
-		this._subagentChats.delete(parentChatURI, toolCallId);
 	}
 
 	/**
