@@ -325,6 +325,7 @@ suite('TerminalSandboxService - network domains', () => {
 			bubblewrapUsable: false,
 			bubblewrapError: 'No permissions to create namespace',
 			socatInstalled: true,
+			apparmorRestrictsUnprivilegedUserNamespaces: true,
 		};
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));

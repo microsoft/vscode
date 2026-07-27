@@ -142,6 +142,8 @@ export class TerminalSandboxEngine extends Disposable {
 	private _windowsMxcEnvironment: string[] | undefined;
 	private _sandboxConfigPath: string | undefined;
 	private _sandboxDependencyStatus: ISandboxDependencyStatus | undefined;
+	private _enableWeakerNestedSandbox = false;
+	private _apparmorRemediationRequested = false;
 	private _needsForceUpdateConfigFile = true;
 	private _tempDir: URI | undefined;
 	private _commandAllowListKeywords: readonly string[] = [];
@@ -331,7 +333,19 @@ export class TerminalSandboxEngine extends Disposable {
 
 		if (!(await this._checkSandboxDependencies(forceRefresh))) {
 			const missingDependencies = await this.getMissingSandboxDependencies();
-			if (missingDependencies.length === 0 && this._sandboxDependencyStatus?.bubblewrapInstalled && !this._sandboxDependencyStatus.bubblewrapUsable) {
+			if (missingDependencies.length === 0 && this._sandboxDependencyStatus?.bubblewrapUsable === false) {
+				if (this._sandboxDependencyStatus.apparmorRestrictsUnprivilegedUserNamespaces !== true || (forceRefresh && this._apparmorRemediationRequested)) {
+					if (!this._enableWeakerNestedSandbox) {
+						this._enableWeakerNestedSandbox = true;
+						await this.getSandboxConfigPath(true, precheckInputs);
+					}
+					return {
+						enabled: true,
+						sandboxConfigPath: this._sandboxConfigPath,
+						failedCheck: undefined,
+					};
+				}
+				this._apparmorRemediationRequested = true;
 				return {
 					enabled: true,
 					sandboxConfigPath,
@@ -640,7 +654,10 @@ export class TerminalSandboxEngine extends Disposable {
 		const windowsSchemaVersion = this._os === OperatingSystem.Windows
 			? this._getSettingValue<string>(AgentSandboxSettingId.AgentSandboxWindowsSchemaVersion)
 			: undefined;
-		const runtimeSetting = this._getSettingValue<Record<string, unknown>>(AgentSandboxSettingId.AgentSandboxAdvancedRuntime) ?? {};
+		const runtimeSetting = {
+			...this._getSettingValue<Record<string, unknown>>(AgentSandboxSettingId.AgentSandboxAdvancedRuntime),
+			...(this._enableWeakerNestedSandbox ? { enableWeakerNestedSandbox: true } : undefined),
+		};
 		const commandRuntimeSetting = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._commandAllowListCommandDetails);
 		const commandRuntimeAllowReadPaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowRead');
 		const commandRuntimeAllowWritePaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowWrite');
