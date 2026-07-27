@@ -182,8 +182,6 @@ suite('Objects', () => {
 			'{"a":1,"self":"[Circular]"}'
 		);
 
-		// A shared (non-circular) reference used in sibling branches is
-		// serialized in full and not treated as circular
 		const shared = { a: 1 };
 		assert.strictEqual(
 			objects.stableStringify({ x: shared, y: shared }),
