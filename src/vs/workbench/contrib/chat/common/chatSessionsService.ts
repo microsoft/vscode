@@ -554,10 +554,20 @@ export interface IChatInputCompletionSkillAttachment {
  */
 export interface IChatInputCompletionChatAttachment {
 	readonly kind: 'chat';
-	/** The resource of the referenced chat. */
+	/**
+	 * The opaque **backend** chat URI of the referenced chat — the exact value
+	 * carried on `MessageChatAttachment.resource`. The workbench stores it
+	 * verbatim on the accepted reference entry (`value`) and round-trips it back
+	 * on send; it never parses or constructs it.
+	 */
 	readonly uri: URI;
-	/** The last completed turn included in the referenced transcript. */
-	readonly endTurn: string;
+	/**
+	 * The last completed turn included in the referenced transcript, when the
+	 * reference is pinned to a specific turn. Omitted for references that resolve
+	 * to the referenced chat's latest completed turn at accept time (e.g. a
+	 * reference produced by dragging a chat into the input).
+	 */
+	readonly endTurn?: string;
 	/** The chat title, used as the display label. */
 	readonly title: string;
 	/** Display label shown in the completion picker; defaults to {@link title}. */

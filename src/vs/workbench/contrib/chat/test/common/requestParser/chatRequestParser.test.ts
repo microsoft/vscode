@@ -104,8 +104,9 @@ suite('ChatRequestParser', () => {
 		});
 	});
 
-	test('REPRO: multi-word #chat reference preserves its range through toVariableEntry', () => {
-		const chatResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/session-1/chat-2' });
+	test('multi-word #chat reference preserves its range through toVariableEntry', () => {
+		// The reference carries the opaque backend chat URI verbatim.
+		const chatResource = URI.parse('ahp-chat://chat-2/base64session');
 		const text = 'what did I ask about in #chat:circuit-breaker testing coverage summary ?';
 		const tokenStart = text.indexOf('#chat:');
 		const tokenEnd = tokenStart + '#chat:circuit-breaker testing coverage summary'.length;

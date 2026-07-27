@@ -4288,7 +4288,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const modelId = this._toLanguageModelId(sessionResource, draft.model?.id);
 		const metadata = modelId ? this._languageModelsService.lookupLanguageModel(modelId) : undefined;
-		const variableData = messageAttachmentsToVariableData(draft.attachments, this._config.connectionAuthority);
+		const variableData = messageAttachmentsToVariableData(draft.attachments, this._config.connectionAuthority, draft.text);
 		const cursor = offsetToPosition(draft.text, draft.text.length);
 		return {
 			attachments: variableData?.variables ?? [],
@@ -4703,9 +4703,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const attachment: MessageChatAttachment = {
 			type: MessageAttachmentKind.Chat,
 			resource: v.value.toString(),
-			endTurn: v.endTurn,
 			label: v.name,
 		};
+		if (v.endTurn !== undefined) {
+			attachment.endTurn = v.endTurn;
+		}
 		if (range) {
 			attachment.range = range;
 		}

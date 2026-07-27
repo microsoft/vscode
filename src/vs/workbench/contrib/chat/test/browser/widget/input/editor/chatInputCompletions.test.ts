@@ -140,7 +140,9 @@ suite('AgentHostInputCompletions #chat references', () => {
 			new TestConfigurationService(),
 		));
 		const widget = upcastPartial<IChatWidget>({});
-		const chatResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/session-1/chat-2' });
+		// The completion carries the opaque backend chat URI, stored verbatim on
+		// the accepted reference entry.
+		const chatResource = URI.parse('ahp-chat://chat-2/base64session');
 
 		// The host inserts `#chat:<title> ` (trailing space) spanning columns 1..19.
 		const built = completions.buildItem(new Position(1, 19), {

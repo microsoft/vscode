@@ -17,7 +17,12 @@ suite('ChatReferenceAttachment', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const sessionUri = AgentSession.uri('claude', 'abc123');
+	// A chat-reference entry's `value` is the opaque **backend** chat URI
+	// (`ahp-chat://...`), identical to what `MessageChatAttachment.resource`
+	// carries on the wire.
+	const backendSession = AgentSession.uri('claude', 'abc123');
+	const backendDefaultChat = URI.parse(buildDefaultChatUri(backendSession));
+	const backendPeerChat = URI.parse(buildChatUri(backendSession, 'peer1'));
 
 	function createFakeWidget(): IChatAttachmentWidgetInstance {
 		return {
@@ -33,7 +38,7 @@ suite('ChatReferenceAttachment', () => {
 		const fake = createFakeWidget();
 		const disposable = registry.registerFactory('chatReference', () => fake);
 
-		const chatReferenceEntry = createChatReferenceVariableEntry(URI.parse(buildDefaultChatUri(sessionUri)), 'turn-1', 'My Chat');
+		const chatReferenceEntry = createChatReferenceVariableEntry(backendDefaultChat, 'turn-1', 'My Chat');
 		const genericEntry: IChatRequestVariableEntry = { kind: 'generic', id: 'other', name: 'other', value: 'v' };
 
 		assert.deepStrictEqual(
@@ -50,15 +55,19 @@ suite('ChatReferenceAttachment', () => {
 		disposable.dispose();
 	});
 
-	test('builds the open-session link for a default chat and a peer chat', () => {
+	test('opens the referenced backend chat resource via the window open-session link', () => {
+		// The widget hands the entry's opaque backend chat URI straight to the
+		// AHP-owned link builder; it never parses or constructs the URI itself.
 		assert.deepStrictEqual(
 			{
-				defaultChat: buildOpenSessionLinkForChatResource(buildDefaultChatUri(sessionUri)),
-				peerChat: buildOpenSessionLinkForChatResource(buildChatUri(sessionUri, 'peer1')),
+				defaultChat: buildOpenSessionLinkForChatResource(backendDefaultChat),
+				peerChat: buildOpenSessionLinkForChatResource(backendPeerChat),
+				bareSession: buildOpenSessionLinkForChatResource(backendSession),
 			},
 			{
 				defaultChat: 'agent-host-session://claude/abc123',
 				peerChat: 'agent-host-session://claude/abc123?chat=peer1',
+				bareSession: 'agent-host-session://claude/abc123',
 			}
 		);
 	});

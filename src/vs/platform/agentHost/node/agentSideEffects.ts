@@ -1633,7 +1633,7 @@ export class AgentSideEffects extends Disposable {
 			await Promise.all(selectionUpdates);
 
 			failureStage = 'sendMessage';
-			const resolvedAttachments = await this._resolveChatAttachments(sessionChannel, message.attachments);
+			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
 			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectory, resolvedAttachments, turnId, senderClientId, clientType);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
@@ -1651,7 +1651,7 @@ export class AgentSideEffects extends Disposable {
 		}
 	}
 
-	private async _resolveChatAttachments(sessionChannel: ProtocolURI, attachments: readonly MessageAttachment[] | undefined): Promise<readonly MessageAttachment[] | undefined> {
+	private async _resolveChatAttachments(attachments: readonly MessageAttachment[] | undefined): Promise<readonly MessageAttachment[] | undefined> {
 		if (!attachments?.some(attachment => attachment.type === MessageAttachmentKind.Chat)) {
 			return attachments;
 		}
@@ -1659,20 +1659,6 @@ export class AgentSideEffects extends Disposable {
 			if (attachment.type !== MessageAttachmentKind.Chat) {
 				return attachment;
 			}
-			const parsedChat = isAhpChatChannel(attachment.resource) ? parseChatUri(attachment.resource) : undefined;
-			const sourceSession = parsedChat
-				? parsedChat.session
-				: URI.parse(attachment.resource).toString();
-			if (sourceSession !== URI.parse(sessionChannel).toString()) {
-				throw new Error(`Chat attachment source must belong to the target session: ${attachment.resource}`);
-			}
-			const sourceState = resolveChatStateForUri(this._stateManager, attachment.resource);
-			if (sourceState?.activeTurn?.id === attachment.endTurn) {
-				throw new Error(`Chat attachment endTurn must reference a completed turn: ${attachment.resource}#${attachment.endTurn}`);
-			}
-			const sourceTurns = await this._options.resolveChatAttachmentTurns?.(attachment.resource)
-				?? sourceState?.turns
-				?? [];
 			// An `agent-host-session://` link that identifies the referenced chat.
 			// The default chat is addressed by its session (no chat id); peer chats
 			// carry their chat id so the link opens that specific chat.
@@ -1680,8 +1666,42 @@ export class AgentSideEffects extends Disposable {
 			if (openLink === undefined) {
 				throw new Error(`Chat attachment resource cannot be resolved to an open-session link: ${attachment.resource}`);
 			}
+			// A cross-session reference may point at a chat this host never
+			// subscribed to; restoring it can throw when no provider owns it or
+			// the backend no longer has it. A stale reference must not fail the
+			// user's whole turn, so an unresolvable source (`undefined`) degrades
+			// to a pointer without an excerpt and drops the `endTurn` pin — the
+			// empty transcript would otherwise trip endTurn validation.
+			const sourceTurns = await this._resolveChatAttachmentSourceTurns(attachment.resource);
+			if (sourceTurns === undefined) {
+				return resolveChatAttachment({ ...attachment, endTurn: undefined }, [], openLink);
+			}
+			const sourceState = resolveChatStateForUri(this._stateManager, attachment.resource);
+			if (attachment.endTurn !== undefined && sourceState?.activeTurn?.id === attachment.endTurn) {
+				throw new Error(`Chat attachment endTurn must reference a completed turn: ${attachment.resource}#${attachment.endTurn}`);
+			}
 			return resolveChatAttachment(attachment, sourceTurns, openLink);
 		}));
+	}
+
+	/**
+	 * Resolves the referenced chat's turns, returning `undefined` when the source
+	 * is unresolvable — e.g. a cross-session reference to a chat this host never
+	 * subscribed to and cannot restore (the resolver throws
+	 * `ProtocolError(AHP_SESSION_NOT_FOUND)` when no provider owns it or the
+	 * backend no longer has it). Such failures are logged rather than rethrown so
+	 * a stale reference degrades gracefully instead of failing the user's turn.
+	 */
+	private async _resolveChatAttachmentSourceTurns(resource: ProtocolURI): Promise<readonly Turn[] | undefined> {
+		try {
+			if (this._options.resolveChatAttachmentTurns) {
+				return await this._options.resolveChatAttachmentTurns(resource);
+			}
+			return resolveChatStateForUri(this._stateManager, resource)?.turns ?? [];
+		} catch (err) {
+			this._logService.warn(`[AgentSideEffects] Unable to resolve chat attachment source ${resource}; degrading to a pointer without an excerpt`, err);
+			return undefined;
+		}
 	}
 
 	/**

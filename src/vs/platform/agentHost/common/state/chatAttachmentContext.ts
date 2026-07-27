@@ -17,9 +17,15 @@ export const MAX_CHAT_ATTACHMENT_EXCERPT_CHARS = 1000;
 
 /**
  * Returns the referenced chat's turns bounded through {@link endTurn}, inclusive.
- * Throws when {@link endTurn} is not a retained completed turn.
+ *
+ * When {@link endTurn} is omitted, every turn is returned (the caller lets the
+ * host pin the latest turn implicitly). When {@link endTurn} is provided but is
+ * not a retained turn, this throws.
  */
-export function boundChatTranscriptTurns(turns: readonly Turn[], endTurn: string): readonly Turn[] {
+export function boundChatTranscriptTurns(turns: readonly Turn[], endTurn?: string): readonly Turn[] {
+	if (endTurn === undefined) {
+		return turns;
+	}
 	const index = turns.findIndex(t => t.id === endTurn);
 	if (index < 0) {
 		throw new Error(`Chat attachment endTurn ${endTurn} was not found in the retained transcript.`);
@@ -75,7 +81,7 @@ function truncateFront(text: string, maxChars: number): string {
  */
 function buildChatAttachmentPointer(label: string, openLink: string, transcript: string): string {
 	const intro =
-		`The user referenced another chat in the same session, "${label}". ` +
+		`The user referenced another chat, "${label}". ` +
 		`That chat is identified by the link ${openLink}. ` +
 		`To read its full transcript, call the ${SessionServerToolName.GetSessionContext} server tool with its "session" argument set to that link.`;
 

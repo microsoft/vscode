@@ -566,18 +566,33 @@ export function isBrowserViewVariableEntry(entry: IChatRequestVariableEntry): en
 
 /**
  * A first-class reference to another agent-host chat, produced when the user
- * types `#chat:<title>` in an agent-host chat input. Carries everything needed
- * to send an agent-host chat attachment and to render the reference chip: the
- * referenced chat's {@link value resource} and the {@link endTurn last completed
- * turn} included in the transcript. The display title lives on
+ * types `#chat:<title>` in an agent-host chat input or drops a chat tab onto the
+ * input. Carries everything needed to render the reference chip and to send an
+ * agent-host chat attachment: the referenced chat's opaque backend chat URI
+ * ({@link value}) and, when pinned, the {@link endTurn last completed turn}
+ * included in the transcript. The display title lives on
  * {@link IBaseChatRequestVariableEntry.name name}.
  */
 export interface IChatRequestChatReferenceVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'chatReference';
-	/** The referenced chat's resource. */
+	/**
+	 * The referenced chat's **opaque backend chat URI** — the exact value carried
+	 * on `MessageChatAttachment.resource` on the wire. It is provider-defined and
+	 * opaque: generic code MUST only store it, compare it by equality, and pass it
+	 * to agent-host-owned helpers (e.g. the chat-reference widget's link builder);
+	 * it MUST NOT parse or construct it. Send and restore are therefore pure
+	 * identity, and the client-side chat is resolved lazily (only when the user
+	 * clicks the reference chip). Because a reference can never cross agent hosts,
+	 * the URI always names a chat on a connected host.
+	 */
 	readonly value: URI;
-	/** Last completed turn included in the referenced transcript. */
-	readonly endTurn: string;
+	/**
+	 * Last completed turn included in the referenced transcript. Omitted for
+	 * references that do not pin a turn (e.g. a dropped chat/session), in which
+	 * case the host resolves the referenced chat's latest completed turn when it
+	 * accepts the message.
+	 */
+	readonly endTurn?: string;
 }
 
 /**
@@ -589,27 +604,33 @@ export function isChatReferenceVariableEntry(entry: IChatRequestVariableEntry): 
 
 /**
  * Stable, dedupe-friendly id for a chat reference, derived from the referenced
- * chat resource and the last completed turn. Re-accepting the same reference
- * therefore produces the same id.
+ * chat resource and — when the reference pins a turn — the last completed turn.
+ * Re-accepting the same reference therefore produces the same id. A pinned
+ * reference (with {@link endTurn}) and an unpinned one to the same chat produce
+ * distinct ids so they never collide.
  *
- * @param chatResource The resource of the referenced chat.
- * @param endTurn The last completed turn included in the referenced transcript.
+ * @param chatResource The opaque backend chat URI of the referenced chat. Stored
+ * verbatim in the id; never parsed.
+ * @param endTurn The last completed turn included in the referenced transcript, if pinned.
  */
-export function chatReferenceVariableEntryId(chatResource: URI, endTurn: string): string {
-	return `agent-host-chat:${chatResource.toString()}\u0000${endTurn}`;
+export function chatReferenceVariableEntryId(chatResource: URI, endTurn?: string): string {
+	return endTurn === undefined
+		? `agent-host-chat:${chatResource.toString()}`
+		: `agent-host-chat:${chatResource.toString()}\u0000${endTurn}`;
 }
 
 /**
  * Build the first-class {@link IChatRequestChatReferenceVariableEntry chat-reference entry}
  * (the input pill) for a referenced chat.
  *
- * @param chatResource The resource of the referenced chat.
- * @param endTurn The last completed turn included in the referenced transcript.
+ * @param chatResource The opaque backend chat URI of the referenced chat (the
+ * value carried on `MessageChatAttachment.resource`). Stored verbatim; never parsed.
+ * @param endTurn The last completed turn included in the referenced transcript, if pinned.
  * @param title The chat title used as the display label.
  * @param _meta Provider-supplied `_meta` to preserve on the entry.
  * @param range The offset-range of the reference in the prompt, when typed out.
  */
-export function createChatReferenceVariableEntry(chatResource: URI, endTurn: string, title: string, _meta?: Record<string, unknown>, range?: IOffsetRange): IChatRequestChatReferenceVariableEntry {
+export function createChatReferenceVariableEntry(chatResource: URI, endTurn: string | undefined, title: string, _meta?: Record<string, unknown>, range?: IOffsetRange): IChatRequestChatReferenceVariableEntry {
 	return {
 		kind: 'chatReference',
 		id: chatReferenceVariableEntryId(chatResource, endTurn),
@@ -630,16 +651,25 @@ export function createChatReferenceVariableEntry(chatResource: URI, endTurn: str
  */
 export interface IChatReferenceDynamicVariableValue {
 	readonly $mid: 'agentHostChatReference';
+	/**
+	 * The referenced chat's **opaque backend chat URI** as a string — the exact
+	 * value carried on `MessageChatAttachment.resource`. Becomes the rebuilt
+	 * entry's {@link IChatRequestChatReferenceVariableEntry.value}. Never parsed
+	 * by generic code.
+	 */
 	readonly chatResource: string;
-	readonly endTurn: string;
+	/** Last completed turn included in the referenced transcript, if pinned. */
+	readonly endTurn?: string;
 }
 
 /**
  * Build the {@link IChatReferenceDynamicVariableValue dynamic-variable transport}
  * for a chat reference.
  */
-export function toChatReferenceDynamicVariableValue(chatResource: URI, endTurn: string): IChatReferenceDynamicVariableValue {
-	return { $mid: 'agentHostChatReference', chatResource: chatResource.toString(), endTurn };
+export function toChatReferenceDynamicVariableValue(chatResource: URI, endTurn?: string): IChatReferenceDynamicVariableValue {
+	return endTurn === undefined
+		? { $mid: 'agentHostChatReference', chatResource: chatResource.toString() }
+		: { $mid: 'agentHostChatReference', chatResource: chatResource.toString(), endTurn };
 }
 
 /**

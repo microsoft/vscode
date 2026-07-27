@@ -871,10 +871,10 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
  * `undefined` when the message has no convertible attachments.
  */
 export function messageToVariableData(message: Message, connectionAuthority: string): IChatRequestVariableData | undefined {
-	return messageAttachmentsToVariableData(message.attachments, connectionAuthority);
+	return messageAttachmentsToVariableData(message.attachments, connectionAuthority, message.text);
 }
 
-export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string): IChatRequestVariableData | undefined {
+export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string, messageText?: string): IChatRequestVariableData | undefined {
 	if (!attachments?.length) {
 		return undefined;
 	}
@@ -890,7 +890,7 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 		if (isAgentFeedbackAnnotationsAttachment(a)) {
 			continue; // handled by the aggregation above
 		}
-		const v = messageAttachmentToVariableEntry(a, connectionAuthority);
+		const v = messageAttachmentToVariableEntry(a, connectionAuthority, messageText);
 		if (v) {
 			variables.push(v);
 		}
@@ -939,7 +939,7 @@ function aggregateAgentFeedbackAnnotationAttachments(attachments: readonly Messa
 	};
 }
 
-function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string): IChatRequestVariableEntry | undefined {
+function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string, messageText?: string): IChatRequestVariableEntry | undefined {
 	if (isAgentFeedbackAttachment(attachment)) {
 		const metadata = getAgentFeedbackAttachmentMetadata(attachment);
 		if (metadata) {
@@ -1020,7 +1020,7 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	if (attachment.type === MessageAttachmentKind.Chat) {
-		return restoreChatReferenceVariableEntryFromAttachment(attachment);
+		return restoreChatReferenceVariableEntryFromAttachment(attachment, messageText);
 	}
 
 	const agentHostCompletionKind = getAgentHostCompletionKind(attachment);

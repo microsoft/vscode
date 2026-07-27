@@ -35,6 +35,11 @@ suite('chatAttachmentContext', () => {
 		assert.deepStrictEqual(boundChatTranscriptTurns(turns, 't2').map(t => t.id), ['t1', 't2']);
 	});
 
+	test('boundChatTranscriptTurns returns every turn when endTurn is omitted', () => {
+		const turns = [turn('t1', 'a', 'A'), turn('t2', 'b', 'B'), turn('t3', 'c', 'C')];
+		assert.deepStrictEqual(boundChatTranscriptTurns(turns).map(t => t.id), ['t1', 't2', 't3']);
+	});
+
 	test('boundChatTranscriptTurns rejects an unknown endTurn', () => {
 		const turns = [turn('t1', 'a', 'A'), turn('t2', 'b', 'B')];
 		assert.throws(() => boundChatTranscriptTurns(turns, 'missing'), /endTurn missing was not found/);
@@ -54,11 +59,28 @@ suite('chatAttachmentContext', () => {
 			type: MessageAttachmentKind.Simple,
 			label: 'Conversation so far',
 			modelRepresentation:
-				'The user referenced another chat in the same session, "Conversation so far". ' +
+				'The user referenced another chat, "Conversation so far". ' +
 				`That chat is identified by the link ${OPEN_LINK}. ` +
 				'To read its full transcript, call the get_session_context server tool with its "session" argument set to that link.' +
 				'\n\nThe excerpt below is that chat\'s full transcript up to the selected turn:' +
 				'\n\nUser: first\n\nAssistant: reply one\n\nUser: second\n\nAssistant: reply two',
+		});
+	});
+
+	test('resolveChatAttachment includes every turn when endTurn is omitted', () => {
+		const turns = [turn('t1', 'first', 'reply one'), turn('t2', 'second', 'reply two'), turn('t3', 'later', 'reply three')];
+		const attachment: MessageChatAttachment = { type: MessageAttachmentKind.Chat, resource: 'ahp-chat://c/src', label: 'Conversation so far' };
+		const resolved = resolveChatAttachment(attachment, turns, OPEN_LINK);
+		// No endTurn pin, so the host resolves the full retained transcript (t1..t3).
+		assert.deepStrictEqual(resolved, {
+			type: MessageAttachmentKind.Simple,
+			label: 'Conversation so far',
+			modelRepresentation:
+				'The user referenced another chat, "Conversation so far". ' +
+				`That chat is identified by the link ${OPEN_LINK}. ` +
+				'To read its full transcript, call the get_session_context server tool with its "session" argument set to that link.' +
+				'\n\nThe excerpt below is that chat\'s full transcript up to the selected turn:' +
+				'\n\nUser: first\n\nAssistant: reply one\n\nUser: second\n\nAssistant: reply two\n\nUser: later\n\nAssistant: reply three',
 		});
 	});
 
@@ -102,7 +124,7 @@ suite('chatAttachmentContext', () => {
 			type: MessageAttachmentKind.Simple,
 			label: 'Empty chat',
 			modelRepresentation:
-				'The user referenced another chat in the same session, "Empty chat". ' +
+				'The user referenced another chat, "Empty chat". ' +
 				`That chat is identified by the link ${OPEN_LINK}. ` +
 				'To read its full transcript, call the get_session_context server tool with its "session" argument set to that link.' +
 				'\n\nThe referenced chat has no transcript content up to the selected turn.',

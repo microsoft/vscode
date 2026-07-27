@@ -195,6 +195,21 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 */
 	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined;
 
+	/**
+	 * Resolves the sessions-window client chat resource ({@link IChat.resource})
+	 * to the opaque **backend** chat URI the host uses on the wire (the value
+	 * carried on `MessageChatAttachment.resource`). Used to fill the chat-reference
+	 * drag payload with the backend URI a `#chat:` reference must carry.
+	 *
+	 * This is a pure **lookup** of host-supplied data (the authoritative
+	 * `ChatSummary.resource` / `SessionState.defaultChat` the provider already
+	 * receives), not a construction, so callers never derive an AHP chat URI.
+	 * Returns `undefined` when the session's state has not been hydrated (e.g. the
+	 * chat is not currently backed by known state), in which case the caller omits
+	 * the chat-reference payload.
+	 */
+	getBackendChatResource(chatResource: URI): URI | undefined;
+
 }
 
 export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';

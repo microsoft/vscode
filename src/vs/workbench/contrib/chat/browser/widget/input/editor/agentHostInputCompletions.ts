@@ -299,7 +299,7 @@ class AgentHostReferenceArgument {
 		return new AgentHostReferenceArgument(widget, entry.id, entry.value, description, false, false, range, _meta);
 	}
 
-	static forChat(widget: IChatWidget, uri: URI, endTurn: string, title: string, displayName: string | undefined, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
+	static forChat(widget: IChatWidget, uri: URI, endTurn: string | undefined, title: string, displayName: string | undefined, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
 		// The referenced chat resource and `endTurn` ride through the dynamic
 		// variable's `data` channel (not an out-of-band `_meta` bag), so the
 		// request parser can rebuild the first-class `chatReference` entry via
