@@ -55,6 +55,16 @@ Pinning uses `node -e "…"`, which is guaranteed present because the suite runs
 
 The trade-off is real: a pinned command tests shell execution rather than the provider's tool selection. Pin only when steering has actually been tried and failed, and note which it was.
 
+### Recording rejects POSIX-only commands
+
+`CapiReplayProxy` checks the assistant's `tool_use` commands before writing a fixture and fails the recording if any of them cannot run under `cmd`. It throws before the write, so a rejected recording cannot leave a half-portable capture behind.
+
+This exists because the failure mode is silent and recurring: nobody chooses these command strings, the model produces them, so a prompt that drifts back toward describing the goal will quietly reintroduce a POSIX-only capture. Checking at record time puts the error on the author's machine while they still have the context, rather than on a CI leg they may not run.
+
+The check is a blocklist of constructs known to fail under `cmd` — coreutils and shell builtins in command position, POSIX stderr redirection, `/dev/*`, `$VAR` expansion, `~/`. It is deliberately not an allowlist of portable commands: a false positive would block a correct recording and push authors toward disabling the check, which is worse than missing a case. Patterns are anchored to command position so a coreutil name appearing as an argument (`node -e "readdirSync('.')"`) does not trip it.
+
+Genuine exceptions go in `POSIX_COMMAND_EXCEPTIONS` in `agentHostE2ETestHarness.ts`, which keeps them countable in one place. An entry there must correspond to a test that is also scoped away from Windows at its call site, with the reason stated there.
+
 ### Recorded model requests are never asserted
 
 `CapiReplayProxy` matches purely ordinally: the Nth request to a given `(method, path)` replays the Nth recorded response. The recorded `request:` block in a capture is normalized on write (for review and diff stability) but is never read back — `exchange.request` is only touched by `_writeFixture`. Replay is therefore driven entirely by the recorded responses.

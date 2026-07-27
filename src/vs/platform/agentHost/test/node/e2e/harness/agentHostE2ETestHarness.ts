@@ -108,11 +108,27 @@ function fixturePathFor(provider: string, testTitle: string): string {
  * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Tests that
  * declare no model traffic always use the strict shared empty replay fixture.
  */
-export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode } {
+/**
+ * Tests whose recorded capture is allowed to contain POSIX-only commands.
+ *
+ * Each entry must correspond to a test that is *also* scoped away from Windows
+ * at its call site, with the reason stated there. This list exists so the
+ * exceptions are countable in one place; adding to it should be rare and
+ * deliberate. See `harness/posixCommandLint.ts`.
+ */
+const POSIX_COMMAND_EXCEPTIONS = new Set([
+	// `pwd` is auto-approved as a safe read-only command while a pinned
+	// `node -e "…"` is not, so pinning stops the turn on a permission prompt the
+	// test never answers. Its assertions also compare POSIX-shaped paths.
+	'worktree session uses the resolved worktree as working directory',
+]);
+
+export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean } {
+	const allowPosixCommands = POSIX_COMMAND_EXCEPTIONS.has(testTitle);
 	if (modelTraffic === 'none') {
-		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay' };
+		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay', allowPosixCommands };
 	}
-	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE };
+	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands };
 }
 
 // #endregion

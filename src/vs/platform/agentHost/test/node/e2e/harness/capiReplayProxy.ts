@@ -40,6 +40,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import { basename, dirname } from '../../../../../../base/common/path.js';
 import { aggregateAnthropicSse, anthropicMessageToSse, ANTHROPIC_MESSAGES_PATH, aggregateResponsesSse, responsesMessageToSse, RESPONSES_PATH, summarizeResponsesRequest, deserializeAnthropicContent, serializeAnthropicContent, summarizeAnthropicRequest, type AnthropicContentBlock, type IAnthropicMessage, type IReadableAnthropicRequest } from './capiWireCodec.js';
 import { getAncillaryStub } from './capiStubs.js';
+import { findPosixOnlyCommands, formatPosixCommandError, type IRecordedCommand } from './posixCommandLint.js';
 
 // `http`/`https`/`js-yaml` are lazily required (slow to load and/or not in this
 // layer's import allowlist); `import type` above still gives us http/https types.
@@ -240,6 +241,14 @@ export interface ICapiReplayProxyOptions {
 	 * replaying. Defaults to true. Ignored while recording.
 	 */
 	readonly strict?: boolean;
+	/**
+	 * Skip the POSIX-only shell command check when writing a fixture.
+	 *
+	 * Only for a scenario that genuinely cannot be portable — the test must also
+	 * be scoped to a platform explicitly at its call site, with the reason
+	 * stated there. See `posixCommandLint.ts`.
+	 */
+	readonly allowPosixCommands?: boolean;
 }
 
 /** A replayable item: raw bytes (ancillary) or a model reply to regenerate. */
@@ -634,6 +643,7 @@ export class CapiReplayProxy {
 		const exchanges = built.map(b => b.exchange);
 		this._normalizeToolCallIds(exchanges);
 		this._normalizeUuids(exchanges);
+		this._assertNoPosixOnlyCommands(exchanges);
 		// Every turn in a fixture shares one endpoint, so the dialect (and the
 		// `(method, path)` it implies) is stored once at the top instead of on each
 		// exchange.
@@ -641,6 +651,42 @@ export class CapiReplayProxy {
 		const fixture: IFixture = { version: 1, ...(dialect ? { dialect } : {}), exchanges };
 		mkdirSync(dirname(this._fixturePath), { recursive: true });
 		writeFileSync(this._fixturePath, yamlModule.dump(fixture, { lineWidth: -1, noRefs: true }));
+	}
+
+	/**
+	 * Reject a recording whose shell commands cannot run on Windows.
+	 *
+	 * Only the assistant's `tool_use` blocks matter: those are what replay feeds
+	 * back to the agent, so they are the commands that will actually be executed
+	 * on whatever platform the test later runs on. The `tool_result` blocks
+	 * echoed in request summaries are never read back.
+	 *
+	 * Throws before the file is written so a rejected recording cannot leave a
+	 * half-portable fixture behind.
+	 */
+	private _assertNoPosixOnlyCommands(exchanges: IFixtureExchange[]): void {
+		if (this._options.allowPosixCommands) {
+			return;
+		}
+		const commands: IRecordedCommand[] = [];
+		for (const exchange of exchanges) {
+			if (!isTurnExchange(exchange)) {
+				continue;
+			}
+			for (const block of deserializeAnthropicContent(exchange.response.content)) {
+				if (block.type !== 'tool_use') {
+					continue;
+				}
+				const command = (block.input as { command?: unknown } | undefined)?.command;
+				if (typeof command === 'string' && command) {
+					commands.push({ command, toolName: block.name });
+				}
+			}
+		}
+		const findings = findPosixOnlyCommands(commands);
+		if (findings.length > 0) {
+			throw new Error(formatPosixCommandError(this._fixturePath, findings));
+		}
 	}
 
 	/**
