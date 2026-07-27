@@ -104,6 +104,8 @@ suite('git smoke test', function () {
 	test('detects nested submodules', async function () {
 		const nestedRepositoryPath = file('nested-submodule-fixture');
 		const submodulePath = path.join(nestedRepositoryPath, 'folder1/moduleA');
+
+		await commands.executeCommand('git.openRepository', nestedRepositoryPath);
 		const submodule = await waitForRepository(submodulePath);
 
 		assert.strictEqual(submodule.rootUri.fsPath, submodulePath);
