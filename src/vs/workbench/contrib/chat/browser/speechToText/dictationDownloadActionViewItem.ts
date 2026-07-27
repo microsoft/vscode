@@ -77,7 +77,7 @@ export class DictationDownloadActionViewItem extends MenuEntryActionViewItem {
 		if (this._speechToTextService.currentBackend !== 'mai' || !this.label) {
 			return;
 		}
-		this.label.classList.remove(...ThemeIcon.asClassNameArray(Codicon.cloudDownload));
+		this.label.classList.remove(...ThemeIcon.asClassNameArray(Codicon.micDownload));
 		this.label.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading));
 	}
 
