@@ -467,6 +467,13 @@ POSIX is probed first so the pre-existing path costs no extra round trip. The
 probes themselves are the one exception to platform-owned commands: they run
 before a platform exists, which is what they are for.
 
+The Windows probe is **marker-based** (`VSCODE_REMOTE_OS=`) rather than
+positional, because a remote login shell may print arbitrary banner output on
+every channel — a machine-wide PowerShell profile is enough to prepend dozens of
+lines, and the client cannot suppress it (`sshd` runs `DefaultShell` before it
+sees our command, so a client-side `-NoProfile` never reaches the outer shell).
+Detection therefore scans for its marker instead of trusting the first token.
+
 **`remoteAgentHostCommand`** assumes POSIX and skips detection. This dev-only
 escape hatch (`chat.sshRemoteAgentHostCommand`) points at a locally-built agent
 host; multi-platform override support is deliberately out of scope. The path
@@ -686,6 +693,28 @@ hint for `remoteAgentHostCommand` (§6). The
 ## 13. Validation checklist
 
 Run against a real Windows 11 remote (§11).
+
+### Preparing the remote
+
+A locally built CLI is unsigned and has no cloud reputation, so a managed
+Windows host running Microsoft Defender **Attack Surface Reduction** refuses to
+execute it. `CreateProcess` fails with a bare `Access is denied`, no output and
+no exit code. Confirm the cause in the remote's
+*Microsoft-Windows-Windows Defender/Operational* log: event **1121** names the
+blocking rule. Shipped builds are signed and prevalent, so this affects
+development only — do not add product code for it.
+
+Grant the install root an ASR exclusion once, in an elevated shell on the
+remote, matching `serverDataFolderName` from `product.json`:
+
+```powershell
+Add-MpPreference -AttackSurfaceReductionOnlyExclusions "$env:USERPROFILE\.vscode-server-oss"
+```
+
+Verify with `(Get-MpPreference).AttackSurfaceReductionOnlyExclusions`. Folder
+exclusions are recursive, so commit-keyed binaries beneath it are covered.
+
+### Checklist
 
 1. **Supervisor survives the exec channel.** Connect, confirm the agent host is
    still running after the launching command has exited, and that the relay stays
