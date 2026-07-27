@@ -82,6 +82,10 @@ function getSpriteSources(): Record<ChatPetState, { animated: string; reducedMot
 	return spriteSources;
 }
 
+export function isChatPetImageSource(image: Pick<HTMLImageElement, 'getAttribute'>, source: string): boolean {
+	return image.getAttribute('src') === source;
+}
+
 export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boolean, idleExpired: boolean): ChatPetState {
 	if (needsInput) {
 		return 'clapping';
@@ -435,7 +439,7 @@ export class ChatPetWidget extends Disposable {
 	private _renderState(state: ChatPetState, restart = false): void {
 		const sources = getSpriteSources()[state];
 		const source = this._motionReduced ? sources.reducedMotion : sources.animated;
-		if (!restart && this._activeImage?.src === source) {
+		if (!restart && this._activeImage && isChatPetImageSource(this._activeImage, source)) {
 			this._button.element.dataset.state = state;
 			this._renderedState = state;
 			return;
@@ -454,7 +458,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _onImageLoad(image: HTMLImageElement): void {
-		if (image !== this._pendingImage || image.src !== this._pendingSource || this._pendingState === undefined) {
+		if (image !== this._pendingImage || this._pendingSource === undefined || !isChatPetImageSource(image, this._pendingSource) || this._pendingState === undefined) {
 			return;
 		}
 
