@@ -109,43 +109,50 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 	}
 
-	applyExplicitSelection(
+	/**
+	 * Applies a model and records where the choice came from.
+	 *
+	 * `user` and `programmatic` are deliberate, so they become the remembered selection and will be
+	 * reclaimed after an outage. `automatic` only changes what is displayed — it is the caller
+	 * having already decided, so it neither records authority nor disturbs what is remembered.
+	 *
+	 * `effect` runs the caller's side of the application (layout, persistence). For a `user`
+	 * selection it may throw, in which case `rollbackOnError` restores every piece of state,
+	 * including what was remembered.
+	 */
+	select(
 		model: ILanguageModelChatMetadataAndIdentifier,
-		apply: () => void,
-		rollbackOnError: boolean,
+		authority: 'user' | 'automatic' | 'programmatic',
+		options?: { readonly effect?: () => void; readonly rollbackOnError?: boolean },
 	): void {
+		if (authority === 'automatic') {
+			this._currentModel.set(model, undefined);
+			options?.effect?.();
+			return;
+		}
+
 		this._clearIntent();
-		const previousModel = this._currentModel.get();
-		const previousReason = this._selectionReason;
-		const previousRememberedSelection = this._rememberedSelection;
+		const reason = authority === 'user' ? ModelSelectionReason.UserSelection : ModelSelectionReason.ProgrammaticSelection;
+		const previous = {
+			model: this._currentModel.get(),
+			reason: this._selectionReason,
+			remembered: this._rememberedSelection,
+		};
 		this._currentModel.set(model, undefined);
-		this._selectionReason = ModelSelectionReason.UserSelection;
-		this._rememberedSelection = { modelId: model.identifier, reason: ModelSelectionReason.UserSelection };
-		this._diagnostics.report('explicit-selection', { model: model.identifier }, 'info');
+		this._selectionReason = reason;
+		this._rememberedSelection = { modelId: model.identifier, reason };
+		this._diagnostics.report('select', { model: model.identifier, authority }, 'info');
 		try {
-			apply();
-			this._diagnostics.report('explicit-selection-applied', { model: model.identifier }, 'info');
+			(options?.effect ?? (() => this._runtime.applyModel(model)))();
 		} catch (error) {
-			if (rollbackOnError) {
-				this._currentModel.set(previousModel, undefined);
-				this._selectionReason = previousReason;
-				this._rememberedSelection = previousRememberedSelection;
+			if (options?.rollbackOnError) {
+				this._currentModel.set(previous.model, undefined);
+				this._selectionReason = previous.reason;
+				this._rememberedSelection = previous.remembered;
 			}
-			this._diagnostics.report('explicit-selection-failed', { model: model.identifier, error: String(error) }, 'error');
+			this._diagnostics.report('select-failed', { model: model.identifier, authority, error: String(error) }, 'error');
 			throw error;
 		}
-	}
-
-	applyAutomaticSelection(model: ILanguageModelChatMetadataAndIdentifier, apply: () => void): void {
-		this._currentModel.set(model, undefined);
-		apply();
-	}
-
-	applyProgrammaticSelection(model: ILanguageModelChatMetadataAndIdentifier): void {
-		this._clearIntent();
-		this._selectionReason = ModelSelectionReason.ProgrammaticSelection;
-		this._rememberedSelection = { modelId: model.identifier, reason: ModelSelectionReason.ProgrammaticSelection };
-		this._applyModel(model);
 	}
 
 	requestProgrammaticSelection(
@@ -507,7 +514,7 @@ export class ChatInputModelSelectionController extends Disposable {
 			}
 			this._intent = undefined;
 			intent.complete(true);
-			this.applyProgrammaticSelection(model);
+			this.select(model, 'programmatic');
 			return true;
 		}
 
