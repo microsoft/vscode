@@ -49,7 +49,7 @@ function prepareDebPackage(arch: string) {
 
 		const desktops = es.merge(desktop, desktopUrlHandler)
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
-			.pipe(replace('@@NAME_SHORT@@', product.nameShort.toLowerCase().replace(/ /g, '-')))
+			.pipe(replace('@@NAME_SHORT@@', product.applicationName))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@EXEC@@', `/usr/share/${product.applicationName}/${product.applicationName}`))
 			.pipe(replace('@@ICON@@', product.linuxIconName))
