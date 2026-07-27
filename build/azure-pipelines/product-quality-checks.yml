@@ -112,9 +112,9 @@ jobs:
           set -e
           node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
           mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+          npx deemon --detach --wait -- nice -n 10 tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Create node_modules archive
+        displayName: Create node_modules archive (background)
 
       - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
@@ -386,3 +386,7 @@ jobs:
             node build/azure-pipelines/upload-sourcemaps.ts
         displayName: Upload sourcemaps to Azure
         condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+
+      - script: npx deemon --attach -- nice -n 10 tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+        condition: and(succeededOrFailed(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Wait for node_modules archive
