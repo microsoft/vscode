@@ -15,29 +15,10 @@ import { resolveClaudeEffort } from '../../common/claudeModelConfig.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
-import { CLAUDE_SERVER_TOOL_MCP_SERVER_NAME } from './claudeServerToolMcpServer.js';
-import { buildClientToolMcpServer, CLAUDE_CLIENT_MCP_SERVER_NAME } from './clientTools/claudeClientToolMcpServer.js';
+import { buildClientToolMcpServer } from './clientTools/claudeClientToolMcpServer.js';
 import { toSdkModelId } from './claudeModelId.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
-
-/**
- * The in-process MCP servers the agent host injects into
- * `Options.mcpServers` itself: the client-tool bridge and the server-tool
- * bridge. They are internal plumbing — the SDK reports them alongside real,
- * user-configured servers in `mcpServerStatus()`, but they have no on-disk
- * definition, cannot be toggled through the CLI's MCP control requests, and
- * must never surface as user-visible MCP customizations.
- */
-const HOST_INJECTED_MCP_SERVER_NAMES: ReadonlySet<string> = new Set([
-	CLAUDE_CLIENT_MCP_SERVER_NAME,
-	CLAUDE_SERVER_TOOL_MCP_SERVER_NAME,
-]);
-
-/** Whether `name` is one of the {@link HOST_INJECTED_MCP_SERVER_NAMES}. */
-export function isHostInjectedMcpServerName(name: string): boolean {
-	return HOST_INJECTED_MCP_SERVER_NAMES.has(name);
-}
 
 /**
  * Inputs to {@link buildOptions} that vary per startup. Pure-data: no

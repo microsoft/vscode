@@ -13,7 +13,7 @@ import { makeMcpServerCustomization, parseAgentFile, toParsedAgent, type IParsed
 import { CustomizationType, type AgentSelection, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { CustomizationLoadStatus, customizationId, type AgentCustomization, type ChildCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type PluginCustomization, type RuleCustomization, type SkillCustomization } from '../../../common/state/sessionState.js';
 import type { ISdkResolvedCustomizations } from '../claudeSdkPipeline.js';
-import { isHostInjectedMcpServerName } from '../claudeSdkOptions.js';
+import { isHostInjectedMcpServerName } from '../claudeMcpServerNames.js';
 import { deriveMcpState } from './scan/claudeMcpScan.js';
 import { claudeMemoryFiles } from './scan/claudeRuleScan.js';
 import type { IResolvedNativePlugin } from './scan/claudeNativePluginScan.js';
