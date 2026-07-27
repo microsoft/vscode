@@ -90,6 +90,7 @@ function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions
 	});
 
 	const widget = scopedDisposables.add(instantiationService.createInstance(AgentFeedbackOverlayWidget));
+	widget.layout(420);
 	widget.showMenu(
 		options.navigationBearings,
 		options.acceptedFeedbackCount ?? (options.hasAgentFeedbackActions === false ? 0 : options.navigationBearings.totalCount),

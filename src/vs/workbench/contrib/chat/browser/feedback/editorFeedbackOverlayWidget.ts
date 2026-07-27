@@ -147,6 +147,7 @@ export class EditorFeedbackOverlayWidget extends Disposable {
 	private readonly _acceptedFeedbackCount = observableValue<number>(this, 0);
 	private readonly _inputBox: InputBox;
 	private _inputKey: string | undefined;
+	private _layoutWidth = 0;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -165,11 +166,25 @@ export class EditorFeedbackOverlayWidget extends Disposable {
 	}
 
 	layout(width: number): void {
-		const availableWidth = Math.max(0, width - 48);
+		this._layoutWidth = width;
+		this._applyLayout();
+	}
+
+	private _applyLayout(): void {
+		if (this._layoutWidth <= 0) {
+			this._domNode.style.maxWidth = '';
+			this._domNode.style.width = '';
+			this._domNode.classList.remove('compact', 'narrow');
+			return;
+		}
+		const availableWidth = Math.max(0, this._layoutWidth - 48);
+		const hasInput = this._domNode.contains(this._inputNode);
+		const isCompact = hasInput && this._layoutWidth < 760;
+		const isNarrow = hasInput && this._layoutWidth < 520;
 		this._domNode.style.maxWidth = `${availableWidth}px`;
-		this._domNode.classList.toggle('compact', width < 760);
-		this._domNode.classList.toggle('narrow', width < 520);
-		this._domNode.style.width = width < 520 ? `${availableWidth}px` : '';
+		this._domNode.classList.toggle('compact', isCompact);
+		this._domNode.classList.toggle('narrow', isNarrow);
+		this._domNode.style.width = isNarrow ? `${availableWidth}px` : '';
 	}
 
 	showMenu(navigationBearings: { activeIdx: number; totalCount: number }, acceptedFeedbackCount: number, options: IEditorFeedbackMenuOptions): void {
@@ -178,6 +193,7 @@ export class EditorFeedbackOverlayWidget extends Disposable {
 		this._acceptedFeedbackCount.set(acceptedFeedbackCount, undefined);
 
 		this._inputNode.remove();
+		this._applyLayout();
 
 		const actionRunner = this._showStore.add(new EditorFeedbackActionRunner(
 			options.submitActionId,
@@ -246,6 +262,7 @@ export class EditorFeedbackOverlayWidget extends Disposable {
 			this._inputBox.value = '';
 			this._inputNode.remove();
 		}
+		this._applyLayout();
 
 		const actionsNode = document.createElement('div');
 		actionsNode.classList.add('agent-feedback-editor-plan-actions');
