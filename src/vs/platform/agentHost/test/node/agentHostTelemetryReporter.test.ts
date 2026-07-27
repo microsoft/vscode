@@ -65,18 +65,18 @@ suite('AgentHostTelemetryReporter', () => {
 	const session = 'agent-session://copilot/abc';
 	const tools: ToolDefinition[] = [{ name: 'grep' }, { name: 'edit' }];
 
-	test('assistantMessageReceived emits request.options.tools keyed on the service request id, and no-ops without one or without tools', async () => {
+	test('assistantMessageReceived emits request.options.tools keyed on the client request id, and no-ops without one or without tools', async () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		await reporter.assistantMessageReceived(session, AgentHostClientType.AgentsWindow, undefined, tools); // dropped: no service request id
-		await reporter.assistantMessageReceived(session, AgentHostClientType.AgentsWindow, 'svc-1', []); // dropped: no tools
-		await reporter.assistantMessageReceived(session, AgentHostClientType.AgentsWindow, 'svc-1', tools); // emitted
+		await reporter.assistantMessageReceived(session, AgentHostClientType.AgentsWindow, undefined, tools); // dropped: no client request id
+		await reporter.assistantMessageReceived(session, AgentHostClientType.AgentsWindow, 'client-1', []); // dropped: no tools
+		await reporter.assistantMessageReceived(session, AgentHostClientType.AgentsWindow, 'client-1', tools); // emitted
 
 		assert.deepStrictEqual(service.enhancedEvents, [{
 			eventName: 'request.options.tools',
 			properties: {
-				headerRequestId: 'svc-1',
+				headerRequestId: 'client-1',
 				conversationId: AgentSession.id(session),
 				initiatorClientType: 'agents_window',
 				messagesJson: JSON.stringify(tools),
