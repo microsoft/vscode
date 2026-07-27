@@ -7,7 +7,7 @@ import './media/openSubagentChat.css';
 import { $, addDisposableListener, EventType, WindowIntervalTimer } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
-import { IAction } from '../../../../../base/common/actions.js';
+import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -157,6 +157,12 @@ function contextConfirmationCount(context: unknown): number {
 	return typeof count === 'number' && count > 0 ? count : 0;
 }
 
+function createOpenSubagentAction(action: IAction): Action {
+	const proxy = new Action(action.id, action.label, action.class, false, context => action.run(context));
+	proxy.tooltip = action.tooltip;
+	return proxy;
+}
+
 class OpenSubagentChatAction extends Action2 {
 	constructor() {
 		super({
@@ -239,7 +245,10 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
-		super(context, action, options);
+		super(context, createOpenSubagentAction(action), options);
+		if (this._action instanceof Action) {
+			this._register(this._action);
+		}
 		this._register(this.accessibilityService.onDidChangeReducedMotion(() => {
 			if (this.accessibilityService.isMotionReduced()) {
 				this._finishToolTransition();
@@ -449,14 +458,14 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		const resource = contextChatResource(this._context);
 		if (!resource) {
 			this._titleTracker.clear();
-			this.element?.classList.add('hidden');
+			this._action.enabled = false;
 			this._setResolvedTitle(undefined);
 			this._setStatus(undefined);
 			return;
 		}
 		this._titleTracker.value = autorun(reader => {
 			const chat = findSubagentChat(this.sessionsService, resource, reader)?.chat;
-			this.element?.classList.toggle('hidden', !chat);
+			this._action.enabled = !!chat;
 			this._setResolvedTitle(chat?.title.read(reader) || undefined);
 			this._setStatus(chat?.status.read(reader));
 		});
@@ -549,7 +558,9 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		}
 		const enabled = this._action.enabled;
 		this.element.classList.toggle('disabled', !enabled);
+		this.element.classList.toggle('hidden', !enabled);
 		this.element.setAttribute('aria-disabled', String(!enabled));
+		this.element.setAttribute('aria-hidden', String(!enabled));
 	}
 
 	protected override updateAriaLabel(): void {

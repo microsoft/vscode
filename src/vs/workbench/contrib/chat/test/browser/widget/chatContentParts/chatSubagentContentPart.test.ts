@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { isHTMLElement } from '../../../../../../../base/browser/dom.js';
+import { Action } from '../../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
@@ -311,9 +312,11 @@ suite('ChatSubagentContentPart', () => {
 	}
 
 	function setOpenChatOnlyMode(part: ChatSubagentContentPart, enabled: boolean): void {
-		const toolbar = (part as unknown as { _openChatToolbar?: { getItemsLength(): number } })._openChatToolbar;
+		const toolbar = (part as unknown as { _openChatToolbar?: { getItemsLength(): number; getItemAction(index: number): Action | undefined } })._openChatToolbar;
 		assert.ok(toolbar);
-		toolbar.getItemsLength = () => enabled ? 1 : 0;
+		const action = store.add(new Action('openSubagent', 'Open Subagent', '', enabled));
+		toolbar.getItemsLength = () => 1;
+		toolbar.getItemAction = () => action;
 		(part as unknown as { _updateOpenChatOnlyMode(): void })._updateOpenChatOnlyMode();
 	}
 
@@ -376,6 +379,31 @@ suite('ChatSubagentContentPart', () => {
 				openChatOnlyClass: true,
 				collapseButtonDisplay: 'none',
 				animationDisplay: 'none',
+			});
+		});
+
+		test('should preserve the collapsible surface when the open-chat action is unavailable', () => {
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Test subagent description',
+					chatResource: 'ahp-chat://subagent/test/tool-call',
+				}
+			}), createMockRenderContext(false));
+			setOpenChatOnlyMode(part, false);
+
+			const collapseButton = getCollapseButton(part);
+			const animationContainer = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation');
+			assert.ok(collapseButton);
+			assert.ok(animationContainer);
+			assert.deepStrictEqual({
+				openChatOnlyClass: part.domNode.classList.contains('chat-subagent-open-chat-only'),
+				collapseButtonDisplay: collapseButton.style.display,
+				animationDisplay: animationContainer.style.display,
+			}, {
+				openChatOnlyClass: false,
+				collapseButtonDisplay: '',
+				animationDisplay: '',
 			});
 		});
 

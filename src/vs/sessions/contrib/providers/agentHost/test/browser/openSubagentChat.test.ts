@@ -15,7 +15,7 @@ import { OpenSubagentChatActionViewItem } from '../../browser/openSubagentChat.j
 suite('OpenSubagentChatActionViewItem', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('hides the action until its peer chat resolves', () => {
+	test('disables and hides the action until its peer chat resolves', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ISessionsService, {
 			activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
@@ -32,6 +32,16 @@ suite('OpenSubagentChatActionViewItem', () => {
 
 		viewItem.render(container);
 
-		assert.strictEqual(container.classList.contains('hidden'), true);
+		assert.deepStrictEqual({
+			enabled: viewItem.action.enabled,
+			sourceActionEnabled: action.enabled,
+			hidden: container.classList.contains('hidden'),
+			ariaHidden: container.getAttribute('aria-hidden'),
+		}, {
+			enabled: false,
+			sourceActionEnabled: true,
+			hidden: true,
+			ariaHidden: 'true',
+		});
 	});
 });

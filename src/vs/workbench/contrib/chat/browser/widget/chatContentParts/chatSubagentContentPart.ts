@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $, AnimationFrameScheduler, DisposableResizeObserver } from '../../../../../../base/browser/dom.js';
+import { Action } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -128,6 +129,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	 */
 	private _openChatToolbar: MenuWorkbenchToolBar | undefined;
 	private _openChatToolbarContainer: HTMLElement | undefined;
+	private readonly _openChatActionListeners = this._register(new MutableDisposable<DisposableStore>());
 
 	// Confirmation auto-expand tracking
 	private toolsWaitingForConfirmation: number = 0;
@@ -248,18 +250,38 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				menuOptions: { shouldForwardArgs: true },
 				toolbarOptions: { primaryGroup: () => true },
 			}));
-			this._register(this._openChatToolbar.onDidChangeMenuItems(() => this._updateOpenChatOnlyMode()));
-			this._updateOpenChatOnlyMode();
+			this._register(this._openChatToolbar.onDidChangeMenuItems(() => this._trackOpenChatActions()));
+			this._trackOpenChatActions();
 		}
 		this._updateOpenChatToolbarContext();
 		this._openChatToolbarContainer!.classList.remove('hidden');
+	}
+
+	private _trackOpenChatActions(): void {
+		const store = new DisposableStore();
+		const itemCount = this._openChatToolbar?.getItemsLength() ?? 0;
+		for (let index = 0; index < itemCount; index++) {
+			const action = this._openChatToolbar?.getItemAction(index);
+			if (action instanceof Action) {
+				store.add(action.onDidChange(() => this._updateOpenChatOnlyMode()));
+			}
+		}
+		this._openChatActionListeners.value = store;
+		this._updateOpenChatOnlyMode();
 	}
 
 	private _updateOpenChatOnlyMode(): void {
 		if (!this._collapseButton || !this._openChatToolbar) {
 			return;
 		}
-		const openChatOnly = this._openChatToolbar.getItemsLength() > 0;
+		const itemCount = this._openChatToolbar.getItemsLength();
+		let openChatOnly = false;
+		for (let index = 0; index < itemCount; index++) {
+			if (this._openChatToolbar.getItemAction(index)?.enabled) {
+				openChatOnly = true;
+				break;
+			}
+		}
 		this.domNode.classList.toggle('chat-subagent-open-chat-only', openChatOnly);
 		if (openChatOnly) {
 			dom.hide(this._collapseButton.element);
