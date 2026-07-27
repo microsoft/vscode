@@ -718,8 +718,10 @@ export class AgentHostE2EServerLease {
 	 * `COPILOT_HOME` to `${homeDir}/.copilot` (see `startRealServer`), running it
 	 * at `trace`. Only the Copilot CLI provider is captured — Claude/Codex use their
 	 * own runtimes and log elsewhere. Best-effort: never throws (it runs in a
-	 * `teardown`, right before the failure is re-raised) and uses `console.log` —
-	 * the runner treats any `console.error` as a failure.
+	 * `teardown`, right before the failure is re-raised). Output goes to
+	 * `process.stdout` directly (not `console.*`): the integration harness overrides
+	 * `console.*` and fails the test on ANY unexpected console output during a test,
+	 * and `currentTest` is still set during `teardown`.
 	 */
 	dumpRuntimeLogsOnFailure(label: string): void {
 		if (!this._isCopilotProvider) {
@@ -731,7 +733,9 @@ export class AgentHostE2EServerLease {
 			try {
 				entries = readdirSync(logsDir);
 			} catch {
-				return; // no runtime logs (the provider never spawned the CLI) — expected
+				// No log dir at all — the CLI never spawned. That itself is a signal.
+				process.stdout.write(`[agent-host-e2e] no Copilot runtime logs for failed test "${label}" (CLI never spawned; ${logsDir} absent)\n`);
+				return;
 			}
 			const newest = entries
 				.filter(name => /^process-.*\.log$/.test(name))
@@ -746,15 +750,16 @@ export class AgentHostE2EServerLease {
 				.filter((v): v is { full: string; mtimeMs: number } => v !== undefined)
 				.sort((a, b) => b.mtimeMs - a.mtimeMs)[0];
 			if (!newest) {
+				process.stdout.write(`[agent-host-e2e] no Copilot runtime process-*.log for failed test "${label}" under ${logsDir}\n`);
 				return;
 			}
 			const lines = readFileSync(newest.full, 'utf8').split(/\r?\n/);
 			const tail = lines.slice(-200);
-			console.log(`[agent-host-e2e] --- Copilot runtime log for failed test "${label}" (${newest.full}; last ${tail.length} of ${lines.length} lines) ---`);
+			process.stdout.write(`[agent-host-e2e] --- Copilot runtime log for failed test "${label}" (${newest.full}; last ${tail.length} of ${lines.length} lines) ---\n`);
 			for (const ln of tail) {
-				console.log(`[agent-host-e2e] # ${ln}`);
+				process.stdout.write(`[agent-host-e2e] # ${ln}\n`);
 			}
-			console.log('[agent-host-e2e] --- end Copilot runtime log ---');
+			process.stdout.write('[agent-host-e2e] --- end Copilot runtime log ---\n');
 		} catch {
 			// never let diagnostics break teardown
 		}

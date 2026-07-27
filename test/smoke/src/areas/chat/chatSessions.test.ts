@@ -85,10 +85,6 @@ async function preseedChatSessionProfile(userDataDir: string | undefined, mockSe
 		'github.copilot.chat.claudeAgent.enabled': true,
 		'github.copilot.chat.claudeAgent.useSdkExtension': false,
 		'chat.tools.riskAssessment.enabled': false,
-		// Force the Copilot runtime to verbose logging so the captured
-		// `process-*.log` (see dumpFailureDiagnostics) has enough detail to
-		// diagnose a hang/timeout in CI.
-		'chat.agentHost.copilotSdk.logLevel': 'trace',
 	}, undefined, '\t'));
 
 	await preseedChatExtensionEnablement(userDataDir);

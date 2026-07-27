@@ -5,7 +5,6 @@
 
 import * as sqlite3 from '@vscode/sqlite3';
 import * as fs from 'fs';
-import { homedir } from 'os';
 import { Suite, Context } from 'mocha';
 import { dirname, join } from 'path';
 import { Application, ApplicationOptions, Logger } from '../../automation';
@@ -207,7 +206,7 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
 		// Anchor the Copilot runtime's home (`COPILOT_HOME`) at the same
 		// `.copilot` directory the extension resolves from `XDG_STATE_HOME`,
 		// so the runtime's process logs land in a known, per-run location we
-		// can attach on failure (see `getCopilotRuntimeLogDirs` /
+		// can attach on failure (see `getCopilotRuntimeLogDir` /
 		// `dumpFailureDiagnostics`). The runtime resolves its process-log dir
 		// as `${COPILOT_HOME}/logs` and is NOT influenced by `XDG_STATE_HOME`,
 		// so without this the logs would go to the agent's real `~/.copilot`.
@@ -239,20 +238,22 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
 }
 
 /**
- * Candidate directories that hold the Copilot runtime's `process-*.log` files
- * for a smoke run, newest-first preference handled by the caller. The runtime
- * writes them to `${COPILOT_HOME}/logs`; smoke runs pin `COPILOT_HOME` to
- * `${userDataDir}-copilot-state/.copilot` (see `getCopilotSmokeTestEnv`). The
- * real `~/.copilot/logs` is included as a fallback for suites that did not pin
- * a per-run `COPILOT_HOME`.
+ * The directory that holds the Copilot runtime's `process-*.log` files for a
+ * smoke run, or `undefined` when this run did not pin a per-run `COPILOT_HOME`.
+ *
+ * The runtime writes its process logs to `${COPILOT_HOME}/logs`, and
+ * `getCopilotSmokeTestEnv` pins `COPILOT_HOME` for the run. Diagnostics resolve
+ * the directory from the *exact* `COPILOT_HOME` the app launched with (read back
+ * via `app.extraEnv`) rather than reconstructing it from the randomized
+ * `userDataDir`: `createApp` appends a random suffix to `userDataDir` *after*
+ * the env is computed, so a path derived from `app.userDataPath` would not match
+ * where the runtime actually wrote. There is deliberately no fall back to the
+ * ambient `~/.copilot/logs` — on a reused CI agent that could surface an
+ * unrelated session's trace log (session/model/auth diagnostics), which we must
+ * never copy into an uploaded artifact.
  */
-export function getCopilotRuntimeLogDirs(userDataPath: string | undefined): string[] {
-	const dirs: string[] = [];
-	if (userDataPath) {
-		dirs.push(join(`${userDataPath}-copilot-state`, '.copilot', 'logs'));
-	}
-	dirs.push(join(homedir(), '.copilot', 'logs'));
-	return [...new Set(dirs)];
+export function getCopilotRuntimeLogDir(copilotHome: string | undefined): string | undefined {
+	return copilotHome ? join(copilotHome, 'logs') : undefined;
 }
 
 export function getRandomUserDataDir(baseUserDataDir: string): string {
@@ -420,39 +421,51 @@ export async function dumpFailureDiagnostics(
 
 	// 4. Capture the Copilot runtime (`@github/copilot` CLI) process logs.
 	//    These are the SDK/CLI's OWN diagnostics — the single most useful
-	//    signal when an SDK-backed session (Copilot CLI / Copilot) hangs or
-	//    times out, which the mocha "Timed out waiting for response" failure
-	//    on its own does not explain. The runtime writes `process-*.log` files
-	//    to `${COPILOT_HOME}/logs`; smoke runs pin `COPILOT_HOME` under the
-	//    per-run `userDataDir` (see `getCopilotSmokeTestEnv`). We copy the most
-	//    recent log(s) into the suite `logsPath` so they ship in the published
-	//    `logs-*` build artifact (the SDK-integration canary + bump workflows
-	//    read these), and tail them into the runner log for quick triage.
+	//    signal when a Copilot-runtime session hangs or times out, which the
+	//    mocha "Timed out waiting for response" failure on its own does not
+	//    explain. The runtime writes `process-*.log` files to `${COPILOT_HOME}/logs`;
+	//    we resolve that from the exact `COPILOT_HOME` the app launched with (see
+	//    `getCopilotRuntimeLogDir`).
+	//    NOTE: every Copilot-runtime session spawns this runtime, but the detail
+	//    differs. Agent Host sessions (Agents Window / local AgentHost) write a
+	//    full, verbose account (run at `trace`). The Chat Sessions editor (Copilot
+	//    CLI / Claude) and Local sessions run the SDK in-process and install their
+	//    own log writer that routes the detailed model/turn diagnostics to
+	//    `logService` (the `GitHub Copilot Chat.log` tailed in step 3), so their
+	//    `process-*.log` is usually just the runtime's startup/lifecycle — enough
+	//    to tell whether the runtime came up (if it did but the turn never
+	//    completed, the stall is renderer/extension-side, not the CLI). We copy
+	//    the most recent log(s) into the suite `logsPath` so they ship in the
+	//    published `logs-*` build artifact (the SDK-integration canary + bump
+	//    workflows read these), and tail them into the runner log for quick triage.
 	try {
-		const logDirs = getCopilotRuntimeLogDirs(app.userDataPath);
+		const logDir = getCopilotRuntimeLogDir(app.extraEnv?.COPILOT_HOME);
+		if (!logDir) {
+			logger.log(`[${label}] Copilot runtime logs unavailable (COPILOT_HOME not pinned for this suite)`);
+			return;
+		}
 		const collected: { path: string; mtimeMs: number }[] = [];
-		for (const dir of logDirs) {
-			let names: string[];
-			try {
-				names = await fs.promises.readdir(dir);
-			} catch {
-				continue; // directory absent for this suite — expected
+		let names: string[];
+		try {
+			names = await fs.promises.readdir(logDir);
+		} catch {
+			logger.log(`[${label}] no Copilot runtime logs under ${logDir} (no Copilot CLI session spawned the runtime for this suite)`);
+			return;
+		}
+		for (const name of names) {
+			if (!/^process-.*\.log$/.test(name)) {
+				continue;
 			}
-			for (const name of names) {
-				if (!/^process-.*\.log$/.test(name)) {
-					continue;
-				}
-				const full = join(dir, name);
-				try {
-					const stat = await fs.promises.stat(full);
-					collected.push({ path: full, mtimeMs: stat.mtimeMs });
-				} catch {
-					// racing cleanup — skip
-				}
+			const full = join(logDir, name);
+			try {
+				const stat = await fs.promises.stat(full);
+				collected.push({ path: full, mtimeMs: stat.mtimeMs });
+			} catch {
+				// racing cleanup — skip
 			}
 		}
 		if (collected.length === 0) {
-			logger.log(`[${label}] no Copilot runtime process-*.log found under ${logDirs.join(', ')}`);
+			logger.log(`[${label}] no Copilot runtime process-*.log found under ${logDir}`);
 		} else {
 			// Newest first; the active session's log is the relevant one. Cap
 			// at the two most recent to bound noise/artifact size.
