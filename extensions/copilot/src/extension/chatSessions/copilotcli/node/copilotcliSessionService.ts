@@ -371,7 +371,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			}));
 		} catch (error) {
 			disposables.dispose();
-			this.logService.error(`Failed to monitor Copilot CLI session files: ${error}`);
+			this.logService.error('Failed to monitor Copilot CLI session files:', error);
 			return;
 		}
 		this._sessionFileMonitor.value = disposables;

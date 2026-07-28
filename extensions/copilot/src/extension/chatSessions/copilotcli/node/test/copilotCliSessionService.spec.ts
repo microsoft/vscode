@@ -297,7 +297,7 @@ describe('CopilotCLISessionService', () => {
 				testConfiguration.setNonExtensionConfig('chat.agentHost.defaultSessionsProvider', false),
 			]);
 			const fileSystem = new TrackingFileSystemService();
-			disposables.add(createSessionService({
+			const sessionService = disposables.add(createSessionService({
 				configurationService: testConfiguration,
 				fileSystem,
 				isAgentSessionsWorkspace: true,
@@ -310,10 +310,14 @@ describe('CopilotCLISessionService', () => {
 			await testConfiguration.setNonExtensionConfig('chat.agentHost.defaultSessionsProvider', false);
 			states.push({ created: fileSystem.createFileSystemWatcherCallCount, disposed: fileSystem.disposeFileSystemWatcherCallCount });
 
+			sessionService.dispose();
+			states.push({ created: fileSystem.createFileSystemWatcherCallCount, disposed: fileSystem.disposeFileSystemWatcherCallCount });
+
 			expect(states).toEqual([
 				{ created: 1, disposed: 0 },
 				{ created: 1, disposed: 1 },
 				{ created: 2, disposed: 1 },
+				{ created: 2, disposed: 2 },
 			]);
 		});
 	});
