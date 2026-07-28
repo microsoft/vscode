@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
-import { basename } from '../../../../base/common/path.js';
+import { decodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -19,12 +18,22 @@ const SESSION_DB_SCHEME = 'session-db';
 /**
  * Builds a `session-db:` URI that references a file-edit content blob
  * stored in the session database. Parsed by {@link parseSessionDbUri}.
+ *
+ * The URI path is the edited file's path so resource labels show a
+ * recognizable path and the snapshot lines up with the working-tree side
+ * in diff editors. The session URI, tool call, exact file path, and
+ * snapshot part needed to fetch the blob are carried in the query.
+ *
+ * @param sessionUri Session the blob belongs to; used to find the database.
+ * @param toolCallId Tool call whose edit produced the snapshot.
+ * @param filePath Absolute path of the edited file, as recorded in the database.
+ * @param part Which side of the edit the blob holds.
  */
 export function buildSessionDbUri(sessionUri: string, toolCallId: string, filePath: string, part: 'before' | 'after'): string {
 	return URI.from({
 		scheme: SESSION_DB_SCHEME,
-		authority: encodeHex(VSBuffer.fromString(sessionUri)).toString(),
-		path: `/${encodeURIComponent(toolCallId)}/${encodeHex(VSBuffer.fromString(filePath))}/${part}/${basename(filePath)}`,
+		path: URI.file(filePath).path,
+		query: JSON.stringify({ sessionUri, toolCallId, filePath, part } satisfies ISessionDbUriFields),
 	}).toString();
 }
 
@@ -41,17 +50,45 @@ export interface ISessionDbUriFields {
  * Returns `undefined` if the URI is not a valid `session-db:` URI.
  */
 export function parseSessionDbUri(raw: string): ISessionDbUriFields | undefined {
-	const parsed = URI.parse(raw);
+	let parsed: URI;
+	try {
+		parsed = URI.parse(raw);
+	} catch {
+		return undefined;
+	}
 	if (parsed.scheme !== SESSION_DB_SCHEME) {
 		return undefined;
 	}
-	const [, toolCallId, filePath, part] = parsed.path.split('/');
+	return parsed.query ? parseSessionDbUriQuery(parsed.query) : parseLegacySessionDbUri(parsed);
+}
+
+function parseSessionDbUriQuery(query: string): ISessionDbUriFields | undefined {
+	let fields: Partial<ISessionDbUriFields>;
+	try {
+		fields = JSON.parse(query) as Partial<ISessionDbUriFields>;
+	} catch {
+		return undefined;
+	}
+	const { sessionUri, toolCallId, filePath, part } = fields;
+	if (typeof sessionUri !== 'string' || typeof toolCallId !== 'string' || typeof filePath !== 'string' || (part !== 'before' && part !== 'after')) {
+		return undefined;
+	}
+	return { sessionUri, toolCallId, filePath, part };
+}
+
+/**
+ * Parses the query-less layout used before the fields moved into the query
+ * (`session-db://<hexSessionUri>/<toolCallId>/<hexFilePath>/<part>/<basename>`),
+ * so snapshots recorded by earlier builds still resolve.
+ */
+function parseLegacySessionDbUri(uri: URI): ISessionDbUriFields | undefined {
+	const [, toolCallId, filePath, part] = uri.path.split('/');
 	if (!toolCallId || !filePath || (part !== 'before' && part !== 'after')) {
 		return undefined;
 	}
 	try {
 		return {
-			sessionUri: decodeHex(parsed.authority).toString(),
+			sessionUri: decodeHex(uri.authority).toString(),
 			toolCallId: decodeURIComponent(toolCallId),
 			filePath: decodeHex(filePath).toString(),
 			part
