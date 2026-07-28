@@ -96,6 +96,22 @@ function clearReadOnlyAttributes(dir: string): void {
 	}
 }
 
+/**
+ * Initializes a git repository for a test, with an identity and no background
+ * maintenance.
+ *
+ * `gc.auto 0` matters on Windows: an auto-triggered `git gc` runs in the
+ * background and can still hold handles under `.git` when the test finishes,
+ * which makes the temp-directory cleanup fail for a reason unrelated to the
+ * behavior under test. Tests here never create enough objects to need gc.
+ */
+export function initTestGitRepo(cwd: string): void {
+	execSync('git init', { cwd });
+	execSync('git config user.name "Agent Host Test"', { cwd });
+	execSync('git config user.email "agent-host-test@example.com"', { cwd });
+	execSync('git config gc.auto 0', { cwd });
+}
+
 export async function removeTempDirs(tempDirs: string[]): Promise<void> {
 	const pendingDirs = tempDirs.splice(0);
 	const errors = new Map<string, Error>();

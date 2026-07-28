@@ -22,6 +22,7 @@ import {
 	terminalResourceFromContent,
 	terminalText,
 	textFromContent,
+	initTestGitRepo,
 } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -64,9 +65,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-wt-test-`);
 		tempDirs.push(tempDir, `${tempDir}.worktrees`);
-		execSync('git init', { cwd: tempDir });
-		execSync('git config user.name "Agent Host Test"', { cwd: tempDir });
-		execSync('git config user.email "agent-host-test@example.com"', { cwd: tempDir });
+		initTestGitRepo(tempDir);
 		execSync('git commit --allow-empty -m "init"', { cwd: tempDir });
 		const defaultBranch = execSync('git branch --show-current', { cwd: tempDir, encoding: 'utf-8' }).trim();
 		const workingDirUri = URI.file(tempDir).toString();

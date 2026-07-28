@@ -29,10 +29,9 @@ Distinct from individually disabled tests: whole areas where a platform or contr
 
 The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnabled` now only reflects the provider's shell-tool replay stability on Linux, and every capture that runs a shell command is portable. Permission approval, file operations, renames, deletes, directory creation, and git status all run on Windows.
 
-Two things remain deliberately scoped, both at the call site with a comment:
+One test remains deliberately scoped, at its call site with a comment:
 
 - `worktree session uses the resolved worktree as working directory` — cannot be fixed by pinning. `pwd` is auto-approved as a safe read-only command, while a pinned `node -e "…"` is not, so the turn stops on a permission prompt the test never answers. The assertions also compare POSIX-shaped paths. Worktree resolution itself is still asserted on Windows through the `sessionAdded` working-directory check in the same test's non-shell half.
-- `session configuration resolves and completes git branches` — Windows retains a handle on the temporary git repository after session disposal. This is mandatory file locking, a genuine OS difference, and nothing about command portability affects it.
 
 ### Steering versus pinning
 
@@ -44,6 +43,15 @@ Two techniques, and the choice is not stylistic:
 Pinning uses `node -e "…"`, which is guaranteed present because the suite runs under Node, and whose `"…"` / `'…'` quoting is read identically by `cmd` and POSIX shells. Prefer relative paths in a pinned command so no Windows path with backslashes has to be escaped into a JavaScript string literal.
 
 The trade-off is real: a pinned command tests shell execution rather than the provider's tool selection. Pin only when steering has actually been tried and failed, and note which it was.
+
+### Temporary git repositories on Windows
+
+Two independent things made a temp directory containing a git repository undeletable on Windows, which failed suite teardown even when every test passed:
+
+- Git marks the files under `.git/objects` read-only, and a read-only file cannot be deleted on Windows. `rmSync`'s `force` option only suppresses `ENOENT` — it does not override the attribute — so the retry loop burned its full timeout on a condition that waiting can never fix. `removeTempDirs` now clears read-only attributes before each retry.
+- An auto-triggered `git gc` can still hold handles under `.git` after the test finishes. `initTestGitRepo` sets `gc.auto 0`; these repositories never create enough objects to need it.
+
+`session configuration resolves and completes git branches` was disabled on Windows for this reason and is now enabled. Its assertions were always platform-independent — only teardown failed.
 
 ### Recording rejects POSIX-only commands
 
@@ -159,12 +167,11 @@ These four are the actionable item: until they are recorded, the reason Codex sk
 
 Most of this section is resolved — see [What is still Windows-scoped, and why](#what-is-still-windows-scoped-and-why). Thirteen tests that were disabled on Windows because their capture contained a POSIX-only command now run there.
 
-Two rows remain, and neither is about command portability:
+One row remains, and it is not about command portability:
 
 | Test | Disabled scope | Observed limitation |
 |---|---|---|
 | `a bang command runs locally and exposes terminal output` | Windows | The successful bang command produces output but does not complete reliably. |
-| `session configuration resolves and completes git branches` | Windows | Git-backed config discovery can retain the temporary repository lock after session disposal. |
 
 Use the affected provider command with `--grep "<exact test title>"` and temporarily remove the platform gate to reevaluate a row.
 
