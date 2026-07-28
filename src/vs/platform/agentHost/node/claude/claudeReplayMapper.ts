@@ -63,8 +63,8 @@ export function mapSessionMessagesToTurns(
  * Phase 6.5 — translate a protocol `turnId` (the last KEPT turn N) into the
  * SDK envelope `uuid` that `forkSession({ upToMessageId })` accepts
  * (INCLUSIVE). Returns the `uuid` of turn N's last `'assistant'` envelope,
- * or `turnId` itself when turn N has no assistant reply (still a valid
- * inclusive anchor), or `undefined` when `turnId` is not in the transcript.
+ * or `undefined` when `turnId` is not in the transcript or the turn has no
+ * assistant envelope yet. AHP request turn IDs are not valid SDK fork UUIDs.
  * Reuses {@link parseSessionMessage} so the turn-boundary rule matches
  * {@link ReplayBuilder}; always returns an envelope `uuid`, never a `msg_…` id.
  */
@@ -107,7 +107,7 @@ export function resolveForkAnchorUuid(messages: readonly SessionMessage[], turnI
 	if (!seenTarget) {
 		return undefined;
 	}
-	return lastAssistantUuid ?? turnId;
+	return lastAssistantUuid;
 }
 
 // #region Parsed message union — narrow-at-the-seam adapter
