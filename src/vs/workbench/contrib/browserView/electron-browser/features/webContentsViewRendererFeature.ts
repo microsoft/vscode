@@ -169,7 +169,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 			} else {
 				this.editor.ensureBrowserFocus();
 			}
-		}, 0);
+		}, 10);
 		return true;
 	}
 

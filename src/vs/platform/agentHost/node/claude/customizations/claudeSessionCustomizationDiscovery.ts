@@ -13,6 +13,7 @@ import { makeMcpServerCustomization, parseAgentFile, toParsedAgent, type IParsed
 import { CustomizationType, type AgentSelection, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { CustomizationLoadStatus, customizationId, type AgentCustomization, type ChildCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type PluginCustomization, type RuleCustomization, type SkillCustomization } from '../../../common/state/sessionState.js';
 import type { ISdkResolvedCustomizations } from '../claudeSdkPipeline.js';
+import { isHostInjectedMcpServerName } from '../claudeMcpServerNames.js';
 import { deriveMcpState } from './scan/claudeMcpScan.js';
 import { claudeMemoryFiles } from './scan/claudeRuleScan.js';
 import type { IResolvedNativePlugin } from './scan/claudeNativePluginScan.js';
@@ -411,6 +412,19 @@ export function buildDiscoveredCustomizations(
 		if (seenMcp.has(name) || pluginMcpNames.has(name)) {
 			continue;
 		}
+		// The agent host injects its own in-process MCP servers (the client-tool
+		// and server-tool bridges) into `Options.mcpServers`, and the SDK reports
+		// them here alongside real ones. They are internal plumbing with no
+		// definition the user can act on, so an SDK-only entry under one of those
+		// names is ours: surfacing it would show a phantom customization AND feed
+		// its name into the session's MCP enablement reconciliation, which then
+		// tries to toggle a server the CLI has no configuration for
+		// (`Server not found: <name>`). A server the disk scan did define under
+		// the same name is matched above and kept, so a user-configured server is
+		// never hidden by this.
+		if (isHostInjectedMcpServerName(name)) {
+			continue;
+		}
 		servers.push({ ...makeMcpServerCustomization(nonEditableUri('mcp', name), name), state: deriveMcpState(sdkServer.status) });
 	}
 
@@ -418,6 +432,27 @@ export function buildDiscoveredCustomizations(
 	// function (`visiblePlugins`); surface them as top-level containers.
 	return withBuiltinSkills(mapDiscoveredCustomizations(entries, servers, hooks, visiblePlugins, workingDirectory, userHome));
 }
+
+/**
+ * The customization-source subpaths under a `.claude` directory. Only edits
+ * to these should force a re-scan. Everything else under `.claude` is Claude
+ * SDK runtime churn — `history.jsonl`, `projects/` (per-message transcripts),
+ * `tasks/`, `file-history/`, `sessions/`, `shell-snapshots/`, `backups/`,
+ * `session-env/`, `statsig`, and assorted `*-cache.json` files — all of which
+ * the SDK rewrites constantly during a turn. Triggering on those produced a
+ * storm of `SessionCustomizationsChanged` envelopes (thousands per session),
+ * so the watcher deliberately triggers on this allowlist only.
+ */
+const CLAUDE_CUSTOMIZATION_SUBPATHS: readonly string[] = Object.freeze([
+	'agents',
+	'skills',
+	'commands',
+	'rules',
+	'plugins',
+	'CLAUDE.md',
+	'settings.json',
+	'settings.local.json',
+]);
 
 /**
  * Watches a session's on-disk Claude customization sources and fires
@@ -429,9 +464,13 @@ export function buildDiscoveredCustomizations(
  *    agents / skills / commands trees, the `.claude/rules` + `.claude/CLAUDE.md`
  *    instruction sources, plus the inline `settings.json` MCP config.
  *  - `<cwd>` (non-recursive) — watched to catch the sibling `.mcp.json` and
- *    the root `CLAUDE.md` / `CLAUDE.local.md` memory files; the triggers are
- *    narrowed to those files so unrelated edits in the workspace root don't
- *    force a re-scan.
+ *    the root `CLAUDE.md` / `CLAUDE.local.md` memory files.
+ *
+ * The recursive `.claude` watches keep OS-level watcher count low, but the
+ * change *triggers* are narrowed to {@link CLAUDE_CUSTOMIZATION_SUBPATHS} (and
+ * the specific memory / `.mcp.json` files) so the SDK's high-frequency runtime
+ * writes elsewhere under `.claude` (and unrelated edits in the workspace root)
+ * don't force a re-scan.
  */
 export class ClaudeCustomizationWatcher extends Disposable {
 
@@ -458,16 +497,25 @@ export class ClaudeCustomizationWatcher extends Disposable {
 			}
 		};
 
+		// Trigger only on the customization sources under a `.claude` root, not
+		// on the root itself — that would fire on every SDK runtime write (see
+		// CLAUDE_CUSTOMIZATION_SUBPATHS).
+		const addClaudeTriggers = (base: URI) => {
+			for (const sub of CLAUDE_CUSTOMIZATION_SUBPATHS) {
+				triggers.push(URI.joinPath(base, sub));
+			}
+		};
+
 		if (workingDirectory) {
 			const projectClaude = URI.joinPath(workingDirectory, '.claude');
 			watch(projectClaude, true);
-			triggers.push(projectClaude);
+			addClaudeTriggers(projectClaude);
 			watch(workingDirectory, false);
 			triggers.push(URI.joinPath(workingDirectory, '.mcp.json'));
 		}
 		const userClaude = URI.joinPath(userHome, '.claude');
 		watch(userClaude, true);
-		triggers.push(userClaude);
+		addClaudeTriggers(userClaude);
 
 		// Memory files (CLAUDE.md / CLAUDE.local.md) — reuse the scanner's
 		// canonical list so the watcher never drifts from what it actually

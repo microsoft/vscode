@@ -36,7 +36,98 @@ export interface BaseParams {
 	channel: URI;
 }
 
+// ─── Pagination ──────────────────────────────────────────────────────────────
+
+/**
+ * Cursor-based pagination inputs, mixed into the params of any list command
+ * that can page a large result set (e.g. {@link ListSessionsParams |
+ * `listSessions`}). The paired output is {@link PaginatedResult}.
+ *
+ * Pagination is **opaque and cursor-based**, mirroring the shape `fetchTurns`
+ * already uses for chat history: the server owns the ordering and keyset, and
+ * the client walks pages by echoing the cursor from the previous
+ * {@link PaginatedResult.nextCursor} back on the next request.
+ *
+ * The contract every paginated command shares:
+ *
+ * - To fetch the first page, omit `cursor`. Supply `limit` to bound the page.
+ * - If the result carries a {@link PaginatedResult.nextCursor}, more entries
+ *   exist — pass it back as `cursor` to fetch the following page. A missing
+ *   `nextCursor` signals the end of the collection.
+ * - Cursors are **server-defined and opaque**: clients MUST NOT parse, modify,
+ *   or persist them across connections. An unrecognised cursor SHOULD be
+ *   rejected with an `InvalidParams` error.
+ * - Pagination is **fully additive**: a client that omits `limit`/`cursor` and
+ *   ignores `nextCursor` sees the pre-pagination behaviour (subject to any
+ *   server-imposed cap), and a server that does not paginate ignores the inputs
+ *   and returns everything in a single page.
+ *
+ * @category Commands
+ */
+export interface PaginatedParams {
+	/**
+	 * Maximum number of entries to return in this page. The server SHOULD respect
+	 * this bound but MAY return fewer entries and MAY impose its own upper cap.
+	 * Omit to let the server choose the page size.
+	 */
+	limit?: number;
+	/**
+	 * Opaque pagination cursor from a previous {@link PaginatedResult.nextCursor}.
+	 * Omit to fetch the first page. Cursors are server-defined and MUST be treated
+	 * as opaque — do not parse, modify, or persist them across connections. An
+	 * unrecognised cursor SHOULD be rejected with an `InvalidParams` error.
+	 */
+	cursor?: string;
+}
+
+/**
+ * Cursor-based pagination output, extended by the result of any list command
+ * that can page a large result set (e.g. {@link ListSessionsResult |
+ * `listSessions`}). See {@link PaginatedParams} for the full pagination
+ * contract shared by every paginated command.
+ *
+ * @category Commands
+ */
+export interface PaginatedResult {
+	/**
+	 * Opaque cursor for the next page. Present when more entries exist beyond the
+	 * returned page; absent signals the end of the collection. Pass it back as
+	 * {@link PaginatedParams.cursor} to fetch the following page.
+	 */
+	nextCursor?: string;
+}
+
 // ─── initialize ──────────────────────────────────────────────────────────────
+
+/**
+ * Identifies a protocol implementation — the software (and build) on one end
+ * of the connection, as distinct from the {@link AgentInfo | agent persona} it
+ * hosts. Carried as {@link InitializeParams.clientInfo | `clientInfo`} on the
+ * client side and {@link InitializeResult.serverInfo | `serverInfo`} on the
+ * server side, mirroring LSP's `clientInfo`/`serverInfo` and MCP's
+ * `Implementation`.
+ *
+ * This is **informational only**: it exists for logging, telemetry, an
+ * about/status affordance, and — as a last resort — a known-issue workaround
+ * for a specific buggy build. It is **not** a feature-detection mechanism.
+ * Feature availability stays with the capability model
+ * ({@link ClientCapabilities} and the various `*.capabilities` declarations);
+ * implementations SHOULD NOT gate protocol behaviour on parsing
+ * {@link Implementation.version | `version`}.
+ *
+ * @category Commands
+ */
+export interface Implementation {
+	/** Implementation name, e.g. a product or package identifier. */
+	name: string;
+	/**
+	 * Implementation version. A [SemVer](https://semver.org) string is
+	 * recommended but not required.
+	 */
+	version?: string;
+	/** Optional human-readable display name. */
+	title?: string;
+}
 
 /**
  * Establishes a new connection and negotiates the protocol version.
@@ -63,6 +154,14 @@ export interface InitializeParams extends BaseParams {
 	protocolVersions: string[];
 	/** Unique client identifier */
 	clientId: string;
+	/**
+	 * Optional identity of the client implementation (name and version).
+	 * Informational only — see {@link Implementation} for how it may and may not
+	 * be used. Distinct from {@link InitializeParams.clientId | `clientId`},
+	 * which is an opaque per-connection identifier used for reconnection, not a
+	 * human-readable implementation name.
+	 */
+	clientInfo?: Implementation;
 	/** URIs to subscribe to during handshake */
 	initialSubscriptions?: URI[];
 	/**
@@ -125,6 +224,14 @@ export interface InitializeResult {
 	protocolVersion: string;
 	/** Current server sequence number */
 	serverSeq: number;
+	/**
+	 * Optional identity of the server implementation (name and version).
+	 * Informational only — see {@link Implementation} for how it may and may not
+	 * be used. Whereas {@link InitializeResult.protocolVersion | `protocolVersion`}
+	 * identifies the negotiated protocol, `serverInfo` identifies the host
+	 * software behind it.
+	 */
+	serverInfo?: Implementation;
 	/** Snapshots for each `initialSubscriptions` URI */
 	snapshots: Snapshot[];
 	/** Suggested default directory for remote filesystem browsing */
@@ -136,6 +243,13 @@ export interface InitializeResult {
 	 * `'@'` or `'/'`.
 	 */
 	completionTriggerCharacters?: string[];
+	/**
+	 * Prefix that the host recognizes at the start of a user {@link Message.text}
+	 * as a shorthand for executing the remainder as a terminal command. Currently
+	 * the standardized convention is `"!"`; absence means the host does not
+	 * support command prefixes.
+	 */
+	terminalCommandPrefix?: string;
 	/**
 	 * OTLP telemetry channels the host emits, if any. Each populated field is
 	 * either a literal `ahp-otlp:` channel URI or an RFC 6570 URI template a
@@ -162,7 +276,7 @@ export interface InitializeResult {
  * @method ping
  * @direction Client → Server
  * @messageType Request
- * @version 0.1.0
+ * @version 1
  */
 export interface PingParams extends BaseParams {
 	channel: 'ahp-root://';
@@ -250,7 +364,57 @@ export type ReconnectResult = ReconnectReplayResult | ReconnectSnapshotResult;
  * @version 1
  * @see {@link /specification/subscriptions | Subscriptions}
  */
-export interface SubscribeParams extends BaseParams { }
+export interface SubscribeParams extends BaseParams {
+	/**
+	 * Optional delivery preferences for this subscription.
+	 *
+	 * Servers MAY use these preferences to buffer and coalesce high-frequency
+	 * updates while preserving the same reduced state. Omit this field for the
+	 * server's default delivery behavior.
+	 */
+	delivery?: SubscriptionDeliveryOptions;
+	/**
+	 * Optional client-requested shape for the returned snapshot.
+	 *
+	 * Servers that do not understand a requested view ignore it and return their
+	 * default snapshot. Clients MUST tolerate receiving more state than requested.
+	 */
+	view?: SubscribeView;
+}
+
+/**
+ * Optional client-requested shape for a subscription snapshot.
+ *
+ * @category Commands
+ */
+export interface SubscribeView {
+	/**
+	 * Advisory number of most-recent completed turns to expose in a chat
+	 * snapshot.
+	 *
+	 * Servers MAY return more or fewer turns than requested. When omitted, the
+	 * host MUST return all retained turns. When older turns remain available, the
+	 * returned {@link ChatState} carries `turnsNextCursor`; clients pass that
+	 * cursor to `fetchTurns` to ask the host to page more turns into the chat
+	 * state.
+	 */
+	turns?: number;
+}
+
+/**
+ * Advisory delivery preferences for a single subscription.
+ *
+ * @category Commands
+ */
+export interface SubscriptionDeliveryOptions {
+	/**
+	 * Maximum time, in milliseconds, that the server may intentionally delay
+	 * delivery while buffering/coalescing updates for this subscription.
+	 *
+	 * A value of `0` requests immediate delivery with no intentional coalescing.
+	 */
+	maxLatencyMs?: number;
+}
 
 /**
  * Result of the `subscribe` command.
@@ -841,12 +1005,17 @@ export interface ResourceMkdirResult {
 // ─── authenticate ────────────────────────────────────────────────────────────
 
 /**
- * Pushes a Bearer token for a protected resource. The `resource` field MUST
- * match a `ProtectedResourceMetadata.resource` value declared by an agent
- * in `AgentInfo.protectedResources`.
+ * Pushes a ****** for a protected resource. The `resource` field MUST
+ * match a protected-resource identifier the client has discovered from the
+ * server — whether declared statically in `AgentInfo.protectedResources`,
+ * or discovered dynamically from a live `McpServerAuthRequiredState.resource`
+ * or `ToolCallAuthRequiredState.auth.resource` (both surfaced only once the
+ * corresponding MCP server or tool call actually challenges for auth).
+ * Servers MUST accept any `resource` value they have themselves advertised
+ * through one of these three mechanisms.
  *
  * Tokens are delivered using [RFC 6750](https://datatracker.ietf.org/doc/html/rfc6750)
- * (Bearer Token Usage) semantics. The client obtains the token from the
+ * (****** Usage) semantics. The client obtains the token from the
  * authorization server(s) listed in the resource's metadata and pushes it
  * to the server via this command.
  *
@@ -872,12 +1041,23 @@ export interface ResourceMkdirResult {
 export interface AuthenticateParams extends BaseParams {
 	channel: 'ahp-root://';
 	/**
-	 * The protected resource identifier. MUST match a `resource` value from
-	 * `ProtectedResourceMetadata` declared in `AgentInfo.protectedResources`.
+	 * The protected resource identifier. MUST match a `resource` value the
+	 * server has advertised — via `ProtectedResourceMetadata` in
+	 * `AgentInfo.protectedResources`, or via a live
+	 * `McpServerAuthRequiredState.resource` / `ToolCallAuthRequiredState.auth.resource`.
 	 */
 	resource: string;
-	/** Bearer token obtained from the resource's authorization server */
+	/** ****** obtained from the resource's authorization server */
 	token: string;
+	/**
+	 * OAuth scopes the token grants, when known. Lets the server determine
+	 * whether a specific challenge — e.g. the `requiredScopes` on a live
+	 * `McpServerAuthRequiredState` or `ToolCallAuthRequiredState.auth` — is
+	 * satisfied without decoding the (opaque, server-specific) token itself.
+	 * Omit when the client doesn't track granted scopes separately from the
+	 * token.
+	 */
+	scopes?: string[];
 }
 
 /**

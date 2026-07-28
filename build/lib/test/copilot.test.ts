@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { suite, test } from 'node:test';
 import { create } from 'tar';
-import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, prepareBuiltInCopilotRipgrepShim } from '../copilot.ts';
+import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getMxcExcludeFilter, prepareBuiltInCopilotRipgrepShim } from '../copilot.ts';
 
 suite('copilot', () => {
 	test('keeps the public copilot platform package include list scoped to the selected package', () => {
@@ -23,6 +23,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-linux-x64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-linux-x64/mxc-bin/**',
 			'!node_modules/@github/copilot-linux-x64/pvrecorder/**',
+			'!node_modules/@github/copilot-linux-x64/webview/**',
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/computer.node',
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/computer-use-mcp',
 			'!node_modules/@github/copilot-linux-x64/prebuilds/*/computer-use-mcp.exe',
@@ -52,6 +53,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-linuxmusl-x64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/mxc-bin/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/pvrecorder/**',
+			'!node_modules/@github/copilot-linuxmusl-x64/webview/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/computer.node',
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/computer-use-mcp',
 			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/computer-use-mcp.exe',
@@ -78,6 +80,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-win32-x64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-win32-x64/mxc-bin/**',
 			'!node_modules/@github/copilot-win32-x64/pvrecorder/**',
+			'!node_modules/@github/copilot-win32-x64/webview/**',
 			'!node_modules/@github/copilot-win32-x64/prebuilds/*/computer.node',
 			'!node_modules/@github/copilot-win32-x64/prebuilds/*/computer-use-mcp',
 			'!node_modules/@github/copilot-win32-x64/prebuilds/*/computer-use-mcp.exe',
@@ -105,6 +108,7 @@ suite('copilot', () => {
 			'!node_modules/@github/copilot-win32-arm64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-win32-arm64/mxc-bin/**',
 			'!node_modules/@github/copilot-win32-arm64/pvrecorder/**',
+			'!node_modules/@github/copilot-win32-arm64/webview/**',
 			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/computer.node',
 			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/computer-use-mcp',
 			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/computer-use-mcp.exe',
@@ -122,6 +126,7 @@ suite('copilot', () => {
 		assertCopilotPlatformPackageIncludes(files, 'node_modules/@github/copilot-darwin-arm64', [
 			'index.js',
 			'app.js',
+			'sdk/index.js',
 			'sea-loader.js',
 			'prebuilds/darwin-arm64/runtime.node',
 			'prebuilds/darwin-arm64/pty.node',
@@ -215,6 +220,34 @@ suite('copilot', () => {
 			]
 		);
 	});
+
+	test('keeps only the target architecture of @microsoft/mxc-sdk', () => {
+		assert.deepStrictEqual(
+			getMxcExcludeFilter('x64'),
+			[
+				'**',
+				'!**/node_modules/@microsoft/mxc-sdk/bin/arm64/**',
+			]
+		);
+		assert.deepStrictEqual(
+			getMxcExcludeFilter('arm64'),
+			[
+				'**',
+				'!**/node_modules/@microsoft/mxc-sdk/bin/x64/**',
+			]
+		);
+	});
+
+	test('strips every @microsoft/mxc-sdk architecture for unsupported armhf builds', () => {
+		assert.deepStrictEqual(
+			getMxcExcludeFilter('armhf'),
+			[
+				'**',
+				'!**/node_modules/@microsoft/mxc-sdk/bin/x64/**',
+				'!**/node_modules/@microsoft/mxc-sdk/bin/arm64/**',
+			]
+		);
+	});
 });
 
 function assertCopilotPlatformPackageIncludes(patterns: string[], packageDir: string, relativeFiles: string[]): void {
@@ -232,7 +265,7 @@ function assertCopilotStandaloneExecutableExcluded(patterns: string[], packageDi
 }
 
 function assertOptionalCopilotNativeDependenciesExcluded(patterns: string[], packageDir: string): void {
-	for (const dir of ['clipboard', 'foundry-local-sdk', 'mxc-bin', 'pvrecorder']) {
+	for (const dir of ['clipboard', 'foundry-local-sdk', 'mxc-bin', 'pvrecorder', 'webview']) {
 		assert(patterns.includes(`!${packageDir}/${dir}/**`), dir);
 		assert(!matchesGlob(`${packageDir}/${dir}/index.js`, patterns), dir);
 	}

@@ -42,6 +42,16 @@ interface ITerminalSandboxFileSystemAccessPaths {
 export interface ITerminalSandboxRuntimeInfo {
 	/** Directory that contains `node_modules/@vscode/sandbox-runtime` and `node_modules/@vscode/ripgrep`. */
 	appRoot: string;
+	/**
+	 * Name of the directory (relative to {@link appRoot}) that holds the native
+	 * binaries `ripgrep-universal` and `@microsoft/mxc-sdk`. In a packaged desktop
+	 * build these are unpacked from the archive into `node_modules.asar.unpacked`;
+	 * in dev and on remote they live in plain `node_modules`. Defaults to
+	 * `node_modules`. Note the sandbox-runtime CLI itself is always resolved from
+	 * plain `node_modules` (it is duplicated out of the archive) because it is
+	 * spawned as a standalone Node subprocess without the ASAR resolution hook.
+	 */
+	nativeModulesDir?: string;
 	/** Path of the node/electron executable used to run sandbox-runtime. */
 	execPath?: string;
 	/**
@@ -132,6 +142,8 @@ export class TerminalSandboxEngine extends Disposable {
 	private _windowsMxcEnvironment: string[] | undefined;
 	private _sandboxConfigPath: string | undefined;
 	private _sandboxDependencyStatus: ISandboxDependencyStatus | undefined;
+	private _enableWeakerNestedSandbox = false;
+	private _apparmorRemediationRequested = false;
 	private _needsForceUpdateConfigFile = true;
 	private _tempDir: URI | undefined;
 	private _commandAllowListKeywords: readonly string[] = [];
@@ -321,7 +333,19 @@ export class TerminalSandboxEngine extends Disposable {
 
 		if (!(await this._checkSandboxDependencies(forceRefresh))) {
 			const missingDependencies = await this.getMissingSandboxDependencies();
-			if (missingDependencies.length === 0 && this._sandboxDependencyStatus?.bubblewrapInstalled && !this._sandboxDependencyStatus.bubblewrapUsable) {
+			if (missingDependencies.length === 0 && this._sandboxDependencyStatus?.bubblewrapUsable === false) {
+				if (this._sandboxDependencyStatus.apparmorRestrictsUnprivilegedUserNamespaces !== true || (forceRefresh && this._apparmorRemediationRequested)) {
+					if (!this._enableWeakerNestedSandbox) {
+						this._enableWeakerNestedSandbox = true;
+						await this.getSandboxConfigPath(true, precheckInputs);
+					}
+					return {
+						enabled: true,
+						sandboxConfigPath: this._sandboxConfigPath,
+						failedCheck: undefined,
+					};
+				}
+				this._apparmorRemediationRequested = true;
 				return {
 					enabled: true,
 					sandboxConfigPath,
@@ -335,6 +359,7 @@ export class TerminalSandboxEngine extends Disposable {
 				sandboxConfigPath,
 				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
 				missingDependencies,
+				canInstallMissingDependencies: !!this._sandboxDependencyStatus?.dependencyInstallCommand,
 			};
 		}
 
@@ -601,10 +626,11 @@ export class TerminalSandboxEngine extends Disposable {
 		this._runAsNode = runtimeInfo.runAsNode ?? false;
 		this._userHome = await this._host.getUserHome();
 		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'sandbox-runtime', 'dist', 'cli.js');
+		const nativeModulesDir = runtimeInfo.nativeModulesDir ?? 'node_modules';
 		const rgPlatform = this._os === OperatingSystem.Windows ? 'win32' : this._os === OperatingSystem.Macintosh ? 'darwin' : 'linux';
 		const rgBinary = this._os === OperatingSystem.Windows ? 'rg.exe' : 'rg';
-		this._rgPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin', `${rgPlatform}-${arch}`, rgBinary);
-		this._mxcPath = this._windowsMxcRuntime.getExecutablePath(this._appRoot, runtimeInfo.arch);
+		this._rgPath = this._pathJoin(this._appRoot, nativeModulesDir, '@vscode', 'ripgrep-universal', 'bin', `${rgPlatform}-${arch}`, rgBinary);
+		this._mxcPath = this._windowsMxcRuntime.getExecutablePath(this._appRoot, nativeModulesDir, runtimeInfo.arch);
 	}
 
 	private async _createSandboxConfig(): Promise<string | undefined> {
@@ -628,7 +654,10 @@ export class TerminalSandboxEngine extends Disposable {
 		const windowsSchemaVersion = this._os === OperatingSystem.Windows
 			? this._getSettingValue<string>(AgentSandboxSettingId.AgentSandboxWindowsSchemaVersion)
 			: undefined;
-		const runtimeSetting = this._getSettingValue<Record<string, unknown>>(AgentSandboxSettingId.AgentSandboxAdvancedRuntime) ?? {};
+		const runtimeSetting = {
+			...this._getSettingValue<Record<string, unknown>>(AgentSandboxSettingId.AgentSandboxAdvancedRuntime),
+			...(this._enableWeakerNestedSandbox ? { enableWeakerNestedSandbox: true } : undefined),
+		};
 		const commandRuntimeSetting = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._commandAllowListCommandDetails);
 		const commandRuntimeAllowReadPaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowRead');
 		const commandRuntimeAllowWritePaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowWrite');

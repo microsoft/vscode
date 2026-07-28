@@ -450,7 +450,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		const gatherNeighborSnippets = () => promptOptions.neighborFiles.enabled
 			? raceCancellation(
 				raceTimeout(
-					this.similarFilesContextService.getSnippetsForPrompt(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset),
+					this.similarFilesContextService.getSnippetsForPrompt(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset, promptOptions.neighborFiles.includeRelatedFiles),
 					delaySession.getDebounceTime()
 				),
 				cancellationToken,
@@ -492,10 +492,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			precomputedCascade,
 		);
 
-		const { prompt: userPrompt, nDiffsInPrompt, diffTokensInPrompt, neighborSnippetsResult } = getUserPrompt(promptPieces);
+		const { prompt: userPrompt, nDiffsInPrompt, neighborSnippetsResult, sectionTokens } = getUserPrompt(promptPieces);
 
 		telemetry.setNDiffsInPrompt(nDiffsInPrompt);
-		telemetry.setDiffTokensInPrompt(diffTokensInPrompt);
 		if (neighborSnippetsResult) {
 			telemetry.setNNeighborSnippetsComputed(neighborSnippetsResult.nComputed);
 			telemetry.setNNeighborSnippetsInPrompt(neighborSnippetsResult.nIncluded);
@@ -506,13 +505,21 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		const prediction = this.getPredictedOutput(activeDocument, currentDocument.cursorLineOffset, editWindowLines, cursorLineInEditWindowOffset, responseFormat);
 
+		const systemMsg = pickSystemPrompt(promptOptions.promptingStrategy);
 		const messages = constructMessages({
-			systemMsg: pickSystemPrompt(promptOptions.promptingStrategy),
+			systemMsg,
 			userMsg: userPrompt,
 		});
 
 		logContext.setPrompt(messages);
 		telemetry.setPrompt(messages);
+
+		// Report approximate (char/4) per-section token counts, filling in the
+		// system-prompt count which getUserPrompt cannot know. Do this BEFORE the
+		// HARD_CHAR_LIMIT early-return so oversized prompts still report counts.
+		const promptSectionTokens = { ...sectionTokens, systemPrompt: XtabProvider.computeTokens(systemMsg) };
+		telemetry.setPromptSectionTokens(promptSectionTokens);
+		logContext.setPromptSectionTokens(promptSectionTokens);
 
 		const HARD_CHAR_LIMIT = 30000 * 4; // 30K tokens, assuming 4 chars per token -- we use approximation here because counting tokens exactly is time-consuming
 		const promptCharCount = charCount(messages);
@@ -538,7 +545,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		// Fire-and-forget: compute GhostText-style similar files context for telemetry
 		telemetry.setSimilarFilesContext(
-			this.similarFilesContextService.compute(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset)
+			this.similarFilesContextService.compute(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset, promptOptions.neighborFiles.includeRelatedFiles)
 		);
 
 		request.fetchIssued = true;
@@ -1046,6 +1053,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, clippedTaggedCurrentDoc.keptRange.endExclusive, lastLineLength + 1));
 					const duplicateAdditionsMode = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDuplicateAdditionsMode, this.expService);
 					const fastYieldLineWithCursor = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursor, this.expService);
+					const fastYieldLineWithCursorMultiLine = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursorMultiLine, this.expService);
 					const splitPatchOnDiff = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabSplitPatchOnDiff, this.expService);
 					parseResult = new ResponseParseResult.DirectEdits(
 						XtabPatchResponseHandler.handleResponse(
@@ -1058,6 +1066,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 							duplicateAdditionsMode,
 							fastYieldLineWithCursor,
 							splitPatchOnDiff,
+							fastYieldLineWithCursorMultiLine,
 						),
 					);
 					break;
@@ -1549,6 +1558,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			neighborFiles: {
 				enabled: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeNeighborFiles, this.expService),
 				maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNeighborFilesMaxTokens, this.expService),
+				includeRelatedFiles: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNeighborFilesIncludeRelatedFiles, this.expService),
 			},
 			diffHistory: {
 				nEntries: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffNEntries, this.expService),

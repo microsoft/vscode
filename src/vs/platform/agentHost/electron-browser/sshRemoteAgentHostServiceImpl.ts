@@ -20,6 +20,7 @@ import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
 import { SSHRelayTransport } from './sshRelayTransport.js';
 import { RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
+import { agentsWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import {
 	ISSHRemoteAgentHostService,
@@ -56,7 +57,7 @@ export class SSHRelayClientFactory implements ISSHRelayClientFactory {
 			{ logsHome: this._environmentService.logsHome, connectionId, transport: 'ssh' },
 		) : undefined;
 		const transport = this._instantiationService.createInstance(SSHRelayTransport, connectionId, mainService, logger);
-		return this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined);
+		return this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined, undefined, agentsWindowAgentHostClientInfo);
 	}
 }
 

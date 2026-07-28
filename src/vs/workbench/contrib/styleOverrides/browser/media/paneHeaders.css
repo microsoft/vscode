@@ -101,3 +101,7 @@
 .style-override .monaco-pane-view .pane > .pane-header:focus {
 	outline-offset: -2px;
 }
+
+.style-override.monaco-workbench .part > .title > .title-actions .start-debug-action-item {
+	min-width: 36px;
+}

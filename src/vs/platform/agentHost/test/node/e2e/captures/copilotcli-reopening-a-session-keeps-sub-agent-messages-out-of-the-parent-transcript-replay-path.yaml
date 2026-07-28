@@ -1,0 +1,93 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use the `task` tool to spawn a subagent to list the files in the current working directory. Instruct the subagent to begin its response with this sentence on its own line: subagent replay note sentinel-7f3a. Then the subagent should list the files. After the subagent completes, you, the main agent, must reply exactly "SUBAGENT_DONE" and must not repeat that sentence.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: task
+          input:
+            name: list-files
+            prompt: 'Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a. Then list the files in the current working directory.'
+            agent_type: explore
+            description: List files in cwd
+            mode: sync
+      stopReason: tool_use
+  - request:
+      model: claude-haiku-4.5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a. Then list the files in the current working directory.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${workdir}
+      stopReason: tool_use
+  - request:
+      model: claude-haiku-4.5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a. Then list the files in the current working directory.'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                file-a.txt
+                file-b.txt
+    response:
+      content: |-
+        subagent replay note sentinel-7f3a
+
+        Files in the current working directory:
+        - file-a.txt
+        - file-b.txt
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use the `task` tool to spawn a subagent to list the files in the current working directory. Instruct the subagent to begin its response with this sentence on its own line: subagent replay note sentinel-7f3a. Then the subagent should list the files. After the subagent completes, you, the main agent, must reply exactly "SUBAGENT_DONE" and must not repeat that sentence.'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: task
+              input:
+                name: list-files
+                prompt: 'Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a. Then list the files in the current working directory.'
+                agent_type: explore
+                description: List files in cwd
+                mode: sync
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                subagent replay note sentinel-7f3a
+
+                Files in the current working directory:
+                - file-a.txt
+                - file-b.txt
+    response:
+      content: SUBAGENT_DONE
+      stopReason: end_turn

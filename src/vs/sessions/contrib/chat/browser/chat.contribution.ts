@@ -11,12 +11,13 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsManagementService, inheritableSessionTarget } from '../../../services/sessions/common/sessionsManagement.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
-import './nullChatTipService.js';
 import './modelPicker.js';
 import './agentHostDelegation.js';
+import './newSessionFolderQuickPickAction.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
@@ -34,7 +35,9 @@ import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/action
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
+import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
+import { LastTurnChangesMultiDiffSourceResolverContribution } from './lastTurnChangesMultiDiffSourceResolver.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -86,15 +89,19 @@ class NewChatInSessionsWindowAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): void {
 		const sessionsService = accessor.get(ISessionsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const activeSession = sessionsService.activeSession.get();
 		// A quick chat never contributes its folder — it is workspace-less by
 		// intent (any scratch working directory must not seed the workspace
 		// composer), so it always falls to the New Session composer's folder picker.
 		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
+		const folderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
+		// Inherit the active session's harness so the new session defaults to
+		// the kind the user is working in — but only while the folder still
+		// offers it (see `inheritableSessionTarget`).
 		sessionsService.openNewSession({
-			folderUri: isQuickChat ? undefined : activeSession?.workspace.get()?.uri,
-			providerId: activeSession?.providerId,
-			sessionTypeId: activeSession?.sessionType,
+			folderUri,
+			...inheritableSessionTarget(sessionsManagementService, activeSession, folderUri),
 		});
 	}
 }
@@ -108,8 +115,10 @@ registerAction2(BranchChatSessionAction);
 // register workbench contributions
 registerWorkbenchContribution2(RunScriptContribution.ID, RunScriptContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionsOpenerParticipantContribution.ID, SessionsOpenerParticipantContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(OpenSessionLinkOpenerContribution.ID, OpenSessionLinkOpenerContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RegisterDefaultSessionTaskRunnersContribution.ID, RegisterDefaultSessionTaskRunnersContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(WorktreeCreatedTaskDispatcher.ID, WorktreeCreatedTaskDispatcher, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(LastTurnChangesMultiDiffSourceResolverContribution.ID, LastTurnChangesMultiDiffSourceResolverContribution, WorkbenchPhase.BlockRestore);
 
 // register services
 registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);

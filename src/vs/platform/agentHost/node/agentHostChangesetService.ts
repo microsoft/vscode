@@ -31,7 +31,7 @@ import {
 	isDefaultChatUri,
 	SessionLifecycle,
 } from '../common/state/sessionState.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
@@ -157,7 +157,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _pendingMaterialization = new Set<ProtocolURI>();
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
@@ -311,12 +311,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	refreshChangesetCatalog(session: ProtocolURI): void {
 		const state = this._stateManager.getSessionState(session);
-		if (state?.lifecycle !== SessionLifecycle.Ready) {
+		if (!state || state?.lifecycle === SessionLifecycle.CreationFailed) {
 			return;
 		}
 
-		const gitState = readSessionGitState(state?._meta);
-		const changesets = buildDefaultChangesetCatalog(session, gitState);
+		const changesets = buildDefaultChangesetCatalog(session, state);
 		this._stateManager.setSessionChangesets(session, changesets);
 	}
 
@@ -569,7 +568,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private async _computeUncommittedDiffs(session: ProtocolURI): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 		if (!workingDirectory) {
 			return undefined;
 		}
@@ -900,11 +899,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				continue;
 			}
 			if (reviewed) {
-				// Surface per-file review status for the Branch changeset. The
-				// file id is a `file:` URI under the repository root, so the
-				// repo-relative path keys into the reviewed-paths set.
 				const relPath = relativePath(reviewed.repoRoot, URI.parse(id));
-				files.push({ id, edit, _meta: { reviewed: relPath ? reviewed.paths.has(relPath) : false } });
+				files.push({
+					id, edit,
+					reviewed: relPath
+						? reviewed.paths.has(relPath)
+						: false
+				});
 			} else {
 				files.push({ id, edit });
 			}
@@ -1001,7 +1002,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * branch git falls back to `HEAD`.
 	 */
 	private async _tryComputeGitDiffs(session: ProtocolURI, db: ISessionDatabase, kind: StaticChangesetKind): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 		if (!workingDirectory) {
 			return undefined;
 		}
@@ -1079,7 +1080,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * no git working directory (review status is then simply omitted).
 	 */
 	private async _computeReviewedInfo(session: ProtocolURI, db: ISessionDatabase): Promise<{ readonly repoRoot: URI; readonly paths: ReadonlySet<string> } | undefined> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 		if (!workingDirectory) {
 			return undefined;
 		}

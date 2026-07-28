@@ -12,8 +12,22 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { buildTurnChangesetUri } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ChangesetStatus, StateComponents, type ChangesetState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import {
+	buildDefaultChatUri,
+	ChangesetStatus,
+	ResponsePartKind,
+	SessionStatus,
+	StateComponents,
+	ToolCallConfirmationReason,
+	ToolCallStatus,
+	ToolResultContentType,
+	TurnState,
+	type ChangesetState,
+	type ChatState,
+	type SessionState
+} from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { AgentHostResponseFileChangesProvider } from '../../../browser/agentSessions/agentHost/agentHostResponseFileChanges.js';
 
@@ -93,9 +107,15 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		} satisfies ChangesetState);
 
 		const { latest } = observe(provider, ds);
-		assert.deepStrictEqual(latest().map(d => ({ added: d.added, removed: d.removed, modified: d.modifiedURI.path })), [
-			{ added: 3, removed: 1, modified: '/repo/a.ts' },
-			{ added: 5, removed: 0, modified: '/repo/b.ts' },
+		assert.deepStrictEqual(latest().map(d => ({
+			added: d.added,
+			removed: d.removed,
+			modified: d.modifiedURI.path,
+			// The RHS diff content is the frozen after-turn snapshot, not the live file.
+			after: d.modifiedSnapshotURI && fromAgentHostUri(d.modifiedSnapshotURI).authority,
+		})), [
+			{ added: 3, removed: 1, modified: '/repo/a.ts', after: 'a-after' },
+			{ added: 5, removed: 0, modified: '/repo/b.ts', after: 'b-after' },
 		]);
 	});
 
@@ -115,6 +135,56 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			subscriptionCountBeforeUpdate,
 			conn.getSubscriptionCount(turnChangesetUri('t1')),
 		], [1, 1]);
+	});
+
+	test('maps turn file edits into entry diffs', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession));
+		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
+
+		conn.setState(defaultChatUri.toString(), {
+			resource: defaultChatUri.toString(),
+			title: 'Chat',
+			status: SessionStatus.Idle,
+			modifiedAt: new Date(0).toISOString(),
+			turns: [{
+				id: 't1',
+				message: {},
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.Completed,
+						toolCallId: 'tool-1',
+						toolName: 'write_file',
+						displayName: 'Write File',
+						invocationMessage: 'Write file',
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						success: true,
+						pastTenseMessage: 'Wrote file',
+						content: [{
+							type: ToolResultContentType.FileEdit,
+							after: { uri: URI.file('/outside/README.md').toString(), content: { uri: 'git-blob://readme-after' } },
+							diff: { added: 7, removed: 0 },
+						}],
+					},
+				}],
+				usage: undefined,
+				state: TurnState.Complete,
+			}],
+		} as unknown as ChatState);
+
+		const obs = provider.getFileEditsForRequest(chatResource, 't1')!;
+		let latest: readonly IEditSessionEntryDiff[] = [];
+		ds.add(autorun(r => { latest = obs.read(r); }));
+
+		assert.deepStrictEqual(latest.map(diff => ({
+			modified: fromAgentHostUri(diff.modifiedURI).path,
+			added: diff.added,
+			removed: diff.removed,
+		})), [
+			{ modified: '/outside/README.md', added: 7, removed: 0 },
+		]);
 	});
 
 	test('returns empty when the agent does not advertise a turn changeset', () => {

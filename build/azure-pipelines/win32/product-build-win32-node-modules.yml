@@ -37,6 +37,10 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
+      - template: ../common/apply-sdk-canary.yml@self
+        parameters:
+          windows: true
+
       - pwsh: |
           mkdir .build -ea 0
           node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash

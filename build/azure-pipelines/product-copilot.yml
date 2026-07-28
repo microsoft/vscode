@@ -93,6 +93,10 @@ jobs:
           displayName: Publish Copilot VSIX
           sbomEnabled: false
 
+      - script: echo "##vso[task.setvariable variable=published;isOutput=true]true"
+        name: copilotVsix
+        displayName: Mark Copilot VSIX as published
+
       - template: copilot/test-steps.yml
         parameters:
           runIntegrationTests: false

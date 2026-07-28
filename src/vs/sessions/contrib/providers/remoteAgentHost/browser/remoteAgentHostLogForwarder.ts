@@ -71,8 +71,11 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 					this._attach();
 					break;
 				case AgentHostClientState.Reconnecting:
+				case AgentHostClientState.Incompatible:
 				case AgentHostClientState.Closed:
 					this._detach();
+					break;
+				case AgentHostClientState.Connecting:
 					break;
 			}
 		}));
@@ -111,7 +114,7 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 			return;
 		}
 
-		const template = this._client.initializeResult?.telemetry?.logs;
+		const template = this._client.initializeResult.get()?.telemetry?.logs;
 		if (!template) {
 			return;
 		}

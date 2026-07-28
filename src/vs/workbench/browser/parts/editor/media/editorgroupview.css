@@ -218,6 +218,73 @@
 	display: none;
 }
 
+/* Optional full-width header rendered in flow between the tab bar and the editor
+ * pane (used by the Agents window single-pane layout). Height is set inline. */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header {
+	position: relative;
+	box-sizing: border-box;
+	width: 100%;
+	overflow: hidden;
+}
+
+/* Menu-driven header content: leading (primary) + trailing (secondary) toolbars on a
+ * single row (each toolbar overflows into its own "…" menu when space is tight). */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header .editor-group-header-toolbars {
+	display: flex;
+	align-items: center;
+	align-content: center;
+	box-sizing: border-box;
+	width: 100%;
+	column-gap: var(--vscode-spacing-size80, 8px);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header .editor-group-header-toolbars:has(> .editor-group-header-primary:not(.has-no-actions), > .editor-group-header-secondary:not(.has-no-actions)) {
+	padding: 2px var(--vscode-spacing-size80, 8px);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header .editor-group-header-primary {
+	display: flex;
+	align-items: center;
+	overflow: hidden;
+	min-width: 0;
+	flex: 9999 1 auto;
+	gap: var(--vscode-spacing-size40, 4px);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header .editor-group-header-secondary {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	justify-content: flex-end;
+	overflow: hidden;
+	min-width: 0;
+	flex: 1 2 auto;
+	gap: var(--vscode-spacing-size40, 4px);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header .editor-group-header-secondary > .monaco-toolbar,
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header .editor-group-header-secondary > .monaco-toolbar > .monaco-action-bar,
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header .editor-group-header-secondary > .monaco-toolbar > .monaco-action-bar > .actions-container,
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header .editor-group-header-secondary > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item {
+	display: flex;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header .editor-group-header-secondary > .monaco-toolbar > .monaco-action-bar > .actions-container {
+	justify-content: stretch;
+}
+
+/* Space the individual action items within each header toolbar (the picker,
+ * diff-stats, etc. sit in one action bar, so the container gap above does not
+ * reach them) — matches the inter-action spacing of the original header. Scoped
+ * to the toolbar's own action bar so it never affects nested custom widgets. */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header .editor-group-header-primary > .monaco-toolbar > .monaco-action-bar > .actions-container,
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header .editor-group-header-secondary > .monaco-toolbar > .monaco-action-bar > .actions-container {
+	gap: var(--vscode-spacing-size40, 4px);
+}
+
 /* Toolbar */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar {
