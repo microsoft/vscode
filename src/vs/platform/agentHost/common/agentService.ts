@@ -53,6 +53,16 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 /** Configuration key controlling automatic OS system proxy discovery for agent-host Copilot sessions. */
 export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.enabled';
 
+/**
+ * Configuration key gating multiple-working-directory support for the Copilot
+ * agent-host provider. When `true`, the Copilot provider advertises the
+ * `multipleWorkingDirectories` capability, so a session created in a multi-root
+ * workspace can span every workspace folder. Hidden from the Settings UI and
+ * off by default while the feature is dogfooded; the agent host re-advertises
+ * on change, so newly created sessions pick it up without a restart.
+ */
+export const AgentHostCopilotMultiRootEnabledSettingId = 'chat.agentHost.copilotAgent.multiRootEnabled';
+
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
 // `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
 // root-config keys in `copilotCliConfig.ts`.

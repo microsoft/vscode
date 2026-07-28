@@ -6,12 +6,12 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IAgentHostWorkspaceSessionMembershipStore } from './agentHostWorkspaceSessionMembershipStore.js';
 
 /**
  * Minimal agent-host connection surface needed by the session list store.
@@ -84,6 +84,7 @@ export class AgentHostSessionListStore extends Disposable {
 	constructor(
 		private readonly _connection: IAgentHostSessionListConnection,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IAgentHostWorkspaceSessionMembershipStore private readonly _workspaceMembership: IAgentHostWorkspaceSessionMembershipStore,
 	) {
 		super();
 
@@ -155,8 +156,13 @@ export class AgentHostSessionListStore extends Disposable {
 		// resurrecting the just-removed session.
 		this._mutationGeneration++;
 		const key = this._key(provider, rawId);
-		// Clear any local pending marker even when there's no backend entry yet:
-		// an optimistic delete can target a session the backend never announced.
+		this._workspaceMembership.remove(key);
+		this._removeSessionFromList(provider, rawId);
+	}
+
+	private _removeSessionFromList(provider: string, rawId: string): void {
+		const key = this._key(provider, rawId);
+		// An announced or deleted session is no longer pending, even when no visible entry exists.
 		this._pendingNewSessions.delete(key);
 		const entry = this._entries.get(key);
 		if (!entry) {
@@ -212,15 +218,18 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 
 		const nextEntries: IAgentHostSessionListEntry[] = [];
+		const backendSessionKeys: string[] = [];
 		for (const session of sessions) {
-			if (!this._isWorkingDirectoryInWorkspace(session.workingDirectories?.[0])) {
-				continue;
-			}
 			const entry = this._makeEntryFromMetadata(session);
 			if (entry) {
-				nextEntries.push(entry);
+				const key = this._key(entry.provider, entry.rawId);
+				backendSessionKeys.push(key);
+				if (this._isSessionInWorkspace(entry)) {
+					nextEntries.push(entry);
+				}
 			}
 		}
+		this._workspaceMembership.reconcileBackendSessions(backendSessionKeys);
 
 		this._entries.clear();
 		for (const entry of nextEntries) {
@@ -251,15 +260,15 @@ export class AgentHostSessionListStore extends Disposable {
 
 	private _onNotification(notification: INotification): void {
 		if (notification.type === 'root/sessionAdded') {
-			if (!this._isWorkingDirectoryInWorkspace(notification.summary.workingDirectories?.[0])) {
-				return;
-			}
 			const entry = this._makeEntryFromSummary(notification.summary);
 			if (!entry) {
 				return;
 			}
-			this._mutationGeneration++;
 			const key = this._key(entry.provider, entry.rawId);
+			if (!this._isSessionInWorkspace(entry)) {
+				return;
+			}
+			this._mutationGeneration++;
 			this._entries.set(key, entry);
 			// The backend has now announced this session, so it is no longer a
 			// locally-pending new session.
@@ -283,13 +292,13 @@ export class AgentHostSessionListStore extends Disposable {
 				return;
 			}
 
-			const updatedSummary = { ...cached.summary, ...notification.changes };
-			if (!this._isWorkingDirectoryInWorkspace(updatedSummary.workingDirectories?.[0])) {
-				this.removeSession(provider, rawId);
+			const updated = { provider, rawId, summary: { ...cached.summary, ...notification.changes } };
+			if (!this._isSessionInWorkspace(updated)) {
+				this._mutationGeneration++;
+				this._removeSessionFromList(provider, rawId);
 				return;
 			}
 
-			const updated = { provider, rawId, summary: updatedSummary };
 			this._mutationGeneration++;
 			this._entries.set(key, updated);
 			this._onDidChangeSessions.fire({ addedOrUpdated: [updated] });
@@ -340,25 +349,10 @@ export class AgentHostSessionListStore extends Disposable {
 		};
 	}
 
-	/**
-	 * Returns `true` if a session with the given working directory belongs
-	 * to the current VS Code workspace. When the window has no workspace
-	 * folders open (e.g. the Agents window, or an empty VS Code window),
-	 * filtering is disabled and every session is considered in-scope.
-	 *
-	 * Sessions without a working directory are excluded when a workspace
-	 * is open since they cannot be attributed to any folder.
-	 */
-	private _isWorkingDirectoryInWorkspace(workingDirectory: URI | string | undefined): boolean {
-		const folders = this._workspaceContextService.getWorkspace().folders;
-		if (folders.length === 0) {
-			return true;
-		}
-		if (!workingDirectory) {
-			return false;
-		}
-		const workingDirectoryUri = typeof workingDirectory === 'string' ? URI.parse(workingDirectory) : workingDirectory;
-		return folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectoryUri, folder.uri));
+	private _isSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
+		const key = this._key(entry.provider, entry.rawId);
+		const workingDirectories = entry.summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
+		return this._workspaceMembership.shouldInclude(key, workingDirectories, this._pendingNewSessions.has(key));
 	}
 
 	private _toRemoval(entry: IAgentHostSessionListEntry): IAgentHostSessionListRemoval {
