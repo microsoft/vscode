@@ -41,6 +41,22 @@ export interface IVoicePendingQuestion {
  *
  * Field names are snake_case because this crosses the voice websocket verbatim.
  */
+/**
+ * Derive the id that routes a voice response back to the exact pending part.
+ *
+ * Response parts have no stable identity of their own, so this uses the part's
+ * position in `response.value`. That list is append-only — new parts are pushed
+ * and adjacent markdown is merged in place, never spliced out — so an index,
+ * once assigned, keeps naming the same part for the life of the request.
+ *
+ * Both the outbound `pending` payload and the inbound lookup call this. If they
+ * ever diverge, every spoken answer comes back `stale_pending` and the feature
+ * silently stops working, which is exactly why it is one exported function.
+ */
+export function derivePendingId(requestId: string, partIndex: number): string {
+	return `${requestId}#${partIndex}`;
+}
+
 export interface IVoiceSessionPending {
 	type: 'questions' | 'approval' | 'elicitation';
 	pending_id: string;

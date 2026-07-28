@@ -87,12 +87,18 @@ export type VoiceTtsListenThroughClassification = {
 export type VoiceToolApprovalEvent = {
 	toolName: string;
 	approved: boolean;
+	responseType: string;
+	ok: boolean;
+	reason: string;
 };
 export type VoiceToolApprovalClassification = {
 	owner: 'meganrogge';
-	comment: 'Fired when the voice backend approves or rejects a tool confirmation.';
-	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the voice tool that was invoked (approve_confirmation, reject_confirmation).' };
-	approved: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the action was an approval (true) or denial (false).' };
+	comment: 'Fired when the voice backend responds to something a session is waiting on.';
+	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the voice tool that was invoked (respond_to_session).' };
+	approved: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the action was an approval (true) or anything else (false).' };
+	responseType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What the user did: approve, reject, answer or skip_remaining.' };
+	ok: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the response actually landed on a pending part. Previously assumed; now observed.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why a response did not land (stale_pending, invalid_answer, no_session, unsupported), or empty on success.' };
 };
 
 export type VoiceReconnectEvent = {

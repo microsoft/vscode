@@ -10,11 +10,13 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus, getAgentChangesSummary } from '../agentSessions/agentSessionsModel.js';
-import { IChatService, IChatSendRequestOptions, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
-import { IChatModel } from '../../common/model/chatModel.js';
+import { ChatSendResult, ElicitationState, IChatConfirmation, IChatElicitationRequest, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { IBackendQuestionAnswer, resolveQuestionAnswers } from '../../common/chatService/chatQuestionCarouselHelpers.js';
+import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { IChatModel, IChatRequestModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { IVoiceToolCall } from '../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, IVoiceDispatchResult, IVoiceToolCall } from '../../common/voiceClient/voiceClientService.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 
 /**
@@ -51,6 +53,16 @@ export interface IVoiceToolDispatchService {
 	 * Dispatch a tool call and return the result string.
 	 */
 	dispatchToolCall(toolCall: IVoiceToolCall): Promise<string>;
+
+	/**
+	 * Apply a backend-resolved response to whatever a session is waiting on.
+	 *
+	 * Separate from `dispatchToolCall` because it answers with a structured
+	 * outcome rather than a string: the backend only speaks an acknowledgement
+	 * for something it has actually observed, so "it landed" and "it didn't"
+	 * have to be distinguishable.
+	 */
+	respondToSession(toolCall: IVoiceToolCall): Promise<IVoiceDispatchResult>;
 }
 
 export const IVoiceToolDispatchService = createDecorator<IVoiceToolDispatchService>('voiceToolDispatchService');
@@ -62,8 +74,7 @@ const ACTION_LABELS: Record<string, string> = {
 	get_session_info: localize('agentsVoice.action.getSessionInfo', "Checking sessions..."),
 	get_session_changes: localize('agentsVoice.action.getSessionChanges', "Checking changes..."),
 	get_session_thread: localize('agentsVoice.action.getSessionThread', "Checking conversation..."),
-	approve_confirmation: localize('agentsVoice.action.approve', "Approving..."),
-	reject_confirmation: localize('agentsVoice.action.reject', "Rejecting..."),
+	respond_to_session: localize('agentsVoice.action.respond', "Responding..."),
 	focus_session: localize('agentsVoice.action.focusSession', "Focusing session..."),
 	auto_approve_session: localize('agentsVoice.action.autoApprove', "Auto-approving session..."),
 	revoke_auto_approve: localize('agentsVoice.action.revokeAutoApprove', "Revoking auto-approve..."),
@@ -187,62 +198,6 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 				}
 				break;
 			}
-			case 'approve_confirmation':
-			case 'reject_confirmation': {
-				const targetSessionId = argString('coding_session_id');
-				// Look up the model from agent sessions first, then regular chat sessions
-				let model: IChatModel | undefined;
-				if (targetSessionId) {
-					const agentSession = this.agentSessionsService.model.sessions
-						.find(s => !s.isArchived() && s.resource.toString() === targetSessionId);
-					model = agentSession
-						? this.chatService.getSession(agentSession.resource)
-						: undefined;
-					// Fall back to regular chat sessions
-					if (!model) {
-						for (const chatModel of this.chatService.chatModels.get()) {
-							if (chatModel.sessionResource.toString() === targetSessionId) {
-								model = chatModel;
-								break;
-							}
-						}
-					}
-					// Session not loaded — acquire it so we can confirm the tool invocation
-					if (!model && agentSession) {
-						const cts = new CancellationTokenSource();
-						const ref = await this.chatService.acquireOrLoadSession(agentSession.resource, ChatAgentLocation.Chat, cts.token, 'voice-confirm').catch(() => undefined);
-						cts.dispose();
-						if (ref) {
-							model = this.chatService.getSession(agentSession.resource);
-							ref.dispose();
-						}
-					}
-				}
-				if (!model) {
-					// Last resort: use the currently focused session
-					const res = await delegate.getCurrentSessionResource();
-					model = res ? this.chatService.getSession(res) : undefined;
-				}
-				if (model) {
-					const lastReq = model.getRequests().at(-1);
-					if (lastReq?.response) {
-						for (const part of lastReq.response.response.value) {
-							if (part.kind === 'toolInvocation') {
-								const confirmed = toolCall.name === 'approve_confirmation'
-									? IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction })
-									: IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied });
-								if (confirmed) {
-									return toolCall.name === 'approve_confirmation' ? 'approved' : 'rejected';
-								}
-							}
-						}
-					}
-					// Found a model but no tool invocation was awaiting confirmation.
-					return 'no pending confirmation';
-				}
-				// No target session could be resolved for the confirmation.
-				return 'no session';
-			}
 			case 'auto_approve_session': {
 				delegate.addAllAutoApprovedSessions();
 				break;
@@ -273,6 +228,204 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			}
 		}
 		return 'ok';
+	}
+
+	/**
+	 * Apply a backend-resolved response to the exact pending part it names.
+	 *
+	 * Routing is by `pending_id` + `request_id` with no fallback. The path this
+	 * replaces fell back to "whatever session is focused" when it could not
+	 * resolve the target, which meant a spoken "yes" could approve a prompt the
+	 * user was not looking at. An answer that cannot find its form is reported
+	 * as stale instead, and the user hears that it did not land.
+	 *
+	 * Values are matched exactly. The backend resolved the spoken ordinal
+	 * against its own mirror of this schema, so anything that fails to match
+	 * here means the mirror was stale — and half-filling a form on a guess is
+	 * strictly worse than saying so.
+	 */
+	async respondToSession(toolCall: IVoiceToolCall): Promise<IVoiceDispatchResult> {
+		const args = toolCall.args;
+		const argString = (key: string): string => {
+			const value = args[key];
+			return typeof value === 'string' ? value : '';
+		};
+		const response = args['response'];
+		if (!response || typeof response !== 'object' || Array.isArray(response)) {
+			return { ok: false, reason: 'unsupported' };
+		}
+		const responseType = (response as Record<string, unknown>)['type'];
+		if (responseType !== 'approve' && responseType !== 'reject' && responseType !== 'answer') {
+			return { ok: false, reason: 'unsupported' };
+		}
+
+		const model = await this._resolveModelForResponse(argString('coding_session_id'));
+		if (!model) {
+			return { ok: false, reason: 'no_session' };
+		}
+
+		const requestId = argString('request_id');
+		const pendingId = argString('pending_id');
+		const request = model.getRequests().find(candidate => candidate.id === requestId);
+		const parts = request?.response?.response.value;
+		if (!request || !parts) {
+			return { ok: false, reason: 'stale_pending' };
+		}
+		const index = parts.findIndex((_part, at) => derivePendingId(request.id, at) === pendingId);
+		if (index < 0) {
+			return { ok: false, reason: 'stale_pending' };
+		}
+		const part = parts[index];
+
+		if (part.kind === 'questionCarousel') {
+			if (responseType !== 'answer') {
+				return { ok: false, reason: 'unsupported' };
+			}
+			return this._answerCarousel(request.id, part as IChatQuestionCarousel, response as Record<string, unknown>);
+		}
+
+		if (responseType === 'answer') {
+			return { ok: false, reason: 'unsupported' };
+		}
+		const approve = responseType === 'approve';
+
+		if (part.kind === 'toolInvocation') {
+			const confirmed = IChatToolInvocation.confirmWith(
+				part as IChatToolInvocation,
+				approve ? { type: ToolConfirmKind.UserAction } : { type: ToolConfirmKind.Denied },
+			);
+			return confirmed ? { ok: true } : { ok: false, reason: 'stale_pending' };
+		}
+
+		if (part.kind === 'elicitation2') {
+			const elicitation = part as IChatElicitationRequest;
+			if (elicitation.state.get() !== ElicitationState.Pending) {
+				return { ok: false, reason: 'stale_pending' };
+			}
+			if (approve) {
+				await elicitation.accept(true);
+				return { ok: true };
+			}
+			if (!elicitation.reject) {
+				return { ok: false, reason: 'unsupported' };
+			}
+			await elicitation.reject();
+			return { ok: true };
+		}
+
+		if (part.kind === 'confirmation') {
+			return this._answerConfirmation(model, request, part as IChatConfirmation, approve);
+		}
+
+		return { ok: false, reason: 'unsupported' };
+	}
+
+	/**
+	 * Resolve a coding session id to its chat model, loading it if necessary.
+	 *
+	 * Deliberately returns `undefined` rather than falling back to the focused
+	 * session: see `respondToSession`.
+	 */
+	private async _resolveModelForResponse(codingSessionId: string): Promise<IChatModel | undefined> {
+		if (!codingSessionId) {
+			return undefined;
+		}
+		const agentSession = this.agentSessionsService.model.sessions
+			.find(session => !session.isArchived() && session.resource.toString() === codingSessionId);
+		if (agentSession) {
+			const loaded = this.chatService.getSession(agentSession.resource);
+			if (loaded) {
+				return loaded;
+			}
+		}
+		for (const chatModel of this.chatService.chatModels.get()) {
+			if (chatModel.sessionResource.toString() === codingSessionId) {
+				return chatModel;
+			}
+		}
+		if (!agentSession) {
+			return undefined;
+		}
+		const cts = new CancellationTokenSource();
+		const ref = await this.chatService
+			.acquireOrLoadSession(agentSession.resource, ChatAgentLocation.Chat, cts.token, 'voice-respond')
+			.catch(() => undefined);
+		cts.dispose();
+		if (!ref) {
+			return undefined;
+		}
+		const model = this.chatService.getSession(agentSession.resource);
+		ref.dispose();
+		return model;
+	}
+
+	/** Fill in a question carousel exactly as the widget's own submit path does. */
+	private _answerCarousel(
+		requestId: string,
+		carousel: IChatQuestionCarousel,
+		response: Record<string, unknown>,
+	): IVoiceDispatchResult {
+		if (carousel.isUsed || carousel.answeredExternally) {
+			return { ok: false, reason: 'stale_pending' };
+		}
+		const raw = response['answers'];
+		const answers = Array.isArray(raw)
+			? resolveQuestionAnswers(carousel.questions, raw as IBackendQuestionAnswer[])
+			: undefined;
+		if (!answers) {
+			return { ok: false, reason: 'invalid_answer' };
+		}
+		// `dismiss` also completes the deferred promise an agent-hosted carousel
+		// is blocked on; marking it used without that leaves the agent waiting.
+		if (carousel instanceof ChatQuestionCarouselData) {
+			carousel.dismiss(answers);
+		} else {
+			carousel.data = answers;
+			carousel.isUsed = true;
+		}
+		if (carousel.resolveId) {
+			this.chatService.notifyQuestionCarouselAnswer(requestId, carousel.resolveId, answers);
+		}
+		return { ok: true };
+	}
+
+	/**
+	 * Accept or dismiss a confirmation part.
+	 *
+	 * A confirmation is resolved by sending a follow-up request carrying its
+	 * data, not by mutating the part, so this mirrors the widget's button
+	 * handler. It cannot reach the chat widget's model/mode selection from here
+	 * and uses the service's own agent-mode options, the same ones every other
+	 * voice-originated request in this file uses.
+	 */
+	private async _answerConfirmation(
+		model: IChatModel,
+		request: IChatRequestModel,
+		confirmation: IChatConfirmation,
+		approve: boolean,
+	): Promise<IVoiceDispatchResult> {
+		if (confirmation.isUsed) {
+			return { ok: false, reason: 'stale_pending' };
+		}
+		const buttons = confirmation.buttons;
+		const label = approve
+			? (buttons?.[0] ?? localize('agentsVoice.confirmation.accept', "Accept"))
+			: (buttons?.[1] ?? localize('agentsVoice.confirmation.dismiss', "Dismiss"));
+		const options: IChatSendRequestOptions = {
+			...this._agentModeOptions,
+			...(approve
+				? { acceptedConfirmationData: [confirmation.data] }
+				: { rejectedConfirmationData: [confirmation.data] }),
+			confirmation: label,
+			agentId: request.response?.agent?.id,
+			slashCommand: request.response?.slashCommand?.name,
+		};
+		const result = await this.chatService.sendRequest(model.sessionResource, `${label}: "${confirmation.title}"`, options);
+		if (!ChatSendResult.isSent(result)) {
+			return { ok: false, reason: 'stale_pending' };
+		}
+		confirmation.isUsed = true;
+		return { ok: true };
 	}
 
 	private async _gatherSessionInfo(): Promise<string> {

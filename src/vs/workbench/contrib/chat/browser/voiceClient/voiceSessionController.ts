@@ -19,7 +19,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId } from '../../common/voiceClient/voiceClientService.js';
 import { IMicCaptureService, IPttDiagnostic } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
 import { IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
@@ -89,22 +89,6 @@ interface IDeferredResponse {
 	readonly turnId?: string;
 	finalized: boolean;
 	readonly chunks: IDeferredChunk[];
-}
-
-/**
- * Derive the id that routes a voice response back to the exact pending part.
- *
- * Response parts have no stable identity of their own, so this uses the part's
- * position in `response.value`. That list is append-only — new parts are pushed
- * and adjacent markdown is merged in place, never spliced out — so an index,
- * once assigned, keeps naming the same part for the life of the request.
- *
- * Both the outbound `pending` payload and the inbound lookup call this. If they
- * ever diverge, every spoken answer comes back `stale_pending` and the feature
- * silently stops working, which is exactly why it is one exported function.
- */
-export function derivePendingId(requestId: string, partIndex: number): string {
-	return `${requestId}#${partIndex}`;
 }
 
 interface IPendingSolicitedNarration {
@@ -1708,7 +1692,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const allowedTools = [
 				'send_to_chat',
 				'get_session_info', 'get_session_changes', 'get_session_thread',
-				'approve_confirmation', 'reject_confirmation',
+				'respond_to_session',
 				'auto_approve_session', 'revoke_auto_approve',
 				'focus_session',
 			];
@@ -1763,43 +1747,57 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					toolName: e.name,
 					toolArgs: e.args,
 				});
-				// Telemetry: tool approval/rejection via voice
-				if (e.name === 'approve_confirmation' || e.name === 'reject_confirmation') {
-					this.telemetryService.publicLog2<VoiceToolApprovalEvent, VoiceToolApprovalClassification>('voiceToolApproval', {
-						toolName: e.name,
-						approved: e.name === 'approve_confirmation',
-					});
-				}
 				// Exit listening mode so the response audio isn't suppressed.
 				if (this._pttHeld) {
 					this._finishPtt();
 				}
 				this._suppressIncomingAudio = false;
 				this._setAwaitingReply();
-				this.voiceToolDispatchService.dispatchToolCall(e).then(result => {
-					// Approve/reject outcomes are surfaced for diagnosis, but the
-					// backend contract for these has always been a bare 'ok' ack;
-					// preserve that so only the diagnostic changes, not behavior.
-					if (e.name === 'approve_confirmation' || e.name === 'reject_confirmation') {
-						this.logService.trace(`[voice] ${e.name} dispatch result=${result} coding_session_id=${typeof e.args?.['coding_session_id'] === 'string' ? String(e.args['coding_session_id']).slice(-32) : '<none>'}`);
-						this.voiceClientService.sendToolResult(e.callId, 'ok');
-					} else {
-						this.voiceClientService.sendToolResult(e.callId, result);
-					}
+				const settle = (): void => {
 					this._voiceState.set('idle', undefined);
 					this._statusText.set('Hold to speak...', undefined);
 					this._sendContext();
+				};
+				if (e.name === 'respond_to_session') {
+					// The one tool whose result the backend acts on: it speaks an
+					// acknowledgement only for an outcome it has observed, so this
+					// must report what actually happened rather than a blanket 'ok'.
+					const response = e.args?.['response'];
+					const responseType = response && typeof response === 'object' && !Array.isArray(response)
+						&& typeof (response as Record<string, unknown>)['type'] === 'string'
+						? String((response as Record<string, unknown>)['type'])
+						: 'unknown';
+					this.voiceToolDispatchService.respondToSession(e).then(result => {
+						this.logService.trace(`[voice] respond_to_session type=${responseType} ok=${result.ok} reason=${result.reason ?? '<none>'} coding_session_id=${typeof e.args?.['coding_session_id'] === 'string' ? String(e.args['coding_session_id']).slice(-32) : '<none>'}`);
+						this.telemetryService.publicLog2<VoiceToolApprovalEvent, VoiceToolApprovalClassification>('voiceToolApproval', {
+							toolName: e.name,
+							approved: responseType === 'approve',
+							responseType,
+							ok: result.ok,
+							reason: result.reason ?? '',
+						});
+						this.voiceClientService.sendToolResult(e.callId, result);
+						settle();
+					}, err => {
+						this.logService.error(`[voice] respond_to_session dispatch failed`, err);
+						this.voiceClientService.sendToolResult(e.callId, { ok: false, reason: 'unsupported' });
+						settle();
+					});
+					return;
+				}
+				this.voiceToolDispatchService.dispatchToolCall(e).then(result => {
+					this.voiceClientService.sendToolResult(e.callId, result);
+					settle();
 				}, err => {
 					// Always answer, even on failure, so the backend isn't left waiting on this callId.
 					this.logService.error(`[voice] tool ${e.name} dispatch failed`, err);
 					this.voiceClientService.sendToolResult(e.callId, 'error');
-					this._voiceState.set('idle', undefined);
-					this._statusText.set('Hold to speak...', undefined);
-					this._sendContext();
+					settle();
 				});
 			} else {
-				// Unknown / disallowed tool — return noop result so the
-				// backend doesn't block waiting for us.
+				// Unknown / disallowed tool — answer so the backend isn't left
+				// blocked. This is deliberately not evidence of anything: the
+				// backend must not read a bare 'ok' as "the thing happened".
 				this.voiceClientService.sendToolResult(e.callId, 'ok');
 			}
 		}));
@@ -3010,7 +3008,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 *
 	 *   send_to_chat(text="Open a new terminal and cd into the current directory.")
 	 *   new_sessions(sessions=[{"text": "Refactor upload service"}])
-	 *   approve_confirmation(...)
+	 *   respond_to_session(...)
 	 */
 	private _renderToolCallSummary(name: string, args: Record<string, unknown> | undefined): string {
 		if (!args || Object.keys(args).length === 0) {
