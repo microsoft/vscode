@@ -3813,13 +3813,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _pendingIdFor(sessionId: string): string {
 		// Only meaningful while a session is showing a pending item; callers skip
 		// it otherwise rather than walk a settled response's parts for nothing.
-		let resource: URI | undefined;
-		try {
-			resource = URI.parse(sessionId);
-		} catch {
-			return '';
-		}
-		const model = this.chatService.getSession(resource);
+		const model = this._modelForSession(sessionId);
 		return (model ? this._buildPendingPayload(model)?.pending_id : undefined) ?? '';
 	}
 
@@ -5134,10 +5128,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		if (stateChanges.length > 0) {
 			this.logService.trace(`[voice] onDidChangeSessions detected ${stateChanges.length} state change(s): ${stateChanges.map(c => `${c.label}: ${c.currentState}`).join(', ')}`);
-			// Push fresh context + flush the debounce BEFORE narrating: the backend
-			// validates a narration against its mirror of the session context, so a
-			// narration issued first would be judged against a mirror that does not
-			// yet contain the thing being narrated.
+			// Flush the context before narrating; see `_activateShownSession`.
 			this._sendContext();
 			this.voiceClientService.flushSessionContext();
 		}
@@ -5599,7 +5590,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				return {
 					type: 'questions',
 					...routing(),
-					...(carousel.resolveId ? { resolve_id: carousel.resolveId } : {}),
 					allow_skip: carousel.allowSkip === true,
 					...(carousel.message ? { message: this._plainText(carousel.message) } : {}),
 					questions: carousel.questions.map((question): IVoicePendingQuestion => ({
@@ -5642,7 +5632,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				return {
 					type: 'approval',
 					...routing(),
-					approval_kind: 'confirmation',
 					title: confirmation.title,
 					message: this._plainText(confirmation.message),
 				};
@@ -5662,7 +5651,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				return {
 					type: 'approval',
 					...routing(),
-					approval_kind: 'toolInvocation',
 					...(message ? { message } : {}),
 				};
 			}

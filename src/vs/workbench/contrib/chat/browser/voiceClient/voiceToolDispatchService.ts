@@ -266,7 +266,13 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		// that reads the model, including the awaited confirmation send, has to
 		// happen before it is released.
 		try {
-			return await this._applyResponse(resolved.model, args, argString, responseType, response as Record<string, unknown>);
+			return await this._applyResponse(
+				resolved.model,
+				argString('request_id'),
+				argString('pending_id'),
+				responseType,
+				response as Record<string, unknown>,
+			);
 		} finally {
 			resolved.dispose();
 		}
@@ -274,13 +280,11 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 
 	private async _applyResponse(
 		model: IChatModel,
-		args: Record<string, unknown>,
-		argString: (key: string) => string,
+		requestId: string,
+		pendingId: string,
 		responseType: 'approve' | 'reject' | 'answer' | 'skip',
 		response: Record<string, unknown>,
 	): Promise<IVoiceDispatchResult> {
-		const requestId = argString('request_id');
-		const pendingId = argString('pending_id');
 		const request = model.getRequests().find(candidate => candidate.id === requestId);
 		const parts = request?.response?.response.value;
 		if (!request || !parts) {

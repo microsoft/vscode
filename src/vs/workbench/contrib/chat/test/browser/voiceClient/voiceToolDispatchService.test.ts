@@ -11,9 +11,10 @@ import { IAgentSessionsModel } from '../../../browser/agentSessions/agentSession
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { VoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
-import { ElicitationState, IChatService } from '../../../common/chatService/chatService.js';
+import { ElicitationState, IChatQuestionAnswers, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
+import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { derivePendingId, IVoiceToolCall } from '../../../common/voiceClient/voiceClientService.js';
 
@@ -38,6 +39,7 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 			override getSession() {
 				return model as IChatModel;
 			}
+			override notifyQuestionCarouselAnswer() { }
 		};
 		return new VoiceToolDispatchService(
 			agentSessionsService,
@@ -58,6 +60,97 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 			},
 		} as unknown as IVoiceToolCall;
 	}
+
+	function carousel(allowSkip = false): ChatQuestionCarouselData {
+		return new ChatQuestionCarouselData([{
+			id: 'region',
+			type: 'singleSelect',
+			title: 'Region',
+			message: 'Which region should this deploy to?',
+			options: [
+				{ id: 'west', label: 'West US', value: 'westus' },
+				{ id: 'east', label: 'East US', value: 'eastus' },
+			],
+		}], allowSkip, 'resolve-1');
+	}
+
+	function answerCall(part: object, response: object): IVoiceToolCall {
+		return {
+			name: 'respond_to_session',
+			args: {
+				coding_session_id: sessionResource.toString(),
+				request_id: requestId,
+				pending_id: derivePendingId(requestId, part),
+				response,
+			},
+		} as unknown as IVoiceToolCall;
+	}
+
+	// The reported bug: a spoken answer left the form on screen, unanswered.
+
+	test('a spoken answer submits the form', async () => {
+		const part = carousel();
+		const call = answerCall(part, { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }] });
+
+		const result = await serviceFor(part).respondToSession(call);
+
+		const answers: IChatQuestionAnswers = { region: { selectedValue: 'eastus' } };
+		assert.deepStrictEqual(result, { ok: true });
+		assert.strictEqual(part.isUsed, true);
+		assert.deepStrictEqual(part.data, answers);
+		assert.deepStrictEqual(await part.completion.p, { answers });
+	});
+
+	test('a value the form does not offer leaves it untouched', async () => {
+		// The backend resolves ordinals against its own mirror, so an unmatched
+		// value means that mirror was stale. Answering with a guess would submit
+		// something the user never chose.
+		const part = carousel();
+		const call = answerCall(part, { type: 'answer', answers: [{ question_id: 'region', value: 'West US' }] });
+
+		const result = await serviceFor(part).respondToSession(call);
+
+		assert.deepStrictEqual(result, { ok: false, reason: 'invalid_answer' });
+		assert.strictEqual(part.isUsed, undefined);
+	});
+
+	test('an approval spoken at a question form is refused rather than applied', async () => {
+		const part = carousel();
+
+		const result = await serviceFor(part).respondToSession(approvalCall(part, 'approve'));
+
+		assert.deepStrictEqual(result, { ok: false, reason: 'unsupported' });
+		assert.strictEqual(part.isUsed, undefined);
+	});
+
+	test('a skip is refused when the form forbids it', async () => {
+		const part = carousel();
+
+		const result = await serviceFor(part).respondToSession(answerCall(part, { type: 'skip' }));
+
+		assert.deepStrictEqual(result, { ok: false, reason: 'stale_pending' });
+		assert.strictEqual(part.isUsed, undefined);
+	});
+
+	test('a skip submits an unanswered form when the form allows it', async () => {
+		const part = carousel(true);
+
+		const result = await serviceFor(part).respondToSession(answerCall(part, { type: 'skip' }));
+
+		assert.deepStrictEqual(result, { ok: true });
+		assert.strictEqual(part.isUsed, true);
+	});
+
+	test('an answer is refused once the form has been used', async () => {
+		const part = carousel();
+		part.dismiss({ region: { selectedValue: 'westus' } });
+		const call = answerCall(part, { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }] });
+
+		const result = await serviceFor(part).respondToSession(call);
+
+		assert.deepStrictEqual(result, { ok: false, reason: 'stale_pending' });
+		assert.deepStrictEqual(part.data, { region: { selectedValue: 'westus' } });
+	});
 
 	// An elicitation's handler decides the outcome, so "I asked to accept" and
 	// "it accepted" are different facts. Reporting the first is how the assistant

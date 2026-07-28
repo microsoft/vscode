@@ -45,8 +45,6 @@ export interface IVoiceSessionPending {
 	type: 'questions' | 'approval' | 'elicitation';
 	pending_id: string;
 	request_id: string;
-	resolve_id?: string;
-	approval_kind?: string;
 	allow_skip?: boolean;
 	title?: string;
 	message?: string;
@@ -125,11 +123,9 @@ export interface IVoiceSessionContext {
 export type VoiceNarrationKind = 'response' | 'confirmation' | 'question';
 
 /**
- * Structured outcome of a dispatched voice tool call.
- *
- * The backend speaks an acknowledgement only after seeing one of these, so a
- * dishonest `ok` here becomes the assistant claiming something that never
- * happened.
+ * Structured outcome of a dispatched voice tool call. The backend speaks an
+ * acknowledgement only after seeing one, so a dishonest `ok` becomes the
+ * assistant claiming something that never happened.
  */
 export interface IVoiceDispatchResult {
 	readonly ok: boolean;

@@ -96,7 +96,7 @@ export type VoiceToolApprovalClassification = {
 	comment: 'Fired when the voice backend responds to something a session is waiting on.';
 	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the voice tool that was invoked (respond_to_session).' };
 	approved: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the action was an approval (true) or anything else (false).' };
-	responseType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What the user did: approve, reject, answer or skip_remaining.' };
+	responseType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What the user did: approve, reject, answer or skip.' };
 	ok: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the response landed on a pending part.' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why a response did not land (stale_pending, invalid_answer, no_session, unsupported), or empty on success.' };
 };
