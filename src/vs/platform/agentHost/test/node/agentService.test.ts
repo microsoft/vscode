@@ -1093,6 +1093,43 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(AgentSession.provider(session), 'copilot');
 		});
 
+		test('truncates working directories for a provider without multipleWorkingDirectories', async () => {
+			class CapturingAgent extends MockAgent {
+				lastConfig: IAgentCreateSessionConfig | undefined;
+				constructor(id: string, private readonly _caps: import('../../common/agentService.js').IAgentCapabilities | undefined) {
+					super(id);
+				}
+				override getDescriptor() {
+					return { ...super.getDescriptor(), capabilities: this._caps };
+				}
+				override async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+					this.lastConfig = config;
+					return super.createSession(config);
+				}
+			}
+
+			const single = new CapturingAgent('single', undefined);
+			const multi = new CapturingAgent('multi', { multipleWorkingDirectories: { immutablePrimary: true } });
+			disposables.add(toDisposable(() => single.dispose()));
+			disposables.add(toDisposable(() => multi.dispose()));
+			service.registerProvider(single);
+			service.registerProvider(multi);
+
+			const dirs = [URI.file('/repoA'), URI.file('/repoB'), URI.file('/repoC')];
+			await service.createSession({ provider: 'single', workingDirectories: dirs });
+			await service.createSession({ provider: 'multi', workingDirectories: dirs });
+
+			// A provider that does not advertise the capability keeps only the
+			// primary (index 0); one that advertises it receives the full set.
+			assert.deepStrictEqual({
+				single: single.lastConfig?.workingDirectories?.map(d => d.toString()),
+				multi: multi.lastConfig?.workingDirectories?.map(d => d.toString()),
+			}, {
+				single: [dirs[0].toString()],
+				multi: dirs.map(d => d.toString()),
+			});
+		});
+
 		test('honors requested session URI', async () => {
 			service.registerProvider(copilotAgent);
 

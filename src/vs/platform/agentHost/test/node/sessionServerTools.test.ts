@@ -165,7 +165,7 @@ suite('SessionServerTools', () => {
 
 		const text = await group.execute(stateManager, 'copilot:/caller', createSessionToolName, { workspace: workspace.toString(), prompt: 'do it', model: 'gpt-4o' });
 
-		assert.deepStrictEqual(created, { workingDirectory: workspace, provider: 'copilot', model: { id: 'gpt-4o' } });
+		assert.deepStrictEqual(created, { workingDirectories: [workspace], provider: 'copilot', model: { id: 'gpt-4o' } });
 		assert.strictEqual(prompted?.prompt, 'do it');
 		assert.strictEqual(prompted?.chat.toString(), buildDefaultChatUri(URI.parse('copilot:/new')));
 		assert.ok(text.includes('agent-host-session://copilot/new'), 'result carries the open-session link for the pill');

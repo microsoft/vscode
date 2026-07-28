@@ -1487,6 +1487,68 @@ suite('CopilotAgent', () => {
 		}).timeout(30_000);
 	});
 
+	suite('working-directory persistence', () => {
+		const repoA = URI.file('/repoA');
+		const repoB = URI.file('/repoB');
+		const repoC = URI.file('/repoC');
+
+		async function restore(seed: (db: ReturnType<TestSessionDataService['openDatabase']>) => Promise<void>, cwd?: string): Promise<{ list: string[] | undefined; meta: string[] | undefined }> {
+			const sessionId = 'wd-persist';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const db = sessionDataService.openDatabase(session);
+			// Mark the project resolved so the restore path does not probe git.
+			await db.object.setMetadata('copilot.project.resolved', 'true');
+			await seed(db);
+			db.dispose();
+			const client = new TestCopilotClient([sdkSession(sessionId, cwd)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				const listed = (await agent.listSessions()).find(s => AgentSession.id(s.session) === sessionId);
+				const meta = await agent.getSessionMetadata(session);
+				return {
+					list: listed?.workingDirectories?.map(d => d.toString()),
+					meta: meta?.workingDirectories?.map(d => d.toString()),
+				};
+			} finally {
+				await disposeAgent(agent);
+			}
+		}
+
+		test('restores the persisted ordered set from copilot.workingDirectories', async () => {
+			const result = await restore(async db => {
+				await db.object.setMetadata('copilot.workingDirectories', JSON.stringify([repoA, repoB, repoC].map(d => d.toString())));
+				await db.object.setMetadata('copilot.workingDirectory', repoA.toString());
+			});
+			assert.deepStrictEqual(result, {
+				list: [repoA.toString(), repoB.toString(), repoC.toString()],
+				meta: [repoA.toString(), repoB.toString(), repoC.toString()],
+			});
+		});
+
+		test('falls back to the legacy single working directory when the set is absent', async () => {
+			const result = await restore(async db => {
+				await db.object.setMetadata('copilot.workingDirectory', repoA.toString());
+			});
+			assert.deepStrictEqual(result, {
+				list: [repoA.toString()],
+				meta: [repoA.toString()],
+			});
+		});
+
+		test('falls back to the legacy single working directory when the set is malformed', async () => {
+			const result = await restore(async db => {
+				await db.object.setMetadata('copilot.workingDirectories', 'not-json');
+				await db.object.setMetadata('copilot.workingDirectory', repoA.toString());
+			});
+			assert.deepStrictEqual(result, {
+				list: [repoA.toString()],
+				meta: [repoA.toString()],
+			});
+		});
+	});
+
 	suite('restart on startup config change', () => {
 
 		class StopCountingClient extends TestCopilotClient {

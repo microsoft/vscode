@@ -992,13 +992,20 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
 
-		// Capability guard: no provider advertises `multipleWorkingDirectories`
-		// yet, so reject a request for more than one working directory rather
-		// than silently launching in only the first. Callers supply exactly one
-		// directory during the compatibility phase; this is a defensive backstop
-		// against the newly-plural plumbing forwarding an unsupported set.
+		// Capability gate: only a provider that advertises
+		// `multipleWorkingDirectories` accepts more than one working directory.
+		// For a provider that does not, keep the primary (index 0 = the process
+		// root) and drop the rest so the plural plumbing cannot forward an
+		// unsupported set — the agent still launches in the user's chosen folder.
+		// This is a create-time-only grant: runtime add/remove of directories is
+		// still rejected in the dispatch path, so a provider that opts in accepts
+		// the set at creation but its members remain fixed for the session.
 		if (config?.workingDirectories && config.workingDirectories.length > 1) {
-			throw new Error(`Provider '${providerId}' does not support multiple working directories (received ${config.workingDirectories.length}).`);
+			const supportsMultiple = !!provider.getDescriptor().capabilities?.multipleWorkingDirectories;
+			if (!supportsMultiple) {
+				this._logService.warn(`[AgentService] Provider '${providerId}' does not advertise multipleWorkingDirectories; truncating ${config.workingDirectories.length} working directories to 1.`);
+				config = { ...config, workingDirectories: [config.workingDirectories[0]] };
+			}
 		}
 
 		// When forking, build the old→new turn ID mapping before creating the

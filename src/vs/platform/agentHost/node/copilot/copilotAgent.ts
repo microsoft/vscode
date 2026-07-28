@@ -1488,14 +1488,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				project = await this._resolveSessionProject(s.context, projectLimiter, projectByContext);
 				void this._storeSessionProjectResolution(session, project);
 			}
-			const workingDirectory = metadata.workingDirectory ?? (typeof s.context?.workingDirectory === 'string' ? URI.file(s.context.workingDirectory) : undefined);
+			const workingDirectories = metadata.workingDirectories ?? (typeof s.context?.workingDirectory === 'string' ? [URI.file(s.context.workingDirectory)] : undefined);
 			const result: IAgentSessionMetadata = {
 				session,
 				startTime: s.startTime.getTime(),
 				modifiedTime: s.modifiedTime.getTime(),
 				project,
 				summary: s.summary,
-				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
+				workingDirectories,
 			};
 			return result;
 		}));
@@ -1524,14 +1524,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			void this._storeSessionProjectResolution(session, project);
 		}
 
-		const workingDirectory = storedMetadata?.workingDirectory ?? (typeof sessionMetadata?.context?.workingDirectory === 'string' ? URI.file(sessionMetadata.context.workingDirectory) : undefined);
+		const workingDirectories = storedMetadata?.workingDirectories ?? (typeof sessionMetadata?.context?.workingDirectory === 'string' ? [URI.file(sessionMetadata.context.workingDirectory)] : undefined);
 		return {
 			session,
 			startTime: sessionMetadata?.startTime.getTime() ?? Date.now(),
 			modifiedTime: sessionMetadata?.modifiedTime.getTime() ?? Date.now(),
 			project,
 			summary: sessionMetadata?.summary,
-			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
+			workingDirectories,
 		};
 	}
 
@@ -1823,7 +1823,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 
 				const project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
-				await this._storeSessionMetadata(session, sessionConfig.model, workingDirectory, workingDirectory, project, true);
+				await this._storeSessionMetadata(session, sessionConfig.model, workingDirectory, sessionConfig.workingDirectories ?? (workingDirectory ? [workingDirectory] : undefined), workingDirectory, project, true);
 				if (sessionConfig.agent !== undefined) {
 					await this._storeSessionAgentMetadata(session, sessionConfig.agent);
 				}
@@ -1936,7 +1936,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Persist metadata before resume so `_resumeSession` can resolve the
 			// working directory and model.
 			const project = await projectPromise;
-			await this._storeSessionMetadata(sessionUri, model, workingDirectory, workingDirectory, project);
+			await this._storeSessionMetadata(sessionUri, model, workingDirectory, sessionConfig.workingDirectories ?? (workingDirectory ? [workingDirectory] : undefined), workingDirectory, project);
 			if (sessionConfig.agent !== undefined) {
 				await this._storeSessionAgentMetadata(sessionUri, sessionConfig.agent);
 			}
@@ -2006,6 +2006,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				client,
 				sessionId,
 				workingDirectory,
+				additionalDirectories: resolvedWorkingDirectories?.slice(1),
 				resolvedAgentName: resolvedAgent?.name,
 				snapshot,
 				activeClientToolSet: activeClient.toolSet,
@@ -2027,7 +2028,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const project = await projectFromCopilotContext({ cwd: workingDirectory?.fsPath }, this._gitService);
 
 		this._provisionalSessions.delete(sessionId);
-		await this._storeSessionMetadata(sessionUri, provisional.model, workingDirectory, customizationDirectory, project, true);
+		await this._storeSessionMetadata(sessionUri, provisional.model, workingDirectory, resolvedWorkingDirectories ?? (workingDirectory ? [workingDirectory] : undefined), customizationDirectory, project, true);
 		if (agent !== undefined) {
 			await this._storeSessionAgentMetadata(sessionUri, agent);
 		}
@@ -2883,7 +2884,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (entry) {
 			await entry.setModel(model.id, resolveCopilotReasoningEffort(model, this._configurationService, this._logService, context.sessionId), getCopilotContextTier(model, longContextWindow, freeLongContext));
 		}
-		await this._storeSessionMetadata(context.session, model, undefined, undefined, undefined);
+		await this._storeSessionMetadata(context.session, model, undefined, undefined, undefined, undefined);
 	}
 
 	private async _changeAgent(chat: URI, agent: AgentSelection | undefined): Promise<void> {
@@ -3254,6 +3255,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			client,
 			sessionId,
 			workingDirectory: resolvedWorkingDirectory,
+			additionalDirectories: storedMetadata.workingDirectories?.slice(1),
 			resolvedAgentName,
 			snapshot,
 			activeClientToolSet: activeClient.toolSet,
@@ -3284,6 +3286,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private static readonly _META_MODEL = 'copilot.model';
 	private static readonly _META_AGENT = 'copilot.agent';
 	private static readonly _META_CWD = 'copilot.workingDirectory';
+	/** Persisted ordered working-directory set (JSON array of URI strings; index 0 = primary). */
+	private static readonly _META_CWDS = 'copilot.workingDirectories';
 	private static readonly _META_CUSTOMIZATION_DIRECTORY = 'copilot.customizationDirectory';
 	private static readonly _META_PROJECT_RESOLVED = 'copilot.project.resolved';
 	private static readonly _META_PROJECT_URI = 'copilot.project.uri';
@@ -3335,7 +3339,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 
-	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined): Promise<void> {
+	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		const db = dbRef.object;
 		try {
@@ -3345,6 +3349,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			if (workingDirectory) {
 				work.push(db.setMetadata(CopilotAgent._META_CWD, workingDirectory.toString()));
+			}
+			// Persist the ordered set alongside the legacy single cwd so a
+			// multi-root session restores every directory on reload. Reads prefer
+			// this key; `_META_CWD` remains the fallback for sessions persisted
+			// before this key existed. Written together with `_META_CWD` from the
+			// same source so index 0 stays consistent across both keys.
+			if (workingDirectories) {
+				work.push(db.setMetadata(CopilotAgent._META_CWDS, JSON.stringify(workingDirectories.map(d => d.toString()))));
 			}
 			if (customizationDirectory) {
 				work.push(db.setMetadata(CopilotAgent._META_CUSTOMIZATION_DIRECTORY, customizationDirectory.toString()));
@@ -3362,23 +3374,50 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _readSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI; workspaceless?: boolean }> {
+	/**
+	 * Parses the persisted ordered working-directory set. Prefers the JSON
+	 * `_META_CWDS` array when present and valid, otherwise falls back to the
+	 * single legacy `_META_CWD` value. A malformed blob (the metadata store is
+	 * client-influenced and may be corrupt) is ignored in favour of the legacy
+	 * fallback so it can never reject the caller.
+	 */
+	private _parseWorkingDirectories(rawSet: string | undefined, fallback: URI | undefined): readonly URI[] | undefined {
+		if (rawSet) {
+			try {
+				const parsed = JSON.parse(rawSet);
+				if (Array.isArray(parsed)) {
+					const dirs = parsed.filter((d): d is string => typeof d === 'string' && d.length > 0).map(d => URI.parse(d));
+					if (dirs.length > 0) {
+						return dirs;
+					}
+				}
+			} catch {
+				// Malformed metadata blob: fall through to the legacy fallback.
+			}
+		}
+		return fallback ? [fallback] : undefined;
+	}
+
+	private async _readSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; workingDirectories?: readonly URI[]; customizationDirectory?: URI; workspaceless?: boolean }> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
 			return {};
 		}
 		try {
-			const [model, agent, cwd, customizationDirectory, workspaceless] = await Promise.all([
+			const [model, agent, cwd, cwds, customizationDirectory, workspaceless] = await Promise.all([
 				ref.object.getMetadata(CopilotAgent._META_MODEL),
 				ref.object.getMetadata(CopilotAgent._META_AGENT),
 				ref.object.getMetadata(CopilotAgent._META_CWD),
+				ref.object.getMetadata(CopilotAgent._META_CWDS),
 				ref.object.getMetadata(CopilotAgent._META_CUSTOMIZATION_DIRECTORY),
 				ref.object.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
 			]);
+			const workingDirectory = cwd ? URI.parse(cwd) : undefined;
 			return {
 				model: this._parseModelSelection(model),
 				agent: this._parseAgentSelection(agent),
-				workingDirectory: cwd ? URI.parse(cwd) : undefined,
+				workingDirectory,
+				workingDirectories: this._parseWorkingDirectories(cwds, workingDirectory),
 				customizationDirectory: customizationDirectory ? URI.parse(customizationDirectory) : undefined,
 				workspaceless: workspaceless === 'true',
 			};
@@ -3387,16 +3426,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _readStoredSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; resolved: boolean; workspaceless?: boolean } | undefined> {
+	private async _readStoredSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; workingDirectories?: readonly URI[]; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; resolved: boolean; workspaceless?: boolean } | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
 			return undefined;
 		}
 		try {
-			const [model, agent, cwd, customizationDirectory, resolved, uri, displayName, workspaceless] = await Promise.all([
+			const [model, agent, cwd, cwds, customizationDirectory, resolved, uri, displayName, workspaceless] = await Promise.all([
 				ref.object.getMetadata(CopilotAgent._META_MODEL),
 				ref.object.getMetadata(CopilotAgent._META_AGENT),
 				ref.object.getMetadata(CopilotAgent._META_CWD),
+				ref.object.getMetadata(CopilotAgent._META_CWDS),
 				ref.object.getMetadata(CopilotAgent._META_CUSTOMIZATION_DIRECTORY),
 				ref.object.getMetadata(CopilotAgent._META_PROJECT_RESOLVED),
 				ref.object.getMetadata(CopilotAgent._META_PROJECT_URI),
@@ -3409,6 +3449,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				model: this._parseModelSelection(model),
 				agent: this._parseAgentSelection(agent),
 				workingDirectory,
+				workingDirectories: this._parseWorkingDirectories(cwds, workingDirectory),
 				customizationDirectory: customizationDirectory ? URI.parse(customizationDirectory) : undefined,
 				project,
 				resolved: resolved === 'true' || project !== undefined,
@@ -3438,7 +3479,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _storeSessionProjectResolution(session: URI, project: IAgentSessionProjectInfo | undefined): Promise<void> {
-		await this._storeSessionMetadata(session, undefined, undefined, undefined, project, true);
+		await this._storeSessionMetadata(session, undefined, undefined, undefined, undefined, project, true);
 	}
 
 	private _resolveSessionProject(context: ICopilotSessionContext | undefined, limiter: Limiter<IAgentSessionProjectInfo | undefined>, projectByContext: Map<string, Promise<IAgentSessionProjectInfo | undefined>>): Promise<IAgentSessionProjectInfo | undefined> {
