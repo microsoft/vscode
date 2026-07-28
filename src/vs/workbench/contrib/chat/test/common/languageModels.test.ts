@@ -1438,8 +1438,8 @@ suite('LanguageModels - Provider Group Management', function () {
 		}]);
 	});
 
-	test('updateLanguageModelsProviderGroupApiKey stores the new secret and preserves model settings', async function () {
-		acceptedInputValues.push('new-api-key');
+	test('updateLanguageModelsProviderGroupApiKey trims whitespace from the new secret and preserves model settings', async function () {
+		acceptedInputValues.push('new-api-key\r\n');
 		await secretStorageService.set('existing-secret', 'old-api-key');
 
 		await languageModelsService.updateLanguageModelsProviderGroupApiKey('custom-vendor', 'Custom Group');
