@@ -1259,7 +1259,10 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'extension-management' | 'extension-permission-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
-	/** Host-only flag requiring the client to show a confirmation instead of applying host auto-approval. */
+	/**
+	 * Host-only flag requiring the client to show a confirmation instead of applying host auto-approval.
+	 * The runtime currently sets it for managed Shell, Read, Edit, and Domain selector asks.
+	 */
 	readonly managedApprovalRequired?: boolean;
 	/**
 	 * Host-only flag (not part of the dispatched action): the model requested
