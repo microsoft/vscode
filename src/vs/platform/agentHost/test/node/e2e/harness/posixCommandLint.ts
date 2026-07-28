@@ -19,10 +19,10 @@
  * puts the failure on the author's own machine, while they still have the
  * context to fix it, instead of on a CI leg they may not run.
  *
- * Deliberately a blocklist of constructs known not to work under `cmd` /
- * PowerShell rather than an allowlist of portable ones: the goal is to catch the
- * commands models actually reach for, without failing a recording for an
- * unfamiliar-but-fine command.
+ * Deliberately a blocklist of constructs known not to replay reliably in the
+ * suite's Windows shells rather than an allowlist of portable ones: the goal is
+ * to catch the commands models actually reach for, without failing a recording
+ * for an unfamiliar-but-fine command.
  */
 
 /** A shell command found in a recorded fixture, with where it came from. */
@@ -43,17 +43,22 @@ interface IPosixPattern {
 }
 
 /**
- * Constructs that do not run under `cmd`. Each is anchored to a command
- * position — the start of the string, or after a `|`, `&&`, `||` or `;` — so
- * that an argument or file name that merely contains the word does not trip it
- * (`node -e "readdirSync('.')"` must not match `rm`).
+ * `pwd` is deliberately absent: PowerShell defines it as an alias for
+ * `Get-Location`, and the host-managed terminal uses PowerShell on Windows. The
+ * lint target is fixture portability across the suite's effective Windows
+ * shells, not `cmd` syntax specifically.
+ *
+ * Each pattern is anchored to a command position — the start of the string, or
+ * after a `|`, `&&`, `||` or `;` — so that an argument or file name that merely
+ * contains the word does not trip it (`node -e "readdirSync('.')"` must not
+ * match `rm`).
  */
 const COMMAND_POSITION = String.raw`(?:^|[|;]|&&|\|\|)\s*`;
 
 const POSIX_PATTERNS: readonly IPosixPattern[] = [
 	{
-		pattern: new RegExp(`${COMMAND_POSITION}(?:ls|cat|rm|mv|cp|touch|wc|head|tail|grep|sed|awk|find|xxd|printf|pwd|chmod|chown|du|df|which|basename|dirname|mkdir|rmdir|ln|tee|sort|uniq|cut|tr|test|\\[|export|unset|source|\\.)\\b`),
-		reason: 'uses a POSIX coreutil or shell builtin that cmd does not provide',
+		pattern: new RegExp(`${COMMAND_POSITION}(?:ls|cat|rm|mv|cp|touch|wc|head|tail|grep|sed|awk|find|xxd|printf|chmod|chown|du|df|which|basename|dirname|mkdir|rmdir|ln|tee|sort|uniq|cut|tr|test|\\[|export|unset|source|\\.)\\b`),
+		reason: 'uses a POSIX coreutil or shell builtin that is not portable to Windows shells',
 	},
 	{
 		pattern: /(?:^|\s)2>(?:&1|\s*\/dev\/null)/,

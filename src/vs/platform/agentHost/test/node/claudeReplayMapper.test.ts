@@ -25,6 +25,7 @@ suite('claudeReplayMapper', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { role: 'user', content: [{ type: 'text', text }] },
 			timestamp,
 		};
@@ -36,6 +37,7 @@ suite('claudeReplayMapper', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { id: `msg_${uuid}`, role: 'assistant', content: [{ type: 'text', text }] },
 			timestamp,
 		};
@@ -47,6 +49,7 @@ suite('claudeReplayMapper', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: {
 				id: `msg_${uuid}`,
 				role: 'assistant',
@@ -62,6 +65,7 @@ suite('claudeReplayMapper', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: {
 				role: 'user',
 				content: [{ type: 'tool_result', tool_use_id: toolUseId, content: text, ...(isError ? { is_error: true } : {}) }],
@@ -76,6 +80,7 @@ suite('claudeReplayMapper', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { subtype, ...(text !== undefined ? { text } : {}) },
 		};
 	}
@@ -299,6 +304,7 @@ suite('claudeReplayMapper', () => {
 				uuid: 'echo-1',
 				session_id: 'sess-1',
 				parent_tool_use_id: null,
+				parent_agent_id: null,
 				message: { role: 'user', content: '<command-name>/model</command-name>\n            <command-message>model</command-message>\n            <command-args>claude-opus-4.7</command-args>' },
 			},
 			{
@@ -306,6 +312,7 @@ suite('claudeReplayMapper', () => {
 				uuid: 'echo-2',
 				session_id: 'sess-1',
 				parent_tool_use_id: null,
+				parent_agent_id: null,
 				message: { role: 'user', content: '<local-command-stdout>Set model to claude-opus-4.7</local-command-stdout>' },
 			},
 			makeUser('u2', 'how about now'),
@@ -331,19 +338,19 @@ suite('claudeReplayMapper', () => {
 		const parent = 'toolu_parent';
 		const messages: SessionMessage[] = [
 			{
-				type: 'assistant', uuid: 'sa1', session_id: 'sess-1', parent_tool_use_id: parent,
+				type: 'assistant', uuid: 'sa1', session_id: 'sess-1', parent_tool_use_id: parent, parent_agent_id: null,
 				message: { id: 'msg_sa1', role: 'assistant', content: [{ type: 'thinking', thinking: 'planning', signature: 'sig' }] },
 			},
 			{
-				type: 'assistant', uuid: 'sa2', session_id: 'sess-1', parent_tool_use_id: parent,
+				type: 'assistant', uuid: 'sa2', session_id: 'sess-1', parent_tool_use_id: parent, parent_agent_id: null,
 				message: { id: 'msg_sa2', role: 'assistant', content: [{ type: 'tool_use', id: 'tu_inner', name: 'Bash', input: { command: 'ls' } }] },
 			},
 			{
-				type: 'user', uuid: 'sa3', session_id: 'sess-1', parent_tool_use_id: parent,
+				type: 'user', uuid: 'sa3', session_id: 'sess-1', parent_tool_use_id: parent, parent_agent_id: null,
 				message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu_inner', content: 'file-a.txt\nfile-b.txt' }] },
 			},
 			{
-				type: 'assistant', uuid: 'sa4', session_id: 'sess-1', parent_tool_use_id: parent,
+				type: 'assistant', uuid: 'sa4', session_id: 'sess-1', parent_tool_use_id: parent, parent_agent_id: null,
 				message: { id: 'msg_sa4', role: 'assistant', content: [{ type: 'text', text: 'Done. SUBAGENT_ONLY_MARKER_xyz' }] },
 			},
 		];
@@ -410,6 +417,7 @@ suite('resolveForkAnchorUuid', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { role: 'user', content: [{ type: 'text', text }] },
 		};
 	}
@@ -420,6 +428,7 @@ suite('resolveForkAnchorUuid', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { id: `msg_${uuid}`, role: 'assistant', content: [{ type: 'text', text }] },
 		};
 	}
@@ -430,6 +439,7 @@ suite('resolveForkAnchorUuid', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { id: `msg_${uuid}`, role: 'assistant', content: [{ type: 'tool_use', id: toolUseId, name, input }] },
 		};
 	}
@@ -440,6 +450,7 @@ suite('resolveForkAnchorUuid', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content: text }] },
 		};
 	}
@@ -450,6 +461,7 @@ suite('resolveForkAnchorUuid', () => {
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
+			parent_agent_id: null,
 			message: { subtype, ...(text !== undefined ? { text } : {}) },
 		};
 	}
@@ -548,6 +560,7 @@ suite('resolveForkAnchorUuid', () => {
 				uuid: 'echo-1',
 				session_id: 'sess-1',
 				parent_tool_use_id: null,
+				parent_agent_id: null,
 				message: { role: 'user', content: '<command-name>/model</command-name>' },
 			},
 			makeAssistantText('a1', 'opus'),
