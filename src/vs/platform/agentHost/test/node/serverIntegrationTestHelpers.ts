@@ -123,6 +123,12 @@ export class TestProtocolClient {
 	private readonly _notifWaiters: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void; dispose: () => void }[] = [];
 	private _nextWatchId = 1;
 	private _closed = false;
+	/**
+	 * Reverse requests this client has served, in arrival order. Lets a test
+	 * assert that the host actually reached back to the client for filesystem
+	 * access rather than resolving a path locally.
+	 */
+	private readonly _servedReverseRequests: { method: ReverseRequestMethod; uri: string }[] = [];
 
 	constructor(
 		port: number,
@@ -179,6 +185,8 @@ export class TestProtocolClient {
 			if (!this._isReverseRequestMethod(msg.method)) {
 				throw new Error(`Unsupported reverse request method: ${msg.method}`);
 			}
+			const uri = (msg.params as { uri?: string; source?: string } | undefined);
+			this._servedReverseRequests.push({ method: msg.method, uri: uri?.uri ?? uri?.source ?? '' });
 			const result = await this._handleServerRequestMethod(msg.method, msg.params as ReverseRequestParamsByMethod[ReverseRequestMethod]);
 			const response: JsonRpcSuccessResponse = { jsonrpc: '2.0', id: msg.id, result };
 			this._ahpSnapshot.record('c2s', response);
@@ -552,6 +560,12 @@ export class TestProtocolClient {
 
 	clearReceived(): void {
 		this._notifications.length = 0;
+		this._servedReverseRequests.length = 0;
+	}
+
+	/** Reverse requests the host has sent to this client, in arrival order. */
+	get servedReverseRequests(): readonly { method: ReverseRequestMethod; uri: string }[] {
+		return this._servedReverseRequests;
 	}
 
 	clearAhpSnapshot(): void {
