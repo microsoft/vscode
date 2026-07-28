@@ -32,14 +32,14 @@ import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackSer
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, VoiceNarrationKind } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 
 class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private narrationCounter = 0;
-	readonly requests: { sessionId: string; kind: 'response' | 'confirmation'; text: string; narrationId: string }[] = [];
+	readonly requests: { sessionId: string; kind: VoiceNarrationKind; text: string; narrationId: string; pendingId?: string }[] = [];
 	private readonly audioResponseEmitter = new Emitter<IVoiceAudioResponse>();
 	override readonly onAudioResponse = this.audioResponseEmitter.event;
 	private readonly bargeInEmitter = new Emitter<IVoiceBargeIn>();
@@ -73,9 +73,9 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.toolResultResolver?.();
 	}
 
-	override requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined {
+	override requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, pending?: { pendingId: string }): string | undefined {
 		const id = narrationId ?? `narration-${++this.narrationCounter}`;
-		this.requests.push({ sessionId: codingSessionId, kind, text, narrationId: id });
+		this.requests.push({ sessionId: codingSessionId, kind, text, narrationId: id, ...(pending ? { pendingId: pending.pendingId } : {}) });
 		return id;
 	}
 

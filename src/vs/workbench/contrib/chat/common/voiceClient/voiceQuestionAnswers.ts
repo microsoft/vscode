@@ -56,7 +56,8 @@ export function resolveQuestionAnswers(
 			continue;
 		}
 
-		if (freeform !== undefined && !question.allowFreeformInput) {
+		// Omitted means allowed, matching the widget and the pending payload.
+		if (freeform !== undefined && question.allowFreeformInput === false) {
 			return undefined;
 		}
 

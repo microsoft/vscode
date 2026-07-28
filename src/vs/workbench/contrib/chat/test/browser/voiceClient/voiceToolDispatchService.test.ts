@@ -9,11 +9,9 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
-import { IChatWidgetService } from '../../../browser/chat.js';
 import { VoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
-import { ElicitationState, IChatQuestionAnswers, IChatService } from '../../../common/chatService/chatService.js';
+import { IChatQuestionAnswers, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
-import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { derivePendingId, IVoiceToolCall } from '../../../common/voiceClient/voiceClientService.js';
@@ -45,7 +43,6 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 			agentSessionsService,
 			chatService,
 			new class extends mock<ILanguageModelToolsService>() { },
-			new class extends mock<IChatWidgetService>() { },
 		);
 	}
 
@@ -152,62 +149,37 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 		assert.deepStrictEqual(part.data, { region: { selectedValue: 'westus' } });
 	});
 
-	// An elicitation's handler decides the outcome, so "I asked to accept" and
-	// "it accepted" are different facts. Reporting the first is how the assistant
-	// ends up saying "Okay, approved" for something the agent declined.
+	test('refuses an unresolvable carousel without marking it answered', async () => {
+		// A plain carousel with no deferred completion and no resolve id has
+		// nowhere to put an answer. Mutating it first would leave the form
+		// answered on screen while the assistant reports that it did not land.
+		const part = {
+			kind: 'questionCarousel',
+			questions: [{ id: 'region', type: 'singleSelect', title: 'Region', options: [{ id: 'west', label: 'West US', value: 'westus' }] }],
+			isUsed: false,
+			data: undefined as IChatQuestionAnswers | undefined,
+		};
 
-	test('reports success when the accept actually took', async () => {
-		const part = new ChatElicitationRequestPart('t', 'm', '', 'Ok', 'No',
-			async () => ElicitationState.Accepted,
-			async () => ElicitationState.Rejected);
+		const result = await serviceFor(part).respondToSession(
+			answerCall(part, { type: 'answer', answers: [{ question_id: 'region', value: 'westus' }] }));
 
-		const result = await serviceFor(part).respondToSession(approvalCall(part, 'approve'));
-
-		assert.strictEqual(result.ok, true);
-	});
-
-	test('reports failure when accepting settled as a decline', async () => {
-		// Opening an authorization URL can fail, which settles the request as
-		// Rejected even though the user asked to approve it.
-		const part = new ChatElicitationRequestPart('t', 'm', '', 'Ok', 'No',
-			async () => ElicitationState.Rejected,
-			async () => ElicitationState.Rejected);
-
-		const result = await serviceFor(part).respondToSession(approvalCall(part, 'approve'));
-
-		assert.strictEqual(result.ok, false);
-	});
-
-	test('reports success when the reject actually took', async () => {
-		const part = new ChatElicitationRequestPart('t', 'm', '', 'Ok', 'No',
-			async () => ElicitationState.Accepted,
-			async () => ElicitationState.Rejected);
-
-		const result = await serviceFor(part).respondToSession(approvalCall(part, 'reject'));
-
-		assert.strictEqual(result.ok, true);
+		assert.deepStrictEqual(result, { ok: false, reason: 'unsupported' });
+		assert.strictEqual(part.isUsed, false);
+		assert.strictEqual(part.data, undefined);
 	});
 
 	test('refuses an id minted for a part that has since been replaced', async () => {
 		// A pending id is an identity, not a position. `Response.clear` and
-		// `clearToPreviousToolInvocation` splice the part list, so a position
-		// the backend was told about can end up occupied by a different
-		// request -- and approving *that* is approving something the user was
-		// never shown. This is the case a positional id gets wrong.
-		const published = new ChatElicitationRequestPart('t', 'm', '', 'Ok', 'No',
-			async () => ElicitationState.Accepted);
-		const call = approvalCall(published, 'approve');
-
-		let replacementWasAccepted = false;
-		const replacement = new ChatElicitationRequestPart('t2', 'm2', '', 'Ok', 'No',
-			async () => {
-				replacementWasAccepted = true;
-				return ElicitationState.Accepted;
-			});
+		// `clearToPreviousToolInvocation` splice the part list, so a position the
+		// backend was told about can end up occupied by a different form, and
+		// answering *that* answers something the user was never shown.
+		const published = carousel();
+		const call = answerCall(published, { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }] });
+		const replacement = carousel();
 
 		const result = await serviceFor(replacement).respondToSession(call);
 
 		assert.deepStrictEqual(result, { ok: false, reason: 'stale_pending' });
-		assert.strictEqual(replacementWasAccepted, false);
+		assert.strictEqual(replacement.isUsed, undefined);
 	});
 });

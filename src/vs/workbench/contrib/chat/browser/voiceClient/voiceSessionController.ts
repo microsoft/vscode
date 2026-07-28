@@ -28,7 +28,7 @@ import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js'
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { toAgentHostBackendSessionUri } from '../agentSessions/agentHost/agentHostSessionUri.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference, IChatQuestionCarousel, IChatConfirmation, IChatElicitationRequest, ElicitationState } from '../../common/chatService/chatService.js';
+import { IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference, IChatQuestionCarousel } from '../../common/chatService/chatService.js';
 import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { formatQuestionPrompt } from '../../common/voiceClient/voicePendingNarration.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
@@ -5559,13 +5559,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/**
 	 * Describe what a session is waiting on, structurally.
 	 *
-	 * `_getAgentStateInfo` flattens the same state into one human-readable
-	 * string for the legacy `agent_state_detail` field. That string is fine to
-	 * *say* but cannot be *acted on*: a question form becomes
-	 * `questions: <titles>`, losing the options, their values and the ids, which
-	 * is why a spoken answer to a form used to have nowhere to land. This returns
-	 * what the backend needs to resolve an answer and route it back to the exact
-	 * part that raised it.
+	 * `_getAgentStateInfo` flattens the same state into `agent_state_detail`,
+	 * which is fine to *say* but cannot be *acted on*: a form becomes
+	 * `questions: <titles>`, losing the options, their values and the ids. This
+	 * returns what the backend needs to route an answer back to the exact part.
 	 *
 	 * Scans newest-first and returns the first still-open part, so an
 	 * already-answered earlier form can't shadow the live one. Plan review is
@@ -5601,7 +5598,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						// The same text the widget shows, so voice reads the question
 						// rather than its header.
 						title: this._plainText(getDisplayedQuestionText(question)),
-						required: question.required === true,
 						allow_freeform: question.allowFreeformInput !== false,
 						// The ordinal the user hears has to be the one they see, so
 						// it comes from the same ordering the widget renders from.
@@ -5611,32 +5607,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							value: option.value,
 						})),
 					})),
-				};
-			}
-
-			if (part.kind === 'elicitation2') {
-				const elicitation = part as IChatElicitationRequest;
-				if (elicitation.state.get() !== ElicitationState.Pending) {
-					continue;
-				}
-				return {
-					type: 'elicitation',
-					...routing(),
-					title: this._plainText(elicitation.title),
-					message: this._plainText(elicitation.message),
-				};
-			}
-
-			if (part.kind === 'confirmation') {
-				const confirmation = part as IChatConfirmation;
-				if (confirmation.isUsed) {
-					continue;
-				}
-				return {
-					type: 'approval',
-					...routing(),
-					title: confirmation.title,
-					message: this._plainText(confirmation.message),
 				};
 			}
 

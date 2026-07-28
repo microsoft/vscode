@@ -25,7 +25,6 @@ export interface IVoicePendingQuestion {
 	id: string;
 	type: 'text' | 'singleSelect' | 'multiSelect';
 	title: string;
-	required: boolean;
 	allow_freeform: boolean;
 	options: IVoicePendingOption[];
 }
@@ -42,7 +41,7 @@ export interface IVoicePendingQuestion {
  * Field names are snake_case because this crosses the voice websocket verbatim.
  */
 export interface IVoiceSessionPending {
-	type: 'questions' | 'approval' | 'elicitation';
+	type: 'questions' | 'approval';
 	pending_id: string;
 	request_id: string;
 	allow_skip?: boolean;

@@ -37,6 +37,17 @@ suite('VoiceQuestionAnswers', () => {
 	const text: IChatQuestion = { id: 'q_text', type: 'text', title: 'Anything else?' };
 
 	suite('resolveQuestionAnswers', () => {
+		test('accepts freeform when the question omits allowFreeformInput', () => {
+			// The widget and the pending payload both read an omitted flag as
+			// enabled, so rejecting here would refuse an answer the user was
+			// invited to give.
+			const { allowFreeformInput, ...omitted } = multi;
+			assert.deepStrictEqual(
+				resolveQuestionAnswers([omitted], [{ question_id: 'q_multi', values: ['auth'], freeform: 'telemetry' }]),
+				{ q_multi: { selectedValues: ['auth'], freeformValue: 'telemetry' } },
+			);
+		});
+
 		test('maps an exact single-select value', () => {
 			assert.deepStrictEqual(
 				resolveQuestionAnswers([single], [{ question_id: 'q_single', value: 'eastus' }]),
@@ -116,7 +127,9 @@ suite('VoiceQuestionAnswers', () => {
 
 		test('rejects freeform on a question that forbids it', () => {
 			assert.strictEqual(
-				resolveQuestionAnswers([single], [{ question_id: 'q_single', freeform: 'Central US' }]),
+				resolveQuestionAnswers(
+					[{ ...single, allowFreeformInput: false }],
+					[{ question_id: 'q_single', freeform: 'Central US' }]),
 				undefined,
 			);
 		});

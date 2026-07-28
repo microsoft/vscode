@@ -21,7 +21,6 @@ suite('formatQuestionPrompt', () => {
 		id: 'q_single',
 		type: 'singleSelect',
 		title: 'Which region?',
-		required: true,
 		allow_freeform: false,
 		options: [
 			{ ordinal: 1, label: 'West US', value: 'westus' },
@@ -33,7 +32,6 @@ suite('formatQuestionPrompt', () => {
 		id: 'q_multi',
 		type: 'multiSelect',
 		title: 'Which features?',
-		required: false,
 		allow_freeform: true,
 		options: [
 			{ ordinal: 1, label: 'Auth', value: 'auth' },
@@ -46,7 +44,6 @@ suite('formatQuestionPrompt', () => {
 		id: 'q_text',
 		type: 'text',
 		title: 'Anything else?',
-		required: false,
 		allow_freeform: true,
 		options: [],
 	};

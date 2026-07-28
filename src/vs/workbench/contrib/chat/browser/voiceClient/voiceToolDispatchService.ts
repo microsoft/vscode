@@ -10,15 +10,14 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus, getAgentChangesSummary } from '../agentSessions/agentSessionsModel.js';
-import { ChatSendResult, ElicitationState, IChatConfirmation, IChatElicitationRequest, IChatQuestionAnswers, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { IChatQuestionAnswers, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { IBackendQuestionAnswer, resolveQuestionAnswers } from '../../common/voiceClient/voiceQuestionAnswers.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
-import { IChatModel, IChatRequestModel } from '../../common/model/chatModel.js';
+import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IVoiceDispatchResult, IVoiceToolCall, peekPendingId } from '../../common/voiceClient/voiceClientService.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { IChatWidgetService } from '../chat.js';
 
 /**
  * Callbacks that require access to the chat widget or view state.
@@ -91,7 +90,6 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatService private readonly chatService: IChatService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) { }
 
 	setDelegate(delegate: IVoiceToolDispatchDelegate): void {
@@ -235,13 +233,11 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 	/**
 	 * Apply a backend-resolved response to the exact pending part it names.
 	 *
-	 * Routing is by `pending_id` + `request_id` with no fallback. The path this
-	 * replaces fell back to "whatever session is focused" when it could not
-	 * resolve the target, which meant a spoken "yes" could approve a prompt the
-	 * user was not looking at. An answer that cannot find its form is reported
-	 * as stale instead, and the user hears that it did not land.
-	 *
-	 * Answer values are matched exactly; see `resolveQuestionAnswers`.
+	 * Routing is by `pending_id` + `request_id` with no fallback: the path this
+	 * replaces fell back to the focused session, so a spoken "yes" could approve
+	 * a prompt the user was not looking at. A response that cannot find its part
+	 * is reported as stale instead. Answer values are matched exactly; see
+	 * `resolveQuestionAnswers`.
 	 */
 	async respondToSession(toolCall: IVoiceToolCall): Promise<IVoiceDispatchResult> {
 		const args = toolCall.args;
@@ -314,34 +310,6 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 				approve ? { type: ToolConfirmKind.UserAction } : { type: ToolConfirmKind.Denied },
 			);
 			return confirmed ? { ok: true } : { ok: false, reason: 'stale_pending' };
-		}
-
-		if (part.kind === 'elicitation2') {
-			const elicitation = part as IChatElicitationRequest;
-			if (elicitation.state.get() !== ElicitationState.Pending) {
-				return { ok: false, reason: 'stale_pending' };
-			}
-			if (!approve && !elicitation.reject) {
-				return { ok: false, reason: 'unsupported' };
-			}
-			if (approve) {
-				await elicitation.accept(true);
-			} else {
-				await elicitation.reject!();
-			}
-			// The handler decides the outcome, not the caller: an authorization
-			// elicitation opens a URL and settles as Rejected when that fails, and
-			// the part stays Pending for the length of the await, so a click can
-			// still win. Reporting what we asked for rather than what happened is
-			// exactly how the assistant ends up saying "Okay, approved" for
-			// something the agent received as a decline.
-			const settled = elicitation.state.get();
-			const wanted = approve ? ElicitationState.Accepted : ElicitationState.Rejected;
-			return settled === wanted ? { ok: true } : { ok: false };
-		}
-
-		if (part.kind === 'confirmation') {
-			return this._answerConfirmation(model, request, part as IChatConfirmation, approve);
 		}
 
 		return { ok: false, reason: 'unsupported' };
@@ -418,6 +386,12 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		} else if (!skip) {
 			return { ok: false, reason: 'invalid_answer' };
 		}
+		// Checked before mutating: a form with neither a deferred completion nor
+		// an id to notify cannot be resolved, and marking it used would leave it
+		// answered on screen while the assistant reports that it did not land.
+		if (!(carousel instanceof ChatQuestionCarouselData) && !carousel.resolveId) {
+			return { ok: false, reason: 'unsupported' };
+		}
 		// `dismiss` also completes the deferred promise an agent-hosted carousel
 		// is blocked on; marking it used without that leaves the agent waiting.
 		if (carousel instanceof ChatQuestionCarouselData) {
@@ -428,70 +402,10 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		}
 		if (carousel.resolveId) {
 			this.chatService.notifyQuestionCarouselAnswer(requestId, carousel.resolveId, answers);
-		} else if (!(carousel instanceof ChatQuestionCarouselData)) {
-			// Nothing was actually resolved: no deferred completion and no id to
-			// notify. Reporting success here would have the assistant claim an
-			// answer landed when the form is still on screen.
-			return { ok: false, reason: 'unsupported' };
 		}
 		return { ok: true };
 	}
 
-	/**
-	 * Accept or dismiss a confirmation part.
-	 *
-	 * A confirmation is resolved by sending a follow-up request carrying its
-	 * data, not by mutating the part, so this mirrors the widget's button handler
-	 * in `chatConfirmationContentPart`, including its model, mode, location and
-	 * tool selection, which are properties of the session the user is looking at
-	 * rather than of the voice channel. Answering a confirmation raised in Plan
-	 * or Ask mode by silently continuing in Agent mode would grant the follow-up
-	 * turn permissions the user never chose. When the session has no open widget
-	 * there is no selection to mirror, and the service's own agent-mode options
-	 * are the fallback.
-	 *
-	 * `isUsed` is set before the send rather than after so a second response
-	 * (another voice turn, or a widget click landing mid-flight) cannot submit a
-	 * contradictory answer to the same confirmation. It is restored if the send
-	 * does not go through.
-	 */
-	private async _answerConfirmation(
-		model: IChatModel,
-		request: IChatRequestModel,
-		confirmation: IChatConfirmation,
-		approve: boolean,
-	): Promise<IVoiceDispatchResult> {
-		if (confirmation.isUsed) {
-			return { ok: false, reason: 'stale_pending' };
-		}
-		const buttons = confirmation.buttons;
-		const label = approve
-			? (buttons?.[0] ?? localize('agentsVoice.confirmation.accept', "Accept"))
-			: (buttons?.[1] ?? localize('agentsVoice.confirmation.dismiss', "Dismiss"));
-		const widget = this.chatWidgetService.getWidgetBySessionResource(model.sessionResource);
-		const options: IChatSendRequestOptions = {
-			...(widget ? {} : this._agentModeOptions),
-			...(approve
-				? { acceptedConfirmationData: [confirmation.data] }
-				: { rejectedConfirmationData: [confirmation.data] }),
-			confirmation: label,
-			agentId: request.response?.agent?.id,
-			slashCommand: request.response?.slashCommand?.name,
-		};
-		if (widget) {
-			Object.assign(options, widget.getSelectedModelRequestOptions());
-			options.modeInfo = widget.input.currentModeInfo;
-			options.location = widget.location;
-			Object.assign(options, widget.getModeRequestOptions());
-		}
-		confirmation.isUsed = true;
-		const result = await this.chatService.sendRequest(model.sessionResource, `${label}: "${confirmation.title}"`, options);
-		if (!ChatSendResult.isSent(result)) {
-			confirmation.isUsed = false;
-			return { ok: false, reason: 'stale_pending' };
-		}
-		return { ok: true };
-	}
 
 	private async _gatherSessionInfo(): Promise<string> {
 		const allSessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());

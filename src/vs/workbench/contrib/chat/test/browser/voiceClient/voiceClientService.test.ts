@@ -264,6 +264,30 @@ suite('VoiceClientService', () => {
 		]);
 	});
 
+	test('serializes the pending id on a question narration', async () => {
+		const { service } = createService();
+
+		await service.connect(createTestWindow());
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+		const questionId = service.requestNarration('cs1', 'question', 'Which region?', undefined, { pendingId: 'p1' });
+		const replyId = service.requestNarration('cs1', 'response', 'Done.');
+
+		assert.deepStrictEqual(socket().sent.filter(message => message.type === 'request_narration'), [
+			{ type: 'request_narration', coding_session_id: 'cs1', kind: 'question', text: 'Which region?', narration_id: questionId, pending_id: 'p1' },
+			{ type: 'request_narration', coding_session_id: 'cs1', kind: 'response', text: 'Done.', narration_id: replyId },
+		]);
+	});
+
+	test('drops a narration requested before the session starts', async () => {
+		const { service } = createService();
+
+		await service.connect(createTestWindow());
+		const narrationId = service.requestNarration('cs1', 'question', 'Which region?', undefined, { pendingId: 'p1' });
+
+		assert.strictEqual(narrationId, undefined);
+		assert.deepStrictEqual(socket().sent.filter(message => message.type === 'request_narration'), []);
+	});
+
 	test('serializes configured language in start_session context', async () => {
 		const { service } = createService({
 			'agents.voice.language': 'fr-fr',
