@@ -84,31 +84,19 @@ pub fn read_agent_host_metadata(path: &Path) -> io::Result<Option<AgentHostMetad
 }
 
 pub fn write_agent_host_metadata(path: &Path, metadata: &AgentHostMetadata) -> io::Result<()> {
-	#[cfg(not(windows))]
-	use std::os::unix::fs::PermissionsExt;
-
 	let parent = path.parent().unwrap_or_else(|| Path::new("."));
 	fs::create_dir_all(parent)?;
-	#[cfg(not(windows))]
-	fs::set_permissions(parent, fs::Permissions::from_mode(0o700))?;
-	#[cfg(windows)]
 	crate::util::file_permissions::restrict_to_owner(parent)?;
 
 	let mut temp = tempfile::NamedTempFile::new_in(parent)?;
-	#[cfg(not(windows))]
-	temp.as_file()
-		.set_permissions(fs::Permissions::from_mode(0o600))?;
 	// Restrict before the contents are written, so the token is never briefly
 	// readable at the parent directory's permissions.
-	#[cfg(windows)]
 	crate::util::file_permissions::restrict_to_owner(temp.path())?;
 	temp.write_all(serde_json::to_string(metadata)?.as_bytes())?;
 	temp.flush()?;
 	temp.persist(path).map_err(|err| err.error)?;
-	#[cfg(not(windows))]
-	fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
-	// `persist` can land on an existing file and keep its ACL, so re-assert.
-	#[cfg(windows)]
+	// `persist` can land on an existing file and keep its permissions, so
+	// re-assert them.
 	crate::util::file_permissions::restrict_to_owner(path)?;
 	Ok(())
 }

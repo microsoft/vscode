@@ -15,13 +15,20 @@
 use std::io;
 use std::path::Path;
 
-/// Restrict `path` so that only its owner may read it.
+/// Restrict `path` so that only its owner may access it.
 ///
-/// On Unix this is a no-op: callers already create these files with mode
-/// `0600`, which is enforced at creation rather than applied afterwards.
+/// A directory keeps its owner execute bit so it stays traversable, and a file
+/// keeps one only if it already had it, so an installed binary stays runnable.
 #[cfg(not(windows))]
-pub fn restrict_to_owner(_path: &Path) -> io::Result<()> {
-	Ok(())
+pub fn restrict_to_owner(path: &Path) -> io::Result<()> {
+	use std::os::unix::fs::PermissionsExt;
+	let metadata = std::fs::metadata(path)?;
+	let mode = if metadata.is_dir() {
+		0o700
+	} else {
+		0o600 | (metadata.permissions().mode() & 0o100)
+	};
+	std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
 }
 
 /// Whether `path` is readable only by its owner.
@@ -404,5 +411,57 @@ mod tests {
 
 		restrict_to_owner(&path).unwrap();
 		assert!(is_restricted_to_owner(&path).unwrap());
+	}
+}
+
+#[cfg(all(test, not(windows)))]
+mod posix_tests {
+	use super::*;
+	use std::fs;
+	use std::os::unix::fs::PermissionsExt;
+
+	#[test]
+	fn tightens_a_group_and_world_readable_file() {
+		let dir = tempfile::tempdir().unwrap();
+		let path = dir.path().join("token");
+		fs::write(&path, "super-secret").unwrap();
+		fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+		assert!(!is_restricted_to_owner(&path).unwrap());
+
+		restrict_to_owner(&path).unwrap();
+
+		assert!(is_restricted_to_owner(&path).unwrap());
+		assert_eq!(fs::read_to_string(&path).unwrap(), "super-secret");
+	}
+
+	#[test]
+	fn keeps_a_directory_traversable_by_its_owner() {
+		let dir = tempfile::tempdir().unwrap();
+		let nested = dir.path().join("root");
+		fs::create_dir_all(&nested).unwrap();
+		fs::set_permissions(&nested, fs::Permissions::from_mode(0o755)).unwrap();
+
+		restrict_to_owner(&nested).unwrap();
+
+		assert!(is_restricted_to_owner(&nested).unwrap());
+		// Without the owner execute bit the directory could not be entered.
+		fs::write(nested.join("child"), "ok").unwrap();
+		assert_eq!(fs::read_to_string(nested.join("child")).unwrap(), "ok");
+	}
+
+	#[test]
+	fn preserves_an_executable_bit_it_found() {
+		let dir = tempfile::tempdir().unwrap();
+		let path = dir.path().join("code");
+		fs::write(&path, "#!/bin/sh\n").unwrap();
+		fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+
+		restrict_to_owner(&path).unwrap();
+
+		assert!(is_restricted_to_owner(&path).unwrap());
+		assert_eq!(
+			fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+			0o700
+		);
 	}
 }

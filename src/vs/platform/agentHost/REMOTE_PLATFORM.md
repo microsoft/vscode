@@ -635,7 +635,10 @@ than the `0600`/`0700` the POSIX path enforces.
   promise, and degrading silently is worse than refusing: the alternative is
   executing a binary any local account could have swapped.
   On POSIX the same boundary is stated rather than left to the ambient umask:
-  `chmod 700` on the install root and on the published binary.
+  `chmod 700` on the install root and on the published binary. The CLI applies the
+  same rule to its own metadata and token files: `restrict_to_owner` sets mode
+  `0600` on a file and `0700` on a directory instead of assuming how the caller
+  created it, so a file predating the boundary is repaired rather than trusted.
 - **Testing requires native Windows Rust tests.** `cargo test` runs only on Linux
   (`.github/workflows/pr-linux-cli-test.yml`). Focused ACL tests are added to a
   Windows CLI job, asserting inheritance is disabled and no broad ACEs are
