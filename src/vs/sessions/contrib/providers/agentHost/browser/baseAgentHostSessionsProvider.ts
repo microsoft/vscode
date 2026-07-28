@@ -655,8 +655,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const initialWorkspace = this._computeWorkspace();
 		this.workspace = observableValue('workspace', initialWorkspace);
 		this.isQuickChat = this._isQuickChat;
-		// A worktree-isolated session keeps reporting the checkout it was started
-		// from until the agent host creates and reports the worktree.
+		// Until the host reports the worktree, the workspace is still the checkout it was started from.
 		this.worktreePending = derived(this, reader =>
 			this._worktreeIsolation.read(reader)
 			&& !this.workspace.read(reader)?.folders.some(folder => !!folder.gitRepository?.workTreeUri));

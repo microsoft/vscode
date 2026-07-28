@@ -1254,6 +1254,9 @@ class SessionsAccessibilityProvider {
 		}
 		const title = element.title.get();
 		const updated = fromNow(element.updatedAt.get(), true);
+		if (element.worktreePending?.get()) {
+			return localize('sessionItemWorktreePendingAria', "{0}, creating worktree, updated {1}", title, updated);
+		}
 		return localize('sessionItemAria', "{0}, updated {1}", title, updated);
 	}
 }
