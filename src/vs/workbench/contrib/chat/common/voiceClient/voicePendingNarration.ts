@@ -24,7 +24,7 @@ export function formatQuestionPrompt(question: IVoicePendingQuestion, allowSkip:
 		parts.push(title);
 	}
 	if (question.options.length > 0) {
-		const choices = question.options.map(option => `${option.ordinal}, ${option.label}`).join('. ');
+		const choices = question.options.map((option, index) => `${index + 1}, ${option.label}`).join('. ');
 		parts.push(`Options: ${choices}.`);
 		// Only worth saying when there is something to say it *instead of*. A
 		// text question is freeform by definition, so the hint would be noise.

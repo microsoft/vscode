@@ -9,13 +9,11 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 /**
  * One selectable option on a pending question, positioned in *displayed* order.
  *
- * `ordinal` is what the user hears and says back ("the second one"), so it must
- * match the on-screen order; both sides derive it from
- * `getOptionsWithDefaultsFirst`. `value` is the opaque id the chat model wants
- * back and is never spoken.
+ * Position is what the user hears and says back ("the second one"), so the list
+ * is in `getOptionsWithDefaultsFirst` order and both sides number it by index.
+ * `value` is the opaque id the chat model wants back and is never spoken.
  */
 export interface IVoicePendingOption {
-	ordinal: number;
 	label: string;
 	value: string;
 }
@@ -45,7 +43,6 @@ export interface IVoiceSessionPending {
 	pending_id: string;
 	request_id: string;
 	allow_skip?: boolean;
-	title?: string;
 	message?: string;
 	questions?: IVoicePendingQuestion[];
 }

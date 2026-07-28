@@ -23,8 +23,8 @@ suite('formatQuestionPrompt', () => {
 		title: 'Which region?',
 		allow_freeform: false,
 		options: [
-			{ ordinal: 1, label: 'West US', value: 'westus' },
-			{ ordinal: 2, label: 'East US', value: 'eastus' },
+			{ label: 'West US', value: 'westus' },
+			{ label: 'East US', value: 'eastus' },
 		],
 	};
 
@@ -34,9 +34,9 @@ suite('formatQuestionPrompt', () => {
 		title: 'Which features?',
 		allow_freeform: true,
 		options: [
-			{ ordinal: 1, label: 'Auth', value: 'auth' },
-			{ ordinal: 2, label: 'Search', value: 'search' },
-			{ ordinal: 3, label: 'Billing', value: 'billing' },
+			{ label: 'Auth', value: 'auth' },
+			{ label: 'Search', value: 'search' },
+			{ label: 'Billing', value: 'billing' },
 		],
 	};
 
@@ -95,8 +95,8 @@ suite('formatQuestionPrompt', () => {
 				{
 					...single,
 					options: [
-						{ ordinal: 1, label: 'East US', value: 'eastus' },
-						{ ordinal: 2, label: 'West US', value: 'westus' },
+						{ label: 'East US', value: 'eastus' },
+						{ label: 'West US', value: 'westus' },
 					],
 				},
 				false,

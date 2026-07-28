@@ -32,7 +32,7 @@ import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackSer
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, VoiceNarrationKind } from '../../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, VoiceNarrationKind } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
@@ -226,6 +226,14 @@ class ControllableChatService extends mock<IChatService>() {
 	}
 }
 
+/** Minimal chat model whose last request carries one unanswered question form. */
+function questionCarouselModel(part: object, requestId = 'req-1'): IChatModel {
+	const lastRequest = { id: requestId, response: { response: { value: [part] } } };
+	return {
+		getRequests: () => [lastRequest],
+	} as unknown as IChatModel;
+}
+
 /**
  * Minimal chat model that the tracker reads as having one pending tool
  * confirmation on its last request.
@@ -355,6 +363,60 @@ suite('VoiceSessionController', () => {
 		// repopulate the snapshot from the still-pending old session.
 		chatService.setModels([pendingConfirmationModel(URI.parse('agent-host-copilot:/session-1'))]);
 		assert.strictEqual(controller.pendingToolConfirmations.get().length, 0);
+	});
+
+	test('publishes a question form as a structured pending payload', () => {
+		// The whole point of the typed payload: `agent_state_detail` can say a form
+		// is up, but only this carries the ids, values and displayed order a
+		// spoken answer needs to land on.
+		const controller = createController(new TestVoiceClientService());
+		const buildPendingPayload = Reflect.get(controller, '_buildPendingPayload') as (model: IChatModel) => unknown;
+		const part = {
+			kind: 'questionCarousel',
+			allowSkip: true,
+			questions: [{
+				id: 'region',
+				type: 'singleSelect',
+				title: 'Deploy settings',
+				message: 'Which region should this deploy to?',
+				defaultValue: 'east',
+				options: [
+					{ id: 'west', label: 'West US', value: 'westus' },
+					{ id: 'east', label: 'East US', value: 'eastus' },
+				],
+			}],
+		};
+
+		const payload = buildPendingPayload.call(controller, questionCarouselModel(part));
+
+		assert.deepStrictEqual(payload, {
+			type: 'questions',
+			pending_id: derivePendingId('req-1', part),
+			request_id: 'req-1',
+			allow_skip: true,
+			questions: [{
+				id: 'region',
+				type: 'singleSelect',
+				// The question the widget shows, not its header.
+				title: 'Which region should this deploy to?',
+				allow_freeform: true,
+				// Default first, matching what the widget renders and the user hears.
+				options: [
+					{ label: 'East US', value: 'eastus' },
+					{ label: 'West US', value: 'westus' },
+				],
+			}],
+		});
+	});
+
+	test('does not publish a question form that has already been answered', () => {
+		const controller = createController(new TestVoiceClientService());
+		const buildPendingPayload = Reflect.get(controller, '_buildPendingPayload') as (model: IChatModel) => unknown;
+		const questions = [{ id: 'region', type: 'singleSelect', title: 'Which region?', options: [{ id: 'west', label: 'West US', value: 'westus' }] }];
+
+		assert.strictEqual(buildPendingPayload.call(controller, questionCarouselModel({ kind: 'questionCarousel', isUsed: true, questions })), undefined);
+		assert.strictEqual(buildPendingPayload.call(controller, questionCarouselModel({ kind: 'questionCarousel', answeredExternally: true, questions })), undefined);
+		assert.strictEqual(buildPendingPayload.call(controller, questionCarouselModel({ kind: 'questionCarousel', questions: [] })), undefined);
 	});
 
 	test('fatal disconnect clears routing target and pending confirmations and the tracker cannot repopulate them before reconnect', () => {

@@ -595,7 +595,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * {@link _narrate}). Replayed once on the next `session_init` so a reply or
 	 * confirmation that landed during a disconnect is still spoken on reconnect.
 	 */
-	private readonly _pendingNarrationRetries = new Map<string, { kind: VoiceNarrationKind; text: string }>();
+	private readonly _pendingNarrationRetries = new Map<string, VoiceNarrationKind>();
 
 	/**
 	 * Replay a narration that could not be sent while the socket was down.
@@ -606,7 +606,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * something that is no longer on screen. This mirrors what
 	 * {@link _retryDeferredNarration} does for the busy path.
 	 */
-	private _replayPendingNarrationRetry(sessionId: string, queued: { kind: VoiceNarrationKind; text: string }): boolean {
+	private _replayPendingNarrationRetry(sessionId: string, queuedKind: VoiceNarrationKind): boolean {
 		let resource: URI | undefined;
 		try {
 			resource = URI.parse(sessionId);
@@ -614,7 +614,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			resource = undefined;
 		}
 		const narratable = resource ? this._currentNarratable(resource) : undefined;
-		if (!narratable || narratable.kind !== queued.kind) {
+		if (!narratable || narratable.kind !== queuedKind) {
 			this.logService.trace(`[voice] queued narration for ${sessionId.slice(-32)} no longer warranted after reconnect; dropping`);
 			return false;
 		}
@@ -1552,8 +1552,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (this._pendingNarrationRetries.size > 0) {
 				const retries = [...this._pendingNarrationRetries.entries()];
 				this._pendingNarrationRetries.clear();
-				for (const [sessionId, item] of retries) {
-					narrated = this._replayPendingNarrationRetry(sessionId, item) || narrated;
+				for (const [sessionId, kind] of retries) {
+					narrated = this._replayPendingNarrationRetry(sessionId, kind) || narrated;
 				}
 			}
 			// The `narration_unblocked` nudge was lost with the dropped socket, so
@@ -3493,7 +3493,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// state (that would tear down a freshly-entered listen on connect).
 			// Remember the item so the next session_init replays it after resume;
 			// leaving the dedup unset lets a later focus/state event retry too.
-			this._pendingNarrationRetries.set(sessionId, { kind, text });
+			this._pendingNarrationRetries.set(sessionId, kind);
 			return false;
 		}
 		// The narration audio is now inbound. Get out of listening/auto-listen so
@@ -5599,10 +5599,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						// rather than its header.
 						title: this._plainText(getDisplayedQuestionText(question)),
 						allow_freeform: question.allowFreeformInput !== false,
-						// The ordinal the user hears has to be the one they see, so
-						// it comes from the same ordering the widget renders from.
-						options: getOptionsWithDefaultsFirst(question).map(({ option }, ordinalIndex) => ({
-							ordinal: ordinalIndex + 1,
+						// The ordinal the user hears has to be the one they see, so the
+						// list is in the same order the widget renders, and both sides
+						// number it by position.
+						options: getOptionsWithDefaultsFirst(question).map(({ option }) => ({
 							label: option.label,
 							value: option.value,
 						})),
@@ -5615,12 +5615,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
 					continue;
 				}
-				const params = state.parameters as Record<string, unknown> | undefined;
-				const command = params?.['command'] ?? params?.['input'];
-				const explanation = params?.['explanation'] ?? params?.['goal'];
-				const message = typeof command === 'string' && command
-					? `command: ${command}${typeof explanation === 'string' && explanation ? `\nreason: ${explanation}` : ''}`
-					: this._plainText((part as { invocationMessage?: string | IMarkdownString }).invocationMessage);
+				const message = this._plainText((part as { invocationMessage?: string | IMarkdownString }).invocationMessage);
 				return {
 					type: 'approval',
 					...routing(),
