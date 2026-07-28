@@ -158,8 +158,7 @@ function createGroupedContext(options: IBuildModelPickerItemsOptions): IGroupedC
 		placed,
 		showGroupLabel: new Set(options.models.map(model => {
 			const group = getProviderGroupForModel(model, modelToGroup, options.languageModelsService);
-			// Key by visible section title so sources that share a label (e.g. Chat
-			// vendor `copilot` and agent-host `copilotcli` both → "Copilot") count as one.
+			// Same display name → same section (e.g. Copilot Chat + CLI).
 			return group.groupName;
 		})).size > 1,
 		makePinAction: model => options.actions.onTogglePin
@@ -330,8 +329,7 @@ function appendOtherModels(context: IGroupedContext): boolean {
 	const groups = new Map<string, IProviderGroupBucket>();
 	for (const model of otherModels) {
 		const info = getProviderGroupForModel(model, context.modelToGroup, options.languageModelsService);
-		// Bucket by display name so Chat (`copilot`) and agent-host CLI (`copilotcli` →
-		// "Copilot") share one Other Models section instead of duplicate headers (#327644).
+		// By display name — avoids duplicate "Copilot" headers (#327644).
 		const key = info.groupName;
 		const bucket = groups.get(key) ?? { vendor: info.vendor, groupName: info.groupName, models: [] };
 		if (info.vendor === 'copilot') {

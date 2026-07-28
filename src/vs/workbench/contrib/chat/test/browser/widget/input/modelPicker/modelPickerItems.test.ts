@@ -945,9 +945,6 @@ suite('buildModelPickerItems', () => {
 	});
 
 	test('Other Models merges Chat and agent-host CLI into one Copilot section (#327644)', () => {
-		// Chat models use vendor `copilot` (displayName "Copilot"). Agent-host CLI models
-		// use modelGroup `copilotcli`, which the picker also labels "Copilot". Bucketing by
-		// (vendor, groupName) produced two identical "Copilot" headers with different models.
 		const auto = createAutoModel();
 		const chatModel = createModel('gpt-4o', 'GPT-4o', 'copilot');
 		const cliModel = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
