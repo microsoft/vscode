@@ -64,6 +64,9 @@ type CommandExecutionItem = Extract<ThreadItem, { type: 'commandExecution' }>;
 function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 	let userText = '';
 	const parts: ResponsePart[] = [];
+	// Separate consecutive agent messages so the chat model's separator-less
+	// markdown coalescing keeps a following heading on its own line.
+	let agentMessageCount = 0;
 	// A successful command that produced no output may be a sandbox pre-flight
 	// that codex immediately re-ran under an approval prompt (same command, new
 	// item). Defer emitting it so the re-run can coalesce into a single box —
@@ -114,10 +117,12 @@ function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 			}
 		} else if (item.type === 'agentMessage') {
 			if (item.text && item.text.length > 0) {
+				const separator = agentMessageCount > 0 ? '\n\n' : '';
+				agentMessageCount++;
 				parts.push({
 					kind: ResponsePartKind.Markdown,
 					id: generateUuid(),
-					content: item.text,
+					content: separator + item.text,
 				});
 			}
 		} else if (item.type === 'webSearch') {

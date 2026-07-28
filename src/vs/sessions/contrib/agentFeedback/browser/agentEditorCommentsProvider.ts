@@ -31,21 +31,21 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 		@IAgentEditorCommentsBridge bridge: IAgentEditorCommentsBridge,
 	) {
 		super();
-		this.onDidChangeComments = Event.signal(this._agentFeedbackService.onDidChangeFeedback);
+		this.onDidChangeComments = Event.signal(Event.any(this._agentFeedbackService.onDidChangeFeedback, this._agentFeedbackService.onDidChangeFeedbackScope));
 		this._register(bridge.registerProvider(this));
 	}
 
 	acceptsComments(resource: URI): boolean {
-		return !!this._agentFeedbackService.getSessionForFile(resource);
+		return !!this._agentFeedbackService.getFeedbackSessionResource(resource);
 	}
 
 	getComments(resource: URI): readonly IAgentEditorComment[] {
-		const session = this._agentFeedbackService.getSessionForFile(resource);
-		if (!session) {
+		const sessionResource = this._agentFeedbackService.getFeedbackSessionResource(resource);
+		if (!sessionResource) {
 			return [];
 		}
 		const comments: IAgentEditorComment[] = [];
-		const sessionComments = getSessionEditorComments(session.resource, this._agentFeedbackService.getFeedback(session.resource));
+		const sessionComments = getSessionEditorComments(sessionResource, this._agentFeedbackService.getFeedback(sessionResource));
 		for (const comment of sessionComments) {
 			if (isEqual(comment.resourceUri, resource)) {
 				comments.push({ id: comment.id, range: comment.range, body: comment.text });
@@ -55,16 +55,16 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 	}
 
 	addComment(resource: URI, range: IRange, body: string): void {
-		const session = this._agentFeedbackService.getSessionForFile(resource);
-		if (!session) {
+		const sessionResource = this._agentFeedbackService.getFeedbackSessionResource(resource);
+		if (!sessionResource) {
 			return;
 		}
-		this._agentFeedbackService.addFeedback(session.resource, resource, range, body);
+		this._agentFeedbackService.addFeedback(sessionResource, resource, range, body);
 	}
 
 	deleteComment(resource: URI, id: string): void {
-		const session = this._agentFeedbackService.getSessionForFile(resource);
-		if (!session) {
+		const sessionResource = this._agentFeedbackService.getFeedbackSessionResource(resource);
+		if (!sessionResource) {
 			return;
 		}
 		// Only agent feedback comments are surfaced to (and thus deletable from)
@@ -73,6 +73,6 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 		if (parsed?.source !== SessionEditorCommentSource.AgentFeedback) {
 			return;
 		}
-		this._agentFeedbackService.removeFeedback(session.resource, parsed.sourceId);
+		this._agentFeedbackService.removeFeedback(sessionResource, parsed.sourceId);
 	}
 }
