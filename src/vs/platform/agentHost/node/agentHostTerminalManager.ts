@@ -12,6 +12,7 @@ import * as platform from '../../../base/common/platform.js';
 import { getSystemShell } from '../../../base/node/shell.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { AiAgentEnvValue, AiAgentEnvVar } from '../../chat/common/aiAgentEnv.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -125,6 +126,10 @@ export interface IAgentHostTerminalManager {
 	getTerminalInfos(): TerminalInfo[];
 	getTerminalState(uri: string): TerminalState | undefined;
 	getDefaultShell(): Promise<string>;
+	createOutputTerminal(uri: string, options: { title: string; claim: TerminalClaim }): void;
+	appendOutputTerminalData(uri: string, data: string): void;
+	resetOutputTerminal(uri: string): void;
+	finalizeOutputTerminal(uri: string, exitCode: number | undefined): void;
 }
 
 // node-pty is loaded dynamically to avoid bundling issues in non-node environments
@@ -170,6 +175,19 @@ interface IManagedTerminal {
 }
 
 /**
+ * A lightweight output-only terminal channel: no PTY behind it, plain-text
+ * content appended by its owner (e.g. runtime-executed shell tools). Served
+ * to subscribers with `isPty: false` so clients skip VT parsing.
+ */
+interface IOutputTerminal {
+	title: string;
+	content: TerminalContentPart[];
+	contentSize: number;
+	claim: TerminalClaim;
+	exitCode?: number;
+}
+
+/**
  * Manages terminal processes for the agent host. Each terminal is backed by
  * a node-pty instance and identified by a protocol URI.
  *
@@ -181,6 +199,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _terminals = new Map<string, IManagedTerminal>();
+	private readonly _outputTerminals = new Map<string, IOutputTerminal>();
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -229,6 +248,16 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 	/** Get the full state for a terminal (for subscribe snapshots). */
 	getTerminalState(uri: string): TerminalState | undefined {
+		const outputTerminal = this._outputTerminals.get(uri);
+		if (outputTerminal) {
+			return {
+				title: outputTerminal.title,
+				content: outputTerminal.content,
+				exitCode: outputTerminal.exitCode,
+				claim: outputTerminal.claim,
+				isPty: false,
+			};
+		}
 		const terminal = this._terminals.get(uri);
 		if (!terminal) {
 			return undefined;
@@ -242,6 +271,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			exitCode: terminal.exitCode,
 			claim: terminal.claim,
 			supportsCommandDetection: terminal.commandTracker?.detectionAvailableEmitted,
+			isPty: true,
 		};
 	}
 
@@ -267,6 +297,9 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		// Shell integration — inject scripts so the shell emits OSC 633 sequences
 		const nonce = generateUuid();
 		const env: Record<string, string> = { ...process.env as Record<string, string> };
+		// Attribute these commands to VS Code. Already inherited from the agent
+		// host process; set here as defense in depth.
+		env[AiAgentEnvVar] = AiAgentEnvValue;
 		if (options?.preventShellHistory) {
 			// Picked up by the shell integration scripts to set HISTCONTROL=ignorespace
 			// (bash) / HIST_IGNORE_SPACE (zsh), or suppress PSReadLine history (pwsh).
@@ -743,7 +776,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	}
 
 	/** Append cleaned data to the terminal's structured content array. */
-	private _appendToContent(managed: IManagedTerminal, data: string): void {
+	private _appendToContent(managed: { content: TerminalContentPart[]; contentSize: number }, data: string): void {
 		const tail = managed.content.length > 0 ? managed.content[managed.content.length - 1] : undefined;
 
 		if (tail?.type === 'command' && !tail.isComplete) {
@@ -766,7 +799,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	}
 
 	/** Trim content parts to stay within the rolling buffer limit. */
-	private _trimContent(managed: IManagedTerminal): void {
+	private _trimContent(managed: { content: TerminalContentPart[]; contentSize: number }): void {
 		const maxSize = 100_000;
 		const targetSize = 80_000;
 		if (managed.contentSize <= maxSize) {
@@ -790,8 +823,72 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		}
 	}
 
+	/**
+	 * Create an output-only terminal channel. Unlike {@link createTerminal}
+	 * there is no PTY behind it: the owner appends plain-text output via
+	 * {@link appendOutputTerminalData}. The channel is not announced on the
+	 * root terminal list — clients discover it through the tool result's
+	 * terminal content block and subscribe to its URI.
+	 */
+	createOutputTerminal(uri: string, options: { title: string; claim: TerminalClaim }): void {
+		if (this._terminals.has(uri) || this._outputTerminals.has(uri)) {
+			throw new Error(`Terminal already exists: ${uri}`);
+		}
+		this._outputTerminals.set(uri, {
+			title: options.title,
+			content: [],
+			contentSize: 0,
+			claim: options.claim,
+		});
+	}
+
+	/** Append plain-text data to an output-only terminal and stream it to subscribers. */
+	appendOutputTerminalData(uri: string, data: string): void {
+		const terminal = this._outputTerminals.get(uri);
+		if (!terminal || data.length === 0) {
+			return;
+		}
+		this._appendToContent(terminal, data);
+		this._trimContent(terminal);
+		this._stateManager.dispatchServerAction(uri, {
+			type: ActionType.TerminalData,
+			data,
+		});
+	}
+
+	/** Clear an output-only terminal's content (e.g. when cumulative source output was rewritten). */
+	resetOutputTerminal(uri: string): void {
+		const terminal = this._outputTerminals.get(uri);
+		if (!terminal) {
+			return;
+		}
+		terminal.content = [];
+		terminal.contentSize = 0;
+		this._stateManager.dispatchServerAction(uri, {
+			type: ActionType.TerminalCleared,
+		});
+	}
+
+	/** Record the command's exit on an output-only terminal and notify subscribers. */
+	finalizeOutputTerminal(uri: string, exitCode: number | undefined): void {
+		const terminal = this._outputTerminals.get(uri);
+		if (!terminal || terminal.exitCode !== undefined) {
+			return;
+		}
+		if (exitCode !== undefined) {
+			terminal.exitCode = exitCode;
+			this._stateManager.dispatchServerAction(uri, {
+				type: ActionType.TerminalExited,
+				exitCode,
+			});
+		}
+	}
+
 	/** Dispose a terminal: kill the process and remove it. */
 	disposeTerminal(uri: string): void {
+		if (this._outputTerminals.delete(uri)) {
+			return;
+		}
 		const terminal = this._terminals.get(uri);
 		if (terminal) {
 			this._terminals.delete(uri);

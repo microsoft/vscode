@@ -237,6 +237,11 @@
 	box-sizing: border-box;
 }
 
+.ai-customization-management-editor .contributed-section-container {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
 .ai-customization-management-editor .section-back-arrow-button {
 	flex-shrink: 0;
 	align-self: flex-start;
@@ -875,11 +880,18 @@
 	box-sizing: border-box;
 }
 
+.ai-customization-management-editor .prompt-migration-list-scrollable {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+}
+
 .ai-customization-management-editor .prompt-migration-list {
+	position: absolute;
+	inset: 0;
 	display: flex;
 	flex-direction: column;
-	flex: 1;
-	overflow: auto;
+	overflow: hidden;
 	padding-bottom: 6px;
 }
 
@@ -897,12 +909,38 @@
 	margin-bottom: 2px;
 }
 
-.ai-customization-management-editor .prompt-migration-group-header:hover {
-	background-color: transparent;
+.ai-customization-management-editor .prompt-migration-group-header:focus-within {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-list-focusOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
 }
 
 .ai-customization-management-editor .prompt-migration-group-checkbox {
 	margin-right: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-group-toggle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 1;
+	min-width: 0;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .prompt-migration-group-toggle:focus {
+	outline: none;
+}
+
+.ai-customization-management-editor .prompt-migration-group-items {
+	display: flex;
+	flex-direction: column;
 }
 
 .ai-customization-management-editor .prompt-migration-item {
@@ -920,6 +958,30 @@
 
 .ai-customization-management-editor .prompt-migration-item .item-left {
 	gap: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-item .icon-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	font-size: 16px;
+}
+
+.ai-customization-management-editor .prompt-migration-item .icon-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.ai-customization-management-editor .prompt-migration-item .icon-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .ai-customization-management-editor .prompt-migration-empty {
@@ -2008,6 +2070,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 .automations-list-widget .automations-empty-state .automations-empty-cta {
 	margin-top: 16px;
 	min-width: 160px;
+	max-width: 320px;
 	align-self: center;
 }
 

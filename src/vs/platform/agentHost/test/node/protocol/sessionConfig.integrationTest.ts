@@ -18,6 +18,7 @@ import {
 	IServerHandle,
 	nextSessionUri,
 	startServer,
+	stopServer,
 	TestProtocolClient,
 } from '../serverIntegrationTestHelpers.js';
 
@@ -31,8 +32,9 @@ suite('Protocol WebSocket - Session Config', function () {
 		server = await startServer();
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
 	});
 
 	setup(async function () {
@@ -206,14 +208,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 
 			client1.close();
 		} finally {
-			// Trigger graceful shutdown by closing stdin rather than sending
-			// SIGTERM — on Windows, `child.kill()` (SIGTERM) unconditionally
-			// terminates the process without invoking the shutdown handler,
-			// so in-flight `setMetadata` writes never reach SQLite. Closing
-			// stdin fires `process.stdin.on('end', shutdown)` in the server
-			// on every platform.
-			server1.process.stdin!.end();
-			await new Promise<void>(resolve => server1.process.once('exit', () => resolve()));
+			await stopServer(server1);
 		}
 
 		// ---- Phase 2: restart server, subscribe, verify restored config ----
@@ -243,8 +238,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 
 			client2.close();
 		} finally {
-			server2.process.stdin!.end();
-			await new Promise<void>(resolve => server2.process.once('exit', () => resolve()));
+			await stopServer(server2);
 		}
 	});
 });

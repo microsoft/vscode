@@ -176,6 +176,7 @@ export class AhpSnapshotRecorder {
 		}
 
 		for (const round of rounds) {
+			round.serverToClient = dropReasoning(round.serverToClient);
 			normalizeSnapshotObjects(round.clientToServer, this._normalization);
 			normalizeSnapshotObjects(round.serverToClient, this._normalization);
 		}
@@ -367,7 +368,7 @@ function projectAction(
 				type: action.type,
 				turnId: normalizeIdentifier(action.turnId, 'turn', turns),
 				toolCallId: normalizeIdentifier(action.toolCallId, 'toolCall', toolCalls),
-				toolName: action.toolName,
+				toolName: normalizeShellToolName(action.toolName),
 				...(profile === 'protocol' ? {
 					displayName: action.displayName,
 					contributor: projectContributor(action.contributor),
@@ -422,6 +423,58 @@ function projectAction(
 	}
 }
 
+/**
+ * Drops reasoning traffic from the snapshot.
+ *
+ * Reasoning cannot survive the capture round-trip: `capiWireCodec` drops
+ * reasoning items when aggregating a response, because their content is opaque
+ * and provider-encrypted. Replay therefore rebuilds the stream from a fixture
+ * that has no reasoning in it, and any reasoning the live recording observed —
+ * whether an empty part the provider opened and closed without a delta, or a
+ * partial one carrying a few characters — can never be reproduced.
+ *
+ * Keeping it would make a snapshot permanently unreplayable depending on
+ * whether the provider happened to emit reasoning during the recording, which
+ * says nothing about the behavior under test.
+ *
+ * Runs after projection because `ChatDelta` fills in a part's content by
+ * mutating the object recorded here, so the final content is only known once
+ * every message has been projected.
+ */
+function dropReasoning(actions: object[]): object[] {
+	return actions.filter(entry => {
+		const action = (entry as { action?: { type?: string; part?: { kind?: string } } }).action;
+		return action?.type !== ActionType.ChatReasoning
+			&& !(action?.type === ActionType.ChatResponsePart && action.part?.kind === ResponsePartKind.Reasoning);
+	});
+}
+
+/**
+ * Collapses the platform-specific Copilot shell tool names to stable
+ * placeholders.
+ *
+ * The Copilot CLI names its shell tools after the shell it runs: `bash` and
+ * friends on POSIX, `powershell` and friends on Windows. That name reaches the
+ * client verbatim in `chat/toolCallStart`, so a snapshot recorded on macOS or
+ * Linux can never match the same behavior on Windows even when the recorded
+ * command itself is portable.
+ *
+ * Only the names that actually vary by platform are mapped. Claude's `Bash` and
+ * Codex's `shell` are fixed strings their SDKs use everywhere, so they are left
+ * alone — rewriting them would hide a genuine provider change.
+ */
+function normalizeShellToolName(toolName: string): string {
+	const shellToolPlaceholders: Record<string, string> = {
+		bash: '${shell}', powershell: '${shell}',
+		read_bash: '${read_shell}', read_powershell: '${read_shell}',
+		write_bash: '${write_shell}', write_powershell: '${write_shell}',
+		stop_bash: '${stop_shell}', stop_powershell: '${stop_shell}',
+		bash_shutdown: '${shell_shutdown}', powershell_shutdown: '${shell_shutdown}',
+		list_bash: '${list_shell}', list_powershell: '${list_shell}',
+	};
+	return shellToolPlaceholders[toolName] ?? toolName;
+}
+
 function isBehaviorSnapshotNoise(type: ActionType): boolean {
 	switch (type) {
 		case ActionType.SessionChatUpdated:
@@ -430,6 +483,7 @@ function isBehaviorSnapshotNoise(type: ActionType): boolean {
 		case ActionType.SessionInputNeededRemoved:
 		case ActionType.SessionCustomizationsChanged:
 		case ActionType.SessionChangesetsChanged:
+		case ActionType.SessionMetaChanged:
 		case ActionType.SessionActivityChanged:
 		case ActionType.ChatActivityChanged:
 		case ActionType.ChatUsage:
@@ -510,6 +564,14 @@ function normalizeSnapshotText(value: string, normalization: IAhpSnapshotNormali
 		// The workspace can be deleted during teardown after the traffic was captured.
 	}
 	let normalized = value;
+	// Line endings first, so every line-anchored pattern below sees LF-only
+	// text. Windows produces CRLF for the same behavior a POSIX host reports
+	// with LF, which would otherwise fail a snapshot recorded on macOS/Linux
+	// for a reason unrelated to the behavior under test. The escaped form is
+	// normalized too because tool inputs are often embedded JSON, where the
+	// carriage return survives as a literal `\r` escape rather than a control
+	// character.
+	normalized = normalized.replaceAll('\r\n', '\n').replaceAll('\\r\\n', '\\n');
 	for (const workDir of [...workDirs].sort((a, b) => b.length - a.length)) {
 		normalized = normalized
 			.replaceAll(JSON.stringify(workDir).slice(1, -1), '${workdir}')

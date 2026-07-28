@@ -153,6 +153,9 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		getWorkingDirectory(sessionResource: URI): string | undefined {
 			return undefined;
 		},
+		getWorkingDirectories(_sessionResource: URI): readonly string[] {
+			return [];
+		},
 		getMcpServers(_sessionResource: URI) {
 			return [];
 		},
@@ -167,8 +170,8 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		},
 		setMcpServerEnablement() { },
 		prepareMcpServersForTurn() { },
-		showMcpServerLog(_sessionResource: URI, _serverId: string) {
-			// no-op
+		async showMcpServerLog(_sessionResource: URI, _serverId: string, beforeShow?: () => Promise<void>) {
+			await beforeShow?.();
 		},
 	};
 }

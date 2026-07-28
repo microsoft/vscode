@@ -35,6 +35,10 @@ export async function removeRemoteHost(provider: IAgentHostSessionsProvider, rem
 	}
 }
 
+export function hasUpgradeReconnectStarted(status: RemoteAgentHostConnectionStatus): boolean {
+	return RemoteAgentHostConnectionStatus.isConnecting(status) || RemoteAgentHostConnectionStatus.isConnected(status);
+}
+
 /**
  * Run the CLI-managed server upgrade flow for `provider`. Used by both
  * the per-host quickpick and the proactive `incompatible` notification.
@@ -86,10 +90,9 @@ export async function runServerUpgrade(
 					const watchStore = new DisposableStore();
 					let reconnectAlreadyInFlight = false;
 					if (provider.connectionStatus) {
-						const initialStatus = provider.connectionStatus.get();
 						watchStore.add(autorun(reader => {
 							const next = provider.connectionStatus!.read(reader);
-							if (next !== initialStatus && !RemoteAgentHostConnectionStatus.isIncompatible(next)) {
+							if (hasUpgradeReconnectStarted(next)) {
 								reconnectAlreadyInFlight = true;
 							}
 						}));

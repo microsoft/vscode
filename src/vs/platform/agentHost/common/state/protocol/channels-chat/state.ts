@@ -63,21 +63,6 @@ export interface ChatState {
 	 * update the subset on a running chat.
 	 */
 	workingDirectories?: URI[];
-	/**
-	 * The chat's primary working directory — the distinguished root this chat is
-	 * centered on (e.g. the agent's process root for this chat, the default
-	 * location for relative paths). MUST be one of this chat's effective working
-	 * directories ({@link workingDirectories}, or the session's set when that is
-	 * absent). Present when the agent advertises
-	 * {@link MultipleWorkingDirectoriesCapability.requiresPrimary}.
-	 *
-	 * **Read-only and fixed at creation.** It is set from
-	 * {@link CreateChatParams.primaryWorkingDirectory} (or, for the session's
-	 * default chat, {@link CreateSessionParams.primaryWorkingDirectory}) and does
-	 * not change over the chat's lifetime — there is no action to mutate it, and
-	 * it does not participate in `session/chatUpdated`.
-	 */
-	primaryWorkingDirectory?: URI;
 
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */
@@ -150,11 +135,6 @@ export interface ChatSummary {
 	 * See {@link ChatState.workingDirectories} for the full semantics.
 	 */
 	workingDirectories?: URI[];
-	/**
-	 * The chat's primary working directory.
-	 * See {@link ChatState.primaryWorkingDirectory} for the full semantics.
-	 */
-	primaryWorkingDirectory?: URI;
 }
 
 /**
@@ -167,13 +147,55 @@ export const enum ChatOriginKind {
 	User = 'user',
 	/** Forked from an existing chat at a specific turn. */
 	Fork = 'fork',
+	/** Created as an independent side conversation from a specific turn. */
+	SideChat = 'sideChat',
 	/** Spawned by a tool call running in another chat (e.g. a sub-agent delegation). */
 	Tool = 'tool',
 }
 
 /**
+ * Immutable selected-text snapshot captured when a side chat is created.
+ *
+ * The host records this exact text when it accepts `createChat`; later changes
+ * to the source chat do not alter it.
+ *
+ * @category Chat State
+ */
+export interface SideChatSelection {
+	/**
+	 * Exact selected-text snapshot captured at `createChat` acceptance.
+	 *
+	 * MUST be non-empty.
+	 */
+	text: string;
+	/**
+	 * Optional provenance for the response part that contained {@link text} when
+	 * the host took the snapshot.
+	 *
+	 * Advisory only: this is not a live range or offset and MUST NOT be used to
+	 * recompute `text`.
+	 */
+	responsePartId?: string;
+}
+
+/**
  * How a chat came into existence. Clients MAY use it to render
  * contextual UI (parent indicators, fork markers, "spawned by tool" badges).
+ *
+ * Fork and side-chat origins both carry a stable top-level `turnId` alongside
+ * their discriminated `kind` value instead of snapshotting whether that turn
+ * was active or historical at creation time. Consumers resolve the identifier
+ * against the
+ * source chat's current `activeTurn` or retained `turns` as needed.
+ *
+ * When a host accepts side-chat creation from the source chat's current active
+ * turn, it snapshots the retained history plus that turn's current user
+ * message and any partial assistant response already available. Later
+ * source-turn deltas do not retroactively change the created side chat's
+ * starting context, and once the source turn completes it is still referenced
+ * by the same `turnId`. Side-chat origins MAY also retain an immutable
+ * {@link SideChatSelection | selected-text snapshot} captured at acceptance
+ * time; any `responsePartId` there is provenance only, not a range.
  *
  * The `tool` variant records a tool-spawned worker from the worker's side: its
  * `chat`/`toolCallId` identify the spawning tool call in the parent chat. This
@@ -186,6 +208,7 @@ export const enum ChatOriginKind {
 export type ChatOrigin =
 	| { kind: ChatOriginKind.User }
 	| { kind: ChatOriginKind.Fork; chat: URI; turnId: string }
+	| { kind: ChatOriginKind.SideChat; chat: URI; turnId: string; selection?: SideChatSelection }
 	| { kind: ChatOriginKind.Tool; chat: URI; toolCallId: string };
 
 /**
@@ -505,6 +528,8 @@ export const enum MessageAttachmentKind {
 	Resource = 'resource',
 	/** An attachment that references annotations on an annotations channel. */
 	Annotations = 'annotations',
+	/** An attachment that references a bounded transcript from another chat. */
+	Chat = 'chat',
 }
 
 /**
@@ -768,6 +793,30 @@ export interface MessageAnnotationsAttachment extends MessageAttachmentBase {
 }
 
 /**
+ * An attachment that references a chat transcript through a fixed completed
+ * turn.
+ *
+ * The referenced chat MUST belong to the same session as the message's chat.
+ * The host resolves the transcript from its first retained turn through
+ * `endTurn`, inclusive, when accepting the message. Later turns do not
+ * change the context represented by an already-sent attachment.
+ *
+ * Hosts MUST NOT recursively expand chat attachments found inside the
+ * referenced transcript. Clients SHOULD keep rendering `label` if the
+ * referenced chat is later pruned, and treat opening `resource` as best-effort.
+ *
+ * @category Turn Types
+ */
+export interface MessageChatAttachment extends MessageAttachmentBase {
+	/** Discriminant */
+	type: MessageAttachmentKind.Chat;
+	/** URI of the referenced chat. */
+	resource: URI;
+	/** Last completed turn included in the referenced transcript. */
+	endTurn: string;
+}
+
+/**
  * An attachment associated with a {@link Message}.
  *
  * @category Turn Types
@@ -776,7 +825,8 @@ export type MessageAttachment =
 	| SimpleMessageAttachment
 	| MessageEmbeddedResourceAttachment
 	| MessageResourceAttachment
-	| MessageAnnotationsAttachment;
+	| MessageAnnotationsAttachment
+	| MessageChatAttachment;
 
 // ─── Response Parts ──────────────────────────────────────────────────────────
 
@@ -1344,7 +1394,6 @@ export const enum ToolResultContentType {
 	Resource = 'resource',
 	FileEdit = 'fileEdit',
 	Terminal = 'terminal',
-	TerminalComplete = 'terminalComplete',
 	Subagent = 'subagent',
 }
 
@@ -1402,6 +1451,11 @@ export interface ToolResultFileEditContent extends FileEdit {
  * Clients can subscribe to the terminal's URI to stream its output in real
  * time, providing live feedback while a tool is executing.
  *
+ * When the command exits, {@link result} is filled in on the completed
+ * result, retaining the outcome for clients that did not subscribe. This
+ * records the command's exit, not the terminal's — the terminal may keep
+ * running afterwards.
+ *
  * @category Tool Result Content
  */
 export interface ToolResultTerminalContent {
@@ -1410,34 +1464,31 @@ export interface ToolResultTerminalContent {
 	resource: URI;
 	/** Display title for the terminal content */
 	title: string;
+	/**
+	 * Whether this terminal-style resource is backed by a pseudoterminal.
+	 * When `false`, output is plain text and clients do not need to parse
+	 * VT sequences.
+	 */
+	isPty?: boolean;
+	/** Outcome of the command, present once it has exited. */
+	result?: TerminalCommandResult;
 }
 
 /**
- * Record of a command executed by a terminal-style tool (e.g. a shell tool),
- * appended to the tool result when the command exits.
- *
- * This records the command's exit, not the terminal's — the terminal may
- * keep running afterwards.
- *
- * When live output was exposed through a terminal channel (a
- * {@link ToolResultTerminalContent} block in the same tool result),
- * {@link resource} identifies that channel; otherwise this block stands alone
- * as the retained command result.
+ * Outcome of a command run in a terminal-style tool, filled in on
+ * {@link ToolResultTerminalContent.result} once the command exits.
  *
  * @category Tool Result Content
  */
-export interface ToolResultTerminalCompleteContent {
-	type: ToolResultContentType.TerminalComplete;
-	/**
-	 * URI of the `ahp-terminal:` channel that carried live output for this
-	 * command, if one was exposed.
-	 */
-	resource?: URI;
+export interface TerminalCommandResult {
 	/** Exit code from the completed command, if reported by the runtime */
 	exitCode?: number;
-	/** Working directory where the command was executed */
-	cwd?: URI;
-	/** Preview of the command's output, if available */
+	/**
+	 * Preview of the command's output, for clients that are not subscribed
+	 * to the terminal or that arrive after it is disposed. When `isPty` is
+	 * `true` the preview may contain VT sequences; when `false` it is plain
+	 * text.
+	 */
 	preview?: string;
 	/** Whether `preview` is known to be incomplete or truncated */
 	truncated?: boolean;
@@ -1471,8 +1522,8 @@ export interface ToolResultSubagentContent {
  * Mirrors the content blocks in MCP `CallToolResult.content`, plus
  * `ToolResultResourceContent` for lazy-loading large results,
  * `ToolResultFileEditContent` for file edit diffs,
- * `ToolResultTerminalContent` for live terminal output,
- * `ToolResultTerminalCompleteContent` for terminal-style completion metadata, and
+ * `ToolResultTerminalContent` for live terminal output and
+ * command completion metadata, and
  * `ToolResultSubagentContent` for tool-spawned worker chats (AHP extensions).
  *
  * @category Tool Result Content
@@ -1483,5 +1534,4 @@ export type ToolResultContent =
 	| ToolResultResourceContent
 	| ToolResultFileEditContent
 	| ToolResultTerminalContent
-	| ToolResultTerminalCompleteContent
 	| ToolResultSubagentContent;
