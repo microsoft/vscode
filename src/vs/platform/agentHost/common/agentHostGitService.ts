@@ -52,6 +52,20 @@ export interface IComputeSessionFileDiffsOptions {
 	readonly baseBranch?: string;
 }
 
+/** Cheap repository facts used to decide whether a branch diff is safe to compute. */
+export interface IBranchDiffSafetyInfo {
+	readonly hasVirtualFileSystem: boolean;
+	readonly baselineCommitTimestamp: number | undefined;
+	readonly commitCount: number | undefined;
+	readonly workspaceFileCount: number;
+}
+
+/** A bounded unified-diff result. */
+export interface IDiffPatchResult {
+	readonly patch: string | undefined;
+	readonly tooLarge: boolean;
+}
+
 /** Options for {@link IAgentHostGitService.push}. */
 export interface IPushOptions {
 	/** The branch or refspec to push. Defaults to the current branch. */
@@ -77,6 +91,51 @@ export interface IPullOptions {
 
 export const IAgentHostGitService = createDecorator<IAgentHostGitService>('agentHostGitService');
 
+export interface IRefQuery {
+	readonly count?: number;
+	readonly pattern?: string | string[];
+	readonly sort?: 'alphabetically' | 'committerdate' | 'creatordate';
+}
+
+export type Branch = IBranch | IRemoteBranch;
+export type GitRef = IBranch | IRemoteBranch | ITag;
+
+export const enum GitRefType {
+	Head,
+	RemoteHead,
+	DetachedHead,
+	Tag
+}
+
+export interface IBranch {
+	readonly ref: string;
+	readonly name: string;
+	readonly upstream?: {
+		readonly ref: string;
+		readonly name: string;
+		readonly remote: string;
+	};
+	readonly kind: GitRefType.Head;
+}
+
+export interface IRemoteBranch {
+	readonly ref: string;
+	readonly name: string;
+	readonly remote: string;
+	readonly kind: GitRefType.RemoteHead;
+}
+
+export interface ITag {
+	readonly ref: string;
+	readonly name: string;
+	readonly kind: GitRefType.Tag;
+}
+
+export interface IDetachedHead {
+	readonly name: string;
+	readonly kind: GitRefType.DetachedHead;
+}
+
 export interface IDefaultBranch {
 	readonly name: string;
 	readonly startPoint: string;
@@ -86,7 +145,9 @@ export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
-	getBranches(workingDirectory: URI, options?: { readonly query?: string; readonly limit?: number }): Promise<string[]>;
+	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
+	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
+	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
 	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void>;
@@ -161,6 +222,10 @@ export interface IAgentHostGitService {
 	 * so the UI always reflects current branch/remote/change state.
 	 */
 	getSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined>;
+	/** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
+	getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined>;
+	/** Returns repo-relative untracked file paths. */
+	getUntrackedPaths(workingDirectory: URI): Promise<readonly string[] | undefined>;
 
 	/**
 	 * Computes per-file diffs for the session by shelling out to `git
@@ -269,24 +334,28 @@ export interface IAgentHostGitService {
 	 * terminal-tool edits the FileEditTracker pipeline misses.
 	 */
 	computeFileDiffsBetweenRefs(workingDirectory: URI, options: { readonly sessionUri: string; readonly fromRef: string; readonly toRef: string }): Promise<readonly ISessionFileDiff[] | undefined>;
+	/** Reads bounded facts needed before computing an expensive branch diff. */
+	getBranchDiffSafetyInfo(workingDirectory: URI, baselineCommit: string): Promise<IBranchDiffSafetyInfo | undefined>;
+	/** Computes a unified patch for paths between immutable tree-ish values. */
+	getDiffPatchBetweenRefs(workingDirectory: URI, options: { readonly fromRef: string; readonly toRef: string; readonly paths: readonly string[]; readonly maxBuffer: number }): Promise<IDiffPatchResult | undefined>;
 }
 
-function getCommonBranchPriority(branch: string): number {
-	if (branch === 'main') {
+function getBranchPriority(branch: string, currentBranch: string | undefined, defaultBranch: string | undefined): number {
+	if (branch === currentBranch) {
 		return 0;
 	}
-	if (branch === 'master') {
+	if (branch === defaultBranch) {
 		return 1;
 	}
 	return 2;
 }
 
-export function getBranchCompletions(branches: readonly string[], options?: { readonly query?: string; readonly limit?: number }): string[] {
+export function getBranchCompletions(branches: readonly string[], options?: { readonly currentBranch?: string; readonly defaultBranch?: string; readonly query?: string; readonly limit?: number }): string[] {
 	const normalizedQuery = options?.query?.toLowerCase();
 	const filtered = normalizedQuery
 		? branches.filter(branch => branch.toLowerCase().includes(normalizedQuery))
 		: [...branches];
 
-	filtered.sort((a, b) => getCommonBranchPriority(a) - getCommonBranchPriority(b));
+	filtered.sort((a, b) => getBranchPriority(a, options?.currentBranch, options?.defaultBranch) - getBranchPriority(b, options?.currentBranch, options?.defaultBranch));
 	return options?.limit ? filtered.slice(0, options.limit) : filtered;
 }

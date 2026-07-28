@@ -13,7 +13,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { AutomationService } from '../../browser/automationService.js';
+import { createAutomationService } from './automationTestUtils.js';
 import { AutomationTarget, AutomationWorkspaceIsolation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -47,12 +47,22 @@ interface IRecordedCall {
 class FakeSessionsManagementService extends mock<ISessionsManagementService>() {
 
 	readonly calls: IRecordedCall[] = [];
+	workspaceTargetAvailable = true;
+	quickChatTargetAvailable = true;
 
 	/** Configure how the next createAndSendNewChatRequest behaves. */
 	nextSession: ISession | undefined;
 	nextError: Error | undefined;
 	/** Optional hook fired after the call is recorded, before returning/throwing. */
 	onSendHook: (() => Promise<void> | void) | undefined;
+
+	override isNewSessionTargetAvailable(): boolean {
+		return this.workspaceTargetAvailable;
+	}
+
+	override isQuickChatTargetAvailable(): boolean {
+		return this.quickChatTargetAvailable;
+	}
 
 	override async createAndSendNewChatRequest(
 		folderUri: URI,
@@ -86,6 +96,15 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() {
 	}
 }
 
+class RecordingNotificationService extends TestNotificationService {
+	readonly infos: string[] = [];
+
+	override info(message: string) {
+		this.infos.push(message);
+		return super.info(message);
+	}
+}
+
 function fakeSession(id: string, status = observableValue(`status-${id}`, SessionStatus.Completed)): ISession {
 	return upcastPartial<ISession>({
 		sessionId: id,
@@ -101,10 +120,11 @@ suite('AutomationRunner', () => {
 	function setup() {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
 		const sessionsMgmt = new FakeSessionsManagementService();
-		const runner = new AutomationRunner(service, sessionsMgmt, log, NullTelemetryService, new TestNotificationService());
-		return { service, sessionsMgmt, runner };
+		const notifications = new RecordingNotificationService();
+		const runner = new AutomationRunner(service, sessionsMgmt, log, NullTelemetryService, notifications);
+		return { service, sessionsMgmt, runner, notifications };
 	}
 
 	test('creates a session for the automation prompt and marks the run completed', async () => {
@@ -262,6 +282,50 @@ suite('AutomationRunner', () => {
 		assert.strictEqual(runs.length, 1);
 		assert.strictEqual(runs[0].status, 'failed');
 		assert.strictEqual(runs[0].errorMessage, 'provider offline');
+	});
+
+	test('defers a scheduled run without advancing its schedule when the target is unavailable', async () => {
+		const { service, sessionsMgmt, runner } = setup();
+		sessionsMgmt.workspaceTargetAvailable = false;
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+
+		await runner.runOnce(automation, 'schedule', 1).whenCompleted;
+
+		const updated = service.getAutomation(automation.id);
+		assert.deepStrictEqual({
+			calls: sessionsMgmt.calls.length,
+			runs: service.runs.get(),
+			lastRunAt: updated?.lastRunAt,
+			nextRunAt: updated?.nextRunAt,
+		}, {
+			calls: 0,
+			runs: [],
+			lastRunAt: undefined,
+			nextRunAt: automation.nextRunAt,
+		});
+	});
+
+	test('reports an unavailable target for a manual run without recording a failure', async () => {
+		const { service, sessionsMgmt, runner, notifications } = setup();
+		sessionsMgmt.quickChatTargetAvailable = false;
+		const automation = await service.createAutomation({
+			name: 'Unavailable',
+			prompt: 'p',
+			schedule: hourly(),
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+		});
+
+		await runner.runOnce(automation, 'manual', 1).whenCompleted;
+
+		assert.deepStrictEqual({
+			calls: sessionsMgmt.calls.length,
+			runs: service.runs.get(),
+			notifications: notifications.infos,
+		}, {
+			calls: 0,
+			runs: [],
+			notifications: ['Automation \'Unavailable\' cannot start until its agent becomes available.'],
+		});
 	});
 
 	test('skips when another active run exists for the same automation', async () => {

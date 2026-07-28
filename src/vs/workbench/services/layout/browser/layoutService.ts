@@ -418,6 +418,16 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	setPartHidden(hidden: boolean, part: Parts): void;
 
 	/**
+	 * Returns whether the layout surface that represents the secondary sidebar is visible.
+	 */
+	isSecondarySideBarVisible(): boolean;
+
+	/**
+	 * Toggles the layout surface that represents the secondary sidebar.
+	 */
+	toggleSecondarySideBar(): void;
+
+	/**
 	 * Maximizes the panel height if the panel is not already maximized.
 	 * Shrinks the panel to the default starting size if the panel is maximized.
 	 */

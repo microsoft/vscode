@@ -17,7 +17,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
@@ -267,6 +267,30 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				invocationTimeMs: true,
 			},
 		}]);
+	});
+
+	test('refines telemetry from a pending-confirmation ready signal', async () => {
+		setupSession();
+		startTurn('turn-1');
+
+		toolStart('turn-1', 'tc-client-ready', 'run_tests');
+		agent.fireProgress({
+			kind: 'pending_confirmation',
+			chat: URI.parse(defaultChatUri),
+			state: {
+				status: ToolCallStatus.PendingConfirmation,
+				toolCallId: 'tc-client-ready',
+				toolName: 'run_tests',
+				displayName: 'Run Tests',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+				invocationMessage: 'Running tests',
+				toolInput: '{}',
+			},
+		});
+		await timeout(0);
+		toolComplete('turn-1', 'tc-client-ready', { success: true, pastTenseMessage: 'ran tests' });
+
+		assert.strictEqual(toolEvents()[0].data.toolSourceKind, 'client');
 	});
 
 	test('emits error for a failure without a cancellation code', () => {

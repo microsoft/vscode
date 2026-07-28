@@ -15,7 +15,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -222,11 +222,16 @@ export class SessionTypePicker extends Disposable {
 		const session = this._session.get();
 		if (!this._folderSource && session) {
 			// Reflect the session's type without persisting it; storage changes only on an explicit user pick.
-			return { providerId: session.providerId, sessionTypeId: session.sessionType };
+			const pick = { providerId: session.providerId, sessionTypeId: session.sessionType };
+			// A committed session keeps showing the harness it actually runs on,
+			// even if that harness is no longer offered. An uncommitted draft is
+			// a choice about a session that does not exist yet, so it must never
+			// display a harness the picker doesn't list.
+			return session.status.get() === SessionStatus.Untitled ? this._offeredPick(pick) : pick;
 		}
 		if (!this._folderSource) {
 			// No active session: keep the stored pick to seed the next new session.
-			return this._readStoredPick();
+			return this._offeredPick(this._readStoredPick());
 		}
 		if (this._pendingInitialPick) {
 			if (this._pickServedByFolder(this._pendingInitialPick)) {
@@ -252,6 +257,27 @@ export class SessionTypePicker extends Disposable {
 		return !!pick && this._folderSessionTypes.some(t =>
 			t.sessionType.id === pick.sessionTypeId &&
 			(pick.providerId === undefined || t.providerId === pick.providerId));
+	}
+
+	/**
+	 * Constrains a pick to the types the picker actually offers, falling back to
+	 * the preferred (first) type when it doesn't. A remembered pick outlives the
+	 * harness that produced it: a session type can stop being advertised (e.g.
+	 * the extension-host Copilot CLI once `chat.agents.copilotCli.hideExtensionHost`
+	 * is on), and the stored preference still names it. Displaying it as selected
+	 * while the dropdown hides it would let the user start a session on a harness
+	 * they can no longer pick.
+	 *
+	 * An empty offer list means the types aren't known yet (no session or folder
+	 * to source them from, or a provider still connecting), so the pick is left
+	 * alone until something is actually offered.
+	 */
+	private _offeredPick(pick: IPreferredSessionType | undefined): IPreferredSessionType | undefined {
+		if (this._folderSessionTypes.length === 0 || this._pickServedByFolder(pick)) {
+			return pick;
+		}
+		const preferred = this._folderSessionTypes[0];
+		return { providerId: preferred.providerId, sessionTypeId: preferred.sessionType.id };
 	}
 
 	/** Drive the picker from a folder instead of the active session, optionally seeding the initial pick. */
@@ -339,7 +365,9 @@ export class SessionTypePicker extends Disposable {
 		this._triggerElement = trigger;
 		// Onboarding spotlight target — id is referenced by the "new session view"
 		// tour in vs/sessions/contrib/onboardingTours.
-		this._renderDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.harnessPicker'));
+		this._renderDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.harnessPicker', {
+			open: () => this._showPicker(),
+		}));
 		this._updateTriggerLabel();
 
 		this._renderDisposables.add(Gesture.addTarget(trigger));

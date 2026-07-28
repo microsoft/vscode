@@ -31,4 +31,13 @@ suite('PartialToolInput', () => {
 			{ raw: '["item"]', value: undefined },
 		]);
 	});
+
+	test('bounds display parsing while preserving the complete raw input', () => {
+		const raw = `{"command":"npm test","content":"${'x'.repeat(70 * 1024)}"}`;
+		const parsed = parsePartialToolInput(raw);
+		assert.strictEqual(parsed.raw, raw);
+		assert.strictEqual(parsed.value?.['command'], 'npm test');
+		assert.ok(typeof parsed.value?.['content'] === 'string');
+		assert.ok(parsed.value['content'].length < raw.length);
+	});
 });

@@ -8,6 +8,8 @@ import { ConfigKey, globalConfigRegistry } from '../../../../platform/configurat
 import type { JsonSchema, ObjectJsonSchema } from '../../../../platform/configuration/common/jsonSchema';
 import { buildSettingsSchema } from '../../common/settingsSchema';
 
+const unknownAdvancedSettingDeprecationMessage = 'Unknown advanced setting deprecation message';
+
 function getUnknownAdvancedSettingSchema(schema: ObjectJsonSchema): [string, JsonSchema] {
 	const entries = Object.entries(schema.patternProperties ?? {});
 	if (entries.length !== 1) {
@@ -18,11 +20,11 @@ function getUnknownAdvancedSettingSchema(schema: ObjectJsonSchema): [string, Jso
 
 describe('SettingsSchema', () => {
 	test('returns an empty schema for external users', () => {
-		expect(buildSettingsSchema(false, globalConfigRegistry.configs.values())).toEqual({});
+		expect(buildSettingsSchema(false, globalConfigRegistry.configs.values(), unknownAdvancedSettingDeprecationMessage)).toEqual({});
 	});
 
 	test('does not deprecate registered advanced settings', () => {
-		const schema: ObjectJsonSchema = JSON.parse(JSON.stringify(buildSettingsSchema(true, globalConfigRegistry.configs.values())));
+		const schema: ObjectJsonSchema = JSON.parse(JSON.stringify(buildSettingsSchema(true, globalConfigRegistry.configs.values(), unknownAdvancedSettingDeprecationMessage)));
 		const [patternSource, fallbackSchema] = getUnknownAdvancedSettingSchema(schema);
 		const unknownAdvancedSettingRegex = new RegExp(patternSource);
 		const issueSettingId = ConfigKey.TeamInternal.InlineEditsXtabSplitPatchOnDiff.fullyQualifiedId;
@@ -38,8 +40,7 @@ describe('SettingsSchema', () => {
 				type: 'boolean',
 			},
 			fallbackSchema: {
-				deprecated: true,
-				description: 'Unknown advanced setting.\nIf you believe this is a supported setting, please file an issue so that it gets registered.',
+				deprecationMessage: unknownAdvancedSettingDeprecationMessage,
 			},
 		});
 	});
@@ -50,12 +51,12 @@ describe('SettingsSchema', () => {
 		const originalSchema = buildSettingsSchema(true, [
 			{ fullyQualifiedId: registeredChatSetting },
 			{ fullyQualifiedId: registeredSharedSetting },
-		]);
+		], unknownAdvancedSettingDeprecationMessage);
 		const [originalPatternSource] = getUnknownAdvancedSettingSchema(originalSchema);
 		const schema: ObjectJsonSchema = JSON.parse(JSON.stringify(originalSchema));
 		const [patternSource] = getUnknownAdvancedSettingSchema(schema);
 		const unknownAdvancedSettingRegex = new RegExp(patternSource);
-		const [emptyRegistryPatternSource] = getUnknownAdvancedSettingSchema(buildSettingsSchema(true, []));
+		const [emptyRegistryPatternSource] = getUnknownAdvancedSettingSchema(buildSettingsSchema(true, [], unknownAdvancedSettingDeprecationMessage));
 
 		expect({
 			serializedPatternPreserved: patternSource === originalPatternSource,

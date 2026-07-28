@@ -57,11 +57,12 @@ export function toolSourceKindFromContributor(contributor: ToolCallContributor |
 
 /** Per-tool-call timing state, keyed by `session:toolCallId`. */
 interface IToolCallTiming {
-	readonly stopWatch: StopWatch;
+	stopWatch: StopWatch;
 	readonly provider: string;
 	readonly session: string;
 	readonly toolId: string;
 	toolSourceKind: string;
+	isReady: boolean;
 }
 
 interface IStalledToolCall {
@@ -100,13 +101,23 @@ export class AgentHostToolCallTracker extends Disposable {
 			session,
 			toolId: toolName,
 			toolSourceKind: toolSourceKindFromContributor(contributor),
+			isReady: false,
 		});
 	}
 
 	toolCallMetadataUpdated(session: string, toolCallId: string, contributor: ToolCallContributor | undefined): void {
 		const timing = this._toolCalls.get(this._key(session, toolCallId));
-		if (timing && contributor) {
+		if (!timing) {
+			return;
+		}
+		if (contributor) {
 			timing.toolSourceKind = toolSourceKindFromContributor(contributor);
+		}
+		if (!timing.isReady) {
+			timing.isReady = true;
+			// A streaming Start can precede actual invocation while the model is
+			// still generating input, so begin execution timing at first Ready.
+			timing.stopWatch = StopWatch.create(true);
 		}
 	}
 
