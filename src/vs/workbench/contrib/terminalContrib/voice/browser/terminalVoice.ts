@@ -6,21 +6,25 @@
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isNumber } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { SpeechTimeoutDefault } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ISpeechService, AccessibilityVoiceSettingId, ISpeechToTextEvent, SpeechToTextStatus } from '../../../speech/common/speechService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../chat/browser/speechToText/chatSpeechToTextService.js';
 import { getDictationPreparingLabel } from '../../../chat/browser/speechToText/dictationDownloadRing.js';
 import type { IMarker, IDecoration } from '@xterm/xterm';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
-import { getActiveWindow } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveWindow } from '../../../../../base/browser/dom.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalInitialHintContribution } from '../../inlineHint/browser/terminal.initialHint.contribution.js';
 
@@ -52,6 +56,31 @@ const symbolMap: { [key: string]: string } = {
 	'quote': '\'',
 	'double quote': '"',
 	'Double quote': '"',
+	'Dash': '-',
+	'dash': '-',
+	'Hyphen': '-',
+	'hyphen': '-',
+	'Underscore': '_',
+	'underscore': '_',
+	'Pipe': '|',
+	'pipe': '|',
+	'Tilde': '~',
+	'tilde': '~',
+	'Caret': '^',
+	'caret': '^',
+	'At': '@',
+	'at sign': '@',
+	'At sign': '@',
+	'Hash': '#',
+	'hash': '#',
+	'Pound': '#',
+	'pound': '#',
+	'Colon': ':',
+	'colon': ':',
+	'Semicolon': ';',
+	'semicolon': ';',
+	'Comma': ',',
+	'comma': ',',
 };
 
 export class TerminalVoiceSession extends Disposable {
@@ -76,12 +105,16 @@ export class TerminalVoiceSession extends Disposable {
 	}
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
 	private readonly _disposables: DisposableStore;
+	/** Listeners (hover + click) attached to the current mic decoration element. */
+	private readonly _decorationListeners = this._register(new MutableDisposable<DisposableStore>());
 	constructor(
 		@ISpeechService private readonly _speechService: ISpeechService,
 		@IChatSpeechToTextService private readonly _chatSpeechToTextService: IChatSpeechToTextService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 		this._register(this._terminalService.onDidChangeActiveInstance(() => this.stop()));
@@ -280,6 +313,7 @@ export class TerminalVoiceSession extends Disposable {
 			this._sendText();
 		}
 		this._ghostText = undefined;
+		this._decorationListeners.clear();
 		this._decoration?.dispose();
 		this._decoration = undefined;
 		this._marker?.dispose();
@@ -305,12 +339,25 @@ export class TerminalVoiceSession extends Disposable {
 
 	private _updateInput(e: ISpeechToTextEvent): void {
 		if (e.text) {
-			let input = e.text.replaceAll(/[.,?;!]/g, '');
-			for (const symbol of Object.entries(symbolMap)) {
-				input = input.replace(new RegExp('\\b' + symbol[0] + '\\b'), symbol[1]);
-			}
-			this._input = ' ' + input;
+			this._input = ' ' + this._postProcessTerminalText(e.text);
 		}
+	}
+
+	/**
+	 * Terminal-specific post-processing of dictated text. Speech engines are
+	 * tuned for prose (they append sentence punctuation and capitalize the first
+	 * word), which is wrong for shell commands. Strip trailing punctuation, map
+	 * spoken symbol words (e.g. "dash" -> "-") to their characters, and lower-case
+	 * the leading word so commands like "ls" aren't dictated as "Ls".
+	 */
+	private _postProcessTerminalText(text: string): string {
+		let input = text.replaceAll(/[.,?;!]/g, '');
+		for (const symbol of Object.entries(symbolMap)) {
+			input = input.replace(new RegExp('\\b' + symbol[0] + '\\b'), symbol[1]);
+		}
+		// Undo the engine's prose capitalization of the first word.
+		input = input.replace(/^(\s*)([A-Z])/, (_match, leading, letter) => leading + letter.toLowerCase());
+		return input;
 	}
 
 	private _createDecoration(): void {
@@ -342,7 +389,25 @@ export class TerminalVoiceSession extends Disposable {
 		this._decoration.onRender((e: HTMLElement) => {
 			e.classList.add(...ThemeIcon.asClassNameArray(Codicon.micFilled), 'terminal-voice', 'recording');
 			e.style.transform = onFirstLine ? 'translate(10px, -2px)' : 'translate(-6px, -5px)';
+			this._registerDecorationInteractions(e);
 		});
+	}
+
+	/**
+	 * Make the mic decoration interactive so the recording can be stopped
+	 * without knowing the (Escape) keybinding: show a hover advertising the
+	 * Stop Dictation command/keybinding, and accept the transcript on click.
+	 */
+	private _registerDecorationInteractions(element: HTMLElement): void {
+		const store = new DisposableStore();
+		this._decorationListeners.value = store;
+		const hoverLabel = this._keybindingService.appendKeybinding(localize('terminalVoiceStopHover', "Stop Dictation"), TerminalCommandId.StopVoice);
+		store.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, hoverLabel));
+		store.add(addDisposableListener(element, 'click', e => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.stop(true);
+		}));
 	}
 
 	private _updateDecoration(): void {
