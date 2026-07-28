@@ -29,7 +29,7 @@
 .agent-sessions-workbench .interactive-session .chat-scroll-down {
 	right: max(
 		var(--vscode-spacing-size320),
-		calc((100% - var(--session-view-centered-content-max-width)) / 2 + var(--vscode-spacing-size320))
+		calc((100% - var(--session-view-centered-content-max-width, 950px)) / 2 + var(--vscode-spacing-size320))
 	);
 }
 
