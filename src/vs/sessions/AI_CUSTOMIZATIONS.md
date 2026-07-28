@@ -177,6 +177,8 @@ The shared `applyStorageSourceFilter()` helper applies this filter to any `{uri,
 
 Local harness: all types use `[local, user, extension, plugin, builtin]`. Items from the default chat extension (`productService.defaultChatAgent.chatExtensionId`) are grouped under "Built-in" via `groupKey` override in the list widget.
 
+Voice customizations follow the same workspace/user split as Copilot instructions but are consumed directly by voice features rather than listed as standard prompt-file sections in the management editor. Voice Mode combines `~/.copilot/voice.md` with each trusted workspace's `.github/voice.md` and sends the result to the backend as `voice_instructions` on both session start and resume. Dictation separately combines `~/.copilot/dictation.md` with each trusted workspace's `.github/dictation.md` and appends the result to its language-model post-processing prompt for terminology and formatting guidance. Separate configure commands create or open either scope and are linked from their respective settings, microphone menus, and the management editor overview.
+
 CLI harness (core):
 
 | Type | sources |
