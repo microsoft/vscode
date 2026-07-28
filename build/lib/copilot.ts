@@ -325,9 +325,9 @@ function materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch: s
  * matches the extension's own SDK JavaScript.
  *
  * Prefers the app-root package when it already matches (the normal build — no
- * extra work), falls back to the extension's own installed copy, and only when
- * neither matches (the canary integration build, where app-root is bumped but
- * the extension is frozen) fetches the exact extension version into a temp dir.
+ * extra work), and otherwise fetches the exact extension version into a temp
+ * dir (the canary integration build, where app-root is bumped but the extension
+ * is frozen, so the two diverge).
  */
 function resolveVersionMatchedCopilotPlatformPackage(copilotPackagePlatformArch: string, extVersion: string, appNodeModulesDir: string, options: EnsureNpmPackageOptions): { dir: string; cleanup: () => void } {
 	const noop = () => { };
