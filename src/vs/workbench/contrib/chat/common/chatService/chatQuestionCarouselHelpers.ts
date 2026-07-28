@@ -66,13 +66,10 @@ export function getOptionsWithDefaultsFirst(question: IChatQuestion): IOrderedQu
 /**
  * Convert backend-resolved answers into carousel answers, or `undefined`.
  *
- * Matching is by exact option `value` only — no ordinals, no labels, no fuzzy
- * matching. The backend already resolved the user's spoken ordinal against its
- * mirror of this schema, so anything that fails to match here means the mirror
- * was stale, and answering a form with a guess is strictly worse than reporting
- * the failure and letting the user hear it. A single unresolvable entry rejects
- * the whole set for the same reason: a half-applied form is not something the
- * user can see went wrong.
+ * Matching is by exact option `value` only. The backend already resolved the
+ * spoken ordinal against its mirror of this schema, so a failure to match means
+ * the mirror was stale. A single unresolvable entry rejects the whole set: a
+ * half-applied form is not something the user can see went wrong.
  */
 export function resolveQuestionAnswers(
 	questions: readonly IChatQuestion[],

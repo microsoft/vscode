@@ -1834,7 +1834,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					settle();
 				});
 			} else {
-				// Unknown / disallowed tool — answer so the backend isn't left
+				// Unknown / disallowed tool: answer so the backend isn't left
 				// blocked. This is deliberately not evidence of anything: the
 				// backend must not read a bare 'ok' as "the thing happened".
 				this.voiceClientService.sendToolResult(e.callId, 'ok');
@@ -3382,8 +3382,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		let handledResponse = pendingSummaryFlushed;
 		// Push this session's context and clear the debounce before narrating. The
 		// backend validates a narration request against its mirror of the session
-		// context, so on the focus path — where the session may never have been
-		// sent at all — narrating first asks it to speak something it has not yet
+		// context, so on the focus path (where the session may never have been
+		// sent at all) narrating first asks it to speak something it has not yet
 		// been told exists.
 		this._sendContext();
 		this.voiceClientService.flushSessionContext();
@@ -3803,34 +3803,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	/**
-	 * The spoken form of a session's pending question form, if it has one.
-	 *
-	 * This asks for *the form*, not for a particular question in it: the backend
-	 * owns the draft of answers given so far, so it is the only side that knows
-	 * which question the form is waiting on, and it re-renders accordingly. The
-	 * text below is only what gets spoken during the debounce window before the
-	 * backend's mirror has caught up — by definition first sighting, where
-	 * question 1 is the right answer.
-	 *
-	 * Naming a question here instead would leave a partially answered form
-	 * silent forever: the client can only ever see question 1, so once that one
-	 * is answered every request it could make would be refused as stale.
-	 *
-	 * The pending id rides alongside as a staleness token rather than inside
-	 * `text`: it identifies this *occurrence* of a form, which two forms with
-	 * the same questions would otherwise share.
-	 */
-	/**
-	 * The identity of one *occurrence* of a narratable item, for dedup.
-	 *
-	 * Text alone is not an identity. Two forms can ask the same questions, and
-	 * two tools can raise the same prompt; keying "already heard" on text alone
-	 * silently swallows the second one. A pending id, where we have one, names
-	 * the occurrence exactly, so the text is only a fallback for narratables
-	 * that have no structured pending (a reply summary, or a remote session with
-	 * no resident model).
-	 */
-	/**
 	 * The id of the pending item a session is showing right now, or `''`.
 	 *
 	 * Used as a per-occurrence fingerprint in state-transition detection: the
@@ -3851,10 +3823,29 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return (model ? this._buildPendingPayload(model)?.pending_id : undefined) ?? '';
 	}
 
+	/**
+	 * The identity of one *occurrence* of a narratable item, for dedup.
+	 *
+	 * Two forms can ask the same questions and two tools can raise the same
+	 * prompt, so keying "already heard" on text alone swallows the second one.
+	 * Text is only a fallback for narratables with no structured pending.
+	 */
 	private _narratableIdentity(narratable: { text: string; pending?: { pendingId: string } }): string {
 		return narratable.pending ? `#${narratable.pending.pendingId}` : narratable.text;
 	}
 
+	/**
+	 * The spoken form of a session's pending question form, if it has one.
+	 *
+	 * This asks for *the form*, not a particular question in it: the backend owns
+	 * the draft of answers so far, so only it knows which question the form is
+	 * waiting on. The text here is spoken during the debounce window before the
+	 * backend's mirror has caught up, which is by definition first sighting.
+	 *
+	 * Naming a question here would leave a partially answered form silent: the
+	 * client only ever sees question 1, so once that is answered every request it
+	 * could make would be refused as stale.
+	 */
 	private _questionNarratable(model: IChatModel | undefined | null): { kind: VoiceNarrationKind; text: string; pending: { pendingId: string } } | undefined {
 		const pending = model ? this._buildPendingPayload(model) : undefined;
 		const question = pending?.type === 'questions' ? pending.questions?.[0] : undefined;
@@ -4831,7 +4822,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		} else if (currentState === 'waiting_for_confirmation' && detail) {
 			// `detail` is the prose flattening, which for a question form is just
-			// the question titles — the options the user has to choose between are
+			// the question titles; the options the user has to choose between are
 			// not in it, so hearing it leaves them with nothing to say back. Use
 			// the structured rendering whenever the model is resident enough to
 			// produce one; a remote session with no loaded model still gets the
@@ -4898,7 +4889,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// The backend validates a narration request against its mirror of the
 		// session context, and that mirror is debounced 500ms. Narrating first
 		// would ask it to speak a form it has not been told about yet, so the
-		// context that justifies the narration goes out — and past the debounce —
+		// context that justifies the narration goes out, and past the debounce,
 		// before the narration is requested.
 		//
 		// For detail-only transitions (same agent_state but different pending
@@ -5576,8 +5567,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 *
 	 * `_getAgentStateInfo` flattens the same state into one human-readable
 	 * string for the legacy `agent_state_detail` field. That string is fine to
-	 * *say* but cannot be *acted on* — a question form becomes
-	 * `questions: <titles>`, losing the options, their values and the ids — which
+	 * *say* but cannot be *acted on*: a question form becomes
+	 * `questions: <titles>`, losing the options, their values and the ids, which
 	 * is why a spoken answer to a form used to have nowhere to land. This returns
 	 * what the backend needs to resolve an answer and route it back to the exact
 	 * part that raised it.

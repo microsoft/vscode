@@ -10,15 +10,12 @@ import { IVoicePendingQuestion } from './voiceClientService.js';
  *
  * Mirrors `format_question_prompt` in the voice backend's `session_pending.py`,
  * against the same fixtures. The client speaks the first question of a form and
- * the backend speaks the rest as it replies to each answer, so a divergence
- * here is audible as the assistant changing register mid-form.
+ * the backend speaks the rest, so a divergence is audible mid-form.
  *
- * It renders the wire shape rather than the carousel, because the numbers it
- * reads out are the ordinals the user says back and the wire shape is where
- * those ordinals were assigned (from the widget's own displayed order, in
- * `_buildPendingPayload`). Numbering the options a second time from a second
- * source is the one way this could tell the user a number that selects
- * something else.
+ * Renders the wire shape rather than the carousel: the numbers it reads out are
+ * the ordinals the user says back, and the wire shape is where those ordinals
+ * were assigned. Numbering from a second source could read out a number that
+ * selects something else.
  */
 export function formatQuestionPrompt(question: IVoicePendingQuestion, allowSkip: boolean): string {
 	const parts: string[] = [];

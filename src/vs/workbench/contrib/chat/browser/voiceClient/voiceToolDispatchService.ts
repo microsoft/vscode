@@ -241,10 +241,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 	 * user was not looking at. An answer that cannot find its form is reported
 	 * as stale instead, and the user hears that it did not land.
 	 *
-	 * Values are matched exactly. The backend resolved the spoken ordinal
-	 * against its own mirror of this schema, so anything that fails to match
-	 * here means the mirror was stale — and half-filling a form on a guess is
-	 * strictly worse than saying so.
+	 * Answer values are matched exactly; see `resolveQuestionAnswers`.
 	 */
 	async respondToSession(toolCall: IVoiceToolCall): Promise<IVoiceDispatchResult> {
 		const args = toolCall.args;
@@ -266,7 +263,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			return { ok: false, reason: 'no_session' };
 		}
 		// A freshly loaded session holds its only reference here, so everything
-		// that reads the model — including the awaited confirmation send — has to
+		// that reads the model, including the awaited confirmation send, has to
 		// happen before it is released.
 		try {
 			return await this._applyResponse(resolved.model, args, argString, responseType, response as Record<string, unknown>);
@@ -446,7 +443,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 	 *
 	 * A confirmation is resolved by sending a follow-up request carrying its
 	 * data, not by mutating the part, so this mirrors the widget's button handler
-	 * in `chatConfirmationContentPart` — including its model, mode, location and
+	 * in `chatConfirmationContentPart`, including its model, mode, location and
 	 * tool selection, which are properties of the session the user is looking at
 	 * rather than of the voice channel. Answering a confirmation raised in Plan
 	 * or Ask mode by silently continuing in Agent mode would grant the follow-up
@@ -454,8 +451,8 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 	 * there is no selection to mirror, and the service's own agent-mode options
 	 * are the fallback.
 	 *
-	 * `isUsed` is set before the send rather than after so a second response —
-	 * another voice turn, or a widget click landing mid-flight — cannot submit a
+	 * `isUsed` is set before the send rather than after so a second response
+	 * (another voice turn, or a widget click landing mid-flight) cannot submit a
 	 * contradictory answer to the same confirmation. It is restored if the send
 	 * does not go through.
 	 */

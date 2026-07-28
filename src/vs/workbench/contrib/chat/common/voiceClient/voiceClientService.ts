@@ -10,7 +10,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
  * One selectable option on a pending question, positioned in *displayed* order.
  *
  * `ordinal` is what the user hears and says back ("the second one"), so it must
- * match the on-screen order — both sides derive it from
+ * match the on-screen order; both sides derive it from
  * `getOptionsWithDefaultsFirst`. `value` is the opaque id the chat model wants
  * back and is never spoken.
  */
@@ -56,12 +56,11 @@ export interface IVoiceSessionPending {
 /**
  * Per-occurrence tokens for pending response parts.
  *
- * An earlier version of this identity used the part's index in `response.value`
- * on the reasoning that the list is append-only. It is not: `Response.clear` and
- * `Response.clearToPreviousToolInvocation` both splice it, so a retry can seat a
- * brand new part at an index that has already been published to the backend. The
- * backend keys partial answers and "already narrated" markers off this id, so a
- * reused id lets a draft written for one form be submitted against another.
+ * Not the part's index in `response.value`: `Response.clear` and
+ * `Response.clearToPreviousToolInvocation` splice that list, so a retry can seat
+ * a new part at an index already published to the backend. The backend keys
+ * partial answers off this id, so a reused id lets a draft written for one form
+ * be submitted against another.
  *
  * A token minted per part object cannot be reused, because a spliced-out part is
  * never seen again. Entries are weakly held, so they die with the model.
@@ -73,11 +72,8 @@ let pendingOccurrenceCounter = 0;
  * Derive the id that routes a voice response back to this exact pending part.
  *
  * Call this only when publishing a part as the session's pending request; it
- * mints a token on first sight. Use `peekPendingId` to resolve an id that came
- * back from the backend, so that parts which were never offered cannot be
- * matched by a stale id.
- *
- * The number after `#p` is a mint counter, not an index into `response.value`.
+ * mints a token on first sight. Use `peekPendingId` for an id that came back
+ * from the backend, so a part never offered cannot be matched by a stale id.
  */
 export function derivePendingId(requestId: string, part: object): string {
 	let token = pendingOccurrenceTokens.get(part);
@@ -91,9 +87,8 @@ export function derivePendingId(requestId: string, part: object): string {
 /**
  * Resolve the id of an already-published pending part, or `undefined`.
  *
- * Deliberately does not mint: a part the client never published as pending has
- * no id, so an id the backend echoes back can only ever match the part it was
- * issued for.
+ * Does not mint: a part the client never published as pending has no id, so an
+ * echoed id can only match the part it was issued for.
  */
 export function peekPendingId(requestId: string, part: object): string | undefined {
 	const token = pendingOccurrenceTokens.get(part);
@@ -124,7 +119,7 @@ export interface IVoiceSessionContext {
  * voice backend.
  *
  * `'question'` is spoken verbatim by the backend rather than being paraphrased
- * by the narration model — the numbered options are the ordinals the user says
+ * by the narration model: the numbered options are the ordinals the user says
  * back, so a summary that drops them breaks answering.
  */
 export type VoiceNarrationKind = 'response' | 'confirmation' | 'question';
@@ -363,7 +358,7 @@ export interface IVoiceClientService {
 	 *
 	 * `pending` names the form a `'question'` narration speaks. The backend drops
 	 * the request if that form has moved on, and otherwise re-renders whichever
-	 * question the form is now waiting on — it owns the draft of answers given so
+	 * question the form is now waiting on: it owns the draft of answers given so
 	 * far, which is why the caller names a form and not a question. `text` is
 	 * therefore only spoken verbatim during the debounce window before the
 	 * backend's mirror has caught up. The id is deliberately *not* folded into
