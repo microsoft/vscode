@@ -12,26 +12,20 @@ import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata 
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { SessionServerToolName } from '../../common/serverToolNames.js';
 import {
 	applyCreateChatTool,
 	applyDeleteSessionTool,
 	applySendMessageTool,
-	createChatToolName,
 	createSessionServerToolGroup,
-	createSessionToolName,
-	deleteSessionToolName,
 	getCreateChatArgs,
 	getCreateSessionArgs,
-	getCurrentSessionToolName,
 	getDeleteSessionArgs,
 	getSendMessageArgs,
 	getSessionContextArgs,
 	serializeSessionContext,
-	getSessionContextToolName,
 	filterSessions,
 	getListSessionsArgs,
-	listSessionsToolName,
-	sendMessageToolName,
 	sessionServerToolDefinitions,
 	sessionToolRequiresConfirmation,
 	serializeSessions,
@@ -66,14 +60,14 @@ suite('SessionServerTools', () => {
 	}
 
 	test('definitions and confirmation', () => {
-		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [listSessionsToolName, getCurrentSessionToolName, createSessionToolName, createChatToolName, sendMessageToolName, getSessionContextToolName, deleteSessionToolName]);
-		assert.strictEqual(sessionToolRequiresConfirmation(createSessionToolName), true);
-		assert.strictEqual(sessionToolRequiresConfirmation(createChatToolName), true);
-		assert.strictEqual(sessionToolRequiresConfirmation(sendMessageToolName), true);
-		assert.strictEqual(sessionToolRequiresConfirmation(deleteSessionToolName), true);
-		assert.strictEqual(sessionToolRequiresConfirmation(listSessionsToolName), false);
-		assert.strictEqual(sessionToolRequiresConfirmation(getCurrentSessionToolName), false);
-		assert.strictEqual(sessionToolRequiresConfirmation(getSessionContextToolName), false);
+		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
+		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateSession), true);
+		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateChat), true);
+		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.SendMessage), true);
+		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.DeleteSession), true);
+		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.ListSessions), false);
+		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetCurrentSession), false);
+		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.GetSessionContext), false);
 	});
 
 	test('serializeSessions produces compact metadata', () => {
@@ -163,7 +157,7 @@ suite('SessionServerTools', () => {
 		const accessor = createAccessor({ onCreate: c => { created = c; }, onPrompt: (_s, chat, prompt) => { prompted = { chat, prompt }; } });
 		const group = createSessionServerToolGroup(accessor);
 
-		const text = await group.execute(stateManager, 'copilot:/caller', createSessionToolName, { workspace: workspace.toString(), prompt: 'do it', model: 'gpt-4o' });
+		const text = await group.execute(stateManager, 'copilot:/caller', SessionServerToolName.CreateSession, { workspace: workspace.toString(), prompt: 'do it', model: 'gpt-4o' });
 
 		assert.deepStrictEqual(created, { workingDirectories: [workspace], provider: 'copilot', model: { id: 'gpt-4o' } });
 		assert.strictEqual(prompted?.prompt, 'do it');
@@ -177,7 +171,7 @@ suite('SessionServerTools', () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		const group = createSessionServerToolGroup(createAccessor());
-		const text = await group.execute(stateManager, 'copilot:/caller', listSessionsToolName, {});
+		const text = await group.execute(stateManager, 'copilot:/caller', SessionServerToolName.ListSessions, {});
 		assert.deepStrictEqual(JSON.parse(text).sessions.map((s: { session: string }) => s.session), ['copilot:/s1']);
 		store.dispose();
 	});
@@ -194,7 +188,7 @@ suite('SessionServerTools', () => {
 		const sessions = [idle, needsInput, elsewhere, archived, withPr];
 		const group = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions }));
 
-		const ids = async (args: object) => JSON.parse(await group.execute(stateManager, 'copilot:/caller', listSessionsToolName, args)).sessions.map((s: { session: string }) => s.session);
+		const ids = async (args: object) => JSON.parse(await group.execute(stateManager, 'copilot:/caller', SessionServerToolName.ListSessions, args)).sessions.map((s: { session: string }) => s.session);
 
 		assert.deepStrictEqual({
 			byStatus: await ids({ status: ['inputNeeded'] }),
@@ -259,13 +253,13 @@ suite('SessionServerTools', () => {
 		const args = { workspace: workspace.toString(), prompt: 'go' };
 
 		// From a top-level (depth 0) session, the created session is stamped depth 1.
-		await group.execute(stateManager, 'copilot:/caller', createSessionToolName, args);
+		await group.execute(stateManager, 'copilot:/caller', SessionServerToolName.CreateSession, args);
 		assert.strictEqual(depths.get('copilot:/new'), 1);
 
 		// A session already at the max spawn depth may not create further sessions.
 		depths.set('copilot:/deep', 3);
 		await assert.rejects(
-			async () => { await group.execute(stateManager, 'copilot:/deep', createSessionToolName, args); },
+			async () => { await group.execute(stateManager, 'copilot:/deep', SessionServerToolName.CreateSession, args); },
 			/recursion limit/,
 		);
 		store.dispose();
@@ -279,9 +273,9 @@ suite('SessionServerTools', () => {
 		const group = createSessionServerToolGroup(createAccessor({ createSession: async () => URI.parse(`copilot:/s${n++}`) }));
 		const args = { workspace: workspace.toString(), prompt: 'go' };
 		for (let i = 0; i < 25; i++) {
-			await group.execute(stateManager, 'copilot:/caller', createSessionToolName, args);
+			await group.execute(stateManager, 'copilot:/caller', SessionServerToolName.CreateSession, args);
 		}
-		await assert.rejects(async () => { await group.execute(stateManager, 'copilot:/caller', createSessionToolName, args); }, /more than 25 sessions/);
+		await assert.rejects(async () => { await group.execute(stateManager, 'copilot:/caller', SessionServerToolName.CreateSession, args); }, /more than 25 sessions/);
 		store.dispose();
 	});
 
@@ -400,11 +394,11 @@ suite('SessionServerTools', () => {
 			const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 			const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace)];
 			const withCtx = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: () => snapshot }));
-			const live = JSON.parse(await withCtx.execute(stateManager, 'copilot:/caller', getSessionContextToolName, { session: 'copilot:/s1' }));
+			const live = JSON.parse(await withCtx.execute(stateManager, 'copilot:/caller', SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' }));
 			assert.strictEqual(live.transcript.length, 2);
 
 			const cold = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: () => undefined }));
-			assert.deepStrictEqual(JSON.parse(await cold.execute(stateManager, 'copilot:/caller', getSessionContextToolName, { session: 'copilot:/s1' })), {
+			assert.deepStrictEqual(JSON.parse(await cold.execute(stateManager, 'copilot:/caller', SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' })), {
 				session: 'copilot:/s1', openLink: 'agent-host-session://copilot/s1', detail: 'summary', transcript: [], hasMoreHistory: false, truncated: false,
 			});
 			store.dispose();
@@ -424,7 +418,7 @@ suite('SessionServerTools', () => {
 		const group = createSessionServerToolGroup(createAccessor({ listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace)] }));
 		// Tool call runs on the session's default chat channel; the tool resolves the owning session.
 		const chatChannel = buildDefaultChatUri('copilot:/s1');
-		const text = await group.execute(stateManager, chatChannel, getCurrentSessionToolName, {});
+		const text = await group.execute(stateManager, chatChannel, SessionServerToolName.GetCurrentSession, {});
 		const parsed = JSON.parse(text);
 		assert.strictEqual(parsed.session, 'copilot:/s1');
 		assert.strictEqual(parsed.openLink, 'agent-host-session://copilot/s1');

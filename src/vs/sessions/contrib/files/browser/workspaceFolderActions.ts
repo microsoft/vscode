@@ -103,10 +103,7 @@ export class OpenFilesViewActionViewItem extends SessionHeaderMetaActionViewItem
 			if (!workspace?.label) {
 				return undefined;
 			}
-			// Mirror the sessions list / hover icon logic: cloud for virtual
-			// workspaces, folder when the session runs in the repo checkout,
-			// worktree otherwise. Path and branch are withheld while the
-			// worktree is pending, as they still describe the checkout.
+			// Path and branch still describe the checkout while the worktree is pending, so withhold them.
 			const worktreePending = session?.worktreePending?.read(reader) ?? false;
 			const kind = getSessionWorkspaceKind(workspace, worktreePending);
 			const icon = kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact;
@@ -144,10 +141,13 @@ export class OpenFilesViewActionViewItem extends SessionHeaderMetaActionViewItem
 	}
 
 	protected override getAriaLabel(): string {
-		const label = this._workspaceObs.get()?.label;
-		return label
-			? localize('agentSessions.openFilesView.ariaLabel', "Open Files: {0}", label)
-			: this.getTooltip();
+		const workspace = this._workspaceObs.get();
+		if (!workspace?.label) {
+			return this.getTooltip();
+		}
+		return workspace.worktreePending
+			? localize('agentSessions.openFilesView.worktreePendingAriaLabel', "Open Files: {0}, creating worktree", workspace.label)
+			: localize('agentSessions.openFilesView.ariaLabel', "Open Files: {0}", workspace.label);
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
