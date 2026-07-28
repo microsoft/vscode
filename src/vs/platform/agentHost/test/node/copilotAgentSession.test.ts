@@ -282,6 +282,27 @@ class CapturingLogService extends NullLogService {
 	}
 }
 
+class CapturingTelemetryService implements ITelemetryService {
+	declare readonly _serviceBrand: undefined;
+	readonly telemetryLevel = TelemetryLevel.USAGE;
+	readonly sendErrorTelemetry = true;
+	readonly sessionId = 'sessionId';
+	readonly machineId = 'machineId';
+	readonly sqmId = 'sqmId';
+	readonly devDeviceId = 'devDeviceId';
+	readonly firstSessionDate = 'firstSessionDate';
+	readonly events: Array<{ eventName: string; data: unknown }> = [];
+
+	publicLog(): void { }
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
+		this.events.push({ eventName, data });
+	}
+	publicLogError(): void { }
+	publicLogError2(): void { }
+	setExperimentProperty(): void { }
+	setCommonProperty(): void { }
+}
+
 // ---- Helpers ----------------------------------------------------------------
 
 /**
@@ -2444,6 +2465,52 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(responseParts[0].turnId, turnStarted.turnId, 'response part should land in the steering turn, not the original');
 		});
 
+		test('reports tool-call details for the turn completed by steering', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, {
+				telemetryService,
+				clientSnapshot: { tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
+			});
+			session.resetTurnState('turn-original');
+			await session.send('hello agent', undefined, 'turn-original');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-tools',
+				content: '',
+				model: 'gpt-x',
+				toolRequests: [{ toolCallId: 'tc-1', name: 'grep', arguments: {} }],
+			} as SessionEventPayload<'assistant.message'>['data']);
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			assert.deepStrictEqual(telemetryService.events
+				.filter(event => event.eventName === 'toolCallDetails')
+				.map(event => {
+					const data = event.data as Record<string, unknown>;
+					return {
+						requestId: data.requestId,
+						responseType: data.responseType,
+						toolCounts: data.toolCounts,
+						model: data.model,
+						numRequests: data.numRequests,
+						messageCharLen: data.messageCharLen,
+						totalToolCalls: data.totalToolCalls,
+					};
+				}), [{
+					requestId: 'turn-original',
+					responseType: 'success',
+					toolCounts: JSON.stringify({ grep: 1 }),
+					model: 'gpt-x',
+					numRequests: 1,
+					messageCharLen: 11,
+					totalToolCalls: 1,
+				}]);
+		});
+
 		test('does not flip turns for SDK-injected user messages (non-user source)', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
@@ -3231,27 +3298,6 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('tool-call aggregate emits once with cancelled result across abort and idle', async () => {
-			class CapturingTelemetryService implements ITelemetryService {
-				declare readonly _serviceBrand: undefined;
-				readonly telemetryLevel = TelemetryLevel.USAGE;
-				readonly sendErrorTelemetry = true;
-				readonly sessionId = 'sessionId';
-				readonly machineId = 'machineId';
-				readonly sqmId = 'sqmId';
-				readonly devDeviceId = 'devDeviceId';
-				readonly firstSessionDate = 'firstSessionDate';
-				readonly events: Array<{ eventName: string; data: unknown }> = [];
-
-				publicLog(): void { }
-				publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
-					this.events.push({ eventName, data });
-				}
-				publicLogError(): void { }
-				publicLogError2(): void { }
-				setExperimentProperty(): void { }
-				setCommonProperty(): void { }
-			}
-
 			const telemetryService = new CapturingTelemetryService();
 			const { session, mockSession } = await createAgentSession(disposables, {
 				telemetryService,
