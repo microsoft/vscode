@@ -311,8 +311,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 	 * {@link _workingDirectories}, which callers MUST order primary-first). Hooks
 	 * from non-primary roots are intentionally NOT discovered because the Copilot
 	 * agent currently applies hooks from a single primary directory only. Every
-	 * other customization type (agents, skills, instructions, MCP servers) is
-	 * discovered across all roots.
+	 * other customization types (agents, skills, and instructions) are discovered
+	 * across all roots.
 	 *
 	 * Example: for roots `[B, A, C]` (with `B` selected as primary), hooks are
 	 * discovered from `B` only; hooks under `A`/`C` are ignored.
