@@ -218,7 +218,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				modelProvider?.updateModels(agent.models);
 			}
 		}
-
 	}
 
 	private _registerAgent(agent: AgentInfo): void {
