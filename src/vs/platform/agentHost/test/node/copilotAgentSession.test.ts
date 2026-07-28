@@ -910,7 +910,10 @@ suite('CopilotAgentSession', () => {
 			data: {
 				interactionId: 'message-1',
 				content: 'hello',
-				attachments: [sdkAttachment],
+				attachments: [{
+					...sdkAttachment,
+					mimeType: 'text/plain; x-vscode-display-kind=workspace',
+				}],
 			},
 		}];
 
