@@ -19,7 +19,7 @@ import { AgentSession } from '../../common/agentService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostEditTelemetryEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
-import { isAhpChatChannel, isSubagentSession, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
+import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTelemetryService, isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 
@@ -51,6 +51,7 @@ export class NullEditArcReporterService implements IEditArcReporterService {
 
 interface IResourceState extends IDisposable {
 	readonly resource: URI;
+	readonly gitWorkingDirectory: Promise<URI>;
 	readonly reporters: Set<EditArcReporter>;
 	logicalText: string;
 	isDisposing: boolean;
@@ -123,7 +124,7 @@ export class EditArcReporterService extends Disposable implements IEditArcReport
 				return;
 			}
 
-			const reporter = new EditArcReporter(params, this._sampleScheduleMs, this._gitService, this._telemetryService, timeDelayMs => this.reconcileAndSample(state!, reporter, timeDelayMs), () => {
+			const reporter = new EditArcReporter(params, this._sampleScheduleMs, state.gitWorkingDirectory, this._gitService, this._telemetryService, this._logService, timeDelayMs => this.reconcileAndSample(state!, reporter, timeDelayMs), () => {
 				state!.reporters.delete(reporter);
 				this._reporterCount--;
 				this._retainedCharacters -= retainedCharacters;
@@ -139,8 +140,10 @@ export class EditArcReporterService extends Disposable implements IEditArcReport
 
 	private _createResourceState(key: string, resource: URI, logicalText: string): IResourceState {
 		const store = new DisposableStore();
+		const fileDirectory = URI.file(dirname(resource.fsPath));
 		const state: IResourceState = {
 			resource,
+			gitWorkingDirectory: this._gitService.getRepositoryRoot(fileDirectory).then(repositoryRoot => repositoryRoot ?? fileDirectory),
 			logicalText,
 			reporters: new Set(),
 			isDisposing: false,
@@ -256,21 +259,21 @@ export class EditArcReporterService extends Disposable implements IEditArcReport
 class EditArcReporter extends Disposable {
 	private readonly _tracker: EditArcTracker;
 	private readonly _uniqueEditId = generateUuid();
-	private readonly _workingDirectory: URI;
 	private readonly _initialBranch: Promise<string | undefined>;
 	private _sampleIndex = 0;
 
 	constructor(
 		private readonly _params: IEditArcReporterLaunchParams,
 		private readonly _sampleScheduleMs: readonly number[],
+		private readonly _gitWorkingDirectory: Promise<URI>,
 		private readonly _gitService: IAgentHostGitService,
 		private readonly _telemetryService: ITelemetryService,
+		private readonly _logService: ILogService,
 		private readonly _sample: (timeDelayMs: number) => Promise<void>,
 		onDispose: () => void,
 	) {
 		super();
 		this._tracker = new EditArcTracker(_params.beforeText, _params.initialEdit);
-		this._workingDirectory = URI.file(dirname(_params.filePath));
 		this._initialBranch = this._getCurrentBranchName();
 		this._register(toDisposable(onDispose));
 		this._scheduleNext();
@@ -294,6 +297,8 @@ class EditArcReporter extends Disposable {
 			const timeDelayMs = this._sampleScheduleMs[this._sampleIndex++];
 			try {
 				await this._sample(timeDelayMs);
+			} catch (error) {
+				this._logService.warn(`[EditArcReporter] Failed to sample ${this._params.filePath} after ${timeDelayMs}ms`, error);
 			} finally {
 				this._scheduleNext();
 			}
@@ -318,7 +323,7 @@ class EditArcReporter extends Disposable {
 			uniqueEditId: this._uniqueEditId,
 			provider,
 			agentSessionId: AgentSession.id(sessionUri),
-			isSubagentSession: isSubagentSession(sessionUri) ? 'true' : 'false',
+			isSubagentSession: isSubagentChatUri(this._params.sessionUri) || isSubagentSession(sessionUri) ? 'true' : 'false',
 			didBranchChange: await this._initialBranch === await this._getCurrentBranchName() ? 0 : 1,
 			timeDelayMs,
 			originalCharCount: this._tracker.getOriginalCharacterCount(),
@@ -348,8 +353,9 @@ class EditArcReporter extends Disposable {
 		}
 	}
 
-	private _getCurrentBranchName(): Promise<string | undefined> {
-		return this._gitService.getCurrentBranchName?.(this._workingDirectory) ?? this._gitService.getCurrentBranch(this._workingDirectory);
+	private async _getCurrentBranchName(): Promise<string | undefined> {
+		const workingDirectory = await this._gitWorkingDirectory;
+		return this._gitService.getCurrentBranchName?.(workingDirectory) ?? this._gitService.getCurrentBranch(workingDirectory);
 	}
 }
 

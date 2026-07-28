@@ -20,6 +20,7 @@ import { EditArcReporterService } from '../../../node/shared/editArcReporter.js'
 import { TestDiffComputeService, createNoopGitService } from '../../common/sessionTestHelpers.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostGitService } from '../../../common/agentHostGitService.js';
+import { buildSubagentChatUri } from '../../../common/state/sessionState.js';
 
 class RecordingTelemetryService extends NullTelemetryServiceShape {
 	readonly events: Array<{ name: string; data: Record<string, unknown> }> = [];
@@ -110,6 +111,34 @@ suite('Agent Host Edit ARC Reporter', () => {
 		});
 	});
 
+	test('reports edits from subagent chat channels', async () => {
+		const resource = URI.file('/workspace/subagent.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('hello AI'));
+		const service = disposables.add(new EditArcReporterService([0], fileService, new TestDiffComputeService(), createNoopGitService(), config, new NullLogService(), telemetry));
+
+		await service.reportEdit({
+			sessionUri: buildSubagentChatUri('copilotcli:/session-1', 'parent-tool'),
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			filePath: resource.fsPath,
+			beforeText: 'hello',
+			afterText: 'hello AI',
+			initialEdit: { replacements: [{ start: 5, endExclusive: 5, text: ' AI' }] },
+			completionTime: Date.now(),
+		});
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			editSessionId: telemetry.events[0].data.editSessionId,
+			agentSessionId: telemetry.events[0].data.agentSessionId,
+			isSubagentSession: telemetry.events[0].data.isSubagentSession,
+		}, {
+			editSessionId: 'session-1',
+			agentSessionId: 'session-1',
+			isSubagentSession: 'true',
+		});
+	});
+
 	test('updates older reporters before starting the next reporter', async () => {
 		const resource = URI.file('/workspace/order.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('AIbase'));
@@ -174,6 +203,37 @@ suite('Agent Host Edit ARC Reporter', () => {
 		assert.deepStrictEqual(telemetry.events.map(event => event.data.timeDelayMs), [0]);
 	});
 
+	test('continues sampling after a sample fails', async () => {
+		const resource = URI.file('/workspace/failure.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('hello AI'));
+		let branchLookupCount = 0;
+		const gitService: IAgentHostGitService = {
+			...createNoopGitService(),
+			getCurrentBranchName: async () => {
+				branchLookupCount++;
+				if (branchLookupCount === 3) {
+					throw new Error('branch lookup failed');
+				}
+				return 'main';
+			},
+		};
+		const service = disposables.add(new EditArcReporterService([0, 30, 60], fileService, new TestDiffComputeService(), gitService, config, new NullLogService(), telemetry));
+
+		await service.reportEdit({
+			sessionUri: 'claude:/session-1',
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			filePath: resource.fsPath,
+			beforeText: 'hello',
+			afterText: 'hello AI',
+			initialEdit: { replacements: [{ start: 5, endExclusive: 5, text: ' AI' }] },
+			completionTime: Date.now(),
+		});
+		await timeout(80);
+
+		assert.deepStrictEqual(telemetry.events.map(event => event.data.timeDelayMs), [0, 60]);
+	});
+
 	test('reports symbolic branch changes', async () => {
 		const resource = URI.file('/workspace/branch.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('hello AI'));
@@ -204,6 +264,47 @@ suite('Agent Host Edit ARC Reporter', () => {
 		})), [
 			{ timeDelayMs: 0, didBranchChange: 0 },
 			{ timeDelayMs: 30, didBranchChange: 1 },
+		]);
+	});
+
+	test('retains the repository root when the edited parent directory is deleted', async () => {
+		const resource = URI.file('/workspace/removed/branch.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('hello AI'));
+		const repositoryRoot = URI.file('/workspace');
+		const fileDirectory = URI.file('/workspace/removed');
+		let fileDirectoryExists = true;
+		const gitService: IAgentHostGitService = {
+			...createNoopGitService(),
+			getRepositoryRoot: async () => repositoryRoot,
+			getCurrentBranchName: async workingDirectory => {
+				if (workingDirectory.toString() === repositoryRoot.toString()) {
+					return 'main';
+				}
+				return fileDirectoryExists && workingDirectory.toString() === fileDirectory.toString() ? 'main' : undefined;
+			},
+		};
+		const service = disposables.add(new EditArcReporterService([0, 30], fileService, new TestDiffComputeService(), gitService, config, new NullLogService(), telemetry));
+
+		await service.reportEdit({
+			sessionUri: 'claude:/session-1',
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			filePath: resource.fsPath,
+			beforeText: 'hello',
+			afterText: 'hello AI',
+			initialEdit: { replacements: [{ start: 5, endExclusive: 5, text: ' AI' }] },
+			completionTime: Date.now(),
+		});
+		await timeout(10);
+		fileDirectoryExists = false;
+		await timeout(40);
+
+		assert.deepStrictEqual(telemetry.events.map(event => ({
+			timeDelayMs: event.data.timeDelayMs,
+			didBranchChange: event.data.didBranchChange,
+		})), [
+			{ timeDelayMs: 0, didBranchChange: 0 },
+			{ timeDelayMs: 30, didBranchChange: 0 },
 		]);
 	});
 
