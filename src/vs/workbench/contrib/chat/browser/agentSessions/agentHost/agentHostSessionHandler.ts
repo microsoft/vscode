@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer, disposableTimeout, raceCancellation, Sequencer } from '../../../../../../base/common/async.js';
+import { Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -97,7 +97,7 @@ import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getStreamingToolInput, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallConfirmationMessages, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallConfirmationMessages, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
@@ -2990,13 +2990,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const cts = new CancellationTokenSource();
 		store.add(toDisposable(() => cts.dispose(true)));
-		store.add(toDisposable(() => this._toolsService.releaseToolStream(toolCallId)));
-		const toolStreamUpdates = new Sequencer();
 
 		let invoked = false;
 		let approvedDispatched = false;
 		let confirmationDispatched = false;
-		let previousPartialInput: string | undefined;
 
 		// Drive `ChatToolCallConfirmed` from the invocation's confirmation
 		// gate. The autorun runs synchronously many times; the guards keep it
@@ -3090,15 +3087,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const tc = part$.read(reader).toolCall;
 			const state = invocation.state.read(reader);
 			this._tryObserveSubagentToolCall(tc, invocation, store, opts, subagentContext);
-			if (tc.status === ToolCallStatus.Streaming && tc.partialInput !== previousPartialInput) {
-				previousPartialInput = tc.partialInput;
-				const partialInput = getStreamingToolInput(tc);
-				if (partialInput !== undefined) {
-					toolStreamUpdates.queue(() => this._toolsService.updateToolStream(toolCallId, partialInput, cts.token)).catch(error => {
-						this._logService.error(`[AgentHost] Failed to update client tool stream: ${toolName}`, error);
-					});
-				}
-			}
 			const preApproval = getClientToolPreApproval(tc);
 			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && preApproval) {
 				state.confirm(preApproval);
@@ -3114,7 +3102,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// ourselves first, so `invokeTool` has already settled and this
 				// cancellation is a harmless no-op.
 				if (state.type === IChatToolInvocation.StateKind.Streaming) {
-					this._toolsService.releaseToolStream(toolCallId);
 					const fileEdits = finalizeToolInvocation(invocation, tc, opts.backendSession, this._config.connectionAuthority);
 					if (fileEdits.length > 0) {
 						opts.onFileEdits?.(tc, fileEdits);
@@ -3195,17 +3182,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				preApproved: getClientToolPreApproval(tc),
 			};
 			const noOpCountTokens = async () => 0;
-			void toolStreamUpdates.queue(async () => {
-				if (cts.token.isCancellationRequested) {
-					return;
-				}
-				this._logService.info(`[AgentHost] Invoking client tool: ${toolName} (callId=${toolCallId})`);
-				try {
-					handleSettled(await this._toolsService.invokeTool(inv, noOpCountTokens, cts.token), undefined);
-				} catch (error) {
-					handleSettled(undefined, error);
-				}
-			});
+			this._logService.info(`[AgentHost] Invoking client tool: ${toolName} (callId=${toolCallId})`);
+			this._toolsService.invokeTool(inv, noOpCountTokens, cts.token).then(
+				result => handleSettled(result, undefined),
+				err => handleSettled(undefined, err),
+			);
 		}));
 	}
 

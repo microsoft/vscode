@@ -14,9 +14,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
-import type { IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { buildDefaultChatUri, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionPermissionManager, type IToolApprovalEvent } from '../../node/sessionPermissions.js';
@@ -92,33 +91,6 @@ suite('SessionPermissionManager', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('preserves final contributor and intention in tool ready actions', () => {
-		const signal: IAgentToolPendingConfirmationSignal = {
-			kind: 'pending_confirmation',
-			chat: URI.parse(buildDefaultChatUri(sessionUri)),
-			state: {
-				status: ToolCallStatus.PendingConfirmation,
-				toolCallId: 'tc-ready',
-				toolName: 'mcp_tool',
-				displayName: 'MCP Tool',
-				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
-				intention: 'Query project metadata',
-				invocationMessage: 'Querying metadata',
-				toolInput: '{"query":"metadata"}',
-				confirmationTitle: 'Run MCP tool?',
-			},
-		};
-
-		const action = permissions.createToolReadyAction(signal, sessionUri, 'turn-1');
-		assert.deepStrictEqual({
-			contributor: action.contributor,
-			intention: action.intention,
-		}, {
-			contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
-			intention: 'Query project metadata',
-		});
-	});
 
 	test('auto-approves a normal file inside the working directory', async () => {
 		const result = await permissions.getAutoApproval(writeEvent(join(workDir, 'src', 'app.ts')), sessionUri);

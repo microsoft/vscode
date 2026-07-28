@@ -185,8 +185,8 @@ export interface ChatToolCallDeltaAction extends ToolCallActionBase {
 export interface ChatToolCallReadyAction extends ToolCallActionBase {
 	type: ActionType.ChatToolCallReady;
 	/**
-	 * Reference to the contributor of the tool being called. When present,
-	 * replaces the contributor supplied at `chat/toolCallStart`.
+	 * Final contributor metadata. MUST NOT change execution ownership established
+	 * at `chat/toolCallStart`; a client contributor must keep the same `clientId`.
 	 */
 	contributor?: ToolCallContributor;
 	/**

@@ -23,7 +23,7 @@ import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachmen
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
-import { parsePartialToolInput } from '../../../../../../platform/agentHost/common/partialToolInput.js';
+import { parsePartialToolInputForDisplay } from '../../../../../../platform/agentHost/common/partialToolInput.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import product from '../../../../../../platform/product/common/product.js';
@@ -2265,19 +2265,18 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 	return invocation;
 }
 
-export function getStreamingToolInput(tc: ToolCallState): unknown | undefined {
+function getStreamingToolInputForDisplay(tc: ToolCallState): unknown | undefined {
 	if (tc.status !== ToolCallStatus.Streaming || tc.partialInput === undefined) {
 		return undefined;
 	}
-	const partialInput = parsePartialToolInput(tc.partialInput);
-	return partialInput.value ?? partialInput.raw;
+	return parsePartialToolInputForDisplay(tc.partialInput) ?? tc.partialInput;
 }
 
 export function updateStreamingToolInvocation(existing: ChatToolInvocation, tc: ToolCallState, connectionAuthority: string): unknown | undefined {
 	if (tc.status !== ToolCallStatus.Streaming) {
 		return undefined;
 	}
-	const partialInput = getStreamingToolInput(tc);
+	const partialInput = getStreamingToolInputForDisplay(tc);
 	if (partialInput !== undefined) {
 		existing.updatePartialInput(partialInput);
 	}

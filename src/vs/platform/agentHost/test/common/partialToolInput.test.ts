@@ -5,39 +5,39 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parsePartialToolInput } from '../../common/partialToolInput.js';
+import { parsePartialToolInputForDisplay } from '../../common/partialToolInput.js';
 
 suite('PartialToolInput', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('returns useful object fields from incomplete JSON', () => {
-		assert.deepStrictEqual(parsePartialToolInput('{"command":"npm test","description":"Run'), {
-			raw: '{"command":"npm test","description":"Run',
-			value: {
-				command: 'npm test',
-				description: 'Run',
-			},
+		assert.deepStrictEqual(parsePartialToolInputForDisplay('{"command":"npm test","description":"Run'), {
+			command: 'npm test',
+			description: 'Run',
 		});
 	});
 
-	test('preserves raw input when no object fields are parseable', () => {
+	test('returns undefined when no object fields are parseable', () => {
 		assert.deepStrictEqual([
-			parsePartialToolInput('{"comm'),
-			parsePartialToolInput('custom input'),
-			parsePartialToolInput('["item"]'),
+			parsePartialToolInputForDisplay('{"comm'),
+			parsePartialToolInputForDisplay('custom input'),
+			parsePartialToolInputForDisplay('["item"]'),
 		], [
-			{ raw: '{"comm', value: {} },
-			{ raw: 'custom input', value: undefined },
-			{ raw: '["item"]', value: undefined },
+			{},
+			undefined,
+			undefined,
 		]);
 	});
 
-	test('bounds display parsing while preserving the complete raw input', () => {
+	test('bounds display parsing', () => {
 		const raw = `{"command":"npm test","content":"${'x'.repeat(70 * 1024)}"}`;
-		const parsed = parsePartialToolInput(raw);
-		assert.strictEqual(parsed.raw, raw);
-		assert.strictEqual(parsed.value?.['command'], 'npm test');
-		assert.ok(typeof parsed.value?.['content'] === 'string');
-		assert.ok(parsed.value['content'].length < raw.length);
+		const parsed = parsePartialToolInputForDisplay(raw);
+		assert.deepStrictEqual({
+			command: parsed?.['command'],
+			contentIsTruncated: typeof parsed?.['content'] === 'string' && parsed['content'].length < raw.length,
+		}, {
+			command: 'npm test',
+			contentIsTruncated: true,
+		});
 	});
 });

@@ -698,6 +698,9 @@ export class AgentSideEffects extends Disposable {
 			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, action.toolCallId, action.toolName, action.contributor);
 		} else if (action.type === ActionType.ChatToolCallReady) {
 			this._toolCallTracker.toolCallMetadataUpdated(sessionKey, action.toolCallId, action.contributor);
+			if (action.confirmed) {
+				this._toolCallTracker.toolCallExecutionStarted(sessionKey, action.toolCallId);
+			}
 		}
 
 		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
@@ -1141,6 +1144,9 @@ export class AgentSideEffects extends Disposable {
 		}
 		const readyAction = this._permissionManager.createToolReadyAction(effective, sessionKey, turnId);
 		this._toolCallTracker.toolCallMetadataUpdated(sessionKey, readyAction.toolCallId, readyAction.contributor);
+		if (readyAction.confirmed) {
+			this._toolCallTracker.toolCallExecutionStarted(sessionKey, readyAction.toolCallId);
+		}
 		this._stateManager.dispatchServerAction(sessionKey, readyAction);
 	}
 
@@ -1205,6 +1211,9 @@ export class AgentSideEffects extends Disposable {
 					throw new Error(`ChatToolCallConfirmed must be handled on an AHP chat channel: ${channel}`);
 				}
 				const toolCallKey = `${channel}:${action.toolCallId}`;
+				if (action.approved) {
+					this._toolCallTracker.toolCallExecutionStarted(channel, action.toolCallId);
+				}
 				const agentId = this._toolCallAgents.get(toolCallKey);
 				if (agentId) {
 					this._toolCallAgents.delete(toolCallKey);

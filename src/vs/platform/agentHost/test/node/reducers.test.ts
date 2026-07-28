@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { changesetReducer, chatReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
-import { CustomizationType, ToolCallContributorKind } from '../../common/state/protocol/state.js';
+import { CustomizationType, ToolCallContributorKind, type ToolCallContributor } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
 	return {
@@ -371,6 +371,57 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
 			intention: 'Query project metadata',
 		});
+	});
+
+	test('ChatToolCallReady cannot change client execution ownership', () => {
+		const readyContributor = (startContributor: ToolCallContributor | undefined, contributor: ToolCallContributor) => {
+			let state = chatReducer(makeChat(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			state = chatReducer(state, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tc-1',
+				toolName: 'tool',
+				displayName: 'Tool',
+				contributor: startContributor,
+			});
+			state = chatReducer(state, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tc-1',
+				contributor,
+				invocationMessage: 'Running tool',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			const part = state.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+			assert.ok(part?.kind === ResponsePartKind.ToolCall);
+			return part.toolCall.contributor;
+		};
+
+		assert.deepStrictEqual([
+			readyContributor(undefined, { kind: ToolCallContributorKind.Client, clientId: 'client-1' }),
+			readyContributor(
+				{ kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+			),
+			readyContributor(
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-2' },
+			),
+			readyContributor(
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+			),
+		], [
+			undefined,
+			{ kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+			{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+			{ kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+		]);
 	});
 
 	test('ChatToolCallReady updates an asynchronous judge result on a pending confirmation', () => {

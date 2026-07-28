@@ -53,7 +53,7 @@ import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter } from '../agentHostTelemetryReporter.js';
 import { AgentHostRepoInfoTelemetry } from '../agentHostRepoInfoTelemetry.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
-import { parsePartialToolInput } from '../../common/partialToolInput.js';
+import { parsePartialToolInputForDisplay } from '../../common/partialToolInput.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
@@ -3431,9 +3431,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			const wasStarted = streaming.started;
-			const partialInput = parsePartialToolInput(streaming.input);
+			const partialInput = parsePartialToolInputForDisplay(streaming.input);
 			const displayName = getToolDisplayName(toolName);
-			const meta = this._createToolCallMeta(toolName, partialInput.value);
+			const meta = this._createToolCallMeta(toolName, partialInput);
 			if (!streaming.started) {
 				streaming.started = true;
 				this._emitAction({
@@ -3442,7 +3442,7 @@ export class CopilotAgentSession extends Disposable {
 					toolCallId: e.data.toolCallId,
 					toolName,
 					displayName,
-					intention: getShellIntention(toolName, partialInput.value),
+					intention: getShellIntention(toolName, partialInput),
 					contributor: this._getToolCallContributor(toolName, undefined),
 					_meta: toToolCallMeta(meta),
 				}, streaming.parentToolCallId);
@@ -3452,7 +3452,7 @@ export class CopilotAgentSession extends Disposable {
 				turnId: this._turnId,
 				toolCallId: e.data.toolCallId,
 				content: wasStarted ? e.data.inputDelta : streaming.input,
-				invocationMessage: getInvocationMessage(toolName, displayName, partialInput.value),
+				invocationMessage: getInvocationMessage(toolName, displayName, partialInput),
 				_meta: toToolCallMeta(meta),
 			}, streaming.parentToolCallId);
 		}));

@@ -55,14 +55,22 @@ export function toolSourceKindFromContributor(contributor: ToolCallContributor |
 	}
 }
 
+function canRefineContributor(current: ToolCallContributor | undefined, next: ToolCallContributor): boolean {
+	if (current?.kind === ToolCallContributorKind.Client) {
+		return next.kind === ToolCallContributorKind.Client && next.clientId === current.clientId;
+	}
+	return next.kind !== ToolCallContributorKind.Client;
+}
+
 /** Per-tool-call timing state, keyed by `session:toolCallId`. */
 interface IToolCallTiming {
-	stopWatch: StopWatch;
+	readonly lifecycleStopWatch: StopWatch;
+	invocationStopWatch?: StopWatch;
 	readonly provider: string;
 	readonly session: string;
 	readonly toolId: string;
+	contributor: ToolCallContributor | undefined;
 	toolSourceKind: string;
-	isReady: boolean;
 }
 
 interface IStalledToolCall {
@@ -96,12 +104,12 @@ export class AgentHostToolCallTracker extends Disposable {
 
 	toolCallStarted(provider: string, session: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined): void {
 		this._toolCalls.set(this._key(session, toolCallId), {
-			stopWatch: StopWatch.create(true),
+			lifecycleStopWatch: StopWatch.create(true),
 			provider,
 			session,
 			toolId: toolName,
+			contributor,
 			toolSourceKind: toolSourceKindFromContributor(contributor),
-			isReady: false,
 		});
 	}
 
@@ -110,14 +118,16 @@ export class AgentHostToolCallTracker extends Disposable {
 		if (!timing) {
 			return;
 		}
-		if (contributor) {
+		if (contributor && canRefineContributor(timing.contributor, contributor)) {
+			timing.contributor = contributor;
 			timing.toolSourceKind = toolSourceKindFromContributor(contributor);
 		}
-		if (!timing.isReady) {
-			timing.isReady = true;
-			// A streaming Start can precede actual invocation while the model is
-			// still generating input, so begin execution timing at first Ready.
-			timing.stopWatch = StopWatch.create(true);
+	}
+
+	toolCallExecutionStarted(session: string, toolCallId: string): void {
+		const timing = this._toolCalls.get(this._key(session, toolCallId));
+		if (timing && !timing.invocationStopWatch) {
+			timing.invocationStopWatch = StopWatch.create(true);
 		}
 	}
 
@@ -132,7 +142,7 @@ export class AgentHostToolCallTracker extends Disposable {
 		}
 		this._toolCalls.delete(key);
 		const resultBucket = deriveToolInvokedResult(result);
-		const totalTimeMs = timing.stopWatch.elapsed();
+		const totalTimeMs = timing.lifecycleStopWatch.elapsed();
 
 		this._reporter.toolInvoked({
 			provider: timing.provider,
@@ -140,7 +150,7 @@ export class AgentHostToolCallTracker extends Disposable {
 			toolId: timing.toolId,
 			toolSourceKind: timing.toolSourceKind,
 			result: resultBucket,
-			invocationTimeMs: totalTimeMs,
+			invocationTimeMs: timing.invocationStopWatch?.elapsed(),
 		});
 
 		const stalled = this._stalledToolCalls.get(key);

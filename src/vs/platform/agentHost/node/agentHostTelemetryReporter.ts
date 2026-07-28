@@ -132,7 +132,7 @@ export interface IAgentHostToolInvokedReport {
 	toolId: string;
 	toolSourceKind: string;
 	result: ToolInvokedResult;
-	invocationTimeMs: number;
+	invocationTimeMs?: number;
 }
 
 export interface IAgentHostToolCallDetailsReport {

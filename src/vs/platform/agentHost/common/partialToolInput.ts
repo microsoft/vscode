@@ -12,12 +12,7 @@ const MAX_PARTIAL_TOOL_INPUT_PARSE_LENGTH = 4 * 1024;
 let lastParsedInput: string | undefined;
 let lastParsedValue: Record<string, unknown> | undefined;
 
-export interface IPartialToolInput {
-	readonly raw: string;
-	readonly value: Record<string, unknown> | undefined;
-}
-
-export function parsePartialToolInput(raw: string): IPartialToolInput {
+export function parsePartialToolInputForDisplay(raw: string): Record<string, unknown> | undefined {
 	const input = raw.slice(0, MAX_PARTIAL_TOOL_INPUT_PARSE_LENGTH);
 	if (input !== lastParsedInput) {
 		const parsed: unknown = parse(input);
@@ -26,8 +21,5 @@ export function parsePartialToolInput(raw: string): IPartialToolInput {
 			? parsed as Record<string, unknown>
 			: undefined;
 	}
-	return {
-		raw,
-		value: lastParsedValue,
-	};
+	return lastParsedValue;
 }
