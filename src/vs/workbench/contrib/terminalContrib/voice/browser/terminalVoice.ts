@@ -78,15 +78,7 @@ const symbolMap: [spoken: string, symbol: string][] = [
 	['quote', '\''],
 ];
 
-/**
- * Apply terminal-specific post processing to a dictated utterance so it reads as
- * a shell command rather than prose. Speech transcription is tuned for natural
- * language, so it adds sentence punctuation, capitalizes the first word and
- * spells out symbols; none of that is wanted on a command line. This strips
- * sentence punctuation, substitutes spoken symbol names (e.g. "dash" -> "-",
- * "dollar sign" -> "$") and lower-cases the leading word so commands like `ls`
- * are not typed as `Ls`.
- */
+/** Applies terminal-specific normalization to dictated text. */
 export function postProcessTerminalDictation(text: string): string {
 	let input = text.replaceAll(/[.,?;!]/g, '');
 	for (const [spoken, symbol] of symbolMap) {
