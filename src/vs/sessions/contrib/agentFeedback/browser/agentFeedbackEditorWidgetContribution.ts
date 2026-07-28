@@ -46,8 +46,7 @@ interface ICommentItemActions {
 }
 
 /**
- * An open edit or reply composer inside the widget. `cancel` closes the
- * composer and restores the item to its non-editing state.
+ * An open edit or reply composer. `cancel` closes it and restores the item.
  */
 interface IActiveInput {
 	readonly textarea: HTMLTextAreaElement;
@@ -55,23 +54,33 @@ interface IActiveInput {
 }
 
 /**
- * Whether the event target lives inside one of the widget's text inputs (the
- * edit or reply textarea). Mouse interactions there must be left to the
- * browser so the caret can be placed without the widget stealing focus, and
- * must not trigger navigation.
+ * Whether the event target lives inside one of the widget's text inputs, where
+ * mouse interactions must be left to the browser so the caret can be placed.
  */
 function isTextInputTarget(target: EventTarget | null): boolean {
 	return isHTMLElement(target) && target.closest('textarea, input') !== null;
 }
 
+const enum ComposerKind {
+	Edit,
+	Reply,
+}
+
 /**
- * Shared in-progress reply state that survives widget rebuilds. The contribution
- * owns the single instance and hands it to each widget so drafts (and focus)
- * are not lost when widgets are torn down and recreated in response to
- * unrelated feedback / review changes.
+ * In-progress text of a single open composer.
  */
-interface IReplyDraftState {
-	readonly drafts: Map<string, string>;
+interface IComposerDraft {
+	readonly kind: ComposerKind;
+	readonly text: string;
+}
+
+/**
+ * Shared composer state that survives widget rebuilds. The contribution owns the
+ * single instance and hands it to each widget so drafts (and focus) are not lost
+ * when widgets are recreated in response to unrelated feedback / review changes.
+ */
+export interface IComposerDraftState {
+	readonly drafts: Map<string, IComposerDraft>;
 	focusedCommentId: string | undefined;
 }
 
@@ -104,6 +113,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private readonly _actionBarElements = new Map<string, HTMLElement>();
 
 	private _position: IOverlayWidgetPosition | null = null;
+	private _composerToFocus: HTMLTextAreaElement | undefined;
 	private _isExpanded: boolean = false;
 	private _disposed: boolean = false;
 	private _startLineNumber: number = 1;
@@ -119,7 +129,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		private readonly _editor: ICodeEditor,
 		private readonly _commentItems: readonly ISessionEditorComment[],
 		private readonly _sessionResource: URI,
-		private readonly _replyDraftState: IReplyDraftState | undefined,
+		private readonly _composerDraftState: IComposerDraftState | undefined,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
@@ -192,10 +202,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			this._toggleExpanded();
 		}));
 
-		// Escape closes any open edit/reply composer, also when focus has moved
-		// from the textarea to the widget itself (e.g. after clicking around).
-		// Escape inside a textarea is handled by that textarea and does not
-		// bubble here.
+		// Escape inside a textarea is handled there and stops propagating, so this only fires from the widget chrome.
 		this._eventStore.add(addStandardDisposableListener(this._domNode, 'keydown', (e) => {
 			if (e.keyCode !== KeyCode.Escape || !this._cancelActiveInputs()) {
 				return;
@@ -206,8 +213,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	/**
-	 * Closes every open edit / reply composer in this widget. Returns whether
-	 * any composer was open.
+	 * Closes every open edit / reply composer. Returns whether any was open.
 	 */
 	private _cancelActiveInputs(): boolean {
 		const cancels = [...this._activeEditInputs.values(), ...this._activeReplyInputs.values()].map(input => input.cancel);
@@ -215,6 +221,35 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			cancel();
 		}
 		return cancels.length > 0;
+	}
+
+	private _setDraft(commentId: string, kind: ComposerKind, text: string): void {
+		this._composerDraftState?.drafts.set(commentId, { kind, text });
+	}
+
+	private _clearDraft(commentId: string): void {
+		if (!this._composerDraftState) {
+			return;
+		}
+		this._composerDraftState.drafts.delete(commentId);
+		if (this._composerDraftState.focusedCommentId === commentId) {
+			this._composerDraftState.focusedCommentId = undefined;
+		}
+	}
+
+	/**
+	 * Whether a composer should take focus: always for an explicit user action,
+	 * and for a restored draft only if it had focus when the widget was rebuilt.
+	 */
+	private _shouldFocusComposer(commentId: string, restoredText: string | undefined): boolean {
+		return restoredText === undefined || this._composerDraftState?.focusedCommentId === commentId;
+	}
+
+	private _focusComposer(textarea: HTMLTextAreaElement): void {
+		this._composerToFocus = textarea;
+		if (textarea.isConnected) {
+			this.restoreComposerFocus();
+		}
 	}
 
 	private _toggleExpanded(): void {
@@ -361,8 +396,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 				if (target?.closest('.agent-feedback-widget-add-reply')) {
 					return;
 				}
-				// Don't trigger navigation when placing the caret in an open
-				// edit or reply composer.
+				// Don't navigate when placing the caret in a composer.
 				if (isTextInputTarget(target)) {
 					return;
 				}
@@ -380,11 +414,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 			// Pull focus to the widget when starting a selection in selectable
 			// regions so that Ctrl/Cmd+C copies the DOM selection instead of
-			// triggering the editor's copy action. Never do this for the edit
-			// or reply textarea: stealing focus there would blur the input the
-			// user is trying to place the caret in.
+			// triggering the editor's copy action.
 			const onSelectableMousedown = (e: MouseEvent) => {
 				const target = e.target as HTMLElement | null;
+				// Stealing focus here would blur the composer the user is clicking into.
 				if (isTextInputTarget(target)) {
 					return;
 				}
@@ -396,13 +429,12 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 			this._bodyNode.appendChild(item);
 
-			// Restore an in-progress reply draft if one exists for this comment.
-			// This keeps the reply input alive across widget rebuilds that
-			// happen while the user is typing (e.g. when an unrelated feedback
-			// or review change fires onDidChangeFeedback).
-			const draft = this._replyDraftState?.drafts.get(comment.id);
-			if (draft !== undefined) {
-				this._startAddingReply(comment, item, itemActions, draft);
+			// Restore an in-progress composer so drafts survive widget rebuilds.
+			const draft = this._composerDraftState?.drafts.get(comment.id);
+			if (draft?.kind === ComposerKind.Reply) {
+				this._startAddingReply(comment, item, itemActions, draft.text);
+			} else if (draft?.kind === ComposerKind.Edit) {
+				this._startEditing(comment, text, itemActions, draft.text);
 			}
 		}
 	}
@@ -536,8 +568,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		this._agentFeedbackService.removeFeedback(this._sessionResource, comment.sourceId);
 	}
 
-	private _startEditing(comment: ISessionEditorComment, textContainer: HTMLElement, actions: ICommentItemActions): void {
-		// If this comment is already being edited, just focus the textarea.
+	private _startEditing(comment: ISessionEditorComment, textContainer: HTMLElement, actions: ICommentItemActions, restoredText?: string): void {
 		const existing = this._activeEditInputs.get(comment.id);
 		if (existing) {
 			existing.textarea.focus();
@@ -556,7 +587,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		textContainer.classList.add('editing');
 
 		const textarea = $('textarea.agent-feedback-widget-edit-textarea') as HTMLTextAreaElement;
-		textarea.value = comment.text;
+		textarea.value = restoredText ?? comment.text;
 		textarea.rows = 1;
 		textContainer.appendChild(textarea);
 
@@ -564,6 +595,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			textarea,
 			cancel: () => this._stopEditing(comment, textContainer, editStore, actions),
 		});
+		this._setDraft(comment.id, ComposerKind.Edit, textarea.value);
 
 		// Auto-size the textarea
 		const autoSize = () => {
@@ -573,20 +605,21 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		};
 		autoSize();
 
-		editStore.add(addDisposableListener(textarea, 'input', autoSize));
+		editStore.add(addDisposableListener(textarea, 'input', () => {
+			this._setDraft(comment.id, ComposerKind.Edit, textarea.value);
+			autoSize();
+		}));
 
-		// Editing is only ended explicitly, via Enter (save) or Escape
-		// (cancel). Losing focus — e.g. because the user clicked elsewhere in
-		// the widget or in the editor — keeps the composer open so the draft
-		// isn't lost by an incidental click.
+		// Editing ends only on Enter or Escape so an incidental click never discards the draft.
 		editStore.add(addStandardDisposableListener(textarea, 'keydown', (e) => {
 			if (e.keyCode === KeyCode.Enter && !e.shiftKey) {
 				e.preventDefault();
 				e.stopPropagation();
 				const newText = textarea.value.trim();
 				if (newText) {
+					// Clear the draft first so the rebuilt widget doesn't re-open the composer.
+					this._clearDraft(comment.id);
 					this._saveEdit(comment, newText);
-					// Widget will be rebuilt by the change event
 				} else {
 					this._stopEditing(comment, textContainer, editStore, actions);
 				}
@@ -597,10 +630,12 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			}
 		}));
 
-		textarea.focus();
+		if (this._shouldFocusComposer(comment.id, restoredText)) {
+			this._focusComposer(textarea);
+		}
 	}
 
-	private _startAddingReply(comment: ISessionEditorComment, itemNode: HTMLElement, actions: ICommentItemActions, initialText?: string): void {
+	private _startAddingReply(comment: ISessionEditorComment, itemNode: HTMLElement, actions: ICommentItemActions, restoredText?: string): void {
 		// If a reply input is already open for this item, just focus it.
 		const existing = this._activeReplyInputs.get(comment.id);
 		if (existing) {
@@ -620,8 +655,8 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		const textarea = $('textarea.agent-feedback-widget-edit-textarea') as HTMLTextAreaElement;
 		textarea.placeholder = nls.localize('addReplyPlaceholder', "Add a comment\u2026");
 		textarea.rows = 1;
-		if (initialText !== undefined) {
-			textarea.value = initialText;
+		if (restoredText !== undefined) {
+			textarea.value = restoredText;
 		}
 		replyContainer.appendChild(textarea);
 		// Keep the action button bar (Accept/Remove) as the very last element so
@@ -633,10 +668,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			itemNode.appendChild(replyContainer);
 		}
 		this._activeReplyInputs.set(comment.id, { textarea, cancel: () => cleanup() });
-
-		// Ensure the draft store has an entry so subsequent rebuilds know to
-		// restore the input even before the user has typed anything.
-		this._replyDraftState?.drafts.set(comment.id, textarea.value);
+		this._setDraft(comment.id, ComposerKind.Reply, textarea.value);
 
 		const autoSize = () => {
 			textarea.style.height = 'auto';
@@ -646,19 +678,9 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		autoSize();
 
 		replyStore.add(addDisposableListener(textarea, 'input', () => {
-			this._replyDraftState?.drafts.set(comment.id, textarea.value);
+			this._setDraft(comment.id, ComposerKind.Reply, textarea.value);
 			autoSize();
 		}));
-
-		const clearDraft = () => {
-			if (!this._replyDraftState) {
-				return;
-			}
-			this._replyDraftState.drafts.delete(comment.id);
-			if (this._replyDraftState.focusedCommentId === comment.id) {
-				this._replyDraftState.focusedCommentId = undefined;
-			}
-		};
 
 		const cleanup = () => {
 			replyStore.dispose();
@@ -667,24 +689,20 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			actions.addReplyAction.enabled = true;
 			this._activeReplyInputs.delete(comment.id);
 			replyContainer.remove();
-			clearDraft();
+			this._clearDraft(comment.id);
 			this._editor.layoutOverlayWidget(this);
 		};
 
-		// The reply composer is only closed explicitly, via Enter (submit, or
-		// dismiss when empty) or Escape. It deliberately survives focus loss so
-		// clicking around the widget or the editor never discards it.
+		// Replying ends only on Enter or Escape so an incidental click never discards the draft.
 		replyStore.add(addStandardDisposableListener(textarea, 'keydown', (e) => {
 			if (e.keyCode === KeyCode.Enter && !e.shiftKey) {
 				e.preventDefault();
 				e.stopPropagation();
 				const newReply = textarea.value.trim();
 				if (newReply) {
-					// Clear the draft before triggering the change so the
-					// rebuilt widget doesn't re-open the reply input.
-					clearDraft();
+					// Clear the draft first so the rebuilt widget doesn't re-open the composer.
+					this._clearDraft(comment.id);
 					this._saveReply(comment, newReply);
-					// Widget will be rebuilt by the change event.
 				} else {
 					cleanup();
 				}
@@ -695,16 +713,24 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			}
 		}));
 
-		// Only steal focus when this is an explicit user-triggered open. For
-		// drafts restored across a rebuild, only refocus if the textarea had
-		// focus at the moment the previous widget was torn down.
-		if (initialText === undefined || this._replyDraftState?.focusedCommentId === comment.id) {
-			textarea.focus();
-			// Place caret at the end of any restored text so typing continues
-			// naturally from where the user left off.
-			const len = textarea.value.length;
-			textarea.setSelectionRange(len, len);
+		if (this._shouldFocusComposer(comment.id, restoredText)) {
+			this._focusComposer(textarea);
 		}
+	}
+
+	/**
+	 * Focuses the composer restored from a draft, if any. Must be called once the
+	 * widget is in the DOM — focusing a detached element has no effect.
+	 */
+	restoreComposerFocus(): void {
+		const textarea = this._composerToFocus;
+		this._composerToFocus = undefined;
+		if (!textarea) {
+			return;
+		}
+		textarea.focus();
+		// Place caret at the end so typing continues where the user left off.
+		textarea.setSelectionRange(textarea.value.length, textarea.value.length);
 	}
 
 	private _saveReply(comment: ISessionEditorComment, replyText: string): void {
@@ -747,6 +773,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private _stopEditing(comment: ISessionEditorComment, textContainer: HTMLElement, editStore: DisposableStore, actions: ICommentItemActions): void {
 		editStore.dispose();
 		this._activeEditInputs.delete(comment.id);
+		this._clearDraft(comment.id);
 
 		// Re-enable actions
 		actions.editAction.enabled = true;
@@ -899,13 +926,11 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	/**
-	 * Returns the comment id whose active reply textarea matches the given
-	 * element, or `undefined` if none. Used by the contribution to remember
-	 * which reply input had focus immediately before tearing widgets down,
-	 * so focus can be restored on the new widget.
+	 * Returns the comment id whose open composer is the given element, or
+	 * `undefined` if none. Lets the contribution restore focus after a rebuild.
 	 */
-	findReplyCommentIdForElement(element: HTMLElement): string | undefined {
-		for (const [commentId, { textarea }] of this._activeReplyInputs) {
+	findComposerCommentIdForElement(element: HTMLElement): string | undefined {
+		for (const [commentId, { textarea }] of [...this._activeEditInputs, ...this._activeReplyInputs]) {
 			if (textarea === element) {
 				return commentId;
 			}
@@ -1095,12 +1120,12 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 	private _sessionResource: URI | undefined;
 
 	/**
-	 * Reply input state shared across widget rebuilds. Without this, any
-	 * unrelated feedback / review state change would dispose the active
-	 * widget and discard the textarea the user was typing in.
+	 * Composer state shared across widget rebuilds. Without this, any unrelated
+	 * feedback / review state change would dispose the active widget and discard
+	 * the textarea the user was typing in.
 	 */
-	private readonly _replyDraftState: IReplyDraftState = {
-		drafts: new Map<string, string>(),
+	private readonly _composerDraftState: IComposerDraftState = {
+		drafts: new Map<string, IComposerDraft>(),
 		focusedCommentId: undefined,
 	};
 
@@ -1186,7 +1211,7 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 		// further down.
 		for (let i = groups.length - 1; i >= 0; i--) {
 			const group = groups[i];
-			const widget = this._instantiationService.createInstance(AgentFeedbackEditorWidget, this._editor, group, this._sessionResource, this._replyDraftState);
+			const widget = this._instantiationService.createInstance(AgentFeedbackEditorWidget, this._editor, group, this._sessionResource, this._composerDraftState);
 			this._widgets.push(widget);
 
 			// Ensure only one widget is expanded per file at a time: when a
@@ -1200,17 +1225,18 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 			}));
 
 			widget.layout(group[0].range.startLineNumber);
+			widget.restoreComposerFocus();
 		}
 
-		this._pruneOrphanedReplyDrafts();
+		this._pruneOrphanedComposerDrafts();
 	}
 
 	/**
 	 * Remove draft entries for comments that no longer exist in any widget.
 	 * Without this, deleted comments would leave drafts in the map forever.
 	 */
-	private _pruneOrphanedReplyDrafts(): void {
-		if (this._replyDraftState.drafts.size === 0 && this._replyDraftState.focusedCommentId === undefined) {
+	private _pruneOrphanedComposerDrafts(): void {
+		if (this._composerDraftState.drafts.size === 0 && this._composerDraftState.focusedCommentId === undefined) {
 			return;
 		}
 		const knownCommentIds = new Set<string>();
@@ -1219,13 +1245,13 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 				knownCommentIds.add(commentId);
 			}
 		}
-		for (const commentId of [...this._replyDraftState.drafts.keys()]) {
+		for (const commentId of [...this._composerDraftState.drafts.keys()]) {
 			if (!knownCommentIds.has(commentId)) {
-				this._replyDraftState.drafts.delete(commentId);
+				this._composerDraftState.drafts.delete(commentId);
 			}
 		}
-		if (this._replyDraftState.focusedCommentId !== undefined && !knownCommentIds.has(this._replyDraftState.focusedCommentId)) {
-			this._replyDraftState.focusedCommentId = undefined;
+		if (this._composerDraftState.focusedCommentId !== undefined && !knownCommentIds.has(this._composerDraftState.focusedCommentId)) {
+			this._composerDraftState.focusedCommentId = undefined;
 		}
 	}
 
@@ -1325,11 +1351,8 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 	}
 
 	private _clearWidgets(): void {
-		// Capture which reply textarea (if any) currently has focus so the
-		// rebuilt widget can refocus it. The textarea's own blur event would
-		// fire as part of the teardown below and clear this state, so we
-		// snapshot it synchronously here instead of relying on focus tracking.
-		this._captureFocusedReplyCommentId();
+		// Capture focus before teardown: the textarea's blur would clear it.
+		this._captureFocusedComposerCommentId();
 
 		this._widgetListeners.clear();
 		for (const widget of this._widgets) {
@@ -1338,10 +1361,9 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 		this._widgets.length = 0;
 	}
 
-	private _captureFocusedReplyCommentId(): void {
-		// Always recompute from scratch — the previously-captured value may
-		// be stale (e.g. the user clicked elsewhere after typing).
-		this._replyDraftState.focusedCommentId = undefined;
+	private _captureFocusedComposerCommentId(): void {
+		// Always recompute — the previous value may be stale (e.g. the user clicked elsewhere after typing).
+		this._composerDraftState.focusedCommentId = undefined;
 		if (this._widgets.length === 0) {
 			return;
 		}
@@ -1350,9 +1372,9 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 			return;
 		}
 		for (const widget of this._widgets) {
-			const commentId = widget.findReplyCommentIdForElement(activeElement);
+			const commentId = widget.findComposerCommentIdForElement(activeElement);
 			if (commentId !== undefined) {
-				this._replyDraftState.focusedCommentId = commentId;
+				this._composerDraftState.focusedCommentId = commentId;
 				return;
 			}
 		}
