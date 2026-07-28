@@ -2231,6 +2231,50 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('accepts an already handled MCP token after retrying session handlers', async () => {
+			const mcpAgent = new MockAgent();
+			disposables.add(toDisposable(() => mcpAgent.dispose()));
+			const mcpAgentContract: IAgent = mcpAgent;
+			let handlerCalls = 0;
+			mcpAgentContract.handleAuthenticationToken = async () => ++handlerCalls === 1;
+			service.registerProvider(mcpAgentContract);
+
+			const first = await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['write', 'read'], token: 'token-1' });
+			const duplicate = await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['read', 'write'], token: 'token-1' });
+			const replacement = await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['read', 'write'], token: 'token-2' });
+
+			assert.deepStrictEqual({ first, duplicate, replacement, handlerCalls }, {
+				first: { authenticated: true },
+				duplicate: { authenticated: true },
+				replacement: { authenticated: false },
+				handlerCalls: 3,
+			});
+		});
+
+		test('does not hide a session handler rejection with an accepted token', async () => {
+			const mcpAgent = new MockAgent();
+			disposables.add(toDisposable(() => mcpAgent.dispose()));
+			const mcpAgentContract: IAgent = mcpAgent;
+			let handlerCalls = 0;
+			mcpAgentContract.handleAuthenticationToken = async () => {
+				handlerCalls++;
+				if (handlerCalls === 1) {
+					return true;
+				}
+				throw new Error('failed');
+			};
+			service.registerProvider(mcpAgentContract);
+
+			const first = await service.authenticate({ resource: 'https://mcp.example.com', token: 'token-1' });
+			const duplicate = await service.authenticate({ resource: 'https://mcp.example.com', token: 'token-1' });
+
+			assert.deepStrictEqual({ first, duplicate, handlerCalls }, {
+				first: { authenticated: true },
+				duplicate: { authenticated: false },
+				handlerCalls: 2,
+			});
+		});
+
 		test('fans out to every provider that owns the resource', async () => {
 			// Two providers share the same protected resource (the real
 			// motivating example: both Copilot CLI and Claude consume the
