@@ -9,6 +9,7 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IVoiceSessionController, VoiceState } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { VoiceModeOnboardingService } from '../../browser/voiceModeOnboarding.js';
@@ -26,8 +27,14 @@ suite('Voice Mode onboarding', () => {
 		return { root, container };
 	}
 
-	function createService(store: Pick<DisposableStore, 'add'>): VoiceModeOnboardingService {
+	function createService(store: Pick<DisposableStore, 'add'>, executed: string[] = []): VoiceModeOnboardingService {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override executeCommand(id: string): Promise<undefined> {
+				executed.push(id);
+				return Promise.resolve(undefined);
+			}
+		});
 		instantiationService.stub(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
 			override readonly voiceState = constObservable<VoiceState>('idle');
 			override stopListening(): void { }
@@ -103,6 +110,21 @@ suite('Voice Mode onboarding', () => {
 		service.showIfNeeded();
 
 		assert.strictEqual(host.container.classList.contains('has-voice-mode-onboarding'), true);
+	});
+
+	test('the settings link routes to Voice Mode settings', () => {
+		const executed: string[] = [];
+		const service = createService(disposables, executed);
+		const host = createHost(disposables);
+		disposables.add(service.registerHost(host.container, host.root));
+
+		service.showIfNeeded();
+		const link = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-description a');
+		link?.click();
+
+		assert.deepStrictEqual(
+			{ hasLink: !!link, executed },
+			{ hasLink: true, executed: ['agentsVoice.openSettings'] });
 	});
 
 	test('attaches to the most recently focused host', () => {

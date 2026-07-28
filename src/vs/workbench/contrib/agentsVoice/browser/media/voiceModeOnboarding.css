@@ -64,9 +64,29 @@
 .voice-mode-onboarding-description {
 	font-size: var(--vscode-fontSize-label2);
 	color: var(--vscode-descriptionForeground);
-	/* Wraps rather than truncating: this sentence carries the promise and the
-	 * dictation alternative, so it survives at every width. */
+	/* Wraps rather than truncating: this sentence carries the promise, the ask
+	 * and the escape hatch, so it survives at every width. */
 	line-height: 1.4;
+}
+
+/* The settings link sits inside the sentence, so it takes its colour from the
+ * link token and nothing else - no weight, no size, no box that would lift it
+ * out of the prose it belongs to. */
+.voice-mode-onboarding-description a {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	border-radius: var(--vscode-cornerRadius-xSmall);
+}
+
+.voice-mode-onboarding-description a:hover,
+.voice-mode-onboarding-description a:active {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.voice-mode-onboarding-description a:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 /* --- Waveform --- */

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -16,6 +17,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
@@ -26,6 +28,9 @@ import './media/voiceModeOnboarding.css';
 
 /** Setting the banner writes when a voice chip is picked. */
 const VOICE_SETTING = 'agents.voice.voice';
+
+/** Where the footnote sends anyone who wants to change their mind later. */
+const VOICE_SETTINGS_COMMAND = 'agentsVoice.openSettings';
 
 /**
  * The voices Voice Mode actually speaks with (mirrors the `agents.voice.voice`
@@ -479,6 +484,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 
 	constructor(
 		options: IVoiceModeOnboardingBannerOptions,
+		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
@@ -509,8 +515,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		const copy = dom.append(this.domNode, dom.$('.voice-mode-onboarding-copy'));
 		const title = dom.append(copy, dom.$('.voice-mode-onboarding-title'));
 		title.textContent = localize('voiceMode.onboarding.title', "Welcome to Voice Mode");
-		const description = dom.append(copy, dom.$('.voice-mode-onboarding-description'));
-		description.textContent = localize('voiceMode.onboarding.description', "Your agent can speak back to you, free of charge. Pick a voice to hear it and keep it, or dictate with the mic.");
+		this.renderDescription(copy);
 
 		this.renderSharedWaveform(instantiationService);
 
@@ -603,6 +608,49 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			const next = VOICES[(index + (forward ? 1 : VOICES.length - 1)) % VOICES.length];
 			this.selectVoice(next);
 			this.voiceElements.get(next.id)?.focus();
+		}
+	}
+
+	/**
+	 * One paragraph: what Voice Mode does, what to do about it, and that none of
+	 * it is permanent. The reassurance belongs in the same breath as the ask -
+	 * split onto its own line it read as a separate instruction rather than the
+	 * aside it is.
+	 *
+	 * `[[...]]` marks the clause that becomes the link, so translators can keep
+	 * the sentence natural instead of having a fixed phrase concatenated on.
+	 */
+	private renderDescription(container: HTMLElement): void {
+		const description = dom.append(container, dom.$('.voice-mode-onboarding-description'));
+		const text = localize({
+			key: 'voiceMode.onboarding.description',
+			comment: ['Preserve the double square brackets: they mark the text that becomes a link.'],
+		}, "Your agent can speak back to you, free of charge. Pick a voice to hear it and keep it - you can change this in [[settings]] at any time.");
+
+		dom.append(description, renderFormattedText(text, {
+			actionHandler: {
+				callback: () => this.commandService.executeCommand(VOICE_SETTINGS_COMMAND)
+					.catch(error => this.logService.error(`[voice] Failed to open Voice Mode settings: ${error}`)),
+				disposables: this._store,
+			},
+		}, dom.$('span')));
+
+		// `renderFormattedText` gives the anchor a click listener and nothing
+		// else, so make it a real control: reachable by Tab and operable by
+		// Enter or Space like any other button. The renderer owns this DOM, so a
+		// selector is the only handle on it - same as the empty-editor hint.
+		// eslint-disable-next-line no-restricted-syntax
+		const link = description.querySelector('a');
+		if (link) {
+			link.tabIndex = 0;
+			link.setAttribute('role', 'button');
+			this._register(dom.addDisposableListener(link, dom.EventType.KEY_DOWN, event => {
+				const keyboardEvent = new StandardKeyboardEvent(event);
+				if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
+					keyboardEvent.preventDefault();
+					link.click();
+				}
+			}));
 		}
 	}
 
