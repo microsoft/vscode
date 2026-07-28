@@ -29,21 +29,36 @@
 
 .style-override .part.editor .tabs-container > .tab {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
-	background-clip: padding-box;
-	border-right: var(--vscode-spacing-size40) solid transparent !important;
+	border-right: none !important;
 	border-radius: var(--vscode-cornerRadius-small);
-	border-top-right-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size40));
-	border-bottom-right-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size40));
 	font-size: var(--vscode-fontSize-body1) !important;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-regular);
 	box-shadow: none !important;
+	margin-right: var(--vscode-spacing-size40) !important;
 	padding: 0 0 0 4px !important;
 	--tab-border-top-color: transparent !important;
 }
 
+.style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab:last-child {
+	margin-right: calc(var(--last-tab-margin-right) + var(--vscode-spacing-size40)) !important;
+}
+
+.style-override .part.editor .tabs-and-actions-container.wrapping .tabs-container {
+	row-gap: var(--vscode-spacing-size40);
+}
+
+.style-override .part.editor .tabs-container > .tab > .tab-label > .monaco-icon-label-container {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+
 .style-override .part.editor .tabs-container > .tab.sticky-compact {
 	justify-content: center;
 	padding: 0 !important;
+	width: 28px !important;
+	min-width: 28px !important;
+	max-width: 28px !important;
+	flex: 0 0 28px !important;
 }
 
 .style-override .part.editor .tabs-container > .tab.sticky-compact > .tab-label {
@@ -84,13 +99,6 @@
 	flex: 0 0 auto !important;
 }
 
-.style-override .part.editor .tabs-container > .tab.sticky-compact {
-	width: 32px !important;
-	min-width: 32px !important;
-	max-width: 32px !important;
-	flex: 0 0 32px !important;
-}
-
 /* Center tabs vertically and strip the bottom border so the pills float. */
 .style-override .part.editor .tabs-and-actions-container {
 	--tabs-border-bottom-color: transparent !important;
@@ -100,6 +108,33 @@
 
 .style-override .part.editor .tabs-container > .tab.active {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 18%, transparent) !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.selected:not(.active) {
+	background-color: var(--vscode-tab-selectedBackground) !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-border-top-container,
+.style-override .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-border-top-container {
+	display: block !important;
+	z-index: 6;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	width: auto !important;
+	height: auto !important;
+	border: var(--vscode-strokeThickness) solid var(--tab-border-top-color);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: transparent !important;
+	box-sizing: border-box;
+}
+
+.style-override .part.editor .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-border-top-container {
+	--tab-border-top-color: var(--vscode-tab-selectedBorderTop) !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-border-top-container {
+	--tab-border-top-color: var(--vscode-tab-activeBorderTop, var(--vscode-tab-selectedBorderTop)) !important;
 }
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):hover {
@@ -121,6 +156,16 @@
 
 .style-override.monaco-workbench.vs .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):hover {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 6%, transparent) !important;
+}
+
+.style-override.monaco-workbench .part.editor .tabs-container > .tab:is(.sizing-shrink, .sizing-fixed) > .tab-label > .monaco-icon-label-container {
+	flex: 1 !important;
+	min-width: 0;
+	text-overflow: ellipsis !important;
+}
+
+.style-override.monaco-workbench .part.editor .tabs-container > .tab:is(.sizing-shrink, .sizing-fixed) > .tab-label > .monaco-icon-label-container::after {
+	display: none;
 }
 
 /* Keep scrolling tabs from showing through compact pinned pills and their spacing. */
@@ -168,6 +213,15 @@
 	display: none !important;
 }
 
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-left:not(.last-in-row):not(:last-child)::after {
+	display: none;
+}
+
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-left:not(.last-in-row) + .tab.drop-target-right::before {
+	left: calc(-1 * var(--vscode-spacing-size20));
+	transform: translateX(-50%);
+}
+
 /*
  * Panel tabs (TERMINAL, PROBLEMS, OUTPUT, DEBUG CONSOLE ...). These are
  * composite-bar action items rather than editor `.tab` elements, with an
@@ -189,7 +243,7 @@
  */
 .style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
 	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 22px; /* keep consistent with other 22px title/control heights */
 }
 
@@ -233,14 +287,14 @@
 .style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
 .style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
 	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 22px; /* keep consistent with other 22px title/control heights */
 }
 
 .style-override .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
 .style-override .part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
 	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked,
@@ -267,7 +321,7 @@
 
 .style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
 	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 /*
@@ -285,6 +339,10 @@
 
 .style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active .tab-label:not([class*="monaco-decoration-itemColor"]) a {
 	color: var(--vscode-foreground) !important;
+}
+
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a {
+	color: var(--vscode-tab-selectedForeground) !important;
 }
 
 /* Ensure decoration color cascades to every part of the tab label. */
@@ -305,7 +363,7 @@
 	border-radius: var(--vscode-cornerRadius-small) !important;
 	border-bottom: none !important;
 	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	padding: 2px 8px !important;
 }
 
@@ -339,4 +397,8 @@
 .style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
 	padding: 0;
 	line-height: 24px;
+}
+
+.style-override.monaco-workbench .pane-body.integrated-terminal .tabs-list-container:not(.drop-target) {
+	background-color: var(--vscode-panel-background);
 }

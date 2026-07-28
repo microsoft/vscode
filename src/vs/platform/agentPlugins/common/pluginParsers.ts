@@ -16,6 +16,7 @@ import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServer
 import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
 import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
 import { customizationId } from '../../agentHost/common/state/sessionState.js';
+import { readAgentPluginManifest } from './agentPluginParser.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -114,6 +115,7 @@ export interface IParsedRule extends INamedPluginResource {
 
 /** The result of parsing a single plugin directory. */
 export interface IParsedPlugin {
+	readonly format: PluginFormat;
 	readonly hooks: readonly IParsedHookGroup[];
 	readonly mcpServers: readonly IMcpServerDefinition[];
 	readonly skills: readonly IParsedSkill[];
@@ -129,17 +131,22 @@ export const enum PluginFormat {
 	Copilot,
 	Claude,
 	OpenPlugin,
+	AgentPlugin,
 }
 
 export interface IPluginFormatConfig {
 	readonly format: PluginFormat;
 	readonly manifestPath: string;
 	readonly hookConfigPath: string;
+	readonly componentPaths?: Readonly<Partial<Record<PluginComponent, string | false>>>;
+	readonly requiresManifest?: boolean;
 	readonly pluginRootTokens: readonly string[];
 	readonly pluginRootEnvVars: readonly string[];
 	/** Parses hooks from a JSON object using the format's conventions. */
 	parseHooks(hookUri: URI, json: unknown, pluginUri: URI, workspaceRoot: URI | undefined, userHome: URI): IParsedHookGroup[];
 }
+
+export type PluginComponent = 'commands' | 'skills' | 'agents' | 'rules' | 'hooks' | 'mcpServers';
 
 const COPILOT_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.Copilot,
@@ -174,7 +181,30 @@ const OPEN_PLUGIN_FORMAT: IPluginFormatConfig = {
 	},
 };
 
+const AGENT_PLUGIN_FORMAT: IPluginFormatConfig = {
+	format: PluginFormat.AgentPlugin,
+	manifestPath: 'plugin.json',
+	hookConfigPath: '',
+	componentPaths: {
+		commands: false,
+		skills: 'skills',
+		agents: false,
+		rules: false,
+		hooks: false,
+		mcpServers: 'mcp.json',
+	},
+	requiresManifest: true,
+	pluginRootTokens: [],
+	pluginRootEnvVars: [],
+	parseHooks() {
+		return [];
+	},
+};
+
 export async function detectPluginFormat(pluginUri: URI, fileService: IFileService): Promise<IPluginFormatConfig> {
+	if (await readAgentPluginManifest(pluginUri, fileService)) {
+		return AGENT_PLUGIN_FORMAT;
+	}
 	if (await pathExists(joinPath(pluginUri, '.plugin', 'plugin.json'), fileService)) {
 		return OPEN_PLUGIN_FORMAT;
 	}
@@ -185,6 +215,41 @@ export async function detectPluginFormat(pluginUri: URI, fileService: IFileServi
 	}
 
 	return COPILOT_FORMAT;
+}
+
+export async function readPluginManifest(pluginUri: URI, format: IPluginFormatConfig, fileService: IFileService): Promise<Record<string, unknown> | undefined> {
+	if (format.format === PluginFormat.AgentPlugin) {
+		const manifest = await readAgentPluginManifest(pluginUri, fileService);
+		return manifest ? { ...manifest } : undefined;
+	}
+	const json = await readJsonFile(joinPath(pluginUri, format.manifestPath), fileService);
+	return json && typeof json === 'object' && !Array.isArray(json) ? json as Record<string, unknown> : undefined;
+}
+
+export function getPluginManifestComponent(format: IPluginFormatConfig, component: PluginComponent, manifest: Record<string, unknown> | undefined): unknown {
+	return format.componentPaths && Object.hasOwn(format.componentPaths, component) ? undefined : manifest?.[component];
+}
+
+export function resolvePluginComponentDirs(
+	pluginUri: URI,
+	format: IPluginFormatConfig,
+	component: PluginComponent,
+	fallbackPath: string,
+	manifestSection: unknown,
+	boundaryUri?: URI,
+): readonly URI[] {
+	const componentPath = format.componentPaths?.[component];
+	if (format.componentPaths && Object.hasOwn(format.componentPaths, component)) {
+		return typeof componentPath === 'string'
+			? resolveComponentDirs(pluginUri, componentPath, emptyComponentPathConfig, boundaryUri)
+			: [];
+	}
+	return resolveComponentDirs(
+		pluginUri,
+		fallbackPath,
+		parseComponentPathConfig(manifestSection),
+		boundaryUri,
+	);
 }
 
 // ---------------------------------------------------------------------------
@@ -258,6 +323,11 @@ function makeHookCustomization(hookUri: URI): HookCustomization {
  * multiple servers declared in one file get distinct ids, and the entry
  * carries {@link DEFAULT_MCP_APP} so MCP App support is advertised
  * consistently with every other MCP customization.
+ *
+ * The seed state is {@link McpServerStatus.Stopped}: a declared-but-not-yet
+ * connected server has not been started by any SDK, so it must not claim to
+ * be {@link McpServerStatus.Starting}. The live state is enriched from the
+ * SDK's reported status once a session materializes.
  */
 export function makeMcpServerCustomization(definitionUri: URI, name: string): McpServerCustomization {
 	return {
@@ -266,7 +336,7 @@ export function makeMcpServerCustomization(definitionUri: URI, name: string): Mc
 		uri: definitionUri.toString(),
 		name,
 		enabled: true,
-		state: { kind: McpServerStatus.Starting },
+		state: { kind: McpServerStatus.Stopped },
 		mcpApp: DEFAULT_MCP_APP,
 	};
 }
@@ -397,7 +467,7 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 		return { type: McpServerType.LOCAL, command, args, env, envFile, cwd, dev };
 	}
 
-	if (type === McpServerType.REMOTE || type === 'sse' || (!type && url)) {
+	if (type === McpServerType.REMOTE || type === 'streamable-http' || type === 'sse' || (!type && url)) {
 		if (!url) {
 			return undefined;
 		}
@@ -794,11 +864,19 @@ const COMMAND_FILE_SUFFIX = '.md';
 const RULE_FILE_SUFFIX = '.mdc';
 const INSTRUCTION_FILE_SUFFIX = '.instructions.md';
 
-export async function readSkills(pluginRoot: URI, dirs: readonly URI[], fileService: IFileService): Promise<readonly INamedPluginResource[]> {
+export async function readSkills(
+	pluginRoot: URI,
+	dirs: readonly URI[],
+	fileService: IFileService,
+	options?: { readonly childDirectoriesOnly?: boolean; readonly containmentRoot?: URI },
+): Promise<readonly INamedPluginResource[]> {
 	const seen = new Set<string>();
 	const skills: INamedPluginResource[] = [];
 
 	const addSkill = async (name: string, skillMd: URI) => {
+		if (options?.containmentRoot && !await isResolvedWithin(options.containmentRoot, skillMd, fileService)) {
+			return;
+		}
 		let description: string | undefined;
 		try {
 			const parsedInfo = await parseSkillFile(skillMd, fileService);
@@ -815,10 +893,12 @@ export async function readSkills(pluginRoot: URI, dirs: readonly URI[], fileServ
 	};
 
 	await Promise.all(dirs.map(async dir => {
-		const skillMd = URI.joinPath(dir, 'SKILL.md');
-		if (await pathExists(skillMd, fileService)) {
-			await addSkill(basename(dir), skillMd);
-			return;
+		if (!options?.childDirectoriesOnly) {
+			const skillMd = URI.joinPath(dir, 'SKILL.md');
+			if (await pathExists(skillMd, fileService)) {
+				await addSkill(basename(dir), skillMd);
+				return;
+			}
 		}
 
 		let stat;
@@ -840,7 +920,7 @@ export async function readSkills(pluginRoot: URI, dirs: readonly URI[], fileServ
 		}));
 	}));
 
-	if (skills.length === 0) {
+	if (!options?.childDirectoriesOnly && skills.length === 0) {
 		const rootSkillMd = URI.joinPath(pluginRoot, 'SKILL.md');
 		if (await pathExists(rootSkillMd, fileService)) {
 			await addSkill(basename(pluginRoot), rootSkillMd);
@@ -849,6 +929,24 @@ export async function readSkills(pluginRoot: URI, dirs: readonly URI[], fileServ
 
 	skills.sort((a, b) => a.name.localeCompare(b.name));
 	return skills;
+}
+
+export async function readPluginSkills(pluginRoot: URI, dirs: readonly URI[], format: IPluginFormatConfig, fileService: IFileService): Promise<readonly INamedPluginResource[]> {
+	return readSkills(pluginRoot, dirs, fileService, format.format === PluginFormat.AgentPlugin
+		? { childDirectoriesOnly: true, containmentRoot: pluginRoot }
+		: undefined);
+}
+
+async function isResolvedWithin(root: URI, resource: URI, fileService: IFileService): Promise<boolean> {
+	try {
+		const [resolvedRoot, resolvedResource] = await Promise.all([
+			fileService.realpath(root),
+			fileService.realpath(resource),
+		]);
+		return isEqualOrParent(resolvedResource ?? normalizePath(resource), resolvedRoot ?? normalizePath(root));
+	} catch {
+		return false;
+	}
 }
 
 export async function readMarkdownComponents(dirs: readonly URI[], fileService: IFileService): Promise<readonly INamedPluginResource[]> {
@@ -1055,21 +1153,33 @@ async function readHooks(
 }
 
 async function readMcpServers(
+	pluginUri: URI,
 	paths: readonly URI[],
-	pluginFsPath: string,
 	formatConfig: IPluginFormatConfig,
 	fileService: IFileService,
 ): Promise<readonly IMcpServerDefinition[]> {
 	const merged = new Map<string, IMcpServerDefinition>();
 	for (const mcpPath of paths) {
+		if (formatConfig.format === PluginFormat.AgentPlugin && !await isResolvedWithin(pluginUri, mcpPath, fileService)) {
+			continue;
+		}
 		const json = await readJsonFile(mcpPath, fileService);
-		for (const def of parseMcpServerDefinitionMap(mcpPath, json, pluginFsPath, formatConfig)) {
+		for (const def of parseMcpServerDefinitionMap(mcpPath, json, pluginUri.fsPath, formatConfig)) {
 			if (!merged.has(def.name)) {
 				merged.set(def.name, def);
 			}
 		}
 	}
 	return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function readPluginMcpServers(
+	pluginUri: URI,
+	paths: readonly URI[],
+	format: IPluginFormatConfig,
+	fileService: IFileService,
+): Promise<readonly IMcpServerDefinition[]> {
+	return readMcpServers(pluginUri, paths, format, fileService);
 }
 
 export function parseMcpServerDefinitionMap(
@@ -1097,10 +1207,12 @@ export function parseMcpServerDefinitionMap(
 			customization: makeMcpServerCustomization(definitionURI, name),
 		};
 		def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
-		if (def.configuration.type === McpServerType.LOCAL && def.configuration.cwd === undefined) {
+		if (formatConfig.format !== PluginFormat.AgentPlugin && def.configuration.type === McpServerType.LOCAL && def.configuration.cwd === undefined) {
 			def = { ...def, configuration: { ...def.configuration, cwd: pluginFsPath } };
 		}
-		def = convertBareEnvVarsToVsCodeSyntax(def);
+		if (formatConfig.format !== PluginFormat.AgentPlugin) {
+			def = convertBareEnvVarsToVsCodeSyntax(def);
+		}
 		definitions.push(def);
 	}
 
@@ -1126,19 +1238,21 @@ export async function parsePlugin(
 	const formatConfig = await detectPluginFormat(pluginUri, fileService);
 
 	// Read manifest
-	const manifestJson = await readJsonFile(joinPath(pluginUri, formatConfig.manifestPath), fileService);
-	const manifest = (manifestJson && typeof manifestJson === 'object') ? manifestJson as Record<string, unknown> : undefined;
+	const manifest = await readPluginManifest(pluginUri, formatConfig, fileService);
+	if (formatConfig.requiresManifest && !manifest) {
+		throw new Error(`Plugin manifest '${joinPath(pluginUri, formatConfig.manifestPath).toString()}' is missing`);
+	}
 
 	// Resolve component directories from manifest
-	const hookDirs = resolveComponentDirs(pluginUri, formatConfig.hookConfigPath, parseComponentPathConfig(manifest?.['hooks']), boundaryUri);
-	const mcpDirs = resolveComponentDirs(pluginUri, '.mcp.json', parseComponentPathConfig(manifest?.['mcpServers']), boundaryUri);
-	const skillDirs = resolveComponentDirs(pluginUri, 'skills', parseComponentPathConfig(manifest?.['skills']), boundaryUri);
-	const agentDirs = resolveComponentDirs(pluginUri, 'agents', parseComponentPathConfig(manifest?.['agents']), boundaryUri);
-	const instructionDirs = resolveComponentDirs(pluginUri, 'rules', parseComponentPathConfig(manifest?.['rules']), boundaryUri);
+	const hookDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'hooks', formatConfig.hookConfigPath, manifest?.['hooks'], boundaryUri);
+	const mcpDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'mcpServers', '.mcp.json', manifest?.['mcpServers'], boundaryUri);
+	const skillDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'skills', 'skills', manifest?.['skills'], boundaryUri);
+	const agentDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'agents', 'agents', manifest?.['agents'], boundaryUri);
+	const instructionDirs = resolvePluginComponentDirs(pluginUri, formatConfig, 'rules', 'rules', manifest?.['rules'], boundaryUri);
 
 	// Handle embedded MCP servers in manifest
 	let embeddedMcp: IMcpServerDefinition[] = [];
-	const mcpSection = manifest?.['mcpServers'];
+	const mcpSection = getPluginManifestComponent(formatConfig, 'mcpServers', manifest);
 	if (mcpSection && typeof mcpSection === 'object' && !Array.isArray(mcpSection) && !(hasKey(mcpSection, { paths: true }))) {
 		embeddedMcp = parseMcpServerDefinitionMap(
 			joinPath(pluginUri, formatConfig.manifestPath),
@@ -1150,7 +1264,7 @@ export async function parsePlugin(
 
 	// Handle embedded hooks in manifest
 	let embeddedHooks: IParsedHookGroup[] = [];
-	const hooksSection = manifest?.['hooks'];
+	const hooksSection = getPluginManifestComponent(formatConfig, 'hooks', manifest);
 	if (hooksSection && typeof hooksSection === 'object' && !Array.isArray(hooksSection) && !(hasKey(hooksSection, { paths: true }))) {
 		const manifestUri = joinPath(pluginUri, formatConfig.manifestPath);
 		embeddedHooks = formatConfig.parseHooks(manifestUri, { hooks: hooksSection }, pluginUri, workspaceRoot, userHome);
@@ -1162,13 +1276,14 @@ export async function parsePlugin(
 			: readHooks(pluginUri, hookDirs, formatConfig, fileService, workspaceRoot, userHome),
 		embeddedMcp.length > 0
 			? Promise.resolve(embeddedMcp)
-			: readMcpServers(mcpDirs, pluginUri.fsPath, formatConfig, fileService),
-		readSkills(pluginUri, skillDirs, fileService),
+			: readPluginMcpServers(pluginUri, mcpDirs, formatConfig, fileService),
+		readPluginSkills(pluginUri, skillDirs, formatConfig, fileService),
 		readAgentComponents(agentDirs, fileService),
 		readInstructionComponents(instructionDirs, fileService),
 	]);
 
 	return {
+		format: formatConfig.format,
 		hooks,
 		mcpServers,
 		skills: skills.map(toParsedSkill),

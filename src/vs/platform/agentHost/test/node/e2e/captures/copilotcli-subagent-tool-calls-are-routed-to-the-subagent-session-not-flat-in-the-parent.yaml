@@ -1,0 +1,104 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the `task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only tool (e.g. `view` or shell with `ls`) to enumerate the directory. Do not enumerate the directory yourself — delegate to the subagent.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: task
+          input:
+            name: list-cwd-files
+            prompt: |-
+              List the files in the current working directory: ${workdir}
+
+              Call a single read-only tool (e.g. `view` on that path, or a shell `ls` command) to enumerate the directory contents, then report back the list of files/directories found. Do not make any other tool calls.
+            agent_type: explore
+            description: List files in cwd
+            mode: sync
+      stopReason: tool_use
+  - request:
+      model: claude-haiku-4.5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            List the files in the current working directory: ${workdir}
+
+            Call a single read-only tool (e.g. `view` on that path, or a shell `ls` command) to enumerate the directory contents, then report back the list of files/directories found. Do not make any other tool calls.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${workdir}
+      stopReason: tool_use
+  - request:
+      model: claude-haiku-4.5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            List the files in the current working directory: ${workdir}
+
+            Call a single read-only tool (e.g. `view` on that path, or a shell `ls` command) to enumerate the directory contents, then report back the list of files/directories found. Do not make any other tool calls.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                file-a.txt
+                file-b.txt
+    response:
+      content: |-
+        The directory contains the following files:
+        - **file-a.txt**
+        - **file-b.txt**
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the `task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only tool (e.g. `view` or shell with `ls`) to enumerate the directory. Do not enumerate the directory yourself — delegate to the subagent.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: task
+              input:
+                name: list-cwd-files
+                prompt: |-
+                  List the files in the current working directory: ${workdir}
+
+                  Call a single read-only tool (e.g. `view` on that path, or a shell `ls` command) to enumerate the directory contents, then report back the list of files/directories found. Do not make any other tool calls.
+                agent_type: explore
+                description: List files in cwd
+                mode: sync
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                The directory contains the following files:
+                - **file-a.txt**
+                - **file-b.txt**
+    response:
+      content: |-
+        The subagent listed the contents of the current working directory and found two files:
+
+        - **file-a.txt**
+        - **file-b.txt**
+      stopReason: end_turn

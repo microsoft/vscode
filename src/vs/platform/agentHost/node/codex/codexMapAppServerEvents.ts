@@ -97,6 +97,11 @@ export interface ICodexSessionMapState {
 	 * turn end) so a genuinely output-less command still finalizes.
 	 */
 	pendingPreflight: ICodexPendingPreflight | undefined;
+	/**
+	 * Count of `agentMessage` markdown parts started in the current turn. Reset
+	 * per turn by {@link resetCodexTurnMapState}; see {@link mapItemStartedBody}.
+	 */
+	agentMessagePartCount: number;
 }
 
 /**
@@ -131,6 +136,7 @@ export function createCodexSessionMapState(serverToolNames: ReadonlySet<string> 
 		mcpCustomizationIds: new Map(),
 		declinedToolCalls: new Set(),
 		pendingPreflight: undefined,
+		agentMessagePartCount: 0,
 	};
 }
 
@@ -147,6 +153,7 @@ export function resetCodexTurnMapState(state: ICodexSessionMapState): void {
 	state.itemToReasoningPartId.clear();
 	state.declinedToolCalls.clear();
 	state.pendingPreflight = undefined;
+	state.agentMessagePartCount = 0;
 }
 
 /**
@@ -347,6 +354,7 @@ export function mapTurnStarted(
 		{
 			type: ActionType.ChatTurnStarted,
 			turnId: params.turn.id,
+			startedAt: typeof params.turn.startedAt === 'number' ? new Date(params.turn.startedAt * 1000).toISOString() : new Date().toISOString(),
 			message: { text: userText, origin: { kind: MessageKind.User } },
 		},
 	];
@@ -451,6 +459,10 @@ function mapItemStartedBody(
 	if (params.item.type === 'agentMessage') {
 		const partId = generateUuid();
 		state.itemToPartId.set(params.item.id, partId);
+		// Separate consecutive agent messages so the chat model's separator-less
+		// markdown coalescing doesn't glue a following heading onto the prior line.
+		const separator = state.agentMessagePartCount > 0 ? '\n\n' : '';
+		state.agentMessagePartCount++;
 		return [
 			{
 				type: ActionType.ChatResponsePart,
@@ -458,7 +470,7 @@ function mapItemStartedBody(
 				part: {
 					kind: ResponsePartKind.Markdown,
 					id: partId,
-					content: params.item.text ?? '',
+					content: separator + (params.item.text ?? ''),
 				},
 			},
 		];
@@ -983,6 +995,7 @@ export function mapItemCompleted(
 export function mapTurnCompleted(
 	state: ICodexSessionMapState,
 	params: TurnCompletedNotification,
+	fallbackDuration?: number,
 ): (SessionAction | ChatAction)[] {
 	state.currentTurnId = undefined;
 	state.itemToPartId.clear();
@@ -995,6 +1008,13 @@ export function mapTurnCompleted(
 	state.itemToToolCall.clear();
 	const turnId = params.turn.id;
 	const status = params.turn.status;
+	const duration = typeof params.turn.durationMs === 'number' && Number.isFinite(params.turn.durationMs) && params.turn.durationMs >= 0
+		? params.turn.durationMs
+		: typeof params.turn.startedAt === 'number' && typeof params.turn.completedAt === 'number'
+			? Math.max(0, (params.turn.completedAt - params.turn.startedAt) * 1000)
+			: typeof fallbackDuration === 'number' && Number.isFinite(fallbackDuration)
+				? Math.max(0, fallbackDuration)
+				: 0;
 	const orphanedToolCallActions: (SessionAction | ChatAction)[] = orphanedToolCalls.map(entry => ({
 		type: ActionType.ChatToolCallComplete,
 		turnId: entry.turnId,
@@ -1014,6 +1034,7 @@ export function mapTurnCompleted(
 			{
 				type: ActionType.ChatError,
 				turnId,
+				duration,
 				error: {
 					errorType: 'CodexError',
 					...extractForwardedErrorInfo(errMessage),
@@ -1022,13 +1043,14 @@ export function mapTurnCompleted(
 			{
 				type: ActionType.ChatTurnComplete,
 				turnId,
+				duration,
 			},
 		];
 	}
 	if (status === 'interrupted') {
-		return [...preflightFlush, ...orphanedToolCallActions, { type: ActionType.ChatTurnCancelled, turnId }];
+		return [...preflightFlush, ...orphanedToolCallActions, { type: ActionType.ChatTurnCancelled, turnId, duration }];
 	}
-	return [...preflightFlush, ...orphanedToolCallActions, { type: ActionType.ChatTurnComplete, turnId }];
+	return [...preflightFlush, ...orphanedToolCallActions, { type: ActionType.ChatTurnComplete, turnId, duration }];
 }
 
 /**

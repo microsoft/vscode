@@ -89,3 +89,12 @@
 .style-override .part.statusbar > .items-container > .statusbar-item.compact-right > a.statusbar-item-label:hover:not(.disabled) {
 	background-image: linear-gradient(var(--vscode-toolbar-hoverBackground), var(--vscode-toolbar-hoverBackground));
 }
+
+.style-override .part.statusbar > .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label {
+	padding: 0 var(--vscode-spacing-size60);
+}
+
+.style-override .part.statusbar > .items-container > .statusbar-item.left.first-visible-item,
+.style-override .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label {
+	padding-right: var(--vscode-spacing-size40);
+}

@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import type { SectionOverride } from '@github/copilot-sdk';
-import { resolveToolInstructionsOverride, universalToolInstructions } from '../../node/copilot/prompts/toolInstructions.js';
+import { resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions } from '../../node/copilot/prompts/toolInstructions.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 /** Builds a `hasTool` predicate backed by the given available tool names. */
@@ -80,6 +81,43 @@ suite('toolInstructions', () => {
 			const transform = (s: string) => s;
 			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), { action: 'remove' }, [lineFor('a')]), { action: 'remove' });
 			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), { action: transform }, [lineFor('a')]), { action: transform });
+		});
+	});
+
+	// The tool-search line is the model-facing instruction gated on BOTH
+	// `toolSearchActive` (via `toolSearchInstructionLines`) and the client
+	// exposing the tool-search tool. These lock its content, gating, and
+	// composition so neither the instruction nor its gate can silently regress.
+	suite('toolSearchInstructionLines', () => {
+		const TOOL_SEARCH_LINE = `Most tools are deferred and hidden until you search for them. Before calling a tool that has not already been loaded, ALWAYS call \`${RUNTIME_TOOL_SEARCH_TOOL_NAME}\` first with a short description of the capability you need, then call the specific tool it returns; tools it returns are immediately available and must not be searched for again.`;
+
+		test('active tool search contributes the tool-search line only when the client exposes the tool-search tool', () => {
+			assert.strictEqual(universalToolInstructions(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), toolSearchInstructionLines(true)), TOOL_SEARCH_LINE);
+			// Active, but the client didn't expose the tool-search tool → gated out.
+			assert.strictEqual(universalToolInstructions(hasTools('other'), toolSearchInstructionLines(true)), undefined);
+		});
+
+		test('inactive tool search never contributes the tool-search line', () => {
+			assert.strictEqual(universalToolInstructions(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), toolSearchInstructionLines(false)), undefined);
+		});
+
+		test('composes the tool-search line after the registered browser line', () => {
+			assert.strictEqual(
+				universalToolInstructions(hasTools('openBrowserPage', 'readPage', CLIENT_TOOL_SEARCH_REFERENCE_NAME), toolSearchInstructionLines(true)),
+				`Use the browser tools (openBrowserPage, readPage, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.\n${TOOL_SEARCH_LINE}`
+			);
+		});
+
+		test('folds the tool-search line into an existing per-model override only while active', () => {
+			assert.deepStrictEqual(
+				resolveToolInstructionsOverride(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), { action: 'append', content: 'A' }, toolSearchInstructionLines(true)),
+				{ action: 'append', content: `\nA\n${TOOL_SEARCH_LINE}` }
+			);
+			// Inactive with no other applicable line → keep the existing override (undefined).
+			assert.strictEqual(
+				resolveToolInstructionsOverride(hasTools(CLIENT_TOOL_SEARCH_REFERENCE_NAME), { action: 'append', content: 'A' }, toolSearchInstructionLines(false)),
+				undefined
+			);
 		});
 	});
 });

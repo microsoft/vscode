@@ -79,17 +79,6 @@ export function getAgentSessionProviderName(provider: AgentSessionTarget): strin
 	}
 }
 
-export function getAgentSessionProviderSource(provider: AgentSessionTarget): string | undefined {
-	switch (provider) {
-		case AgentSessionProviders.Codex:
-			return localize('chat.session.providerSource.openAIExtension', "(OpenAI Extension)");
-		case AgentSessionProviders.AgentHostCodex:
-			return localize('chat.session.providerSource.localAgentHost', "(Local Agent Host)");
-		default:
-			return undefined;
-	}
-}
-
 export function getAgentSessionProviderIcon(provider: AgentSessionTarget): ThemeIcon {
 	switch (provider) {
 		case AgentSessionProviders.Local:

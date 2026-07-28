@@ -121,6 +121,8 @@
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused {
 	color: var(--vscode-editorSuggestWidget-selectedForeground);
+	outline: 1px solid var(--vscode-editorSuggestWidget-focusOutline);
+	outline-offset: -1px;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .codicon {

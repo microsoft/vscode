@@ -445,13 +445,13 @@ function sendToolInvokedTelemetry(
 	/* __GDPR__
 		"languageModelToolInvoked" : {
 			"owner": "roblourens",
-			"comment": "Provides insight into the usage of language model tools (Claude Code agent).",
+			"comment": "Provides insight into the usage of language model tools invoked by agent SDKs.",
 			"result": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "success | error | userCancelled" },
 			"chatSessionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session resource id." },
-			"toolId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The Claude Code SDK tool name (e.g. Bash, Read, Edit, mcp__server__tool)." },
-			"toolExtensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Always undefined for Claude Code." },
-			"toolSourceKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "claudeCode | mcp" },
-			"invocationTimeMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time between tool_use and tool_result." }
+			"toolId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The tool name reported by the agent SDK." },
+			"toolExtensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Always undefined for agent SDK tools." },
+			"toolSourceKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The source of the tool invocation." },
+			"invocationTimeMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The duration of the tool invocation in milliseconds." }
 		}
 	*/
 	telemetryService.sendMSFTTelemetryEvent('languageModelToolInvoked', {
