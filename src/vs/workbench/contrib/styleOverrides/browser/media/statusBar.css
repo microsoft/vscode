@@ -40,6 +40,11 @@
 	background-color: var(--vscode-toolbar-hoverBackground) !important;
 }
 
+.style-override .part.statusbar > .items-container > .statusbar-item {
+	height: calc(100% - var(--vscode-spacing-size40));
+	margin-block: var(--vscode-spacing-size20);
+}
+
 /*
  * Round the status bar item backgrounds to a control-sized pill. The interactive
  * hover/active background lives on the label (`a.statusbar-item-label`); custom
