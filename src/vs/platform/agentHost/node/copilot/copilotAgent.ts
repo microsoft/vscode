@@ -38,7 +38,7 @@ import { IAgentHostReviewService } from '../../common/agentHostReviewService.js'
 import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, getRuntimeModelFamilyOverride, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
@@ -143,6 +143,15 @@ const COPILOT_PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'htt
  * Proxy env vars we set when injecting the resolved CAPI proxy.
  */
 const COPILOT_PROXY_SET_ENV_KEYS = ['HTTP_PROXY', 'HTTPS_PROXY'] as const;
+/**
+ * Shape a runtime model family (`COPILOT_MODEL_FAMILY`) must have to be
+ * forwarded to the CLI subprocess: an id like `claude-opus-4-8` or
+ * `gpt-5.1-codex-max`. The runtime looks the value up as a key in its static
+ * agent/model config map, so nothing outside this alphabet can match anyway,
+ * and the check keeps arbitrary workspace-configured input out of the
+ * subprocess environment (see `CopilotAgent._getRuntimeModelFamily`).
+ */
+const RUNTIME_MODEL_FAMILY_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 
 async function fileExists(filePath: string): Promise<boolean> {
 	try {
@@ -834,6 +843,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _lastSystemProxyEnabled: boolean = this._isSystemProxyEnabled();
 	private _lastManagedSettingsPermissions: IAgentHostManagedSettingsPermissions;
 	private _lastMigrateLegacyEnabled: boolean = this._isMigrateLegacyCopilotCliEnabled();
+	private _lastRuntimeModelFamily: string | undefined = this._getRuntimeModelFamily();
 
 	private _isSessionSyncEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true;
@@ -849,6 +859,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _resolveCopilotSdkLogLevel(configured: CopilotSdkLogLevelSetting): NonNullable<CopilotClientOptions['logLevel']> {
 		return configured === 'trace' || this._logService.getLevel() === LogLevel.Trace ? 'all' : 'info';
+	}
+
+	/**
+	 * The family alias lowered onto the runtime process as
+	 * `COPILOT_MODEL_FAMILY` (see {@link getRuntimeModelFamilyOverride}): the
+	 * `*` capability-override entry's family, or `undefined` when unset.
+	 * Process-scoped, hence read here (client env) rather than per session.
+	 *
+	 * The value is workspace-configurable and is the only capability-override
+	 * field that crosses into the CLI subprocess environment, so it is checked
+	 * against the id shape a runtime family actually has. Anything else is
+	 * dropped with a warning rather than forwarded: a value carrying a NUL
+	 * makes `child_process.spawn` throw, which would take down every session in
+	 * the window (the client is shared), not just the misconfigured setting.
+	 */
+	private _getRuntimeModelFamily(): string | undefined {
+		const family = getRuntimeModelFamilyOverride(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides));
+		if (family === undefined || RUNTIME_MODEL_FAMILY_PATTERN.test(family)) {
+			return family;
+		}
+		// JSON-encoded and truncated: the rejected value is arbitrary workspace
+		// input and may carry control characters or be very long.
+		this._logService.warn(`[Copilot] Ignoring '*' model-family capability override ${JSON.stringify(family.slice(0, 40))}; expected an id like 'claude-opus-4-8' (letters, digits, '.', '_', '-'; 64 characters max)`);
+		return undefined;
 	}
 
 	private _getEnterpriseHost(): string | undefined {
@@ -892,7 +926,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const enterpriseHost = this._getEnterpriseHost();
 		const systemProxyEnabled = this._isSystemProxyEnabled();
 		const managedSettingsPermissions = this._managedSettingsService.permissions;
-		if (this._lastSessionSyncEnabled === sessionSync && this._lastRubberDuckEnabled === rubberDuck && this._lastCopilotSdkLogLevelSetting === copilotSdkLogLevelSetting && this._lastEnterpriseHost === enterpriseHost && this._lastSystemProxyEnabled === systemProxyEnabled && equals(this._lastManagedSettingsPermissions, managedSettingsPermissions)) {
+		const runtimeModelFamily = this._getRuntimeModelFamily();
+		if (this._lastSessionSyncEnabled === sessionSync && this._lastRubberDuckEnabled === rubberDuck && this._lastCopilotSdkLogLevelSetting === copilotSdkLogLevelSetting && this._lastEnterpriseHost === enterpriseHost && this._lastSystemProxyEnabled === systemProxyEnabled && equals(this._lastManagedSettingsPermissions, managedSettingsPermissions) && this._lastRuntimeModelFamily === runtimeModelFamily) {
 			return;
 		}
 		const changed = [
@@ -902,6 +937,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._lastEnterpriseHost !== enterpriseHost ? `enterpriseHost=${enterpriseHost}` : undefined,
 			this._lastSystemProxyEnabled !== systemProxyEnabled ? `systemProxy=${systemProxyEnabled}` : undefined,
 			!equals(this._lastManagedSettingsPermissions, managedSettingsPermissions) ? 'managedSettingsPermissions' : undefined,
+			this._lastRuntimeModelFamily !== runtimeModelFamily ? `modelFamily=${runtimeModelFamily}` : undefined,
 		].filter((v): v is string => v !== undefined).join(', ');
 		this._lastSessionSyncEnabled = sessionSync;
 		this._lastRubberDuckEnabled = rubberDuck;
@@ -909,12 +945,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._lastEnterpriseHost = enterpriseHost;
 		this._lastSystemProxyEnabled = systemProxyEnabled;
 		this._lastManagedSettingsPermissions = managedSettingsPermissions;
+		this._lastRuntimeModelFamily = runtimeModelFamily;
 		if (this._client) {
 			this._logService.info(`[Copilot] Startup config changed (${changed}), restarting CopilotClient`);
 		}
 		await this._requestClientRestart(`startup config changed: ${changed}`);
 	}
 
+	/**
+	 * Requests a CLI client restart, running it immediately when every chat is
+	 * idle and otherwise parking it until the last in-flight turn ends.
+	 *
+	 * Restarting tears the SDK sessions down, and a torn-down session stops
+	 * producing the events that finalize its protocol turn — the client would
+	 * be left with a turn that never completes, cancels, or errors, i.e. a
+	 * session that spins forever. Startup-only values (session sync, the SDK
+	 * log level, the enterprise host, the system proxy, the runtime model family)
+	 * can also change without any user action, from an experiment or policy
+	 * refresh, so this must never be paid for with a running turn. The values are
+	 * read fresh by
+	 * {@link _ensureClient} on the next start, so applying the restart late is
+	 * always correct.
+	 */
 	private async _requestClientRestart(reason: string): Promise<void> {
 		if (this._shutdownPromise || (!this._client && !this._clientStarting)) {
 			return;
@@ -1663,6 +1715,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const copilotSdkLogLevelSettingAtStartup = this._getCopilotSdkLogLevelSetting();
 		const enterpriseHostAtStartup = this._getEnterpriseHost();
 		const systemProxyEnabledAtStartup = this._isSystemProxyEnabled();
+		const runtimeModelFamilyAtStartup = this._getRuntimeModelFamily();
 		const clientStarting = (async () => {
 			this._logService.info('[Copilot] Starting CopilotClient...');
 
@@ -1709,6 +1762,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 				env['RUBBER_DUCK_AGENT'] = 'true';
 			} else {
 				delete env['RUBBER_DUCK_AGENT'];
+			}
+
+			// Alias the model family the runtime resolves its own per-model config
+			// from (system-prompt parts, model capabilities, reasoning-effort
+			// profile) when the session's model id has no entry of its own — the
+			// runtime-side half of the `family` capability override. It is a
+			// process-scoped runtime setting (`service.agent.modelFamily`, no
+			// per-session SDK field), so only the model-independent `*` entry is
+			// lowered here; a change restarts the client
+			// (see `_restartClientIfStartupConfigChanged`).
+			const runtimeModelFamily = this._getRuntimeModelFamily();
+			if (runtimeModelFamily) {
+				env['COPILOT_MODEL_FAMILY'] = runtimeModelFamily;
+				this._logService.info(`[Copilot] Set CLI env: COPILOT_MODEL_FAMILY=${runtimeModelFamily}`);
+			} else {
+				delete env['COPILOT_MODEL_FAMILY'];
 			}
 
 			// Resolve the CLI entry point and native SDK binaries from node_modules.
@@ -1782,7 +1851,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await client.stop();
 				throw new CancellationError();
 			}
-			if (this._isSessionSyncEnabled() !== sessionSyncAtStartup || this._isRubberDuckEnabled() !== rubberDuckAtStartup || this._getCopilotSdkLogLevelSetting() !== copilotSdkLogLevelSettingAtStartup || this._getEnterpriseHost() !== enterpriseHostAtStartup || this._isSystemProxyEnabled() !== systemProxyEnabledAtStartup) {
+			if (this._isSessionSyncEnabled() !== sessionSyncAtStartup || this._isRubberDuckEnabled() !== rubberDuckAtStartup || this._getCopilotSdkLogLevelSetting() !== copilotSdkLogLevelSettingAtStartup || this._getEnterpriseHost() !== enterpriseHostAtStartup || this._isSystemProxyEnabled() !== systemProxyEnabledAtStartup || this._getRuntimeModelFamily() !== runtimeModelFamilyAtStartup) {
 				await client.stop();
 				throw new Error('Copilot startup config changed while the client was starting');
 			}
