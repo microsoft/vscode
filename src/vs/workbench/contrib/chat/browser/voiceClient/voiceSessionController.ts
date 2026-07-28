@@ -96,6 +96,8 @@ interface IPendingSolicitedNarration {
 	readonly sessionId: string;
 	readonly kind: VoiceNarrationKind;
 	readonly text: string;
+	/** The form this narration speaks, when it has one. Identifies the occurrence for dedup; see `_narratableIdentity`. */
+	readonly pending?: { pendingId: string };
 	readonly audioStartTimer: ReturnType<typeof setTimeout>;
 	hasReceivedAudio: boolean;
 }
@@ -500,7 +502,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _replaySourceNode: AudioBufferSourceNode | undefined;
 
 	// --- Session state tracking for explicit change notifications ---
-	private readonly _prevSessionStates = new Map<string, { state: string; detail: string; lastResponseSummary: string }>();
+	private readonly _prevSessionStates = new Map<string, { state: string; detail: string; pendingId: string; lastResponseSummary: string }>();
 
 	// Sessions the user explicitly cancelled from VS Code UI. We swallow the
 	// NEXT state change for each (typically the chat model going `idle`) so the
@@ -596,6 +598,30 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private readonly _pendingNarrationRetries = new Map<string, { kind: VoiceNarrationKind; text: string }>();
 
 	/**
+	 * Replay a narration that could not be sent while the socket was down.
+	 *
+	 * Re-derives the item from the session as it is *now* rather than replaying
+	 * what was queued: a form or confirmation can be answered, dismissed or
+	 * replaced during a disconnect, and speaking the queued copy would read out
+	 * something that is no longer on screen. This mirrors what
+	 * {@link _retryDeferredNarration} does for the busy path.
+	 */
+	private _replayPendingNarrationRetry(sessionId: string, queued: { kind: VoiceNarrationKind; text: string }): boolean {
+		let resource: URI | undefined;
+		try {
+			resource = URI.parse(sessionId);
+		} catch {
+			resource = undefined;
+		}
+		const narratable = resource ? this._currentNarratable(resource) : undefined;
+		if (!narratable || narratable.kind !== queued.kind) {
+			this.logService.trace(`[voice] queued narration for ${sessionId.slice(-32)} no longer warranted after reconnect; dropping`);
+			return false;
+		}
+		return this._narrate(sessionId, narratable.kind, narratable.text, undefined, narratable.pending);
+	}
+
+	/**
 	 * Narrations we requested (got a `narration_id` back) but whose audio has not
 	 * yet finished arriving. Keyed by that narration id. A request being accepted
 	 * by the backend is NOT proof the reply was heard - the audio can still be
@@ -616,7 +642,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * since a dropped socket loses any in-flight nudge. See
 	 * `_retryDeferredNarration`. Cleared on a new turn (`thinking`) or teardown.
 	 */
-	private readonly _deferredNarrations = new Map<string, { narrationId: string; kind: VoiceNarrationKind; text: string; reuseNarrationId: boolean }>();
+	private readonly _deferredNarrations = new Map<string, { narrationId: string; kind: VoiceNarrationKind; text: string; reuseNarrationId: boolean; pending?: { pendingId: string } }>();
 
 	/**
 	 * The confirmation detail text last actually HEARD (final audio arrived) per
@@ -1148,7 +1174,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								: s.status === AgentSessionStatus.Completed ? 'idle'
 									: 'unknown');
 					if (currentState !== 'unknown') {
-						this._prevSessionStates.set(s.resource.toString(), { state: currentState, detail: info?.detail ?? '', lastResponseSummary: info?.last_response_summary ?? '' });
+						this._prevSessionStates.set(s.resource.toString(), { state: currentState, detail: info?.detail ?? '', pendingId: this._pendingIdFor(s.resource.toString()), lastResponseSummary: info?.last_response_summary ?? '' });
 					}
 				}
 				// Also seed regular chat sessions so the autorun doesn't trigger false transitions
@@ -1158,7 +1184,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					if (chatModel.getRequests().length === 0) { continue; }
 					const info = this._getAgentStateInfo(chatModel);
 					if (info.state !== 'unknown') {
-						this._prevSessionStates.set(key, { state: info.state, detail: info.detail ?? '', lastResponseSummary: info.last_response_summary ?? '' });
+						this._prevSessionStates.set(key, { state: info.state, detail: info.detail ?? '', pendingId: this._pendingIdFor(key), lastResponseSummary: info.last_response_summary ?? '' });
 					}
 				}
 
@@ -1223,7 +1249,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						const prev = this._prevSessionStates.get(sessionId);
 						const normalizedSummary = lastResponseSummary ?? '';
 						const isStateTransition = prev !== undefined && prev.state !== currentState && currentState !== 'unknown';
-						const isDetailTransition = !isStateTransition && prev !== undefined && currentState === 'waiting_for_confirmation' && (detail ?? '') !== prev.detail;
+						// `detail` is prose - for a question form it is just the titles, so
+						// a second form asking the same things looks identical. The pending
+						// id names the occurrence, and is what makes replacing one form
+						// with another a transition worth narrating.
+						const pendingId = this._pendingIdFor(sessionId);
+						const isDetailTransition = !isStateTransition && prev !== undefined && currentState === 'waiting_for_confirmation' && ((detail ?? '') !== prev.detail || pendingId !== prev.pendingId);
 						// A completed reply's summary often lands AFTER the idle
 						// transition (or updates while still idle); the model stays
 						// idle so no state transition fires. Detect the summary
@@ -1265,7 +1296,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							// so a model unload→reload can't manufacture an ''→old-summary
 							// "transition" that looks like a fresh reply.
 							const rememberedSummary = normalizedSummary || this._lastResponseSummaryById.get(sessionId) || prev?.lastResponseSummary || '';
-							this._prevSessionStates.set(sessionId, { state: currentState, detail: detail ?? '', lastResponseSummary: rememberedSummary });
+							this._prevSessionStates.set(sessionId, { state: currentState, detail: detail ?? '', pendingId, lastResponseSummary: rememberedSummary });
 							// Leaving waiting_for_confirmation releases the per-occurrence
 							// narration marker, so the next confirmation - even with
 							// identical text - is narrated afresh on focus.
@@ -1276,6 +1307,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								if (prev?.state === 'waiting_for_confirmation') {
 									this._stopPendingNarration(sessionId);
 								}
+							} else if (prev !== undefined && pendingId !== prev.pendingId) {
+								// One pending item replaced another without the session ever
+								// leaving waiting_for_confirmation. That is a new occurrence:
+								// release the heard marker so it narrates, and stop speaking
+								// the one it replaced.
+								this._narratedConfirmation.delete(this._sessionKey(sessionId));
+								this._stopPendingNarration(sessionId);
 							}
 						}
 
@@ -1342,7 +1380,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								if (!this._userCancelledSessions.has(sessionId)) {
 									stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', lastResponseSummary: cachedSummary, fromState: prev?.state ?? currentState, fromDetail: prev?.detail ?? '', fromResponseSummary: prev?.lastResponseSummary ?? '' });
 								}
-								this._prevSessionStates.set(sessionId, { state: currentState, detail: '', lastResponseSummary: cachedSummary ?? '' });
+								this._prevSessionStates.set(sessionId, { state: currentState, detail: '', pendingId: '', lastResponseSummary: cachedSummary ?? '' });
 								continue;
 							}
 
@@ -1359,7 +1397,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								// Preserve a known summary rather than clobbering with ''
 								// (a later reload of the same summary must not look new).
 								const rememberedSummary = this._lastResponseSummaryById.get(sessionId) || prev?.lastResponseSummary || '';
-								this._prevSessionStates.set(sessionId, { state: currentState, detail: '', lastResponseSummary: rememberedSummary });
+								this._prevSessionStates.set(sessionId, { state: currentState, detail: '', pendingId: '', lastResponseSummary: rememberedSummary });
 								// Mirror the resident path: drop the confirmation-occurrence
 								// marker once this session is no longer awaiting confirmation.
 								if (currentState !== 'waiting_for_confirmation') {
@@ -1515,7 +1553,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				const retries = [...this._pendingNarrationRetries.entries()];
 				this._pendingNarrationRetries.clear();
 				for (const [sessionId, item] of retries) {
-					narrated = this._narrate(sessionId, item.kind, item.text) || narrated;
+					narrated = this._replayPendingNarrationRetry(sessionId, item) || narrated;
 				}
 			}
 			// The `narration_unblocked` nudge was lost with the dropped socket, so
@@ -2840,7 +2878,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		// Seed the state cache so the delta mechanism sees thinking→idle as a transition
 		// and includes last_response_summary in the patch.
-		this._prevSessionStates.set(sessionResource.toString(), { state: 'thinking', detail: '', lastResponseSummary: '' });
+		this._prevSessionStates.set(sessionResource.toString(), { state: 'thinking', detail: '', pendingId: '', lastResponseSummary: '' });
 		this._sendContext();
 
 		const disposables = new DisposableStore();
@@ -2865,7 +2903,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (response.isComplete || response.isCanceled) {
 				// Notify the voice backend of the state transition so it can
 				// narrate the response for this non-focused session.
-				this._prevSessionStates.set(sessionResource.toString(), { state: 'idle', detail: '', lastResponseSummary: '' });
+				this._prevSessionStates.set(sessionResource.toString(), { state: 'idle', detail: '', pendingId: '', lastResponseSummary: '' });
 				this._sendContext();
 				this.voiceClientService.flushSessionContext();
 				disposables.dispose();
@@ -3368,7 +3406,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// deferred/dropped (never heard) still retries here, while one the
 				// user already heard stays silent until it changes or resolves.
 				const pendingAlreadyHeard = narratable.kind !== 'response'
-					&& this._narratedConfirmation.get(sessionKey) === narratable.text;
+					&& this._narratedConfirmation.get(sessionKey) === this._narratableIdentity(narratable);
 				// Only narrate a response on focus when it's a completion recorded
 				// THIS run - i.e. the session owns a pending-response summary, set on
 				// the observed idle transition in _handleNarratableStateChange. A
@@ -3424,7 +3462,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	/** Ask the backend to narrate a session's pending item, de-duped by the exact text last spoken for it ({@link _lastNarratedText}) and by any in-flight request for the same text ({@link _pendingSolicitedNarrations}); the single narration trigger for both live and on-focus paths. Returns `true` when a request was actually SENT - NOT that the reply was heard (the audio may still be dropped/deferred/never arrive). The reply is marked narrated and its pending indicator cleared only once its audio finalizes (see {@link _markNarrationHeard}). */
-	private _narrate(sessionId: string, kind: VoiceNarrationKind, text: string, reuseId?: string, pending?: { pendingId: string; questionId: string }): boolean {
+	private _narrate(sessionId: string, kind: VoiceNarrationKind, text: string, reuseId?: string, pending?: { pendingId: string }): boolean {
 		if (!text) {
 			return false;
 		}
@@ -3436,12 +3474,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (kind === 'response' && this._getLastNarratedText(sessionId) === text) {
 			return false;
 		}
-		// A request for this exact text+kind is already in flight (its audio hasn't
-		// finalized yet); don't re-request or we'd narrate it twice. Match on kind
-		// too so an in-flight response can't suppress a same-text confirmation.
+		// A request for this exact occurrence+kind is already in flight (its audio
+		// hasn't finalized yet); don't re-request or we'd narrate it twice. Match on
+		// kind too so an in-flight response can't suppress a same-text confirmation,
+		// and on the pending id so a *different* form that happens to render the
+		// same prompt is not mistaken for the one already in flight.
 		const sessionKey = this._sessionKey(sessionId);
+		const identity = this._narratableIdentity({ text, pending });
 		for (const s of this._pendingSolicitedNarrations.values()) {
-			if (s.kind === kind && s.text === text && this._sessionKey(s.sessionId) === sessionKey) {
+			if (s.kind === kind && this._narratableIdentity(s) === identity && this._sessionKey(s.sessionId) === sessionKey) {
 				return false;
 			}
 		}
@@ -3495,6 +3536,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			sessionId,
 			kind,
 			text,
+			pending,
 			audioStartTimer,
 			hasReceivedAudio: false,
 		});
@@ -3585,9 +3627,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// Confirmation heard: mark THIS occurrence spoken so a mere refocus
 			// while it is still pending doesn't re-narrate it (see
 			// _activateShownSession). Cleared when the session leaves
-			// waiting_for_confirmation (autorun), so a genuinely new confirmation -
-			// even with identical text - narrates again.
-			this._narratedConfirmation.set(sessionKey, solicited.text);
+			// waiting_for_confirmation (autorun) or when the pending item changes
+			// underneath it, so a genuinely new confirmation - even with identical
+			// text - narrates again.
+			this._narratedConfirmation.set(sessionKey, this._narratableIdentity(solicited));
 			this.logService.trace(`[voice] confirmation heard for ${sessionKey.slice(-32)}; marking occurrence spoken`);
 		}
 	}
@@ -3625,7 +3668,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const text = solicited?.text;
 		if (kind && text) {
 			this.logService.trace(`[voice] narration_ack busy id=${e.narrationId.slice(0, 8)} reason=${e.reason ?? '<none>'}; deferring`);
-			this._deferredNarrations.set(key, { narrationId: e.narrationId, kind, text, reuseNarrationId: true });
+			this._deferredNarrations.set(key, { narrationId: e.narrationId, kind, text, reuseNarrationId: true, pending: solicited?.pending });
 			this.telemetryService.publicLog2<VoiceNarrationDeferredEvent, VoiceNarrationDeferredClassification>('voiceNarrationDeferred', { kind, reason: 'busy' });
 		}
 	}
@@ -3655,6 +3698,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			kind: solicited.kind,
 			text: solicited.text,
 			reuseNarrationId: false,
+			pending: solicited.pending,
 		});
 	}
 
@@ -3700,7 +3744,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this.telemetryService.publicLog2<VoiceNarrationDroppedEvent, VoiceNarrationDroppedClassification>('voiceNarrationDropped', { kind: deferred.kind, reason: 'session_changed' });
 			return false;
 		}
-		const reuseId = deferred.reuseNarrationId && narratable.text === deferred.text ? deferred.narrationId : undefined;
+		// Reuse the id only for the same *occurrence*, so the backend dedups a lost
+		// ack rather than being handed an id that now names a different form. An
+		// interrupted narration never reuses: its id is tombstoned.
+		const reuseId = deferred.reuseNarrationId && this._narratableIdentity(narratable) === this._narratableIdentity(deferred) ? deferred.narrationId : undefined;
 		this.logService.trace(`[voice] retrying deferred narration for ${sessionKey.slice(-32)} reuse=${!!reuseId}`);
 		this._clearDeferred(sessionKey);
 		return this._narrate(sessionKey, narratable.kind, narratable.text, reuseId, narratable.pending);
@@ -3712,7 +3759,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	/** The pending item a session would narrate now (waiting confirmation prompt or completed reply summary), from the resident model or cached summary/status; returns undefined (kicking off a load) if a confirmation's detail isn't ready. */
-	private _currentNarratable(resource: URI): { kind: VoiceNarrationKind; text: string; pending?: { pendingId: string; questionId: string } } | undefined {
+	private _currentNarratable(resource: URI): { kind: VoiceNarrationKind; text: string; pending?: { pendingId: string } } | undefined {
 		const model = this.chatService.getSession(resource);
 		if (model) {
 			// A question form is narrated from the structured payload, not from
@@ -3758,17 +3805,55 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/**
 	 * The spoken form of a session's pending question form, if it has one.
 	 *
-	 * Always question 1. Questions 2..N are spoken by the backend as it replies
-	 * to each answer, so at first sighting the form is by definition untouched
-	 * and the client needs no view of the backend's draft to know where the form
-	 * is up to.
+	 * This asks for *the form*, not for a particular question in it: the backend
+	 * owns the draft of answers given so far, so it is the only side that knows
+	 * which question the form is waiting on, and it re-renders accordingly. The
+	 * text below is only what gets spoken during the debounce window before the
+	 * backend's mirror has caught up — by definition first sighting, where
+	 * question 1 is the right answer.
 	 *
-	 * The ids ride alongside as staleness tokens rather than inside `text`:
-	 * every dedup, retry-reuse and interruption guard in this file keys on text
-	 * identity, so burying a per-occurrence id in the text would defeat all of
-	 * them at once.
+	 * Naming a question here instead would leave a partially answered form
+	 * silent forever: the client can only ever see question 1, so once that one
+	 * is answered every request it could make would be refused as stale.
+	 *
+	 * The pending id rides alongside as a staleness token rather than inside
+	 * `text`: it identifies this *occurrence* of a form, which two forms with
+	 * the same questions would otherwise share.
 	 */
-	private _questionNarratable(model: IChatModel | undefined | null): { kind: VoiceNarrationKind; text: string; pending: { pendingId: string; questionId: string } } | undefined {
+	/**
+	 * The identity of one *occurrence* of a narratable item, for dedup.
+	 *
+	 * Text alone is not an identity. Two forms can ask the same questions, and
+	 * two tools can raise the same prompt; keying "already heard" on text alone
+	 * silently swallows the second one. A pending id, where we have one, names
+	 * the occurrence exactly, so the text is only a fallback for narratables
+	 * that have no structured pending (a reply summary, or a remote session with
+	 * no resident model).
+	 */
+	/**
+	 * The id of the pending item a session is showing right now, or `''`.
+	 *
+	 * Used as a per-occurrence fingerprint in state-transition detection: the
+	 * prose `detail` two forms produce can be identical, so without this,
+	 * replacing one form with another inside `waiting_for_confirmation` looks
+	 * like no change at all and is never narrated.
+	 */
+	private _pendingIdFor(sessionId: string): string {
+		let resource: URI | undefined;
+		try {
+			resource = URI.parse(sessionId);
+		} catch {
+			return '';
+		}
+		const model = this.chatService.getSession(resource);
+		return (model ? this._buildPendingPayload(model)?.pending_id : undefined) ?? '';
+	}
+
+	private _narratableIdentity(narratable: { text: string; pending?: { pendingId: string } }): string {
+		return narratable.pending ? `#${narratable.pending.pendingId}` : narratable.text;
+	}
+
+	private _questionNarratable(model: IChatModel | undefined | null): { kind: VoiceNarrationKind; text: string; pending: { pendingId: string } } | undefined {
 		const pending = model ? this._buildPendingPayload(model) : undefined;
 		const question = pending?.type === 'questions' ? pending.questions?.[0] : undefined;
 		if (!pending || !question) {
@@ -3777,7 +3862,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return {
 			kind: 'question',
 			text: formatQuestionPrompt(question, pending.allow_skip === true),
-			pending: { pendingId: pending.pending_id, questionId: question.id },
+			pending: { pendingId: pending.pending_id },
 		};
 	}
 
@@ -4947,7 +5032,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 			const prev = this._prevSessionStates.get(sessionId);
 			const isStateChange = prev !== undefined && prev.state !== currentState && currentState !== 'unknown';
-			const isDetailChange = !isStateChange && prev !== undefined && currentState === 'waiting_for_confirmation' && (detail ?? '') !== prev.detail;
+			const pendingId = this._pendingIdFor(sessionId);
+			const isDetailChange = !isStateChange && prev !== undefined && currentState === 'waiting_for_confirmation' && ((detail ?? '') !== prev.detail || pendingId !== prev.pendingId);
 
 			// Arm the awaiting-summary marker on a genuine new turn so this run's
 			// completion is later recognized as new (see autorun for rationale).
@@ -4997,7 +5083,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// Preserve a known summary rather than clobbering with '' so a
 				// model unload→reload can't manufacture a fresh-reply transition.
 				const rememberedSummary = normalizedSummary || this._lastResponseSummaryById.get(sessionId) || prev?.lastResponseSummary || '';
-				this._prevSessionStates.set(sessionId, { state: currentState, detail: detail ?? '', lastResponseSummary: rememberedSummary });
+				this._prevSessionStates.set(sessionId, { state: currentState, detail: detail ?? '', pendingId, lastResponseSummary: rememberedSummary });
 			}
 			if (currentState === 'waiting_for_confirmation') {
 				waitingSessionIds.add(sessionId);
@@ -5017,7 +5103,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 			const prev = this._prevSessionStates.get(key);
 			const isStateChange = prev !== undefined && prev.state !== currentState && currentState !== 'unknown';
-			const isDetailChange = !isStateChange && prev !== undefined && currentState === 'waiting_for_confirmation' && (detail ?? '') !== prev.detail;
+			const pendingId = this._pendingIdFor(key);
+			const isDetailChange = !isStateChange && prev !== undefined && currentState === 'waiting_for_confirmation' && ((detail ?? '') !== prev.detail || pendingId !== prev.pendingId);
 
 			// Arm the awaiting-summary marker on a genuine new turn.
 			if (isStateChange && currentState === 'thinking' && !this._eagerModelLoading.has(key)) {
@@ -5040,7 +5127,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			if (currentState !== 'unknown') {
 				const rememberedSummary = normalizedSummary || this._lastResponseSummaryById.get(key) || prev?.lastResponseSummary || '';
-				this._prevSessionStates.set(key, { state: currentState, detail: detail ?? '', lastResponseSummary: rememberedSummary });
+				this._prevSessionStates.set(key, { state: currentState, detail: detail ?? '', pendingId, lastResponseSummary: rememberedSummary });
 			}
 			if (currentState === 'waiting_for_confirmation') {
 				waitingSessionIds.add(key);

@@ -324,8 +324,21 @@ export interface IVoiceClientService {
 	 */
 	invalidateSessionCache(sessionId: string): void;
 	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void;
-	/** Ask the backend to speak `text` for a session now; returns the narration id echoed on the resulting `audio_response`, or `undefined` if nothing was sent. Pass `narrationId` to reuse a prior id (a `busy` retry) so the backend can dedup a lost ack; omit it to mint a fresh one. `pending` names the form and question a `'question'` narration speaks, so the backend can drop it if that form has already moved on — it is deliberately *not* folded into `text`, which every dedup and retry-reuse guard keys on. */
-	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, pending?: { pendingId: string; questionId: string }): string | undefined;
+	/**
+	 * Ask the backend to speak `text` for a session now; returns the narration id
+	 * echoed on the resulting `audio_response`, or `undefined` if nothing was
+	 * sent. Pass `narrationId` to reuse a prior id (a `busy` retry) so the backend
+	 * can dedup a lost ack; omit it to mint a fresh one.
+	 *
+	 * `pending` names the form a `'question'` narration speaks. The backend drops
+	 * the request if that form has moved on, and otherwise re-renders whichever
+	 * question the form is now waiting on — it owns the draft of answers given so
+	 * far, which is why the caller names a form and not a question. `text` is
+	 * therefore only spoken verbatim during the debounce window before the
+	 * backend's mirror has caught up. The id is deliberately *not* folded into
+	 * `text`, which every dedup and retry-reuse guard keys on.
+	 */
+	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, pending?: { pendingId: string }): string | undefined;
 	/**
 	 * Notify the backend of a session state transition.
 	 *

@@ -706,7 +706,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
-	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, pending?: { pendingId: string; questionId: string }): string | undefined {
+	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, pending?: { pendingId: string }): string | undefined {
 		// Gate on session_context having been sent: the WS preserves send order,
 		// so the backend processes start_session/resume_session before any
 		// request_narration. Pre-session this returns undefined, so _narrate queues
@@ -720,7 +720,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				kind,
 				text,
 				narration_id: id,
-				...(pending ? { pending_id: pending.pendingId, question_id: pending.questionId } : {}),
+				...(pending ? { pending_id: pending.pendingId } : {}),
 			}));
 			this._logService.trace(`[voice] request_narration kind=${kind} id=${codingSessionId.slice(-32)} narration_id=${id.slice(0, 8)}${narrationId ? ' (retry)' : ''}`);
 			return id;
