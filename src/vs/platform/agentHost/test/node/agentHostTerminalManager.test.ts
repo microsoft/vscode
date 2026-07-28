@@ -15,7 +15,7 @@ import { ActionType, StateAction } from '../../common/state/protocol/actions.js'
 import { TerminalClaimKind, TerminalContentPart, type TerminalClaim } from '../../common/state/protocol/state.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostTerminalManager, formatTerminalText, removeServerHandledTerminalQueries, type ITerminalQueryFilterState } from '../../node/agentHostTerminalManager.js';
+import { AgentHostTerminalManager, formatTerminalText, removeTerminalQueriesSuppressedFromClient, type ITerminalQueryFilterState } from '../../node/agentHostTerminalManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from '../../node/osc633Parser.js';
 
 /**
@@ -82,7 +82,7 @@ class TestTerminalDataHandler {
 				continue;
 			}
 
-			const cleanedData = removeServerHandledTerminalQueries(segment.data, this._terminalQueryFilterState);
+			const cleanedData = removeTerminalQueriesSuppressedFromClient(segment.data, this._terminalQueryFilterState);
 			if (cleanedData.length > 0) {
 				this._appendToContent(cleanedData);
 				pendingClientData += cleanedData;
@@ -436,6 +436,39 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.deepStrictEqual(pty.writes, ['\x1b[1;4R']);
 	});
 
+	test('swallows OSC color queries while preserving headless CPR responses', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+		const uri = 'agenthost-terminal://test/color-query';
+		const clientData: string[] = [];
+
+		const createTerminal = manager.createTerminal({
+			channel: uri,
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		disposables.add(manager.onData(uri, data => clientData.push(data)));
+		pty.fireData('before\x1b]10;?\x1b\\\x1b[6nmid\x1b]11;?\x07\x1b[6nafter');
+		await createTerminal;
+		await waitForWrites(pty, 2);
+
+		assert.deepStrictEqual({
+			clientData,
+			ptyWrites: pty.writes,
+		}, {
+			clientData: ['beforemidafter'],
+			ptyWrites: ['\x1b[1;7R', '\x1b[1;10R'],
+		});
+	});
+
 	test('resolves alt-buffer promise from headless terminal data', async () => {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -497,29 +530,44 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.strictEqual(didEnterAltBuffer, false);
 	});
 
-	test('server-handled CPR queries are stripped from client-facing data', () => {
+	test('client-suppressed terminal queries are stripped from client-facing data', () => {
 		function filter(data: string): string {
-			return removeServerHandledTerminalQueries(data, { pendingData: '' });
+			return removeTerminalQueriesSuppressedFromClient(data, { pendingData: '' });
 		}
 
 		assert.strictEqual(filter('before \x1b[6n after'), 'before  after');
 		assert.strictEqual(filter('before \x1b[?6n after'), 'before  after');
+		assert.strictEqual(filter('before \x1b]10;?\x1b\\ after'), 'before  after');
+		assert.strictEqual(filter('before \x1b]10;?\x07 after'), 'before  after');
+		assert.strictEqual(filter('before \x1b]11;?\x1b\\ after'), 'before  after');
+		assert.strictEqual(filter('before \x1b]11;?\x07 after'), 'before  after');
 		assert.strictEqual(filter('\x1b[5n\x1b[c\x1b[0c\x1b[>c\x1b[>0c'), '\x1b[5n\x1b[c\x1b[0c\x1b[>c\x1b[>0c');
+		assert.strictEqual(filter('\x1b]10;#ffffff\x1b\\\x1b]11;rgb:0000/0000/0000\x07'), '\x1b]10;#ffffff\x1b\\\x1b]11;rgb:0000/0000/0000\x07');
+		assert.strictEqual(filter('\x1b]10;?;#ffffff\x1b\\\x1b]12;?\x1b\\\x1b]4;0;?\x1b\\'), '\x1b]10;?;#ffffff\x1b\\\x1b]12;?\x1b\\\x1b]4;0;?\x1b\\');
 		assert.strictEqual(filter('normal output\r\n'), 'normal output\r\n');
 	});
 
-	test('server-handled CPR queries are stripped across data chunks', () => {
+	test('client-suppressed terminal queries are stripped across data chunks', () => {
 		let state: ITerminalQueryFilterState = { pendingData: '' };
-		assert.strictEqual(removeServerHandledTerminalQueries('before \x1b[', state), 'before ');
-		assert.strictEqual(removeServerHandledTerminalQueries('6n after', state), ' after');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('before \x1b[', state), 'before ');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('6n after', state), ' after');
 
 		state = { pendingData: '' };
-		assert.strictEqual(removeServerHandledTerminalQueries('before \x1b[?', state), 'before ');
-		assert.strictEqual(removeServerHandledTerminalQueries('6n after', state), ' after');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('before \x1b[?', state), 'before ');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('6n after', state), ' after');
 
 		state = { pendingData: '' };
-		assert.strictEqual(removeServerHandledTerminalQueries('before \x1b[', state), 'before ');
-		assert.strictEqual(removeServerHandledTerminalQueries('K after', state), '\x1b[K after');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('before \x1b[', state), 'before ');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('K after', state), '\x1b[K after');
+
+		state = { pendingData: '' };
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('before \x1b]10;', state), 'before ');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('?\x1b', state), '');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('\\ after', state), ' after');
+
+		state = { pendingData: '' };
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('before \x1b]11;', state), 'before ');
+		assert.strictEqual(removeTerminalQueriesSuppressedFromClient('?\x07 after', state), ' after');
 	});
 
 	test('manager data path strips CPR queries while preserving surrounding output', () => {
