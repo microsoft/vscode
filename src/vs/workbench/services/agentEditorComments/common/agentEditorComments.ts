@@ -83,7 +83,11 @@ export class AgentEditorCommentsBridge extends Disposable implements IAgentEdito
 			provider,
 			listener: combinedDisposable(
 				provider.onDidChangeComments(() => this._onDidChangeComments.fire()),
-				provider.onDidRevealComment(event => this._onDidRevealComment.fire(event)),
+				provider.onDidRevealComment(event => {
+					if (this._getProvider(event.resource) === provider) {
+						this._onDidRevealComment.fire(event);
+					}
+				}),
 			),
 		};
 		this._providers.push(entry);

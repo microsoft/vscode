@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentEditorCommentsBridge } from '../../../../services/agentEditorComments/common/agentEditorComments.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 
 function feedbackSummary(items: readonly { line: number; column: number }[]): string[] {
 	return items.map(f => `${f.line}:${f.column}`);
@@ -475,6 +475,30 @@ suite('PlanReviewFeedbackService - Custom Editor Comments', () => {
 		}, 'Session comment');
 
 		assert.strictEqual(fallbackAddCount, 1);
+	});
+
+	test('ignores reveal events from a shadowed provider', () => {
+		const bridge = store.add(new AgentEditorCommentsBridge());
+		const fallbackReveal = store.add(new Emitter<{ resource: URI; id: string }>());
+		store.add(bridge.registerProvider({
+			onDidChangeComments: Event.None,
+			onDidRevealComment: fallbackReveal.event,
+			acceptsComments: () => true,
+			getComments: () => [],
+			addComment: () => { },
+			deleteComment: () => { },
+		}));
+		const service = store.add(new PlanReviewFeedbackService(bridge));
+		const planUri = URI.parse('file:///plan.md');
+		const registration = service.registerPlanReview(planUri, createRegistration());
+		const revealed: string[] = [];
+		store.add(bridge.onDidRevealComment(event => revealed.push(event.id)));
+
+		fallbackReveal.fire({ resource: planUri, id: 'shadowed' });
+		registration.dispose();
+		fallbackReveal.fire({ resource: planUri, id: 'active' });
+
+		assert.deepStrictEqual(revealed, ['active']);
 	});
 
 	test('bridges active comment navigation', () => {
