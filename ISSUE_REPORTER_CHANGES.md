@@ -37,14 +37,31 @@ This document tracks the issue reporter changes on `agents/fix-issue-reporter-bu
   - [#327380 — Attach screenshots/videos using clipboard or drag-and-drop](https://github.com/microsoft/vscode/issues/327380)
   - [#326787 — Paste images into the issue description](https://github.com/microsoft/vscode/issues/326787)
 
+### Single-page issue form
+
+- Replaced the three-step wizard with one scrollable form that shows issue metadata, description, attachments, similar issues, and diagnostic controls together.
+- Added GitHub/GitHub Pull Requests-inspired cards, hierarchy, spacing, and a persistent **Preview on GitHub** action.
+- Keeps attachments in a dedicated row instead of inserting generated media markup into the description editor.
+- Adds **Write** and **Preview** modes backed by VS Code's Markdown renderer.
+- Defaults the target to **Agents Window** when opened from the Agents window and to **Code - OSS Dev** in the Editor window.
+- Supports narrow editor groups without horizontal overflow.
+
+The experimental WYSIWYG Markdown editor is currently implemented as a custom-editor webview owned by the built-in Markdown extension. It is not exposed as an embeddable workbench control, and this branch intentionally adds no new dependency. The issue reporter therefore uses the native textarea plus rendered Markdown preview for now. A future integration should expose the experimental editor through a reusable workbench API rather than duplicating or importing its extension-private implementation.
+
 ## Validation Completed
 
 - `npm run typecheck-client`
 - Full `npm run compile`
-- Focused `IssueReporterOverlay` browser tests: 5 passing
+- Focused `IssueReporterOverlay` browser tests: 7 passing
 - Repository pre-commit hygiene checks
 - Editor and Agents window smoke testing for attachments and recording using the launch workflow
 - Screenshot inspection of attachment, recording, and Screencast Mode behavior
+- Isolated one-window Editor and Agents launch checks for the single-page form
+- Verified all three sections render simultaneously in both products
+- Verified Markdown preview renders headings, lists, bold text, and blockquotes
+- Verified the issue reporter content width equals its scroll width in both products, with no horizontal overflow
+
+The source-build checks cannot validate final macOS TCC identity because Code OSS launched from sources may inherit permission from its launcher or use a development code identity. The signed Exploration build remains required for the screen-recording registration checks below.
 
 ## Final Verification
 
@@ -80,9 +97,12 @@ Use the final signed/notarized macOS ARM64 Exploration artifact, not an artifact
 5. Verify the five-file and 100 MB limits for pasted, dropped, captured, and recorded media.
 6. Verify the resulting GitHub issue submission includes all expected media references.
 
-## In Progress
+### Single-page form
 
-- Replace the multi-step issue reporter wizard with a single-page issue form.
-- Use the experimental Markdown editor for the issue description while keeping attachments in a separate row.
-- Align the visual hierarchy with GitHub issue creation and the GitHub Pull Requests extension.
-
+1. Open **Help: Report Issue** in an Editor window and confirm the whole form is available on one scrollable page.
+2. Open it in an Agents window and confirm **Agents Window** is selected by default.
+3. Resize the reporter to a narrow editor group and verify no horizontal scrollbar appears.
+4. Enter Markdown, switch between **Write** and **Preview**, and verify rendered formatting and focus restoration.
+5. Verify the attachments row remains separate from the description and accepts capture, paste, and drag-and-drop input.
+6. Expand and collapse supporting diagnostic sections and verify their include/exclude controls still affect the generated issue body.
+7. Click **Preview on GitHub** with missing required fields and verify validation points to the correct controls on the same page.

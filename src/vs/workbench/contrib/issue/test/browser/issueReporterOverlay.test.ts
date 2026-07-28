@@ -85,6 +85,71 @@ suite('IssueReporterOverlay', () => {
 		return event;
 	}
 
+	test('shows the full issue form on one page', () => {
+		const container = document.createElement('div');
+		const overlay = createOverlay(container);
+		overlay.show();
+
+		assert.deepStrictEqual({
+			sectionCount: container.querySelectorAll('.issue-reporter-section').length,
+			hasComposeSection: Boolean(container.querySelector('.issue-reporter-compose-section')),
+			hasAttachmentsSection: Boolean(container.querySelector('.wizard-attachments-step')),
+			hasSupportingInformationSection: Boolean(container.querySelector('.wizard-step-review')),
+			hasProgressIndicator: Boolean(container.querySelector('.wizard-progress-area')),
+			hasBackButton: Boolean(container.querySelector('.wizard-back')),
+			submitLabel: container.querySelector<HTMLElement>('.wizard-next')?.textContent,
+		}, {
+			sectionCount: 3,
+			hasComposeSection: true,
+			hasAttachmentsSection: true,
+			hasSupportingInformationSection: true,
+			hasProgressIndicator: false,
+			hasBackButton: false,
+			submitLabel: 'Preview on GitHub',
+		});
+	});
+
+	test('switches the description between write and preview modes', () => {
+		const container = document.createElement('div');
+		const overlay = createOverlay(container);
+		overlay.show();
+
+		const textarea = container.querySelector<HTMLTextAreaElement>('.wizard-textarea');
+		const preview = container.querySelector<HTMLElement>('.issue-reporter-markdown-preview');
+		const modeButtons = container.querySelectorAll<HTMLButtonElement>('.issue-reporter-markdown-mode');
+		assert.ok(textarea);
+		assert.ok(preview);
+
+		textarea.value = '**Rendered issue details**';
+		modeButtons[1].click();
+		const previewState = {
+			modeButtonCount: modeButtons.length,
+			textareaHidden: textarea.classList.contains('hidden'),
+			previewHidden: preview.classList.contains('hidden'),
+			previewText: preview.textContent,
+		};
+
+		modeButtons[0].click();
+		assert.deepStrictEqual({
+			previewState,
+			writeState: {
+				textareaHidden: textarea.classList.contains('hidden'),
+				previewHidden: preview.classList.contains('hidden'),
+			},
+		}, {
+			previewState: {
+				modeButtonCount: 2,
+				textareaHidden: true,
+				previewHidden: false,
+				previewText: '**Rendered issue details**',
+			},
+			writeState: {
+				textareaHidden: false,
+				previewHidden: true,
+			},
+		});
+	});
+
 	test('accepts pasted image and video attachments on the attachments step', () => {
 		const container = document.createElement('div');
 		const overlay = createOverlay(container);
@@ -144,7 +209,6 @@ suite('IssueReporterOverlay', () => {
 		const container = document.createElement('div');
 		const overlay = createOverlay(container);
 		overlay.show();
-		container.querySelector<HTMLElement>('.wizard-next')?.click();
 
 		const requests: { files: readonly File[]; source: string }[] = [];
 		store.add(overlay.onDidRequestAddAttachments(event => requests.push(event)));
@@ -193,9 +257,6 @@ suite('IssueReporterOverlay', () => {
 		if (!nextButton) {
 			throw new Error('Next button not found');
 		}
-
-		nextButton.click();
-		nextButton.click();
 
 		let submission: { title: string; body: string } | undefined;
 		store.add(overlay.onDidSubmit(event => submission = event));

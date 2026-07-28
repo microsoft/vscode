@@ -7,7 +7,7 @@ import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/key
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { OS } from '../../../../base/common/platform.js';
 import './media/issueReporterOverlay.css';
-import { $, addDisposableListener, append, disposableWindowInterval, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, disposableWindowInterval, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
@@ -42,14 +42,6 @@ interface ISimilarIssue {
 	readonly title: string;
 	readonly state?: string;
 }
-
-const enum WizardStep {
-	Attachments = 0,
-	Describe = 1,
-	Review = 2,
-}
-
-const STEP_COUNT = 3;
 
 export interface IScreenshot {
 	readonly dataUrl: string;
@@ -90,9 +82,9 @@ export class IssueReporterOverlay {
 	private wizardPanel!: HTMLElement;
 	private updateBanner!: HTMLElement;
 	private stepContainer!: HTMLElement;
-	private readonly stepPages: HTMLElement[] = [];
+	private reviewPage!: HTMLElement;
 
-	// Step 1: Describe (category + description + title)
+	// Description and issue metadata
 	private readonly issueTypeButtons: Button[] = [];
 	private readonly issueSourceButtons: Button[] = [];
 	private selectedIssueType: IssueType | undefined;
@@ -114,6 +106,7 @@ export class IssueReporterOverlay {
 	private typeButtonGroup!: HTMLElement;
 	private typeError!: HTMLElement;
 	private descriptionTextarea!: HTMLTextAreaElement;
+	private descriptionPreview!: HTMLElement;
 	private descriptionGuidance!: HTMLElement;
 	private descriptionError!: HTMLElement;
 	private titleInput!: InputBox;
@@ -122,7 +115,7 @@ export class IssueReporterOverlay {
 	private readonly _onDidRequestGenerateTitle = new Emitter<string>();
 	readonly onDidRequestGenerateTitle: Event<string> = this._onDidRequestGenerateTitle.event;
 
-	// Step 0: Screenshots & Recording
+	// Attachments
 	private screenshotContainer!: HTMLElement;
 	private screenshotDelay = 0;
 	private recordingElapsedTimer: number | undefined;
@@ -131,12 +124,12 @@ export class IssueReporterOverlay {
 	private delayedScreenshotPending = false;
 	private readonly recordings: { filePath: string; durationMs: number; thumbnailDataUrl?: string }[] = [];
 
-	// Step 2: Review
+	// Supporting information
 	private reviewThumbCards: HTMLElement[] = [];
 	private readonly reviewRenderDisposables = new DisposableStore();
 	private readonly similarIssuesDisposables = new DisposableStore();
 	private readonly descriptionGuidanceDisposables = new DisposableStore();
-	private uploading = false;
+	private readonly descriptionPreviewDisposables = new DisposableStore();
 	private includeSystemInfo = true;
 	private includeProcessInfo = true;
 	private includeWorkspaceInfo = true;
@@ -147,16 +140,8 @@ export class IssueReporterOverlay {
 	private performanceInfoLoaded = false;
 	private performanceInfoRefreshing = false;
 
-	// Navigation
-	private stepIndicator!: HTMLElement;
-	private stepLabel!: HTMLElement;
-	private backButton!: Button;
+	// Actions
 	private nextButton!: Button;
-
-	// Progress dots
-	private readonly progressDots: HTMLElement[] = [];
-
-	private currentStep: WizardStep = WizardStep.Attachments;
 	private readonly screenshots: IScreenshot[] = [];
 	private readonly model: IssueReporterModel;
 	private visible = false;
@@ -208,35 +193,11 @@ export class IssueReporterOverlay {
 		this.wizardPanel.setAttribute('aria-label', localize('reportIssue', "Report Issue"));
 		this.wizardPanel.setAttribute('tabindex', '-1');
 
-		// Toolbar with progress indicator and navigation buttons. The nav buttons
-		// sit in their own row directly beneath the step indicator, aligned to the
-		// start, so they read as part of the step UI.
-		const toolbar = append(this.wizardPanel, $('div.wizard-toolbar'));
-
-		// Progress indicator area
-		const progressArea = append(toolbar, $('div.wizard-progress-area'));
-		const progressDotsContainer = append(progressArea, $('div.wizard-progress-dots'));
-		for (let i = 0; i < STEP_COUNT; i++) {
-			const dot = append(progressDotsContainer, $('div.wizard-progress-dot'));
-			this.progressDots.push(dot);
-		}
-		this.stepIndicator = append(progressArea, $('span.wizard-step-indicator'));
-		append(progressArea, $('span.wizard-step-separator'));
-		this.stepLabel = append(progressArea, $('span.wizard-step-label'));
-
-		// Navigation buttons placed in their own row directly under the step
-		// indicator, aligned to the start.
-		const nav = append(toolbar, $('div.wizard-nav'));
-
-		this.backButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles, secondary: true }));
-		this.backButton.label = localize('back', "Back");
-		this.backButton.element.classList.add('wizard-back');
-		this.backButton.element.title = localize('back', "Back");
-
-		this.nextButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles, supportIcons: true }));
-		this.nextButton.label = localize('next', "Next");
-		this.nextButton.element.classList.add('wizard-next');
-		this.nextButton.element.title = localize('next', "Next");
+		const header = append(this.wizardPanel, $('div.issue-reporter-header'));
+		const heading = append(header, $('h1.issue-reporter-title'));
+		heading.textContent = localize('reportIssueHeading', "Report an issue");
+		const subtitle = append(header, $('p.issue-reporter-subtitle'));
+		subtitle.textContent = localize('reportIssueSubtitle', "Describe the problem, add supporting media, and review the diagnostic information that will be included.");
 
 		this.updateBanner = append(this.wizardPanel, $('div.wizard-update-banner'));
 		this.updateBanner.setAttribute('role', 'status');
@@ -244,24 +205,28 @@ export class IssueReporterOverlay {
 		this.updateBanner.textContent = localize('updateAvailable', "A new version of {0} is available.", product.nameLong);
 		this.setUpdateAvailable(this.showUpdateBanner);
 
-		// Step content area
+		// Single-page content area
 		this.stepContainer = append(this.wizardPanel, $('div.wizard-step-container'));
-		this.createStep0Attachments();
 		this.createStep1Describe();
+		this.createStep0Attachments();
 		this.createStep2Review();
+
+		const actions = append(this.wizardPanel, $('div.issue-reporter-actions'));
+		this.nextButton = this.disposables.add(new Button(actions, { ...defaultButtonStyles, supportIcons: true }));
+		this.nextButton.element.classList.add('wizard-next');
 
 		this.registerEventHandlers();
 		if (this.data.extensionId) {
 			void this.updateSelectedExtension(this.data.extensionId, false);
 		}
+		this.updateReviewDetails();
 		this.updateStepUI();
 	}
 
 	// Step 0: Attachments
 	private createStep0Attachments(): void {
-		const page = append(this.stepContainer, $('div.wizard-step'));
+		const page = append(this.stepContainer, $('section.wizard-step.issue-reporter-section'));
 		page.classList.add('wizard-attachments-step');
-		this.stepPages.push(page);
 
 		const heading = append(page, $('h2.wizard-heading'));
 		heading.textContent = localize('screenshotsHeading', "Add attachments for better context");
@@ -531,8 +496,7 @@ export class IssueReporterOverlay {
 
 	// Step 1: Describe (category + description + title)
 	private createStep1Describe(): void {
-		const page = append(this.stepContainer, $('div.wizard-step'));
-		this.stepPages.push(page);
+		const page = append(this.stepContainer, $('section.wizard-step.issue-reporter-section.issue-reporter-compose-section'));
 
 		const heading = append(page, $('h2.wizard-heading'));
 		heading.textContent = localize('describeHeading', "Describe your feedback");
@@ -640,9 +604,7 @@ export class IssueReporterOverlay {
 			}
 			this.updateDescriptionGuidance();
 			this.updateIssueSourceButtons();
-			if (this.currentStep === WizardStep.Review) {
-				this.updateReviewDetails();
-			}
+			this.updateReviewDetails();
 			this.searchSimilarIssues();
 		};
 
@@ -698,11 +660,19 @@ export class IssueReporterOverlay {
 		}));
 		this.titleError = this.createFieldError(titleGroup, localize('titleRequired', "Enter a title to continue."));
 
-		// Description field with guidance and auto-growing textarea
+		// Markdown description composer with write and preview modes.
 		const descriptionGroup = append(page, $('div.wizard-field'));
-		const descLabel = append(descriptionGroup, $('label.wizard-field-label'));
+		const descriptionHeader = append(descriptionGroup, $('div.issue-reporter-description-header'));
+		const descLabel = append(descriptionHeader, $('label.wizard-field-label'));
 		descLabel.textContent = localize('description', "Description");
 		this.appendRequiredMarker(descLabel);
+		const modeToggle = append(descriptionHeader, $('div.issue-reporter-markdown-modes'));
+		const writeButton = append(modeToggle, $('button.issue-reporter-markdown-mode.selected')) as HTMLButtonElement;
+		writeButton.type = 'button';
+		writeButton.textContent = localize('write', "Write");
+		const previewButton = append(modeToggle, $('button.issue-reporter-markdown-mode')) as HTMLButtonElement;
+		previewButton.type = 'button';
+		previewButton.textContent = localize('preview', "Preview");
 
 		this.descriptionGuidance = append(descriptionGroup, $('p.wizard-subtitle.wizard-description-guidance'));
 		this.updateDescriptionGuidance();
@@ -735,6 +705,34 @@ export class IssueReporterOverlay {
 			event.preventDefault();
 			this.requestAddAttachments(files, 'description');
 		}));
+		this.descriptionPreview = append(descriptionGroup, $('div.issue-reporter-markdown-preview.hidden'));
+		this.descriptionPreview.setAttribute('aria-live', 'polite');
+		const setPreviewMode = (preview: boolean) => {
+			writeButton.classList.toggle('selected', !preview);
+			previewButton.classList.toggle('selected', preview);
+			this.descriptionTextarea.classList.toggle('hidden', preview);
+			this.descriptionPreview.classList.toggle('hidden', !preview);
+			if (!preview) {
+				this.descriptionTextarea.focus();
+				return;
+			}
+			this.descriptionPreviewDisposables.clear();
+			clearNode(this.descriptionPreview);
+			const description = this.descriptionTextarea.value.trim();
+			if (!description) {
+				this.descriptionPreview.textContent = localize('nothingToPreview', "Nothing to preview yet.");
+				return;
+			}
+			if (this.markdownRendererService) {
+				const renderedMarkdown = this.markdownRendererService.render(new MarkdownString(description), { markedOptions: { breaks: true } });
+				this.descriptionPreview.appendChild(renderedMarkdown.element);
+				this.descriptionPreviewDisposables.add(renderedMarkdown);
+			} else {
+				this.descriptionPreview.textContent = description;
+			}
+		};
+		this.disposables.add(addDisposableListener(writeButton, EventType.CLICK, () => setPreviewMode(false)));
+		this.disposables.add(addDisposableListener(previewButton, EventType.CLICK, () => setPreviewMode(true)));
 		this.descriptionError = this.createFieldError(descriptionGroup, localize('descriptionRequired', "Enter a description to continue."));
 
 		this.updateIssueSourceFlags();
@@ -1123,7 +1121,7 @@ export class IssueReporterOverlay {
 	}
 
 	private searchSimilarIssues(): void {
-		if (this.currentStep !== WizardStep.Review || !this.similarIssuesContainer) {
+		if (!this.similarIssuesContainer) {
 			return;
 		}
 		if (this.similarIssuesHandle) {
@@ -1302,173 +1300,89 @@ export class IssueReporterOverlay {
 
 	// Step 2: Review & Submit
 	private createStep2Review(): void {
-		const page = append(this.stepContainer, $('div.wizard-step.wizard-step-review'));
-		this.stepPages.push(page);
+		const page = append(this.stepContainer, $('section.wizard-step.wizard-step-review.issue-reporter-section'));
+		this.reviewPage = page;
 
 		const heading = append(page, $('h2.wizard-heading'));
-		heading.textContent = localize('reviewSubmit', "Review and submit");
+		heading.textContent = localize('supportingInformation', "Supporting information");
 
 		// Review details (filled dynamically) with compact horizontal layout
 		append(page, $('div.wizard-review-details'));
 	}
 
 	private registerEventHandlers(): void {
-		// Back
-		this.disposables.add(this.backButton.onDidClick(() => this.goBack()));
-
-		// Next
 		this.disposables.add(this.nextButton.onDidClick(() => this.goNext()));
 	}
 
-	private goBack(): void {
-		if (this.currentStep > WizardStep.Attachments) {
-			this.setStep(this.currentStep - 1);
-		}
-	}
-
 	private goNext(): void {
-		if (this.currentStep === WizardStep.Describe) {
-			this.didAttemptDescribeSubmit = true;
-			const hasIssueSource = this.selectedIssueSource !== undefined;
-			const hasExtension = this.selectedIssueSource !== IssueSource.Extension || !!this.selectedExtension;
-			const hasExtensionIssueUrl = this.selectedIssueSource !== IssueSource.Extension || !this.selectedExtension || !!this.getSelectedExtensionIssueUrl();
-			const hasIssueType = this.selectedIssueType !== undefined;
-			const hasDescription = this.hasDescriptionContent();
-			const title = this.titleInput.value.trim();
+		this.didAttemptDescribeSubmit = true;
+		const hasIssueSource = this.selectedIssueSource !== undefined;
+		const hasExtension = this.selectedIssueSource !== IssueSource.Extension || !!this.selectedExtension;
+		const hasExtensionIssueUrl = this.selectedIssueSource !== IssueSource.Extension || !this.selectedExtension || !!this.getSelectedExtensionIssueUrl();
+		const hasIssueType = this.selectedIssueType !== undefined;
+		const hasDescription = this.hasDescriptionContent();
+		const title = this.titleInput.value.trim();
 
-			this.setFieldError(this.sourceButtonGroup, this.sourceError, !hasIssueSource);
-			this.setFieldError(this.extensionField, this.extensionError, !hasExtension || !hasExtensionIssueUrl);
-			this.setFieldError(this.typeButtonGroup, this.typeError, !hasIssueType);
-			this.setFieldError(this.descriptionTextarea, this.descriptionError, !hasDescription);
-			this.setFieldError(this.titleInput.element, this.titleError, !title);
+		this.setFieldError(this.sourceButtonGroup, this.sourceError, !hasIssueSource);
+		this.setFieldError(this.extensionField, this.extensionError, !hasExtension || !hasExtensionIssueUrl);
+		this.setFieldError(this.typeButtonGroup, this.typeError, !hasIssueType);
+		this.setFieldError(this.descriptionTextarea, this.descriptionError, !hasDescription);
+		this.setFieldError(this.titleInput.element, this.titleError, !title);
 
-			if (!hasIssueSource || !hasExtension || !hasExtensionIssueUrl || !hasIssueType || !hasDescription || !title) {
-				if (!hasIssueSource) {
-					this.issueSourceButtons.find(button => !button.element.classList.contains('hidden'))?.element.focus();
-				} else if (!hasExtension || !hasExtensionIssueUrl) {
-					this.extensionSelect.focus();
-				} else if (!hasIssueType) {
-					this.issueTypeButtons[0]?.element.focus();
-				} else if (!hasDescription) {
-					this.descriptionTextarea.focus();
-				} else {
-					this.titleInput.focus();
-				}
-				return;
+		if (!hasIssueSource || !hasExtension || !hasExtensionIssueUrl || !hasIssueType || !hasDescription || !title) {
+			if (!hasIssueSource) {
+				this.issueSourceButtons.find(button => !button.element.classList.contains('hidden'))?.element.focus();
+			} else if (!hasExtension || !hasExtensionIssueUrl) {
+				this.extensionSelect.focus();
+			} else if (!hasIssueType) {
+				this.issueTypeButtons[0]?.element.focus();
+			} else if (!hasDescription) {
+				this.descriptionTextarea.focus();
+			} else {
+				this.titleInput.focus();
 			}
-			this.updateIssueSourceFlags();
-			this.model.update({ issueDescription: this.descriptionTextarea.value.trim() });
-		}
-
-		if (this.currentStep === WizardStep.Review) {
-			// Defensive: if user managed to invoke goNext while diagnostics are
-			// still loading (e.g. via Cmd/Ctrl+Enter), block the submit. The
-			// Preview button is also visually disabled in this state.
-			if (this.selectedIssueType === IssueType.PerformanceIssue && (!this.performanceInfoLoaded || this.performanceInfoRefreshing)) {
-				return;
-			}
-			this.submit();
 			return;
 		}
 
-		if (this.currentStep < WizardStep.Review) {
-			this.setStep(this.currentStep + 1);
+		if (this.selectedIssueType === IssueType.PerformanceIssue && (!this.performanceInfoLoaded || this.performanceInfoRefreshing)) {
+			return;
 		}
-	}
 
-	private setStep(step: WizardStep): void {
-		const oldStep = this.currentStep;
-		this.currentStep = step;
-
-		const oldPage = this.stepPages[oldStep];
-		const newPage = this.stepPages[step];
-
-		// Immediate transition with no animation
-		oldPage.style.display = 'none';
-		newPage.style.display = 'flex';
-
-		this.updateStepUI();
-
-		if (step === WizardStep.Describe) {
-			this.descriptionTextarea.focus();
-		} else if (step === WizardStep.Review) {
-			this.updateReviewDetails();
-			this.searchSimilarIssues();
-			this.wizardPanel.focus();
-		} else {
-			// Attachments: focus the panel so keyboard shortcuts work
-			this.wizardPanel.focus();
-		}
+		this.updateIssueSourceFlags();
+		this.model.update({ issueDescription: this.descriptionTextarea.value.trim() });
+		this.submit();
 	}
 
 	private updateStepUI(): void {
-		const stepNum = this.currentStep + 1;
-		this.stepIndicator.textContent = localize('stepOf', "Step {0} of {1}", stepNum, STEP_COUNT);
-
-		const stepNames = [
-			localize('screenshots', "Attachments"),
-			localize('composeMessage', "Describe"),
-			localize('submit', "Review"),
-		];
-		this.stepLabel.textContent = stepNames[this.currentStep];
-
-		// Update progress dots
-		for (let i = 0; i < this.progressDots.length; i++) {
-			this.progressDots[i].classList.toggle('active', i === this.currentStep);
-			this.progressDots[i].classList.toggle('completed', i < this.currentStep);
-		}
-
-		// Show/hide pages
-		for (let i = 0; i < this.stepPages.length; i++) {
-			if (i === this.currentStep) {
-				this.stepPages[i].style.display = 'flex';
-			} else if (!this.stepPages[i].classList.contains('slide-out-left') && !this.stepPages[i].classList.contains('slide-out-right')) {
-				this.stepPages[i].style.display = 'none';
-			}
-		}
-
-		// Back button visibility
-		this.backButton.element.style.display = this.currentStep === WizardStep.Attachments ? 'none' : '';
 		if (this.closeButton) {
 			const currentDraftPreviewed = this.previewedDraftKey === this.getDraftKey();
-			this.closeButton.element.style.display = this.previewOpened && currentDraftPreviewed && this.currentStep === WizardStep.Review ? '' : 'none';
+			this.closeButton.element.style.display = this.previewOpened && currentDraftPreviewed ? '' : 'none';
 		}
 
-		// Next button label
-		if (this.currentStep === WizardStep.Review) {
-			const externalExtensionUrl = this.selectedIssueSource === IssueSource.Extension && this.getIssueTargetUrl() && !this.isGitHubUrl(this.getIssueTargetUrl()!);
-			const waitingForData = this.selectedIssueType === IssueType.PerformanceIssue && (!this.performanceInfoLoaded || this.performanceInfoRefreshing);
-			if (waitingForData) {
-				this.nextButton.label = `$(loading~spin) ${localize('loadingDiagnostics', "Loading diagnostics...")}`;
-				this.nextButton.element.title = localize('waitingForDiagnostics', "Waiting for performance diagnostics to finish loading");
-				this.nextButton.enabled = false;
-			} else {
-				this.nextButton.label = externalExtensionUrl
-					? localize('openExternalIssueReporter', "Open External Issue Reporter")
-					: localize('previewOnGitHub', "Preview on GitHub");
-				this.nextButton.element.title = this.nextButton.label;
-				this.nextButton.enabled = true;
-			}
-		} else if (this.currentStep === WizardStep.Attachments) {
-			this.nextButton.label = this.getTotalAttachments() === 0
-				? localize('skip', "Skip")
-				: localize('next', "Next");
-			this.nextButton.element.title = this.nextButton.label;
+		const externalExtensionUrl = this.selectedIssueSource === IssueSource.Extension && this.getIssueTargetUrl() && !this.isGitHubUrl(this.getIssueTargetUrl()!);
+		const waitingForData = this.selectedIssueType === IssueType.PerformanceIssue && (!this.performanceInfoLoaded || this.performanceInfoRefreshing);
+		if (waitingForData) {
+			this.nextButton.label = `$(loading~spin) ${localize('loadingDiagnostics', "Loading diagnostics...")}`;
+			this.nextButton.element.title = localize('waitingForDiagnostics', "Waiting for performance diagnostics to finish loading");
+			this.nextButton.enabled = false;
 		} else {
-			this.nextButton.label = localize('next', "Next");
-			this.nextButton.element.title = localize('next', "Next");
+			this.nextButton.label = externalExtensionUrl
+				? localize('openExternalIssueReporter', "Open External Issue Reporter")
+				: localize('previewOnGitHub', "Preview on GitHub");
+			this.nextButton.element.title = this.nextButton.label;
+			this.nextButton.enabled = true;
 		}
 
-		// Show/hide capture strip (only on attachments step)
 		this.updateCaptureStripVisibility();
-		// Reflect recording state on next button
 		this.updateNextButtonForRecording();
 	}
 
 	private updateReviewDetails(): void {
-		const page = this.stepPages[WizardStep.Review];
+		if (!this.reviewPage) {
+			return;
+		}
 		// eslint-disable-next-line no-restricted-syntax
-		const details = page.querySelector('.wizard-review-details');
+		const details = this.reviewPage.querySelector('.wizard-review-details');
 		if (!details) {
 			return;
 		}
@@ -1479,90 +1393,6 @@ export class IssueReporterOverlay {
 		this.similarIssuesContainer = append(similarSection, $('div.wizard-similar-issues'));
 		this.similarIssuesContainer.setAttribute('aria-live', 'polite');
 		this.renderSimilarIssuesMessage(localize('searchingSimilarIssues', "Searching similar issues..."));
-
-		const sourceSection = append(details as HTMLElement, $('div.review-section'));
-		const sourceLabel = append(sourceSection, $('div.review-label'));
-		sourceLabel.textContent = localize('target', "Target");
-		const sourceValue = append(sourceSection, $('div.review-value'));
-		sourceValue.textContent = this.getIssueSourceLabel();
-
-		const catSection = append(details as HTMLElement, $('div.review-section'));
-		const catLabel = append(catSection, $('div.review-label'));
-		catLabel.textContent = localize('category', "Category");
-		const catValue = append(catSection, $('div.review-value'));
-		const typeLabels: Record<number, string> = {
-			[IssueType.Bug]: localize('bug', "Bug"),
-			[IssueType.FeatureRequest]: localize('featureRequest', "Feature Request"),
-			[IssueType.PerformanceIssue]: localize('performanceIssue', "Performance Issue"),
-		};
-		catValue.textContent = (this.selectedIssueType !== undefined ? typeLabels[this.selectedIssueType] : undefined) ?? localize('unknown', "Unknown");
-
-		const titleSection = append(details as HTMLElement, $('div.review-section'));
-		const titleLabel = append(titleSection, $('div.review-label'));
-		titleLabel.textContent = localize('issueTitle', "Title");
-		const titleValue = append(titleSection, $('div.review-value'));
-		titleValue.textContent = this.titleInput.value.trim() || localize('noTitle', "(no title)");
-
-		const descSection = append(details as HTMLElement, $('div.review-section'));
-		const descLabel = append(descSection, $('div.review-label'));
-		descLabel.textContent = localize('description', "Description");
-		const descValue = append(descSection, $('div.review-value.review-description'));
-		const description = this.descriptionTextarea.value.trim();
-		if (description && this.markdownRendererService) {
-			const renderedMarkdown = this.markdownRendererService.render(
-				new MarkdownString(description),
-				{ markedOptions: { breaks: true } },
-			);
-			append(descValue, renderedMarkdown.element);
-			this.reviewRenderDisposables.add(renderedMarkdown);
-		} else {
-			descValue.textContent = description || localize('noDescription', "(no description)");
-		}
-
-		// Attachments row with full-size clickable thumbnails
-		const totalAttachments = this.screenshots.length + this.recordings.length;
-		if (totalAttachments > 0) {
-			const attachSection = append(details as HTMLElement, $('div.review-section'));
-			const attachLabel = append(attachSection, $('div.review-label'));
-			attachLabel.textContent = localize('attachments', "Attachments ({0})", totalAttachments);
-			const thumbRow = append(attachSection, $('div.review-thumbnails'));
-			this.reviewThumbCards = [];
-
-			for (let i = 0; i < this.screenshots.length; i++) {
-				const s = this.screenshots[i];
-				const card = append(thumbRow, $('div.wizard-screenshot-card.review-attachment-card'));
-				const img = append(card, $('img')) as HTMLImageElement;
-				img.src = s.annotatedDataUrl ?? s.dataUrl;
-				img.alt = localize('screenshotAlt', "Screenshot {0}", i + 1);
-
-				// Progress overlay (hidden initially)
-				const progressOverlay = append(card, $('div.review-progress-overlay'));
-				append(progressOverlay, $('div.review-progress-ring'));
-
-				this.disposables.add(addDisposableListener(card, EventType.CLICK, () => {
-					if (!this.uploading) {
-						this._onDidRequestOpenScreenshot.fire(s);
-					}
-				}));
-				this.reviewThumbCards.push(card);
-			}
-
-			for (let i = 0; i < this.recordings.length; i++) {
-				const rec = this.recordings[i];
-				const card = this.renderRecordingCard(thumbRow, rec, i);
-				card.classList.add('review-attachment-card');
-
-				const progressOverlay = append(card, $('div.review-progress-overlay'));
-				append(progressOverlay, $('div.review-progress-ring'));
-
-				this.disposables.add(addDisposableListener(card, EventType.CLICK, () => {
-					if (!this.uploading) {
-						this._onDidRequestOpenRecording.fire(rec.filePath);
-					}
-				}));
-				this.reviewThumbCards.push(card);
-			}
-		}
 
 		// Diagnostic data sections with checkboxes and collapsible details
 		const diagContainer = append(details as HTMLElement, $('div.review-diagnostics'));
@@ -1706,9 +1536,7 @@ export class IssueReporterOverlay {
 						// be stale by now. Re-rendering once more here ensures the
 						// "refreshing" class is cleared and the button is re-enabled even
 						// if the model didn't update (e.g. error path).
-						if (this.currentStep === WizardStep.Review) {
-							this.updateReviewDetails();
-						}
+						this.updateReviewDetails();
 						this.updateStepUI();
 					}
 				}));
@@ -1885,13 +1713,10 @@ export class IssueReporterOverlay {
 
 	/** Called by the form service to show upload progress */
 	setUploading(uploading: boolean): void {
-		this.uploading = uploading;
-
 		if (uploading) {
 			this.nextButton.element.classList.add('uploading');
 			this.nextButton.label = localize('uploading', "Uploading...");
 			this.nextButton.enabled = false;
-			this.backButton.element.style.display = 'none';
 		} else {
 			this.nextButton.element.classList.remove('uploading');
 			this.nextButton.enabled = true;
@@ -2037,11 +1862,6 @@ export class IssueReporterOverlay {
 			return;
 		}
 		this.screenshots.push(screenshot);
-		// Navigate to the Attachments step so the user sees where the screenshot
-		// was saved instead of staying on whatever step they were composing on.
-		if (options?.reveal !== false && this.currentStep !== WizardStep.Attachments) {
-			this.setStep(WizardStep.Attachments);
-		}
 		this.updateAttachmentViews();
 		this.updateAttachmentButtons();
 		this.updateStepUI();
@@ -2084,9 +1904,6 @@ export class IssueReporterOverlay {
 	}
 
 	private updateNextButtonForRecording(): void {
-		if (this.currentStep !== WizardStep.Review) {
-			return;
-		}
 		const recording = this.currentRecordingState === RecordingState.Recording;
 		this.nextButton.enabled = !recording;
 		this.nextButton.element.title = recording
@@ -2116,10 +1933,12 @@ export class IssueReporterOverlay {
 
 	private updateScreenshotThumbnails(): void {
 		this.screenshotContainer.textContent = '';
+		this.reviewThumbCards = [];
 
 		for (let i = 0; i < this.screenshots.length; i++) {
 			const screenshot = this.screenshots[i];
 			const card = append(this.screenshotContainer, $('div.wizard-screenshot-card'));
+			this.reviewThumbCards.push(card);
 
 			const img = append(card, $('img')) as HTMLImageElement;
 			img.src = screenshot.annotatedDataUrl ?? screenshot.dataUrl;
@@ -2150,12 +1969,15 @@ export class IssueReporterOverlay {
 				this.updateStepUI();
 				this._onDidChangeAttachments.fire();
 			}));
+			const progressOverlay = append(card, $('div.review-progress-overlay'));
+			append(progressOverlay, $('div.review-progress-ring'));
 		}
 
 		// Recording thumbnails
 		for (let i = 0; i < this.recordings.length; i++) {
 			const rec = this.recordings[i];
 			const card = this.renderRecordingCard(this.screenshotContainer, rec, i);
+			this.reviewThumbCards.push(card);
 
 			// Click to open from OS
 			this.disposables.add(addDisposableListener(card, EventType.CLICK, () => {
@@ -2174,6 +1996,8 @@ export class IssueReporterOverlay {
 				this.updateStepUI();
 				this._onDidChangeAttachments.fire();
 			}));
+			const progressOverlay = append(card, $('div.review-progress-overlay'));
+			append(progressOverlay, $('div.review-progress-ring'));
 		}
 
 		if (this.getTotalAttachments() < MAX_ATTACHMENTS) {
@@ -2497,20 +2321,14 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 			this.updateIssueSourceFlags();
 			this.updateIssueSourceButtons();
 		}
-		// Refresh review details if we're on the review step (async data may have arrived)
-		if (this.currentStep === WizardStep.Review) {
-			this.updateReviewDetails();
-		}
+		this.updateReviewDetails();
 	}
 
 	/** Called once performance info has resolved; suppresses "Loading…" placeholders. */
 	markPerformanceInfoLoaded(): void {
 		this.performanceInfoLoaded = true;
-		if (this.currentStep === WizardStep.Review) {
-			this.updateReviewDetails();
-			// Re-enable the Preview button now that diagnostics are ready.
-			this.updateStepUI();
-		}
+		this.updateReviewDetails();
+		this.updateStepUI();
 	}
 
 	hasUnsavedChanges(): boolean {
@@ -2633,10 +2451,6 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 
 	addRecording(filePath: string, durationMs: number, thumbnailDataUrl?: string, options?: { reveal?: boolean }): void {
 		this.recordings.push({ filePath, durationMs, thumbnailDataUrl });
-		// Navigate to the Attachments step so the user sees the saved recording.
-		if (options?.reveal !== false && this.currentStep !== WizardStep.Attachments) {
-			this.setStep(WizardStep.Attachments);
-		}
 		this.updateAttachmentViews();
 		this.updateAttachmentButtons();
 		this.updateStepUI();
@@ -2645,9 +2459,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 
 	private updateAttachmentViews(): void {
 		this.updateScreenshotThumbnails();
-		if (this.currentStep === WizardStep.Review) {
-			this.updateReviewDetails();
-		}
+		this.updateReviewDetails();
 	}
 
 	/**
@@ -2670,7 +2482,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 
 	/**
 	 * Toggle screen recording on/off as if the user clicked the record button.
-	 * Works from any step without changing it. No-op when recording isn't
+	 * Works from anywhere in the reporter. No-op when recording isn't
 	 * supported or the record button is disabled.
 	 */
 	triggerToggleRecording(): void {
@@ -2701,6 +2513,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		this.reviewRenderDisposables.dispose();
 		this.similarIssuesDisposables.dispose();
 		this.descriptionGuidanceDisposables.dispose();
+		this.descriptionPreviewDisposables.dispose();
 		this.disposables.dispose();
 		this._onDidClose.dispose();
 		this._onDidSubmit.dispose();
