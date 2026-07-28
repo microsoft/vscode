@@ -7,7 +7,8 @@ import { decodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IDiffComputeService } from '../../common/diffComputeService.js';
+import { IDiffComputeService, IOffsetEdit } from '../../common/diffComputeService.js';
+import { AttributedToolResultFileEditContent, FILE_EDIT_ATTRIBUTION_PROPERTY, IAgentEditAttributionService, IFileEditAttributionMarker } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { extractAiChunks } from './editChunkExtractor.js';
@@ -125,6 +126,7 @@ export class FileEditTracker {
 		@ILogService private readonly _logService: ILogService,
 		@IDiffComputeService private readonly _diffComputeService: IDiffComputeService,
 		@IEditSurvivalReporterFactory private readonly _editSurvivalReporterFactory: IEditSurvivalReporterFactory,
+		@IAgentEditAttributionService private readonly _editAttributionService: IAgentEditAttributionService,
 	) { }
 
 	/**
@@ -203,10 +205,12 @@ export class FileEditTracker {
 
 		let addedLines: number | undefined;
 		let removedLines: number | undefined;
+		let changes: readonly IOffsetEdit[] = [];
 		try {
 			const counts = await this._diffComputeService.computeDiffCounts(beforeText, afterText);
 			addedLines = counts.added;
 			removedLines = isCreate ? 0 : counts.removed;
+			changes = counts.changes;
 		} catch (err) {
 			this._logService.warn(`[FileEditTracker] Failed to compute diff counts: ${filePath}`, err);
 		}
@@ -239,7 +243,7 @@ export class FileEditTracker {
 			aiChunks: extractAiChunks(toolName, toolInput, filePath),
 		});
 
-		return {
+		const content: ToolResultFileEditContent = {
 			type: ToolResultContentType.FileEdit,
 			before: {
 				uri: URI.file(filePath).toString(),
@@ -251,6 +255,34 @@ export class FileEditTracker {
 			},
 			diff: addedLines !== undefined ? { added: addedLines, removed: removedLines } : undefined,
 		};
+		let marker: IFileEditAttributionMarker | undefined;
+		try {
+			marker = await this._editAttributionService.recordEdit({
+				sessionUri: this._sessionUri,
+				turnId,
+				toolCallId,
+				filePath,
+				beforeText,
+				afterText,
+				changes,
+				modelId,
+				toolName,
+			});
+		} catch (error) {
+			this._logService.warn(`[FileEditTracker] Failed to record edit attribution for ${filePath}: ${error}`);
+		}
+		if (!marker) {
+			return content;
+		}
+		const attributedContent: AttributedToolResultFileEditContent = {
+			...content,
+			[FILE_EDIT_ATTRIBUTION_PROPERTY]: marker,
+		};
+		return attributedContent;
+	}
+
+	async flushAttribution(): Promise<void> {
+		await this._editAttributionService.flushSession(this._sessionUri);
 	}
 
 	private async _readFile(filePath: string): Promise<VSBuffer> {
