@@ -78,16 +78,22 @@ class TestFileSystemWatcher implements FileSystemWatcher {
 	readonly onDidCreate = emptyFileSystemEvent;
 	readonly onDidChange = emptyFileSystemEvent;
 	readonly onDidDelete = emptyFileSystemEvent;
-	dispose(): void { }
+
+	constructor(private readonly onDispose: () => void) { }
+
+	dispose(): void {
+		this.onDispose();
+	}
 }
 
 class TrackingFileSystemService extends MockFileSystemService {
 	createFileSystemWatcherCallCount = 0;
+	disposeFileSystemWatcherCallCount = 0;
 	readDirectoryCallCount = 0;
 
 	override createFileSystemWatcher(): FileSystemWatcher {
 		this.createFileSystemWatcherCallCount++;
-		return new TestFileSystemWatcher();
+		return new TestFileSystemWatcher(() => this.disposeFileSystemWatcherCallCount++);
 	}
 
 	override async readDirectory(uri: URI): Promise<[string, FileType][]> {
@@ -282,6 +288,37 @@ describe('CopilotCLISessionService', () => {
 			}
 
 			expect(results).toEqual(cases.map(testCase => ({ name: testCase.name, watcherCount: testCase.expectedWatcherCount })));
+		});
+
+		it('stops monitoring when the Agents window Agent Host default resolves after construction', async () => {
+			const testConfiguration = disposables.add(new InMemoryConfigurationService(configurationService));
+			await Promise.all([
+				testConfiguration.setNonExtensionConfig('chat.agentHost.enabled', true),
+				testConfiguration.setNonExtensionConfig('chat.agentHost.defaultSessionsProvider', false),
+			]);
+			const fileSystem = new TrackingFileSystemService();
+			const sessionService = disposables.add(createSessionService({
+				configurationService: testConfiguration,
+				fileSystem,
+				isAgentSessionsWorkspace: true,
+			}));
+			const states = [{ created: fileSystem.createFileSystemWatcherCallCount, disposed: fileSystem.disposeFileSystemWatcherCallCount }];
+
+			await testConfiguration.setNonExtensionConfig('chat.agentHost.defaultSessionsProvider', true);
+			states.push({ created: fileSystem.createFileSystemWatcherCallCount, disposed: fileSystem.disposeFileSystemWatcherCallCount });
+
+			await testConfiguration.setNonExtensionConfig('chat.agentHost.defaultSessionsProvider', false);
+			states.push({ created: fileSystem.createFileSystemWatcherCallCount, disposed: fileSystem.disposeFileSystemWatcherCallCount });
+
+			sessionService.dispose();
+			states.push({ created: fileSystem.createFileSystemWatcherCallCount, disposed: fileSystem.disposeFileSystemWatcherCallCount });
+
+			expect(states).toEqual([
+				{ created: 1, disposed: 0 },
+				{ created: 1, disposed: 1 },
+				{ created: 2, disposed: 1 },
+				{ created: 2, disposed: 2 },
+			]);
 		});
 	});
 
