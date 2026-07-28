@@ -28,7 +28,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
 import { IIssueQualityDiagnostic, IIssueQualityReviewResult, IssueQualityDiagnosticSeverity, IssueQualityDiagnosticTarget, IssueReporterOverlay } from '../browser/issueReporterOverlay.js';
-import { IRecordingService, IRecordingData, RecordingState } from '../browser/recordingService.js';
+import { IRecordingService, IRecordingData, RecordingState, shouldShowScreenCapturePermissionSettings } from '../browser/recordingService.js';
 import { IScreenshotService } from '../browser/screenshotService.js';
 import { IIssueFormService } from '../common/issue.js';
 import { IProcessService } from '../../../../platform/process/common/process.js';
@@ -78,6 +78,7 @@ export class IssueReporterEditorPane extends EditorPane {
 	private wizardInput: IssueReporterEditorInput | undefined;
 	private readonly inputDisposables = this._register(new DisposableStore());
 	private enabledScreencastForRecording = false;
+	private hasRequestedScreenCapturePermission = false;
 
 	constructor(
 		group: IEditorGroup,
@@ -278,39 +279,32 @@ export class IssueReporterEditorPane extends EditorPane {
 
 		// Wire recording start
 		this.inputDisposables.add(this.wizard.onDidRequestStartRecording(async () => {
-			// macOS-only: skip getDisplayMedia when permission is denied and
-			// surface the grant-permission notification instead.
 			const permissionState = await this.recordingService.getScreenCapturePermissionStatus();
-			if (permissionState === 'not-determined') {
-				try {
-					await this.recordingService.requestScreenCapturePermission();
-				} catch (err) {
-					this.logService.error('[IssueReporterEditorPane] Screen recording permission request failed:', err);
+			if (permissionState !== 'granted') {
+				const previouslyRequested = this.hasRequestedScreenCapturePermission;
+				if (permissionState !== 'restricted') {
+					this.hasRequestedScreenCapturePermission = true;
+					try {
+						if (await this.recordingService.requestScreenCapturePermission()) {
+							await this.startRecording();
+							return;
+						}
+					} catch (err) {
+						this.logService.error('[IssueReporterEditorPane] Screen recording permission request failed:', err);
+						this.showScreenRecordingPermissionNotification();
+						this.wizard?.setRecordingState(RecordingState.Idle);
+						return;
+					}
 				}
-			}
-			const currentPermissionState = await this.recordingService.getScreenCapturePermissionStatus();
-			if (currentPermissionState === 'denied' || currentPermissionState === 'restricted') {
-				this.showScreenRecordingPermissionNotification();
+
+				if (shouldShowScreenCapturePermissionSettings(permissionState, previouslyRequested)) {
+					this.showScreenRecordingPermissionNotification();
+				}
 				this.wizard?.setRecordingState(RecordingState.Idle);
 				return;
 			}
-			try {
-				await this.recordingService.startRecording('video/mp4');
-				await this.enableScreencastForRecording();
-				this.wizard?.setRecordingState(RecordingState.Recording);
-			} catch (err) {
-				await this.disableScreencastForRecording();
-				this.logService.error('[IssueReporterEditorPane] Recording failed:', err);
-				this.wizard?.setRecordingState(RecordingState.Idle);
-				// Only nudge the user to System Settings on an explicit deny/restrict. On macOS,
-				// `not-determined` can also mean the user just cancelled the getDisplayMedia
-				// picker (no TCC decision recorded) — surfacing a permission prompt then would
-				// be misleading, so we treat that as a silent cancel.
-				const postState = await this.recordingService.getScreenCapturePermissionStatus();
-				if (postState === 'denied' || postState === 'restricted') {
-					this.showScreenRecordingPermissionNotification();
-				}
-			}
+
+			await this.startRecording();
 		}));
 
 		// Wire recording stop (user-initiated)
@@ -712,6 +706,22 @@ ${description}
 		}
 	}
 
+	private async startRecording(): Promise<void> {
+		try {
+			await this.recordingService.startRecording('video/mp4');
+			await this.enableScreencastForRecording();
+			this.wizard?.setRecordingState(RecordingState.Recording);
+		} catch (err) {
+			await this.disableScreencastForRecording();
+			this.logService.error('[IssueReporterEditorPane] Recording failed:', err);
+			this.wizard?.setRecordingState(RecordingState.Idle);
+			const postState = await this.recordingService.getScreenCapturePermissionStatus();
+			if (postState === 'denied' || postState === 'restricted') {
+				this.showScreenRecordingPermissionNotification();
+			}
+		}
+	}
+
 	/**
 	 * Surface a notification telling the user how to grant Screen Recording
 	 * permission. On macOS, includes a deep-link to System Settings.
@@ -720,7 +730,7 @@ ${description}
 		if (isMacintosh) {
 			this.notificationService.prompt(
 				Severity.Warning,
-				localize('screenRecordingPermissionDenied', "{0} needs Screen Recording permission to record videos. Grant access in System Settings, then click Record again.", product.nameShort),
+				localize('screenRecordingPermissionDenied', "{0} needs Screen Recording permission to record videos. Grant access in System Settings, then click Record again. If {0} is missing after you removed it from the list, restart {0} first.", product.nameShort),
 				[
 					{
 						label: localize('openSystemSettings', "Open System Settings"),

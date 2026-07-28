@@ -8,9 +8,13 @@ This document tracks the issue reporter changes on `agents/fix-issue-reporter-bu
 
 - Added an explicit screen-capture permission request to the native host service.
 - The request runs through Electron's main-process `desktopCapturer` API so macOS associates the TCC request with the VS Code product application rather than a spawned `osascript` process or terminal launcher.
-- Clicking **Record** requests registration when the permission state is `not-determined`.
-- Clicking **Open System Settings** requests registration before opening the Screen & System Audio Recording settings pane, so the application should already be present in the permission list.
+- Clicking **Record** requests registration for every non-granted, non-restricted state, including the `denied` state macOS can report before the signed application is visible in System Settings.
+- The first failed request defers entirely to the native macOS permission dialog. VS Code only shows its own **Open System Settings** guidance after a repeated failed attempt, avoiding two simultaneous prompts with the same destination.
+- Clicking **Open System Settings** now only opens the settings pane. It does not make a second capture-source request that can trigger a duplicate native dialog.
+- If the application is manually removed from the permission list while it is running, the notification explains that the application must be restarted before recording is requested again. Chromium/macOS cache the removed TCC state for the current process.
 - Related issue: [#326786 — VS Code missing from screen-recording permissions](https://github.com/microsoft/vscode/issues/326786)
+
+Electron 42.7.1 still does not expose `CGRequestScreenCaptureAccess()`. The current main-process `desktopCapturer` request is the best dependency-free bridge available in this repository, but the correct long-term fix is an Electron API that calls `CGRequestScreenCaptureAccess()` directly. That API would remove the capture-enumeration workaround and provide more reliable registration semantics after TCC changes.
 
 ### Reliable video recording startup
 
@@ -75,6 +79,7 @@ The experimental WYSIWYG Markdown editor is currently implemented as a custom-ed
 - Verified the embedded Monaco Markdown editor, placeholder, Write/Preview toggle, and Agents Window default in isolated Editor and Agents launches.
 - Completed a live issue-quality review in the Agents window: four diagnostics rendered, warning/information squiggles appeared, hover text included the suggested replacement, and a localized fix updated only its anchored text before clearing stale diagnostics.
 - Verified the review button enters and exits its loading state and remains usable after completion.
+- Focused `Issue Reporter Recording Service` browser tests: 4 passing, covering first-request native prompt deferral, repeated-request settings guidance, restricted access, and granted access.
 
 The Editor-window source launch verified the same Monaco UI and review loading path, but its cloned Copilot extension failed independently with `items is not iterable` before returning a model response. The focused browser test covers rendering and applying diagnostics in that surface, while the live language-model response was verified end-to-end in the Agents window. The signed Exploration build should repeat the review once to rule out source-profile authentication differences.
 
@@ -91,10 +96,13 @@ Use the final signed/notarized macOS ARM64 Exploration artifact, not an artifact
 3. Reset ScreenCapture TCC for the Exploration bundle identifier.
 4. Launch the application through Finder or LaunchServices.
 5. Open the issue reporter and click **Record**.
-6. Verify that the Exploration application appears automatically in **System Settings → Privacy & Security → Screen & System Audio Recording**.
-7. Deny or leave access disabled, click **Open System Settings**, and verify the application is already present in the list.
-8. Grant access, restart when requested, and verify recording starts successfully.
-9. Repeat launches from Finder, iTerm, and a VS Code Insiders terminal to ensure permission identity no longer follows the launcher.
+6. Verify that only the native macOS permission dialog appears on the first request; VS Code must not show a duplicate notification at the same time.
+7. Use the native dialog's **Open System Settings** action and verify that the Exploration application appears in **System Settings → Privacy & Security → Screen & System Audio Recording**.
+8. Leave access disabled and click **Record** again. Verify VS Code now shows its own notification and that its **Open System Settings** action only navigates to the pane without displaying another native dialog.
+9. Grant access, restart when requested, and verify recording starts successfully.
+10. While the application is running, remove it from the Screen Recording list and click **Record** again. Verify the notification explains that a restart is needed when the application is missing.
+11. Restart the application, click **Record**, and verify the native request can register the signed application again. If macOS still caches the removal, restart macOS and repeat; record which restart boundary is required by the tested macOS version.
+12. Repeat launches from Finder, iTerm, and a VS Code Insiders terminal to ensure permission identity no longer follows the launcher.
 
 ### Recording and Screencast Mode
 

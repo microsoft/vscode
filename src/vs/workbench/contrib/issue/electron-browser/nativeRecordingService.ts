@@ -52,12 +52,6 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 
 	async openScreenCapturePermissionSettings(): Promise<void> {
 		if (isMacintosh) {
-			try {
-				await this.requestScreenCapturePermission();
-			} catch (error) {
-				this.logService.error('[NativeRecordingService] Failed to register screen capture permission:', error);
-			}
-
 			// Deep-link to the Screen Recording pane in macOS Privacy & Security.
 			await this.nativeHostService.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
 		}
