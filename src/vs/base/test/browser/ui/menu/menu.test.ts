@@ -13,15 +13,16 @@ suite('Menu', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('high contrast selection outline does not apply to nested submenu items (#327543)', () => {
-		const host = append(document.body, $('.hc-black'));
+		const host = append(document.body, $('div'));
 		disposables.add(toDisposable(() => host.remove()));
-		host.style.setProperty('--vscode-menu-selectionBorder', 'yellow');
 		const shadowRoot = host.attachShadow({ mode: 'open' });
 
 		const style = shadowRoot.appendChild($('style'));
 		style.textContent = getMenuWidgetCSS(unthemedMenuStyles, true);
 
-		const actionBar = append(shadowRoot.appendChild($('.monaco-menu')), $('.monaco-action-bar.vertical'));
+		const themeRoot = shadowRoot.appendChild($('.hc-black'));
+		themeRoot.style.setProperty('--vscode-menu-selectionBorder', 'yellow');
+		const actionBar = append(append(themeRoot, $('.monaco-menu')), $('.monaco-action-bar.vertical'));
 		const focusedAction = append(actionBar, $('.action-item.focused'));
 		const focusedMenuItem = append(focusedAction, $('a.action-menu-item'));
 
