@@ -56,7 +56,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	const compactThreshold = getResponsesApiCompactionThreshold(configService, expService, endpoint);
 	// compaction supported for all the models but works well for codex models and any future models after 5.3
 
-	const webSocketStatefulMarker = resolveWebSocketStatefulMarker(accessor, options);
+	const webSocketStatefulMarker = resolveWebSocketStatefulMarker(accessor, options, model);
 	// When WebSocket is in use, always defer to the WebSocket marker (which may be
 	// undefined if the connection is new or the summary state changed). Never fall
 	// back to the HTTP marker lookup in that case.
@@ -285,19 +285,20 @@ interface ResponseStreamEventWithResponseOutput {
 	};
 }
 
-function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions): string | undefined {
+function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions, modelId: string): string | undefined {
 	if (options.ignoreStatefulMarker || !options.useWebSocket || !options.conversationId) {
 		return undefined;
 	}
 	const wsManager = accessor.get(IChatWebSocketManager);
+	const connectionKey = { conversationId: options.conversationId, modelId, connectionId: options.webSocketConnectionId };
 	// If client-side summarization state changed since the stateful marker
 	// was stored (new summary, or rollback removing a summary), the server's
 	// state no longer matches. Skip the marker so the full history is sent.
-	const connSummarizedAt = wsManager.getSummarizedAtRoundId(options.conversationId);
+	const connSummarizedAt = wsManager.getSummarizedAtRoundId(connectionKey);
 	if (options.summarizedAtRoundId !== connSummarizedAt) {
 		return undefined;
 	}
-	return wsManager.getStatefulMarker(options.conversationId);
+	return wsManager.getStatefulMarker(connectionKey);
 }
 
 interface RawMessagesToResponseAPIOptions {

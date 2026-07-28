@@ -29,7 +29,7 @@ import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { MessageAttachmentKind, ToolCallConfirmationReason, buildDefaultChatUri, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, PendingMessageKind, ToolCallConfirmationReason, buildDefaultChatUri, type MessageAttachment } from '../../../../common/state/sessionState.js';
 import { ActionType, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import {
 	AgentHostE2EServerLease, createRealSession, dispatchTurn, driveTurnWithAttachmentsToCompletion,
@@ -52,8 +52,15 @@ const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsWorktreeIsolation: true,
 	supportsHostTerminalTool: true,
 	supportsSubagents: true,
+	supportsSideChats: true,
 	supportsPlanMode: true,
+	supportsMultipleChats: true,
+	supportsChatFork: true,
+	supportsChatForkE2E: true,
+	stableNewScenarioResponse: true,
 };
+
+const RECORD_ONLY = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
 
 defineAgentHostE2ETests(COPILOT_CONFIG);
 
@@ -157,6 +164,88 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			return envelope.serverSeq > failedCompletionSeq && action.toolCallId === toolCallId;
 		});
 		assert.deepStrictEqual(staleReady, []);
+	});
+
+	(RECORD_ONLY ? test : test.skip)('accepted steering followed by abort does not block the replacement turn', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-steering-abort-'));
+		tempDirs.push(workingDirectory);
+		const clientId = 'copilot-steering-abort';
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId,
+					displayName: 'Test Client',
+					tools: [{
+						name: 'get_magic_word',
+						description: 'Returns a magic word. Call this tool when explicitly asked for the magic word.',
+						inputSchema: { type: 'object', properties: {}, required: [] },
+					}],
+				},
+			},
+		});
+		const initialTurnId = 'turn-steering-abort-initial';
+		dispatchTurn(client, sessionUri, initialTurnId, 'Explain the history of source control in detail.', 2);
+		await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/responsePart') || isActionNotification(n, 'chat/toolCallStart'),
+			90_000);
+
+		const steeringId = 'steering-before-abort';
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 3,
+			action: {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering,
+				id: steeringId,
+				message: {
+					text: 'Call get_magic_word exactly once, then report its result.',
+					origin: { kind: MessageKind.User },
+				},
+			},
+		});
+		await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/pendingMessageRemoved')) {
+				return false;
+			}
+			return (getActionEnvelope(n).action as { id?: string }).id === steeringId;
+		}, 60_000);
+
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 4,
+			action: {
+				type: ActionType.ChatTurnCancelled,
+				turnId: initialTurnId,
+				duration: 0,
+			},
+		});
+		const replacementTurnId = 'turn-steering-abort-replacement';
+		dispatchTurn(client, sessionUri, replacementTurnId, 'Reply with exactly "replacement-ok". Do not use tools.', 5);
+
+		await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/turnComplete')) {
+				return false;
+			}
+			return (getActionEnvelope(n).action as { turnId?: string }).turnId === replacementTurnId;
+		}, 90_000);
+
+		const state = await fetchSessionWithChat(client, sessionUri);
+		assert.deepStrictEqual({
+			activeTurn: state.activeTurn,
+			inputNeeded: state.inputNeeded,
+			replacementState: state.turns.find(turn => turn.id === replacementTurnId)?.state,
+		}, {
+			activeTurn: undefined,
+			inputNeeded: undefined,
+			replacementState: 'complete',
+		});
 	});
 
 	suiteTeardown(async function () {

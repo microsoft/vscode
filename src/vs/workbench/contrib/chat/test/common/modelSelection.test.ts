@@ -47,7 +47,6 @@ function transition(overrides: ITransitionOverrides = {}) {
 		models: {
 			available: [first, second],
 			configuredModel: undefined,
-			waitForConfiguredModel: false,
 			rememberedModelId: undefined,
 			desiredModelResolution: { kind: 'notRequested' },
 			fallbackModel: first,
@@ -139,18 +138,14 @@ suite('ModelSelection', () => {
 
 	test('shares configured, desired, pending, then fallback precedence', () => {
 		assert.deepStrictEqual([
-			resolveInitialModelSelection({ configuredModelValue: 'second', configuredModel: second, waitForConfiguredModel: true, desiredModelResolution: { kind: 'available', model: first }, desiredReason: ModelSelectionReason.Remembered, fallbackModel: first, fallbackReason: ModelSelectionReason.FirstAvailable }),
-			resolveInitialModelSelection({ configuredModelValue: 'second', configuredModel: undefined, waitForConfiguredModel: true, desiredModelResolution: { kind: 'available', model: first }, desiredReason: ModelSelectionReason.Remembered, fallbackModel: first, fallbackReason: ModelSelectionReason.FirstAvailable }),
-			resolveInitialModelSelection({ configuredModelValue: 'second', configuredModel: undefined, waitForConfiguredModel: false, desiredModelResolution: { kind: 'available', model: first }, desiredReason: ModelSelectionReason.Remembered, fallbackModel: first, fallbackReason: ModelSelectionReason.FirstAvailable }),
-			resolveInitialModelSelection({ configuredModelValue: undefined, configuredModel: undefined, waitForConfiguredModel: false, desiredModelResolution: { kind: 'available', model: second }, desiredReason: ModelSelectionReason.Remembered, fallbackModel: first, fallbackReason: ModelSelectionReason.FirstAvailable }),
-			resolveInitialModelSelection({ configuredModelValue: undefined, configuredModel: undefined, waitForConfiguredModel: false, desiredModelResolution: { kind: 'pending', identifier: second.identifier }, desiredReason: ModelSelectionReason.Remembered, fallbackModel: first, fallbackReason: ModelSelectionReason.FirstAvailable }),
-			resolveInitialModelSelection({ configuredModelValue: undefined, configuredModel: undefined, waitForConfiguredModel: false, desiredModelResolution: { kind: 'unavailable', identifier: second.identifier }, desiredReason: ModelSelectionReason.Remembered, fallbackModel: first, fallbackReason: ModelSelectionReason.FirstAvailable }),
+			resolveInitialModelSelection({ configuredModel: second, desiredModelResolution: { kind: 'available', model: first }, desiredReason: ModelSelectionReason.Remembered, fallbackModel: first, fallbackReason: ModelSelectionReason.FirstAvailable }),
+			resolveInitialModelSelection({ configuredModel: undefined, desiredModelResolution: { kind: 'available', model: second }, desiredReason: ModelSelectionReason.Remembered, fallbackModel: first, fallbackReason: ModelSelectionReason.FirstAvailable }),
+			resolveInitialModelSelection({ configuredModel: undefined, desiredModelResolution: { kind: 'pending', identifier: second.identifier }, desiredReason: ModelSelectionReason.Remembered, fallbackModel: first, fallbackReason: ModelSelectionReason.FirstAvailable }),
+			resolveInitialModelSelection({ configuredModel: undefined, desiredModelResolution: { kind: 'unavailable', identifier: second.identifier }, desiredReason: ModelSelectionReason.Remembered, fallbackModel: first, fallbackReason: ModelSelectionReason.FirstAvailable }),
 		], [
 			{ kind: 'apply', model: second, reason: ModelSelectionReason.ConfiguredDefault },
-			{ kind: 'pending', selection: { source: 'configured', reference: 'second' } },
-			{ kind: 'apply', model: first, reason: ModelSelectionReason.Remembered },
 			{ kind: 'apply', model: second, reason: ModelSelectionReason.Remembered },
-			{ kind: 'pending', selection: { source: 'desired', reference: second.identifier } },
+			{ kind: 'pending', selection: { reference: second.identifier } },
 			{ kind: 'apply', model: first, reason: ModelSelectionReason.FirstAvailable },
 		]);
 	});
@@ -188,7 +183,7 @@ suite('ModelSelection', () => {
 		], [{
 			current: second.identifier, pending: undefined, effect: 'none', applied: undefined, reason: undefined, lastPushedChatKey: 'chat:one',
 		}, {
-			current: undefined, pending: { source: 'desired', reference: 'target:missing' }, effect: 'clear', applied: undefined, reason: ModelSelectionReason.SessionRestore, lastPushedChatKey: 'chat:one',
+			current: undefined, pending: { reference: 'target:missing' }, effect: 'clear', applied: undefined, reason: ModelSelectionReason.SessionRestore, lastPushedChatKey: 'chat:one',
 		}, {
 			current: second.identifier, pending: undefined, effect: 'apply', applied: second.identifier, reason: ModelSelectionReason.RemovedModelFallback, lastPushedChatKey: 'chat:one',
 		}, {
@@ -207,7 +202,7 @@ suite('ModelSelection', () => {
 		}, {
 			current: second.identifier, pending: undefined, effect: 'apply', applied: second.identifier, reason: ModelSelectionReason.Remembered, lastPushedChatKey: 'chat:one',
 		}, {
-			current: undefined, pending: { source: 'desired', reference: second.identifier }, effect: 'none', applied: undefined, reason: undefined, lastPushedChatKey: 'chat:previous',
+			current: undefined, pending: { reference: second.identifier }, effect: 'none', applied: undefined, reason: undefined, lastPushedChatKey: 'chat:previous',
 		}, {
 			current: first.identifier, pending: undefined, effect: 'apply', applied: first.identifier, reason: ModelSelectionReason.FirstAvailable, lastPushedChatKey: 'chat:one',
 		}]);
@@ -324,7 +319,6 @@ suite('ModelSelection', () => {
 		assert.deepStrictEqual(summarize(transition({
 			models: {
 				configuredModel: 'missing-family',
-				waitForConfiguredModel: false,
 				available: [first],
 				fallbackModel: first,
 				desiredModelResolution: { kind: 'notRequested' },
@@ -351,7 +345,7 @@ suite('ModelSelection', () => {
 			previous: { currentModel: first },
 		})), {
 			current: undefined,
-			pending: { source: 'desired', reference: second.identifier },
+			pending: { reference: second.identifier },
 			effect: 'clear',
 			applied: undefined,
 			reason: ModelSelectionReason.SessionRestore,
