@@ -1225,8 +1225,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._activeSessions.set(sessionResource, session);
 
 		if (!isNewSession) {
-			this._ensurePendingMessageSubscription(sessionResource, resolvedSession);
+			// Only wire up pending-message/draft sync once the chat URI has been
+			// resolved. When hydration failed (see the catch above), `chatURI`
+			// stays undefined; subscribing anyway would later invoke
+			// `_syncPendingMessages`, whose `_getChatURI` lookup throws because no
+			// mapping was ever stored for this session resource.
 			if (chatURI !== undefined) {
+				this._ensurePendingMessageSubscription(sessionResource, resolvedSession);
 				this._ensureDraftSyncSubscription(sessionResource, resolvedSession, chatURI);
 			}
 

@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -533,7 +533,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	private readonly _changesSummary = observableValueOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, undefined);
 	get changesSummary(): IObservable<ISessionChangesSummary | undefined> { return this._changesSummary; }
-	setChangesSummary(changes: ChangesSummary | undefined): boolean {
+	/**
+	 * Sets the aggregate change chip. Callers inside a transaction MUST pass it
+	 * — a `set` without one builds and finishes its own transaction, notifying
+	 * observers before the enclosing update has applied its remaining fields.
+	 */
+	setChangesSummary(changes: ChangesSummary | undefined, tx?: ITransaction): boolean {
 		if (!changes) {
 			return false;
 		}
@@ -553,7 +558,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			additions: additions ?? 0,
 			deletions: deletions ?? 0,
 			files: files ?? 0
-		}, undefined);
+		}, tx);
 
 		return true;
 	}
@@ -655,8 +660,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const initialWorkspace = this._computeWorkspace();
 		this.workspace = observableValue('workspace', initialWorkspace);
 		this.isQuickChat = this._isQuickChat;
-		// A worktree-isolated session keeps reporting the checkout it was started
-		// from until the agent host creates and reports the worktree.
+		// Until the host reports the worktree, the workspace is still the checkout it was started from.
 		this.worktreePending = derived(this, reader =>
 			this._worktreeIsolation.read(reader)
 			&& !this.workspace.read(reader)?.folders.some(folder => !!folder.gitRepository?.workTreeUri));
@@ -1134,20 +1138,22 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			// undefined value means "not included" (e.g. a summary path that
 			// omits it), not "cleared". The authoritative git-state `_meta`
 			// still flows via `setMeta` from `SessionState` subscriptions.
+			//
+			// `setMeta` rebuilds the workspace from the project / working
+			// directories assigned just above plus the incoming `_meta`, so it
+			// fully subsumes the rebuild below — running both would recompute
+			// the same workspace twice for every `_meta`-bearing refresh. The
+			// fallback is only for snapshots that carry no `_meta`.
 			if (metadata._meta !== undefined) {
-				this._meta = metadata._meta;
-				this._metaObs.set(this._meta, tx);
-			}
-			// Promote before recomputing the workspace below, so a session the
-			// listing reports workspace-less never assigns itself a workspace
-			// rooted at its scratch cwd, even transiently.
-			if (this._promoteToQuickChatIfWorkspaceless(tx)) {
-				didChange = true;
-			}
-			const workspace = this._computeWorkspace();
-			if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
-				this.workspace.set(workspace, tx);
-				didChange = true;
+				if (this.setMeta(metadata._meta, tx)) {
+					didChange = true;
+				}
+			} else {
+				const workspace = this._computeWorkspace();
+				if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
+					this.workspace.set(workspace, tx);
+					didChange = true;
+				}
 			}
 
 			if (metadata.isArchived !== undefined && metadata.isArchived !== this.isArchived.get()) {
@@ -1162,16 +1168,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 			// `metadata.changes` (aggregate) drives the chip aggregate.
 			// The dropdown content is built separately via `createChangesets`.
-			if (metadata.changes !== undefined && this.setChangesSummary(metadata.changes)) {
+			if (metadata.changes !== undefined && this.setChangesSummary(metadata.changes, tx)) {
 				didChange = true;
 			}
 
 			if (this._activity.get() !== metadata.activity) {
 				this._activity.set(metadata.activity, tx);
-				didChange = true;
-			}
-
-			if (metadata._meta !== undefined && this.setMeta(metadata._meta)) {
 				didChange = true;
 			}
 		});
@@ -1181,11 +1183,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	/**
 	 * Sets the activity text from a `SessionSummaryChanged` notification.
-	 * Returns `true` iff the activity observable changed.
+	 * Returns `true` iff the activity observable changed. Callers inside a
+	 * transaction MUST pass it — see {@link setChangesSummary}.
 	 */
-	setActivity(activity: string | undefined): boolean {
+	setActivity(activity: string | undefined, tx?: ITransaction): boolean {
 		if (this._activity.get() !== activity) {
-			this._activity.set(activity, undefined);
+			this._activity.set(activity, tx);
 			return true;
 		}
 
@@ -1199,11 +1202,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * workspace-less, and rebuild the workspace if the git state changed.
 	 * Returns `true` iff anything observable changed, so the list regroups a
 	 * session that became a quick chat without ever having had a workspace.
+	 *
+	 * Callers that are already inside a transaction MUST pass it: a plain
+	 * `transaction()` here would finish (and therefore notify) mid-way through
+	 * the enclosing one, letting observers of `_meta` / `isQuickChat` /
+	 * `workspace` read a torn snapshot of the fields the caller has not applied
+	 * yet.
 	 */
-	setMeta(meta: SessionMeta | undefined): boolean {
+	setMeta(meta: SessionMeta | undefined, tx?: ITransaction): boolean {
 		this._meta = meta;
 		let didChange = false;
-		transaction(tx => {
+		subtransaction(tx, tx => {
 			this._metaObs.set(this._meta, tx);
 			didChange = this._promoteToQuickChatIfWorkspaceless(tx);
 			const workspace = this._computeWorkspace();
@@ -3106,6 +3115,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return sessionState?.workingDirectories?.[0];
 	}
 
+	getWorkingDirectories(sessionId: string): readonly string[] {
+		const sessionState = this._lastSessionStates.get(sessionId);
+		return sessionState?.workingDirectories ?? [];
+	}
+
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[] {
 		const sessionState = this._lastSessionStates.get(sessionId);
 		if (!sessionState) {
@@ -4585,15 +4599,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// itself (label / URI template / `changeKind`) arrives via the
 			// `SessionChangesetsChanged` action, handled by
 			// `_handleChangesetsChanged`.
-			if (changes.changes !== undefined && cached.setChangesSummary(changes.changes)) {
+			if (changes.changes !== undefined && cached.setChangesSummary(changes.changes, tx)) {
 				didChange = true;
 			}
 
-			if (Object.prototype.hasOwnProperty.call(changes, 'activity') && cached.setActivity(changes.activity)) {
+			if (Object.prototype.hasOwnProperty.call(changes, 'activity') && cached.setActivity(changes.activity, tx)) {
 				didChange = true;
 			}
 
-			if (changes._meta !== undefined && cached.setMeta(changes._meta)) {
+			if (changes._meta !== undefined && cached.setMeta(changes._meta, tx)) {
 				didChange = true;
 			}
 
