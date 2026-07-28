@@ -84,7 +84,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 		};
 		const reports: IAgentHostRepoInfoReport[] = [];
 		const collector = disposables.add(new AgentHostRepoInfoTelemetry({
-			reportRepoInfo: (_context, report) => reports.push(report),
+			reportRepoInfo: async (_context, report) => { reports.push(report); },
 		}, gitService, createTestGitHubEndpointService(), new NullLogService()));
 
 		await collector.reportBegin(restrictedContext, 'agent-session://copilot/s1', 'turn-1', root, undefined, () => true);
@@ -151,7 +151,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 			...createNoopGitService(),
 			getSessionGitState: async () => { gitCalls++; return undefined; },
 		};
-		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: () => { } }, gitService, createTestGitHubEndpointService(), new NullLogService()));
+		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: async () => { } }, gitService, createTestGitHubEndpointService(), new NullLogService()));
 
 		await collector.reportBegin({ ...restrictedContext, restrictedTelemetryEnabled: false, isInternal: false }, 'agent-session://copilot/s1', 'turn-1', URI.file('/repo'), undefined, () => true);
 
@@ -176,7 +176,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 			computeFileDiffsBetweenRefs: async () => fileDiffs,
 		};
 		const reports: IAgentHostRepoInfoReport[] = [];
-		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: (_context, report) => reports.push(report) }, gitService, createTestGitHubEndpointService(), new NullLogService()));
+		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: async (_context, report) => { reports.push(report); } }, gitService, createTestGitHubEndpointService(), new NullLogService()));
 
 		await collector.reportBegin(restrictedContext, 'agent-session://copilot/s1', 'turn-1', root, undefined, () => true);
 		await collector.reportEnd(restrictedContext, 'agent-session://copilot/s1', 'turn-1', root, undefined, () => true);
@@ -203,7 +203,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 			getDiffPatchBetweenRefs: async () => { patchCalls++; return { patch: 'secret', tooLarge: false }; },
 		};
 		const reports: IAgentHostRepoInfoReport[] = [];
-		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: (_context, report) => reports.push(report) }, gitService, createTestGitHubEndpointService(), new NullLogService()));
+		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: async (_context, report) => { reports.push(report); } }, gitService, createTestGitHubEndpointService(), new NullLogService()));
 
 		for (const [index, copilotIgnoreEnabled] of [true, undefined].entries()) {
 			await collector.reportBegin({ ...restrictedContext, copilotIgnoreEnabled }, 'agent-session://copilot/s1', `turn-${index}`, root, undefined, () => true);
@@ -252,7 +252,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 			}],
 			getDiffPatchBetweenRefs: async () => ({ patch: '-before\n+after', tooLarge: false }),
 		};
-		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: (_context, report) => reports.push(report) }, gitService, createTestGitHubEndpointService(), new NullLogService()));
+		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: async (_context, report) => { reports.push(report); } }, gitService, createTestGitHubEndpointService(), new NullLogService()));
 
 		await collector.reportBegin(restrictedContext, 'agent-session://copilot/s1', 'turn-1', root, undefined, () => true);
 
@@ -281,7 +281,7 @@ suite('AgentHostRepoInfoTelemetry', () => {
 			}],
 			getDiffPatchBetweenRefs: async () => ({ patch: 'x'.repeat(100_001), tooLarge: false }),
 		};
-		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: (_context, report) => reports.push(report) }, gitService, createTestGitHubEndpointService(), new NullLogService()));
+		const collector = disposables.add(new AgentHostRepoInfoTelemetry({ reportRepoInfo: async (_context, report) => { reports.push(report); } }, gitService, createTestGitHubEndpointService(), new NullLogService()));
 
 		await collector.reportBegin(restrictedContext, 'agent-session://copilot/s1', 'turn-1', root, undefined, () => true);
 

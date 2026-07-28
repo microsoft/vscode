@@ -21,6 +21,8 @@ export const enum CopilotCliConfigKey {
 	RubberDuck = 'rubberDuck',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
 	Opus48Prompt = 'opus48Prompt',
+	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. Off by default. */
+	ToolSearchEnabled = 'toolSearchEnabled',
 	/** Override reasoning effort regardless of the picker value; unsupported values are ignored. */
 	ReasoningEffortOverride = 'reasoningEffortOverride',
 	/** Per-model capability overrides (family aliases) keyed by model id. */
@@ -37,6 +39,8 @@ export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.custo
 export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.logLevel';
 
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
+
+export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
 
 export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.reasoningEffortOverride';
 
@@ -82,6 +86,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.opus48Prompt.title', "Opus 4.8 Agent Prompt"),
 		description: localize('agentHost.config.opus48Prompt.description', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.toolSearchEnabled.title', "Agent Host Tool Search"),
+		description: localize('agentHost.config.toolSearchEnabled.description', "When enabled, Copilot SDK sessions defer MCP and non-core VS Code tools behind a tool-search tool so the model discovers them on demand instead of loading every tool definition up front."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.ReasoningEffortOverride]: schemaProperty<string>({

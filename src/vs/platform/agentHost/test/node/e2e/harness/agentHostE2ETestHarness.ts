@@ -9,10 +9,10 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { mkdtempSync, rmSync } from 'fs';
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
-import { raceTimeout, timeout } from '../../../../../../base/common/async.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -30,8 +30,9 @@ import {
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { CapiReplayMode } from './capiReplayProxy.js';
 import {
-	getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient,
+	getActionEnvelope, isActionNotification, IServerHandle, stopServer, TestProtocolClient,
 } from '../../serverIntegrationTestHelpers.js';
+import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget.js';
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
 import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario } from './ahpSnapshot.js';
 
@@ -45,31 +46,70 @@ import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario } from './ahpSnapsh
 const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateSnapshotsEnvVar] === '1';
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || UPDATE_SNAPSHOTS;
 const REPLAY_MODE: CapiReplayMode = RECORD ? 'record' : 'replay';
-const SERVER_SHUTDOWN_TIMEOUT_MS = 30_000;
 
 /**
- * Upper bound on tests served by a single shared replay server before it is
- * proactively recycled. Amortizes startup across many tests while keeping each
- * cached provider subprocess well within the range where it stays healthy.
+ * Upper bound on **model-backed** tests served by a single shared replay server
+ * before it is proactively recycled. The cached provider SDK/CLI subprocess
+ * degrades as a function of the model-driven turns it has run, not of how many
+ * tests connected, so host-only tests do not count against this budget.
+ * Amortizes startup across many tests while keeping each cached provider
+ * subprocess well within the range where it stays healthy.
  */
-const MAX_TESTS_PER_SHARED_SERVER = 25;
+const MAX_MODEL_BACKED_TESTS_PER_SHARED_SERVER = 25;
 const TEMP_DIR_CLEANUP_TIMEOUT_MS = 30_000;
 /** A synthetic token used on replay (no real credential needed). */
 export const REPLAY_PLACEHOLDER_TOKEN = 'replay-no-token';
 export type AgentHostE2EModelTraffic = 'recorded' | 'none';
 
-async function stopServer(server: IServerHandle | undefined): Promise<void> {
-	const serverProcess = server?.process;
-	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+/**
+ * Clears read-only attributes across a directory tree.
+ *
+ * Git marks the files under `.git/objects` read-only, and on Windows a
+ * read-only file cannot be deleted — `rmSync`'s `force` option only suppresses
+ * `ENOENT`, it does not override the attribute. Without this, any test that
+ * creates a git repository in a temp directory fails teardown on Windows after
+ * burning the full cleanup timeout, even though the test itself passed.
+ *
+ * Best-effort throughout: entries can disappear underneath us while the failed
+ * removal is still unwinding, and a failure here just means the retry fails the
+ * same way it already did.
+ */
+function clearReadOnlyAttributes(dir: string): void {
+	let entries: string[];
+	try {
+		entries = readdirSync(dir);
+	} catch {
 		return;
 	}
-
-	const serverExit = new Promise<void>(resolve => serverProcess.once('exit', () => resolve()));
-	serverProcess.stdin?.end();
-	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
-		serverProcess.kill();
-		await serverExit;
+	for (const entry of entries) {
+		const entryPath = join(dir, entry);
+		try {
+			// Directories need the execute bit to stay traversable.
+			const isDirectory = statSync(entryPath).isDirectory();
+			chmodSync(entryPath, isDirectory ? 0o700 : 0o600);
+			if (isDirectory) {
+				clearReadOnlyAttributes(entryPath);
+			}
+		} catch {
+			// Entry vanished or cannot be changed; the retry will report it.
+		}
 	}
+}
+
+/**
+ * Initializes a git repository for a test, with an identity and no background
+ * maintenance.
+ *
+ * `gc.auto 0` matters on Windows: an auto-triggered `git gc` runs in the
+ * background and can still hold handles under `.git` when the test finishes,
+ * which makes the temp-directory cleanup fail for a reason unrelated to the
+ * behavior under test. Tests here never create enough objects to need gc.
+ */
+export function initTestGitRepo(cwd: string): void {
+	execSync('git init', { cwd });
+	execSync('git config user.name "Agent Host Test"', { cwd });
+	execSync('git config user.email "agent-host-test@example.com"', { cwd });
+	execSync('git config gc.auto 0', { cwd });
 }
 
 export async function removeTempDirs(tempDirs: string[]): Promise<void> {
@@ -85,6 +125,10 @@ export async function removeTempDirs(tempDirs: string[]): Promise<void> {
 				errors.delete(dir);
 			} catch (error) {
 				errors.set(dir, error instanceof Error ? error : new Error(String(error)));
+				// A read-only file never becomes deletable by waiting, so clear the
+				// attributes before the retry rather than spinning until the
+				// deadline. Harmless when the real cause is a transient lock.
+				clearReadOnlyAttributes(dir);
 			}
 		}
 		if (pendingDirs.length === 0) {
@@ -119,11 +163,22 @@ function fixturePathFor(provider: string, testTitle: string): string {
  * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Tests that
  * declare no model traffic always use the strict shared empty replay fixture.
  */
-export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode } {
+/**
+ * Tests whose recorded capture is allowed to contain POSIX-only commands.
+ *
+ * Each entry must correspond to a test that is *also* scoped away from Windows
+ * at its call site, with the reason stated there. This list exists so the
+ * exceptions are countable in one place; adding to it should be rare and
+ * deliberate. See `harness/posixCommandLint.ts`.
+ */
+const POSIX_COMMAND_EXCEPTIONS = new Set<string>([]);
+
+export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean } {
+	const allowPosixCommands = POSIX_COMMAND_EXCEPTIONS.has(testTitle);
 	if (modelTraffic === 'none') {
-		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay' };
+		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay', allowPosixCommands };
 	}
-	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE };
+	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands };
 }
 
 // #endregion
@@ -191,11 +246,11 @@ export interface IAgentHostE2EProviderConfig {
 	readonly enabled: boolean;
 	/**
 	 * Optional path to a locally installed `@anthropic-ai/claude-agent-sdk`
-	 * package. Forwarded to `startRealServer` so the agent host registers
+	 * package. Forwarded to the target's `launch` so the agent host registers
 	 * the Claude provider.
 	 */
 	readonly claudeSdkRoot?: string;
-	/** Optional path to a locally installed `codex` binary. Forwarded to `startRealServer`. */
+	/** Optional path to a locally installed `codex` binary. Forwarded to the target's `launch`. */
 	readonly codexSdkRoot?: string;
 	/**
 	 * Provider implements `config.isolation: 'worktree'` and resolves the
@@ -220,12 +275,29 @@ export interface IAgentHostE2EProviderConfig {
 	 * session. Claude has not landed subagents yet (Phase 12 in roadmap).
 	 */
 	readonly supportsSubagents: boolean;
+	/** Whether the provider supports creating side chats from a source turn. */
+	readonly supportsSideChats?: boolean;
 	/**
 	 * When set, shell-dependent replay tests are skipped on Linux because this
 	 * provider completes recorded shell-tool turns without emitting tool-call
 	 * notifications there. Recording and other platforms keep full coverage.
 	 */
 	readonly shellToolReplayUnstableOnLinux?: boolean;
+	/**
+	 * Gates the whole "new scenario" family of model-backed tests — the file,
+	 * shell, and multi-turn scenarios added after the original suite.
+	 *
+	 * Set this to `false` only while a provider genuinely cannot run them. Note
+	 * that it currently conflates two different states, and a provider that
+	 * needs it should say which one applies:
+	 *
+	 * - a fixture exists but the provider replays it unstably, and
+	 * - no fixture was ever recorded, in which case the test cannot be re-enabled
+	 *   by flipping this flag alone — recording has to succeed first.
+	 *
+	 * See `KNOWN_ISSUES.md` for the current per-test state.
+	 */
+	readonly stableNewScenarioResponse: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
@@ -618,24 +690,28 @@ export class AgentHostE2EServerLease {
 	private readonly _shared: boolean;
 	private _dataDir: string | undefined;
 	/**
-	 * Number of tests served by the current shared server. A single long-lived
-	 * host caches one provider SDK/CLI subprocess and reuses it across every
-	 * test; after enough sessions that subprocess can accumulate state and
-	 * eventually wedge a turn (turn starts, but no model response arrives even
-	 * though replay is instant). Recycling the server well before that keeps each
-	 * host instance within its reliable range while still amortizing startup.
+	 * Number of **model-backed** tests served by the current shared server. A
+	 * single long-lived host caches one provider SDK/CLI subprocess and reuses it
+	 * across every test; after enough model-driven turns that subprocess can
+	 * accumulate state and eventually wedge a turn (turn starts, but no model
+	 * response arrives even though replay is instant). Recycling the server well
+	 * before that keeps each host instance within its reliable range while still
+	 * amortizing startup.
 	 */
-	private _testsOnCurrentServer = 0;
+	private _modelBackedTestsOnCurrentServer = 0;
 	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir: string; readonly userDataDir: string };
+	private readonly _target: IAgentHostTarget;
 
 	constructor(
 		private readonly _config: IAgentHostE2EProviderConfig,
-		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string } = {},
+		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly target?: IAgentHostTarget } = {},
 	) {
 		const dataDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
 		this._dataDir = dataDir;
+		this._target = startOptions.target ?? defaultAgentHostTarget;
 		this._startOptions = {
-			...startOptions,
+			claudeSdkRoot: startOptions.claudeSdkRoot,
+			codexSdkRoot: startOptions.codexSdkRoot,
 			homeDir: dataDir,
 			userDataDir: join(dataDir, 'user-data'),
 		};
@@ -649,9 +725,11 @@ export class AgentHostE2EServerLease {
 	/** Acquire a server + connected client for a test, returning both. */
 	async acquire(testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): Promise<{ server: IServerHandle; client: TestProtocolClient }> {
 		const capiReplay = capiReplayFor(this._config.provider, testTitle, modelTraffic);
-		// Proactively recycle a shared server that has served enough tests, before
-		// its cached provider subprocess can degrade and wedge a turn.
-		if (this._shared && this._server && this._testsOnCurrentServer >= MAX_TESTS_PER_SHARED_SERVER) {
+		// Proactively recycle a shared server whose cached provider subprocess has
+		// handled enough model-backed turns, before it can degrade and wedge a
+		// turn. Host-only tests never reach the provider's model loop, so they do
+		// not consume budget — only model-backed tests do.
+		if (this._shared && this._server && this._modelBackedTestsOnCurrentServer >= MAX_MODEL_BACKED_TESTS_PER_SHARED_SERVER) {
 			await this._recycleSharedServer();
 		}
 		if (this._shared && this._server) {
@@ -661,10 +739,14 @@ export class AgentHostE2EServerLease {
 			}
 			proxy.resetForReplay(capiReplay.fixturePath);
 		} else {
-			this._server = await startRealServer({ ...this._startOptions, capiReplay });
-			this._testsOnCurrentServer = 0;
+			// Only the Copilot CLI provider writes the `@github/copilot` runtime logs we
+			// capture, so only it is run verbosely; Claude/Codex use their own runtimes.
+			this._server = await this._target.launch({ ...this._startOptions, capiReplay, logLevel: this._isCopilotProvider ? 'trace' : undefined });
+			this._modelBackedTestsOnCurrentServer = 0;
 		}
-		this._testsOnCurrentServer++;
+		if (modelTraffic === 'recorded') {
+			this._modelBackedTestsOnCurrentServer++;
+		}
 		this._client = new TestProtocolClient(
 			this._server.port,
 			() => this._server?.capiReplay?.takeCacheMissError(),
@@ -681,12 +763,72 @@ export class AgentHostE2EServerLease {
 		} finally {
 			await stopServer(this._server);
 			this._server = undefined;
-			this._testsOnCurrentServer = 0;
+			this._modelBackedTestsOnCurrentServer = 0;
 		}
 	}
 
 	get observedModelRequestBodies(): readonly string[] {
 		return this._server?.capiReplay?.observedModelRequestBodies ?? [];
+	}
+
+	/** The bundled `@github/copilot` CLI is the only provider whose runtime logs we capture / run verbosely. */
+	private get _isCopilotProvider(): boolean {
+		return this._config.provider === 'copilotcli';
+	}
+
+	/**
+	 * Tail the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log`
+	 * into the test output. This is the SDK/CLI's own diagnostics — the key signal
+	 * when a turn hangs or times out, which the AHP assertions alone don't explain.
+	 * The runtime writes these under `${COPILOT_HOME}/logs`, and the harness pins
+	 * `COPILOT_HOME` to `${homeDir}/.copilot` (see `startRealServer`), running it
+	 * at `trace`. Only the Copilot CLI provider is captured — Claude/Codex use their
+	 * own runtimes and log elsewhere. Best-effort: never throws (it runs in a
+	 * `teardown`, right before the failure is re-raised). Output goes to
+	 * `process.stdout` directly (not `console.*`): the integration harness overrides
+	 * `console.*` and fails the test on ANY unexpected console output during a test,
+	 * and `currentTest` is still set during `teardown`.
+	 */
+	dumpRuntimeLogsOnFailure(label: string): void {
+		if (!this._isCopilotProvider) {
+			return;
+		}
+		try {
+			const logsDir = join(this._startOptions.homeDir, '.copilot', 'logs');
+			let entries: string[];
+			try {
+				entries = readdirSync(logsDir);
+			} catch {
+				// No log dir at all — the CLI never spawned. That itself is a signal.
+				process.stdout.write(`[agent-host-e2e] no Copilot runtime logs for failed test "${label}" (CLI never spawned; ${logsDir} absent)\n`);
+				return;
+			}
+			const newest = entries
+				.filter(name => /^process-.*\.log$/.test(name))
+				.map(name => {
+					const full = join(logsDir, name);
+					try {
+						return { full, mtimeMs: statSync(full).mtimeMs };
+					} catch {
+						return undefined;
+					}
+				})
+				.filter((v): v is { full: string; mtimeMs: number } => v !== undefined)
+				.sort((a, b) => b.mtimeMs - a.mtimeMs)[0];
+			if (!newest) {
+				process.stdout.write(`[agent-host-e2e] no Copilot runtime process-*.log for failed test "${label}" under ${logsDir}\n`);
+				return;
+			}
+			const lines = readFileSync(newest.full, 'utf8').split(/\r?\n/);
+			const tail = lines.slice(-200);
+			process.stdout.write(`[agent-host-e2e] --- Copilot runtime log for failed test "${label}" (${newest.full}; last ${tail.length} of ${lines.length} lines) ---\n`);
+			for (const ln of tail) {
+				process.stdout.write(`[agent-host-e2e] # ${ln}\n`);
+			}
+			process.stdout.write('[agent-host-e2e] --- end Copilot runtime log ---\n');
+		} catch {
+			// never let diagnostics break teardown
+		}
 	}
 
 	/**
@@ -715,7 +857,7 @@ export class AgentHostE2EServerLease {
 						clientSeq: 9999,
 						action: { type: 'session/abortTurn', session },
 					});
-					await client.call('disposeSession', { session }, 30_000);
+					await client.call('disposeSession', { channel: session }, 30_000);
 				} catch { /* best-effort */ }
 			}
 			client.close();

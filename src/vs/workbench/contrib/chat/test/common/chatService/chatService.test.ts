@@ -1090,6 +1090,71 @@ suite('ChatService', () => {
 		assert.ok(invokedMessages[1].includes('queued request'));
 	});
 
+	test('syncPendingRequestsFromRemote adds, reorders and removes pending requests preserving ids', async () => {
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'first remote message' },
+			{ id: 'remote-2', kind: ChatRequestQueueKind.Queued, message: 'second remote message' },
+		]);
+		assert.deepStrictEqual(
+			model.getPendingRequests().map(p => ({ id: p.request.id, kind: p.kind, text: p.request.message.text })),
+			[
+				{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, text: 'first remote message' },
+				{ id: 'remote-2', kind: ChatRequestQueueKind.Queued, text: 'second remote message' },
+			],
+		);
+
+		const firstRequest = model.getPendingRequests()[0].request;
+
+		// Reorder, drop one, add a steering message and update text of the survivor.
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, message: 'steer now' },
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'first remote message' },
+		]);
+		assert.deepStrictEqual(
+			model.getPendingRequests().map(p => ({ id: p.request.id, kind: p.kind, text: p.request.message.text })),
+			[
+				{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, text: 'steer now' },
+				{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, text: 'first remote message' },
+			],
+		);
+		assert.strictEqual(model.getPendingRequests()[1].request, firstRequest, 'unchanged messages should not be rebuilt');
+
+		testService.syncPendingRequestsFromRemote(model.sessionResource, []);
+		assert.strictEqual(model.getPendingRequests().length, 0);
+	});
+
+	test('syncPendingRequestsFromRemote atomically emits the final state and no-ops when it already matches', async () => {
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'old remote message' },
+			{ id: 'remote-2', kind: ChatRequestQueueKind.Queued, message: 'removed remote message' },
+		]);
+
+		const snapshots: { id: string; kind: ChatRequestQueueKind; text: string }[][] = [];
+		testDisposables.add(model.onDidChangePendingRequests(() => {
+			snapshots.push(model.getPendingRequests().map(p => ({ id: p.request.id, kind: p.kind, text: p.request.message.text })));
+		}));
+
+		const remote = [
+			{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, message: 'steer now' },
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'updated remote message' },
+		];
+		testService.syncPendingRequestsFromRemote(model.sessionResource, remote);
+		testService.syncPendingRequestsFromRemote(model.sessionResource, remote);
+
+		assert.deepStrictEqual(snapshots, [[
+			{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, text: 'steer now' },
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, text: 'updated remote message' },
+		]]);
+	});
+
 	test('sendPendingRequestImmediately cancels current and sends the queued message on local sessions', async () => {
 		const firstStarted = new DeferredPromise<void>();
 		const secondInvoked = new DeferredPromise<void>();
