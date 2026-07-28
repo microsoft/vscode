@@ -502,9 +502,14 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	/**
 	 * Skips the carousel with default values - called when user wants to proceed quickly.
 	 * Returns defaults for all questions.
+	 *
+	 * `carousel.isUsed` covers resolution that did not come from this part: a
+	 * voice answer dismisses the carousel directly, and a later auto-skip on
+	 * request submit would otherwise overwrite the answer that actually landed
+	 * with defaults.
 	 */
 	public skip(): boolean {
-		if (this._isSkipped || !this.carousel.allowSkip) {
+		if (this._isSkipped || this.carousel.isUsed || !this.carousel.allowSkip) {
 			return false;
 		}
 
@@ -523,9 +528,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	/**
 	 * Ignores the carousel completely - called when user wants to dismiss without data.
 	 * Returns undefined to signal the carousel was ignored.
+	 *
+	 * Guarded on `carousel.isUsed` for the same reason as {@link skip}.
 	 */
 	public ignore(): boolean {
-		if (this._isSkipped || !this.carousel.allowSkip) {
+		if (this._isSkipped || this.carousel.isUsed || !this.carousel.allowSkip) {
 			return false;
 		}
 		this._isSkipped = true;
