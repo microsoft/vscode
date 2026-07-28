@@ -3001,6 +3001,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
+/* The pill header already spaces its children with `gap`, so the label's own
+	margin-right (needed in the standalone checkpoint summary) is redundant here
+	and leaves unwanted trailing space. */
+.interactive-session .chat-turn-pills-part .chat-file-changes-label {
+	margin-right: 0;
+}
+
 .interactive-session .chat-turn-pills-part .chat-turn-preview {
 	display: flex;
 	align-items: center;
