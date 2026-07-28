@@ -3,14 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AnyZodRawShape, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, SDKSessionInfo, SdkMcpToolDefinition, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AnyZodRawShape, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, Query, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, SessionMutationOptions, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import * as fs from 'fs';
 import { pathToFileURL } from 'url';
-import { join, resolve } from '../../../../base/common/path.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { join } from '../../../../base/common/path.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { AgentHostClaudeSdkPathEnvVar } from '../../common/agentService.js';
+import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
+import { AgentHostClaudeSdkRootEnvVar } from '../../common/agentService.js';
+
+/**
+ * `@anthropic-ai/claude-agent-sdk` distribution descriptor. Lives in this
+ * file because it encodes Claude-specific knowledge — the env-var name
+ * and the fact that Claude ships separate `linux-{x64,arm64}-musl` SKUs
+ * alongside the default glibc ones. The downloader consumes this through
+ * `IAgentSdkPackage` and never names Claude directly.
+ */
+export const ClaudeSdkPackage: IAgentSdkPackage = {
+	id: 'claude',
+	displayName: 'Claude',
+	devOverrideEnvVar: AgentHostClaudeSdkRootEnvVar,
+	hasSeparateMuslLinuxPackage: true,
+};
 
 export const IClaudeAgentSdkService = createDecorator<IClaudeAgentSdkService>('claudeAgentSdkService');
 
@@ -30,10 +45,28 @@ export interface IClaudeAgentSdkService {
 	listSessions(): Promise<readonly SDKSessionInfo[]>;
 	getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined>;
 	startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery>;
+	/**
+	 * 1:1 with the SDK's top-level `query` export. Returns a `Query` whose
+	 * subprocess starts lazily; callers drive control requests on it (e.g.
+	 * `supportedModels()` for model enumeration) and `close()` it when done.
+	 * Async only because the SDK module itself is loaded lazily.
+	 */
+	query(params: { prompt: string | AsyncIterable<SDKUserMessage>; options?: Options }): Promise<Query>;
 	getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]>;
 	listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<readonly string[]>;
 	getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<readonly SessionMessage[]>;
 
+	/**
+	 * True iff the SDK can be loaded WITHOUT a network download — a dev
+	 * override or dev bare-import is available, or a previously-downloaded SDK
+	 * is cached on disk. Eager / background callers (e.g. `listSessions` at
+	 * startup) gate on this so listing sessions never kicks off a multi-second
+	 * cold download before the user has started a session.
+	 */
+	canLoadWithoutDownload(): Promise<boolean>;
+
+	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
+	deleteSession(sessionId: string, options?: SessionMutationOptions): Promise<void>;
 	createSdkMcpServer(options: {
 		name: string;
 		version?: string;
@@ -56,17 +89,22 @@ export interface IClaudeAgentSdkService {
  * Narrowed structural slice of `@anthropic-ai/claude-agent-sdk` covering
  * exactly the bindings the agent host pulls from the SDK. Production
  * `import()` returns the full module which is structurally assignable to
- * this interface; tests subclass {@link ClaudeAgentSdkService} and
- * override {@link ClaudeAgentSdkService._loadSdk} to fault or stub these
- * bindings without having to name every export of the SDK module.
+ * this interface. Tests usually stub {@link IClaudeAgentSdkService} via
+ * the DI container, but a few existing suites subclass
+ * {@link ClaudeAgentSdkService} and override {@link ClaudeAgentSdkService._loadSdk}
+ * to fault or stub these bindings without having to name every export of
+ * the SDK module — `_loadSdk` is `protected` for that reason.
  */
 export interface IClaudeSdkBindings {
 	listSessions(options?: ListSessionsOptions): Promise<SDKSessionInfo[]>;
 	getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined>;
 	startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery>;
+	query(params: { prompt: string | AsyncIterable<SDKUserMessage>; options?: Options }): Query;
 	getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<SessionMessage[]>;
 	listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<string[]>;
 	getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<SessionMessage[]>;
+	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
+	deleteSession(sessionId: string, options?: SessionMutationOptions): Promise<void>;
 	createSdkMcpServer(options: {
 		name: string;
 		version?: string;
@@ -99,11 +137,23 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		@IAgentSdkDownloader private readonly _downloader: IAgentSdkDownloader,
 	) { }
 
 	async listSessions(): Promise<readonly SDKSessionInfo[]> {
 		const sdk = await this._getSdk();
 		return sdk.listSessions(undefined);
+	}
+
+	async canLoadWithoutDownload(): Promise<boolean> {
+		// A dev override (explicit SDK root) is always local. So is the dev
+		// bare-import path, which is taken when there is no product config —
+		// `isAvailable` is false exactly in that case. Otherwise the SDK comes
+		// from the downloader, which is only local once it has been cached.
+		if (process.env[AgentHostClaudeSdkRootEnvVar] || !this._downloader.isAvailable(ClaudeSdkPackage)) {
+			return true;
+		}
+		return this._downloader.isSdkResolvableWithoutDownload(ClaudeSdkPackage);
 	}
 
 	async getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined> {
@@ -114,6 +164,11 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
 		const sdk = await this._getSdk();
 		return sdk.startup(params);
+	}
+
+	async query(params: { prompt: string | AsyncIterable<SDKUserMessage>; options?: Options }): Promise<Query> {
+		const sdk = await this._getSdk();
+		return sdk.query(params);
 	}
 
 	async getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]> {
@@ -129,6 +184,16 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	async getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<readonly SessionMessage[]> {
 		const sdk = await this._getSdk();
 		return sdk.getSubagentMessages(sessionId, agentId, options);
+	}
+
+	async forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult> {
+		const sdk = await this._getSdk();
+		return sdk.forkSession(sessionId, options);
+	}
+
+	async deleteSession(sessionId: string, options?: SessionMutationOptions): Promise<void> {
+		const sdk = await this._getSdk();
+		return sdk.deleteSession(sessionId, options);
 	}
 
 	async createSdkMcpServer(options: {
@@ -168,28 +233,38 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	}
 
 	protected async _loadSdk(): Promise<IClaudeSdkBindings> {
-		// The SDK is intentionally not bundled with VS Code. The user supplies an
-		// absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk`
-		// package via the `chat.agentHost.claudeAgent.path` setting, which is
-		// forwarded to this process as `AgentHostClaudeSdkPathEnvVar`. Convert
-		// to a `file://` URL so dynamic `import()` accepts paths with spaces and
-		// works on Windows.
-		const sdkPath = process.env[AgentHostClaudeSdkPathEnvVar];
-		if (!sdkPath) {
-			throw new Error(`Cannot load @anthropic-ai/claude-agent-sdk: ${AgentHostClaudeSdkPathEnvVar} is not set. Set the 'chat.agentHost.claudeAgent.path' setting to a locally-installed SDK package.`);
+		// 1. Env-var override wins — both for the air-gapped server case
+		//    (`--claude-sdk-root` flag) and for developers who want to point
+		//    at an out-of-tree SDK build without touching `node_modules`.
+		const override = process.env[AgentHostClaudeSdkRootEnvVar];
+		if (override) {
+			const entry = join(override, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
+			return import(pathToFileURL(entry).href);
 		}
-		// Node ESM rejects directory imports, so if the user pointed at the
-		// package directory, resolve its `exports['.']` / `main` entry first.
-		let entry = sdkPath;
-		if (fs.statSync(sdkPath).isDirectory()) {
-			const pkgJson = JSON.parse(fs.readFileSync(join(sdkPath, 'package.json'), 'utf8'));
-			const mainEntry = pkgJson.exports?.['.']?.default
-				?? pkgJson.exports?.['.']?.import
-				?? pkgJson.main
-				?? 'index.js';
-			entry = resolve(sdkPath, mainEntry);
+
+		// 2. Built products: load via the downloader (cache → fetch the
+		//    per-host tarball described by `product.agentSdks.claude`). Errors
+		//    from this path propagate as-is so users see actionable diagnostics
+		//    on a CDN outage / corrupt cache / etc., not a misleading
+		//    "cannot find module" from a fallback that would never succeed in
+		//    a shipped build anyway.
+		//
+		//    We use `isAvailable` (env var || product config) — already false
+		//    in dev — to discriminate without injecting `INativeEnvironmentService`
+		//    here. The env-var branch above already returned, so reaching this
+		//    point with `isAvailable === true` means product config is present
+		//    and the downloader is the correct path.
+		if (this._downloader.isAvailable(ClaudeSdkPackage)) {
+			const root = await this._downloader.loadSdkRoot(ClaudeSdkPackage, CancellationToken.None);
+			const entry = join(root, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
+			return import(pathToFileURL(entry).href);
 		}
-		return import(pathToFileURL(entry).href);
+
+		// 3. Dev: bare import resolves via this repo's `node_modules` where
+		//    `@anthropic-ai/claude-agent-sdk` is a devDependency. Only reached
+		//    when neither the env var nor product config supplied a path —
+		//    i.e. exclusively in dev launches.
+		return import('@anthropic-ai/claude-agent-sdk');
 	}
 }
 

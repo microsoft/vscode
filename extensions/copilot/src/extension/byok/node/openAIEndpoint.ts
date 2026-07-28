@@ -138,6 +138,17 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		this._customHeaders = this._sanitizeCustomHeaders(_modelMetadata.requestHeaders);
 	}
 
+	/**
+	 * BYOK endpoints supply their own credential (`api-key` / `Authorization`)
+	 * via {@link getExtraHeaders}, so the chat fetcher must not fall back to the
+	 * CAPI Copilot bearer token nor raise a missing-key error for these requests.
+	 */
+	public readonly ownsAuthorization = true;
+
+	protected _isReservedHeader(lowerKey: string): boolean {
+		return OpenAIEndpoint._reservedHeaders.has(lowerKey);
+	}
+
 	private _sanitizeCustomHeaders(headers: Readonly<Record<string, string>> | undefined): Record<string, string> {
 		if (!headers) {
 			return {};
@@ -174,7 +185,7 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			}
 
 			const lowerKey = key.toLowerCase();
-			if (OpenAIEndpoint._reservedHeaders.has(lowerKey)) {
+			if (this._isReservedHeader(lowerKey)) {
 				this.logService.warn(`[OpenAIEndpoint] Model '${this.modelMetadata.id}' attempted to override reserved header '${key}', skipping.`);
 				continue;
 			}
@@ -240,7 +251,7 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			const zdr = !!this.modelMetadata.zeroDataRetentionEnabled;
 			// When ZDR is on the server refuses to retain responses, so we must
 			// not chain via `previous_response_id` and must not ask it to `store`.
-			options.ignoreStatefulMarker = zdr;
+			options.ignoreStatefulMarker = options.ignoreStatefulMarker || zdr;
 			const body = super.createRequestBody(options);
 			body.store = !zdr;
 			body.n = undefined;
@@ -254,27 +265,65 @@ export class OpenAIEndpoint extends ChatEndpoint {
 				body.previous_response_id = undefined;
 			}
 			this._applyReasoningEffort(body, options);
-			return body;
+			return this._applyConfiguredModelOptions(body, options);
 		} else if (this.useMessagesApi) {
 			// Delegate to base ChatEndpoint for Messages API dispatch
-			return super.createRequestBody(options);
+			const body = super.createRequestBody(options);
+			this._applyReasoningEffort(body, options);
+			return this._applyConfiguredModelOptions(body, options);
 		} else {
-			// Handle CAPI: provide callback for thinking data processing
+			// Handle Chat Completions: provide callback for thinking data processing
+			const supportsThinking = !!this.modelMetadata.capabilities.supports.thinking;
 			const callback: RawMessageConversionCallback = (out, data) => {
 				if (data && data.id) {
 					out.cot_id = data.id;
-					out.cot_summary = Array.isArray(data.text) ? data.text.join('') : data.text;
+					const text = Array.isArray(data.text) ? data.text.join('') : data.text;
+					out.cot_summary = text;
+					if (supportsThinking) {
+						// Reasoning models require the assistant message to echo back its
+						// prior reasoning. DeepSeek, Moonshot (Kimi), Minimax, and similar
+						// OpenAI-compatible providers expect `reasoning_content`; OpenRouter's
+						// BYOK proxy expects `reasoning`. Without these, the turn after a tool
+						// call is rejected with HTTP 400.
+						out.reasoning_content = text;
+						out.reasoning = text;
+					}
 				}
 			};
 			const body = createCapiRequestBody(options, this.model, callback);
 			this._applyReasoningEffort(body, options);
+			return this._applyConfiguredModelOptions(body, options);
+		}
+	}
+
+	private _applyConfiguredModelOptions(body: IEndpointBody, options: ICreateEndpointBodyOptions): IEndpointBody {
+		const modelOptions = this.modelMetadata.modelOptions;
+		if (!modelOptions) {
 			return body;
 		}
+
+		for (const key of ['temperature', 'top_p'] as const) {
+			const requestValue = options.requestOptions?.[key];
+			if (requestValue !== undefined) {
+				body[key] = requestValue;
+				continue;
+			}
+
+			const configuredValue = modelOptions[key];
+			if (configuredValue === null) {
+				delete body[key];
+			} else if (configuredValue !== undefined) {
+				body[key] = configuredValue;
+			}
+		}
+
+		return body;
 	}
 
 	/**
 	 * Forwards the per-request reasoning effort to the model body in the shape the endpoint expects.
-	 * Default shape mirrors the API path (`Responses` \u2192 nested `reasoning.effort`, `Chat Completions` \u2192 top-level `reasoning_effort`).
+	 * Default shape mirrors the API path (`Responses` \u2192 nested `reasoning.effort`, `Messages` \u2192 `output_config.effort`,
+	 * `Chat Completions` \u2192 top-level `reasoning_effort`).
 	 * `IChatModelInformation.reasoningEffortFormat` overrides the default so users hosting OpenAI-compatible servers
 	 * with diverging conventions (e.g. nested `reasoning.effort` on `/chat/completions`) can opt in deterministically.
 	 */
@@ -284,9 +333,9 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			return;
 		}
 		const format = this.modelMetadata.reasoningEffortFormat
-			?? (this.useResponsesApi ? 'responses' : 'chat-completions');
+			?? (this.useResponsesApi ? 'responses' : this.useMessagesApi ? 'messages' : 'chat-completions');
 		const override = this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride);
-		const requested = override || options.modelCapabilities?.reasoningEffort || body.reasoning?.effort || body.reasoning_effort;
+		const requested = override || options.modelCapabilities?.reasoningEffort || body.reasoning?.effort || body.reasoning_effort || body.output_config?.effort;
 		const effort = requested && supports.includes(requested) ? requested : undefined;
 		// Scrub any pre-populated effort first so unsupported values (e.g. the hard-coded `medium` default
 		// from `createResponsesRequestBody`) cannot leak through, then write the resolved value into the
@@ -296,9 +345,16 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			body.reasoning = Object.keys(rest).length > 0 ? rest : undefined;
 		}
 		body.reasoning_effort = undefined;
+		if (body.output_config) {
+			// Drop only the effort so other output_config fields (e.g. structured output format) survive
+			const { effort: _drop, ...rest } = body.output_config;
+			body.output_config = Object.keys(rest).length > 0 ? rest : undefined;
+		}
 		if (effort) {
 			if (format === 'responses') {
 				body.reasoning = { ...body.reasoning, effort };
+			} else if (format === 'messages') {
+				body.output_config = { ...body.output_config, effort };
 			} else {
 				body.reasoning_effort = effort;
 			}
@@ -367,8 +423,8 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	}
 
 	public override async makeChatRequest2(options: IMakeChatRequestOptions, token: CancellationToken): Promise<ChatResponse> {
-		// Apply ignoreStatefulMarker: false for initial request
-		const modifiedOptions: IMakeChatRequestOptions = { ...options, ignoreStatefulMarker: false };
+		// Use ignoreStatefulMarker: false as the initial request default; the parent retry flow can override it on InvalidStatefulMarker retries.
+		const modifiedOptions: IMakeChatRequestOptions = { ...options, ignoreStatefulMarker: options.ignoreStatefulMarker ?? false };
 		const response = await super.makeChatRequest2(modifiedOptions, token);
 		return hydrateBYOKErrorMessages(response);
 	}

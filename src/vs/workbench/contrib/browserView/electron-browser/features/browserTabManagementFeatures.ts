@@ -9,24 +9,24 @@ import { ServicesAccessor, IInstantiationService } from '../../../../../platform
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
-import { IEditorGroupsService, GroupsOrder } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService, GroupsOrder } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorsOrder, EditorResourceAccessor, GroupIdentifier, SideBySideEditor } from '../../../../common/editor.js';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPickSeparator, QuickInputButtonLocation, IQuickPick } from '../../../../../platform/quickinput/common/quickInput.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
-import { BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserViewActions.js';
 import { logBrowserOpen } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { BrowserNewTabPlacementSettingId } from '../browserViewWorkbenchService.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { IExternalOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority, isAllInterfacesAuthority } from '../../../../../platform/url/common/trustedDomains.js';
@@ -37,7 +37,8 @@ import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/t
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { match } from '../../../../../base/common/glob.js';
 import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
-import { BrowserEditor, BrowserEditorContribution, IBrowserEditorWidgetContribution } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup, IBrowserEditorWidget, IBrowserUrlSuggestion, IBrowserUrlSuggestionProvider } from '../browserEditor.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -103,7 +104,7 @@ class BrowserTabQuickPick extends Disposable {
 		}));
 
 		this._register(this._quickPick.onDidTriggerButton(async () => {
-			for (const editor of this._browserViewService.getKnownBrowserViews().values()) {
+			for (const editor of this._browserViewService.getContextualBrowserViews().values()) {
 				editor.dispose(true);
 			}
 		}));
@@ -118,9 +119,9 @@ class BrowserTabQuickPick extends Disposable {
 				this._quickPick.hide();
 				await this._editorService.openEditor({
 					resource: BrowserViewUri.forId(generateUuid()),
-				});
+				}, await this._browserViewService.getPreferredGroup());
 			} else {
-				await this._editorService.openEditor(selected.editor, selected.groupId);
+				await this._editorService.openEditor(selected.editor, await this._browserViewService.getPreferredGroup(selected.groupId));
 			}
 		}));
 
@@ -165,7 +166,7 @@ class BrowserTabQuickPick extends Disposable {
 		}
 
 		// Background views: known but not open in any editor group
-		const backgroundEditors = [...this._browserViewService.getKnownBrowserViews().values()].filter(e => !viewsInGroups.has(e.id));
+		const backgroundEditors = [...this._browserViewService.getContextualBrowserViews().values()].filter(e => !viewsInGroups.has(e.id));
 		const backgroundLabel = localize('browser.backgroundGroup', "Background");
 
 		// Build sections: each editor group + optional background
@@ -288,11 +289,11 @@ class OpenIntegratedBrowserAction extends Action2 {
 		// Parse arguments
 		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
 		const resource = BrowserViewUri.forId(generateUuid());
-		const group = options.openToSide ? SIDE_GROUP : ACTIVE_GROUP;
+		const group = await browserViewService.getPreferredGroup(options.openToSide ? SIDE_GROUP : undefined);
 
 		if (options.reuseUrlFilter) {
 			const filterUri = URI.parse(options.reuseUrlFilter);
-			const matchingEditor = [...browserViewService.getKnownBrowserViews().values()].find((e) => {
+			const matchingEditor = [...browserViewService.getContextualBrowserViews().values()].find((e) => {
 				const editorUri = URI.parse(e.url || '');
 				// URIs default to putting "file" scheme. Check that the scheme is really in the filter.
 				if (filterUri.scheme && options.reuseUrlFilter!.startsWith(`${filterUri.scheme}:`) && filterUri.scheme !== editorUri.scheme) {
@@ -318,6 +319,9 @@ class OpenIntegratedBrowserAction extends Action2 {
 				if (options.url) {
 					matchingEditor.navigate(options.url);
 				}
+				// Reveal the existing browser tab where it already lives rather than
+				// relocating it into the docked group (which would move a tab out of a
+				// modal group when `workbench.editor.useModal: 'all'`).
 				await editorService.openEditor(matchingEditor);
 				return;
 			}
@@ -373,6 +377,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 	async run(accessor: ServicesAccessor, resource?: URI): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 
 		// Resolve the file URI from the context or the active editor
 		const fileUri = resource ?? EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { filterByScheme: [Schemas.file], supportSideBySide: SideBySideEditor.PRIMARY });
@@ -383,7 +388,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 		logBrowserOpen(telemetryService, 'openFileCommand');
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } });
+		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } }, await browserViewService.getPreferredGroup());
 	}
 }
 
@@ -393,12 +398,14 @@ class NewTabAction extends Action2 {
 			id: BrowserViewCommandId.NewTab,
 			title: localize2('browser.newTabAction', "New Tab"),
 			category: BrowserActionCategory,
+			icon: Codicon.add,
 			f1: true,
 			precondition: BROWSER_EDITOR_ACTIVE,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Tabs,
 				order: 1,
+				isHiddenByDefault: true,
 			},
 			// When already in a browser, Ctrl/Cmd + T opens a new tab
 			keybinding: {
@@ -411,11 +418,12 @@ class NewTabAction extends Action2 {
 	async run(accessor: ServicesAccessor, _browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 		const resource = BrowserViewUri.forId(generateUuid());
 
 		logBrowserOpen(telemetryService, 'newTabCommand');
 
-		await editorService.openEditor({ resource });
+		await editorService.openEditor({ resource }, await browserViewService.getPreferredGroup());
 	}
 }
 
@@ -497,7 +505,7 @@ class OpenOrListBrowsersAction extends Action2 {
 		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 		const commandService = accessor.get(ICommandService);
 
-		const hasOpenBrowserEditor = browserViewService.getKnownBrowserViews().size > 0;
+		const hasOpenBrowserEditor = browserViewService.getContextualBrowserViews().size > 0;
 
 		if (hasOpenBrowserEditor) {
 			await commandService.executeCommand(BrowserViewCommandId.QuickOpen);
@@ -520,6 +528,19 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 
 // Register as "Close All Browser Tabs" action in editor title menu to align with the regular "Close All" action
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: BrowserViewCommandId.CloseAllInGroup, title: localize('browser.closeAllInGroupShort', "Close All Browser Tabs") }, group: '1_close', order: 55, when: BROWSER_EDITOR_ACTIVE });
+
+// Agents window: surface New Tab as a primary editor title toolbar icon so the
+// browser editor title bar isn't left showing only the overflow (...) menu.
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: BrowserViewCommandId.NewTab,
+		title: localize2('browser.newTabAction', "New Tab"),
+		icon: Codicon.add
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, IsSessionsWindowContext)
+});
 
 registerAction2(QuickOpenBrowserAction);
 registerAction2(OpenIntegratedBrowserAction);
@@ -549,7 +570,7 @@ class BrowserEditorOpenContextKeyContribution extends Disposable implements IWor
 		super();
 
 		const contextKey = CONTEXT_BROWSER_EDITOR_OPEN.bindTo(contextKeyService);
-		const update = () => contextKey.set(browserViewService.getKnownBrowserViews().size > 0);
+		const update = () => contextKey.set(browserViewService.getContextualBrowserViews().size > 0);
 
 		update();
 		this._register(browserViewService.onDidChangeBrowserViews(() => update()));
@@ -568,16 +589,22 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 	) {
 		super();
 
 		this._register(openerService.registerExternalOpener(this));
 	}
 
-	async openExternal(href: string, _ctx: { sourceUri: URI; preferredOpenerId?: string }, _token: CancellationToken): Promise<boolean> {
+	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string }, _token: CancellationToken): Promise<boolean> {
 		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhostLinks')) {
 			return false;
+		}
+
+		// If we are in a remote session, always use the original source URI (and not the href which may be the forwarded address)
+		if (this.browserViewWorkbenchService.willUseRemoteProxy() && ctx.sourceUri) {
+			href = ctx.sourceUri.toString();
 		}
 
 		try {
@@ -599,7 +626,7 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		const isDefaultLinkOpen = !isConfigured(this.configurationService.inspect('workbench.browser.openLocalhostLinks'));
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } });
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, await this.browserViewWorkbenchService.getPreferredGroup());
 		return true;
 	}
 }
@@ -671,11 +698,11 @@ class LinkOpenedHintPill extends BrowserEditorContribution {
 		}));
 	}
 
-	override get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] {
-		return [{ element: this._pill, order: 100 }];
+	override get widgets(): readonly IBrowserEditorWidget[] {
+		return [{ location: BrowserWidgetLocation.PostUrl, element: this._pill, order: 100 }];
 	}
 
-	protected override subscribeToModel(_model: IBrowserViewModel, _store: DisposableStore, isNew: boolean): void {
+	protected override onModelAttached(_model: IBrowserViewModel, _store: DisposableStore, isNew: boolean): void {
 		if (IsSessionsWindowContext.getValue(this.contextKeyService)) {
 			this._setVisible(false);
 			return;
@@ -693,7 +720,7 @@ class LinkOpenedHintPill extends BrowserEditorContribution {
 		}
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this._attentionTimeout.clear();
 		this._setVisible(false);
 	}
@@ -727,6 +754,154 @@ class LinkOpenedHintPill extends BrowserEditorContribution {
 
 BrowserEditor.registerContribution(LinkOpenedHintPill);
 
+/**
+ * Contributes URL-bar suggestions for the user's other open browser tabs.
+ * Picking one swaps the navbar's editor input for the tab's input (moving
+ * the target into our slot, then closing the previously-active input) so
+ * picking from the URL bar feels like "replace this tab with that one".
+ */
+class BrowserTabUrlSuggestions extends BrowserEditorContribution {
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	private readonly _groupListeners = this._register(new DisposableMap<GroupIdentifier>());
+	private readonly _editorLabelListeners = this._register(new DisposableMap<string>());
+
+	private readonly _provider: IBrowserUrlSuggestionProvider;
+
+	constructor(
+		editor: BrowserEditor,
+		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+	) {
+		super(editor);
+
+		// Re-fire onDidChange whenever the set of tabs, the group structure, or
+		// any tab's label changes so the URL picker's open-tabs list stays live
+		// (additions/removals) and ordered by current group visibility.
+		for (const group of this._editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE)) {
+			this._trackGroup(group);
+		}
+		this._register(this._editorGroupsService.onDidAddGroup(group => {
+			this._trackGroup(group);
+			this._onDidChange.fire();
+		}));
+		this._register(this._editorGroupsService.onDidRemoveGroup(group => {
+			this._groupListeners.deleteAndDispose(group.id);
+			this._onDidChange.fire();
+		}));
+		this._register(this._editorGroupsService.onDidMoveGroup(() => this._onDidChange.fire()));
+		this._register(this._editorGroupsService.onDidChangeGroupIndex(() => this._onDidChange.fire()));
+
+		this._refreshEditorLabelListeners();
+		this._register(this._browserViewService.onDidChangeBrowserViews(() => {
+			this._refreshEditorLabelListeners();
+			this._onDidChange.fire();
+		}));
+
+		this._provider = {
+			label: localize('browser.openTabs', "Open Tabs"),
+			description: localize('browser.openTabsDescription', "Select a tab to switch"),
+			order: 100,
+			actions: [],
+			onDidChange: this._onDidChange.event,
+			getSuggestions: async ({ input }) => {
+				// Only surface tab suggestions on a new / empty tab.
+				if (input.url) {
+					return [];
+				}
+				return this._collectSuggestions(input);
+			},
+		};
+	}
+
+	override get urlSuggestionProviders(): readonly IBrowserUrlSuggestionProvider[] {
+		return [this._provider];
+	}
+
+	private _trackGroup(group: IEditorGroup): void {
+		this._groupListeners.set(group.id, group.onDidModelChange(() => this._onDidChange.fire()));
+	}
+
+	private _refreshEditorLabelListeners(): void {
+		const known = this._browserViewService.getContextualBrowserViews();
+		for (const id of [...this._editorLabelListeners.keys()]) {
+			if (!known.has(id)) {
+				this._editorLabelListeners.deleteAndDispose(id);
+			}
+		}
+		for (const [id, editor] of known) {
+			if (!this._editorLabelListeners.has(id)) {
+				this._editorLabelListeners.set(id, editor.onDidChangeLabel(() => this._onDidChange.fire()));
+			}
+		}
+	}
+
+	/**
+	 * Return tabs in editor-group visibility order (grid appearance, then
+	 * within-group editor order), with background tabs (known but not open
+	 * in any group) appended at the end. Excludes the editor's own input.
+	 */
+	private _collectSuggestions(input: BrowserEditorInput): IBrowserUrlSuggestion[] {
+		const ordered: BrowserEditorInput[] = [];
+		const seen = new Set<string>();
+		for (const group of this._editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE)) {
+			for (const editor of group.editors) {
+				if (editor instanceof BrowserEditorInput && !seen.has(editor.id)) {
+					seen.add(editor.id);
+					ordered.push(editor);
+				}
+			}
+		}
+		for (const tab of this._browserViewService.getContextualBrowserViews().values()) {
+			if (!seen.has(tab.id)) {
+				seen.add(tab.id);
+				ordered.push(tab);
+			}
+		}
+
+		const suggestions: IBrowserUrlSuggestion[] = [];
+		for (const tab of ordered) {
+			if (tab === input) {
+				continue;
+			}
+			const rawIcon = tab.getIcon();
+			suggestions.push({
+				id: tab.id,
+				label: tab.getName(),
+				description: tab.getDescription(),
+				icon: rawIcon instanceof URI ? undefined : rawIcon,
+				iconPath: rawIcon instanceof URI ? { dark: rawIcon } : undefined,
+				apply: source => this._switchToTab(source, tab),
+			});
+		}
+		return suggestions;
+	}
+
+	/**
+	 * Close {@link source} and focus {@link target} where it already lives.
+	 *
+	 * The navbar's picker-hide handler synchronously calls
+	 * `ensureBrowserFocus()` on the source editor before any of our awaits
+	 * resolve, so we have to explicitly refocus the target group after the
+	 * editor service operations complete — otherwise focus snaps back to
+	 * the (about-to-close) source's window.
+	 */
+	private async _switchToTab(source: BrowserEditorInput, target: BrowserEditorInput): Promise<void> {
+		if (source === target) {
+			await this._editorService.openEditor(target);
+			return;
+		}
+		const sourceGroup = this._editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(g => g.contains(source));
+		if (sourceGroup) {
+			await sourceGroup.closeEditor(source, { preserveFocus: true });
+		}
+		await this._editorService.openEditor(target);
+	}
+}
+
+BrowserEditor.registerContribution(BrowserTabUrlSuggestions);
+
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
 	properties: {
@@ -754,6 +929,21 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				'When enabled, localhost links (`localhost`, `127.0.0.1`, `[::1]`) and all-interfaces links (`0.0.0.0`, `[0:0:0:0:0:0:0:0]`, `[::]`) from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
 			),
 			agentsWindow: { default: true },
+		},
+		[BrowserNewTabPlacementSettingId]: {
+			type: 'string',
+			enum: ['activeGroup', 'sideGroup', 'window'],
+			enumDescriptions: [
+				localize({ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement.activeGroup' }, "New browser tabs open in the currently active editor group."),
+				localize({ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement.sideGroup' }, "New browser tabs open in a dedicated editor group to the side that is reused for subsequent tabs. The group is locked so other editors are not opened into it."),
+				localize({ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement.window' }, "New browser tabs open in a dedicated window that is reused for subsequent tabs. The window is locked so other editors are not opened into it.")
+			],
+			default: 'activeGroup',
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement' },
+				"Controls where new Integrated Browser tabs are opened."
+			),
+			scope: ConfigurationScope.WINDOW,
 		}
 	}
 });

@@ -5,11 +5,12 @@
 
 import { Schemas } from '../../../../../base/common/network.js';
 import { joinPath } from '../../../../../base/common/resources.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
-import { IAgentHostDebugLogsExportService } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { IAgentHostDebugLogFile, IAgentHostDebugLogsExportService } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 
 class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExportService {
 	declare readonly _serviceBrand: undefined;
@@ -19,8 +20,8 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 	) { }
 
-	async save(exportName: string, files: readonly { path: string; contents: string }[]): Promise<void> {
-		const defaultUri = joinPath(await this.fileDialogService.defaultFilePath(Schemas.file), `${exportName}.zip`);
+	async save(exportName: string, files: readonly IAgentHostDebugLogFile[]): Promise<boolean> {
+		const defaultUri = joinPath(await this.fileDialogService.preferredHome(Schemas.file), `${exportName}.zip`);
 		const saveUri = await this.fileDialogService.showSaveDialog({
 			title: localize('exportDebugLogs.saveDialogTitle', "Export Agent Host Debug Logs"),
 			defaultUri,
@@ -29,10 +30,15 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 		});
 
 		if (!saveUri) {
-			return;
+			return false;
 		}
 
-		await this.nativeHostService.createZipFile(saveUri, [...files]);
+		await this.nativeHostService.createZipFile(saveUri, files.map(file => {
+			return hasKey(file, { contents: true })
+				? file
+				: { path: file.path, source: file.resource, size: file.size };
+		}));
+		return true;
 	}
 }
 

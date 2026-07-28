@@ -50,7 +50,7 @@ class AuthUpgradeAsk extends Disposable {
 	}
 
 	private async waitForChatEnabled() {
-		if (!this._authenticationService.anyGitHubSession) {
+		if (!this._authenticationService.hasCopilotTokenSource) {
 			// BYOK / air-gapped: do not wait for a Copilot token that may never arrive.
 			return;
 		}

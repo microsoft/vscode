@@ -93,6 +93,7 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		}
 		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
 		if (!workspaceRoot) {
+			void vscode.window.showErrorMessage('npm install requires an open workspace folder');
 			return;
 		}
 		this._terminal = vscode.window.createTerminal({ name: 'npm install', cwd: workspaceRoot });

@@ -6,6 +6,8 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import {
+	buildIdJagExchangeBody,
+	buildResourceRedemptionBody,
 	getClaimsFromJWT,
 	getDefaultMetadataForUrl,
 	isAuthorizationAuthorizeResponse,
@@ -2252,6 +2254,62 @@ suite('OAuth', () => {
 			assert.strictEqual(result.discoveryUrl, 'https://auth.example.com/.well-known/oauth-authorization-server');
 			const headers = fetchStub.firstCall.args[1].headers;
 			assert.strictEqual(headers['Accept'], 'application/json');
+		});
+	});
+
+	suite('Cross App Access (ID-JAG) wire format', () => {
+		// Spec: draft-ietf-oauth-identity-assertion-authz-grant-03
+		test('buildIdJagExchangeBody emits the exact spec parameters', () => {
+			const body = buildIdJagExchangeBody(
+				'my_idp_client_id',
+				'secret_xyz',
+				'<id_token>',
+				'https://auth.resource.example.com',
+				'https://api.resource.example.com',
+				['todos.read', 'mcp.access'],
+			);
+
+			assert.strictEqual(body.get('client_id'), 'my_idp_client_id');
+			assert.strictEqual(body.get('client_secret'), 'secret_xyz');
+			assert.strictEqual(body.get('grant_type'), 'urn:ietf:params:oauth:grant-type:token-exchange');
+			assert.strictEqual(body.get('subject_token'), '<id_token>');
+			assert.strictEqual(body.get('subject_token_type'), 'urn:ietf:params:oauth:token-type:id_token');
+			assert.strictEqual(body.get('requested_token_type'), 'urn:ietf:params:oauth:token-type:id-jag');
+			assert.strictEqual(body.get('audience'), 'https://auth.resource.example.com');
+			assert.strictEqual(body.get('resource'), 'https://api.resource.example.com');
+			assert.strictEqual(body.get('scope'), 'todos.read mcp.access');
+		});
+
+		test('buildIdJagExchangeBody omits client_secret when not provided', () => {
+			const body = buildIdJagExchangeBody(
+				'public_client_id',
+				undefined,
+				'<id_token>',
+				'https://auth.resource.example.com',
+				undefined,
+				[],
+			);
+
+			assert.strictEqual(body.has('client_secret'), false);
+			assert.strictEqual(body.has('resource'), false);
+			assert.strictEqual(body.has('scope'), false);
+		});
+
+		test('buildResourceRedemptionBody emits an RFC 7523 JWT-bearer grant', () => {
+			const body = buildResourceRedemptionBody(
+				'my_idp_client_id-at-todo0',
+				'secret_xyz',
+				'<id_jag>',
+				'https://api.resource.example.com',
+				['todos.read', 'mcp.access'],
+			);
+
+			assert.strictEqual(body.get('client_id'), 'my_idp_client_id-at-todo0');
+			assert.strictEqual(body.get('client_secret'), 'secret_xyz');
+			assert.strictEqual(body.get('grant_type'), 'urn:ietf:params:oauth:grant-type:jwt-bearer');
+			assert.strictEqual(body.get('assertion'), '<id_jag>');
+			assert.strictEqual(body.get('resource'), 'https://api.resource.example.com');
+			assert.strictEqual(body.get('scope'), 'todos.read mcp.access');
 		});
 	});
 });

@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
-import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -17,15 +16,17 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, ICustomizationItemProvider, isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { AICustomizationItemNormalizer, IAICustomizationItemSource, IAICustomizationListItem, ItemProviderItemSource, PureItemProviderItemSource } from './aiCustomizationItemSource.js';
+import { AICustomizationItemNormalizer, EmptyItemProviderItemSource, IAICustomizationItemSource, IAICustomizationListItem, ItemProviderItemSource, PureItemProviderItemSource } from './aiCustomizationItemSource.js';
 import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { isAgentHostTarget } from '../agentSessions/agentSessions.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+
 
 /**
  * The set of sections whose items are sourced from the customization
@@ -86,12 +87,6 @@ export interface IAICustomizationItemsModel {
 	getPluginCount(): IObservable<number>;
 
 	/**
-	 * The fallback item provider used when the active descriptor has neither
-	 * an `itemProvider` nor a `syncProvider`. Exposed for the debug report.
-	 */
-	getPromptsServiceItemProvider(): ICustomizationItemProvider;
-
-	/**
 	 * Resolves once the most recent fetch for `section` has settled. Useful for
 	 * tests / fixtures that need rendered output to reflect at least one fetch.
 	 * Calling this also marks the section as observed (i.e. starts a fetch if
@@ -104,7 +99,6 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	declare readonly _serviceBrand: undefined;
 
 	private readonly itemNormalizer: AICustomizationItemNormalizer;
-	private readonly promptsServiceItemProvider: PromptsServiceCustomizationItemProvider;
 
 	/**
 	 * Cached source per active descriptor. Keyed by descriptor reference (not id) so that
@@ -159,16 +153,12 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		@IProductService productService: IProductService,
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
+		@ILogService private readonly logService: ILogService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
 		this.itemNormalizer = new AICustomizationItemNormalizer(labelService, productService);
-		this.promptsServiceItemProvider = new PromptsServiceCustomizationItemProvider(
-			() => this.harnessService.getActiveDescriptor(),
-			this.promptsService,
-			this.workspaceService,
-			productService,
-		);
 
 		for (const section of ITEMS_MODEL_SECTIONS) {
 			const items = observableValue<readonly IAICustomizationListItem[]>(`aiCustomizationItems:${section}`, []);
@@ -184,7 +174,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		this._register(autorun(reader => {
 			const activeSessionResource = this.harnessService.activeSessionResource.read(reader);
 			const source = this.getOrCreateSource(activeSessionResource);
-			sourceChangeListener.value = source.onDidChange(() => {
+			sourceChangeListener.value = source.onDidAICustomizationItemsChange(() => {
 				this.scheduleRefetchObserved(source);
 			});
 			this.scheduleRefetchObserved(source);
@@ -218,10 +208,6 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		return this.getOrCreateSource(this.harnessService.activeSessionResource.get());
 	}
 
-	getPromptsServiceItemProvider(): ICustomizationItemProvider {
-		return this.promptsServiceItemProvider;
-	}
-
 	whenSectionLoaded(section: ItemsModelSection): Promise<void> {
 		this.markObserved(section);
 		return this.perSectionPending.get(section) ?? Promise.resolve();
@@ -244,20 +230,26 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	}
 
 	private getOrCreateSource(sessionResource: URI): IAICustomizationItemSource {
-		if (this.sourceCache.value && isEqual(sessionResource, this.sourceCache.value.sessionResource)) {
-			return this.sourceCache.value;
+		const cached = this.sourceCache.value;
+		if (cached && isEqual(sessionResource, cached.sessionResource) && !(cached instanceof EmptyItemProviderItemSource)) {
+			return cached;
 		}
 		const sessionType = getChatSessionType(sessionResource);
 		const descriptor = this.harnessService.findHarnessById(sessionType);
 
 		const getItemSource = () => {
+			if (!descriptor) {
+				this.logService.warn(`No harness descriptor found for session type ${sessionType}`);
+				return new EmptyItemProviderItemSource(sessionResource);
+			}
 			if (isAgentHostTarget(sessionType)) {
-				if (!descriptor?.itemProvider) {
-					throw new Error(`Agent host targets must have an item provider`);
+				if (!descriptor.itemProvider) {
+					this.logService.warn(`Agent-host session type ${sessionType} has no item provider`);
+					return new EmptyItemProviderItemSource(sessionResource);
 				}
 				return new PureItemProviderItemSource(sessionResource, descriptor.itemProvider, this.itemNormalizer);
 			} else {
-				const itemProvider = descriptor?.itemProvider ?? this.promptsServiceItemProvider;
+				const itemProvider = descriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider);
 				return new ItemProviderItemSource(
 					sessionResource,
 					itemProvider,
@@ -293,7 +285,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		this.fetchSeq.set(section, seq);
 		const promptType = sectionToPromptType(section);
 		const observable = this.perSection.get(section)!;
-		const pending = source.fetchItems(promptType).then(items => {
+		const pending = source.fetchAICustomizationItems(promptType).then(items => {
 			if (this._store.isDisposed) {
 				return;
 			}
@@ -317,16 +309,11 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 
 	private refetchPluginCount(source: IAICustomizationItemSource): void {
 		const seq = ++this.pluginFetchSeq;
-		const sessionRessource = this.harnessService.activeSessionResource.get();
-		const descriptor = this.harnessService.getActiveDescriptor();
-		const provider = descriptor.itemProvider;
-		const pending: Promise<readonly string[]> = provider
-			? provider.provideChatSessionCustomizations(sessionRessource, CancellationToken.None).then(items => {
-				return (items ?? [])
-					.filter(item => isPluginCustomizationItem(item) && item.groupKey !== 'remote-client')
-					.map(item => item.name ?? '');
-			})
-			: Promise.resolve<readonly string[]>([]);
+		const pending = source.fetchProviderItems().then(items => {
+			return items
+				.filter(item => isPluginCustomizationItem(item) && item.groupKey !== 'remote-client')
+				.map(item => item.name ?? '');
+		});
 
 		pending.then(names => {
 			if (this._store.isDisposed) {

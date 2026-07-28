@@ -36,7 +36,7 @@ import { AccessibilityVerbositySettingId } from '../../../../accessibility/brows
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { RunInTerminalTool } from '../../../../terminal/terminalContribChatExports.js';
+import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import './media/chatQuestionCarousel.css';
 
 const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
@@ -105,6 +105,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 	) {
 		super();
 
@@ -207,9 +208,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			// Dismiss the carousel when the user types directly in the terminal,
 			// since they are answering the prompt themselves.
-			const execution = RunInTerminalTool.getExecution(carousel.terminalId);
-			if (execution) {
-				interactiveStore.add(execution.instance.onDidInputData(() => {
+			const terminalInstance = this._terminalChatService.getTerminalInstanceByExecutionId(carousel.terminalId);
+			if (terminalInstance) {
+				interactiveStore.add(terminalInstance.onDidInputData(() => {
 					if (!this._isSkipped) {
 						if (carousel instanceof ChatQuestionCarouselData) {
 							carousel.dismissedByTerminalInput = true;
@@ -538,10 +539,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Dispose interactive UI and clear DOM
 		this.clearInteractiveResources();
 
-		// Hide UI and show skipped message
+		// Hide UI and show terminal-state (Skipped/Answered) message
 		this.domNode.classList.add('chat-question-carousel-used');
 		dom.clearNode(this.domNode);
-		this.renderSkippedMessage();
+		this.renderTerminalStateMessage();
 		this._onDidChangeHeight.fire();
 		return true;
 	}
@@ -1566,27 +1567,34 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	/**
-	 * Renders a "Skipped" message when the carousel is dismissed without answers.
+	 * Renders a terminal-state message (Skipped/Answered) when the carousel is
+	 * dismissed without structured answers.
 	 */
-	private renderSkippedMessage(): void {
-		const skippedContainer = dom.$('.chat-question-carousel-summary');
-		const skippedMessage = dom.$('.chat-question-summary-skipped');
+	private renderTerminalStateMessage(): void {
+		const summaryContainer = dom.$('.chat-question-carousel-summary');
 		const isDismissedByTerminal = this.carousel instanceof ChatQuestionCarouselData && this.carousel.dismissedByTerminalInput;
-		skippedMessage.textContent = isDismissedByTerminal
-			? localize('chat.questionCarousel.deferredToTerminal', "Deferring to user's input in the terminal")
-			: localize('chat.questionCarousel.skipped', 'Skipped');
-		skippedContainer.appendChild(skippedMessage);
-		this.domNode.appendChild(skippedContainer);
+		if (this.carousel.answeredExternally) {
+			const answeredMessage = dom.$('.chat-question-summary-answered');
+			answeredMessage.textContent = localize('chat.questionCarousel.answered', 'Answered');
+			summaryContainer.appendChild(answeredMessage);
+		} else {
+			const skippedMessage = dom.$('.chat-question-summary-skipped');
+			skippedMessage.textContent = isDismissedByTerminal
+				? localize('chat.questionCarousel.deferredToTerminal', "Deferring to user's input in the terminal")
+				: localize('chat.questionCarousel.skipped', 'Skipped');
+			summaryContainer.appendChild(skippedMessage);
+		}
+		this.domNode.appendChild(summaryContainer);
 	}
 
 	/**
 	 * Renders a summary of answers when the carousel is already used.
 	 */
 	private renderSummary(): void {
-		// If no answers, show skipped message
+		// If no answers, show the terminal-state (Skipped/Answered) message
 		if (this._answers.size === 0) {
 			if (this.carousel.isUsed) {
-				this.renderSkippedMessage();
+				this.renderTerminalStateMessage();
 			}
 			return;
 		}

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 15
-
 declare module 'vscode' {
 
 	/**
@@ -459,13 +457,58 @@ declare module 'vscode' {
 	export interface LanguageModelToolInformation {
 		/**
 		 * The full reference name of this tool as used in agent definition files.
-		 *
-		 * For MCP tools, this is the canonical name in the format `serverShortName/toolReferenceName`
-		 * (e.g., `github/search_issues`). This can be used to map between the tool names specified
-		 * in agent `.md` files and the tool's internal {@link LanguageModelToolInformation.name id}.
-		 *
-		 * This property is only set for MCP tools. For other tool types, it is `undefined`.
 		 */
 		readonly fullReferenceName?: string;
 	}
+
+	// #region Quota Sync
+
+	/**
+	 * A snapshot of quota usage for a single category (chat, completions, premium chat).
+	 */
+	export interface ChatQuotaSnapshot {
+		readonly percentRemaining: number;
+		readonly unlimited: boolean;
+		readonly hasQuota?: boolean;
+		readonly resetAt?: number;
+		readonly usageBasedBilling?: boolean;
+		readonly entitlement?: number;
+		readonly quotaRemaining?: number;
+	}
+
+	/**
+	 * A snapshot of rate limit usage for a category (session or weekly).
+	 */
+	export interface ChatRateLimitSnapshot {
+		readonly percentRemaining: number;
+		readonly unlimited: boolean;
+		readonly resetDate?: string;
+	}
+
+	/**
+	 * Quota snapshot data covering all categories.
+	 * Accepted by {@link chat.updateQuotas} for extension-to-core sync.
+	 */
+	export interface ChatQuotaSnapshots {
+		readonly resetDate?: string;
+		readonly resetDateHasTime?: boolean;
+		readonly usageBasedBilling?: boolean;
+		readonly canUpgradePlan?: boolean;
+		readonly chat?: ChatQuotaSnapshot;
+		readonly completions?: ChatQuotaSnapshot;
+		readonly premiumChat?: ChatQuotaSnapshot;
+		readonly additionalUsageEnabled?: boolean;
+		readonly additionalUsageCount?: number;
+		readonly sessionRateLimit?: ChatRateLimitSnapshot;
+		readonly weeklyRateLimit?: ChatRateLimitSnapshot;
+	}
+
+	export namespace chat {
+		/**
+		 * Push quota snapshot data from the extension to the core workbench.
+		 */
+		export function updateQuotas(quotas: ChatQuotaSnapshots): void;
+	}
+
+	// #endregion
 }

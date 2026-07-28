@@ -7,7 +7,6 @@ import './media/extensionActions.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { IAction, Action, Separator, SubmenuAction, IActionChangeEvent } from '../../../../base/common/actions.js';
 import { Delayer, Promises, Throttler } from '../../../../base/common/async.js';
-import * as DOM from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import * as json from '../../../../base/common/json.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -29,7 +28,7 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator, buttonBorder, contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator, buttonSecondaryBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
 import { ITextEditorSelection } from '../../../../platform/editor/common/editor.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -75,6 +74,7 @@ import { IAuthenticationUsageService } from '../../../services/authentication/br
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { getWorkbenchMenuMotionContextMenuOptions } from '../../../browser/actions/menuMotion.js';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -1087,7 +1087,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 		if (extension && this.allowedExtensionsService.isAllowed(extension) !== true) {
 			return;
 		}
-		if (this.extensionsWorkbenchService.getAutoUpdateValue() === 'onlyEnabledExtensions' && !this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState)) {
+		if (this.extensionsWorkbenchService.getAutoUpdateValue() === 'on' && !this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState)) {
 			return;
 		}
 		this.enabled = true;
@@ -1222,10 +1222,8 @@ export class DropDownExtensionActionViewItem extends ActionViewItem {
 	public showMenu(menuActionGroups: IAction[][]): void {
 		if (this.element) {
 			const actions = this.getActions(menuActionGroups);
-			const elementPosition = DOM.getDomNodePagePosition(this.element);
-			const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+				...getWorkbenchMenuMotionContextMenuOptions(this.element),
 				getActions: () => actions,
 				actionRunner: this.actionRunner,
 				onHide: () => disposeIfDisposable(actions)
@@ -2771,17 +2769,32 @@ export class ExtensionStatusAction extends ExtensionAction {
 		@IWorkbenchExtensionEnablementService private readonly workbenchExtensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super('extensions.status', '', `${ExtensionStatusAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 		this._register(this.extensionFeaturesManagementService.onDidChangeAccessData(() => this.update()));
 		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => this.update()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
+				this.update();
+			}
+		}));
 		this.update();
 	}
 
 	update(): void {
-		this.updateThrottler.queue(() => this.computeAndUpdateStatus());
+		this.recomputeStatus();
+	}
+
+	/**
+	 * Recomputes the status and returns a promise that resolves when the
+	 * computation is done. Use this when callers need to await time-sensitive
+	 * status content (e.g. the delayed auto-update message) before reading it.
+	 */
+	recomputeStatus(): Promise<void> {
+		return this.updateThrottler.queue(() => this.computeAndUpdateStatus());
 	}
 
 	private async computeAndUpdateStatus(): Promise<void> {
@@ -2829,8 +2842,10 @@ export class ExtensionStatusAction extends ExtensionAction {
 		}
 
 		if (this.extension.outdated) {
+			let hasConsentWarning = false;
 			const message = await this.extensionsWorkbenchService.shouldRequireConsentToUpdate(this.extension);
 			if (message) {
+				hasConsentWarning = true;
 				const markdown = new MarkdownString();
 				markdown.appendMarkdown(`${message} `);
 				markdown.appendMarkdown(
@@ -2842,6 +2857,12 @@ export class ExtensionStatusAction extends ExtensionAction {
 								: createCommandUri('extension.open', this.extension.identifier.id).toString()
 					));
 				this.updateStatus({ icon: warningIcon, message: markdown }, true);
+			}
+			if (this.extensionsWorkbenchService.isAutoUpdateDelayed(this.extension)) {
+				const delay = fromNow(Date.now() - this.extensionsWorkbenchService.getAutoUpdateDelay(), false, true);
+				const updateAt = fromNow(Date.now() + this.extensionsWorkbenchService.getAutoUpdateDelayRemaining(this.extension), false, true);
+				// Do not override the higher-priority warning class with the info class.
+				this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('autoUpdateDelayed', "This extension is not updated yet because new versions are auto updated {0} after they are published. It will be auto updated {1}.", delay, updateAt)) }, !hasConsentWarning);
 			}
 		}
 
@@ -3134,14 +3155,24 @@ export class InstallSpecificVersionOfExtensionAction extends Action {
 		const extensionPick = await this.quickInputService.pick(this.getExtensionEntries(), { placeHolder: localize('selectExtension', "Select Extension"), matchOnDetail: true });
 		if (extensionPick && extensionPick.extension) {
 			const action = this.instantiationService.createInstance(InstallAnotherVersionAction, extensionPick.extension, true);
-			await action.run();
+			// TODO: replace with `using` once available
+			try {
+				await action.run();
+			} finally {
+				action.dispose();
+			}
 			await this.extensionsWorkbenchService.openSearch(extensionPick.extension.identifier.id);
 		}
 	}
 
 	private isEnabled(extension: IExtension): boolean {
 		const action = this.instantiationService.createInstance(InstallAnotherVersionAction, extension, true);
-		return action.enabled && !!extension.local && this.extensionEnablementService.isEnabled(extension.local);
+		// TODO: replace with `using` once available
+		try {
+			return action.enabled && !!extension.local && this.extensionEnablementService.isEnabled(extension.local);
+		} finally {
+			action.dispose();
+		}
 	}
 
 	private async getExtensionEntries(): Promise<IExtensionPickItem[]> {
@@ -3409,10 +3440,10 @@ registerColor('extensionButton.hoverBackground', {
 }, localize('extensionButtonHoverBackground', "Button background hover color for extension actions."));
 
 registerColor('extensionButton.border', {
-	dark: buttonBorder,
-	light: buttonBorder,
-	hcDark: contrastBorder,
-	hcLight: contrastBorder
+	dark: buttonSecondaryBorder,
+	light: buttonSecondaryBorder,
+	hcDark: buttonSecondaryBorder,
+	hcLight: buttonSecondaryBorder
 }, localize('extensionButtonBorder', "Button border color for extension actions."));
 
 registerColor('extensionButton.separator', buttonSeparator, localize('extensionButtonSeparator', "Button separator color for extension actions"));

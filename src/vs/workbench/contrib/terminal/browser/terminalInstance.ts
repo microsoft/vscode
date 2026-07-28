@@ -132,6 +132,7 @@ const shellIntegrationSupportedShellTypes: (PosixShellType | GeneralShellType | 
 const agentCliTitlePatterns: ReadonlyMap<GeneralShellType, RegExp> = new Map([
 	[GeneralShellType.Claude, /claude\s*code/i],
 	// [GeneralShellType.Codex, /\bcodex\b/i], // codex does not report osc title.
+	[GeneralShellType.CommandCode, /command\s*code/i],
 	[GeneralShellType.Copilot, /\bcopilot\b/i],
 	[GeneralShellType.Gemini, /\bgemini\b/i],
 ]);
@@ -319,6 +320,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// itself is disposed
 	private readonly _onExit = new Emitter<number | ITerminalLaunchError | undefined>();
 	readonly onExit = this._onExit.event;
+	private readonly _onWillDispose = this._register(new Emitter<ITerminalInstance>());
+	readonly onWillDispose = this._onWillDispose.event;
 	private readonly _onDisposed = this._register(new Emitter<ITerminalInstance>());
 	readonly onDisposed = this._onDisposed.event;
 	private readonly _onProcessIdReady = this._register(new Emitter<ITerminalInstance>());
@@ -654,7 +657,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					contribution.xtermReady?.(xterm);
 				}
 			});
-			this._register(this.onDisposed(() => {
+			this._register(this.onWillDispose(() => {
 				contribution.dispose();
 				this._contributions.delete(desc.id);
 			}));
@@ -767,7 +770,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return undefined;
 		}
 		const computedStyle = dom.getWindow(this.xterm.raw.element).getComputedStyle(this.xterm.raw.element);
-		const horizontalPadding = parseInt(computedStyle.paddingLeft) + parseInt(computedStyle.paddingRight) + 14/*scroll bar padding*/;
+		const horizontalPadding = parseInt(computedStyle.paddingLeft) + parseInt(computedStyle.paddingRight) + this.xterm.scrollbarWidth/*scroll bar padding*/;
 		const verticalPadding = parseInt(computedStyle.paddingTop) + parseInt(computedStyle.paddingBottom);
 		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(
 			Math.min(Constants.MaxCanvasWidth, width - horizontalPadding),
@@ -1305,6 +1308,29 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._horizontalScrollbar = undefined;
 		}
 
+		// Fire onWillDispose before disposing xterm so that contributions can clean
+		// up their xterm addons while the raw terminal is still alive. Disposing
+		// xterm first would cause AddonManager to remove addons from its list,
+		// and subsequent contribution disposal would fail with "Could not dispose
+		// an addon that has not been loaded".
+		this._onWillDispose.fire(this);
+
+		try {
+			this.xterm?.dispose();
+		} catch (err: unknown) {
+			// See https://github.com/microsoft/vscode/issues/153486
+			this._logService.error('Exception occurred during xterm disposal', err);
+		}
+
+		// HACK: Workaround for Firefox bug https://bugzilla.mozilla.org/show_bug.cgi?id=559561,
+		// as 'blur' event in xterm.raw.textarea is not triggered on xterm.dispose()
+		// See https://github.com/microsoft/vscode/issues/138358
+		if (isFirefox) {
+			this.resetFocusContextKey();
+			this._terminalHasTextContextKey.reset();
+			this._onDidBlur.fire(this);
+		}
+
 		if (this._pressAnyKeyToCloseListener) {
 			this._pressAnyKeyToCloseListener.dispose();
 			this._pressAnyKeyToCloseListener = undefined;
@@ -1324,28 +1350,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// hasn't happened yet
 		this._onProcessExit(undefined);
 
-		// Fire onDisposed before disposing xterm so that contributions can clean
-		// up their xterm addons while the raw terminal is still alive. Disposing
-		// xterm first would cause AddonManager to remove addons from its list,
-		// and subsequent contribution disposal would fail with "Could not dispose
-		// an addon that has not been loaded".
+		// Fire onDisposed only after xterm has been disposed so that subscribers
+		// observe a fully disposed instance.
 		this._onDisposed.fire(this);
-
-		try {
-			this.xterm?.dispose();
-		} catch (err: unknown) {
-			// See https://github.com/microsoft/vscode/issues/153486
-			this._logService.error('Exception occurred during xterm disposal', err);
-		}
-
-		// HACK: Workaround for Firefox bug https://bugzilla.mozilla.org/show_bug.cgi?id=559561,
-		// as 'blur' event in xterm.raw.textarea is not triggered on xterm.dispose()
-		// See https://github.com/microsoft/vscode/issues/138358
-		if (isFirefox) {
-			this.resetFocusContextKey();
-			this._terminalHasTextContextKey.reset();
-			this._onDidBlur.fire(this);
-		}
 
 		super.dispose();
 	}
@@ -1710,12 +1717,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		await this._flushXtermData();
 
-		// The terminal may have been disposed during the flush await (e.g. user
-		// closed the tab). Bail out to avoid using disposed services below.
-		if (this.isDisposed) {
-			return;
-		}
-
 		this._exitCode = parsedExitResult?.code;
 		const exitMessage = parsedExitResult?.message;
 
@@ -1730,6 +1731,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// without an exit code, leaving commands like `exit 42` stuck in a
 		// "Running" state.
 		this._onExit.fire(exitCodeOrError);
+
+		// Bail if disposed during flush; the work below would touch disposed services.
+		if (this.isDisposed) {
+			return;
+		}
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
@@ -1762,7 +1768,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (exitMessage) {
 				const failedDuringLaunch = this._processManager.processState === ProcessState.KilledDuringLaunch;
 				if (failedDuringLaunch || (this._terminalConfigurationService.config.showExitAlert && this.xterm?.lastInputEvent !== /*Ctrl+D*/'\x04')) {
-					// Always show launch failures
 					this._notificationService.notify({
 						message: exitMessage,
 						severity: Severity.Error,
@@ -1795,7 +1800,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				commandId: TerminalCommandId.ShellIntegrationLearnMore,
 				label: nls.localize('shellIntegration.learnMore', "Learn more about shell integration"),
 				run: () => {
-					this._openerService.open('https://code.visualstudio.com/docs/editor/integrated-terminal#_shell-integration');
+					this._openerService.open('https://code.visualstudio.com/docs/terminal/shell-integration?referrer=in-product');
 				}
 			}, {
 				commandId: 'workbench.action.openSettings',
@@ -2374,6 +2379,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		} else {
 			resource = URI.file(cwd);
 		}
+		// In VS Code web (server-linux-x64-web accessed via browser), remoteAuthority
+		// is falsy from the terminal's perspective, so URI.file() is used above.
+		// The browser FileService has no file:// provider registered (only the remote
+		// provider), so guard with canHandleResource before calling exists() to avoid
+		// an ENOPRO error propagating to callers.
+		if (!await this._fileService.canHandleResource(resource)) {
+			return undefined;
+		}
 		if (await this._fileService.exists(resource)) {
 			return resource;
 		}
@@ -2705,6 +2718,7 @@ export class TerminalLabelComputer extends Disposable {
 	static readonly agentCliShellTypes: ReadonlySet<GeneralShellType> = new Set([
 		GeneralShellType.Claude,
 		GeneralShellType.Codex,
+		GeneralShellType.CommandCode,
 		GeneralShellType.Copilot,
 		GeneralShellType.Gemini,
 	]);

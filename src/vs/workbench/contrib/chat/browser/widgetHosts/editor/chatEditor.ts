@@ -34,6 +34,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { clearChatEditor } from '../../actions/chatClear.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
+import { setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	/**
@@ -42,6 +43,13 @@ export interface IChatEditorOptions extends IEditorOptions {
 	 * https://github.com/microsoft/vscode/pull/278476 as input state is stored on the model.
 	 */
 	modelInputState?: IChatModelInputState;
+	/**
+	 * Session type explicitly selected by the user when opening a new chat editor.
+	 * Non-local session types are already encoded in the editor resource, so this
+	 * currently preserves an explicit local selection when default/last-used
+	 * provider resolution would otherwise apply.
+	 */
+	explicitSessionType?: string;
 	target?: { data: IExportableChatData | ISerializableChatData };
 	title?: {
 		preferred?: string;
@@ -85,9 +93,9 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		super(ChatEditorInput.EditorID, group, ChatEditor.VIEW_STATE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 	}
 
-	private async clear() {
+	private async clear(targetSessionType?: string) {
 		if (this.input) {
-			return this.instantiationService.invokeFunction(clearChatEditor, this.input as ChatEditorInput);
+			return this.instantiationService.invokeFunction(clearChatEditor, this.input as ChatEditorInput, targetSessionType);
 		}
 	}
 
@@ -108,7 +116,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 					autoScroll: mode => mode !== ChatModeKind.Ask,
 					renderFollowups: true,
 					supportsFileReferences: true,
-					clear: () => this.clear(),
+					clear: (targetSessionType?: string) => this.clear(targetSessionType),
 					rendererOptions: {
 						renderTextEditsAsSummary: (uri) => {
 							return true;
@@ -160,6 +168,12 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 
 	override clearInput(): void {
 		this.widget.setModel(undefined);
+		// Clear the bound-resource attribute while the rebind is in flight so
+		// test automation can wait for the next `updateModel` cycle to finish
+		// before acting on the editor.
+		if (this._editorContainer) {
+			delete this._editorContainer.dataset.boundChatResource;
+		}
 		super.clearInput();
 	}
 
@@ -207,6 +221,10 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 	}
 
 	override async setInput(input: ChatEditorInput, options: IChatEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		// Capture the input draft before the load window opens so text typed
+		// during loading is preserved when the model binds. See #325323.
+		const inputBeforeLoad = this.widget?.getInput() ?? '';
+
 		// Show loading indicator early for non-local sessions to prevent layout shifts
 		let isContributedChatSession = false;
 		const chatSessionType = input.getSessionType();
@@ -231,7 +249,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				const contributions = this.chatSessionsService.getAllChatSessionContributions();
 				const contribution = contributions.find(c => c.type === chatSessionType);
 				if (contribution) {
-					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type, contribution.agentHostProviderId);
 					isContributedChatSession = true;
 				} else {
 					this.widget.unlockFromCodingAgent();
@@ -260,7 +278,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				editorModel.model.inputModel.setState(options.modelInputState);
 			}
 
-			this.updateModel(editorModel.model);
+			setModelPreservingInputTypedWhileLoading(this.widget, inputBeforeLoad, () => this.updateModel(editorModel.model));
 
 			const viewState = this.loadEditorViewState(input, context);
 			if (viewState) {
@@ -278,6 +296,14 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 
 	private updateModel(model: IChatModel): void {
 		this.widget.setModel(model);
+		// Expose the bound chat resource on the DOM so test automation can
+		// synchronize with the post-rebind state without polling timeouts.
+		// Set AFTER `setModel` so observers see the attribute only once the
+		// widget is fully attached to the loaded model. Mirrors the same
+		// signal exposed by the Agents Window's `ChatView`.
+		if (this._editorContainer) {
+			this._editorContainer.dataset.boundChatResource = model.sessionResource.toString();
+		}
 	}
 
 	protected computeEditorViewState(_resource: URI): IChatEditorViewState | undefined {

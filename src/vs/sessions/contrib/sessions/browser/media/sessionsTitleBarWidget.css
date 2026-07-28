@@ -15,50 +15,48 @@
 
 .command-center .agent-sessions-titlebar-container {
 	display: flex;
-	flex: 1;
+	flex: 0 1 auto;
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: flex-start;
 	min-width: 0;
-	margin-left: 16px;
+	width: 31vw;
+	max-width: 600px;
 	height: 22px;
-	border-radius: 4px;
+	border: 1px solid var(--vscode-commandCenter-border);
+	background-color: transparent;
+	border-radius: var(--vscode-cornerRadius-medium);
 	-webkit-app-region: no-drag;
 	overflow: hidden;
 	color: var(--vscode-commandCenter-foreground);
+	font-size: var(--vscode-agents-fontSize-label1);
 	gap: 6px;
 	cursor: default;
 	opacity: 1;
 	transition: opacity 120ms ease-out;
 }
 
-.agent-sessions-workbench:not(.nosidebar) .command-center .agent-sessions-titlebar-container {
-	margin-left: 0;
+.command-center .agent-sessions-titlebar-container:hover {
+	color: var(--vscode-commandCenter-activeForeground);
+	background-color: var(--vscode-commandCenter-activeBackground);
+	border-color: var(--vscode-commandCenter-activeBorder);
 }
 
-.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-hidden {
-	flex: 0 1 0;
-	width: 0;
-	margin-left: 0;
-	opacity: 0;
-	pointer-events: none;
-}
-
-/* Session pill - clickable area for session picker */
+/* Session pill - clickable area for session picker, fills the command center box */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill {
 	display: flex;
+	justify-content: space-around;
 	align-items: center;
-	padding: 0 4px;
-	border-radius: 4px;
+	flex: 1 1 auto;
+	padding: 0 8px;
 	min-width: 0;
-	max-width: 600px;
+	max-width: 100%;
+	height: 100%;
 	cursor: pointer;
 	touch-action: manipulation;
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
+	/* Match the VS Code window command center title which is dimmed. */
+	opacity: 0.6;
 }
 
 .command-center .agent-sessions-titlebar-container:focus {
@@ -71,7 +69,6 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	flex: 1 1 auto;
 	min-width: 0;
 	justify-content: flex-start;
 	cursor: pointer;
@@ -84,63 +81,34 @@
 	font-size: 14px;
 }
 
-.command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:not(.disabled) > .action-label {
-	color: var(--vscode-icon-foreground);
-}
-
-/* Label (title) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-label {
+/* Session title - primary label in the command center box. */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-title {
 	flex: 0 1 auto;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	font-weight: 500;
 }
 
-/* Repository/worktree metadata shrinks before the primary title. */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-details {
-	display: flex;
-	align-items: center;
-	flex: 0 999 auto;
-	gap: 6px;
-	min-width: 0;
-	overflow: hidden;
-	opacity: 0.7;
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-repo {
-	flex: 1 1 auto;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
+/* Workspace name - secondary, dimmed label shown after the session title.
+	It must not be cropped: when space is tight the session title truncates
+	first while the workspace name stays fully visible. */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace {
+	flex: 0 0 auto;
 	white-space: nowrap;
 }
 
+.command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:not(.disabled) > .action-label {
+	color: var(--vscode-icon-foreground);
+}
+
+/* Separator between the session title and the workspace name. */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
+	flex-shrink: 0;
+
 	&::before {
 		content: '\00B7';
 	}
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-branch {
-	display: flex;
-	align-items: center;
-	gap: 2px;
-
-	.codicon {
-		font-size: 13px;
-		width: 13px;
-		height: 13px;
-	}
-}
-
-/* Provider label (shown for untitled sessions) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-provider {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-	opacity: 0.7;
 }
 
 /* Sidebar toggle unread badge */
@@ -155,13 +123,13 @@
 	min-width: 14px;
 	height: 14px;
 	line-height: 14px;
-	padding: 0 3px;
+	padding: 0 4px;
 	box-sizing: border-box;
 	font-size: 9px;
-	font-weight: 600;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	font-variant-numeric: tabular-nums;
 	text-align: center;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-agentsUnreadBadge-background);
 	color: var(--vscode-agentsUnreadBadge-foreground);
 	pointer-events: none;
@@ -171,4 +139,33 @@
 	.command-center .agent-sessions-titlebar-container {
 		transition: none;
 	}
+}
+
+/* Approved state: a transient green confirmation shown after the user approves
+	one or more sessions' pending actions from the sessions list. It stays
+	clickable (activating whatever the underlying state would do). */
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved {
+	color: var(--vscode-charts-green);
+	border-color: var(--vscode-charts-green);
+	background-color: color-mix(in srgb, var(--vscode-charts-green) 14%, transparent);
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved:hover {
+	color: var(--vscode-charts-green);
+	border-color: var(--vscode-charts-green);
+	background-color: color-mix(in srgb, var(--vscode-charts-green) 22%, transparent);
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved .agent-sessions-titlebar-pill {
+	opacity: 1;
+	justify-content: center;
+}
+
+.command-center .agent-sessions-titlebar-approved-label {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }

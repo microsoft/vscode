@@ -61,6 +61,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	// Constants
 	private static readonly configureDefaultID = 'promptOpenWith.configureDefault';
+	private static readonly configureDefaultDiffID = 'promptOpenWith.configureDefaultDiff';
 	private static readonly cacheStorageID = 'editorOverrideService.cache';
 	private static readonly conflictingDefaultsStorageID = 'editorOverrideService.conflictingDefaults';
 
@@ -282,7 +283,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return this.getAssociationsForResourceFromSetting(resource, editorsAssociationsSettingId);
 	}
 
+	getConfiguredDefaultEditor(resource: URI, forDiffEditor?: boolean): string | undefined {
+		const settingId = forDiffEditor ? diffEditorsAssociationsSettingId : editorsAssociationsSettingId;
+		return this.getAssociationsForResourceFromSetting(resource, settingId)[0]?.viewType;
+	}
+
 	private getAssociationsForResourceByType(resource: URI, associationType: EditorAssociationType): EditorAssociations {
+		// The specialized diff/merge associations win over the general ones and are allowed to target
+		// an editor even if that editor opted out of diffs/merges through a `never` priority.
 		if (associationType === EditorAssociationType.DiffEditor || associationType === EditorAssociationType.MergeEditor) {
 			const diffAssociations = this.getAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId);
 			if (diffAssociations.length) {
@@ -290,7 +298,21 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			}
 		}
 
-		return this.getAssociationsForResource(resource);
+		// General `editorAssociations` entries must not select an editor that opted out of this kind of
+		// input via a `never` priority (e.g. a custom editor that only handles the normal editor, not diffs).
+		const r = this.getAssociationsForResource(resource);
+		return r.filter(association => !this.isNeverForAssociationType(association.viewType, associationType));
+	}
+
+	/**
+	 * Whether every editor registered under `viewType` opts out of the given kind of input via a
+	 * `never` priority. Such editors can only be selected explicitly (e.g. `Reopen Editor With`) or
+	 * through the specialized `workbench.diffEditorAssociations` setting, never through a general
+	 * `workbench.editorAssociations` entry.
+	 */
+	private isNeverForAssociationType(viewType: string, associationType: EditorAssociationType): boolean {
+		const editor = this._registeredEditors.filter(editor => editor.editorInfo.id === viewType).at(0);
+		return !!editor && this.getEffectivePriority(editor.editorInfo, associationType) === RegisteredEditorPriority.never;
 	}
 
 	private getAssociationsForResourceFromSetting(resource: URI, settingId: string): EditorAssociations {
@@ -388,8 +410,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return Array.from(this._flattenedEditors.values()).flat();
 	}
 
-	updateUserAssociations(globPattern: string, editorID: string): void {
-		this.updateUserAssociationsForSetting(editorsAssociationsSettingId, globPattern, editorID);
+	updateUserAssociations(globPattern: string, editorID: string, forDiffEditor?: boolean): void {
+		this.updateUserAssociationsForSetting(forDiffEditor ? diffEditorsAssociationsSettingId : editorsAssociationsSettingId, globPattern, editorID);
 	}
 
 	private updateUserAssociationsForType(associationType: EditorAssociationType, globPattern: string, editorID: string): void {
@@ -403,6 +425,20 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// Form the new setting object including the newest associations
 		for (const association of [...currentAssociations, newAssociation]) {
 			if (association.filenamePattern) {
+				newSettingObject[association.filenamePattern] = association.viewType;
+			}
+		}
+		this.configurationService.updateValue(settingId, newSettingObject);
+	}
+
+	private removeUserAssociationForSetting(settingId: string, globPattern: string): void {
+		const currentAssociations = this.getAllUserAssociationsForSetting(settingId);
+		if (!currentAssociations.some(association => association.filenamePattern === globPattern)) {
+			return;
+		}
+		const newSettingObject = Object.create(null);
+		for (const association of currentAssociations) {
+			if (association.filenamePattern && association.filenamePattern !== globPattern) {
 				newSettingObject[association.filenamePattern] = association.viewType;
 			}
 		}
@@ -455,6 +491,20 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// All
 		return distinct(this._registeredEditors.map(editor => editor.editorInfo), editor => editor.id);
+	}
+
+	getBinaryDiffFallbackEditor(resource: URI): string | undefined {
+		this._flattenedEditors = this._flattenEditorsMap();
+
+		// `findMatchingEditors(..., DiffEditor)` only keeps editors that provide a diff editor factory
+		// and sorts them by their diff priority. It still includes `never` editors (they match by glob),
+		// which is exactly what we want here: a `never` editor opts out of diffs for text files, but is
+		// the better choice than the generic binary fallback when the text diff editor cannot render the
+		// content. We exclude the built-in default text editor since that is the editor that already
+		// failed to render the binary content.
+		const editors = this.findMatchingEditors(resource, EditorAssociationType.DiffEditor)
+			.filter(editor => editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
+		return editors[0]?.editorInfo.id;
 	}
 
 	/**
@@ -784,11 +834,20 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				label: localize('promptOpenWith.configureDefault', "Configure default editor for '{0}'...", `*${extname(resource)}`),
 			};
 			quickPickEntries.push(configureDefaultEntry);
+			// For diffs, additionally offer to configure a diff-only default so the choice does not
+			// affect how the resource opens as a normal editor (writes to `diffEditorAssociations`).
+			if (associationType === EditorAssociationType.DiffEditor) {
+				const configureDefaultDiffEntry = {
+					id: EditorResolverService.configureDefaultDiffID,
+					label: localize('promptOpenWith.configureDefaultDiff', "Configure default editor (diff only) for '{0}'...", `*${extname(resource)}`),
+				};
+				quickPickEntries.push(configureDefaultDiffEntry);
+			}
 		}
 		return quickPickEntries;
 	}
 
-	private async doPickEditor(editor: IUntypedEditorInput, showDefaultPicker?: boolean): Promise<IEditorOptions | undefined> {
+	private async doPickEditor(editor: IUntypedEditorInput, showDefaultPicker?: boolean, updateAssociationType?: EditorAssociationType): Promise<IEditorOptions | undefined> {
 
 		type EditorPick = {
 			readonly item: IQuickPickItem;
@@ -802,6 +861,21 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			resource = URI.from({ scheme: Schemas.untitled });
 		}
 		const associationType = isResourceDiffEditorInput(editor) ? EditorAssociationType.DiffEditor : EditorAssociationType.Editor;
+		// Which setting the default picker should write to. Defaults to the resource's association type
+		// so that the per-item gear button keeps writing to the matching setting, but the "Configure
+		// default editor" entries can target a specific setting (general vs. diff-only).
+		const updateSettingType = updateAssociationType ?? associationType;
+
+		// Persists the picked editor as the default for this resource's glob. When the user configures
+		// the general default from a diff context, any diff-only override for the same glob is cleared
+		// so that the general default also takes effect for diffs.
+		const persistDefaultAssociation = (editorID: string) => {
+			const globPattern = `*${extname(resource)}`;
+			this.updateUserAssociationsForType(updateSettingType, globPattern, editorID);
+			if (updateSettingType === EditorAssociationType.Editor && associationType === EditorAssociationType.DiffEditor) {
+				this.removeUserAssociationForSetting(diffEditorsAssociationsSettingId, globPattern);
+			}
+		};
 
 		// Get all the editors for the resource as quickpick entries
 		const editorPicks = this.mapEditorsToQuickPickEntry(resource, showDefaultPicker, associationType);
@@ -810,7 +884,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const disposables = new DisposableStore();
 		const editorPicker = disposables.add(this.quickInputService.createQuickPick<IQuickPickItem>({ useSeparators: true }));
 		const placeHolderMessage = showDefaultPicker ?
-			localize('promptOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", `*${extname(resource)}`) :
+			(updateSettingType === EditorAssociationType.DiffEditor ?
+				localize('promptOpenWith.updateDefaultDiffPlaceHolder', "Select new default editor (diff only) for '{0}'", `*${extname(resource)}`) :
+				localize('promptOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", `*${extname(resource)}`)) :
 			localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
 		editorPicker.placeholder = placeHolderMessage;
 		editorPicker.canAcceptInBackground = true;
@@ -835,7 +911,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 				// If asked to always update the setting then update it even if the gear isn't clicked
 				if (resource && showDefaultPicker && result?.item.id) {
-					this.updateUserAssociationsForType(associationType, `*${extname(resource)}`, result.item.id);
+					persistDefaultAssociation(result.item.id);
 				}
 
 				resolve(result);
@@ -853,7 +929,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 				// Persist setting
 				if (resource && e.item?.id) {
-					this.updateUserAssociationsForType(associationType, `*${extname(resource)}`, e.item.id);
+					persistDefaultAssociation(e.item.id);
 				}
 			}));
 
@@ -870,7 +946,12 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 			// If the user selected to configure default we trigger this picker again and tell it to show the default picker
 			if (picked.item.id === EditorResolverService.configureDefaultID) {
-				return this.doPickEditor(editor, true);
+				return this.doPickEditor(editor, true, EditorAssociationType.Editor);
+			}
+			// The diff-only variant writes to `diffEditorAssociations` so it does not change how the
+			// resource opens as a normal editor.
+			if (picked.item.id === EditorResolverService.configureDefaultDiffID) {
+				return this.doPickEditor(editor, true, EditorAssociationType.DiffEditor);
 			}
 
 			// Figure out options

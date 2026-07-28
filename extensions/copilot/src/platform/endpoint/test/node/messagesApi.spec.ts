@@ -11,9 +11,10 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ChatLocation } from '../../../chat/common/commonTypes';
 import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME, isExtendedCacheTtlEnabled, isExtendedCacheTtlMessagesEnabled, modelSupportsExtendedCacheTtl, modelSupportsMemory } from '../../../networking/common/anthropic';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
+import { FinishedCallback, IResponseDelta } from '../../../networking/common/fetch';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { createPlatformServices } from '../../../test/node/services';
-import { addMessagesApiCacheControl, addToolsAndSystemCacheControl, buildToolInputSchema, clearAllCacheControl, createMessagesRequestBody, processNonStreamingResponseFromMessagesEndpoint, processResponseFromMessagesEndpoint, rawMessagesToMessagesAPI } from '../../node/messagesApi';
+import { addMessagesApiCacheControl, addToolsAndSystemCacheControl, AnthropicMessagesProcessor, buildToolInputSchema, clearAllCacheControl, createMessagesRequestBody, processNonStreamingResponseFromMessagesEndpoint, processResponseFromMessagesEndpoint, rawMessagesToMessagesAPI } from '../../node/messagesApi';
 import { HeadersImpl, Response } from '../../../networking/common/fetcherService';
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { TestLogService } from '../../../testing/common/testLogService';
@@ -103,6 +104,134 @@ suite('rawMessagesToMessagesAPI', function () {
 		const toolResult = findToolResult(result.messages);
 		expect(toolResult).toBeDefined();
 		expect(toolResult!.cache_control).toBeUndefined();
+	});
+
+	test('sanitizes provider-specific tool call IDs for Anthropic', function () {
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [
+					{
+						id: 'functions.read_file:0',
+						type: 'function',
+						function: { name: 'read_file', arguments: '{}' },
+					},
+					{
+						id: 'call_valid-1',
+						type: 'function',
+						function: { name: 'edit_file', arguments: '{}' },
+					},
+				],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'functions.read_file:0',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'contents' }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_valid-1',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'edited' }],
+			},
+		];
+
+		const result = rawMessagesToMessagesAPI(messages);
+		const ids: { type: 'tool_use' | 'tool_result'; id: string }[] = [];
+		for (const message of result.messages) {
+			const content = Array.isArray(message.content) ? message.content : [];
+			for (const block of content) {
+				if (block.type === 'tool_use') {
+					ids.push({ type: block.type, id: block.id });
+				}
+				if (block.type === 'tool_result') {
+					ids.push({ type: block.type, id: block.tool_use_id });
+				}
+			}
+		}
+
+		expect({
+			ids,
+			history: messages.map(message => message.role === Raw.ChatRole.Assistant
+				? message.toolCalls?.map(toolCall => toolCall.id)
+				: message.role === Raw.ChatRole.Tool ? message.toolCallId : undefined)
+		}).toEqual({
+			ids: [
+				{ type: 'tool_use', id: 'functions_read_file_0' },
+				{ type: 'tool_use', id: 'call_valid-1' },
+				{ type: 'tool_result', id: 'functions_read_file_0' },
+				{ type: 'tool_result', id: 'call_valid-1' },
+			],
+			history: [
+				['functions.read_file:0', 'call_valid-1'],
+				'functions.read_file:0',
+				'call_valid-1',
+			],
+		});
+	});
+
+	test('allocates unique IDs when sanitized tool call IDs collide', function () {
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [
+					{
+						id: 'functions.read_file:0',
+						type: 'function',
+						function: { name: 'read_file', arguments: '{}' },
+					},
+					{
+						id: 'functions_read_file_0',
+						type: 'function',
+						function: { name: 'read_file', arguments: '{}' },
+					},
+				],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'functions.read_file:0',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'first result' }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'functions_read_file_0',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'second result' }],
+			},
+		];
+
+		const result = rawMessagesToMessagesAPI(messages);
+		const ids: { type: 'tool_use' | 'tool_result'; id: string }[] = [];
+		for (const message of result.messages) {
+			const content = Array.isArray(message.content) ? message.content : [];
+			for (const block of content) {
+				if (block.type === 'tool_use') {
+					ids.push({ type: block.type, id: block.id });
+				}
+				if (block.type === 'tool_result') {
+					ids.push({ type: block.type, id: block.tool_use_id });
+				}
+			}
+		}
+
+		expect({
+			ids,
+			history: messages.map(message => message.role === Raw.ChatRole.Assistant
+				? message.toolCalls?.map(toolCall => toolCall.id)
+				: message.role === Raw.ChatRole.Tool ? message.toolCallId : undefined)
+		}).toEqual({
+			ids: [
+				{ type: 'tool_use', id: 'functions_read_file_0_1' },
+				{ type: 'tool_use', id: 'functions_read_file_0' },
+				{ type: 'tool_result', id: 'functions_read_file_0_1' },
+				{ type: 'tool_result', id: 'functions_read_file_0' },
+			],
+			history: [
+				['functions.read_file:0', 'functions_read_file_0'],
+				'functions.read_file:0',
+				'functions_read_file_0',
+			],
+		});
 	});
 
 	test('converts base64 data URL image to Anthropic base64 image source', function () {
@@ -410,6 +539,43 @@ suite('rawMessagesToMessagesAPI', function () {
 			cache_control: { type: 'ephemeral' },
 		});
 	});
+
+	suite('thinking blocks', function () {
+		function assistantWithThinking(thinking: { id: string; text?: string | string[]; encrypted?: string; redacted?: boolean }): Raw.ChatMessage[] {
+			return [
+				{
+					role: Raw.ChatRole.Assistant,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Opaque, value: { type: 'thinking', thinking } },
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'answer' },
+					],
+				},
+			];
+		}
+
+		test('regular thinking block with text + signature emits a thinking block', function () {
+			const result = rawMessagesToMessagesAPI(assistantWithThinking({ id: 't1', text: 'reasoning', encrypted: 'sig123' }));
+			const content = assertContentArray(result.messages[0].content);
+			expect(content[0]).toEqual({ type: 'thinking', thinking: 'reasoning', signature: 'sig123' });
+		});
+
+		test('empty-text block with a signature stays a thinking block (never redacted_thinking)', function () {
+			// Regression: `display: "omitted"` or budget-pruned thinking has an empty `thinking`
+			// field but a valid signature. Previously this was misclassified as a redacted_thinking
+			// block and shipped the signature as `data`, which the Anthropic API rejects with
+			// "Invalid 'data' in 'redacted_thinking' block".
+			const result = rawMessagesToMessagesAPI(assistantWithThinking({ id: 't1', text: '', encrypted: 'sig123' }));
+			const content = assertContentArray(result.messages[0].content);
+			expect(content[0]).toEqual({ type: 'thinking', thinking: '', signature: 'sig123' });
+			expect(content.some(b => b.type === 'redacted_thinking')).toBe(false);
+		});
+
+		test('genuine redacted block (redacted=true) emits a redacted_thinking block with data', function () {
+			const result = rawMessagesToMessagesAPI(assistantWithThinking({ id: 't1', text: '', encrypted: 'blob123', redacted: true }));
+			const content = assertContentArray(result.messages[0].content);
+			expect(content[0]).toEqual({ type: 'redacted_thinking', data: 'blob123' });
+		});
+	});
 });
 
 suite('addToolsAndSystemCacheControl', function () {
@@ -528,8 +694,12 @@ suite('addToolsAndSystemCacheControl', function () {
 
 suite('modelSupportsExtendedCacheTtl', function () {
 
-	test('matches Opus 4.5/4.6/4.7, Sonnet 4.5/4.6, and Haiku 4.5 variants and rejects everything else', function () {
+	test('matches Fable 5, Opus 4.5/4.6/4.7/4.8, Sonnet 4.5/4.6, and Haiku 4.5 variants and rejects everything else', function () {
 		expect({
+			'claude-fable-5': modelSupportsExtendedCacheTtl('claude-fable-5'),
+			'claude-opus-4.8': modelSupportsExtendedCacheTtl('claude-opus-4.8'),
+			'claude-opus-4-8': modelSupportsExtendedCacheTtl('claude-opus-4-8'),
+			'claude-opus-4-8-1m': modelSupportsExtendedCacheTtl('claude-opus-4-8-1m'),
 			'claude-opus-4.6-1m': modelSupportsExtendedCacheTtl('claude-opus-4.6-1m'),
 			'claude-opus-4-6-1m': modelSupportsExtendedCacheTtl('claude-opus-4-6-1m'),
 			'claude-opus-4.7-1m-internal': modelSupportsExtendedCacheTtl('claude-opus-4.7-1m-internal'),
@@ -545,6 +715,10 @@ suite('modelSupportsExtendedCacheTtl', function () {
 			'claude-haiku-4-5': modelSupportsExtendedCacheTtl('claude-haiku-4-5'),
 			'gpt-5': modelSupportsExtendedCacheTtl('gpt-5'),
 		}).toEqual({
+			'claude-fable-5': true,
+			'claude-opus-4.8': true,
+			'claude-opus-4-8': true,
+			'claude-opus-4-8-1m': true,
 			'claude-opus-4.6-1m': true,
 			'claude-opus-4-6-1m': true,
 			'claude-opus-4.7-1m-internal': true,
@@ -579,6 +753,26 @@ suite('modelSupportsExtendedCacheTtl', function () {
 });
 
 suite('modelSupportsMemory', function () {
+	test('matches Claude id strings', function () {
+		expect({
+			'claude-fable-5': modelSupportsMemory('claude-fable-5'),
+			'claude-opus-4.7': modelSupportsMemory('claude-opus-4.7'),
+			'claude-opus-4.8': modelSupportsMemory('claude-opus-4.8'),
+			'claude-opus-4-8': modelSupportsMemory('claude-opus-4-8'),
+			'claude-haiku-4-5': modelSupportsMemory('claude-haiku-4-5'),
+			'claude-opus-4-1': modelSupportsMemory('claude-opus-4-1'),
+			'gpt-5': modelSupportsMemory('gpt-5'),
+		}).toEqual({
+			'claude-fable-5': true,
+			'claude-opus-4.7': true,
+			'claude-opus-4.8': true,
+			'claude-opus-4-8': true,
+			'claude-haiku-4-5': true,
+			'claude-opus-4-1': true,
+			'gpt-5': false,
+		});
+	});
+
 	test('matches via endpoint.family when the model id is unknown', function () {
 		const fake = (family: string, model: string): IChatEndpoint => ({ family, model } as unknown as IChatEndpoint);
 		expect({
@@ -1052,7 +1246,10 @@ describe('createMessagesRequestBody reasoning effort', () => {
 		expect(body.output_config).toEqual({ effort: 'high' });
 	});
 
-	test('omits effort when model does not declare supportsReasoningEffort', () => {
+	test('falls back to the requested effort when adaptive model declares no supportsReasoningEffort', () => {
+		// Every adaptive-thinking Claude model accepts output_config.effort even
+		// when the endpoint metadata doesn't declare it — a user-selected effort
+		// must not be silently dropped (#cacheExplorer effort visibility).
 		const endpoint = createMockEndpoint({
 			supportsAdaptiveThinking: true,
 			// supportsReasoningEffort is undefined
@@ -1064,13 +1261,48 @@ describe('createMessagesRequestBody reasoning effort', () => {
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
 
 		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
-		expect(body.output_config).toBeUndefined();
+		expect(body.output_config).toEqual({ effort: 'high' });
 	});
 
-	test('omits effort when supportsReasoningEffort is an empty array', () => {
+	test('defaults to high effort (the provider default) when adaptive model declares no supportsReasoningEffort and none is requested', () => {
+		const endpoint = createMockEndpoint({
+			supportsAdaptiveThinking: true,
+			// supportsReasoningEffort is absent — the capability is not declared
+		});
+		const options = createMinimalOptions({
+			modelCapabilities: { enableThinking: true },
+		});
+
+		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
+
+		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
+		expect(body.output_config).toEqual({ effort: 'high' });
+	});
+
+	test('omits effort when supportsReasoningEffort is explicitly empty', () => {
+		// An empty list is a declaration that the model supports no effort
+		// levels — distinct from the capability being absent, which falls
+		// back to the adaptive default.
 		const endpoint = createMockEndpoint({
 			supportsAdaptiveThinking: true,
 			supportsReasoningEffort: [],
+		});
+		const options = createMinimalOptions({
+			modelCapabilities: { enableThinking: true, reasoningEffort: 'high' },
+		});
+
+		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
+
+		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
+		expect(body.output_config).toBeUndefined();
+	});
+
+	test('omits effort when model is not adaptive and declares no supportsReasoningEffort', () => {
+		const endpoint = createMockEndpoint({
+			supportsAdaptiveThinking: false,
+			maxThinkingBudget: 32000,
+			minThinkingBudget: 1024,
+			// supportsReasoningEffort is undefined
 		});
 		const options = createMinimalOptions({
 			modelCapabilities: { enableThinking: true, reasoningEffort: 'medium' },
@@ -1078,7 +1310,7 @@ describe('createMessagesRequestBody reasoning effort', () => {
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
 
-		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
+		expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 8191 });
 		expect(body.output_config).toBeUndefined();
 	});
 
@@ -1097,7 +1329,56 @@ describe('createMessagesRequestBody reasoning effort', () => {
 		expect(body.output_config).toBeUndefined();
 	});
 
-	test('omits effort when reasoningEffort is an invalid value', () => {
+	test('sends xhigh when the endpoint declares it (Opus 4.8 metadata)', () => {
+		// Opus 4.7+ metadata declares xhigh/max and the Opus 4.8 picker
+		// defaults to xhigh — a hardcoded low|medium|high validator used to
+		// silently drop it, so no effort reached the wire at all.
+		const endpoint = createMockEndpoint({
+			supportsAdaptiveThinking: true,
+			supportsReasoningEffort: ['low', 'medium', 'high', 'xhigh', 'max'],
+		});
+		const options = createMinimalOptions({
+			modelCapabilities: { enableThinking: true, reasoningEffort: 'xhigh' },
+		});
+
+		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
+
+		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
+		expect(body.output_config).toEqual({ effort: 'xhigh' });
+	});
+
+	test('accepts any level the endpoint declares, including unknown future ones', () => {
+		// Validation is purely metadata-driven — a new level (as xhigh/max
+		// once were) must work without a client change.
+		const endpoint = createMockEndpoint({
+			supportsAdaptiveThinking: true,
+			supportsReasoningEffort: ['low', 'ultra'],
+		});
+		const options = createMinimalOptions({
+			modelCapabilities: { enableThinking: true, reasoningEffort: 'ultra' },
+		});
+
+		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
+
+		expect(body.output_config).toEqual({ effort: 'ultra' });
+	});
+
+	test('defaults to a declared level when the list does not include medium', () => {
+		const endpoint = createMockEndpoint({
+			supportsAdaptiveThinking: true,
+			supportsReasoningEffort: ['high', 'max'],
+		});
+		const options = createMinimalOptions({
+			modelCapabilities: { enableThinking: true },
+		});
+
+		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
+
+		// Middle of the declared list — never a level the endpoint rejects.
+		expect(body.output_config).toEqual({ effort: 'high' });
+	});
+
+	test('omits effort when the requested level is not declared by the endpoint', () => {
 		const endpoint = createMockEndpoint({
 			supportsAdaptiveThinking: true,
 			supportsReasoningEffort: ['low', 'medium', 'high'],
@@ -1404,6 +1685,142 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 		expect(results[0].usage?.prompt_tokens_details?.cached_tokens).toBe(30);
 	});
 
+	test('surfaces 1h/5m cache_creation split when present', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_cache_ttl',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'cached' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: {
+				input_tokens: 50,
+				output_tokens: 10,
+				cache_creation_input_tokens: 25,
+				cache_read_input_tokens: 0,
+				cache_creation: {
+					ephemeral_1h_input_tokens: 17,
+					ephemeral_5m_input_tokens: 8,
+				},
+			},
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		const details = results[0].usage?.prompt_tokens_details;
+		expect(details?.cache_creation_input_tokens).toBe(25);
+		expect(details?.anthropic_cache_creation?.ephemeral_1h_input_tokens).toBe(17);
+		expect(details?.anthropic_cache_creation?.ephemeral_5m_input_tokens).toBe(8);
+	});
+
+	test('omits 1h/5m split fields when Anthropic does not report them', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_cache_no_split',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'cached' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: {
+				input_tokens: 50,
+				output_tokens: 10,
+				cache_creation_input_tokens: 20,
+				cache_read_input_tokens: 30,
+			},
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		const details = results[0].usage?.prompt_tokens_details;
+		expect(details?.cache_creation_input_tokens).toBe(20);
+		expect(details?.anthropic_cache_creation).toBeUndefined();
+	});
+
+	test('surfaces thinking_tokens as completion_tokens_details.reasoning_tokens', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_thinking',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'thought' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: {
+				input_tokens: 10,
+				output_tokens: 1140,
+				output_tokens_details: { thinking_tokens: 580 },
+			},
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results[0].usage?.completion_tokens).toBe(1140);
+		expect(results[0].usage?.completion_tokens_details?.reasoning_tokens).toBe(580);
+	});
+
+	test('reasoning_tokens defaults to 0 when output_tokens_details is absent', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_no_thinking',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'no thinking' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: { input_tokens: 10, output_tokens: 50 },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results[0].usage?.completion_tokens_details?.reasoning_tokens).toBe(0);
+	});
+
 	test('rejects on malformed JSON', async () => {
 		const response = Response.fromText(200, 'OK', createNonStreamingHeaders(), 'not json at all', 'node-fetch');
 		const telemetryData = TelemetryData.createAndMarkAsIssued();
@@ -1553,5 +1970,195 @@ suite('processResponseFromMessagesEndpoint routing', () => {
 		}
 		expect(results).toHaveLength(1);
 		expect(results[0].message.content).toHaveLength(1);
+	});
+});
+
+suite('AnthropicMessagesProcessor streaming cache_creation', () => {
+	function makeProcessor(): AnthropicMessagesProcessor {
+		return new AnthropicMessagesProcessor(
+			TelemetryData.createAndMarkAsIssued(),
+			'req-1',
+			'gh-req-1',
+			'',
+			new TestLogService(),
+			new NullTelemetryService(),
+		);
+	}
+
+	test('redacted_thinking content block propagates redacted:true on the thinking delta', () => {
+		// Regression: the converter relies on an explicit `redacted` flag (not empty text)
+		// to decide redacted_thinking vs thinking. The streaming accumulator must set it.
+		const processor = makeProcessor();
+		const deltas: IResponseDelta[] = [];
+		const capture: FinishedCallback = async (_text, _idx, delta) => { deltas.push(delta); return undefined; };
+
+		processor.push({
+			type: 'content_block_start',
+			index: 0,
+			content_block: { type: 'redacted_thinking', data: 'blob123' },
+		} as Parameters<typeof processor.push>[0], capture);
+
+		const thinkingDeltas = deltas.filter(d => d.thinking).map(d => d.thinking);
+		expect(thinkingDeltas).toHaveLength(1);
+		expect(thinkingDeltas[0]).toEqual({ id: 'thinking_0', encrypted: 'blob123', redacted: true });
+	});
+
+	test('regular thinking content block emits a signature without the redacted flag', () => {
+		const processor = makeProcessor();
+		const deltas: IResponseDelta[] = [];
+		const capture: FinishedCallback = async (_text, _idx, delta) => { deltas.push(delta); return undefined; };
+
+		processor.push({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '', signature: '' } } as Parameters<typeof processor.push>[0], capture);
+		processor.push({ type: 'content_block_delta', index: 0, delta: { type: 'signature_delta', signature: 'sig123' } } as Parameters<typeof processor.push>[0], capture);
+		processor.push({ type: 'content_block_stop', index: 0 } as Parameters<typeof processor.push>[0], capture);
+
+		const thinkingDeltas = deltas.filter(d => d.thinking).map(d => d.thinking);
+		expect(thinkingDeltas).toHaveLength(1);
+		expect(thinkingDeltas[0]).toEqual({ id: 'thinking_0', encrypted: 'sig123' });
+		expect((thinkingDeltas[0] as { redacted?: boolean }).redacted).toBeUndefined();
+	});
+
+	test('message_start cache_creation survives a message_delta that omits the breakdown', () => {
+		// Production happy path: Anthropic only emits the cache_creation breakdown
+		// in message_start. message_delta updates other usage fields but typically
+		// has no cache_creation. The ?? fallback in the processor must preserve
+		// the values seen in message_start — including 0 (a common control-arm
+		// value) which would be wiped out by a `||` regression.
+		const processor = makeProcessor();
+		const noop = async () => undefined;
+
+		processor.push({
+			type: 'message_start',
+			message: {
+				id: 'msg_stream',
+				type: 'message',
+				role: 'assistant',
+				content: [],
+				model: 'claude-sonnet-4-20250514',
+				stop_reason: null,
+				stop_sequence: null,
+				usage: {
+					input_tokens: 5,
+					output_tokens: 0,
+					cache_creation_input_tokens: 12336,
+					cache_read_input_tokens: 391352,
+					cache_creation: {
+						ephemeral_1h_input_tokens: 0,
+						ephemeral_5m_input_tokens: 12336,
+					},
+				},
+			},
+		}, noop);
+
+		// message_delta with usage but no cache_creation breakdown — mirrors
+		// what every observed backend (Anthropic 1P, Bedrock, Vertex) emits in
+		// the final delta of a stream.
+		processor.push({
+			type: 'message_delta',
+			delta: { type: 'message_delta', stop_reason: 'end_turn' },
+			usage: {
+				output_tokens: 42,
+				input_tokens: 5,
+				cache_creation_input_tokens: 12336,
+				cache_read_input_tokens: 391352,
+			},
+		}, noop);
+
+		const completion = processor.push({ type: 'message_stop' }, noop);
+		expect(completion).toBeDefined();
+
+		const details = completion!.usage?.prompt_tokens_details;
+		expect(details?.anthropic_cache_creation?.ephemeral_1h_input_tokens).toBe(0);
+		expect(details?.anthropic_cache_creation?.ephemeral_5m_input_tokens).toBe(12336);
+	});
+
+	test('message_delta cache_creation overrides message_start values', () => {
+		// Defensive: if a backend ever did emit the breakdown in message_delta,
+		// the later values should win (matches the existing overwrite pattern
+		// for cache_creation_input_tokens / cache_read_input_tokens).
+		const processor = makeProcessor();
+		const noop = async () => undefined;
+
+		processor.push({
+			type: 'message_start',
+			message: {
+				id: 'msg_stream_override',
+				type: 'message',
+				role: 'assistant',
+				content: [],
+				model: 'claude-sonnet-4-20250514',
+				stop_reason: null,
+				stop_sequence: null,
+				usage: {
+					input_tokens: 5,
+					output_tokens: 0,
+					cache_creation_input_tokens: 10000,
+					cache_read_input_tokens: 0,
+					cache_creation: {
+						ephemeral_1h_input_tokens: 0,
+						ephemeral_5m_input_tokens: 10000,
+					},
+				},
+			},
+		}, noop);
+
+		processor.push({
+			type: 'message_delta',
+			delta: { type: 'message_delta', stop_reason: 'end_turn' },
+			usage: {
+				output_tokens: 10,
+				input_tokens: 5,
+				cache_creation_input_tokens: 15000,
+				cache_read_input_tokens: 0,
+				cache_creation: {
+					ephemeral_1h_input_tokens: 5000,
+					ephemeral_5m_input_tokens: 10000,
+				},
+			},
+		}, noop);
+
+		const completion = processor.push({ type: 'message_stop' }, noop);
+		const details = completion!.usage?.prompt_tokens_details;
+		expect(details?.anthropic_cache_creation?.ephemeral_1h_input_tokens).toBe(5000);
+		expect(details?.anthropic_cache_creation?.ephemeral_5m_input_tokens).toBe(10000);
+	});
+
+	test('streaming thinking_tokens from message_delta surfaces as reasoning_tokens', () => {
+		// Anthropic typically reports thinking_tokens in the final message_delta
+		// (after the cumulative output_tokens count is known). Matches the
+		// observed payload shape from CAPI/Anthropic 1P/Bedrock/Vertex.
+		const processor = makeProcessor();
+		const noop = async () => undefined;
+
+		processor.push({
+			type: 'message_start',
+			message: {
+				id: 'msg_thinking_stream',
+				type: 'message',
+				role: 'assistant',
+				content: [],
+				model: 'claude-sonnet-4-20250514',
+				stop_reason: null,
+				stop_sequence: null,
+				usage: {
+					input_tokens: 5,
+					output_tokens: 1,
+				},
+			},
+		}, noop);
+
+		processor.push({
+			type: 'message_delta',
+			delta: { type: 'message_delta', stop_reason: 'end_turn' },
+			usage: {
+				output_tokens: 2024,
+				input_tokens: 5,
+				output_tokens_details: { thinking_tokens: 639 },
+			},
+		}, noop);
+
+		const completion = processor.push({ type: 'message_stop' }, noop);
+		expect(completion!.usage?.completion_tokens).toBe(2024);
+		expect(completion!.usage?.completion_tokens_details?.reasoning_tokens).toBe(639);
 	});
 });

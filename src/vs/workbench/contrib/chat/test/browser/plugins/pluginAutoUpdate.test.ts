@@ -7,11 +7,9 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { AutoUpdateConfigurationKey } from '../../../../extensions/common/extensions.js';
+import { AutoUpdateConfigurationValue, IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { PluginAutoUpdate } from '../../../browser/pluginAutoUpdate.js';
 import { IPluginInstallService, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../../../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -26,7 +24,7 @@ suite('PluginAutoUpdate', () => {
 		clearUpdatesAvailableCalls: number;
 	}
 
-	function createContribution(autoUpdate: unknown, stateOverrides?: Partial<MockState>): { contribution: PluginAutoUpdate; state: MockState } {
+	function createContribution(autoUpdate: AutoUpdateConfigurationValue, stateOverrides?: Partial<MockState>): { contribution: PluginAutoUpdate; state: MockState } {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		const state: MockState = {
@@ -52,9 +50,9 @@ suite('PluginAutoUpdate', () => {
 			},
 		} as Partial<IPluginInstallService> as IPluginInstallService);
 
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(AutoUpdateConfigurationKey, autoUpdate);
-		instantiationService.stub(IConfigurationService, configService);
+		instantiationService.stub(IExtensionsWorkbenchService, {
+			getAutoUpdateValue: () => autoUpdate,
+		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 
 		instantiationService.stub(ILogService, new NullLogService());
 
@@ -67,14 +65,14 @@ suite('PluginAutoUpdate', () => {
 		return new Promise(resolve => queueMicrotask(resolve));
 	}
 
-	test('does not trigger update on construction when flag is false', async () => {
-		const { state } = createContribution(true);
+	test('does not trigger update on construction', async () => {
+		const { state } = createContribution('on');
 		await flushMicrotasks();
 		assert.deepStrictEqual(state.updateAllCalls, []);
 	});
 
 	test('triggers silent updateAllPlugins when hasUpdatesAvailable becomes true', async () => {
-		const { state } = createContribution(true);
+		const { state } = createContribution('on');
 
 		state.hasUpdatesAvailable.set(true, undefined);
 		await flushMicrotasks();
@@ -82,8 +80,8 @@ suite('PluginAutoUpdate', () => {
 		assert.deepStrictEqual(state.updateAllCalls, [{ silent: true }]);
 	});
 
-	test('does not trigger update when extensions.autoUpdate is false', async () => {
-		const { state } = createContribution(false);
+	test('does not trigger update when extensions.autoUpdate is off', async () => {
+		const { state } = createContribution('off');
 
 		state.hasUpdatesAvailable.set(true, undefined);
 		await flushMicrotasks();
@@ -91,17 +89,13 @@ suite('PluginAutoUpdate', () => {
 		assert.deepStrictEqual(state.updateAllCalls, []);
 	});
 
-	test('does not trigger update for non-true auto-update values like onlyEnabledExtensions', async () => {
-		// Plugins have no per-item opt-in equivalent to extensions, so only
-		// `true` (update everything) opts plugins into auto-update.
-		for (const value of ['onlyEnabledExtensions', 'onlySelectedExtensions']) {
-			const { state } = createContribution(value);
+	test('triggers update when extensions.autoUpdate is on', async () => {
+		const { state } = createContribution('on');
 
-			state.hasUpdatesAvailable.set(true, undefined);
-			await flushMicrotasks();
+		state.hasUpdatesAvailable.set(true, undefined);
+		await flushMicrotasks();
 
-			assert.deepStrictEqual(state.updateAllCalls, [], `expected no update for autoUpdate=${value}`);
-		}
+		assert.deepStrictEqual(state.updateAllCalls, [{ silent: true }]);
 	});
 
 	test('does not run a second update concurrently with one in flight', async () => {
@@ -109,7 +103,7 @@ suite('PluginAutoUpdate', () => {
 		const pendingUpdate = new Promise<IUpdateAllPluginsResult>(resolve => {
 			resolveUpdate = () => resolve({ updatedNames: [], failedNames: [] });
 		});
-		const { state } = createContribution(true, {
+		const { state } = createContribution('on', {
 			updateAllImpl: () => pendingUpdate,
 		});
 
@@ -129,7 +123,7 @@ suite('PluginAutoUpdate', () => {
 	});
 
 	test('continues running on subsequent cycles after the previous update finished', async () => {
-		const { state } = createContribution(true);
+		const { state } = createContribution('on');
 
 		state.hasUpdatesAvailable.set(true, undefined);
 		await flushMicrotasks();
@@ -146,7 +140,7 @@ suite('PluginAutoUpdate', () => {
 	});
 
 	test('swallows errors from updateAllPlugins', async () => {
-		const { state } = createContribution(true, {
+		const { state } = createContribution('on', {
 			updateAllImpl: async () => { throw new Error('boom'); },
 		});
 
@@ -169,7 +163,7 @@ suite('PluginAutoUpdate', () => {
 		// path in `PluginInstallService.updateAllPlugins`). Without our own
 		// clear in `finally`, the observable would stay stuck at `true` and
 		// the next periodic check's `set(true)` would not notify subscribers.
-		const { state } = createContribution(true, {
+		const { state } = createContribution('on', {
 			updateAllImpl: async () => ({ updatedNames: [], failedNames: ['plugin-a'] }),
 		});
 
@@ -190,7 +184,7 @@ suite('PluginAutoUpdate', () => {
 	});
 
 	test('clears the flag even when updateAllPlugins throws', async () => {
-		const { state } = createContribution(true, {
+		const { state } = createContribution('on', {
 			updateAllImpl: async () => { throw new Error('boom'); },
 		});
 

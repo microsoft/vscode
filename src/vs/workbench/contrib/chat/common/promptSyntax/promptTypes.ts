@@ -52,6 +52,19 @@ export const AGENT_DEBUG_LOG_ENABLED_SETTING = 'github.copilot.chat.agentDebugLo
 export const AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING = 'github.copilot.chat.agentDebugLog.fileLogging.enabled';
 
 /**
+ * Configuration key for enabling agent debug logging for agent host (Copilot CLI) sessions.
+ * Registered in core (see `chat.shared.contribution.ts`) since only core consumes it.
+ */
+export const AgentHostAgentDebugLogEnabledSettingId = 'chat.agentHost.agentDebugLog.enabled';
+
+/**
+ * Configuration key for the maximum number of debug events kept in memory for
+ * agent host (Copilot CLI) sessions. Registered in core (see
+ * `chat.shared.contribution.ts`) since only core consumes it.
+ */
+export const AgentHostAgentDebugLogMaxEventsSettingId = 'chat.agentHost.agentDebugLog.maxEventsInMemory';
+
+/**
  * The name of the troubleshoot slash command / skill.
  */
 export const TROUBLESHOOT_COMMAND_NAME = 'troubleshoot';

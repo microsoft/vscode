@@ -21,7 +21,7 @@ import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../.
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon, builtinIcon } from './aiCustomizationIcons.js';
-import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementCreateMenuId, AICustomizationManagementSection, BUILTIN_STORAGE, AI_CUSTOMIZATION_ITEM_DISABLED_KEY, sectionToPromptType } from './aiCustomizationManagement.js';
+import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementCreateMenuId, AICustomizationManagementSection, AI_CUSTOMIZATION_ITEM_DISABLED_KEY, sectionToPromptType } from './aiCustomizationManagement.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -585,7 +585,6 @@ export class AICustomizationListWidget extends Disposable {
 	private listContainer!: HTMLElement;
 	private list!: WorkbenchList<IListEntry>;
 	private emptyStateContainer!: HTMLElement;
-	private emptyStateIcon!: HTMLElement;
 	private emptyStateText!: HTMLElement;
 	private emptyStateSubtext!: HTMLElement;
 
@@ -617,8 +616,8 @@ export class AICustomizationListWidget extends Disposable {
 	private readonly _onDidRequestCreate = this._register(new Emitter<PromptsType>());
 	readonly onDidRequestCreate: Event<PromptsType> = this._onDidRequestCreate.event;
 
-	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'workspace' | 'user' | 'workspace-root'; rootFileName?: string }>());
-	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'workspace' | 'user' | 'workspace-root'; rootFileName?: string }> = this._onDidRequestCreateManual.event;
+	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'local' | 'user' | 'workspace-root'; rootFileName?: string }>());
+	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'local' | 'user' | 'workspace-root'; rootFileName?: string }> = this._onDidRequestCreateManual.event;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -751,7 +750,6 @@ export class AICustomizationListWidget extends Disposable {
 		// Empty state container
 		this.emptyStateContainer = DOM.append(this.element, $('.list-empty-state'));
 		const emptyStateHeader = DOM.append(this.emptyStateContainer, $('.empty-state-header'));
-		this.emptyStateIcon = DOM.append(emptyStateHeader, $('.empty-state-icon'));
 		this.emptyStateText = DOM.append(emptyStateHeader, $('.empty-state-text'));
 		this.emptyStateSubtext = DOM.append(this.emptyStateContainer, $('.empty-state-subtext'));
 		this.emptyStateContainer.style.display = 'none';
@@ -957,32 +955,32 @@ export class AICustomizationListWidget extends Disposable {
 			case AICustomizationManagementSection.Agents:
 				title = localize('agents', "Agents");
 				description = localize('agentsDescription', "Configure the AI to adopt different personas tailored to specific development tasks. Each agent has its own instructions, tools, and behavior.");
-				docsUrl = 'https://code.visualstudio.com/docs/copilot/customization/custom-agents';
+				docsUrl = 'https://code.visualstudio.com/docs/agent-customization/custom-agents?referrer=in-product';
 				learnMoreLabel = localize('learnMoreAgents', "Learn more about custom agents");
 				break;
 			case AICustomizationManagementSection.Skills:
 				title = localize('skills', "Skills");
 				description = localize('skillsDescription', "Folders of instructions, scripts, and resources that Copilot loads when relevant to perform specialized tasks.");
-				docsUrl = 'https://code.visualstudio.com/docs/copilot/customization/agent-skills';
+				docsUrl = 'https://code.visualstudio.com/docs/agent-customization/agent-skills?referrer=in-product';
 				learnMoreLabel = localize('learnMoreSkills', "Learn more about agent skills");
 				break;
 			case AICustomizationManagementSection.Instructions:
 				title = localize('instructions', "Instructions");
 				description = localize('instructionsDescription', "Define common guidelines and rules that automatically influence how AI generates code and handles development tasks.");
-				docsUrl = 'https://code.visualstudio.com/docs/copilot/customization/custom-instructions';
+				docsUrl = 'https://code.visualstudio.com/docs/agent-customization/custom-instructions?referrer=in-product';
 				learnMoreLabel = localize('learnMoreInstructions', "Learn more about custom instructions");
 				break;
 			case AICustomizationManagementSection.Hooks:
 				title = localize('hooks', "Hooks");
 				description = localize('hooksDescription', "Prompts executed at specific points during an agentic lifecycle.");
-				docsUrl = 'https://code.visualstudio.com/docs/copilot/customization/hooks';
+				docsUrl = 'https://code.visualstudio.com/docs/agent-customization/hooks?referrer=in-product';
 				learnMoreLabel = localize('learnMoreHooks', "Learn more about hooks");
 				break;
 			case AICustomizationManagementSection.Prompts:
 			default:
 				title = localize('prompts', "Prompts");
 				description = localize('promptsDescription', "Reusable prompts for common development tasks like generating code, performing reviews, or scaffolding components.");
-				docsUrl = 'https://code.visualstudio.com/docs/copilot/customization/prompt-files';
+				docsUrl = 'https://code.visualstudio.com/docs/agent-customization/prompt-files?referrer=in-product';
 				learnMoreLabel = localize('learnMorePrompts', "Learn more about prompt files");
 				break;
 		}
@@ -1100,7 +1098,7 @@ export class AICustomizationListWidget extends Disposable {
 					actions.push({
 						label: `$(${Codicon.add.id}) ${localize('configureHooks', "Configure Hooks")}`,
 						enabled: true,
-						run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
+						run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
 					});
 				}
 			} else if (!override?.commandId) {
@@ -1109,7 +1107,7 @@ export class AICustomizationListWidget extends Disposable {
 					label: `$(${Codicon.add.id}) ${localize('configureHooks', "Configure Hooks")}`,
 					enabled: hasWorkspace,
 					tooltip: hasWorkspace ? undefined : localize('configureHooksDisabled', "Open a workspace folder to configure hooks."),
-					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
+					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
 				});
 			}
 			return actions;
@@ -1131,7 +1129,7 @@ export class AICustomizationListWidget extends Disposable {
 				actions.push({
 					label: `$(${Codicon.add.id}) New ${createTypeLabel} (Workspace)`,
 					enabled: true,
-					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
+					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
 				});
 				addedTargets.add('workspace');
 			} else {
@@ -1150,7 +1148,7 @@ export class AICustomizationListWidget extends Disposable {
 			actions.push({
 				label: `$(${Codicon.folder.id}) New ${createTypeLabel} (Workspace)`,
 				enabled: true,
-				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
+				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
 			});
 		}
 
@@ -1369,14 +1367,14 @@ export class AICustomizationListWidget extends Disposable {
 					{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
 					{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
 					{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
-					{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
+					{ groupKey: PromptsStorage.builtIn, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
 				]
 				: [
 					{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
 					{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
 					{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
 					{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
-					{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
+					{ groupKey: PromptsStorage.builtIn, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
 				];
 
 		for (const item of matchedItems) {
@@ -1397,7 +1395,7 @@ export class AICustomizationListWidget extends Disposable {
 				}
 				group = { groupKey: key, label, icon: Codicon.folder, description: '', items: [] };
 				// Insert dynamic groups before the built-in group so it always stays last.
-				const builtinIdx = groups.findIndex(g => g.groupKey === BUILTIN_STORAGE);
+				const builtinIdx = groups.findIndex(g => g.groupKey === PromptsStorage.builtIn);
 				if (builtinIdx >= 0) {
 					groups.splice(builtinIdx, 0, group);
 				} else {
@@ -1440,11 +1438,6 @@ export class AICustomizationListWidget extends Disposable {
 			this.emptyStateContainer.style.display = 'flex';
 			this.listContainer.style.display = 'none';
 
-			// Update icon based on section
-			this.emptyStateIcon.className = 'empty-state-icon';
-			const sectionIcon = this.getSectionIcon();
-			this.emptyStateIcon.classList.add(...ThemeIcon.asClassNameArray(sectionIcon));
-
 			if (this.searchQuery.trim()) {
 				// Search with no results
 				this.emptyStateText.textContent = localize('noMatchingItems', "No items match '{0}'", this.searchQuery);
@@ -1458,22 +1451,6 @@ export class AICustomizationListWidget extends Disposable {
 		} else {
 			this.emptyStateContainer.style.display = 'none';
 			this.listContainer.style.display = '';
-		}
-	}
-
-	private getSectionIcon(): ThemeIcon {
-		switch (this.currentSection) {
-			case AICustomizationManagementSection.Agents:
-				return agentIcon;
-			case AICustomizationManagementSection.Skills:
-				return skillIcon;
-			case AICustomizationManagementSection.Instructions:
-				return instructionsIcon;
-			case AICustomizationManagementSection.Hooks:
-				return hookIcon;
-			case AICustomizationManagementSection.Prompts:
-			default:
-				return promptIcon;
 		}
 	}
 
@@ -1549,6 +1526,24 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
+	 * Reveals and selects the first list item whose URI matches one of the provided URIs.
+	 */
+	revealAndSelectFirstItemByUri(uris: readonly URI[]): boolean {
+		const entryIndex = this.displayEntries.findIndex(entry => {
+			return entry.type === 'file-item' && uris.some(uri => isEqual(entry.item.uri, uri));
+		});
+		if (entryIndex < 0) {
+			return false;
+		}
+
+		this.list.reveal(entryIndex);
+		this.list.setFocus([entryIndex]);
+		this.list.setSelection([entryIndex]);
+		this.list.domFocus();
+		return true;
+	}
+
+	/**
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
@@ -1601,7 +1596,7 @@ export class AICustomizationListWidget extends Disposable {
 			this.promptsService,
 			this.workspaceService,
 			{ allItems: this.allItems, displayEntries: this.displayEntries },
-			this.itemsModel.getPromptsServiceItemProvider(),
+			this.itemsModel.getActiveItemSource(),
 			this.harnessService,
 			this.agentPluginService,
 		);

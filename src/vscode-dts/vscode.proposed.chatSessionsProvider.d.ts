@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 3
-
 declare module 'vscode' {
 	/**
 	 * Represents the status of a chat session.
@@ -337,6 +335,26 @@ declare module 'vscode' {
 		archived?: boolean;
 
 		/**
+		 * Resource identifier this item was previously known by. When set, host-stored
+		 * per-resource state (archive, pin, read) recorded under that URI is treated as
+		 * also applying to this item.
+		 *
+		 * On first access of state for {@link resource}, the host adopts the entry
+		 * stored under `legacyResource` forward — copying it onto {@link resource} and
+		 * removing the legacy entry. The migration is transparent: no events fire and
+		 * the effective user-visible state is unchanged.
+		 *
+		 * Intended for providers that need to change the URI shape they emit (e.g. during
+		 * a backend or schema migration) without requiring users to re-archive or re-pin
+		 * items.
+		 *
+		 * The legacy URI's scheme must match {@link resource}'s scheme; otherwise the
+		 * field is ignored. Multi-hop migrations are not supported — providers should
+		 * collapse intermediate hops on their side and emit the original URI.
+		 */
+		readonly legacyResource?: Uri;
+
+		/**
 		 * Timing information for the chat session
 		 */
 		timing?: {
@@ -658,6 +676,56 @@ declare module 'vscode' {
 		 * unique across the provider's groups; on conflict, the first declared wins.
 		 */
 		readonly slashCommand?: string;
+
+		/**
+		 * Optional tooltip content shown in a hover panel when the user focuses or
+		 * hovers over this item in the picker. Supports markdown formatting.
+		 */
+		readonly tooltip?: string;
+
+		/**
+		 * Optional model metadata for this option item. When present, the picker
+		 * renders a rich hover with model name, pricing, context size, and capabilities
+		 * instead of a plain text tooltip.
+		 */
+		readonly modelMetadata?: ChatSessionProviderOptionModelMetadata;
+	}
+
+	/**
+	 * Metadata describing a language model, used to render rich hover content
+	 * in option group pickers. Fields mirror {@link LanguageModelChatInformation}
+	 * so the core can reuse its standard model hover rendering.
+	 */
+	export interface ChatSessionProviderOptionModelMetadata {
+		readonly name: string;
+		readonly id: string;
+		readonly vendor?: string;
+		readonly version?: string;
+		readonly family?: string;
+		readonly tooltip?: string;
+		readonly pricing?: string;
+		readonly multiplierNumeric?: number;
+		readonly inputCost?: number;
+		readonly outputCost?: number;
+		readonly cacheCost?: number;
+		readonly cacheWriteCost?: number;
+		readonly longContextInputCost?: number;
+		readonly longContextOutputCost?: number;
+		readonly longContextCacheCost?: number;
+		readonly longContextCacheWriteCost?: number;
+		readonly priceCategory?: string;
+		readonly promo?: {
+			readonly id: string;
+			readonly discountPercent: number;
+			readonly endsAt: string;
+			readonly message: string;
+		};
+		readonly maxInputTokens?: number;
+		readonly maxOutputTokens?: number;
+		readonly capabilities?: {
+			readonly vision?: boolean;
+			readonly toolCalling?: boolean;
+		};
 	}
 
 	/**

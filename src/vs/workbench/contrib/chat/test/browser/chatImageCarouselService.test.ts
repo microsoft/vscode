@@ -129,6 +129,16 @@ suite('ChatImageCarouselService helpers', () => {
 			assert.strictEqual(findClickedImageIndex(sections, secondUri, identicalData), 1);
 		});
 
+		test('prefers the current input section when the same URI appeared earlier', () => {
+			const repeatedUri = URI.file('/repeated.png');
+			const sections: ICarouselSection[] = [
+				{ title: 'History', images: [{ id: repeatedUri.toString(), name: 'historical.png', mimeType: 'image/png', data: new Uint8Array([1]) }] },
+				{ title: 'Current Input', images: [{ id: repeatedUri.toString(), name: 'current.png', mimeType: 'image/png', data: new Uint8Array([1]) }] },
+			];
+
+			assert.strictEqual(findClickedImageIndex(sections, repeatedUri, new Uint8Array([1]), 1), 1);
+		});
+
 		test('returns -1 for empty sections', () => {
 			assert.strictEqual(findClickedImageIndex([], URI.file('/x.png')), -1);
 		});
@@ -184,6 +194,17 @@ suite('ChatImageCarouselService helpers', () => {
 			const data = new Uint8Array([1]);
 			assert.strictEqual(buildSingleImageArgs(uri, data).mimeType, 'image/png');
 		});
+
+		test('decodes percent-encoded filename for display', () => {
+			const uri = URI.file('/path/to/Element%20Screenshot.png');
+			const data = new Uint8Array([1, 2, 3]);
+			assert.deepStrictEqual(buildSingleImageArgs(uri, data), {
+				name: 'Element Screenshot.png',
+				mimeType: 'image/png',
+				data,
+				title: 'Element Screenshot.png',
+			});
+		});
 	});
 
 	suite('collectCarouselSections', () => {
@@ -209,6 +230,28 @@ suite('ChatImageCarouselService helpers', () => {
 				mimeType: 'image/png',
 				data: [1, 2, 3],
 			});
+		});
+
+		test('collects all current input image attachments', async () => {
+			const attachments = [
+				makeImageVariableEntry({ id: 'img-1', name: 'first.png', value: new Uint8Array([1]) }),
+				makeImageVariableEntry({ id: 'img-2', name: 'second.png', value: new Uint8Array([2]) }),
+				makeImageVariableEntry({ id: 'img-3', name: 'third.png', value: new Uint8Array([3]) }),
+			];
+
+			const result = await collectCarouselSections([], async () => new Uint8Array(), { text: '', attachments });
+
+			assert.deepStrictEqual(result.map(section => ({
+				...section,
+				images: section.images.map(image => ({ ...image, data: [...image.data] })),
+			})), [{
+				title: 'Current Input',
+				images: [
+					{ id: 'data:img-1/first.png', name: 'first.png', mimeType: 'image/png', data: [1], caption: undefined },
+					{ id: 'data:img-2/second.png', name: 'second.png', mimeType: 'image/png', data: [2], caption: undefined },
+					{ id: 'data:img-3/third.png', name: 'third.png', mimeType: 'image/png', data: [3], caption: undefined },
+				],
+			}]);
 		});
 
 		test('collects request attachment images restored as plain objects', async () => {
@@ -342,6 +385,35 @@ suite('ChatImageCarouselService helpers', () => {
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].images.length, 1);
 			assert.strictEqual(result[0].images[0].id, expectedUri);
+			assert.strictEqual(result[0].images[0].caption, 'Took screenshot');
+		});
+
+		test('strips markdown from tool invocation message captions', async () => {
+			const imageUri = URI.file('/screenshots/homepage.png');
+			const request = makeRequest('req-1', [], 'Take a screenshot');
+			const response = makeResponse('req-1', 'resp-1', [
+				{
+					kind: 'toolInvocationSerialized',
+					toolId: 'view_image',
+					toolCallId: 'tool-call-1',
+					invocationMessage: 'Viewing image',
+					originMessage: undefined,
+					pastTenseMessage: { value: 'Viewed image [](file:///screenshots/homepage.png)', isTrusted: false, uris: { '0': imageUri.toJSON() } },
+					presentation: undefined,
+					resultDetails: undefined,
+					isConfirmed: { type: 0 },
+					isComplete: true,
+					source: ToolDataSource.Internal,
+					generatedTitle: undefined,
+					isAttachedToThinking: false,
+				} as unknown as IChatToolInvocationSerialized,
+			]);
+
+			const result = await collectCarouselSections([request, response], async () => new Uint8Array([1, 2, 3]));
+
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].images.length, 1);
+			assert.strictEqual(result[0].images[0].caption, 'Viewed image homepage.png');
 		});
 
 		test('image data is a plain Uint8Array usable by Blob constructor', async () => {

@@ -5,6 +5,7 @@
 
 import type Anthropic from '@anthropic-ai/sdk';
 import { URI } from '../../../../base/common/uri.js';
+import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 
 /**
@@ -36,7 +37,15 @@ export function resolvePromptToContentBlocks(
 	}
 	const refLines: string[] = [];
 	const simpleBlocks: string[] = [];
+	const feedbackBlocks: string[] = [];
 	for (const att of attachments) {
+		if (isAgentFeedbackAnnotationsAttachment(att)) {
+			const rendered = renderAgentFeedbackAnnotationsAttachment(att);
+			if (rendered) {
+				feedbackBlocks.push(rendered);
+			}
+			continue;
+		}
 		if (att.type === MessageAttachmentKind.Simple) {
 			if (att.modelRepresentation) {
 				simpleBlocks.push(att.modelRepresentation);
@@ -53,6 +62,12 @@ export function resolvePromptToContentBlocks(
 		} else {
 			refLines.push(`- ${uriToString(uri)}`);
 		}
+	}
+	if (feedbackBlocks.length > 0) {
+		blocks.push({
+			type: 'text',
+			text: feedbackBlocks.join('\n\n'),
+		});
 	}
 	if (simpleBlocks.length > 0) {
 		blocks.push({

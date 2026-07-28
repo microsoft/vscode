@@ -37,6 +37,7 @@ import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, norm
 import { isDefined } from '../../../base/common/types.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
+import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
 
 const SSH_REMOTE_AGENT_HOSTS_STORAGE_KEY = 'remoteAgentHost.sshConnections';
 
@@ -117,6 +118,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	 */
 	private readonly _labelFormatters = new Map<string, IDisposable>();
 
+	protected get clientInfo() {
+		return editorWindowAgentHostClientInfo;
+	}
+
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -171,6 +176,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const normalized = normalizeRemoteAgentHostAddress(address);
 		const entry = this._entries.get(normalized);
 		return entry?.connected ? entry.client : undefined;
+	}
+
+	getConnectionByAuthority(authority: string): IAgentConnection | undefined {
+		for (const [address, entry] of this._entries) {
+			if (entry.connected && agentHostAuthority(address) === authority) {
+				return entry.client;
+			}
+		}
+		return undefined;
 	}
 
 	getEntryByAddress(address: string): IRemoteAgentHostEntry | undefined {
@@ -284,7 +298,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		return connection;
 	}
 
-	async addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable): Promise<IRemoteAgentHostConnectionInfo> {
+	async addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable, status = RemoteAgentHostConnectionStatus.connected): Promise<IRemoteAgentHostConnectionInfo> {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			throw new Error('Remote agent host connections are not enabled.');
 		}
@@ -311,7 +325,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// Create a connection entry wrapping the pre-connected client
 		const protocolClient = connection as RemoteAgentHostProtocolClient;
 		store.add(protocolClient);
-		const connEntry: IConnectionEntry = { store, client: protocolClient, transportDisposable, connected: true, status: RemoteAgentHostConnectionStatus.connected };
+		const connEntry: IConnectionEntry = { store, client: protocolClient, transportDisposable, connected: RemoteAgentHostConnectionStatus.isConnected(status), status };
 		this._entries.set(address, connEntry);
 		this._names.set(address, entry.name);
 		this._registeredEntries.set(address, entry);
@@ -340,7 +354,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			name: entry.name,
 			clientId: protocolClient.clientId,
 			defaultDirectory: protocolClient.defaultDirectory,
-			status: RemoteAgentHostConnectionStatus.connected,
+			status,
 		};
 	}
 
@@ -371,6 +385,17 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			disposeEntry(entry);
 			this._rejectPendingConnectionWait(address, new Error(`Connection closed: ${address}`));
 			this._onDidChangeConnections.fire();
+		}
+	}
+
+	notifyConnectionClosed(address: string): void {
+		const normalized = normalizeRemoteAgentHostAddress(address);
+		const entry = this._entries.get(normalized);
+		if (entry) {
+			this._logService.info(`[RemoteAgentHost] notifyConnectionClosed: notifying protocol client for ${normalized}`);
+			entry.client.notifyTransportClosed();
+		} else {
+			this._logService.info(`[RemoteAgentHost] notifyConnectionClosed: no entry found for ${normalized} (already removed?)`);
 		}
 	}
 
@@ -475,7 +500,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				? { logsHome: this._environmentService.logsHome, connectionId: address, transport: 'websocket' }
 				: undefined,
 		);
-		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transportFactory, undefined));
+		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transportFactory, undefined, undefined, this.clientInfo));
 		const entry: IConnectionEntry = { store, client, connected: false, status: RemoteAgentHostConnectionStatus.connecting };
 		this._entries.set(address, entry);
 
@@ -516,7 +541,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					entry.status = RemoteAgentHostConnectionStatus.connected;
 					this._onDidChangeConnections.fire();
 					break;
-				default:
+				case AgentHostClientState.Connecting:
+				case AgentHostClientState.Incompatible:
+				case AgentHostClientState.Closed:
 					break;
 			}
 		}));
@@ -819,5 +846,23 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 		this._labelFormatters.clear();
 		super.dispose();
+	}
+}
+
+export class AgentsWindowRemoteAgentHostService extends RemoteAgentHostService {
+
+	protected override get clientInfo() {
+		return agentsWindowAgentHostClientInfo;
+	}
+
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService logService: ILogService,
+		@ILabelService labelService: ILabelService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IStorageService storageService: IStorageService,
+	) {
+		super(configurationService, instantiationService, logService, labelService, environmentService, storageService);
 	}
 }
