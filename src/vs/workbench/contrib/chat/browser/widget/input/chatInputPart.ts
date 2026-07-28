@@ -1599,6 +1599,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		} finally {
 			this._isSyncingToOrFromInputModel = false;
+			this._syncTextDebounced.cancel();
 		}
 	}
 
@@ -2861,7 +2862,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// move away from the model that will be applied when it appears.
 		if (this._modelSelectionController.restorePerTypeModel) {
 			this.initSelectedModel();
-			if (!this._modelSelectionController.hasPendingIntent()) {
+			if (!this._modelSelectionController.hasPendingIntent() && !this._modelSelectionController.isAwaitingRememberedModel()) {
 				this.checkModelInSessionPool();
 			}
 		}
@@ -4434,6 +4435,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			list.layout(height);
 			list.getHTMLElement().style.height = `${height}px`;
 			list.splice(0, list.length, allEntries);
+			workingSetContainer.classList.toggle('overflowing', allEntries.length > maxItemsShown);
 		}));
 	}
 

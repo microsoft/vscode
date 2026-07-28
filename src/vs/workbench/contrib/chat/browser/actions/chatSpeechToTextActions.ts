@@ -172,7 +172,7 @@ export class ChatSpeechToTextPreparingAction extends Action2 {
 			title: localize2('chat.speechToText.preparing', "Preparing Speech to Text Model…"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			icon: Codicon.cloudDownload,
+			icon: Codicon.micDownloadCompact,
 			precondition: ChatSpeechToTextPreparing,
 			menu: [{
 				id: MenuId.ChatExecute,
@@ -200,7 +200,7 @@ export class ChatSpeechToTextConnectingAction extends Action2 {
 			title: localize2('chat.speechToText.connecting', "Connecting to Speech to Text…"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			icon: Codicon.loading,
+			icon: Codicon.loadingCompact,
 			precondition: ChatSpeechToTextPreparing,
 			menu: [{
 				id: MenuId.ChatExecute,

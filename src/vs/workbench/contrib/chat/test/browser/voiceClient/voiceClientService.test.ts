@@ -284,6 +284,21 @@ suite('VoiceClientService', () => {
 		}]);
 	});
 
+	test('sends voice instructions when starting a session', async () => {
+		const { service } = createService();
+
+		await service.connect(createTestWindow());
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine', undefined, undefined, 'Pronounce "Contoso DB" as written.');
+
+		assert.deepStrictEqual(socket().sent.map(message => ({
+			type: message.type,
+			voice_instructions: message.voice_instructions,
+		})), [{
+			type: 'start_session',
+			voice_instructions: 'Pronounce "Contoso DB" as written.',
+		}]);
+	});
+
 	test('uses browser locale for auto and falls back when unavailable', async () => {
 		const first = createService({ 'agents.voice.language': 'auto' });
 		await first.service.connect(createTestWindow('pt-BR'));
@@ -406,7 +421,7 @@ suite('VoiceClientService', () => {
 		await configurationService.setUserConfiguration('agents.voice.language', 'de-DE');
 		fireConfigurationChange(configurationService, 'agents.voice.language');
 		await service.connect(createTestWindow('en-US'));
-		service.sendResumeSession({ sessions: [], display_locale: 'en-US' }, 'machine');
+		service.sendResumeSession({ sessions: [], display_locale: 'en-US' }, 'machine', 'Keep replies concise.');
 
 		assert.deepStrictEqual({
 			disconnectedMessages: firstSocket.sent,
@@ -415,6 +430,7 @@ suite('VoiceClientService', () => {
 				session_id: message.session_id,
 				session_context: message.session_context,
 				voice: message.voice,
+				voice_instructions: message.voice_instructions,
 			})),
 		}, {
 			disconnectedMessages: [],
@@ -423,6 +439,7 @@ suite('VoiceClientService', () => {
 				session_id: 'session-1',
 				session_context: { sessions: [], display_locale: 'de-DE' },
 				voice: 'daniel_neutral',
+				voice_instructions: 'Keep replies concise.',
 			}],
 		});
 	});

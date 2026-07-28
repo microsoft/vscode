@@ -2081,7 +2081,7 @@ available on each `CCAModel` and should flow through verbatim.
 |---|---|
 | Returns | `IAgentSessionMetadata[]` ([agentService.ts:100-124](../../common/agentService.ts#L100-L124)) |
 | Required fields | `session: URI`, `startTime: number`, `modifiedTime: number` |
-| Optional fields | `project`, `summary`, `status`, `activity`, `model`, `workingDirectory`, `customizationDirectory`, `isRead`, `isArchived`, `diffs`, `_meta` |
+| Optional fields | `project`, `summary`, `status`, `activity`, `model`, `workingDirectory`, `isRead`, `isArchived`, `diffs`, `_meta` |
 | Claude SDK source | **Top-level** `listSessions(options?): Promise<SDKSessionInfo[]>` ([sdk.d.ts:729](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L729)) — *not* a `Query` method |
 | `SDKSessionInfo` shape | `{ sessionId, summary, lastModified, customTitle?, firstPrompt?, gitBranch?, cwd?, tag?, createdAt }` ([sdk.d.ts:2782-2825](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L2782-L2825)) |
 
@@ -2137,7 +2137,6 @@ the two SDKs disagree on which fields they carry:
 | `workingDirectory` | sidecar | SDK (`cwd`) — sidecar redundant |
 | `model` | sidecar | sidecar (SDK doesn't carry it) |
 | `project` | resolved from `cwd` | resolved from `cwd` |
-| `customizationDirectory` | sidecar | sidecar |
 | `_meta.git` | not populated by `listSessions` | not populated by `listSessions` |
 | `isArchived` | host-side archive store, not from SDK | host-side archive store, not from SDK |
 | `status` | not populated by `listSessions` | not populated by `listSessions` |

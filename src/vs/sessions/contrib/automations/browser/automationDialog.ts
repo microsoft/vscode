@@ -31,6 +31,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
@@ -67,6 +68,25 @@ export function isAutomationDialogPopupTarget(relatedTarget: HTMLElement): boole
 	return isMobilePickerSheetTarget(relatedTarget) || !!relatedTarget.closest(
 		'.context-view, .quick-input-widget, .monaco-menu-container, .monaco-hover, .monaco-hover-content'
 	);
+}
+
+export async function canSelectAutomationWorkspace(
+	folderUri: URI,
+	preferredProviderId: string | undefined,
+	sessionsManagementService: ISessionsManagementService,
+	workspaceTrustRequestService: IWorkspaceTrustRequestService,
+): Promise<boolean> {
+	const resolved = sessionsManagementService.resolveWorkspace(folderUri, preferredProviderId);
+	if (!resolved) {
+		return false;
+	}
+	if (!resolved.workspace.requiresWorkspaceTrust) {
+		return true;
+	}
+	return !!await workspaceTrustRequestService.requestResourcesTrust({
+		uri: folderUri,
+		message: localize('automation.form.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+	});
 }
 
 interface IAutomationDialogKeyboardNavigation extends IDisposable {
@@ -664,6 +684,8 @@ export function renderForm(
 	layoutService: IWorkbenchLayoutService,
 	logService: ILogService,
 	productService: IProductService,
+	sessionsManagementService: ISessionsManagementService,
+	workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	initialPrompt: string,
 	initialMode: string | undefined,
 	initialPermissionLevel: string | undefined,
@@ -789,7 +811,10 @@ export function renderForm(
 		revalidate();
 	}));
 
-	const workspacePicker = disposables.add(instantiationService.createInstance(MobileAutomationsWorkspacePicker));
+	const workspacePicker = disposables.add(instantiationService.createInstance(MobileAutomationsWorkspacePicker, {
+		canSelectWorkspace: (folderUri, preferredProviderId) =>
+			canSelectAutomationWorkspace(folderUri, preferredProviderId, sessionsManagementService, workspaceTrustRequestService),
+	}));
 	workspacePicker.setTargetModel(isolationModel);
 	workspacePicker.setLayoutService(layoutService);
 
@@ -1135,10 +1160,6 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 			this.targetModel?.setQuickChat(false, selectedFolder);
 		}
 		return applied;
-	}
-
-	protected override async _executeBrowseAction(actionIndex: number): Promise<URI | undefined> {
-		return super._executeBrowseAction(actionIndex);
 	}
 
 	protected override _isSelectedFolder(folderUri: URI | undefined): boolean {

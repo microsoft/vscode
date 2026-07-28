@@ -401,6 +401,10 @@ export function setup(logger: Logger) {
 				// (`isolationEnabled: false, worktreePath: undefined`),
 				// which keeps the test flow deterministic.
 				['sessions.github.copilot.multiChatSessions', 'false'],
+				// Force the Copilot runtime to verbose logging so the captured
+				// `process-*.log` (see dumpFailureDiagnostics) has enough detail
+				// to diagnose a hang/timeout in CI.
+				['chat.agentHost.copilotSdk.logLevel', '"trace"'],
 			]);
 			logger.log(`[Agents Window] user settings written; requestCount=${mockServer.requestCount()}`);
 
@@ -699,6 +703,8 @@ export function setup(logger: Logger) {
 				// Show the context-usage gauge so the test can verify the denominator
 				// (context window) reflects the selected Context Size.
 				['chat.contextUsage.enabled', 'true'],
+				// Verbose Copilot runtime logging for capturable failure diagnostics.
+				['chat.agentHost.copilotSdk.logLevel', '"trace"'],
 			]);
 
 			const windowsBefore = app.code.driver.getAllWindows().length;
@@ -1323,6 +1329,8 @@ function setupAgentHostSuite(logger: Logger, config: {
 				'chat.agentHost.enabled': true,
 				'chat.agentHost.ahpJsonlLoggingEnabled': true,
 				'chat.agentHost.unsafeTestToken': 'smoketest-fake-agent-host-token',
+				// Verbose Copilot runtime logging for capturable failure diagnostics.
+				'chat.agentHost.copilotSdk.logLevel': 'trace',
 				...config.settings,
 			}, null, 2);
 			for (const settingsPath of [
