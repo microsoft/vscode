@@ -8,16 +8,19 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatContextService } from '../../../chat/browser/contextContrib/chatContextService.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ILanguageModelToolsService, ToolDataSource, ToolSet } from '../../../chat/common/tools/languageModelToolsService.js';
-import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
-import { formatBrowserEditorList } from './browserToolHelpers.js';
+import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { getBrowserPagesContext } from './browserToolHelpers.js';
 import { ClickBrowserTool, ClickBrowserToolData } from './clickBrowserTool.js';
 import { DragElementTool, DragElementToolData } from './dragElementTool.js';
 import { HandleDialogBrowserTool, HandleDialogBrowserToolData } from './handleDialogBrowserTool.js';
 import { HoverElementTool, HoverElementToolData } from './hoverElementTool.js';
+import { ListBrowserPagesTool, ListBrowserPagesToolData } from './listBrowserPagesTool.js';
 import { NavigateBrowserTool, NavigateBrowserToolData } from './navigateBrowserTool.js';
 import { OpenBrowserTool, OpenBrowserToolData } from './openBrowserTool.js';
 import { OpenBrowserToolNonAgentic, OpenBrowserToolNonAgenticData } from './openBrowserToolNonAgentic.js';
@@ -43,6 +46,8 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
+		@IChatService private readonly chatService: IChatService,
+		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 	) {
 		super();
 
@@ -53,13 +58,21 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 			{
 				icon: Codicon.globe,
 				description: localize('browserToolSet.description', 'Open and interact with integrated browser pages'),
-			}
+				deprecated: true
+			},
 		));
 
 		this._updateToolRegistrations();
 
 		this._register(this.browserViewService.onDidChangeSharingAvailable(() => {
 			this._updateToolRegistrations();
+		}));
+
+		// Dispose Playwright sessions when the corresponding chat session ends.
+		this._register(this.chatService.onDidDisposeSession(e => {
+			for (const resource of e.sessionResources) {
+				void this.playwrightService.disposeSession(resource.toString()).catch(() => { });
+			}
 		}));
 	}
 
@@ -87,6 +100,9 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		this._toolsStore.add(this.toolsService.registerTool(RunPlaywrightCodeToolData, this.instantiationService.createInstance(RunPlaywrightCodeTool)));
 		this._toolsStore.add(this.toolsService.registerTool(HandleDialogBrowserToolData, this.instantiationService.createInstance(HandleDialogBrowserTool)));
 
+		// Note: this is not currently exposed directly to models. It is mostly exposed so extensions can use it to provide model context via the API.
+		this._toolsStore.add(this.toolsService.registerTool(ListBrowserPagesToolData, this.instantiationService.createInstance(ListBrowserPagesTool)));
+
 		this._toolsStore.add(this._browserToolSet.addTool(OpenBrowserToolData));
 		this._toolsStore.add(this._browserToolSet.addTool(ReadBrowserToolData));
 		this._toolsStore.add(this._browserToolSet.addTool(ScreenshotBrowserToolData));
@@ -104,6 +120,8 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 			this._syncModelListeners();
 			this._updateBrowserContext();
 		}));
+		this._toolsStore.add(this.editorService.onDidActiveEditorChange(() => this._updateBrowserContext()));
+		this._toolsStore.add(this.editorService.onDidVisibleEditorsChange(() => this._updateBrowserContext()));
 		this._toolsStore.add(this.agentNetworkFilterService.onDidChange(() => this._updateBrowserContext()));
 
 		this._updateBrowserContext();
@@ -114,7 +132,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 	 * context updates whenever a page is shared or unshared.
 	 */
 	private _syncModelListeners(): void {
-		const views = this.browserViewService.getKnownBrowserViews();
+		const views = this.browserViewService.getContextualBrowserViews();
 		// Remove listeners for views that no longer exist
 		for (const id of this._modelListeners.keys()) {
 			if (!views.has(id)) {
@@ -125,6 +143,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		for (const [id, input] of views) {
 			if (!this._modelListeners.has(id) && input.model) {
 				const store = new DisposableStore();
+				store.add(input.onDidChangeLabel(() => this._updateBrowserContext()));
 				store.add(input.model.onDidChangeSharingState(() => this._updateBrowserContext()));
 				this._modelListeners.set(id, store);
 			}
@@ -132,28 +151,10 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 	}
 
 	private _updateBrowserContext(): void {
-		const views = [...this.browserViewService.getKnownBrowserViews().values()];
-		const sharedViews = views.filter(v => v.model?.sharingState === BrowserViewSharingState.Shared);
-		const unsharedCount = views.length - sharedViews.length;
-
-		if (sharedViews.length === 0 && unsharedCount === 0) {
+		const value = getBrowserPagesContext(this.editorService, this.browserViewService, this.agentNetworkFilterService, { canPromptUser: true });
+		if (!value) {
 			this.chatContextService.updateWorkspaceContextItems(BrowserChatAgentToolsContribution.CONTEXT_ID, []);
 			return;
-		}
-
-		let value = '';
-		if (sharedViews.length > 0) {
-			value = 'The following browser pages are currently shared with you and can be interacted with using the browser tools:';
-			value += '\n' + formatBrowserEditorList(this.editorService, sharedViews, { agentNetworkFilterService: this.agentNetworkFilterService });
-		} else {
-			value = 'No browser pages are currently shared with you.';
-		}
-
-		if (unsharedCount > 0) {
-			if (value) {
-				value += '\n\n';
-			}
-			value += `${unsharedCount} ${unsharedCount === 1 ? 'page is' : 'pages are'} open but not shared.`;
 		}
 
 		this.chatContextService.updateWorkspaceContextItems(BrowserChatAgentToolsContribution.CONTEXT_ID, [{

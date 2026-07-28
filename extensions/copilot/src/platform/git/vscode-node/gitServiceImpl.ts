@@ -67,6 +67,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 
 				// Extension is disabled / git is not available so we say all repositories are discovered
 				this._onDidFinishInitialRepositoryDiscovery.fire();
+				this._isInitialized.set(true, undefined);
 			}));
 		}
 	}
@@ -315,7 +316,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		return await repository?.createWorktree(options);
 	}
 
-	async deleteWorktree(uri: URI, path: string, options?: { force?: boolean }): Promise<void> {
+	async deleteWorktree(uri: URI, path: string, options?: { force?: boolean; label?: string }): Promise<void> {
 		const gitAPI = this.gitExtensionService.getExtensionApi();
 		const repository = gitAPI?.getRepository(uri);
 		return await repository?.deleteWorktree(path, options);
@@ -447,6 +448,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 			onDidChangeStateSignal.read(reader);
 			const selected = selectedObs.read(reader);
 
+			// eslint-disable-next-line local/code-no-observable-get-in-reactive-context
 			const activeRepository = this.activeRepository.get();
 			if (activeRepository && !selected && !isEqual(activeRepository.rootUri, repository.rootUri)) {
 				return;

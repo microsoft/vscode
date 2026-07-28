@@ -4,10 +4,68 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
-import { ChatSessionOptionsMap, ReadonlyChatSessionOptionsMap } from '../../../common/chatSessionsService.js';
+import { applyCodexAgentHostPreference, ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
+import { ChatSessionOptionsMap, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+
+suite('Codex Agent Host preference', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function isCodexExtensionHostAvailable(options: {
+		agentHostEnabled: boolean;
+		codexAgentEnabled: boolean;
+		isSessionsWindow: boolean;
+		preferAgentHost: boolean;
+	}): boolean {
+		const configurationService = new TestConfigurationService({
+			[AgentHostCodexAgentEnabledSettingId]: options.codexAgentEnabled,
+			[CodexPreferAgentHostEditorSettingId]: options.preferAgentHost,
+		});
+		const contextKeyService = store.add(new ContextKeyService(configurationService));
+		AGENT_HOST_ENABLED_CONTEXT_KEY.bindTo(contextKeyService).set(options.agentHostEnabled);
+		IsSessionsWindowContext.bindTo(contextKeyService).set(options.isSessionsWindow);
+
+		const contribution = applyCodexAgentHostPreference({
+			type: SessionType.Codex,
+			name: 'codex',
+			displayName: 'Codex',
+			description: '',
+		});
+		const when = ContextKeyExpr.deserialize(contribution.when);
+		return !!when && contextKeyService.contextMatchesRules(when);
+	}
+
+	test('never surfaces extension-host Codex in the Agents window and replaces it when preferred in the editor', () => {
+		assert.deepStrictEqual({
+			agentsWindowPreferred: isCodexExtensionHostAvailable({ agentHostEnabled: true, codexAgentEnabled: true, isSessionsWindow: true, preferAgentHost: true }),
+			agentsWindowNotPreferred: isCodexExtensionHostAvailable({ agentHostEnabled: true, codexAgentEnabled: true, isSessionsWindow: true, preferAgentHost: false }),
+			agentsWindowAgentHostDisabled: isCodexExtensionHostAvailable({ agentHostEnabled: false, codexAgentEnabled: false, isSessionsWindow: true, preferAgentHost: false }),
+			editorWindowPreferred: isCodexExtensionHostAvailable({ agentHostEnabled: true, codexAgentEnabled: true, isSessionsWindow: false, preferAgentHost: true }),
+			editorWindowNotPreferred: isCodexExtensionHostAvailable({ agentHostEnabled: true, codexAgentEnabled: true, isSessionsWindow: false, preferAgentHost: false }),
+			agentHostDisabled: isCodexExtensionHostAvailable({ agentHostEnabled: false, codexAgentEnabled: true, isSessionsWindow: false, preferAgentHost: true }),
+			codexAgentDisabled: isCodexExtensionHostAvailable({ agentHostEnabled: true, codexAgentEnabled: false, isSessionsWindow: false, preferAgentHost: true }),
+		}, {
+			agentsWindowPreferred: false,
+			agentsWindowNotPreferred: false,
+			agentsWindowAgentHostDisabled: false,
+			editorWindowPreferred: false,
+			editorWindowNotPreferred: true,
+			agentHostDisabled: true,
+			codexAgentDisabled: true,
+		});
+	});
+});
 
 suite.skip('ChatSessionsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -104,6 +162,224 @@ suite.skip('ChatSessionsService', () => {
 			const result = callExtractFileNameFromLink(input);
 			assert.strictEqual(result, '   Check test.js   ');
 		});
+	});
+});
+
+suite('ChatSessionsService - getChatSessionItems availability', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const GATED_TYPE = 'gated-type';
+	const UNGATED_TYPE = 'ungated-type';
+	const gatedKey = new RawContextKey<boolean>('test.gatedTypeEnabled', false);
+
+	let service: ChatSessionsService;
+	let contextKeyService: ContextKeyService;
+	let gatedEnabled: IContextKey<boolean>;
+
+	/**
+	 * A minimal item controller that immediately exposes a single session item.
+	 * This stands in for an extension-host-registered controller, which is
+	 * registered independently of the contribution's `when` clause.
+	 */
+	class FakeItemController implements IChatSessionItemController {
+		private readonly _onDidChange = store.add(new Emitter<IChatSessionItemsDelta>());
+		readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta> = this._onDidChange.event;
+
+		constructor(private readonly _type: string) { }
+
+		get items(): readonly IChatSessionItem[] {
+			return [{
+				resource: URI.from({ scheme: this._type, path: `/session-1` }),
+				label: `${this._type} session`,
+				timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined },
+			}];
+		}
+
+		async refresh(): Promise<void> { }
+	}
+
+	function registerType(type: string, when: string | undefined): void {
+		const contribution: IChatSessionsExtensionPoint = { type, name: type, displayName: type, description: '', when };
+		store.add(service.registerChatSessionContribution(contribution));
+		store.add(service.registerChatSessionItemController(type, new FakeItemController(type)));
+	}
+
+	async function resolvedTypes(): Promise<string[]> {
+		const types: string[] = [];
+		for await (const { chatSessionType, items } of service.getChatSessionItems(undefined, CancellationToken.None)) {
+			if (items.length > 0) {
+				types.push(chatSessionType);
+			}
+		}
+		return types.sort();
+	}
+
+	setup(() => {
+		const configurationService = new TestConfigurationService();
+		contextKeyService = store.add(new ContextKeyService(configurationService));
+		gatedEnabled = gatedKey.bindTo(contextKeyService);
+
+		const instantiationService = store.add(workbenchInstantiationService({
+			contextKeyService: () => contextKeyService,
+			configurationService: () => configurationService,
+		}, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+
+		registerType(GATED_TYPE, `${gatedKey.key}`);
+		registerType(UNGATED_TYPE, undefined);
+	});
+
+	test('excludes a type whose contribution `when` is false', async () => {
+		gatedEnabled.set(false);
+		assert.deepStrictEqual(await resolvedTypes(), [UNGATED_TYPE]);
+	});
+
+	test('includes a type whose contribution `when` is true', async () => {
+		gatedEnabled.set(true);
+		assert.deepStrictEqual(await resolvedTypes(), [GATED_TYPE, UNGATED_TYPE]);
+	});
+
+	test('reflects a runtime `when` flip without re-registration', async () => {
+		gatedEnabled.set(true);
+		assert.deepStrictEqual(await resolvedTypes(), [GATED_TYPE, UNGATED_TYPE]);
+
+		gatedEnabled.set(false);
+		assert.deepStrictEqual(await resolvedTypes(), [UNGATED_TYPE]);
+	});
+});
+
+suite('ChatSessionsService - archive capability', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class TestItemController implements IChatSessionItemController {
+		readonly onDidChangeChatSessionItems = Event.None;
+
+		constructor(
+			readonly setChatSessionItemArchived?: (resource: URI, archived: boolean) => void,
+		) { }
+
+		readonly items: readonly IChatSessionItem[] = [];
+
+		async refresh(): Promise<void> { }
+	}
+
+	let service: ChatSessionsService;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	test('delegates to the registered controller', () => {
+		const sessionType = 'supported-type';
+		const updates: { resource: string; archived: boolean }[] = [];
+		const controller = new TestItemController((resource, archived) => updates.push({ resource: resource.toString(), archived }));
+		store.add(service.registerChatSessionContribution({
+			type: sessionType,
+			name: sessionType,
+			displayName: sessionType,
+			description: '',
+		}));
+		store.add(service.registerChatSessionItemController(sessionType, controller));
+
+		const resource = URI.from({ scheme: sessionType, path: '/session-1' });
+		service.setChatSessionItemArchived(resource, true);
+
+		assert.deepStrictEqual({
+			canSetArchived: service.canSetChatSessionItemArchived(resource),
+			updates,
+		}, {
+			canSetArchived: true,
+			updates: [{ resource: resource.toString(), archived: true }],
+		});
+	});
+
+	test('reports and rejects an unsupported controller', () => {
+		const sessionType = 'unsupported-type';
+		store.add(service.registerChatSessionContribution({
+			type: sessionType,
+			name: sessionType,
+			displayName: sessionType,
+			description: '',
+		}));
+		store.add(service.registerChatSessionItemController(sessionType, new TestItemController()));
+
+		const resource = URI.from({ scheme: sessionType, path: '/session-1' });
+		assert.strictEqual(service.canSetChatSessionItemArchived(resource), false);
+		assert.throws(() => service.setChatSessionItemArchived(resource, true), /does not support archiving/);
+	});
+});
+
+suite('ChatSessionsService - untitled↔real session aliases', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let service: ChatSessionsService;
+
+	const untitled = URI.from({ scheme: 'remoteProvider', path: '/untitled-abc' });
+	const real = URI.from({ scheme: 'remoteProvider', path: '/real-abc' });
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	test('setMaterializedSessionResource publishes the forward untitled→real mapping', () => {
+		assert.strictEqual(service.getMaterializedSessionResource(untitled), undefined, 'no mapping before publish');
+		// The inverse alias alone must not publish the forward mapping (it is only
+		// published once the real session has loaded).
+		service.registerSessionResourceAlias(untitled, real);
+		assert.strictEqual(service.getMaterializedSessionResource(untitled), undefined, 'registerSessionResourceAlias alone does not publish the forward mapping');
+		service.setMaterializedSessionResource(untitled, real);
+		assert.strictEqual(service.getMaterializedSessionResource(untitled)?.toString(), real.toString());
+	});
+
+	test('clearMaterializedSessionResource clears the forward mapping when called with the untitled key', () => {
+		service.registerSessionResourceAlias(untitled, real);
+		service.setMaterializedSessionResource(untitled, real);
+		service.clearMaterializedSessionResource(untitled);
+		assert.strictEqual(service.getMaterializedSessionResource(untitled), undefined);
+	});
+
+	test('clearMaterializedSessionResource clears the forward mapping when called with the real value', () => {
+		service.registerSessionResourceAlias(untitled, real);
+		service.setMaterializedSessionResource(untitled, real);
+		service.clearMaterializedSessionResource(real);
+		assert.strictEqual(service.getMaterializedSessionResource(untitled), undefined);
+	});
+
+	test('options selected before first send survive disposal of the untitled session', async () => {
+		const type = untitled.scheme;
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: (resource: URI) => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+
+		// Create the untitled session entry and record a user option selection on it.
+		await service.getOrCreateChatSession(untitled, CancellationToken.None);
+		service.setSessionOption(untitled, 'model', 'sonnet');
+
+		// Materialize: register the inverse alias, load the real session, publish
+		// the forward mapping.
+		service.registerSessionResourceAlias(untitled, real);
+		await service.getOrCreateChatSession(real, CancellationToken.None);
+		service.setMaterializedSessionResource(untitled, real);
+
+		// The real session resolves the option through the inverse alias.
+		assert.strictEqual(service.getSessionOption(real, 'model'), 'sonnet');
+
+		// Disposing the untitled model clears only the forward mapping; the inverse
+		// alias is intentionally kept, so the real session keeps resolving the
+		// option to the untitled entry.
+		service.clearMaterializedSessionResource(untitled);
+		assert.strictEqual(service.getSessionOption(real, 'model'), 'sonnet');
 	});
 });
 

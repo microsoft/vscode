@@ -10,6 +10,7 @@ import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOpti
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
@@ -44,10 +45,18 @@ export class InstallPluginAction extends Action {
 }
 
 export class UninstallPluginAction extends Action {
-	constructor(plugin: IAgentPlugin) {
+	constructor(plugin: IAgentPlugin & { remove(): void }) {
 		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), 'extension-action label uninstall', true,
 			() => { plugin.remove(); return Promise.resolve(); });
 	}
+}
+
+function isRemovableAgentPlugin(plugin: IAgentPlugin): plugin is IAgentPlugin & { remove(): void } {
+	return plugin.remove !== undefined;
+}
+
+export function createUninstallPluginAction(plugin: IAgentPlugin): UninstallPluginAction | undefined {
+	return isRemovableAgentPlugin(plugin) ? new UninstallPluginAction(plugin) : undefined;
 }
 
 export class OpenPluginFolderAction extends Action {
@@ -81,6 +90,25 @@ export class OpenPluginReadmeAction extends Action {
 
 //#region Context menu
 
+/** Whether the plugin is blocked by enterprise policy and cannot be enabled by the user. */
+export function isPluginPolicyBlocked(plugin: IAgentPlugin): boolean {
+	return plugin.policyBlocked?.get() === true;
+}
+
+/** Notifies the user that a plugin is managed by their organization and cannot be enabled. */
+export function notifyPluginPolicyBlocked(notificationService: INotificationService, pluginName: string): void {
+	notificationService.warn(localize('pluginPolicyBlocked', "The plugin \"{0}\" has been disabled by your organization and cannot be enabled.", pluginName));
+}
+
+/**
+ * An "Enable" action for a policy-blocked plugin: instead of enabling, it
+ * explains via a notification that the plugin is managed by the organization.
+ */
+export function createPolicyBlockedEnableAction(plugin: IAgentPlugin, notificationService: INotificationService): Action {
+	return new Action('agentPlugin.enableBlocked', localize('enable', "Enable"), undefined, true,
+		() => { notifyPluginPolicyBlocked(notificationService, plugin.label); return Promise.resolve(); });
+}
+
 /**
  * Builds the standard context menu action groups for an installed plugin.
  */
@@ -89,19 +117,24 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const workspaceService = accessor.get(IWorkspaceContextService);
 		const groups: IAction[][] = [];
-		groups.push(buildEnablementContextMenuGroup(
-			plugin.enablement.get(),
-			plugin.uri.toString(),
-			agentPluginService.enablementModel,
-			workspaceService,
-			'agentPlugin',
-		));
+		if (isPluginPolicyBlocked(plugin)) {
+			groups.push([createPolicyBlockedEnableAction(plugin, accessor.get(INotificationService))]);
+		} else {
+			groups.push(buildEnablementContextMenuGroup(
+				plugin.enablement.get(),
+				plugin.uri.toString(),
+				agentPluginService.enablementModel,
+				workspaceService,
+				'agentPlugin',
+			));
+		}
 		groups.push([
 			instantiationService.createInstance(OpenPluginFolderAction, plugin),
 			instantiationService.createInstance(OpenPluginReadmeAction, joinPath(plugin.uri, 'README.md')),
 		]);
-		if (plugin.fromMarketplace) {
-			groups.push([new UninstallPluginAction(plugin)]);
+		const uninstallAction = createUninstallPluginAction(plugin);
+		if (uninstallAction) {
+			groups.push([uninstallAction]);
 		}
 		return groups;
 	});

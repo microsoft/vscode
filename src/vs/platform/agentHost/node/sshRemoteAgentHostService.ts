@@ -11,6 +11,8 @@ import * as cp from 'child_process';
 import { dirname, join, isAbsolute, basename } from '../../../base/common/path.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
+import { raceTimeout } from '../../../base/common/async.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -22,21 +24,30 @@ import {
 	type ISSHAgentHostConfigSanitized,
 	type ISSHConnectProgress,
 	type ISSHConnectResult,
-	type ISSHRelayMessage,
+	type ISSHKeyboardInteractivePrompt,
+	type ISSHKeyboardInteractiveRequest,
 	type ISSHResolvedConfig,
 } from '../common/sshRemoteAgentHost.js';
+import type { IRelayMessage } from '../common/relayTransport.js';
 import {
+	buildAgentHostBaseCommand,
 	buildCLIDownloadUrl,
+	buildCleanupOldCLIsCommand,
+	buildFindFallbackCLICommand,
 	cleanupRemoteAgentHost,
+	extractAgentHostWebSocketURL,
 	findRunningAgentHost,
 	getRemoteCLIBin,
-	getRemoteCLIDir,
+	getRemoteCLIDataDir,
+	getRemoteCLIInstallRoot,
+	isValidFallbackCLIPath,
 	redactToken,
 	resolveRemotePlatform,
 	shellEscape,
 	writeAgentHostState,
 } from './sshRemoteAgentHostHelpers.js';
 import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
+import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 
 /** Minimal subset of ssh2.ClientChannel used by this module (duplex stream). */
 interface SSHChannel extends NodeJS.ReadWriteStream {
@@ -64,6 +75,22 @@ interface SSHClient {
 const LOG_PREFIX = '[SSHRemoteAgentHost]';
 
 /**
+ * Maximum time to wait for {@link SSHRemoteAgentHostMainService._createWebSocketRelay}
+ * to settle on the `replaceRelay` reconnect path before giving up. A silently
+ * dead SSH client (TCP half-open, ssh2 keepalive hasn't fired yet) can leave
+ * `forwardOut`'s callback unfired, hanging the whole `connect()` call. Bounding
+ * this surfaces a clean failure so the renderer can clear its pending-reconnect
+ * flag and retry, and so the dead SSH client gets ended (purging it from the
+ * shared-process `_connections` map).
+ *
+ * The value is just slightly larger than ssh2's default keepalive failure
+ * window (`keepaliveInterval * keepaliveCountMax` ~= 15s * 3 = 45s) so that in
+ * practice the SSH client itself will surface its own `'close'` first when
+ * the network is hard-down. Tests override this to a much smaller value.
+ */
+const RECONNECT_RELAY_TIMEOUT_MS = 60_000;
+
+/**
  * One entry in the queue of authentication attempts handed to ssh2's
  * `authHandler`. Each attempt corresponds to one of the auth method shapes
  * documented at https://www.npmjs.com/package/ssh2#client-methods.
@@ -72,16 +99,101 @@ const LOG_PREFIX = '[SSHRemoteAgentHost]';
  * attempt is returned to ssh2.
  */
 export type SSHAuthAttempt =
-	| { readonly type: 'publickey'; readonly username: string; readonly key: Buffer; readonly keyPath: string }
+	| { readonly type: 'publickey'; readonly username: string; readonly key: Buffer; readonly keyPath: string; readonly encrypted?: boolean }
 	| { readonly type: 'agent'; readonly username: string; readonly agent: string }
-	| { readonly type: 'password'; readonly username: string; readonly password: string };
+	| { readonly type: 'password'; readonly username: string; readonly password: string }
+	| { readonly type: 'keyboard-interactive'; readonly username: string };
 
 function describeAuthAttempt(attempt: SSHAuthAttempt): string {
 	switch (attempt.type) {
 		case 'publickey': return `publickey ${attempt.keyPath}`;
 		case 'agent': return 'agent';
 		case 'password': return 'password';
+		case 'keyboard-interactive': return 'keyboard-interactive';
 	}
+}
+
+/**
+ * Callback invoked when the SSH server requests keyboard-interactive
+ * authentication. The handler must eventually call `finish` with the
+ * user's responses (or an empty array to fail this attempt).
+ */
+export type SSHKeyboardInteractivePromptHandler = (
+	name: string,
+	instructions: string,
+	prompts: readonly ISSHKeyboardInteractivePrompt[],
+	finish: (responses: readonly string[]) => void,
+) => void;
+
+export type SSHKeyPassphrasePromptHandler = (
+	keyPath: string,
+	finish: (passphrase: string | undefined) => void,
+) => void;
+
+/**
+ * Translate a {@link SSHAuthAttempt} into the payload shape ssh2 expects in
+ * its `authHandler` callback. Returns `undefined` when the attempt cannot be
+ * realized (currently only `keyboard-interactive` without a prompt handler).
+ *
+ * The kbi case is the one place where we still need a callback-bridge: ssh2
+ * calls our `prompt` with a `finish(string[])` and we hand the responses to
+ * `kbiHandler`. Isolating that here keeps it out of the iteration loop below.
+ */
+function toAuthMethod(
+	attempt: SSHAuthAttempt,
+	kbiHandler: SSHKeyboardInteractivePromptHandler | undefined,
+	keyPassphraseHandler: SSHKeyPassphrasePromptHandler | undefined,
+	callback: (next: AnyAuthMethod | false) => void,
+): AnyAuthMethod | undefined {
+	switch (attempt.type) {
+		case 'publickey': {
+			// Strip our internal `keyPath` metadata before handing to ssh2.
+			const { keyPath: _kp, encrypted: _encrypted, ...payload } = attempt;
+			if (attempt.encrypted) {
+				if (!keyPassphraseHandler) {
+					return undefined;
+				}
+				keyPassphraseHandler(attempt.keyPath, passphrase => {
+					if (passphrase === undefined) {
+						callback(false);
+						return;
+					}
+					callback({ ...payload, passphrase });
+				});
+				return undefined;
+			}
+			return payload;
+		}
+		case 'agent':
+		case 'password':
+			return attempt;
+		case 'keyboard-interactive': {
+			if (!kbiHandler) {
+				return undefined;
+			}
+			return {
+				type: 'keyboard-interactive',
+				username: attempt.username,
+				prompt: (name, instructions, _lang, prompts, finish) => {
+					const normalized = prompts.map(p => ({ prompt: p.prompt, echo: p.echo ?? true }));
+					kbiHandler(name, instructions, normalized, responses => finish([...responses]));
+				},
+			};
+		}
+	}
+}
+
+/**
+ * `agent` is a publickey-flavored method at the SSH protocol level — servers
+ * advertise `publickey`, not `agent`, in `methodsLeft`. Returns true when the
+ * server still has the underlying protocol method on offer.
+ */
+function isMethodAllowedByServer(attempt: SSHAuthAttempt, methodsLeft: AuthenticationType[] | null): boolean {
+	if (!methodsLeft) {
+		return true;
+	}
+	const protocolMethod: AuthenticationType = attempt.type === 'agent' ? 'publickey' : attempt.type;
+	return methodsLeft.includes(protocolMethod);
 }
 
 /**
@@ -89,35 +201,72 @@ function describeAuthAttempt(attempt: SSHAuthAttempt): string {
  * filtering by the server-advertised `methodsLeft` when ssh2 provides one.
  * Returns `false` when the queue is exhausted, which causes ssh2 to surface
  * an authentication failure to the caller.
+ *
+ * `kbiHandler` (when provided) is invoked by ssh2 if the server picks the
+ * `keyboard-interactive` attempt, and is responsible for collecting
+ * responses (e.g. by prompting the user).
  */
 export function makeAuthHandler(
 	attempts: readonly SSHAuthAttempt[],
 	logService: ILogService,
+	kbiHandler?: SSHKeyboardInteractivePromptHandler,
+	keyPassphraseHandler?: SSHKeyPassphrasePromptHandler,
 ): (methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void {
 	let index = 0;
 	return (methodsLeft, _partialSuccess, callback) => {
 		while (index < attempts.length) {
 			const attempt = attempts[index++];
-			// `agent` is a publickey-flavored method at the SSH protocol level —
-			// servers advertise `publickey`, not `agent`, in `methodsLeft`.
-			const protocolMethod: AuthenticationType = attempt.type === 'agent' ? 'publickey' : attempt.type;
-			if (methodsLeft && !methodsLeft.includes(protocolMethod)) {
-				logService.info(`${LOG_PREFIX} Skipping ${describeAuthAttempt(attempt)} — server only allows ${methodsLeft.join(', ')}`);
+			if (!isMethodAllowedByServer(attempt, methodsLeft)) {
+				logService.info(`${LOG_PREFIX} Skipping ${describeAuthAttempt(attempt)} — server only allows ${methodsLeft!.join(', ')}`);
+				continue;
+			}
+			const method = toAuthMethod(attempt, kbiHandler, keyPassphraseHandler, callback);
+			if (!method) {
+				if (attempt.type === 'publickey' && attempt.encrypted && keyPassphraseHandler) {
+					logService.info(`${LOG_PREFIX} Trying auth: ${describeAuthAttempt(attempt)}`);
+					return;
+				}
+				logService.warn(`${LOG_PREFIX} ${describeAuthAttempt(attempt)} skipped: no prompt handler available`);
 				continue;
 			}
 			logService.info(`${LOG_PREFIX} Trying auth: ${describeAuthAttempt(attempt)}`);
-			// Strip our internal `keyPath` metadata before handing to ssh2.
-			if (attempt.type === 'publickey') {
-				const { keyPath: _kp, ...payload } = attempt;
-				callback(payload);
-			} else {
-				callback(attempt);
-			}
+			callback(method);
 			return;
 		}
 		logService.info(`${LOG_PREFIX} No more auth methods to try; giving up`);
 		callback(false);
 	};
+}
+
+function readSSHString(buffer: Buffer, offset: number): { value: string; offset: number } | undefined {
+	if (offset + 4 > buffer.length) {
+		return undefined;
+	}
+	const length = buffer.readUInt32BE(offset);
+	const valueOffset = offset + 4;
+	const nextOffset = valueOffset + length;
+	if (nextOffset > buffer.length) {
+		return undefined;
+	}
+	return { value: buffer.toString('utf8', valueOffset, nextOffset), offset: nextOffset };
+}
+
+function isEncryptedPrivateKey(key: Buffer): boolean {
+	const text = key.toString('utf8');
+	if (/-----BEGIN ENCRYPTED PRIVATE KEY-----/.test(text) || /Proc-Type:\s*4,ENCRYPTED/i.test(text)) {
+		return true;
+	}
+	const openSSHKey = /-----BEGIN OPENSSH PRIVATE KEY-----([\s\S]+?)-----END OPENSSH PRIVATE KEY-----/.exec(text);
+	if (!openSSHKey) {
+		return false;
+	}
+	const data = Buffer.from(openSSHKey[1].replace(/\s+/g, ''), 'base64');
+	const magic = Buffer.from('openssh-key-v1\0', 'utf8');
+	if (data.length < magic.length || !data.subarray(0, magic.length).equals(magic)) {
+		return false;
+	}
+	const cipher = readSSHString(data, magic.length);
+	return !!cipher && cipher.value !== 'none';
 }
 
 function sshExec(client: SSHClient, command: string, opts?: { ignoreExitCode?: boolean }): Promise<{ stdout: string; stderr: string; code: number }> {
@@ -164,11 +313,16 @@ function bindSshExec(client: SSHClient): (command: string, opts?: { ignoreExitCo
 function startRemoteAgentHost(
 	client: SSHClient,
 	logService: ILogService,
-	quality: string,
+	cliBin: string | undefined,
+	cliDataDir: string | undefined,
 	commandOverride?: string,
 ): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
 	return new Promise((resolve, reject) => {
-		const baseCmd = commandOverride ?? `${getRemoteCLIBin(quality)} agent-host --port 0 --accept-server-license-terms`;
+		if (!commandOverride && (!cliBin || !cliDataDir)) {
+			reject(new Error(`${LOG_PREFIX} startRemoteAgentHost requires either a cliBin+cliDataDir pair or a commandOverride`));
+			return;
+		}
+		const baseCmd = commandOverride ?? buildAgentHostBaseCommand(cliBin!, cliDataDir!);
 		// Wrap in a login shell so the agent host process inherits the
 		// user's PATH and environment from ~/.bash_profile / ~/.bashrc
 		// (ssh2 exec runs a non-interactive non-login shell by default).
@@ -194,8 +348,9 @@ function startRemoteAgentHost(
 			}, 60_000);
 
 			const checkForOutput = () => {
+				const clean = removeAnsiEscapeCodes(outputBuf);
 				if (pid === undefined) {
-					const pidMatch = outputBuf.match(/VSCODE_PID=(\d+)/);
+					const pidMatch = clean.match(/VSCODE_PID=(\d+)/);
 					if (pidMatch) {
 						pid = parseInt(pidMatch[1], 10);
 						logService.info(`${LOG_PREFIX} Remote agent host PID: ${pid}`);
@@ -203,14 +358,12 @@ function startRemoteAgentHost(
 				}
 
 				if (!resolved) {
-					const match = outputBuf.match(/ws:\/\/127\.0\.0\.1:(\d+)(?:\?tkn=([^\s&]+))?/);
+					const match = extractAgentHostWebSocketURL(clean);
 					if (match) {
 						resolved = true;
 						clearTimeout(timeout);
-						const port = parseInt(match[1], 10);
-						const connectionToken = match[2] || undefined;
-						logService.info(`${LOG_PREFIX} Remote agent host listening on port ${port}`);
-						resolve({ port, connectionToken, pid, stream });
+						logService.info(`${LOG_PREFIX} Remote agent host listening on port ${match.port}`);
+						resolve({ port: match.port, connectionToken: match.token, pid, stream });
 					}
 				}
 			};
@@ -330,8 +483,14 @@ class SSHConnection extends Disposable {
 	readonly config: ISSHAgentHostConfigSanitized;
 	private _closed = false;
 	private _sshClientDetached = false;
-	private readonly _sshCloseListener = () => { this.dispose(); };
-	private readonly _sshErrorListener = () => { this.dispose(); };
+	private readonly _sshCloseListener = () => {
+		this._logService.info(`${LOG_PREFIX} SSH client closed for connection ${this.connectionId} (address ${this.address}); disposing connection`);
+		this.dispose();
+	};
+	private readonly _sshErrorListener = (err?: Error) => {
+		this._logService.info(`${LOG_PREFIX} SSH client error for connection ${this.connectionId} (address ${this.address}): ${err instanceof Error ? err.message : String(err)}; disposing connection`);
+		this.dispose();
+	};
 
 	constructor(
 		fullConfig: ISSHAgentHostConfig,
@@ -343,6 +502,7 @@ class SSHConnection extends Disposable {
 		readonly sshClient: SSHClient,
 		private readonly _relay: { send: (data: string) => void; close: () => void },
 		private readonly _remoteStream: SSHChannel | undefined,
+		private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -397,15 +557,35 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	private readonly _onDidReportConnectProgress = this._register(new Emitter<ISSHConnectProgress>());
 	readonly onDidReportConnectProgress: Event<ISSHConnectProgress> = this._onDidReportConnectProgress.event;
 
-	private readonly _onDidRelayMessage = this._register(new Emitter<ISSHRelayMessage>());
-	readonly onDidRelayMessage: Event<ISSHRelayMessage> = this._onDidRelayMessage.event;
+	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
+	readonly onDidRelayMessage: Event<IRelayMessage> = this._onDidRelayMessage.event;
 
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose: Event<string> = this._onDidRelayClose.event;
 
+	private readonly _onDidRequestKeyboardInteractive = this._register(new Emitter<ISSHKeyboardInteractiveRequest>());
+	readonly onDidRequestKeyboardInteractive: Event<ISSHKeyboardInteractiveRequest> = this._onDidRequestKeyboardInteractive.event;
+
+	private readonly _onDidCancelKeyboardInteractive = this._register(new Emitter<string>());
+	readonly onDidCancelKeyboardInteractive: Event<string> = this._onDidCancelKeyboardInteractive.event;
+
+	/**
+	 * Pending keyboard-interactive prompts awaiting a response from the renderer.
+	 * Keyed by `requestId`. Each entry can either finish the ssh2 prompt with
+	 * responses or cancel the owning connect attempt when the user dismisses it.
+	 */
+	private readonly _pendingKbiRequests = new Map<string, { finish: (responses: readonly string[]) => void; cancelConnect: () => void }>();
+	private _kbiRequestCounter = 0;
+
 	private readonly _connections = this._register(new DisposableMap<string, SSHConnection>());
 
 	private _nativeRequire: NodeJS.Require | undefined;
+
+	/**
+	 * Override hook for tests to shorten the relay-creation timeout used on
+	 * the `replaceRelay` reconnect path. See {@link RECONNECT_RELAY_TIMEOUT_MS}.
+	 */
+	protected relayCreationTimeoutMs: number = RECONNECT_RELAY_TIMEOUT_MS;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -455,15 +635,27 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				const connectionId = connectionKey;
 				try {
 					let conn: SSHConnection | undefined; // eslint-disable-line prefer-const
-					const relay = await this._createWebSocketRelay(
-						sshClient, '127.0.0.1', remotePort, connectionToken,
-						(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
-						() => { conn?.dispose(); },
+					// Bound the relay creation: a silently dead SSH client
+					// (TCP half-open, ssh2 keepalive hasn't fired yet) can
+					// leave forwardOut's callback unfired, hanging the whole
+					// promise chain. raceTimeout returns undefined on timeout.
+					const timeoutMs = this.relayCreationTimeoutMs;
+					const relay = await raceTimeout(
+						this._createWebSocketRelay(
+							sshClient, '127.0.0.1', remotePort, connectionToken,
+							(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
+							() => { conn?.dispose(); },
+						),
+						timeoutMs,
 					);
+					if (!relay) {
+						throw new Error(`SSH relay creation timed out after ${timeoutMs}ms (SSH client appears unresponsive)`);
+					}
 
 					conn = new SSHConnection(
 						config, connectionId, connectionKey, config.name,
 						connectionToken, remotePort, sshClient, relay, undefined,
+						this._logService,
 					);
 
 					Event.once(conn.onDidClose)(() => {
@@ -514,52 +706,66 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			// 1. Establish SSH connection
 			reportProgress(localize('sshProgressConnecting', "Establishing SSH connection..."));
-			sshClient = await this._connectSSH(config);
+			sshClient = await this._connectSSH(config, connectionKey);
 
-			if (config.remoteAgentHostCommand) {
-				// Dev override: skip platform detection and CLI install,
-				// use the provided command directly.
-				this._logService.info(`${LOG_PREFIX} Using custom agent host command: ${config.remoteAgentHostCommand}`);
-			} else {
-				// 2. Detect remote platform
-				const { stdout: unameS } = await sshExec(sshClient, 'uname -s');
-				const { stdout: unameM } = await sshExec(sshClient, 'uname -m');
+			let cliBin: string | undefined;
+			let cliResolved = false;
+			// Resolve the remote CLI lazily: platform detection and CLI
+			// install/refresh only run when we're actually about to spawn
+			// an agent host. Reconnects that reuse a live AH via the
+			// lockfile skip this work entirely, since the running AH was
+			// spawned from whatever CLI was current at the time.
+			const ensureCliResolved = async (): Promise<void> => {
+				if (cliResolved) {
+					return;
+				}
+				cliResolved = true;
+				if (config.remoteAgentHostCommand) {
+					this._logService.info(`${LOG_PREFIX} Using custom agent host command: ${config.remoteAgentHostCommand}`);
+					return;
+				}
+				const { stdout: unameS } = await sshExec(sshClient!, 'uname -s');
+				const { stdout: unameM } = await sshExec(sshClient!, 'uname -m');
 				const platform = resolveRemotePlatform(unameS, unameM);
 				if (!platform) {
 					throw new Error(`${LOG_PREFIX} Unsupported remote platform: ${unameS.trim()} ${unameM.trim()}`);
 				}
 				this._logService.info(`${LOG_PREFIX} Remote platform: ${platform.os}-${platform.arch}`);
-
-				// 3. Install CLI if needed
 				reportProgress(localize('sshProgressInstallingCLI', "Checking remote CLI installation..."));
-				await this._ensureCLIInstalled(sshClient, platform, reportProgress);
-			}
+				cliBin = await this._ensureCLIInstalled(sshClient!, platform, reportProgress);
+			};
 
-			// 4. Check for an already-running agent host on the remote.
+			// 2. Check for an already-running agent host on the remote first.
 			//    This prevents accumulating orphaned processes when the SSH
-			//    connection drops and we reconnect.
+			//    connection drops and we reconnect — and avoids paying for
+			//    platform detection + CLI install on every reconnect.
+			let remoteHost: string = '127.0.0.1';
 			let remotePort: number | undefined;
 			let connectionToken: string | undefined;
 			let agentStream: SSHChannel | undefined;
 
 			reportProgress(localize('sshProgressCheckingAgent', "Checking for existing agent host..."));
 			const exec = bindSshExec(sshClient);
-			const existingAH = await findRunningAgentHost(exec, this._logService, this._quality);
-			if (existingAH) {
+			const existingAH = await findRunningAgentHost(exec, this._logService, this._serverDataFolderName, this._quality);
+			if (existingAH.kind === 'compatible') {
+				remoteHost = existingAH.host;
 				remotePort = existingAH.port;
 				connectionToken = existingAH.connectionToken;
 			}
 
 			if (remotePort === undefined) {
-				// 5. Start agent-host and capture port/token
+				// 3. Need to spawn fresh: resolve the CLI now.
+				await ensureCliResolved();
+
+				// 4. Start agent-host and capture port/token
 				reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
-				const result = await this._startRemoteAgentHost(sshClient, this._quality, config.remoteAgentHostCommand);
+				const result = await this._startRemoteAgentHost(sshClient, cliBin, getRemoteCLIDataDir(this._serverDataFolderName), config.remoteAgentHostCommand);
 				remotePort = result.port;
 				connectionToken = result.connectionToken;
 				agentStream = result.stream;
 
 				// Record state for future reuse
-				await writeAgentHostState(exec, this._logService, this._quality, result.pid, remotePort, connectionToken);
+				await writeAgentHostState(exec, this._logService, this._serverDataFolderName, this._quality, result.pid, remotePort, connectionToken);
 			}
 
 			// 6. Connect to remote agent host via WebSocket relay (no local TCP port)
@@ -569,29 +775,32 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			let relay: { send: (data: string) => void; close: () => void };
 			try {
 				relay = await this._createWebSocketRelay(
-					sshClient, '127.0.0.1', remotePort, connectionToken,
+					sshClient, remoteHost, remotePort, connectionToken,
 					(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
 					() => { conn?.dispose(); },
 				);
 			} catch (relayErr) {
-				if (!existingAH) {
+				if (existingAH.kind !== 'compatible') {
 					throw relayErr;
 				}
-				// The reused agent host is not connectable — kill it and start fresh
+				// The reused agent host is not connectable — kill it and start fresh.
+				// Resolve the CLI now (we skipped it on the reuse path).
 				const relayErrorMessage = relayErr instanceof Error ? relayErr.message : String(relayErr);
-				this._logService.warn(`${LOG_PREFIX} Failed to connect to reused agent host on port ${remotePort}: ${relayErrorMessage}. Starting fresh`);
-				await cleanupRemoteAgentHost(exec, this._logService, this._quality);
+				this._logService.warn(`${LOG_PREFIX} Failed to connect to reused agent host on ${remoteHost}:${remotePort}: ${relayErrorMessage}. Starting fresh`);
+				await cleanupRemoteAgentHost(exec, this._logService, this._serverDataFolderName, this._quality);
+				await ensureCliResolved();
 
 				reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
-				const result = await this._startRemoteAgentHost(sshClient, this._quality, config.remoteAgentHostCommand);
+				const result = await this._startRemoteAgentHost(sshClient, cliBin, getRemoteCLIDataDir(this._serverDataFolderName), config.remoteAgentHostCommand);
+				remoteHost = '127.0.0.1';
 				remotePort = result.port;
 				connectionToken = result.connectionToken;
 				agentStream = result.stream;
-				await writeAgentHostState(exec, this._logService, this._quality, result.pid, remotePort, connectionToken);
+				await writeAgentHostState(exec, this._logService, this._serverDataFolderName, this._quality, result.pid, remotePort, connectionToken);
 
 				reportProgress(localize('sshProgressForwarding', "Connecting to remote agent host..."));
 				relay = await this._createWebSocketRelay(
-					sshClient, '127.0.0.1', remotePort, connectionToken,
+					sshClient, remoteHost, remotePort, connectionToken,
 					(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
 					() => { conn?.dispose(); },
 				);
@@ -609,6 +818,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				sshClient,
 				relay,
 				agentStream,
+				this._logService,
 			);
 
 			Event.once(conn.onDidClose)(() => {
@@ -678,6 +888,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			username: resolved.user ?? sshConfigHost,
 			authMethod: SSHAuthMethod.Agent,
 			privateKeyPath,
+			identityAgent: resolved.identityAgent,
 			name,
 			sshConfigHost,
 			remoteAgentHostCommand,
@@ -823,11 +1034,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	protected async _connectSSH(
 		config: ISSHAgentHostConfig,
+		connectionKey?: string,
 	): Promise<SSHClient> {
-		const nativeRequire = await this._getNativeRequire();
-		const ssh2Module = nativeRequire('ssh2') as { Client: new () => unknown };
-		const SSHClientCtor = ssh2Module.Client;
-
 		const connectConfig: ConnectConfig = {
 			host: config.host,
 			port: config.port ?? 22,
@@ -838,13 +1046,55 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 		const attempts = await this._buildAuthAttempts(config);
 		this._logService.info(`${LOG_PREFIX} Built ${attempts.length} auth attempt(s): ${attempts.map(a => describeAuthAttempt(a)).join(', ')}`);
+		const displayHost = config.sshConfigHost ?? `${config.username}@${config.host}`;
+		// Track requestIds we created during this connect so we can fire
+		// onDidCancelKeyboardInteractive for any still-pending prompts when
+		// the connect attempt fails or completes.
+		const liveKbiRequests = new Set<string>();
+		let cancelConnectFromKbi: (() => void) | undefined;
+		const kbiHandler: SSHKeyboardInteractivePromptHandler | undefined = attempts.some(a => a.type === 'keyboard-interactive')
+			? (name, instructions, prompts, finish) => {
+				const requestId = this._handleKeyboardInteractive(connectionKey ?? displayHost, displayHost, config.username, name, instructions, prompts, finish, () => cancelConnectFromKbi?.());
+				liveKbiRequests.add(requestId);
+			}
+			: undefined;
+		const keyPassphraseHandler: SSHKeyPassphrasePromptHandler | undefined = attempts.some(a => a.type === 'publickey' && a.encrypted)
+			? (keyPath, finish) => {
+				const requestId = this._handleKeyboardInteractive(
+					connectionKey ?? displayHost,
+					displayHost,
+					config.username,
+					localize('sshKeyPassphraseName', "SSH Key Passphrase"),
+					'',
+					[{ prompt: localize('sshKeyPassphrasePrompt', "Enter passphrase for SSH key {0}.", keyPath), echo: false }],
+					responses => finish(responses[0]),
+					() => cancelConnectFromKbi?.(),
+				);
+				liveKbiRequests.add(requestId);
+			}
+			: undefined;
 		// Cast: the ssh2 @types don't model `false` (give-up) for the
 		// callback nor `null` for the first invocation's `methodsLeft`,
 		// even though the runtime supports both per the ssh2 docs.
-		connectConfig.authHandler = makeAuthHandler(attempts, this._logService) as unknown as ConnectConfig['authHandler'];
+		connectConfig.authHandler = makeAuthHandler(attempts, this._logService, kbiHandler, keyPassphraseHandler) as unknown as ConnectConfig['authHandler'];
+
+		const cancelLiveKbiRequests = () => {
+			for (const requestId of liveKbiRequests) {
+				// Pull the pending finish callback (if any) and invoke it with
+				// empty responses so ssh2 stops waiting on this attempt — without
+				// this, ssh2 hangs until `readyTimeout` elapses when a connect
+				// attempt is aborted mid-prompt. The renderer also gets notified
+				// so it can dismiss any open quick-input UI.
+				const pending = this._pendingKbiRequests.get(requestId);
+				this._pendingKbiRequests.delete(requestId);
+				this._onDidCancelKeyboardInteractive.fire(requestId);
+				pending?.finish([]);
+			}
+			liveKbiRequests.clear();
+		};
 
 		if (config.agentForward) {
-			const agentSock = this._isAgentAvailable();
+			const agentSock = this._getAgentSocket(config);
 			if (agentSock) {
 				// ssh2 needs `connectConfig.agent` set so it knows which local
 				// agent socket to forward to. Without it, agent forwarding is a
@@ -853,34 +1103,68 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				connectConfig.agentForward = true;
 				this._logService.info(`${LOG_PREFIX} SSH agent forwarding enabled`);
 			} else {
-				this._logService.warn(`${LOG_PREFIX} SSH agent forwarding requested, but SSH_AUTH_SOCK is not set; agent forwarding disabled`);
+				this._logService.warn(`${LOG_PREFIX} SSH agent forwarding requested, but no SSH agent endpoint is available; agent forwarding disabled`);
 			}
 		}
 
+		const client = await this._createSSHClient();
 		return new Promise<SSHClient>((resolve, reject) => {
-			const client = new SSHClientCtor() as SSHClient;
+			let settled = false;
+
+			const resolveConnect = () => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				this._logService.info(`${LOG_PREFIX} SSH connection established to ${config.host}`);
+				cancelLiveKbiRequests();
+				resolve(client);
+			};
+
+			const rejectConnect = (err: Error, endClient: boolean) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				cancelLiveKbiRequests();
+				if (endClient) {
+					client.end();
+				}
+				reject(err);
+			};
+
+			cancelConnectFromKbi = () => {
+				this._logService.info(`${LOG_PREFIX} SSH keyboard-interactive prompt cancelled by user for ${displayHost}`);
+				rejectConnect(new CancellationError(), true);
+			};
 
 			client.on('ready', () => {
-				this._logService.info(`${LOG_PREFIX} SSH connection established to ${config.host}`);
-				resolve(client);
+				resolveConnect();
 			});
 
 			client.on('error', (err: Error) => {
 				this._logService.error(`${LOG_PREFIX} SSH connection error: ${err.message}`);
-				reject(err);
+				rejectConnect(err, false);
 			});
 
 			client.connect(connectConfig);
 		});
 	}
 
+	protected async _createSSHClient(): Promise<SSHClient> {
+		const nativeRequire = await this._getNativeRequire();
+		const ssh2Module = nativeRequire('ssh2') as { Client: new () => unknown };
+		return new ssh2Module.Client() as SSHClient;
+	}
+
 	/**
 	 * Build the ordered list of authentication attempts to feed to ssh2's
-	 * `authHandler`. Mirrors OpenSSH's behavior: try the explicitly configured
-	 * key first (if any), then the SSH agent (if `SSH_AUTH_SOCK` is set), then
-	 * each readable default identity file in turn. This means a host that
-	 * accepts `~/.ssh/id_rsa` still works even if the agent doesn't have it
-	 * loaded — without needing an explicit `IdentityFile` entry in `~/.ssh/config`.
+	 * `authHandler`. In `Agent` mode we try the configured agent first (so a
+	 * loaded identity short-circuits before we ever touch an encrypted key
+	 * file), then any non-default explicit `IdentityFile`, then each readable
+	 * default identity in turn. A host that accepts `~/.ssh/id_rsa` still
+	 * works even if the agent doesn't have it loaded — without needing an
+	 * explicit `IdentityFile` entry in `~/.ssh/config`.
 	 */
 	protected async _buildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
 		const attempts: SSHAuthAttempt[] = [];
@@ -888,25 +1172,34 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 		switch (config.authMethod) {
 			case SSHAuthMethod.Agent: {
-				if (config.privateKeyPath) {
-					const explicit = await this._readKeyFileIfExists(config.privateKeyPath);
-					if (explicit) {
-						attempts.push({ type: 'publickey', username, key: explicit, keyPath: config.privateKeyPath });
-					}
-				}
-				const agentSock = this._isAgentAvailable();
+				// Try the agent first: if it has any of the configured identities
+				// loaded, auth succeeds without ever touching on-disk keys. This
+				// matches OpenSSH's IdentityAgent semantics and avoids an
+				// unnecessary passphrase prompt when an encrypted key file is
+				// configured but the agent already holds its unlocked copy.
+				const agentSock = this._getAgentSocket(config);
 				if (agentSock) {
 					attempts.push({ type: 'agent', username, agent: agentSock });
 				}
-				for (const keyPath of SSHRemoteAgentHostMainService._defaultKeyPaths) {
-					if (config.privateKeyPath === keyPath) {
-						continue; // Already added as the explicit attempt above
-					}
-					const contents = await this._readKeyFileIfExists(keyPath);
-					if (contents) {
-						attempts.push({ type: 'publickey', username, key: contents, keyPath });
+				const explicitKeyPath = config.privateKeyPath;
+				const explicitIsDefault = explicitKeyPath !== undefined && SSHRemoteAgentHostMainService._isDefaultKeyPath(explicitKeyPath);
+				if (explicitKeyPath && !explicitIsDefault) {
+					const explicit = await this._readKeyFileIfExists(explicitKeyPath);
+					if (explicit) {
+						attempts.push({ type: 'publickey', username, key: explicit, keyPath: explicitKeyPath, ...(isEncryptedPrivateKey(explicit) ? { encrypted: true } : undefined) });
 					}
 				}
+				for (const keyPath of SSHRemoteAgentHostMainService._defaultKeyPaths) {
+					const contents = await this._readKeyFileIfExists(keyPath);
+					if (contents) {
+						attempts.push({ type: 'publickey', username, key: contents, keyPath, ...(isEncryptedPrivateKey(contents) ? { encrypted: true } : undefined) });
+					}
+				}
+				// Final fallback: keyboard-interactive (typically a password prompt).
+				// Only meaningful if the server advertises it; the auth handler
+				// will skip it otherwise. The prompt is forwarded to the renderer
+				// via {@link onDidRequestKeyboardInteractive}.
+				attempts.push({ type: 'keyboard-interactive', username });
 				break;
 			}
 			case SSHAuthMethod.KeyFile: {
@@ -920,7 +1213,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				if (!explicit) {
 					throw new Error(localize('ssh.failedToReadPrivateKey', "Failed to read private key file: {0}", config.privateKeyPath));
 				}
-				attempts.push({ type: 'publickey', username, key: explicit, keyPath: config.privateKeyPath });
+				attempts.push({ type: 'publickey', username, key: explicit, keyPath: config.privateKeyPath, ...(isEncryptedPrivateKey(explicit) ? { encrypted: true } : undefined) });
 				break;
 			}
 			case SSHAuthMethod.Password: {
@@ -942,13 +1235,101 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		'~/.ssh/id_xmss',
 	];
 
+	/**
+	 * Expand a leading `~` to the current user's home directory so that paths
+	 * coming back from `ssh -G` (always absolute) compare equal to our
+	 * `~`-prefixed defaults.
+	 */
+	private static _normalizeKeyPath(keyPath: string): string {
+		return keyPath.replace(/^~/, os.homedir());
+	}
+
 	private static _isDefaultKeyPath(keyPath: string): boolean {
-		return SSHRemoteAgentHostMainService._defaultKeyPaths.includes(keyPath);
+		const normalized = SSHRemoteAgentHostMainService._normalizeKeyPath(keyPath);
+		return SSHRemoteAgentHostMainService._defaultKeyPaths.some(p => SSHRemoteAgentHostMainService._normalizeKeyPath(p) === normalized);
 	}
 
 	/** Test seam: returns the SSH agent socket path, or undefined when no agent is available. */
 	protected _isAgentAvailable(): string | undefined {
 		return process.env['SSH_AUTH_SOCK'];
+	}
+
+	protected _getAgentSocket(config: ISSHAgentHostConfig): string | undefined {
+		if (config.identityAgent !== undefined) {
+			return this._resolveIdentityAgent(config.identityAgent);
+		}
+		return this._isAgentAvailable();
+	}
+
+	private _resolveIdentityAgent(identityAgent: string): string | undefined {
+		const trimmed = identityAgent.trim();
+		if (!trimmed || trimmed.toLowerCase() === 'none') {
+			return undefined;
+		}
+		if (trimmed === 'SSH_AUTH_SOCK') {
+			return this._isAgentAvailable();
+		}
+		if (trimmed.startsWith('$')) {
+			const envMatch = /^\$\{(?<braced>[A-Za-z_][A-Za-z0-9_]*)\}$|^\$(?<plain>[A-Za-z_][A-Za-z0-9_]*)$/.exec(trimmed);
+			return envMatch?.groups ? process.env[envMatch.groups.braced ?? envMatch.groups.plain] || undefined : undefined;
+		}
+		return trimmed.replace(/^~/, os.homedir());
+	}
+
+	/**
+	 * Forward a keyboard-interactive challenge from ssh2 to the renderer and
+	 * register the `finish` callback so {@link respondKeyboardInteractive} can
+	 * supply the user's responses when they arrive. Returns the generated
+	 * `requestId` so the caller can track in-flight prompts.
+	 */
+	protected _handleKeyboardInteractive(
+		connectionKey: string,
+		displayHost: string,
+		username: string,
+		name: string,
+		instructions: string,
+		prompts: readonly ISSHKeyboardInteractivePrompt[],
+		finish: (responses: readonly string[]) => void,
+		cancelConnect: () => void,
+	): string {
+		const requestId = `kbi-${++this._kbiRequestCounter}`;
+		// Wrap finish so it can only fire once — ssh2 ignores duplicate calls,
+		// but we also want to ensure we drop the pending entry exactly once.
+		let settled = false;
+		const finishOnce = (responses: readonly string[]) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			this._pendingKbiRequests.delete(requestId);
+			finish(responses);
+		};
+		this._pendingKbiRequests.set(requestId, { finish: finishOnce, cancelConnect });
+		this._logService.info(`${LOG_PREFIX} keyboard-interactive challenge from ${displayHost}: ${prompts.length} prompt(s)`);
+		this._onDidRequestKeyboardInteractive.fire({
+			requestId,
+			connectionKey,
+			displayHost,
+			username,
+			name,
+			instructions,
+			prompts: prompts.map(p => ({ prompt: p.prompt, echo: p.echo })),
+		});
+		return requestId;
+	}
+
+	async respondKeyboardInteractive(requestId: string, responses: readonly string[] | undefined): Promise<void> {
+		const pending = this._pendingKbiRequests.get(requestId);
+		if (!pending) {
+			this._logService.warn(`${LOG_PREFIX} respondKeyboardInteractive: no pending request for ${requestId}`);
+			return;
+		}
+		if (responses === undefined) {
+			pending.cancelConnect();
+			pending.finish([]);
+			return;
+		}
+		pending.finish(responses);
 	}
 
 	/**
@@ -974,10 +1355,18 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return this._productService.quality || 'insider';
 	}
 
+	private get _serverDataFolderName(): string {
+		return this._productService.serverDataFolderName ?? '.vscode-server-oss';
+	}
+
+	private get _commit(): string | undefined {
+		return this._productService.commit;
+	}
+
 	protected _startRemoteAgentHost(
-		client: SSHClient, quality: string, commandOverride?: string,
+		client: SSHClient, cliBin: string | undefined, cliDataDir: string | undefined, commandOverride?: string,
 	): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
-		return startRemoteAgentHost(client, this._logService, quality, commandOverride);
+		return startRemoteAgentHost(client, this._logService, cliBin, cliDataDir, commandOverride);
 	}
 
 	protected async _createWebSocketRelay(
@@ -988,25 +1377,172 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return createWebSocketRelay(nativeRequire, client, dstHost, dstPort, connectionToken, this._logService, onMessage, onClose);
 	}
 
-	private async _ensureCLIInstalled(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void): Promise<void> {
-		const cliDir = getRemoteCLIDir(this._quality);
-		const cliBin = getRemoteCLIBin(this._quality);
+	/**
+	 * Resolve which CLI binary to run on the remote.
+	 *
+	 * When the desktop has a `productService.commit` (release builds), we
+	 * pin to that commit: install at `~/<serverDataFolderName>/<archive>-<commit>`
+	 * (sharing the install root with Remote-SSH), reuse on file existence,
+	 * download from the commit-pinned URL on miss, and clean up older
+	 * commit-keyed CLIs (keep last 5). The agent host CLI does not
+	 * self-update on this path, so the desktop pushes freshness on every
+	 * fresh start — but tolerantly: if the download fails and any other
+	 * usable CLI is present (other commit-keyed or the legacy
+	 * `~/.vscode-cli{,-<quality>}/<archive>`), we fall back to the newest
+	 * one rather than refusing to connect.
+	 *
+	 * In dev/OSS builds with no commit, we keep the loose, non-pinned
+	 * behavior: install `~/<serverDataFolderName>/<archive>` from the
+	 * `latest` URL, with a `--version`-based reuse check.
+	 *
+	 * Returns the resolved CLI binary path to run.
+	 */
+	private async _ensureCLIInstalled(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void): Promise<string> {
+		const commit = this._commit;
+		if (!commit) {
+			return this._ensureCLIInstalledLoose(client, platform, reportProgress);
+		}
+		return this._ensureCLIInstalledPinned(client, platform, reportProgress, commit);
+	}
+
+	/**
+	 * Commit-pinned install path. See {@link _ensureCLIInstalled}.
+	 */
+	private async _ensureCLIInstalledPinned(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void, commit: string): Promise<string> {
+		const cliBin = getRemoteCLIBin(this._serverDataFolderName, this._quality, commit);
+		const installRoot = getRemoteCLIInstallRoot(this._serverDataFolderName);
+
+		// Primary reuse check: pure file existence on the commit-keyed path.
+		// No `--version` parsing — we know the file is ours and matches the
+		// desktop commit.
+		const { code: existsCode } = await sshExec(client, `test -x ${cliBin}`, { ignoreExitCode: true });
+		if (existsCode === 0) {
+			this._logService.info(`${LOG_PREFIX} Reusing remote CLI at ${cliBin}`);
+			// Bump mtime so the retention pass below doesn't prune the
+			// binary we just decided to reuse. Without this, a user
+			// rotating between several desktop builds could see their
+			// currently-used CLI fall out of the 5-newest window and
+			// get deleted just before the next reconnect.
+			const { code: touchCode } = await sshExec(client, `touch -- ${cliBin}`, { ignoreExitCode: true });
+			if (touchCode === 0) {
+				// Now that the in-use binary is the newest by mtime, prune
+				// older commit-keyed installs. Best-effort.
+				await sshExec(client, buildCleanupOldCLIsCommand(this._serverDataFolderName, this._quality), { ignoreExitCode: true });
+			} else {
+				// If we couldn't refresh mtime, skip the retention pass —
+				// running it now could prune the binary we just decided
+				// to reuse. We'll retry retention on the next reconnect.
+				this._logService.warn(`${LOG_PREFIX} Skipping CLI retention cleanup: touch exited ${touchCode}`);
+			}
+			return cliBin;
+		}
+
+		reportProgress(localize('sshProgressDownloadingCLI', "Installing VS Code CLI on remote..."));
+		const url = buildCLIDownloadUrl(platform.os, platform.arch, this._quality, commit);
+
+		// Extract into a temp dir inside the install root so the final `mv`
+		// is a same-filesystem atomic rename. Concurrent SSH sessions racing
+		// here both end up with a valid binary for the same commit; the
+		// trailing `rm -rf` of the tmp dir is idempotent.
+		const installCmd = [
+			`mkdir -p ${installRoot}`,
+			`tmpdir=$(mktemp -d ${installRoot}/.cli-install-XXXXXX)`,
+			`(cd "$tmpdir" && curl -fsSL ${shellEscape(url)} | tar xz)`,
+			// The archive contains exactly one file: the CLI binary, named per quality.
+			`mv "$tmpdir"/* ${cliBin}`,
+			`chmod +x ${cliBin}`,
+			`rm -rf "$tmpdir"`,
+		].join(' && ');
+
+		try {
+			await sshExec(client, installCmd);
+			// Validate the installed binary actually runs. If the archive was
+			// for the wrong platform / corrupted, this surfaces immediately.
+			const { code: versionCode } = await sshExec(client, `${cliBin} --version`, { ignoreExitCode: true });
+			if (versionCode !== 0) {
+				throw new Error(`CLI at ${cliBin} failed --version check after install (exit code ${versionCode})`);
+			}
+			this._logService.info(`${LOG_PREFIX} Installed remote CLI at ${cliBin}`);
+			// Prune older commit-keyed installs now that the new binary is
+			// in place and is the newest by mtime.
+			await sshExec(client, buildCleanupOldCLIsCommand(this._serverDataFolderName, this._quality), { ignoreExitCode: true });
+			return cliBin;
+		} catch (installErr) {
+			// Soft fallback (key difference from Remote-SSH): if the
+			// commit-pinned download fails (offline, 404, etc.) but another
+			// usable CLI is already on the box, use that instead of refusing
+			// to connect. The agent host has no strict commit-lock with the
+			// desktop — the protocol handshake will catch genuine
+			// incompatibilities.
+			const installErrorMessage = installErr instanceof Error ? installErr.message : String(installErr);
+			this._logService.warn(`${LOG_PREFIX} Could not install matching CLI for commit ${commit}: ${installErrorMessage}. Looking for a fallback CLI on the remote...`);
+			const fallback = await this._findFallbackCLI(client);
+			if (fallback) {
+				this._logService.warn(`${LOG_PREFIX} Using fallback CLI at ${fallback} (does not match desktop commit ${commit}).`);
+				return fallback;
+			}
+			throw installErr;
+		}
+	}
+
+	/**
+	 * Loose dev-build install: no commit pin. See {@link _ensureCLIInstalled}.
+	 */
+	private async _ensureCLIInstalledLoose(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void): Promise<string> {
+		const cliBin = getRemoteCLIBin(this._serverDataFolderName, this._quality);
+		const installRoot = getRemoteCLIInstallRoot(this._serverDataFolderName);
+		this._logService.warn(`${LOG_PREFIX} Desktop has no product commit; falling back to non-pinned CLI install at ${cliBin}.`);
+
 		const { code } = await sshExec(client, `${cliBin} --version`, { ignoreExitCode: true });
 		if (code === 0) {
-			this._logService.info(`${LOG_PREFIX} VS Code CLI already installed on remote`);
-			return;
+			this._logService.info(`${LOG_PREFIX} Reusing remote CLI at ${cliBin} (dev build, --version check passed)`);
+			return cliBin;
 		}
 
 		reportProgress(localize('sshProgressDownloadingCLI', "Installing VS Code CLI on remote..."));
 		const url = buildCLIDownloadUrl(platform.os, platform.arch, this._quality);
 
 		const installCmd = [
-			`mkdir -p ${cliDir}`,
-			`curl -fsSL ${shellEscape(url)} | tar xz -C ${cliDir}`,
+			`mkdir -p ${installRoot}`,
+			`curl -fsSL ${shellEscape(url)} | tar xz -C ${installRoot}`,
 			`chmod +x ${cliBin}`,
 		].join(' && ');
 
 		await sshExec(client, installCmd);
-		this._logService.info(`${LOG_PREFIX} VS Code CLI installed successfully`);
+		this._logService.info(`${LOG_PREFIX} Installed remote CLI at ${cliBin}`);
+		return cliBin;
+	}
+
+	/**
+	 * List remote CLI candidates that could be used as a fallback when the
+	 * commit-pinned download fails, and return the newest one that passes
+	 * a `--version` check. Returns `undefined` if no candidate works.
+	 */
+	private async _findFallbackCLI(client: SSHClient): Promise<string | undefined> {
+		const { stdout } = await sshExec(client, buildFindFallbackCLICommand(this._serverDataFolderName, this._quality), { ignoreExitCode: true });
+		const rawCandidates = stdout.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+		// Defensive validation: the finder shell snippet emits paths we
+		// trust by construction, but the output is still data coming back
+		// over SSH that we then interpolate into a follow-up command
+		// (`<candidate> --version`). Filter to the exact shapes we expect
+		// — `<root>/<archive>-<40 hex>` or `<legacyDir>/<archive>` — so a
+		// malicious or junk file in the install root can never become a
+		// shell argument.
+		const candidates: string[] = [];
+		for (const candidate of rawCandidates) {
+			if (isValidFallbackCLIPath(candidate, this._serverDataFolderName, this._quality)) {
+				candidates.push(candidate);
+			} else {
+				this._logService.info(`${LOG_PREFIX} Ignoring fallback CLI candidate with unexpected path shape: ${candidate}`);
+			}
+		}
+		for (const candidate of candidates) {
+			const { code } = await sshExec(client, `${candidate} --version`, { ignoreExitCode: true });
+			if (code === 0) {
+				return candidate;
+			}
+			this._logService.info(`${LOG_PREFIX} Fallback CLI candidate ${candidate} failed --version check (exit ${code}); trying next.`);
+		}
+		return undefined;
 	}
 }

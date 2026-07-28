@@ -85,7 +85,8 @@ export class TestToolsService extends BaseToolsService implements IToolsService 
 				description: mapContributedToolNamesInString(contributedTool.modelDescription),
 				source: undefined,
 				inputSchema: contributedTool.inputSchema && mapContributedToolNamesInSchema(contributedTool.inputSchema),
-				tags: contributedTool.tags ?? []
+				tags: contributedTool.tags ?? [],
+				fullReferenceName: contributedTool.toolReferenceName
 			};
 			this._tools.set(info.name, info);
 		}
@@ -170,6 +171,7 @@ export class TestToolsService extends BaseToolsService implements IToolsService 
 				inputSchema: contributedTool.inputSchema,
 				tags: [],
 				source: undefined,
+				fullReferenceName: contributedTool.toolReferenceName
 			};
 		}
 

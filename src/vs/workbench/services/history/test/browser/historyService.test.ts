@@ -652,6 +652,32 @@ suite('HistoryService', function () {
 		return workbenchTeardown(instantiationService);
 	});
 
+	test('reopen closed editors as a batch when closed together', async function () {
+		const [part, historyService, editorService, , instantiationService] = await createServices();
+
+		const resource1 = toResource.call(this, '/path/one.txt');
+		const resource2 = toResource.call(this, '/path/two.txt');
+		const resource3 = toResource.call(this, '/path/three.txt');
+
+		await editorService.openEditor({ resource: resource1, options: { pinned: true } });
+		await editorService.openEditor({ resource: resource2, options: { pinned: true } });
+		await editorService.openEditor({ resource: resource3, options: { pinned: true } });
+
+		assert.strictEqual(part.activeGroup.count, 3);
+
+		// Bulk close: all editors closed together should reopen together
+		await part.activeGroup.closeAllEditors();
+		assert.strictEqual(part.activeGroup.count, 0);
+
+		await historyService.reopenLastClosedEditor();
+
+		assert.strictEqual(part.activeGroup.count, 3);
+		const reopened = part.activeGroup.editors.map(editor => editor.resource?.toString()).sort();
+		assert.deepStrictEqual(reopened, [resource1, resource2, resource3].map(resource => resource.toString()).sort());
+
+		return workbenchTeardown(instantiationService);
+	});
+
 	test('getHistory', async () => {
 
 		class TestFileEditorInputWithUntyped extends TestFileEditorInput {

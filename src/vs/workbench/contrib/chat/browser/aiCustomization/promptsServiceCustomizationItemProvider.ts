@@ -7,18 +7,20 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { OS } from '../../../../../base/common/platform.js';
-import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { basename, dirname } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IAICustomizationWorkspaceService, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
 import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
-import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor, matchesInstructionFileFilter, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { PromptsType, getSourceDescription } from '../../common/promptSyntax/promptTypes.js';
+import { ICustomAgent, IPromptsService, matchesSessionType, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { getFriendlyName, isChatExtensionItem } from './aiCustomizationItemSource.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 
 /**
  * Adapts the rich promptsService model to the same provider-shaped items
@@ -29,10 +31,9 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 	readonly onDidChange: Event<void>;
 
 	constructor(
-		private readonly getActiveDescriptor: () => IHarnessDescriptor,
-		private readonly promptsService: IPromptsService,
-		private readonly workspaceService: IAICustomizationWorkspaceService,
-		private readonly productService: IProductService,
+		@IPromptsService private readonly promptsService: IPromptsService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		this.onDidChange = Event.any(
 			this.promptsService.onDidChangeCustomAgents,
@@ -40,10 +41,11 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 			this.promptsService.onDidChangeSkills,
 			this.promptsService.onDidChangeHooks,
 			this.promptsService.onDidChangeInstructions,
+			this.promptsService.onDidChangeAgentInstructions,
 		);
 	}
 
-	async provideChatSessionCustomizations(token: CancellationToken): Promise<ICustomizationItem[]> {
+	async provideChatSessionCustomizations(_sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {
 		const itemSets = await Promise.all([
 			this.provideCustomizations(PromptsType.agent, token),
 			this.provideCustomizations(PromptsType.skill, token),
@@ -54,7 +56,26 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		return itemSets.flat();
 	}
 
-	private async provideCustomizations(promptType: PromptsType, token: CancellationToken = CancellationToken.None): Promise<ICustomizationItem[]> {
+	async provideCustomAgents(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomAgent[]> {
+		const sessionType = getChatSessionType(sessionResource);
+		const agents = await this.promptsService.getCustomAgents(token);
+		return agents.filter(agent => matchesSessionType(agent.sessionTypes, sessionType));
+	}
+
+	async provideSourceFolders(_sessionResource: URI, type: PromptsType, _token: CancellationToken): Promise<readonly ICustomizationSourceFolder[]> {
+		const folders = await this.promptsService.getSourceFolders(type);
+		return folders.map(folder => ({
+			uri: folder.uri,
+			// Prefer the source-specific description (e.g. "Global (only used by
+			// Copilot agents)") over the generic "User Data" label so personal
+			// folders like ~/.copilot/skills read naturally. Only folders that
+			// carry a source (currently skills) use this; others fall back.
+			label: (folder.source !== undefined ? getSourceDescription(folder.source) : undefined) ?? this.promptsService.getPromptLocationLabel(folder),
+			source: folder.storage
+		}));
+	}
+
+	private async provideCustomizations(promptType: PromptsType, token: CancellationToken = CancellationToken.None): Promise<readonly ICustomizationItem[]> {
 		const items: ICustomizationItem[] = [];
 		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
 		const extensionInfoByUri = new ResourceMap<{ id: ExtensionIdentifier; displayName?: string }>();
@@ -73,10 +94,11 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					type: promptType,
 					name: agent.name,
 					description: agent.description,
-					storage: agent.source.storage,
-					enabled: !disabledUris.has(agent.uri),
+					source: agent.source.storage,
+					enabled: agent.enabled,
 					extensionId: agent.source.storage === PromptsStorage.extension ? agent.source.extensionId.value : undefined,
-					pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined
+					pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined,
+					userInvocable: agent.visibility.userInvocable
 				});
 				if (agent.source.storage === PromptsStorage.extension && !extensionInfoByUri.has(agent.uri)) {
 					extensionInfoByUri.set(agent.uri, { id: agent.source.extensionId });
@@ -102,12 +124,14 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					type: promptType,
 					name: skillName,
 					description: skill.description,
-					storage: skill.storage,
+					source: skill.storage,
 					enabled: true,
 					badge: uiTooltip ? localize('uiIntegrationBadge', "UI Integration") : undefined,
 					badgeTooltip: uiTooltip,
 					extensionId: skill.extension?.identifier.value,
-					pluginUri: skill.pluginUri
+					pluginUri: skill.pluginUri,
+					pluginLabel: skill.pluginLabel,
+					userInvocable: skill.userInvocable
 				});
 			}
 			if (disabledUris.size > 0) {
@@ -121,12 +145,14 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 							type: promptType,
 							name: disabledName,
 							description: file.description,
-							storage: file.storage,
+							source: file.storage,
 							enabled: false,
 							badge: uiTooltip ? localize('uiIntegrationBadge', "UI Integration") : undefined,
 							badgeTooltip: uiTooltip,
 							extensionId: file.extension?.identifier.value,
-							pluginUri: file.pluginUri
+							pluginUri: file.pluginUri,
+							pluginLabel: file.pluginLabel,
+							userInvocable: false
 						});
 					}
 				}
@@ -142,10 +168,12 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					type: promptType,
 					name: command.name,
 					description: command.description,
-					storage: command.storage,
+					source: command.storage,
 					enabled: !disabledUris.has(command.uri),
 					extensionId: command.extension?.identifier.value,
-					pluginUri: command.pluginUri
+					pluginUri: command.pluginUri,
+					pluginLabel: command.pluginLabel,
+					userInvocable: command.userInvocable
 				});
 				if (command.extension) {
 					extensionInfoByUri.set(command.uri, { id: command.extension.identifier, displayName: command.extension.displayName });
@@ -157,14 +185,14 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 			await this.fetchPromptServiceInstructions(items, extensionInfoByUri, disabledUris, promptType);
 		}
 
-		return this.applyLocalFilters(this.applyBuiltinGroupKeys(items, extensionInfoByUri), promptType);
+		return this.applyBuiltinGroupKeys(items, extensionInfoByUri);
 	}
 
 	private async fetchPromptServiceHooks(items: ICustomizationItem[], disabledUris: ResourceSet, promptType: PromptsType): Promise<void> {
 		const hookFiles = await this.promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
 
 		// Non-plugin hooks: return raw file items — expansion into individual
-		// hook entries is handled by ProviderCustomizationItemSource.fetchItemsFromProvider().
+		// hook entries is handled by ItemProviderItemSource.fetchItems().
 		// Plugin hooks: add directly as-is since they're pre-expanded by
 		// plugin manifests and must NOT be re-parsed by expandHookFileItems.
 		for (const f of hookFiles) {
@@ -172,17 +200,18 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 				uri: f.uri,
 				type: promptType,
 				name: f.name || getFriendlyName(basename(f.uri)),
-				storage: f.storage,
+				source: f.storage,
 				enabled: !disabledUris.has(f.uri),
 				extensionId: f.extension?.identifier.value,
-				pluginUri: f.pluginUri
+				pluginUri: f.pluginUri,
+				userInvocable: undefined
 			});
 		}
 
 		// Agent-embedded hooks (not in sessions window).
 		const agents = !this.workspaceService.isSessionsWindow ? await this.promptsService.getCustomAgents(CancellationToken.None) : [];
 		for (const agent of agents) {
-			if (!agent.hooks) {
+			if (!agent.hooks || !agent.enabled) {
 				continue;
 			}
 			for (const hookType of Object.values(HookType)) {
@@ -200,11 +229,12 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 						type: promptType,
 						name: hookMeta?.label ?? hookType,
 						description: `${agent.name}: ${truncatedCmd || localize('hookUnset', "(unset)")}`,
-						storage: agent.source.storage,
+						source: agent.source.storage,
 						groupKey: 'agents',
 						enabled: !disabledUris.has(agent.uri),
 						extensionId: agent.source.storage === PromptsStorage.extension ? agent.source.extensionId.value : undefined,
-						pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined
+						pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined,
+						userInvocable: undefined
 					});
 				}
 			}
@@ -228,11 +258,12 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 				uri: file.uri,
 				type: promptType,
 				name: filename,
-				storage,
+				source: storage,
 				groupKey: 'agent-instructions',
 				enabled: !disabledUris.has(file.uri),
 				extensionId: undefined,
-				pluginUri: undefined
+				pluginUri: undefined,
+				userInvocable: undefined
 			});
 		}
 
@@ -257,11 +288,12 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					badge,
 					badgeTooltip,
 					description,
-					storage,
+					source: storage,
 					groupKey: 'context-instructions',
 					enabled: !disabledUris.has(uri),
 					extensionId: extension?.identifier.value,
-					pluginUri
+					pluginUri,
+					userInvocable: undefined
 				});
 			} else {
 				items.push({
@@ -269,11 +301,12 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 					type: promptType,
 					name: friendlyName,
 					description,
-					storage,
+					source: storage,
 					groupKey: 'on-demand-instructions',
 					enabled: !disabledUris.has(uri),
 					extensionId: extension?.identifier.value,
-					pluginUri
+					pluginUri,
+					userInvocable: undefined
 				});
 			}
 		}
@@ -281,7 +314,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 
 	private applyBuiltinGroupKeys(items: ICustomizationItem[], extensionInfoByUri: ResourceMap<{ id: ExtensionIdentifier; displayName?: string }>): ICustomizationItem[] {
 		return items.map(item => {
-			if (item.storage !== PromptsStorage.extension) {
+			if (item.source !== AICustomizationSources.extension) {
 				return item;
 			}
 			const extInfo = extensionInfoByUri.get(item.uri);
@@ -299,44 +332,6 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 				extensionLabel: extInfo.displayName || extInfo.id.value,
 			};
 		});
-	}
-
-	private applyLocalFilters(groupedItems: ICustomizationItem[], promptType: PromptsType): ICustomizationItem[] {
-		const filter = this.workspaceService.getStorageSourceFilter(promptType);
-		const withStorage = groupedItems.filter((item): item is ICustomizationItem & { readonly storage: PromptsStorage } => item.storage !== undefined);
-		const withoutStorage = groupedItems.filter(item => item.storage === undefined);
-		let items = [...applyStorageSourceFilter(withStorage, filter), ...withoutStorage];
-
-		const descriptor = this.getActiveDescriptor();
-		const subpaths = descriptor.workspaceSubpaths;
-		const instrFilter = descriptor.instructionFileFilter;
-
-		if (subpaths) {
-			const projectRoot = this.workspaceService.getActiveProjectRoot();
-			items = items.filter(item => {
-				if (item.storage !== PromptsStorage.local || !projectRoot || !isEqualOrParent(item.uri, projectRoot)) {
-					return true;
-				}
-				if (matchesWorkspaceSubpath(item.uri.path, subpaths)) {
-					return true;
-				}
-				// Keep instruction files matching the harness's native patterns
-				if (instrFilter && promptType === PromptsType.instructions && matchesInstructionFileFilter(item.uri.path, instrFilter)) {
-					return true;
-				}
-				// Keep agent instruction files (AGENTS.md, CLAUDE.md, copilot-instructions.md)
-				if (item.groupKey === 'agent-instructions') {
-					return true;
-				}
-				return false;
-			});
-		}
-
-		if (instrFilter && promptType === PromptsType.instructions) {
-			items = items.filter(item => matchesInstructionFileFilter(item.uri.path, instrFilter));
-		}
-
-		return items;
 	}
 
 }

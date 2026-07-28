@@ -132,6 +132,7 @@ const shellIntegrationSupportedShellTypes: (PosixShellType | GeneralShellType | 
 const agentCliTitlePatterns: ReadonlyMap<GeneralShellType, RegExp> = new Map([
 	[GeneralShellType.Claude, /claude\s*code/i],
 	// [GeneralShellType.Codex, /\bcodex\b/i], // codex does not report osc title.
+	[GeneralShellType.CommandCode, /command\s*code/i],
 	[GeneralShellType.Copilot, /\bcopilot\b/i],
 	[GeneralShellType.Gemini, /\bgemini\b/i],
 ]);
@@ -319,6 +320,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// itself is disposed
 	private readonly _onExit = new Emitter<number | ITerminalLaunchError | undefined>();
 	readonly onExit = this._onExit.event;
+	private readonly _onWillDispose = this._register(new Emitter<ITerminalInstance>());
+	readonly onWillDispose = this._onWillDispose.event;
 	private readonly _onDisposed = this._register(new Emitter<ITerminalInstance>());
 	readonly onDisposed = this._onDisposed.event;
 	private readonly _onProcessIdReady = this._register(new Emitter<ITerminalInstance>());
@@ -654,7 +657,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					contribution.xtermReady?.(xterm);
 				}
 			});
-			this._register(this.onDisposed(() => {
+			this._register(this.onWillDispose(() => {
 				contribution.dispose();
 				this._contributions.delete(desc.id);
 			}));
@@ -767,7 +770,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return undefined;
 		}
 		const computedStyle = dom.getWindow(this.xterm.raw.element).getComputedStyle(this.xterm.raw.element);
-		const horizontalPadding = parseInt(computedStyle.paddingLeft) + parseInt(computedStyle.paddingRight) + 14/*scroll bar padding*/;
+		const horizontalPadding = parseInt(computedStyle.paddingLeft) + parseInt(computedStyle.paddingRight) + this.xterm.scrollbarWidth/*scroll bar padding*/;
 		const verticalPadding = parseInt(computedStyle.paddingTop) + parseInt(computedStyle.paddingBottom);
 		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(
 			Math.min(Constants.MaxCanvasWidth, width - horizontalPadding),
@@ -816,14 +819,23 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			() => this._isVisible,
 			() => xterm,
 			async (cols, rows) => {
+				if (this.isDisposed) {
+					return;
+				}
 				xterm.resize(cols, rows);
 				await this._updatePtyDimensions(xterm.raw);
 			},
 			async (cols) => {
+				if (this.isDisposed) {
+					return;
+				}
 				xterm.resize(cols, xterm.raw.rows);
 				await this._updatePtyDimensions(xterm.raw);
 			},
 			async (rows) => {
+				if (this.isDisposed) {
+					return;
+				}
 				xterm.resize(xterm.raw.cols, rows);
 				await this._updatePtyDimensions(xterm.raw);
 			}
@@ -1296,6 +1308,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._horizontalScrollbar = undefined;
 		}
 
+		// Fire onWillDispose before disposing xterm so that contributions can clean
+		// up their xterm addons while the raw terminal is still alive. Disposing
+		// xterm first would cause AddonManager to remove addons from its list,
+		// and subsequent contribution disposal would fail with "Could not dispose
+		// an addon that has not been loaded".
+		this._onWillDispose.fire(this);
+
 		try {
 			this.xterm?.dispose();
 		} catch (err: unknown) {
@@ -1321,11 +1340,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._exitReason = reason ?? TerminalExitReason.Unknown;
 		}
 
+		// Dispose the resize debouncer before the process manager so that no
+		// resize callbacks can fire after ptyProcessReady has been nulled.
+		this._resizeDebouncer?.dispose();
+		this._resizeDebouncer = undefined;
+
 		this._processManager.dispose();
 		// Process manager dispose/shutdown doesn't fire process exit, trigger with undefined if it
 		// hasn't happened yet
 		this._onProcessExit(undefined);
 
+		// Fire onDisposed only after xterm has been disposed so that subscribers
+		// observe a fully disposed instance.
 		this._onDisposed.fire(this);
 
 		super.dispose();
@@ -1574,8 +1600,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		const trusted = await this._trust();
-		// Allow remote and local terminals from remote to be created in untrusted remote workspace
-		if (!trusted && !this.remoteAuthority && !this._workbenchEnvironmentService.remoteAuthority) {
+		// Allow remote terminals in a remote workspace to be created when trust is denied, but
+		// still block local terminals (those without a remoteAuthority) even when the workspace is remote.
+		const isRemoteTerminal = !!this.remoteAuthority;
+		if (!trusted && !(isRemoteTerminal && this._workbenchEnvironmentService.remoteAuthority)) {
 			this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
 		} else if (this._workspaceContextService.getWorkspace().folders.length === 0 && this._cwd && this._userHome && normalizeDriveLetter(this._cwd) !== normalizeDriveLetter(this._userHome)) {
 			// something strange is going on if cwd is not userHome in an empty workspace
@@ -1674,7 +1702,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 */
 	private async _onProcessExit(exitCodeOrError?: number | ITerminalLaunchError): Promise<void> {
 		// Prevent dispose functions being triggered multiple times
-		if (this._isExiting) {
+		if (this._isExiting || this.isDisposed) {
 			return;
 		}
 		const parsedExitResult = parseExitResult(exitCodeOrError, this.shellLaunchConfig, this._processManager.processState, this._initialCwd);
@@ -1693,6 +1721,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const exitMessage = parsedExitResult?.message;
 
 		this._logService.debug('Terminal process exit', 'instanceId', this.instanceId, 'code', this._exitCode, 'processState', this._processManager.processState);
+
+		// Fire onExit BEFORE running any disposition logic (in particular before
+		// `dispose()` below, which fires `onDisposed`). Consumers racing
+		// `onExit` against `onDisposed` (e.g. the chat agent run-in-terminal
+		// execute strategies) need to see the exit code event first so they can
+		// return the captured exit code. Otherwise `onDisposed` wins the race
+		// and the strategy treats the exit as the terminal having been closed
+		// without an exit code, leaving commands like `exit 42` stuck in a
+		// "Running" state.
+		this._onExit.fire(exitCodeOrError);
+
+		// Bail if disposed during flush; the work below would touch disposed services.
+		if (this.isDisposed) {
+			return;
+		}
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
@@ -1725,7 +1768,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (exitMessage) {
 				const failedDuringLaunch = this._processManager.processState === ProcessState.KilledDuringLaunch;
 				if (failedDuringLaunch || (this._terminalConfigurationService.config.showExitAlert && this.xterm?.lastInputEvent !== /*Ctrl+D*/'\x04')) {
-					// Always show launch failures
 					this._notificationService.notify({
 						message: exitMessage,
 						severity: Severity.Error,
@@ -1739,9 +1781,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			this.dispose(TerminalExitReason.Process);
 		}
-
-		// First onExit to consumers, this can happen after the terminal has already been disposed.
-		this._onExit.fire(exitCodeOrError);
 
 		// Dispose of the onExit event if the terminal will not be reused again
 		if (this.isDisposed) {
@@ -1761,7 +1800,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				commandId: TerminalCommandId.ShellIntegrationLearnMore,
 				label: nls.localize('shellIntegration.learnMore', "Learn more about shell integration"),
 				run: () => {
-					this._openerService.open('https://code.visualstudio.com/docs/editor/integrated-terminal#_shell-integration');
+					this._openerService.open('https://code.visualstudio.com/docs/terminal/shell-integration?referrer=in-product');
 				}
 			}, {
 				commandId: 'workbench.action.openSettings',
@@ -1996,7 +2035,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _resize(immediate?: boolean): Promise<void> {
-		if (!this.xterm) {
+		if (!this.xterm || !this._resizeDebouncer) {
 			return;
 		}
 
@@ -2036,10 +2075,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		TerminalInstance._lastKnownGridDimensions = { cols, rows };
-		this._resizeDebouncer!.resize(cols, rows, immediate ?? false);
+		this._resizeDebouncer?.resize(cols, rows, immediate ?? false);
 	}
 
 	private async _updatePtyDimensions(rawXterm: XTermTerminal): Promise<void> {
+		if (this.isDisposed) {
+			return;
+		}
 		const pixelWidth = rawXterm.dimensions?.css.canvas.width;
 		const pixelHeight = rawXterm.dimensions?.css.canvas.height;
 		const roundedPixelWidth = pixelWidth ? Math.round(pixelWidth) : undefined;
@@ -2082,7 +2124,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _updateTitleProperties(title: string | undefined, eventSource: TitleEventSource): string {
-		if (!title) {
+		if (title === undefined) {
 			return this._processName;
 		}
 		switch (eventSource) {
@@ -2337,6 +2379,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		} else {
 			resource = URI.file(cwd);
 		}
+		// In VS Code web (server-linux-x64-web accessed via browser), remoteAuthority
+		// is falsy from the terminal's perspective, so URI.file() is used above.
+		// The browser FileService has no file:// provider registered (only the remote
+		// provider), so guard with canHandleResource before calling exists() to avoid
+		// an ENOPRO error propagating to callers.
+		if (!await this._fileService.canHandleResource(resource)) {
+			return undefined;
+		}
 		if (await this._fileService.exists(resource)) {
 			return resource;
 		}
@@ -2353,6 +2403,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async rename(title?: string, source?: TitleEventSource) {
+		if (title !== undefined && !title) {
+			title = undefined;
+		}
 		this._setTitle(title, source ?? TitleEventSource.Api);
 	}
 
@@ -2665,6 +2718,7 @@ export class TerminalLabelComputer extends Disposable {
 	static readonly agentCliShellTypes: ReadonlySet<GeneralShellType> = new Set([
 		GeneralShellType.Claude,
 		GeneralShellType.Codex,
+		GeneralShellType.CommandCode,
 		GeneralShellType.Copilot,
 		GeneralShellType.Gemini,
 	]);
