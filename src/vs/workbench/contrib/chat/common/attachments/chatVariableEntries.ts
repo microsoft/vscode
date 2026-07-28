@@ -450,6 +450,8 @@ export interface IElementAncestorData {
 export interface IElementVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'element';
 	readonly value: string;
+	readonly imageData?: IChatRequestVariableValue;
+	readonly imageMimeType?: string;
 	readonly ancestors?: IElementAncestorData[];
 	readonly attributes?: Record<string, string>;
 	readonly computedStyles?: Record<string, string>;
@@ -593,6 +595,12 @@ export namespace IChatRequestVariableEntry {
 			dup.value = { $base64: encodeBase64(VSBuffer.wrap(v.value)) };
 			return dup;
 		}
+		if (isElementVariableEntry(v) && v.imageData instanceof Uint8Array) {
+			return {
+				...v,
+				imageData: { $base64: encodeBase64(VSBuffer.wrap(v.imageData)) }
+			};
+		}
 
 		return v;
 	}
@@ -617,6 +625,13 @@ export namespace IChatRequestVariableEntry {
 				const dup: Mutable<IChatRequestVariableEntry> = { ...v };
 				dup.value = decodeBase64(v.value.$base64).buffer;
 				return dup;
+			}
+			// eslint-disable-next-line local/code-no-in-operator
+			if (isElementVariableEntry(v) && v.imageData && typeof v.imageData === 'object' && '$base64' in v.imageData && typeof v.imageData.$base64 === 'string') {
+				return {
+					...v,
+					imageData: decodeBase64(v.imageData.$base64).buffer
+				};
 			}
 
 			return v;
