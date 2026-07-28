@@ -19,7 +19,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, VoiceNarrationKind } from '../../common/voiceClient/voiceClientService.js';
 import { IMicCaptureService, IPttDiagnostic } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
 import { IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
@@ -91,7 +91,7 @@ interface IDeferredResponse {
 
 interface IPendingSolicitedNarration {
 	readonly sessionId: string;
-	readonly kind: 'response' | 'confirmation';
+	readonly kind: VoiceNarrationKind;
 	readonly text: string;
 	readonly audioStartTimer: ReturnType<typeof setTimeout>;
 	hasReceivedAudio: boolean;
@@ -590,7 +590,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * {@link _narrate}). Replayed once on the next `session_init` so a reply or
 	 * confirmation that landed during a disconnect is still spoken on reconnect.
 	 */
-	private readonly _pendingNarrationRetries = new Map<string, { kind: 'response' | 'confirmation'; text: string }>();
+	private readonly _pendingNarrationRetries = new Map<string, { kind: VoiceNarrationKind; text: string }>();
 
 	/**
 	 * Narrations we requested (got a `narration_id` back) but whose audio has not
@@ -613,7 +613,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * since a dropped socket loses any in-flight nudge. See
 	 * `_retryDeferredNarration`. Cleared on a new turn (`thinking`) or teardown.
 	 */
-	private readonly _deferredNarrations = new Map<string, { narrationId: string; kind: 'response' | 'confirmation'; text: string; reuseNarrationId: boolean }>();
+	private readonly _deferredNarrations = new Map<string, { narrationId: string; kind: VoiceNarrationKind; text: string; reuseNarrationId: boolean }>();
 
 	/**
 	 * The confirmation detail text last actually HEARD (final audio arrived) per
@@ -3402,7 +3402,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	/** Ask the backend to narrate a session's pending item, de-duped by the exact text last spoken for it ({@link _lastNarratedText}) and by any in-flight request for the same text ({@link _pendingSolicitedNarrations}); the single narration trigger for both live and on-focus paths. Returns `true` when a request was actually SENT - NOT that the reply was heard (the audio may still be dropped/deferred/never arrive). The reply is marked narrated and its pending indicator cleared only once its audio finalizes (see {@link _markNarrationHeard}). */
-	private _narrate(sessionId: string, kind: 'response' | 'confirmation', text: string, reuseId?: string): boolean {
+	private _narrate(sessionId: string, kind: VoiceNarrationKind, text: string, reuseId?: string): boolean {
 		if (!text) {
 			return false;
 		}
@@ -3690,7 +3690,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	/** The pending item a session would narrate now (waiting confirmation prompt or completed reply summary), from the resident model or cached summary/status; returns undefined (kicking off a load) if a confirmation's detail isn't ready. */
-	private _currentNarratable(resource: URI): { kind: 'response' | 'confirmation'; text: string } | undefined {
+	private _currentNarratable(resource: URI): { kind: VoiceNarrationKind; text: string } | undefined {
 		const model = this.chatService.getSession(resource);
 		if (model) {
 			const info = this._getAgentStateInfo(model);

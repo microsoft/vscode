@@ -7,6 +7,53 @@ import { Event } from '../../../../../base/common/event.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 
 /**
+ * One selectable option on a pending question, positioned in *displayed* order.
+ *
+ * `ordinal` is what the user hears and says back ("the second one"), so it must
+ * match the on-screen order — both sides derive it from
+ * `getOptionsWithDefaultsFirst`. `value` is the opaque id the chat model wants
+ * back and is never spoken.
+ */
+export interface IVoicePendingOption {
+	ordinal: number;
+	label: string;
+	value: string;
+}
+
+/** One question of a pending question form. */
+export interface IVoicePendingQuestion {
+	id: string;
+	type: 'text' | 'singleSelect' | 'multiSelect';
+	title: string;
+	required: boolean;
+	allow_freeform: boolean;
+	options: IVoicePendingOption[];
+}
+
+/**
+ * What a coding session is currently waiting on, structurally.
+ *
+ * `agent_state_detail` describes the same thing as prose, which is enough to
+ * *say* but not to *act on*: a spoken answer to a question form has nowhere to
+ * land without the ids and options below. `pending_id` + `request_id` route a
+ * response back to the exact part that raised it, with no "currently focused
+ * session" guesswork.
+ *
+ * Field names are snake_case because this crosses the voice websocket verbatim.
+ */
+export interface IVoiceSessionPending {
+	type: 'questions' | 'approval' | 'elicitation';
+	pending_id: string;
+	request_id: string;
+	resolve_id?: string;
+	approval_kind?: string;
+	allow_skip?: boolean;
+	title?: string;
+	message?: string;
+	questions?: IVoicePendingQuestion[];
+}
+
+/**
  * Session context sent to the voice server for grounding.
  */
 export interface IVoiceSessionContext {
@@ -16,12 +63,35 @@ export interface IVoiceSessionContext {
 		agent_state: string;
 		agent_state_detail?: string;
 		last_response_summary?: string;
+		pending?: IVoiceSessionPending;
 	}[];
 	active_session?: {
 		id: string;
 		last_message: string | null;
 	};
 	display_locale: string;
+}
+
+/**
+ * What a client-requested narration is speaking. Mirrors `NarrationKind` in the
+ * voice backend.
+ *
+ * `'question'` is spoken verbatim by the backend rather than being paraphrased
+ * by the narration model — the numbered options are the ordinals the user says
+ * back, so a summary that drops them breaks answering.
+ */
+export type VoiceNarrationKind = 'response' | 'confirmation' | 'question';
+
+/**
+ * Structured outcome of a dispatched voice tool call.
+ *
+ * The backend speaks an acknowledgement only after seeing one of these, so a
+ * dishonest `ok` here becomes the assistant claiming something that never
+ * happened.
+ */
+export interface IVoiceDispatchResult {
+	readonly ok: boolean;
+	readonly reason?: 'stale_pending' | 'invalid_answer' | 'no_session' | 'unsupported';
 }
 
 /**
@@ -237,9 +307,9 @@ export interface IVoiceClientService {
 	 * because the state field itself didn't change.
 	 */
 	invalidateSessionCache(sessionId: string): void;
-	sendToolResult(callId: string, result: string): void;
-	/** Ask the backend to speak `text` for a session now; returns the narration id echoed on the resulting `audio_response`, or `undefined` if nothing was sent. Pass `narrationId` to reuse a prior id (a `busy` retry) so the backend can dedup a lost ack; omit it to mint a fresh one. */
-	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined;
+	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void;
+	/** Ask the backend to speak `text` for a session now; returns the narration id echoed on the resulting `audio_response`, or `undefined` if nothing was sent. Pass `narrationId` to reuse a prior id (a `busy` retry) so the backend can dedup a lost ack; omit it to mint a fresh one. `pending` names the form and question a `'question'` narration speaks, so the backend can drop it if that form has already moved on — it is deliberately *not* folded into `text`, which every dedup and retry-reuse guard keys on. */
+	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, pending?: { pendingId: string; questionId: string }): string | undefined;
 	/**
 	 * Notify the backend of a session state transition.
 	 *
