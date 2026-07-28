@@ -228,8 +228,8 @@ const CLI_ECHO_MARKER_PATTERN = /^<(command-name|command-message|command-args|lo
  * recovered assistant content under a placeholder prompt is strictly better
  * than dropping the turn — dropping can silently empty an entire session.
  */
-function missingPromptPlaceholder(): string {
-	return localize('claude.replay.missingPrompt', "<Message content could not be retrieved>");
+export function missingPromptPlaceholder(): string {
+	return localize('claude.replay.missingPrompt', "Message content could not be retrieved");
 }
 
 interface InProgressTurn {

@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { URI } from '../../../../base/common/uri.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState } from '../../common/state/protocol/state.js';
-import { mapSessionMessagesToTurns, resolveForkAnchorUuid } from '../../node/claude/claudeReplayMapper.js';
+import { mapSessionMessagesToTurns, missingPromptPlaceholder, resolveForkAnchorUuid } from '../../node/claude/claudeReplayMapper.js';
 
 suite('claudeReplayMapper', () => {
 
@@ -377,7 +377,7 @@ suite('claudeReplayMapper', () => {
 		const turns = mapSessionMessagesToTurns(messages, session, logService);
 
 		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, text: turn.message.text })), [
-			{ id: 'a1', text: '<Message content could not be retrieved>' },
+			{ id: 'a1', text: missingPromptPlaceholder() },
 			{ id: 'u1', text: 'hello' },
 		]);
 	});
@@ -395,7 +395,7 @@ suite('claudeReplayMapper', () => {
 		const turns = mapSessionMessagesToTurns(messages, session, logService);
 
 		assert.strictEqual(turns.length, 1);
-		assert.strictEqual(turns[0].message.text, '<Message content could not be retrieved>');
+		assert.strictEqual(turns[0].message.text, missingPromptPlaceholder());
 		assert.strictEqual(turns[0].state, TurnState.Complete);
 	});
 });
