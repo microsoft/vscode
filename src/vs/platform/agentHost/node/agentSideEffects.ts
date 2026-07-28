@@ -143,6 +143,8 @@ export class AgentSideEffects extends Disposable {
 
 	/** Maps tool call IDs to the agent that owns them, for routing confirmations. */
 	private readonly _toolCallAgents = new Map<string, string>();
+	/** Managed confirmations are human-only and must never seed host-side session permissions. */
+	private readonly _managedApprovalToolCalls = new Set<string>();
 	private _lastAgentInfos: readonly AgentInfo[] = [];
 
 	private readonly _permissionManager: SessionPermissionManager;
@@ -1110,34 +1112,44 @@ export class AgentSideEffects extends Disposable {
 			toolInput: e.state.toolInput,
 			requestSandboxBypass: e.requestSandboxBypass,
 		};
-		const autoApproval = await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
+		const autoApproval = e.managedApprovalRequired
+			? undefined
+			: await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
 		const part = this._stateManager.getSessionState(sessionKey)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === e.state.toolCallId);
 		const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
 		if (toolCall
 			&& toolCall.status !== ToolCallStatus.Streaming
 			&& toolCall.status !== ToolCallStatus.Running
 			&& toolCall.status !== ToolCallStatus.PendingConfirmation) {
-			this._toolCallAgents.delete(`${sessionKey}:${e.state.toolCallId}`);
+			const toolCallKey = `${sessionKey}:${e.state.toolCallId}`;
+			this._toolCallAgents.delete(toolCallKey);
+			this._managedApprovalToolCalls.delete(toolCallKey);
 			this._logService.trace(`[AgentSideEffects] Dropping stale tool ready for ${e.state.toolCallId}: status=${toolCall.status}`);
 			return;
 		}
 		const contributor = e.state.contributor ?? toolCall?.contributor;
 		let effective = e;
+		const toolCallKey = `${sessionKey}:${e.state.toolCallId}`;
+		if (e.managedApprovalRequired) {
+			this._managedApprovalToolCalls.add(toolCallKey);
+		} else {
+			this._managedApprovalToolCalls.delete(toolCallKey);
+		}
 		const clientShouldAutoApprove = autoApproval !== undefined
 			&& contributor?.kind === ToolCallContributorKind.Client
 			&& !!e.state.confirmationTitle;
 		if (clientShouldAutoApprove) {
-			this._toolCallAgents.set(`${sessionKey}:${e.state.toolCallId}`, agent.id);
+			this._toolCallAgents.set(toolCallKey, agent.id);
 			effective = { ...e, state: { ...e.state, _meta: { ...toolCall?._meta, ...e.state._meta, ...toToolCallMeta({ autoApproveBySetting: true }) } } };
 		} else if (autoApproval !== undefined) {
-			this._toolCallAgents.delete(`${sessionKey}:${e.state.toolCallId}`);
+			this._toolCallAgents.delete(toolCallKey);
 			agent.respondToPermissionRequest(e.state.toolCallId, true);
 			// Strip confirmationTitle so createToolReadyAction emits the
 			// auto-approved (no-options) action.
 			effective = { ...e, state: { ...e.state, confirmationTitle: undefined } };
 		} else if (effective.state.confirmationTitle) {
 			// Make sure the agent is registered for the eventual `ChatToolCallConfirmed` response.
-			this._toolCallAgents.set(`${sessionKey}:${e.state.toolCallId}`, agent.id);
+			this._toolCallAgents.set(toolCallKey, agent.id);
 		}
 		this._stateManager.dispatchServerAction(
 			sessionKey,
@@ -1206,6 +1218,7 @@ export class AgentSideEffects extends Disposable {
 					throw new Error(`ChatToolCallConfirmed must be handled on an AHP chat channel: ${channel}`);
 				}
 				const toolCallKey = `${channel}:${action.toolCallId}`;
+				const managedApprovalRequired = this._managedApprovalToolCalls.delete(toolCallKey);
 				const agentId = this._toolCallAgents.get(toolCallKey);
 				if (agentId) {
 					this._toolCallAgents.delete(toolCallKey);
@@ -1217,7 +1230,7 @@ export class AgentSideEffects extends Disposable {
 
 				// When the user chose "Allow in this Session", add the tool
 				// to the session's permissions so future calls are auto-approved.
-				if (action.approved) {
+				if (action.approved && !managedApprovalRequired) {
 					this._permissionManager.handleToolCallConfirmed(channel, action.toolCallId, action.selectedOptionId);
 				}
 				break;
@@ -1776,6 +1789,7 @@ export class AgentSideEffects extends Disposable {
 
 	override dispose(): void {
 		this._toolCallAgents.clear();
+		this._managedApprovalToolCalls.clear();
 		this._toolCallTracker.clear();
 		super.dispose();
 	}
