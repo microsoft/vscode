@@ -106,6 +106,7 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
+		override readonly onDidChangeFeedbackScope = Event.None;
 		override readonly onDidAddFeedback = Event.None;
 		override readonly onDidConvertFeedback = Event.None;
 		override readonly onDidAddReply = Event.None;
@@ -121,6 +122,10 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 
 		override getFeedback(): readonly IAgentFeedback[] {
 			return [];
+		}
+
+		override getFeedbackSessionResource(): URI | undefined {
+			return undefined;
 		}
 
 		override getMostRecentSessionForResource(): URI | undefined {
@@ -269,10 +274,15 @@ function renderViaContribution(context: ComponentFixtureContext, code: string, c
 	const agentFeedbackService = new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
+		override readonly onDidChangeFeedbackScope = Event.None;
 
 		override getSessionForFile(resourceUri: URI): ISession | undefined {
 			// eslint-disable-next-line local/code-no-dangerous-type-assertions
 			return resourceUri.toString() === fileResource.toString() ? { resource: sessionResource } as ISession : undefined;
+		}
+
+		override getFeedbackSessionResource(resourceUri: URI): URI | undefined {
+			return resourceUri.toString() === fileResource.toString() ? sessionResource : undefined;
 		}
 
 		override getFeedback(resource: URI): readonly IAgentFeedback[] {
