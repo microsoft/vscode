@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, getWindow } from '../../../../base/browser/dom.js';
-import { IMouseWheelEvent, StandardWheelEvent } from '../../../../base/browser/mouseEvent.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChatWidget } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatWidgetContrib, ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
-import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
-import { MIN_PROMPTS, PromptTimelineRailStyle, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_RAIL_SETTING, PROMPT_TIMELINE_STICKY_HEADER_SETTING } from '../common/promptTimeline.js';
+import { addDisposableListener, EventType, getWindow } from '../../../../../base/browser/dom.js';
+import { IMouseWheelEvent, StandardWheelEvent } from '../../../../../base/browser/mouseEvent.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IChatWidget } from '../chat.js';
+import { IChatWidgetContrib, ChatWidget } from '../widget/chatWidget.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { MIN_PROMPTS, PromptTimelineRailStyle, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_RAIL_SETTING, PROMPT_TIMELINE_STICKY_HEADER_SETTING } from '../../common/promptTimeline.js';
 import { PromptTimelineModel } from './promptTimelineModel.js';
 import { PromptTimelineDockRail } from './promptTimelineDockRail.js';
 import { IPromptTimelineRail } from './promptTimelineRail.js';
@@ -25,9 +26,10 @@ const HARD_WHEEL_DISTANCE = 20;
 const WHEEL_WINDOW_MS = 120;
 
 /**
- * Per-widget contribution that overlays the prompt timeline on the chat transcript. It shows the rail
- * and/or the sticky header depending on `sessions.promptTimeline.rail` and
- * `sessions.promptTimeline.stickyHeader`, and is torn down and re-created when either setting changes.
+ * Per-widget contribution that overlays the prompt timeline on the chat transcript. It shows the sticky
+ * header (`chat.promptTimeline.stickyHeader`, both windows) and/or the rail
+ * (`sessions.promptTimeline.rail`, Agents window only), and is torn down and re-created when either
+ * setting changes.
  */
 export class PromptTimelineWidgetContrib extends Disposable implements IChatWidgetContrib {
 
@@ -43,11 +45,14 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 		private readonly widget: IChatWidget,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
-		// The timeline only makes sense for the main chat transcript location.
-		if (widget.location !== ChatAgentLocation.Chat) {
+		// The timeline only makes sense for a full chat transcript pinned under the top of the widget:
+		// the chat view/editor in the workbench and the session view in the Agents window. Widgets that
+		// render their input on top (quick chat, the new-session composer) have no transcript there.
+		if (widget.location !== ChatAgentLocation.Chat || widget.rendersInputOnTop) {
 			return;
 		}
 
@@ -64,7 +69,11 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 	private _update(): void {
 		this._enablement.clear();
 		this._rail = undefined;
-		const railStyle = this.configurationService.getValue<PromptTimelineRailStyle>(PROMPT_TIMELINE_RAIL_SETTING);
+		// The rail's layout (and the content reservation it needs) is built for the Agents window's
+		// centered session view, so it stays there; the sticky header works in either window.
+		const railStyle = this.environmentService.isSessionsWindow
+			? this.configurationService.getValue<PromptTimelineRailStyle>(PROMPT_TIMELINE_RAIL_SETTING)
+			: 'off';
 		const stickyEnabled = this.configurationService.getValue<boolean>(PROMPT_TIMELINE_STICKY_HEADER_SETTING) === true;
 		if (railStyle !== 'off' || stickyEnabled) {
 			this._createFeature(railStyle, stickyEnabled);

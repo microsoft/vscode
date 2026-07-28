@@ -700,6 +700,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return !!this.viewOptions.supportsFileReferences;
 	}
 
+	get rendersInputOnTop(): boolean {
+		return this.viewOptions.renderInputOnTop ?? false;
+	}
+
 	get attachmentCapabilities(): IChatAgentAttachmentCapabilities {
 		return this._attachmentCapabilities;
 	}

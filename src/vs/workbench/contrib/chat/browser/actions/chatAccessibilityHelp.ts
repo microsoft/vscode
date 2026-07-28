@@ -11,12 +11,14 @@ import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType
 import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { INLINE_CHAT_ID } from '../../../inlineChat/common/inlineChat.js';
 import { TerminalContribCommandId } from '../../../terminal/terminalContribExports.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { PROMPT_TIMELINE_STICKY_HEADER_SETTING } from '../../common/promptTimeline.js';
 import { FocusAgentSessionsAction } from '../agentSessions/agentSessionsActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../chatEditing/chatEditingActions.js';
@@ -61,7 +63,7 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderEnabled: boolean = false): string {
 	const content = [];
 	if (type === 'panelChat' || type === 'quickChat' || type === 'editsView' || type === 'agentView') {
 		content.push(localize('chat.fileChangesDisclosure', 'File change summaries show the total files, additions, and deletions. Focus the disclosure and press Enter or Space to show or hide the individual files.'));
@@ -101,6 +103,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('workbench.action.chat.nextCodeBlock', 'To focus the next code block within a response, invoke the Chat: Next Code Block command{0}.', '<keybinding:workbench.action.chat.nextCodeBlock>'));
 		content.push(localize('workbench.action.chat.nextUserPrompt', 'To navigate to the next user prompt in the conversation, invoke the Next User Prompt command{0}.', '<keybinding:workbench.action.chat.nextUserPrompt>'));
 		content.push(localize('workbench.action.chat.previousUserPrompt', 'To navigate to the previous user prompt in the conversation, invoke the Previous User Prompt command{0}.', '<keybinding:workbench.action.chat.previousUserPrompt>'));
+		if (stickyPromptHeaderEnabled && type !== 'quickChat') {
+			content.push(localize('chat.stickyPromptHeader', 'The prompt you have scrolled past is pinned to the top of the transcript. Activate its title to jump back to that prompt, or use the Go to Previous Prompt and Go to Next Prompt buttons beside it to move between prompts.'));
+		}
 		content.push(localize('workbench.action.chat.announceConfirmation', 'To focus pending chat confirmation dialogs, invoke the Focus Chat Confirmation Status command{0}.', '<keybinding:workbench.action.chat.focusConfirmation>'));
 		content.push(localize('chat.showHiddenTerminals', 'If there are any hidden chat terminals, you can view them by invoking the View Hidden Chat Terminals command{0}.', '<keybinding:workbench.action.terminal.chat.viewHiddenChatTerminals>'));
 		content.push(localize('chat.focusMostRecentTerminal', 'To focus the last chat terminal that ran a tool, invoke the Focus Most Recent Chat Terminal command{0}.', `<keybinding:${TerminalContribCommandId.FocusMostRecentChatTerminal}>`));
@@ -164,6 +169,7 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 	const widgetService = accessor.get(IChatWidgetService);
 	const keybindingService = accessor.get(IKeybindingService);
 	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	const configurationService = accessor.get(IConfigurationService);
 	const widget = widgetService.lastFocusedWidget;
 
 	if (!widget) {
@@ -177,7 +183,7 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 
 	const cachedPosition = inputEditor.getPosition();
 	inputEditor.getSupportedActions();
-	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow);
+	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, configurationService.getValue<boolean>(PROMPT_TIMELINE_STICKY_HEADER_SETTING) === true);
 	return new AccessibleContentProvider(
 		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : AccessibleViewProviderId.QuickChat,
 		{ type: AccessibleViewType.Help },
