@@ -555,6 +555,25 @@ export interface ISession {
 }
 
 /**
+ * Whether the session has produced at least one file change so far.
+ *
+ * The per-chat diff stats are the source of truth: a session counts as having
+ * changes as soon as any of its chats reports a file change. Providers that
+ * only report changes for the session as a whole (no per-chat attribution) are
+ * covered by the session-level {@link ISession.changesSummary} /
+ * {@link ISession.changes} fallbacks.
+ */
+export function sessionHasChanges(session: ISession, reader: IReader | undefined): boolean {
+	if (session.chats.read(reader).some(chat => chat.changes.read(reader).length > 0)) {
+		return true;
+	}
+	if ((session.changesSummary?.read(reader)?.files ?? 0) > 0) {
+		return true;
+	}
+	return session.changes.read(reader).length > 0;
+}
+
+/**
  * Build the canonical {@link ISession.sessionId} from a provider id and
  * session resource URI.
  *
