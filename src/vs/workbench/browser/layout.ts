@@ -148,6 +148,7 @@ export const TITLE_BAR_SETTINGS = [
 ];
 
 const DEFAULT_EMPTY_WINDOW_DIMENSIONS = new Dimension(DEFAULT_EMPTY_WINDOW_SIZE.width, DEFAULT_EMPTY_WINDOW_SIZE.height);
+const QUICK_PICK_TOP_PADDING = 6;
 const DEFAULT_WORKSPACE_WINDOW_DIMENSIONS = new Dimension(DEFAULT_WORKSPACE_WINDOW_SIZE.width, DEFAULT_WORKSPACE_WINDOW_SIZE.height);
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
@@ -266,7 +267,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (isCommandCenterVisible) {
 			// If the command center is visible then the quickinput
 			// should go over the title bar and the banner
-			quickPickTop = 6;
+			quickPickTop = QUICK_PICK_TOP_PADDING;
+		} else if (this.isFloatingPanelsEnabled()) {
+			quickPickTop += QUICK_PICK_TOP_PADDING;
 		}
 
 		return { top, quickPickTop };
