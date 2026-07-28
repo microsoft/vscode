@@ -3071,6 +3071,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return sessionState?.workingDirectories?.[0];
 	}
 
+	getWorkingDirectories(sessionId: string): readonly string[] {
+		const sessionState = this._lastSessionStates.get(sessionId);
+		return sessionState?.workingDirectories ?? [];
+	}
+
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[] {
 		const sessionState = this._lastSessionStates.get(sessionId);
 		if (!sessionState) {

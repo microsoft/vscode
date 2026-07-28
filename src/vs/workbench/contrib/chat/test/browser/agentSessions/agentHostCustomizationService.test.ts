@@ -30,11 +30,17 @@ interface IDispatchedToggle {
  */
 class FakeTarget implements IAgentHostCustomizationTarget {
 	readonly dispatched: IDispatchedToggle[] = [];
+	readonly workingDirectories?: readonly string[];
 
 	constructor(
 		readonly customizations: McpServerCustomization[],
 		readonly workingDirectory?: string,
-	) { }
+		workingDirectories?: readonly string[],
+	) {
+		// Mirror the real targets, which populate both the singular primary and the
+		// full ordered set from the same session state.
+		this.workingDirectories = workingDirectories ?? (workingDirectory !== undefined ? [workingDirectory] : undefined);
+	}
 
 	authenticate(): Promise<unknown> { return Promise.resolve(undefined); }
 	setCustomizationEnabled(rawId: string, enabled: boolean): void {
@@ -151,6 +157,44 @@ suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
 			repoA: ContributionEnablementState.DisabledProfile,
 			repoB: ContributionEnablementState.DisabledProfile,
 		});
+	});
+
+	test('multi-root workspace enablement is keyed by the whole root set, order-independent', () => {
+		const sut = createSut();
+		// Same two roots, different primary order — must share the workspace preference.
+		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a', 'file:///repo-b']));
+		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'file:///repo-b', ['file:///repo-b', 'file:///repo-a']));
+
+		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
+
+		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledWorkspace);
+	});
+
+	test('a superset of roots has an independent workspace preference from a single root', () => {
+		const sut = createSut();
+		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a']));
+		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a', 'file:///repo-b']));
+
+		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
+
+		assert.deepStrictEqual({
+			singleRoot: sut.getMcpServerEnablement(sessionA1, 'GitHub'),
+			superset: sut.getMcpServerEnablement(sessionA2, 'GitHub'),
+		}, {
+			singleRoot: ContributionEnablementState.DisabledWorkspace,
+			superset: ContributionEnablementState.EnabledProfile,
+		});
+	});
+
+	test('collapses duplicate roots to a single-root workspace key', () => {
+		const sut = createSut();
+		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a']));
+		// A duplicated root canonicalizes to one, so it must share the single-root key.
+		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a', 'file:///repo-a']));
+
+		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
+
+		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledWorkspace);
 	});
 
 	test('getMcpServers is pure and prepare applies an explicit durable policy', () => {

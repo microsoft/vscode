@@ -170,6 +170,13 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getWorkingDirectory(sessionId: string): string | undefined;
 
 	/**
+	 * Returns the full ordered set of working-directory roots for the session
+	 * (index 0 = primary), or an empty array when none are known. Used as the
+	 * workspace identity for durable MCP-server enablement.
+	 */
+	getWorkingDirectories(sessionId: string): readonly string[];
+
+	/**
 	 * Returns the MCP servers exposed by the session as rich objects whose
 	 * methods dispatch protocol-level toggle and lifecycle actions.
 	 * Returns an empty array when the session is unknown or exposes no MCP
