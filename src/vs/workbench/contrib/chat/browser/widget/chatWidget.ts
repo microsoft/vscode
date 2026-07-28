@@ -3209,6 +3209,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	/**
+	 * Updates the widget's available space after the intrinsic input height changed.
+	 * The input has already laid itself out, so this only resizes the list-side
+	 * surfaces and must not call {@link ChatInputPart.layout}.
+	 */
+	layoutForInputHeight(height: number, width: number): void {
+		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950);
+		this.bodyDimension = new dom.Dimension(width, height);
+		this._layoutListForInputHeight();
+	}
+
+	/**
 	 * Re-layout just the list, welcome container, and list container to match
 	 * the current input-part height. Called both from {@link layout} and from
 	 * the inputPart.height autorun so we never re-enter inputPart.layout when
@@ -3417,6 +3428,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
 		this.listWidget.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
+}
+
+export function layoutChatWidgetForInputHeight(widget: Pick<ChatWidget, 'setInputPartMaxHeightOverride' | 'layoutForInputHeight'>, inputMaxHeight: number | undefined, height: number, width: number): void {
+	widget.setInputPartMaxHeightOverride(inputMaxHeight);
+	widget.layoutForInputHeight(height, width);
 }
 
 const MIN_LIST_HEIGHT = 50;
