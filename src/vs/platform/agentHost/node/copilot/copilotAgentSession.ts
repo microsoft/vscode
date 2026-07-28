@@ -536,7 +536,10 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _autoApprovals = new Map<string, PermissionAutoApproval | null>();
 	private readonly _pendingAutoApprovals = new Map<string, DeferredPromise<PermissionAutoApproval | undefined>>();
 	/** Pending permission requests awaiting a renderer-side decision. */
-	private readonly _pendingPermissions = new Map<string, DeferredPromise<PermissionRequestResult>>();
+	private readonly _pendingPermissions = new Map<string, {
+		readonly deferred: DeferredPromise<PermissionRequestResult>;
+		readonly managedApprovalRequired: boolean;
+	}>();
 	/**
 	 * Signatures ({@link safeStringify}) of user-approved `read`/`write`
 	 * permission requests, keyed by tool call id. The Copilot CLI runtime emits
@@ -1266,7 +1269,9 @@ export class CopilotAgentSession extends Disposable {
 
 		// Still pending permission, so this call may have errored while getting permission.
 		// Go ahead and allow the call which will immediately see the buffered value.
-		this.respondToPermissionRequest(toolCallId, true);
+		if (this._pendingPermissions.get(toolCallId)?.managedApprovalRequired !== true) {
+			this.respondToPermissionRequest(toolCallId, true);
+		}
 	}
 
 	private _cancelMcpAuthenticationForToolCall(toolCallId: string): boolean {
@@ -2248,7 +2253,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.info(`[Copilot:${this.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
 
 			const deferred = new DeferredPromise<PermissionRequestResult>();
-			this._pendingPermissions.set(toolCallId, deferred);
+			this._pendingPermissions.set(toolCallId, { deferred, managedApprovalRequired });
 
 			// Auto-approve shell commands that run sandboxed by default, since the
 			// sandbox already contains them. Commands that opted OUT of the sandbox
@@ -2260,7 +2265,7 @@ export class CopilotAgentSession extends Disposable {
 				// Session may have been disposed while we awaited the engine
 				// check; if so the deferred has already been settled and
 				// removed, so leave it alone.
-				if (this._pendingPermissions.get(toolCallId) === deferred) {
+				if (this._pendingPermissions.get(toolCallId)?.deferred === deferred) {
 					this._pendingPermissions.delete(toolCallId);
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving sandboxed shell command for tool call ${toolCallId}`);
 					return { kind: 'approve-once' };
@@ -2609,11 +2614,11 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean): boolean {
-		const deferred = this._pendingPermissions.get(requestId);
-		if (deferred) {
+		const pending = this._pendingPermissions.get(requestId);
+		if (pending) {
 			this._pendingPermissions.delete(requestId);
 			this._deletePendingEditContent(requestId);
-			deferred.complete(approved ? { kind: 'approve-once' } : { kind: 'denied-interactively-by-user' });
+			pending.deferred.complete(approved ? { kind: 'approve-once' } : { kind: 'denied-interactively-by-user' });
 			return true;
 		}
 		return false;
@@ -2621,7 +2626,7 @@ export class CopilotAgentSession extends Disposable {
 
 	private async _requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean> {
 		const deferred = new DeferredPromise<PermissionRequestResult>();
-		this._pendingPermissions.set(request.toolCallId, deferred);
+		this._pendingPermissions.set(request.toolCallId, { deferred, managedApprovalRequired: false });
 
 		const displayName = getToolDisplayName(request.toolName);
 		const blockedDomains = request.blockedDomains?.length ? request.blockedDomains.join(', ') : undefined;
@@ -4528,9 +4533,9 @@ export class CopilotAgentSession extends Disposable {
 	// ---- cleanup ------------------------------------------------------------
 
 	private _denyPendingPermissions(): void {
-		for (const [toolCallId, deferred] of this._pendingPermissions) {
+		for (const [toolCallId, pending] of this._pendingPermissions) {
 			this._deletePendingEditContent(toolCallId);
-			deferred.complete({ kind: 'reject' });
+			pending.deferred.complete({ kind: 'reject' });
 		}
 		this._pendingPermissions.clear();
 		this._approvedDuplicablePermissionSignatures.clear();
