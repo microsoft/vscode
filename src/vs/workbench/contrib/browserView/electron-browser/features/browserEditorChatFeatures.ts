@@ -336,6 +336,13 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}
 
 		const value = createElementContextValue(elementData, displayNameFull);
+		const attachImages = this.configurationService.getValue<boolean>(BrowserSendElementsToChatAttachImagesSettingId);
+		const screenshotBuffer = attachImages
+			? await model.captureScreenshot({
+				quality: 90,
+				pageRect: bounds
+			})
+			: undefined;
 
 		toAttach.push({
 			id: 'element-' + Date.now(),
@@ -350,23 +357,9 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			computedStyles: elementData.computedStyles,
 			dimensions: elementData.dimensions,
 			innerText,
+			imageData: screenshotBuffer?.buffer,
+			imageMimeType: screenshotBuffer ? 'image/jpeg' : undefined,
 		});
-
-		const attachImages = this.configurationService.getValue<boolean>(BrowserSendElementsToChatAttachImagesSettingId);
-		if (attachImages) {
-			const screenshotBuffer = await model.captureScreenshot({
-				quality: 90,
-				pageRect: bounds
-			});
-
-			toAttach.push({
-				id: 'element-screenshot-' + Date.now(),
-				name: 'Element Screenshot',
-				fullName: 'Element Screenshot',
-				kind: 'image',
-				value: screenshotBuffer.buffer
-			});
-		}
 
 		if (!await this._confirmContentAttachmentRisk(elementData.url ?? model.url)) {
 			return;
