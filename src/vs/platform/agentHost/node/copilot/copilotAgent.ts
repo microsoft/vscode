@@ -19,7 +19,6 @@ import { equals } from '../../../../base/common/objects.js';
 import { autorun, observableValue, type ISettableObservable } from '../../../../base/common/observable.js';
 import { delimiter, dirname, join } from '../../../../base/common/path.js';
 import { basename as resourceBasename, isEqual, isEqualOrParent, joinPath as resourceJoinPath, relativePath } from '../../../../base/common/resources.js';
-import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
@@ -2986,7 +2985,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		let capiUrl = env['VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE'] || COPILOT_CAPI_URL;
 		if (this._githubToken) {
-			const endpointStopWatch = StopWatch.create();
 			try {
 				const discovered = await this._copilotApiService.resolveApiEndpoint(this._githubToken);
 				if (discovered) {
@@ -2994,19 +2992,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 			} catch (error) {
 				this._logService.debug(`[Copilot] CAPI endpoint discovery for proxy resolution failed; using ${capiUrl}: ${error instanceof Error ? error.message : String(error)}`);
-			} finally {
-				this._logService.trace(`[Copilot] CAPI endpoint discovery for proxy resolution completed in ${endpointStopWatch.elapsed()}ms`);
 			}
 		}
 
-		const proxyStopWatch = StopWatch.create();
 		try {
 			return await this._proxyResolver.resolveProxy(capiUrl);
 		} catch (error) {
 			this._logService.warn(`[Copilot] Failed to resolve CAPI proxy for ${capiUrl}: ${error instanceof Error ? error.message : String(error)}`);
 			return undefined;
-		} finally {
-			this._logService.trace(`[Copilot] CAPI proxy resolution completed in ${proxyStopWatch.elapsed()}ms`);
 		}
 	}
 

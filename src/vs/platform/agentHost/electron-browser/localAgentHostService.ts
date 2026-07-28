@@ -7,7 +7,6 @@ import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
-import { mark } from '../../../base/common/performance.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getDelayedChannel, IChannelServer, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
@@ -145,7 +144,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			return;
 		}
 		this._connectStarted = true;
-		mark('code/willStartAgentHost');
 
 		this._logService.info(`${LOG_PREFIX} Acquiring MessagePort to agent host...`);
 		ipcRenderer.send(AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings(this._configurationService));
@@ -165,7 +163,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		const protocolClient = this._requireClient();
 		await protocolClient.connect();
 		this._logService.info(`${LOG_PREFIX} Protocol connection established; clientId=${protocolClient.clientId}`);
-		mark('code/didConnectAgentHost');
 		this._onAgentHostStart.fire();
 	}
 

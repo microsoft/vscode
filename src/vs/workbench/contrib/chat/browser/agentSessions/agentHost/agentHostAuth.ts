@@ -6,7 +6,6 @@
 import { fetchAuthorizationServerMetadata } from '../../../../../../base/common/oauth.js';
 import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { mark } from '../../../../../../base/common/performance.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type McpOAuthClient, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -160,13 +159,10 @@ export async function resolveTokenForResource(
 	authenticationService: IAuthenticationService,
 	logService: ILogService,
 	logPrefix: string,
-	performanceMarkPrefix?: string,
 ): Promise<string | undefined> {
 	for (const server of authorizationServers) {
 		const serverUri = URI.parse(server);
-		markAuthenticationStep(performanceMarkPrefix, 'willResolveProvider');
 		const providerId = await authenticationService.getOrActivateProviderIdForServer(serverUri, resourceServer);
-		markAuthenticationStep(performanceMarkPrefix, 'didResolveProvider');
 		if (!providerId) {
 			logService.trace(`${logPrefix} No auth provider found for server: ${server}`);
 			continue;
@@ -174,17 +170,13 @@ export async function resolveTokenForResource(
 		logService.trace(`${logPrefix} Resolved auth provider '${providerId}' for server: ${server}`);
 
 		// Try exact scope match first
-		markAuthenticationStep(performanceMarkPrefix, 'willGetSessions');
 		const sessions = await authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
-		markAuthenticationStep(performanceMarkPrefix, 'didGetSessions');
 		if (sessions.length > 0) {
 			return sessions[0].accessToken;
 		}
 
 		// Fall back: get all sessions and find the narrowest superset of requested scopes
-		markAuthenticationStep(performanceMarkPrefix, 'willGetAllSessions');
 		const allSessions = await authenticationService.getSessions(providerId, undefined, { authorizationServer: serverUri }, true);
-		markAuthenticationStep(performanceMarkPrefix, 'didGetAllSessions');
 		const requestedSet = new Set(scopes);
 		let bestToken: string | undefined;
 		let bestExtraScopes = Infinity;
@@ -212,12 +204,6 @@ export async function resolveTokenForResource(
 	return undefined;
 }
 
-function markAuthenticationStep(prefix: string | undefined, step: string): void {
-	if (prefix) {
-		mark(`${prefix}/${step}`);
-	}
-}
-
 export interface IAgentHostAuthenticateRequest {
 	readonly resource: string;
 	readonly scopes?: readonly string[];
@@ -227,7 +213,6 @@ export interface IAgentHostAuthenticateRequest {
 export interface IAgentHostAuthenticationOptions {
 	readonly authTokenCache?: AgentHostAuthTokenCache;
 	readonly logPrefix: string;
-	readonly performanceMarkPrefix?: string;
 	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
 }
 
@@ -288,7 +273,6 @@ export async function authenticateProtectedResources(
 				authenticationService,
 				logService,
 				options.logPrefix,
-				options.performanceMarkPrefix,
 			);
 			if (!token) {
 				logService.info(`${options.logPrefix} No token resolved for resource: ${resource.resource}`);
