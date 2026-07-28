@@ -5,6 +5,7 @@
 
 import { ok, strictEqual } from 'assert';
 import { Separator } from '../../../../../../base/common/actions.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -3406,12 +3407,14 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let registeredToolData: Map<string, IToolData>;
+	let toolDataRegistration: DeferredPromise<void>;
 	let sandboxEnabled: boolean;
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
 		registeredToolData = new Map();
+		toolDataRegistration = new DeferredPromise<void>();
 		sandboxEnabled = false;
 
 		const logService = new NullLogService();
@@ -3486,6 +3489,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			onDidChangeTools: Event.None,
 			registerToolData(toolData: IToolData) {
 				registeredToolData.set(toolData.id, toolData);
+				toolDataRegistration.complete();
 				return toDisposable(() => registeredToolData.delete(toolData.id));
 			},
 			registerToolImplementation(id: string, tool: IToolImpl) {
@@ -3519,16 +3523,14 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		});
 	});
 
-	async function flushAsync(): Promise<void> {
-		// Multiple microtask cycles to let async _registerRunInTerminalTool complete
-		for (let i = 0; i < 10; i++) {
-			await new Promise<void>(resolve => setTimeout(resolve, 0));
-		}
+	async function waitForToolDataRegistration(): Promise<void> {
+		await toolDataRegistration.p;
+		toolDataRegistration = new DeferredPromise<void>();
 	}
 
 	async function createContribution(): Promise<ChatAgentToolsContribution> {
 		const contribution = store.add(instantiationService.createInstance(ChatAgentToolsContribution));
-		await flushAsync();
+		await waitForToolDataRegistration();
 		return contribution;
 	}
 
@@ -3555,8 +3557,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			change: null!,
 		});
 
-		// Wait for async registration
-		await flushAsync();
+		await waitForToolDataRegistration();
 
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered');
@@ -3581,7 +3582,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			change: null!,
 		});
 
-		await flushAsync();
+		await waitForToolDataRegistration();
 
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered');
@@ -3604,8 +3605,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			change: null!,
 		});
 
-		// Wait for async registration
-		await flushAsync();
+		await waitForToolDataRegistration();
 
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered after network setting change');
