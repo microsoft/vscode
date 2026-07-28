@@ -1,0 +1,339 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-input-picker-item:has(.model-picker-split) {
+	overflow: visible;
+}
+
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split {
+	padding: 0;
+	overflow: visible;
+	height: auto;
+	border-radius: 0;
+	position: relative;
+	cursor: default;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section {
+	display: flex;
+	align-items: center;
+	height: 16px;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+	border-radius: 4px;
+	cursor: pointer;
+	text-decoration: none;
+	color: inherit;
+	white-space: nowrap;
+}
+
+.chat-input-picker-item .action-label.model-picker-split:hover,
+.chat-input-picker-item .action-label.model-picker-split[aria-expanded="true"] {
+	background-color: transparent !important;
+}
+
+.chat-input-picker-item .action-label.model-picker-split:not(.disabled):has(.model-picker-section:hover) .model-picker-section {
+	color: var(--vscode-foreground);
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section:hover,
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section[aria-expanded="true"] {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-name {
+	min-width: 0;
+	flex-shrink: 1;
+	overflow: hidden;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-config {
+	flex-shrink: 0;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon {
+	font-size: 12px;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon + .chat-input-picker-label {
+	margin-left: 2px;
+}
+
+.chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section {
+	cursor: default;
+}
+
+.chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section:hover {
+	background-color: transparent;
+}
+
+.chat-input-picker-item .action-label.model-picker-split.disabled .codicon {
+	color: var(--vscode-disabledForeground);
+}
+
+.action-widget .monaco-list-row.chat-model-picker-unavailable .description a,
+.action-widget .monaco-list-row.chat-model-picker-unavailable .description a:visited {
+	color: var(--vscode-textLink-foreground);
+}
+
+.action-widget .monaco-list-row.chat-model-picker-unavailable .description a:hover,
+.action-widget .monaco-list-row.chat-model-picker-unavailable .description a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.action-widget:has(.chat-model-picker-dropdown) .action-list-filter-input,
+.action-widget:has(.chat-model-picker-dropdown) .action-list-filter-input:focus {
+	outline: none;
+	box-shadow: none;
+	border-color: transparent;
+	background-color: transparent;
+}
+
+.action-widget:has(.chat-model-picker-dropdown) .action-list-filter-input:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+.action-widget:has(.chat-model-picker-dropdown) .action-list-filter {
+	margin-bottom: 4px;
+}
+
+.action-widget .monaco-list-row.chat-model-picker-section-toggle.has-toolbar .action-list-item-toolbar {
+	display: flex;
+}
+
+.action-widget .monaco-list-row.chat-model-picker-inline-source .title {
+	flex: 0 1 auto;
+}
+
+.action-widget .monaco-list-row.chat-model-picker-inline-source .action-item-badge {
+	padding: 0;
+	border-radius: 0;
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	line-height: normal;
+}
+
+.action-widget .monaco-list-row.chat-model-picker-inline-source .description {
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.chat-model-hover {
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+}
+
+.chat-model-hover-warning-text,
+.chat-model-hover-promo-text {
+	display: flex;
+	gap: 6px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
+	border-radius: 4px;
+	padding: 6px 8px;
+}
+
+.chat-model-hover-warning-text > .codicon {
+	flex-shrink: 0;
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.chat-model-hover-promo-text > .codicon {
+	flex-shrink: 0;
+	color: var(--vscode-notificationsInfoIcon-foreground);
+}
+
+.chat-model-hover-warning-text p,
+.chat-model-hover-promo-text p,
+.chat-model-hover-description p {
+	margin: 0;
+}
+
+.chat-model-hover.has-long-context,
+.chat-model-hover-description {
+	max-width: 300px;
+}
+
+.chat-model-hover-name {
+	font-weight: var(--vscode-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-heading3);
+}
+
+.chat-model-hover-description {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-model-hover-title-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.chat-model-hover-price-badge {
+	flex: 0 0 auto;
+	padding: 2px 8px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.chat-model-hover-price-badge.high-cost {
+	color: var(--vscode-notificationsWarningIcon-foreground, var(--vscode-editorWarning-foreground));
+	border-color: var(--vscode-notificationsWarningIcon-foreground, var(--vscode-editorWarning-foreground));
+}
+
+.chat-model-hover-title-tags {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 0 0 auto;
+}
+
+.chat-model-hover-category {
+	font-size: 11px;
+	white-space: nowrap;
+}
+
+.chat-model-hover-cost-table {
+	display: grid;
+	grid-template-columns: auto auto;
+	column-gap: 0;
+	row-gap: 12px;
+	align-items: center;
+	font-size: 12px;
+}
+
+.chat-model-hover-cost-table.has-long-context {
+	grid-template-columns: auto auto auto;
+}
+
+.chat-model-hover-cost-row {
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: subgrid;
+	align-items: center;
+	position: relative;
+}
+
+.chat-model-hover-cost-row:not(.header)::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 50%;
+	border-top: var(--vscode-strokeThickness) dotted var(--vscode-descriptionForeground);
+	opacity: 0.5;
+}
+
+.chat-model-hover-cost-heading {
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+	padding-right: 12px;
+}
+
+.chat-model-hover-cost-label {
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	position: relative;
+	z-index: 1;
+}
+
+.chat-model-hover-cost-label-text {
+	padding-right: 6px;
+	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
+}
+
+.chat-model-hover-cost-value {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	white-space: nowrap;
+	min-width: 0;
+	position: relative;
+	z-index: 1;
+	padding-left: 8px;
+}
+
+.chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value {
+	padding-left: 12px;
+}
+
+.chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 12px;
+	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
+}
+
+.chat-model-hover-cost-number {
+	padding-left: 6px;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
+}
+
+.chat-model-hover-cost-value.subheader {
+	font-weight: normal;
+	color: var(--vscode-descriptionForeground);
+	padding-left: 6px;
+}
+
+.chat-model-hover-cost,
+.chat-model-hover-context {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-model-hover-context-label {
+	font-weight: 600;
+}
+
+.chat-model-hover-configurable {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 12px;
+}
+
+.chat-model-hover-configurable-label {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.chat-model-hover-configurable-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-start;
+	gap: 6px;
+}
+
+.chat-model-hover-configurable-buttons > .monaco-button {
+	width: auto;
+	padding: 2px 8px;
+	font-size: 11px;
+}
+
+.monaco-workbench .chat-model-hover-configurable-buttons > .monaco-button .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize-compact);
+}

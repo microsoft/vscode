@@ -258,9 +258,15 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 
 		const isInlineEditsEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.InlineEditsEnabled, this._expService, { languageId: document.languageId });
 
-		const serveAsCompletionsProvider = unification && isCompletionsEnabled && !isInlineEditsEnabled;
+		// Respect the per-language `github.copilot.enable` setting for NES, just like ghost text does.
+		// The tracking-based filter (`getDocumentByTextDocument`) is updated asynchronously and is not
+		// reactive to configuration changes, so enforce the policy synchronously here.
+		const isLanguageEnabled = this.model.workspace.isLanguageEnabled(document.languageId);
 
-		if (!isInlineEditsEnabled && !serveAsCompletionsProvider) {
+		const serveAsCompletionsProvider = unification && isCompletionsEnabled && !isInlineEditsEnabled;
+		const serveAsInlineEdits = isInlineEditsEnabled && isLanguageEnabled;
+
+		if (!serveAsInlineEdits && !serveAsCompletionsProvider) {
 			logger.trace('Return: inline edits disabled');
 			return undefined;
 		}
@@ -409,6 +415,23 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 			addNotebookTelemetry(document, position, result.edit.newText, documents, telemetryBuilder);
 			telemetryBuilder.setIsNESForOtherEditor(targetDocument !== undefined && targetDocument !== document);
 			telemetryBuilder.setIsActiveDocument(window.activeTextEditor?.document === targetDocument);
+
+			// When the edit targets a different document (cross-file / cross-cell NES), respect the
+			// per-language `github.copilot.enable` setting for that target too. The active document was
+			// already gated above; the target was resolved through the tracking-based filter, which is
+			// not reactive to configuration changes, so enforce the policy synchronously here as well.
+			if (targetDocument && targetDocument !== document && !this.model.workspace.isLanguageEnabled(targetDocument.languageId)) {
+				logger.trace('Return: inline edits disabled for target document language');
+				telemetryBuilder.setStatus('noEdit:targetLanguageDisabled');
+				this.telemetrySender.scheduleSendingEnhancedTelemetry(suggestionInfo.suggestion, telemetryBuilder);
+				return emptyList;
+			}
+
+			// Signed line distance from the request cursor to the suggested edit's range start.
+			// Only meaningful when both share the active document's coordinate space.
+			if (range && targetDocument === document) {
+				telemetryBuilder.setSuggestionLineDistanceToCursor(range.start.line - position.line);
+			}
 
 			if (!targetDocument) {
 				logger.trace('no next edit suggestion');

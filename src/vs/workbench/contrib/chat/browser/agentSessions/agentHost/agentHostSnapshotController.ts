@@ -194,23 +194,63 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 			}
 
 			// Restore to before this request: target one slot before it.
-			const targetIdx = cpIdx - 1;
-			const currentIdx = this._currentCheckpointIndex.get();
-			if (targetIdx < currentIdx) {
-				// Undo forward checkpoints
-				for (let i = currentIdx; i > targetIdx; i--) {
-					await this._writeCheckpointContent(this._checkpoints[i], 'before');
-				}
-			} else if (targetIdx > currentIdx) {
-				// Redo to reach the target
-				for (let i = currentIdx + 1; i <= targetIdx; i++) {
-					await this._writeCheckpointContent(this._checkpoints[i], 'after');
-				}
-			}
+			await this._navigateToCheckpointIndex(cpIdx - 1);
+		});
+	}
 
-			transaction(tx => {
-				this._currentCheckpointIndex.set(targetIdx, tx);
-			});
+	/**
+	 * Steps a single checkpoint backwards, undoing the edits of the current
+	 * checkpoint. The "Undo" UI invokes this once per click.
+	 */
+	async undoInteraction(): Promise<void> {
+		return this._undoRedoSequencer.queue(async () => {
+			const currentIdx = this._currentCheckpointIndex.get();
+			if (currentIdx < 0) {
+				return;
+			}
+			await this._navigateToCheckpointIndex(currentIdx - 1);
+		});
+	}
+
+	/**
+	 * Steps a single checkpoint forwards, redoing the edits of the next
+	 * checkpoint.
+	 *
+	 * Implementing this is essential: the "Redo" action repeatedly calls this
+	 * while {@link canRedo} is `true`, so a no-op implementation would spin
+	 * forever and hang the window.
+	 */
+	async redoInteraction(): Promise<void> {
+		return this._undoRedoSequencer.queue(async () => {
+			const currentIdx = this._currentCheckpointIndex.get();
+			if (currentIdx >= this._checkpoints.length - 1) {
+				return;
+			}
+			await this._navigateToCheckpointIndex(currentIdx + 1);
+		});
+	}
+
+	/**
+	 * Moves the on-disk file state and the checkpoint cursor to `targetIdx`,
+	 * writing each crossed checkpoint's before/after content. Must run inside
+	 * the {@link _undoRedoSequencer} to avoid racing writes.
+	 */
+	private async _navigateToCheckpointIndex(targetIdx: number): Promise<void> {
+		const currentIdx = this._currentCheckpointIndex.get();
+		if (targetIdx < currentIdx) {
+			// Undo forward checkpoints
+			for (let i = currentIdx; i > targetIdx; i--) {
+				await this._writeCheckpointContent(this._checkpoints[i], 'before');
+			}
+		} else if (targetIdx > currentIdx) {
+			// Redo to reach the target
+			for (let i = currentIdx + 1; i <= targetIdx; i++) {
+				await this._writeCheckpointContent(this._checkpoints[i], 'after');
+			}
+		}
+
+		transaction(tx => {
+			this._currentCheckpointIndex.set(targetIdx, tx);
 		});
 	}
 
@@ -261,7 +301,8 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	}
 
 	hasEditsInRequest(requestId: string, _reader?: IReader): boolean {
-		return this._checkpoints.some(cp => cp.requestId === requestId);
+		const cp = this._checkpoints.find(c => c.requestId === requestId);
+		return !!cp && cp.edits.length > 0;
 	}
 
 	// ---- Unsupported / no-op (agent host owns edits server-side) ------------
@@ -276,9 +317,6 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	getDiffsForFilesInSession(): IObservable<readonly IEditSessionEntryDiff[]> { return constObservable([]); }
 	getDiffsForFilesInRequest(_requestId: string): IObservable<readonly IEditSessionEntryDiff[]> { return constObservable([]); }
 	getDiffForSession(): IObservable<IEditSessionDiffStats> { return constObservable({ added: 0, removed: 0 }); }
-
-	async undoInteraction(): Promise<void> { /* no-op */ }
-	async redoInteraction(): Promise<void> { /* no-op */ }
 
 	async triggerExplanationGeneration(): Promise<void> { /* no-op */ }
 	clearExplanations(): void { /* no-op */ }

@@ -64,6 +64,22 @@ suite('sandboxSettingsReader', () => {
 		);
 	});
 
+	test('normalizes legacy boolean form of chat.agent.sandbox.enabledWindows', () => {
+		const cfgOn = new TestConfigurationService();
+		cfgOn.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, true);
+		assert.strictEqual(
+			readSandboxSetting<string>(cfgOn, new NullLogService(), AgentSandboxSettingId.AgentSandboxWindowsEnabled),
+			AgentSandboxEnabledValue.On,
+		);
+
+		const cfgOff = new TestConfigurationService();
+		cfgOff.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, false);
+		assert.strictEqual(
+			readSandboxSetting<string>(cfgOff, new NullLogService(), AgentSandboxSettingId.AgentSandboxWindowsEnabled),
+			AgentSandboxEnabledValue.Off,
+		);
+	});
+
 	test('normalizes legacy boolean form when arriving via the deprecated key', () => {
 		const cfg = new TestConfigurationService();
 		cfg.setUserConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxEnabled, true);

@@ -145,7 +145,8 @@
 		"eslint": "warning"
 	},
 	"git.worktreeIncludeFiles": [
-		"product.overrides.json"
+		"product.overrides.json",
+		"**/node_modules/**",
 	],
 	// --- GitHub ---
 	"githubPullRequests.experimental.createView": true,
@@ -156,6 +157,7 @@
 	],
 	"githubPullRequests.codingAgent.enabled": true,
 	"githubPullRequests.codingAgent.uiIntegration": true,
+	"githubPullRequests.enableAttestationCommits": true,
 	// --- Testing & Debugging ---
 	"testing.autoRun.mode": "rerun",
 	"debug.javascript.terminalOptions": {

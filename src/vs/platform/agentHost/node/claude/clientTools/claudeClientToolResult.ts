@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { ToolResultContentType, type ToolCallResult, type ToolResultContent, type ToolResultEmbeddedResourceContent } from '../../../common/state/protocol/channels-session/state.js';
+import { ToolResultContentType, type ToolCallResult, type ToolResultContent, type ToolResultEmbeddedResourceContent } from '../../../common/state/protocol/channels-chat/state.js';
 
 /**
  * Stable URI scheme used when an `EmbeddedResource` content block must be

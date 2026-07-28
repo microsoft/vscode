@@ -22,40 +22,46 @@ import { ChatWebSocketRequestOutcome, ChatWebSocketTelemetrySender } from './cha
 
 export const IChatWebSocketManager = createServiceIdentifier<IChatWebSocketManager>('IChatWebSocketManager');
 
+export interface IChatWebSocketConnectionKey {
+	readonly conversationId: string;
+	readonly modelId: string;
+	readonly connectionId?: string;
+}
+
 export interface IChatWebSocketManager {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Gets or creates a WebSocket connection for the given conversation.
+	 * Gets or creates a WebSocket connection for the given conversation lane and model.
 	 * The connection is shared across turns and tool call rounds within
-	 * the same conversation, keeping server-side context alive.
+	 * the same lane, keeping server-side context alive.
 	 */
-	getOrCreateConnection(conversationId: string, headers: Record<string, string>, initiatingRequestId: string): IChatWebSocketConnection;
+	getOrCreateConnection(key: IChatWebSocketConnectionKey, headers: Record<string, string>, initiatingRequestId: string): IChatWebSocketConnection;
 
 	/**
-	 * Returns true if there is an open WebSocket connection for the given
-	 * conversation. Used to decide whether the server already has context
-	 * from earlier requests in this conversation.
+	 * Returns true if there is an idle, open WebSocket connection for the given
+	 * conversation lane and model. Used to decide whether the server already has
+	 * context from earlier requests in this conversation.
 	 */
-	hasActiveConnection(conversationId: string): boolean;
+	hasActiveConnection(key: IChatWebSocketConnectionKey): boolean;
 
 	/**
 	 * Returns the stateful marker (last completed response ID) for the given
 	 * conversation's active WebSocket connection, or undefined if there is
 	 * no active connection or no marker yet.
 	 */
-	getStatefulMarker(conversationId: string): string | undefined;
+	getStatefulMarker(key: IChatWebSocketConnectionKey): string | undefined;
 
 	/**
 	 * Returns the round ID at which the last client-side summarization
 	 * occurred for this connection, or undefined if none.
 	 */
-	getSummarizedAtRoundId(conversationId: string): string | undefined;
+	getSummarizedAtRoundId(key: IChatWebSocketConnectionKey): string | undefined;
 
 	/**
 	 * Closes and removes the connection for a specific conversation.
 	 */
-	closeConnection(conversationId: string): void;
+	closeConnection(conversationId: string, connectionId?: string): void;
 
 	/**
 	 * Closes all active connections.
@@ -68,13 +74,13 @@ export interface IChatWebSocketManager {
  */
 export class NullChatWebSocketManager implements IChatWebSocketManager {
 	declare readonly _serviceBrand: undefined;
-	getOrCreateConnection(_conversationId: string, _headers?: Record<string, string>, _initiatingRequestId?: string): IChatWebSocketConnection {
+	getOrCreateConnection(_key: IChatWebSocketConnectionKey, _headers?: Record<string, string>, _initiatingRequestId?: string): IChatWebSocketConnection {
 		throw new Error('WebSocket not available');
 	}
-	hasActiveConnection(_conversationId: string): boolean { return false; }
-	getStatefulMarker(_conversationId: string): string | undefined { return undefined; }
-	getSummarizedAtRoundId(_conversationId: string): string | undefined { return undefined; }
-	closeConnection(_conversationId: string): void { }
+	hasActiveConnection(_key: IChatWebSocketConnectionKey): boolean { return false; }
+	getStatefulMarker(_key: IChatWebSocketConnectionKey): string | undefined { return undefined; }
+	getSummarizedAtRoundId(_key: IChatWebSocketConnectionKey): string | undefined { return undefined; }
+	closeConnection(_conversationId: string, _connectionId?: string): void { }
 	closeAll(): void { }
 }
 
@@ -189,52 +195,54 @@ export class ChatWebSocketManager extends Disposable implements IChatWebSocketMa
 		super();
 	}
 
-	getOrCreateConnection(conversationId: string, headers: Record<string, string>, initiatingRequestId: string): IChatWebSocketConnection {
-		const existing = this._connections.get(conversationId);
+	getOrCreateConnection(key: IChatWebSocketConnectionKey, headers: Record<string, string>, initiatingRequestId: string): IChatWebSocketConnection {
+		const connectionKey = this._getConnectionKey(key.conversationId, key.connectionId);
+		const existing = this._connections.get(connectionKey);
 
-		// Reuse the connection if it's still open, even across turns.
-		if (existing?.isOpen) {
+		// Reuse the connection if it is idle, open, and bound to the requested model.
+		if (existing?.isOpen && !existing.hasActiveRequest && existing.modelId === key.modelId) {
 			return existing;
 		}
 
 		if (existing) {
-			this._logService.debug(`[ChatWebSocketManager] Replacing closed connection for conversation ${conversationId}`);
+			this._logService.debug(`[ChatWebSocketManager] Replacing connection for conversation ${key.conversationId} (model: ${existing.modelId} -> ${key.modelId}, active: ${existing.hasActiveRequest})`);
 			existing.dispose();
-			this._connections.delete(conversationId);
+			this._connections.delete(connectionKey);
 		}
 
-		const connection = new ChatWebSocketConnection(this._capiClientService, this._logService, this._telemetryService, this._configurationService, conversationId, headers, initiatingRequestId);
-		this._logService.debug(`[ChatWebSocketManager] Creating new connection for conversation ${conversationId}`);
-		this._connections.set(conversationId, connection);
+		const connection = new ChatWebSocketConnection(this._capiClientService, this._logService, this._telemetryService, this._configurationService, key.conversationId, key.modelId, headers, initiatingRequestId);
+		this._logService.debug(`[ChatWebSocketManager] Creating new connection for conversation ${key.conversationId}, model ${key.modelId}`);
+		this._connections.set(connectionKey, connection);
 
 		// Remove from map when disposed externally
 		connection.onDidDispose(() => {
-			const entry = this._connections.get(conversationId);
+			const entry = this._connections.get(connectionKey);
 			if (entry === connection) {
-				this._connections.delete(conversationId);
+				this._connections.delete(connectionKey);
 			}
 		});
 
 		return connection;
 	}
 
-	hasActiveConnection(conversationId: string): boolean {
-		const connection = this._connections.get(conversationId);
-		return !!connection?.isOpen;
+	hasActiveConnection(key: IChatWebSocketConnectionKey): boolean {
+		const connection = this._getConnection(key);
+		return !!connection?.isOpen && !connection.hasActiveRequest;
 	}
 
-	getStatefulMarker(conversationId: string): string | undefined {
-		const connection = this._connections.get(conversationId);
-		return connection?.isOpen ? connection.statefulMarker : undefined;
+	getStatefulMarker(key: IChatWebSocketConnectionKey): string | undefined {
+		const connection = this._getConnection(key);
+		return connection?.isOpen && !connection.hasActiveRequest ? connection.statefulMarker : undefined;
 	}
 
-	getSummarizedAtRoundId(conversationId: string): string | undefined {
-		const connection = this._connections.get(conversationId);
-		return connection?.isOpen ? connection.summarizedAtRoundId : undefined;
+	getSummarizedAtRoundId(key: IChatWebSocketConnectionKey): string | undefined {
+		const connection = this._getConnection(key);
+		return connection?.isOpen && !connection.hasActiveRequest ? connection.summarizedAtRoundId : undefined;
 	}
 
-	closeConnection(conversationId: string): void {
-		const connection = this._connections.get(conversationId);
+	closeConnection(conversationId: string, connectionId?: string): void {
+		const connectionKey = this._getConnectionKey(conversationId, connectionId);
+		const connection = this._connections.get(connectionKey);
 		if (connection) {
 			if (connection.hasActiveRequest) {
 				this._logService.warn(`[ChatWebSocketManager] Closing connection for conversation ${conversationId} while turn ${connection.turnId} still has an active request`);
@@ -242,8 +250,17 @@ export class ChatWebSocketManager extends Disposable implements IChatWebSocketMa
 				this._logService.debug(`[ChatWebSocketManager] Closing connection for conversation ${conversationId}`);
 			}
 			connection.dispose();
-			this._connections.delete(conversationId);
+			this._connections.delete(connectionKey);
 		}
+	}
+
+	private _getConnection(key: IChatWebSocketConnectionKey): ChatWebSocketConnection | undefined {
+		const connection = this._connections.get(this._getConnectionKey(key.conversationId, key.connectionId));
+		return connection?.modelId === key.modelId ? connection : undefined;
+	}
+
+	private _getConnectionKey(conversationId: string, connectionId: string | undefined): string {
+		return JSON.stringify([conversationId, connectionId ?? null]);
 	}
 
 	closeAll(): void {
@@ -316,6 +333,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 		private readonly _telemetryService: ITelemetryService,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _conversationId: string,
+		readonly modelId: string,
 		private readonly _headers: Record<string, string>,
 		private readonly _initiatingRequestId: string,
 	) {
@@ -651,7 +669,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 		const cancelDisposable = token.onCancellationRequested(() => {
 			if (this._activeRequest === request) {
 				request.handleCancellation();
-				this._activeRequest = undefined;
+				this.dispose();
 			}
 		});
 		request.done.finally(() => cancelDisposable.dispose()).catch(() => { });

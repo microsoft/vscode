@@ -1,0 +1,78 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE. Use your file tools; do not run a shell command.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: Read
+          input:
+            file_path: ${workdir}/edit.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE. Use your file tools; do not run a shell command.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tBEFORE_VALUE"
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: Write
+          input:
+            file_path: ${workdir}/edit.txt
+            content: AFTER_VALUE
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE. Use your file tools; do not run a shell command.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tBEFORE_VALUE"
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Write
+              input:
+                file_path: ${workdir}/edit.txt
+                content: AFTER_VALUE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: The file ${workdir}/edit.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+    response:
+      content: Done. `edit.txt` now contains `AFTER_VALUE` (replacing the previous `BEFORE_VALUE`).
+      stopReason: end_turn

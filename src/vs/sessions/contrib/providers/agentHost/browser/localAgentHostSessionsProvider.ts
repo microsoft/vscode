@@ -11,26 +11,39 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentConnection, IAgentHostService, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID, LocalAgentHostDefaultProviderSettingId } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
+
+/**
+ * Storage key for the local agent host's cached session summaries. There is a
+ * single machine-wide local agent host, so a fixed key (no per-authority
+ * suffix) is used; the base provider persists under `StorageScope.APPLICATION`.
+ */
+const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY = 'localAgentHost.cachedSessions.v2';
+// TODO@sandy081 Remove this legacy cache-key cleanup after 2026-10-14.
+const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY_LEGACY = 'localAgentHost.cachedSessions';
 
 /**
  * Local-window sessions provider backed by the in-process
@@ -48,8 +61,28 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly supportsLocalWorkspaces = true;
 
+	/** Quick chats are only offered while the agent host is enabled. */
+	get supportsQuickChats(): boolean {
+		return this._agentHostEnablementService.enabled;
+	}
+
+	/** `true` when running in the dedicated Agents window vs. a regular editor window. */
+	private readonly _isSessionsWindow: boolean;
+
+	/**
+	 * When the experimental {@link LocalAgentHostDefaultProviderSettingId}
+	 * setting is enabled, the local agent host becomes the default sessions
+	 * provider: its session types sort before every other provider (negative
+	 * order). Otherwise it sorts after the default providers so Copilot Chat
+	 * keeps precedence.
+	 */
+	override get order(): number {
+		return this._configurationService.getValue<boolean>(LocalAgentHostDefaultProviderSettingId) ? -1 : 1;
+	}
+
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
@@ -59,15 +92,26 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@ILogService logService: ILogService,
 		@IGitHubService gitHubService: IGitHubService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 		@IStorageService storageService: IStorageService,
+		@IDialogService dialogService: IDialogService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsManagementService, activeClientService, storageService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
+
+		this._isSessionsWindow = environmentService.isSessionsWindow;
 
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 
 		this.browseActions = [];
+
+		// Hydrate previously-persisted session summaries so the sidebar shows
+		// local sessions immediately at startup, before the agent host has
+		// started and the first `listSessions()` round-trip (gated on
+		// authentication settling below) reconciles them.
+		this._enableSessionCachePersistence(LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY, LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY_LEGACY);
 
 		this._attachConnectionListeners(this._agentHostService, this._store);
 
@@ -95,6 +139,26 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				return;
 			}
 			this._refreshSessions();
+			this._resumeNewSessionAfterAuthenticationSettles();
+		}));
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(LocalAgentHostDefaultProviderSettingId)) {
+				this._onDidChangeSessionTypes.fire();
+			}
+			if (affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
+				const current = this._agentHostService.rootState.value;
+				if (current && !(current instanceof Error)) {
+					this._syncSessionTypesFromRootState(current);
+				}
+				// `getSessions()` filters by the same gate, so the set of visible
+				// sessions just changed too. Fire an empty-payload change so the
+				// open list re-queries and re-filters. The payload is deliberately
+				// empty: these sessions are hidden, not removed, and signalling
+				// them as `removed` would be misread as a remote deletion (e.g. by
+				// the sessions telemetry contribution).
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
+			}
 		}));
 	}
 
@@ -103,6 +167,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	protected get connection(): IAgentConnection { return this._agentHostService; }
 
 	protected get authenticationPending(): IObservable<boolean> { return this._agentHostService.authenticationPending; }
+
+	protected override _shouldAdvertiseAgent(provider: string): boolean {
+		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
+	}
 
 	/**
 	 * Local resource scheme: `agent-host-${provider}`. Must match the type
@@ -117,21 +185,17 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	protected _adapterOptions() {
 		return {
-			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
-				const uriForDescription = project?.uri ?? workingDirectory;
+			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
+				const primary = workingDirectories?.[0];
+				const uriForDescription = project?.uri ?? primary;
 				const description = uriForDescription ? this._labelService.getUriLabel(dirname(uriForDescription), { relative: false }) : undefined;
-				const branchProtectionPatterns = readBranchProtectionPatterns(this._configurationService, workingDirectory ?? project?.uri);
-				return LocalAgentHostSessionsProvider.buildWorkspace(project, workingDirectory, gitHubInfo, gitState, description, branchProtectionPatterns);
+				const branchProtectionPatterns = readBranchProtectionPatterns(this._configurationService, primary ?? project?.uri);
+				return LocalAgentHostSessionsProvider.buildWorkspace(project, workingDirectories, gitHubInfo, gitState, description, branchProtectionPatterns);
 			},
 		};
 	}
 
 	protected _formatSessionTypeLabel(agentLabel: string): string {
-		// Use the unadorned agent label (e.g. "Copilot") rather than tagging it
-		// with `[Local]`. The session type id is shared with the extension-host
-		// Copilot CLI provider, so the filter menu / new-session picker entry
-		// covers both sets of sessions; the `[Local]` tag belongs on the
-		// per-session workspace label, not the type label.
 		return agentLabel;
 	}
 
@@ -141,13 +205,13 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	// -- Workspaces ----------------------------------------------------------
 
-	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[]): ISessionWorkspace | undefined {
+	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[]): ISessionWorkspace | undefined {
 		// Intentionally pass `undefined` for `providerLabel` so the workspace
 		// label matches the one produced by `resolveWorkspace` (and by other
 		// providers serving the same folder). Sessions list grouping uses
 		// `workspace.label` as the group key — divergent labels would surface
 		// the same folder as multiple groups.
-		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel: undefined, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_LOCAL }, gitHubInfo, gitState);
+		return buildAgentHostSessionWorkspace(project, workingDirectories, { providerLabel: undefined, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_LOCAL }, gitHubInfo, gitState);
 	}
 
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {

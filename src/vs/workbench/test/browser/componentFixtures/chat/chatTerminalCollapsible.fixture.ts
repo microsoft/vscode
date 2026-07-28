@@ -31,7 +31,7 @@ function createMockContext(): IChatContentPartRenderContext {
 	};
 }
 
-function renderCollapsible(context: ComponentFixtureContext, commandText: string, isSandboxWrapped: boolean, isComplete: boolean, isSkipped: boolean = false, isRunningInBackground: boolean = false): void {
+function renderCollapsible(context: ComponentFixtureContext, commandText: string, isSandboxWrapped: boolean, isComplete: boolean, isSkipped: boolean = false, isRunningInBackground: boolean = false, intention: string | undefined = undefined): void {
 	const { container, disposableStore } = context;
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -40,10 +40,10 @@ function renderCollapsible(context: ComponentFixtureContext, commandText: string
 
 	container.style.width = '500px';
 	container.style.padding = '8px';
-	container.classList.add('monaco-workbench');
+	container.classList.add('monaco-workbench', 'interactive-session');
 
-	const session = dom.$('.interactive-session');
-	container.appendChild(session);
+	const itemContainer = dom.$('.interactive-item-container');
+	container.appendChild(itemContainer);
 
 	const contentElement = dom.$('.chat-terminal-output-placeholder');
 	contentElement.textContent = '(terminal output would appear here)';
@@ -53,6 +53,7 @@ function renderCollapsible(context: ComponentFixtureContext, commandText: string
 	const wrapper = disposableStore.add(instantiationService.createInstance(
 		ChatTerminalThinkingCollapsibleWrapper,
 		commandText,
+		intention,
 		isSandboxWrapped,
 		contentElement,
 		createMockContext(),
@@ -63,7 +64,7 @@ function renderCollapsible(context: ComponentFixtureContext, commandText: string
 		undefined,
 	));
 
-	session.appendChild(wrapper.domNode);
+	itemContainer.appendChild(wrapper.domNode);
 }
 
 export default defineThemedFixtureGroup({ path: 'chat/terminalCollapsible/' }, {
@@ -93,5 +94,29 @@ export default defineThemedFixtureGroup({ path: 'chat/terminalCollapsible/' }, {
 	}),
 	'Ran sandbox - powershell backticks': defineComponentFixture({
 		render: ctx => renderCollapsible(ctx, 'Get-Process | Where-Object {$_.Name -eq `"notepad`"}', true, true),
+	}),
+	'Ran - with intention': defineComponentFixture({
+		render: ctx => renderCollapsible(ctx, 'ls -lh', false, true, false, false, 'List files in the repo root'),
+	}),
+	'Height parity - with and without intention': defineComponentFixture({
+		render: ctx => {
+			renderCollapsible(ctx, 'ls -lh', false, true);
+			renderCollapsible(ctx, 'ls -lh', false, true, false, false, 'List files in the repo root');
+		},
+	}),
+	'Running - with intention': defineComponentFixture({
+		render: ctx => renderCollapsible(ctx, 'npm test', false, false, false, false, 'Run the test suite'),
+	}),
+	'Ran sandbox - with intention': defineComponentFixture({
+		render: ctx => renderCollapsible(ctx, 'ls -lh', true, true, false, false, 'List files in the repo root'),
+	}),
+	'Ran - long intention and command': defineComponentFixture({
+		render: ctx => renderCollapsible(ctx, 'grep -rn deprecatedHelper ./src --include=*.ts --color=never | head -50', false, true, false, false, 'Search the entire repository for references to the deprecated helper function'),
+	}),
+	'Ran - long intention short command': defineComponentFixture({
+		render: ctx => renderCollapsible(ctx, 'pwd', false, true, false, false, 'Print the absolute path of the current working directory so I know where I am'),
+	}),
+	'Ran - short intention long command': defineComponentFixture({
+		render: ctx => renderCollapsible(ctx, 'find . -type f -name "*.ts" -not -path "*/node_modules/*" -newer package.json', false, true, false, false, 'Find changed files'),
 	}),
 });

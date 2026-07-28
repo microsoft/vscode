@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { IElementData, IElementAncestor, IBrowserViewTheme } from '../common/browserView.js';
+import { IBrowserElementSelectionOptions, IElementData, IElementAncestor, IBrowserViewTheme } from '../common/browserView.js';
 import { collapseToShorthands, formatMatchedStyles, keyComputedProperties, type IMatchedStyles } from '../common/cssHelpers.js';
 import { ICDPConnection } from '../common/cdp/types.js';
 
@@ -145,7 +145,11 @@ export class BrowserViewFrameInspector extends Disposable {
 			switch (event.method) {
 				case 'Overlay.inspectNodeRequested': {
 					const params = event.params as { backendNodeId: number };
-					if (params?.backendNodeId) {
+					// Only handle this event when VS Code's own element picker is active.
+					// This event also fires when the user inspects elements via the
+					// DevTools built-in inspect cursor — in that case we must not
+					// silently add the element to Copilot Chat as context.
+					if (params?.backendNodeId && this.isInspecting) {
 						try {
 							// Verify the node belongs to this frame (important when
 							// sharing a session with same-origin siblings).
@@ -229,7 +233,7 @@ export class BrowserViewFrameInspector extends Disposable {
 	 * Uses CDP inspect mode if paused, otherwise the preload picker.
 	 * Stores a disposable so stop always tears down the correct mode.
 	 */
-	async startInspection(): Promise<void> {
+	async startInspection(options: IBrowserElementSelectionOptions): Promise<void> {
 		if (this._isPaused) {
 			await this.connection.sendCommand('Overlay.setInspectMode', {
 				mode: 'searchForNode',
@@ -252,7 +256,7 @@ export class BrowserViewFrameInspector extends Disposable {
 				}
 			};
 		} else {
-			this.frame.postMessage('vscode:browserView:startElementPicker', {});
+			this.frame.postMessage('vscode:browserView:startElementPicker', options);
 			this._activeInspection.value = {
 				dispose: () => {
 					if (this.frame.isDestroyed()) {
