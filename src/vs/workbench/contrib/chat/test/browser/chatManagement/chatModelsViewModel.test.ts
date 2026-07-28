@@ -832,4 +832,55 @@ suite('ChatModelsViewModel', () => {
 		assert.strictEqual(models.length, 0);
 	});
 
+	test('should filter out agent-host BYOK model copies but keep native agent-host models', async () => {
+		// An agent host (e.g. Copilot CLI) surfaces the user's own BYOK models as copies
+		// under its own vendor. Those copies carry `byokModelIdentifier` — the id of the
+		// original BYOK model — so they must not appear in Manage Models: they already show
+		// under their real provider group, and listing them again duplicates the whole BYOK
+		// catalogue under the agent host.
+		const service = new MockLanguageModelsService();
+		service.addVendor({ vendor: 'agent-host-copilotcli', displayName: 'Copilot', managementCommand: undefined, when: undefined, configuration: undefined });
+
+		// Native agent-host model — no `byokModelIdentifier`; kept.
+		service.addModel('agent-host-copilotcli', 'agent-host-copilotcli:claude-haiku-4.5', {
+			extension: new ExtensionIdentifier('vscode.chat'),
+			id: 'claude-haiku-4.5',
+			name: 'Claude Haiku 4.5',
+			family: 'claude-haiku-4.5',
+			version: '1.0',
+			vendor: 'agent-host-copilotcli',
+			maxInputTokens: 128000,
+			maxOutputTokens: 4096,
+			isUserSelectable: true,
+			targetChatSessionType: 'agent-host-copilotcli',
+			modelGroup: { id: 'copilotcli' },
+			capabilities: { toolCalling: true, vision: false, agentMode: true },
+			isDefaultForLocation: {},
+		});
+
+		// Agent-host BYOK copy — carries the original model identifier; filtered out.
+		service.addModel('agent-host-copilotcli', 'agent-host-copilotcli:openrouter/aion-labs/aion-3.0', {
+			extension: new ExtensionIdentifier('vscode.chat'),
+			id: 'openrouter/aion-labs/aion-3.0',
+			name: 'AionLabs: Aion-3.0',
+			family: 'openrouter/aion-labs/aion-3.0',
+			version: '1.0',
+			vendor: 'agent-host-copilotcli',
+			maxInputTokens: 128000,
+			maxOutputTokens: 4096,
+			isUserSelectable: true,
+			targetChatSessionType: 'agent-host-copilotcli',
+			modelGroup: { id: 'openrouter' },
+			byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0',
+			capabilities: { toolCalling: true, vision: false, agentMode: true },
+			isDefaultForLocation: {},
+		});
+
+		const agentHostViewModel = store.add(new ChatModelsViewModel(service));
+		await agentHostViewModel.refresh();
+
+		const models = agentHostViewModel.filter('').filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
+		assert.deepStrictEqual(models.map(m => m.model.metadata.id), ['claude-haiku-4.5']);
+	});
+
 });

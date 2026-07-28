@@ -16,16 +16,18 @@ import { IConfigurationService } from '../../../configuration/common/configurati
 
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
-import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../common/remoteAgentHostService.js';
 import type { IAgentConnection } from '../../common/agentService.js';
+import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type {
 	ISSHAgentHostConfig,
 	ISSHConnectResult,
 	ISSHKeyboardInteractiveRequest,
-	ISSHRelayMessage,
 	ISSHResolvedConfig,
 	ISSHRemoteAgentHostMainService,
 } from '../../common/sshRemoteAgentHost.js';
+import type { IRelayMessage } from '../../common/relayTransport.js';
+import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { ISSHRelayClientFactory, SSHRemoteAgentHostService } from '../../electron-browser/sshRemoteAgentHostServiceImpl.js';
 import { RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
 
@@ -44,7 +46,7 @@ class MockSSHMainService {
 	private readonly _onDidReportConnectProgress = new Emitter<{ connectionKey: string; message: string }>();
 	readonly onDidReportConnectProgress = this._onDidReportConnectProgress.event;
 
-	private readonly _onDidRelayMessage = new Emitter<ISSHRelayMessage>();
+	private readonly _onDidRelayMessage = new Emitter<IRelayMessage>();
 	readonly onDidRelayMessage = this._onDidRelayMessage.event;
 
 	private readonly _onDidRelayClose = new Emitter<string>();
@@ -85,8 +87,8 @@ class MockSSHMainService {
 	async reconnect(sshConfigHost: string, name: string): Promise<ISSHConnectResult> {
 		this.reconnectCalls.push({ sshConfigHost, name });
 		return {
-			connectionId: `conn-${this._nextConnectionId++}`,
-			address: `ssh:${sshConfigHost}`,
+			connectionId: this.connectResult?.connectionId ?? `conn-${this._nextConnectionId++}`,
+			address: this.connectResult?.address ?? `ssh:${sshConfigHost}`,
 			name,
 			connectionToken: 'test-token',
 			config: { host: sshConfigHost, username: 'u', authMethod: 0 as never, name, sshConfigHost },
@@ -104,7 +106,7 @@ class MockSSHMainService {
 	async ensureUserSSHConfig(): Promise<URI> { return URI.file('/tmp/ssh-config'); }
 	async listSSHConfigFiles(): Promise<URI[]> { return [URI.file('/tmp/ssh-config')]; }
 	async resolveSSHConfig(_host: string): Promise<ISSHResolvedConfig> {
-		return { hostname: '', user: undefined, port: 22, identityFile: [], forwardAgent: false };
+		return { hostname: '', user: undefined, port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false };
 	}
 
 	dispose(): void {
@@ -140,14 +142,36 @@ function asChannel(target: object): IChannel {
 
 /** Captures addManagedConnection calls so tests can inspect transportDisposable. */
 class MockRemoteAgentHostService extends Disposable {
-	readonly added: Array<{ address: string; transport?: IDisposable }> = [];
-	private readonly _entries = new Map<string, { transport?: IDisposable; client: { dispose?: () => void } }>();
+	readonly added: Array<{ address: string; status?: RemoteAgentHostConnectionStatus; transport?: IDisposable }> = [];
+	private readonly _entries = new Map<string, { transport?: IDisposable; client: { dispose?: () => void }; status: RemoteAgentHostConnectionStatus }>();
+	// Holds transport disposables from prior registrations that were
+	// replaced by a later `addManagedConnection` for the same address.
+	// Production deliberately does NOT run them at replacement time (doing
+	// so would call _mainService.disconnect on the brand-new tunnel and
+	// kill it). They are released when the service itself is disposed.
+	private readonly _abandonedTransports: IDisposable[] = [];
 
-	async addManagedConnection(entry: { name: string; connection: { address?: string; sshConfigHost?: string } }, client: IAgentConnection, transportDisposable?: IDisposable): Promise<unknown> {
+	async addManagedConnection(entry: { name: string; connection: { address?: string; sshConfigHost?: string } }, client: IAgentConnection, transportDisposable?: IDisposable, status: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.connected): Promise<unknown> {
 		const address = entry.connection.address ?? `ssh:${entry.connection.sshConfigHost}`;
-		this.added.push({ address, transport: transportDisposable });
-		this._entries.set(address, { client: client as { dispose?: () => void }, transport: transportDisposable });
-		return { address, name: entry.name, clientId: 'mock', defaultDirectory: undefined, status: 0 };
+		// Mirror RemoteAgentHostService: re-registering an address replaces
+		// the previous entry and disposes its protocol client (but NOT its
+		// transport disposable — the new entry owns the underlying tunnel).
+		const previous = this._entries.get(address);
+		if (previous) {
+			previous.client.dispose?.();
+			if (previous.transport) {
+				this._abandonedTransports.push(previous.transport);
+			}
+		}
+		this.added.push({ address, status, transport: transportDisposable });
+		this._entries.set(address, { client: client as { dispose?: () => void }, transport: transportDisposable, status });
+		return { address, name: entry.name, clientId: 'mock', defaultDirectory: undefined, status };
+	}
+
+	/** Mirrors IRemoteAgentHostService.getConnection: returns the client only when the entry is connected. */
+	getConnection(address: string): IAgentConnection | undefined {
+		const entry = this._entries.get(address);
+		return entry && RemoteAgentHostConnectionStatus.isConnected(entry.status) ? entry.client as unknown as IAgentConnection : undefined;
 	}
 
 	notifyConnectionClosed(_address: string): void {
@@ -173,6 +197,11 @@ class MockRemoteAgentHostService extends Disposable {
 			e.transport?.dispose();
 		}
 		this._entries.clear();
+		// Release abandoned transports from prior registrations as well.
+		for (const t of this._abandonedTransports) {
+			t.dispose();
+		}
+		this._abandonedTransports.length = 0;
 		super.dispose();
 	}
 }
@@ -268,9 +297,82 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 
 		assert.strictEqual(remoteAgentHostService.added.length, 1);
 		assert.strictEqual(remoteAgentHostService.added[0].address, 'ssh:remote.example');
+		assert.strictEqual(remoteAgentHostService.added[0].status?.kind, 'connected');
 		assert.ok(remoteAgentHostService.added[0].transport, 'a transport disposable is passed so removal can tear down the SSH tunnel');
 		assert.strictEqual(service.connections.length, 1);
 		assert.strictEqual(handle.localAddress, 'ssh:remote.example');
+	});
+
+	test('incompatible handshake keeps SSH tunnel registered for server upgrade', async () => {
+		const connectPromise = service.connect(sampleConfig);
+		const client = await waitForClient(0);
+		await client.connectDeferred.error(new ProtocolError(
+			AHP_UNSUPPORTED_PROTOCOL_VERSION,
+			'Unsupported protocol version',
+			{ supportedVersions: ['^0.2.0'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' } },
+		));
+
+		await assert.rejects(connectPromise, /Unsupported protocol version/);
+
+		assert.deepStrictEqual({
+			added: remoteAgentHostService.added.map(({ address, status }) => ({ address, status })),
+			connections: service.connections.map(connection => connection.localAddress),
+			disconnectCalls: mainService.disconnectCalls,
+		}, {
+			added: [{
+				address: 'ssh:remote.example',
+				status: RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', [PROTOCOL_VERSION], ['^0.2.0'], '_vscodeUpgrade'),
+			}],
+			connections: ['ssh:remote.example'],
+			disconnectCalls: [],
+		});
+	});
+
+	test('reconnect after incompatible handshake replaces the stale handle and re-handshakes', async () => {
+		// Pin a stable connectionId so the simulated `replaceRelay` reconnect
+		// returns the same id as the initial connect — that is the real
+		// behavior of SSHRemoteAgentHostMainService.connect(replaceRelay=true).
+		mainService.connectResult = { connectionId: 'conn-stable', address: 'ssh:remote.example' };
+
+		// First connect: handshake rejected as incompatible. Per the existing
+		// fix, this still registers a managed connection in `incompatible`
+		// state so the server-upgrade RPC can reach the host.
+		const firstConnect = service.connect(sampleConfig);
+		const firstClient = await waitForClient(0);
+		await firstClient.connectDeferred.error(new ProtocolError(
+			AHP_UNSUPPORTED_PROTOCOL_VERSION,
+			'Unsupported protocol version',
+			{ supportedVersions: ['^0.2.0'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' } },
+		));
+		await assert.rejects(firstConnect, /Unsupported protocol version/);
+
+		// User triggers the server upgrade and then the contribution reconnects.
+		// The reconnect must NOT short-circuit to the stale handle (whose
+		// protocol client is permanently stuck in incompatible state); it must
+		// build a fresh client and complete a fresh handshake against the
+		// upgraded server.
+		const reconnectPromise = service.reconnect('remote.example', 'My Remote');
+		const secondClient = await waitForClient(1);
+		await secondClient.connectDeferred.complete();
+		await reconnectPromise;
+
+		assert.deepStrictEqual({
+			clientCount: createdClients.length,
+			added: remoteAgentHostService.added.map(({ address, status }) => ({ address, statusKind: status?.kind })),
+			// The replaceRelay path keeps the SSH tunnel alive — we must not
+			// have asked the main service to disconnect it.
+			disconnectCalls: mainService.disconnectCalls,
+			// Exactly one renderer-side handle for the address.
+			connections: service.connections.map(connection => connection.localAddress),
+		}, {
+			clientCount: 2,
+			added: [
+				{ address: 'ssh:remote.example', statusKind: 'incompatible' },
+				{ address: 'ssh:remote.example', statusKind: 'connected' },
+			],
+			disconnectCalls: [],
+			connections: ['ssh:remote.example'],
+		});
 	});
 
 	test('disabled setting prevents SSH tunnel connects and reconnects', async () => {

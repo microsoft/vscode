@@ -5,6 +5,7 @@
 
 import { afterEach, beforeEach, expect, Mock, suite, test, vi } from 'vitest';
 import type { TelemetryLogger } from 'vscode';
+import * as zlib from 'zlib';
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../authentication/common/copilotToken';
 import { ICopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
 import { IConfigurationService } from '../../../configuration/common/configurationService';
@@ -13,7 +14,32 @@ import { IEnvService } from '../../../env/common/envService';
 import { createPlatformServices, ITestingServicesAccessor } from '../../../test/node/services';
 import { BaseGHTelemetrySender } from '../../common/ghTelemetrySender';
 import { BaseMsftTelemetrySender, ITelemetryReporter } from '../../common/msftTelemetrySender';
-import { ITelemetryUserConfig, TelemetryTrustedValue } from '../../common/telemetry';
+import { ITelemetryUserConfig, multiplexProperties, TelemetryTrustedValue } from '../../common/telemetry';
+
+const gzipBase64 = async (value: string): Promise<string> => zlib.gzipSync(Buffer.from(value, 'utf8')).toString('base64');
+const gunzipFromBase64 = (value: string): string => zlib.gunzipSync(Buffer.from(value, 'base64')).toString('utf8');
+
+function joinCompressedChunks(chunks: { [key: string]: string }, base: string): string {
+	let out = chunks[base] ?? '';
+	for (let index = 2; chunks[`${base}_${index}`] !== undefined; index++) {
+		out += chunks[`${base}_${index}`];
+	}
+	return out;
+}
+
+function pseudoRandomString(length: number): string {
+	let seed = 0x2545f491;
+	const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+	let out = '';
+	for (let i = 0; i < length; i++) {
+		seed ^= seed << 13;
+		seed ^= seed >>> 17;
+		seed ^= seed << 5;
+		seed >>>= 0;
+		out += chars[seed % chars.length];
+	}
+	return out;
+}
 
 suite('Microsoft Telemetry Sender', function () {
 	let mockExternalReporter: ITelemetryReporter;
@@ -325,5 +351,70 @@ suite('GitHub Telemetry Sender', function () {
 		sender.dispose();
 		expect(mockLogger.dispose).toHaveBeenCalledOnce();
 		expect(mockEnhancedLogger.dispose).toHaveBeenCalledOnce();
+	});
+});
+
+suite('multiplexProperties compression', function () {
+	test('chunks a long value in compressed form only and round-trips', async () => {
+		const original = 'x'.repeat(20000); // > 8192 and highly compressible.
+		const result = await multiplexProperties({ diffsJSON: original, short: 'hi' }, gzipBase64);
+
+		// The original column carries just the first uncompressed chunk.
+		expect(result.diffsJSON).toBe(original.slice(0, 8192));
+		// No redundant plain continuation family is produced.
+		expect(result.diffsJSON_02).toBeUndefined();
+		// First compressed column has no numeric suffix.
+		expect(result.diffsJSONChunk).toBeDefined();
+		// Round-trips back to the original value.
+		expect(gunzipFromBase64(joinCompressedChunks(result as { [key: string]: string }, 'diffsJSONChunk'))).toBe(original);
+		// No zero-padded suffixes on the compressed family.
+		expect(Object.keys(result).every(key => !/Chunk_0\d$/.test(key))).toBe(true);
+		// Short (non-chunked) properties pass through untouched with no compressed family.
+		expect(result.short).toBe('hi');
+		expect(result.shortChunk).toBeUndefined();
+	});
+
+	test('produces no compressed columns for size-triggered fields that were not chunked', async () => {
+		const result = await multiplexProperties({ someField: 'small', other: 'x' }, gzipBase64);
+		expect(result).toEqual({ someField: 'small', other: 'x' });
+	});
+
+	test('always emits a compressed chunk family for known-large fields even when they fit', async () => {
+		const result = await multiplexProperties({ diffsJSON: 'small', messagesJson: 'tiny', other: 'x' }, gzipBase64) as { [key: string]: string };
+
+		// Known-large fields are always chunked in compressed form for backend uniformity.
+		expect(result.diffsJSONChunk).toBeDefined();
+		expect(result.messagesJsonChunk).toBeDefined();
+		expect(gunzipFromBase64(joinCompressedChunks(result, 'diffsJSONChunk'))).toBe('small');
+		expect(gunzipFromBase64(joinCompressedChunks(result, 'messagesJsonChunk'))).toBe('tiny');
+		// The original columns still carry the (short) uncompressed value.
+		expect(result.diffsJSON).toBe('small');
+		expect(result.messagesJson).toBe('tiny');
+		// Other short fields are left untouched.
+		expect(result.other).toBe('x');
+		expect(result.otherChunk).toBeUndefined();
+	});
+
+	test('falls back to the plain continuation family when no compressor is provided', async () => {
+		const original = 'x'.repeat(20000);
+		const result = await multiplexProperties({ diffsJSON: original });
+		expect(result.diffsJSON).toBeDefined();
+		expect(result.diffsJSON_02).toBeDefined();
+		expect(result.diffsJSONChunk).toBeUndefined();
+	});
+
+	test('splits large compressed payloads across multiple non-zero-padded columns', async () => {
+		const original = pseudoRandomString(60000); // Poorly compressible -> compressed base64 > 8192.
+		const result = await multiplexProperties({ diffsJSON: original }, gzipBase64) as { [key: string]: string };
+
+		// The original column carries just the first uncompressed chunk; no plain continuation family.
+		expect(result.diffsJSON).toBe(original.slice(0, 8192));
+		expect(result.diffsJSON_02).toBeUndefined();
+		expect(result.diffsJSONChunk).toBeDefined();
+		expect(result.diffsJSONChunk_2).toBeDefined();
+		// Every compressed column stays within the Application Insights per-property limit.
+		const chunkValues = Object.keys(result).filter(key => key.startsWith('diffsJSONChunk')).map(key => result[key]);
+		expect(chunkValues.every(value => value.length <= 8192)).toBe(true);
+		expect(gunzipFromBase64(joinCompressedChunks(result, 'diffsJSONChunk'))).toBe(original);
 	});
 });

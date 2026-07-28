@@ -5,10 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { allowedMarkdownHtmlAttributes, MarkdownRendererMarkedOptions, type MarkdownRenderOptions } from '../../../../../../base/browser/markdownRenderer.js';
-import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
-import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
-import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { wrapTablesWithScrollable } from './chatMarkdownTableScrolling.js';
 import { coalesce } from '../../../../../../base/common/arrays.js';
@@ -28,8 +25,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type SymbolTag } from '../../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
-import { getIconClasses } from '../../../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { EditDeltaInfo } from '../../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -37,8 +34,7 @@ import { IMenuService, MenuId } from '../../../../../../platform/actions/common/
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../../../platform/editor/browser/editor.js';
-import { FileKind } from '../../../../../../platform/files/common/files.js';
+import { IOpenEditorOptions } from '../../../../../../platform/editor/browser/editor.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -51,6 +47,7 @@ import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText } from '..
 import { IEditSessionDiffStats, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
 import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
@@ -64,6 +61,7 @@ import './media/chatCodeBlockPill.css';
 import { IDisposableReference } from './chatCollections.js';
 import { EditorPool } from './chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { ChatEditPillElement, isResourceContentEmpty } from './chatEditPillElement.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
 import { ChatProgressSubPart } from './chatProgressContentPart.js';
 import { IncrementalDOMMorpher } from './chatIncrementalRendering/chatIncrementalRendering.js';
@@ -134,6 +132,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 		@IChatOutputRendererService private readonly chatOutputRendererService: IChatOutputRendererService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -226,6 +225,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				breaks: true,
 			};
 
+			const configuredUriTransformer = markdownRenderOptions?.transformUri;
+			const transformUri = isResponseVM(element)
+				? (href: string, kind: 'link' | 'image') => this.chatSessionsService.resolveChatResponseUri(element.sessionResource, configuredUriTransformer?.(href, kind) ?? href, kind)
+				: configuredUriTransformer;
 			const result = store.add(renderer.render(this.markdown.content, {
 				sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
 					allowedTags: allowedChatMarkdownHtmlTags,
@@ -359,6 +362,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				markedOptions: markedOpts,
 				markedExtensions,
 				...markdownRenderOptions,
+				transformUri,
 			}, this.domNode));
 
 			// Ideally this would happen earlier, but we need to parse the markdown.
@@ -370,7 +374,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							feature: 'sideBarChat',
 							editDeltaInfo: info.editDeltaInfo,
 							languageId: info.languageId,
-							modeId: element.model.request?.modeInfo?.modeId,
+							modeId: element.model.request?.modeInfo?.telemetryModeId,
 							modelId: element.model.request?.modelId,
 							applyCodeBlockSuggestionId: undefined,
 							source: undefined,
@@ -829,17 +833,7 @@ class ChatOutputCodeBlockPart extends Disposable {
 	}
 }
 
-export class CollapsedCodeBlock extends Disposable {
-
-	readonly element: HTMLElement;
-	private readonly pillElement: HTMLElement;
-	private readonly statusIndicatorContainer: HTMLElement;
-
-	private _uri: URI | undefined;
-	get uri(): URI | undefined { return this._uri; }
-
-	private readonly hover = this._register(new MutableDisposable());
-	private tooltip: string | undefined;
+export class CollapsedCodeBlock extends ChatEditPillElement {
 
 	private currentDiff: IEditSessionEntryDiff | undefined;
 	get diff(): IEditSessionEntryDiff | undefined {
@@ -855,41 +849,22 @@ export class CollapsedCodeBlock extends Disposable {
 		private readonly sessionResource: URI,
 		private readonly requestId: string,
 		private readonly inUndoStop: string | undefined,
-		@ILabelService private readonly labelService: ILabelService,
+		@ILabelService labelService: ILabelService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService,
+		@IModelService modelService: IModelService,
+		@ILanguageService languageService: ILanguageService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IHoverService private readonly hoverService: IHoverService,
+		@IHoverService hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
-		super();
+		super(labelService, modelService, languageService, hoverService);
 
-		this.element = $('div.chat-codeblock-pill-container');
-
-		this.statusIndicatorContainer = $('div.status-indicator-container');
-
-		this.pillElement = $('.chat-codeblock-pill-widget');
-		this.pillElement.tabIndex = 0;
-		this.pillElement.classList.add('show-file-icons');
-		this.pillElement.role = 'button';
-
-		this.element.appendChild(this.statusIndicatorContainer);
-		this.element.appendChild(this.pillElement);
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this._register(registerOpenEditorListeners(this.pillElement, e => this.showDiff(e)));
-
-		this._register(dom.addDisposableListener(this.pillElement, dom.EventType.CONTEXT_MENU, e => {
-			const event = new StandardMouseEvent(dom.getWindow(e), e);
-			dom.EventHelper.stop(e, true);
-
+		this._register(this.onDidClick(e => this.showDiff(e)));
+		this._register(this.onDidContextMenu(event => {
 			this.contextMenuService.showContextMenu({
 				contextKeyService: this.contextKeyService,
 				getAnchor: () => event,
@@ -897,61 +872,52 @@ export class CollapsedCodeBlock extends Disposable {
 					if (!this.uri) {
 						return [];
 					}
-
 					const menu = this.menuService.getMenuActions(MenuId.ChatEditingCodeBlockContext, this.contextKeyService, {
 						arg: {
 							sessionResource: this.sessionResource,
 							requestId: this.requestId,
 							uri: this.uri,
-							stopId: this.inUndoStop
-						} satisfies ChatEditingActionContext
+							stopId: this.inUndoStop,
+						} satisfies ChatEditingActionContext,
 					});
-
 					return getFlatContextMenuActions(menu);
 				},
 			});
 		}));
 	}
 
-	private showDiff({ editorOptions: options, openToSide }: IOpenEditorOptions): void {
+	private async showDiff({ editorOptions: options, openToSide }: IOpenEditorOptions): Promise<void> {
+		const group = openToSide ? SIDE_GROUP : undefined;
 		if (this.currentDiff) {
+			// If the change is a pure addition into a file whose original version did not
+			// exist or was empty, there is nothing meaningful to diff against. Open the
+			// file in a normal editor instead of a diff editor.
+			if (this.currentDiff.removed === 0 && await isResourceContentEmpty(this.textModelService, this.currentDiff.originalURI) && this.uri) {
+				this.editorService.openEditor({ resource: this.uri, options }, group);
+				return;
+			}
 			this.editorService.openEditor({
 				original: { resource: this.currentDiff.originalURI },
 				modified: { resource: this.currentDiff.modifiedURI },
 				options
-			}, openToSide ? SIDE_GROUP : undefined);
+			}, group);
 		} else if (this.uri) {
-			this.editorService.openEditor({ resource: this.uri, options }, openToSide ? SIDE_GROUP : undefined);
+			this.editorService.openEditor({ resource: this.uri, options }, group);
 		}
 	}
 
 	/**
 	 * @param uri URI of the file on-disk being changed
-	 * @param isStreaming Whether the edit has completed (at the time of this being rendered)
 	 */
 	render(uri: URI): void {
 		this.progressStore.clear();
 
-		this._uri = uri;
+		this.setUri(uri);
+		this.setStatus(undefined, '');
+		this.setLabelDetail('');
+		this.setProgressFill(undefined);
 
 		const session = this.chatService.getSession(this.sessionResource);
-		const iconText = this.labelService.getUriBasenameLabel(uri);
-
-		const statusIconEl = dom.$('span.status-icon');
-		const statusLabelEl = dom.$('span.status-label', {}, '');
-
-		this.statusIndicatorContainer.replaceChildren(statusIconEl, statusLabelEl);
-
-		const iconEl = dom.$('span.icon');
-		const iconLabelEl = dom.$('span.icon-label', {}, iconText);
-		const labelDetail = dom.$('span.label-detail', {}, '');
-
-		// Create a progress fill element for the animation
-		const progressFill = dom.$('span.progress-fill');
-		this.pillElement.replaceChildren(progressFill, iconEl, iconLabelEl, labelDetail);
-		const tooltipLabel = this.labelService.getUriLabel(uri, { relative: true });
-		this.updateTooltip(tooltipLabel);
-
 		const editSession = session?.editingSession;
 		if (!editSession) {
 			return;
@@ -969,40 +935,26 @@ export class CollapsedCodeBlock extends Disposable {
 		});
 
 		// Set the icon/classes while edits are streaming
-		let statusIconClasses: string[] = [];
-		let pillIconClasses: string[] = [];
+		const iconText = this.labelService.getUriBasenameLabel(uri);
 		this.progressStore.add(autorun(r => {
-			statusIconEl.classList.remove(...statusIconClasses);
-			iconEl.classList.remove(...pillIconClasses);
 			if (isStreaming.read(r)) {
 				const codicon = ThemeIcon.modify(Codicon.loading, 'spin');
-				statusIconClasses = ThemeIcon.asClassNameArray(codicon);
-				statusIconEl.classList.add(...statusIconClasses);
+				this.setStatus(codicon, localize('chat.codeblock.applyingEdits', 'Applying edits'));
 				const entry = editSession.readEntry(uri, r);
 				const rwRatio = Math.floor((entry?.rewriteRatio.read(r) || 0) * 100);
-				statusLabelEl.textContent = localize('chat.codeblock.applyingEdits', 'Applying edits');
 
 				const showAnimation = this.configurationService.getValue<boolean>(ChatConfiguration.ShowCodeBlockProgressAnimation);
 				if (showAnimation) {
-					progressFill.style.width = `${rwRatio}%`;
-					this.pillElement.classList.add('progress-filling');
-					labelDetail.textContent = '';
+					this.setProgressFill(rwRatio);
+					this.setLabelDetail('');
 				} else {
-					progressFill.style.width = '0%';
-					this.pillElement.classList.remove('progress-filling');
-					labelDetail.textContent = rwRatio === 0 || !rwRatio ? localize('chat.codeblock.generating', "Generating edits...") : localize('chat.codeblock.applyingPercentage', "({0}%)...", rwRatio);
+					this.setProgressFill(undefined);
+					this.setLabelDetail(rwRatio === 0 || !rwRatio ? localize('chat.codeblock.generating', "Generating edits...") : localize('chat.codeblock.applyingPercentage', "({0}%)...", rwRatio));
 				}
 			} else {
-				const statusCodeicon = Codicon.check;
-				statusIconClasses = ThemeIcon.asClassNameArray(statusCodeicon);
-				statusIconEl.classList.add(...statusIconClasses);
-				statusLabelEl.textContent = localize('chat.codeblock.edited', 'Edited');
-				const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
-				pillIconClasses = getIconClasses(this.modelService, this.languageService, uri, fileKind);
-				iconEl.classList.add(...pillIconClasses);
-				this.pillElement.classList.remove('progress-filling');
-				progressFill.style.width = '0%';
-				labelDetail.textContent = '';
+				this.setStatus(Codicon.check, localize('chat.codeblock.edited', 'Edited'));
+				this.setProgressFill(undefined);
+				this.setLabelDetail('');
 			}
 		}));
 
@@ -1013,19 +965,13 @@ export class CollapsedCodeBlock extends Disposable {
 				return;
 			}
 
-			// eslint-disable-next-line no-restricted-syntax
-			const labelAdded = this.pillElement.querySelector('.label-added') ?? this.pillElement.appendChild(dom.$('span.label-added'));
-			// eslint-disable-next-line no-restricted-syntax
-			const labelRemoved = this.pillElement.querySelector('.label-removed') ?? this.pillElement.appendChild(dom.$('span.label-removed'));
 			if (changes && !changes?.identical && !changes?.quitEarly) {
 				this.currentDiff = changes;
 				this._onDidChangeDiff.fire(changes);
-				labelAdded.textContent = `+${changes.added}`;
-				labelRemoved.textContent = `-${changes.removed}`;
+				this.setDiff({ added: changes.added, removed: changes.removed });
 				const insertionsFragment = changes.added === 1 ? localize('chat.codeblock.insertions.one', "1 insertion") : localize('chat.codeblock.insertions', "{0} insertions", changes.added);
 				const deletionsFragment = changes.removed === 1 ? localize('chat.codeblock.deletions.one', "1 deletion") : localize('chat.codeblock.deletions', "{0} deletions", changes.removed);
-				const summary = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
-				this.element.ariaLabel = summary;
+				this.setAriaLabel(localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment));
 
 				// No need to keep updating once we get the diff info
 				if (changes.isFinal) {
@@ -1033,19 +979,6 @@ export class CollapsedCodeBlock extends Disposable {
 				}
 			}
 		}));
-	}
-
-	private updateTooltip(tooltip: string): void {
-		this.tooltip = tooltip;
-
-		if (!this.hover.value) {
-			this.hover.value = this.hoverService.setupDelayedHover(this.pillElement, () => ({
-				content: this.tooltip!,
-				style: HoverStyle.Pointer,
-				position: { hoverPosition: HoverPosition.BELOW },
-				persistence: { hideOnKeyDown: true },
-			}));
-		}
 	}
 }
 

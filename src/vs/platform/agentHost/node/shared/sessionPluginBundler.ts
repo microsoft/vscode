@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { hash } from '../../../../base/common/hash.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
-import type { CustomizationRef } from '../../common/state/sessionState.js';
-import type { URI as ProtocolURI } from '../../common/state/protocol/state.js';
-import { DiscoveredType, type IDiscoveredFile } from '../copilot/sessionCustomizationDiscovery.js';
+import { customizationId, type ClientPluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationType, type URI as ProtocolURI } from '../../common/state/protocol/state.js';
+import { DiscoveredType, type IDiscoveredDirectory } from '../copilot/sessionCustomizationDiscovery.js';
 
 const DISPLAY_NAME = 'VS Code Synced Data';
 const HOST_DISCOVERY_DIR = 'host-discovery';
@@ -26,16 +27,18 @@ const MANIFEST_CONTENT = JSON.stringify({
  * Maps a {@link DiscoveredType} to the plugin sub-directory under which that
  * component type lives in the Open Plugin format.
  */
-function pluginDirForType(type: DiscoveredType): string {
+function pluginDirForType(type: DiscoveredType): string | undefined {
 	switch (type) {
 		case DiscoveredType.Agent: return 'agents';
 		case DiscoveredType.Skill: return 'skills';
 		case DiscoveredType.Instruction: return 'rules';
+		case DiscoveredType.Hook: return 'hooks';
+		case DiscoveredType.AgentInstruction: return undefined;
 	}
 }
 
 interface IBundleResult {
-	readonly ref: CustomizationRef;
+	readonly ref: ClientPluginCustomization;
 }
 
 /**
@@ -80,12 +83,69 @@ export class SessionPluginBundler extends Disposable {
 	 * Bundles the given files into the on-disk plugin directory.
 	 *
 	 * Overwrites any previous bundle for this working directory. Returns a
-	 * {@link CustomizationRef} pointing at the on-disk plugin root with a
-	 * content-based nonce, or `undefined` when there are no files.
+	 * {@link ClientPluginCustomization} pointing at the on-disk plugin root
+	 * with a content-based nonce, or `undefined` when there are no files or
+	 * cancellation was requested.
 	 */
-	async bundle(files: readonly IDiscoveredFile[]): Promise<IBundleResult | undefined> {
-		if (files.length === 0) {
+	async bundle(directories: readonly IDiscoveredDirectory[], token: CancellationToken = CancellationToken.None): Promise<IBundleResult | undefined> {
+		if (directories.length === 0 || token.isCancellationRequested) {
 			return undefined;
+		}
+
+		const hashParts: string[] = [];
+		const files: { readonly destUri: URI; readonly content: VSBuffer }[] = [];
+
+		for (const discoveredDirectory of directories) {
+			const dir = pluginDirForType(discoveredDirectory.type);
+			if (!dir) {
+				continue; // do not bundle agent instructions
+			}
+			for (const file of discoveredDirectory.files) {
+				const fileUri = file.uri;
+				const fileName = basename(fileUri);
+
+				let destUri: URI;
+				let hashKey: string;
+				if (discoveredDirectory.type === DiscoveredType.Skill) {
+					// Skills are conventionally `<skillName>/SKILL.md`. Preserve the
+					// containing directory name so multiple skills don't collide.
+					const skillDirName = basename(dirname(fileUri));
+					destUri = URI.joinPath(this._rootUri, dir, skillDirName, fileName);
+					hashKey = `${dir}/${skillDirName}/${fileName}`;
+				} else {
+					destUri = URI.joinPath(this._rootUri, dir, fileName);
+					hashKey = `${dir}/${fileName}`;
+				}
+
+				const content = await this._fileService.readFile(fileUri);
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
+				files.push({ destUri, content: content.value });
+				hashParts.push(`${hashKey}:${content.value.toString()}`);
+			}
+		}
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		hashParts.sort();
+		const nonce = String(hash(hashParts.join('\n')));
+
+		const rootUriString = this._rootUri.toString() as ProtocolURI;
+		const result = {
+			ref: {
+				type: CustomizationType.Plugin,
+				id: customizationId(rootUriString),
+				uri: rootUriString,
+				name: DISPLAY_NAME,
+				enabled: true,
+				nonce,
+			},
+		} satisfies IBundleResult;
+
+		if (this._lastNonce === nonce) {
+			return result;
 		}
 
 		try {
@@ -93,45 +153,32 @@ export class SessionPluginBundler extends Disposable {
 		} catch {
 			// Directory may not exist on first bundle.
 		}
-
-		const manifestUri = URI.joinPath(this._rootUri, '.plugin', 'plugin.json');
-		await this._fileService.writeFile(manifestUri, VSBuffer.fromString(MANIFEST_CONTENT));
-
-		const hashParts: string[] = [];
-
-		for (const file of files) {
-			const dir = pluginDirForType(file.type);
-			const fileName = basename(file.uri);
-
-			let destUri: URI;
-			let hashKey: string;
-			if (file.type === DiscoveredType.Skill) {
-				// Skills are conventionally `<skillName>/SKILL.md`. Preserve the
-				// containing directory name so multiple skills don't collide.
-				const skillDirName = basename(dirname(file.uri));
-				destUri = URI.joinPath(this._rootUri, dir, skillDirName, fileName);
-				hashKey = `${dir}/${skillDirName}/${fileName}`;
-			} else {
-				destUri = URI.joinPath(this._rootUri, dir, fileName);
-				hashKey = `${dir}/${fileName}`;
-			}
-
-			const content = await this._fileService.readFile(file.uri);
-			await this._fileService.writeFile(destUri, content.value);
-			hashParts.push(`${hashKey}:${content.value.toString()}`);
+		if (token.isCancellationRequested) {
+			return undefined;
 		}
 
-		hashParts.sort();
-		const nonce = String(hash(hashParts.join('\n')));
-		this._lastNonce = nonce;
+		const manifestUri = URI.joinPath(this._rootUri, '.plugin', 'plugin.json');
+		await this._fileService.createFolder(dirname(manifestUri));
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		await this._fileService.writeFile(manifestUri, VSBuffer.fromString(MANIFEST_CONTENT));
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 
-		return {
-			ref: {
-				uri: this._rootUri.toString() as ProtocolURI,
-				displayName: DISPLAY_NAME,
-				description: `${files.length} customization(s) discovered for this session`,
-				nonce,
-			},
-		};
+		for (const file of files) {
+			await this._fileService.createFolder(dirname(file.destUri));
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			await this._fileService.writeFile(file.destUri, file.content);
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+		}
+
+		this._lastNonce = nonce;
+		return result;
 	}
 }

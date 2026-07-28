@@ -16,7 +16,7 @@ import { $, addDisposableListener, append, EventType, h } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { IActionViewItemProvider } from '../actionbar/actionbar.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from '../actionbar/actionViewItems.js';
-import { AnchorAlignment } from '../contextview/contextview.js';
+import { AnchorAlignment, IContextViewCloseAnimation } from '../contextview/contextview.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import './dropdown.css';
@@ -35,6 +35,9 @@ export interface IDropdownMenuActionViewItemOptions extends IBaseActionViewItemO
 	readonly keybindingProvider?: IKeybindingProvider;
 	readonly actionRunner?: IActionRunner;
 	readonly classNames?: string[] | string;
+	readonly menuClassName?: string;
+	readonly closeAnimation?: IContextViewCloseAnimation;
+	readonly getAnchor?: () => HTMLElement;
 	readonly anchorAlignmentProvider?: IAnchorAlignmentProvider;
 	readonly menuAsChild?: boolean;
 	readonly skipTelemetry?: boolean;
@@ -84,6 +87,9 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 			menuAsChild: this.options.menuAsChild,
 			actions: isActionsArray ? this.menuActionsOrProvider as IAction[] : undefined,
 			actionProvider: isActionsArray ? undefined : this.menuActionsOrProvider as IActionProvider,
+			menuClassName: this.options.menuClassName,
+			closeAnimation: this.options.closeAnimation,
+			getAnchor: this.options.getAnchor,
 			skipTelemetry: this.options.skipTelemetry
 		};
 

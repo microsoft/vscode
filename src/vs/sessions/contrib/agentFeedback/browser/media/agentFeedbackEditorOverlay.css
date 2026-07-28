@@ -7,7 +7,7 @@
 	padding: 2px 4px;
 	color: var(--vscode-foreground);
 	background-color: var(--vscode-editorWidget-background);
-	border-radius: 6px;
+	border-radius: var(--vscode-cornerRadius-medium);
 	border: 1px solid var(--vscode-editorHoverWidget-border);
 	display: flex;
 	align-items: center;
@@ -20,9 +20,9 @@
 
 .agent-feedback-editor-overlay-widget .action-item > .action-label {
 	padding: 4px 6px;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	line-height: 14px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .agent-feedback-editor-overlay-widget .monaco-action-bar .actions-container {

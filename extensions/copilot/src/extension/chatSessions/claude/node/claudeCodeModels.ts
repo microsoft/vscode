@@ -8,13 +8,13 @@ import type * as vscode from 'vscode';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
-import { formatPricingLabel, getModelCapabilitiesDescription } from '../../../conversation/common/languageModelAccess';
+import { formatPricingLabel, getModelCapabilitiesDescription, getReasoningEffortDescription } from '../../../conversation/common/languageModelAccess';
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import type { ParsedClaudeModelId } from '../common/claudeModelId';
 import { tryParseClaudeModelId } from './claudeModelId';
-import { EffortLevel } from '@anthropic-ai/claude-agent-sdk';
+import type { EffortLevel } from '@anthropic-ai/claude-agent-sdk';
 
 export const CLAUDE_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 
@@ -100,11 +100,14 @@ export class ClaudeCodeModels extends Disposable implements IClaudeCodeModels {
 				inputCost: endpoint.tokenPricing?.default.inputPrice,
 				outputCost: endpoint.tokenPricing?.default.outputPrice,
 				cacheCost: endpoint.tokenPricing?.default.cacheReadTokenPrice,
+				cacheWriteCost: endpoint.tokenPricing?.default.cacheWriteTokenPrice,
 				longContextInputCost: endpoint.tokenPricing?.longContext?.inputPrice,
 				longContextOutputCost: endpoint.tokenPricing?.longContext?.outputPrice,
 				longContextCacheCost: endpoint.tokenPricing?.longContext?.cacheReadTokenPrice,
+				longContextCacheWriteCost: endpoint.tokenPricing?.longContext?.cacheWriteTokenPrice,
 				multiplierNumeric: endpoint.multiplier,
 				priceCategory: endpoint.priceCategory,
+				promo: endpoint.promo,
 				tooltip,
 				isUserSelectable: true,
 				configurationSchema: buildConfigurationSchema(endpoint),
@@ -231,13 +234,7 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): vscode.LanguageModel
 				title: l10n.t('Thinking Effort'),
 				enum: effortLevels,
 				enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
-				enumDescriptions: effortLevels.map(level => {
-					switch (level) {
-						case 'low': return l10n.t('Faster responses with less reasoning');
-						case 'medium': return l10n.t('Balanced reasoning and speed');
-						case 'high': return l10n.t('Greater reasoning depth but slower');
-					}
-				}),
+				enumDescriptions: effortLevels.map(getReasoningEffortDescription),
 				default: defaultEffort,
 				group: 'navigation',
 			}

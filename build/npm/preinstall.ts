@@ -46,9 +46,8 @@ const npmUserAgent = process.env.npm_config_user_agent;
 const npmVersionMatch = npmUserAgent?.match(/npm\/(\d+)\.(\d+)\.(\d+)/);
 if (npmVersionMatch) {
 	const npmMajor = parseInt(npmVersionMatch[1]);
-	const npmMinor = parseInt(npmVersionMatch[2]);
-	if (npmMajor > 11 || (npmMajor === 11 && npmMinor >= 2)) {
-		console.error(`\x1b[1;31m*** Please use npm version < 11.2.0. Currently using v${npmUserAgent}.\x1b[0;0m`);
+	if (npmMajor >= 12) {
+		console.error(`\x1b[1;31m*** Please use npm version < 12.0.0. Currently using v${npmUserAgent}.\x1b[0;0m`);
 		throw new Error();
 	}
 }
@@ -143,25 +142,43 @@ function installHeaders() {
 		child_process.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell: true });
 	}
 
-	// On Linux, apply a patch to the downloaded headers
-	// Remove dependency on std::source_location to avoid bumping the required GCC version to 11+
-	// Refs https://chromium-review.googlesource.com/c/v8/v8/+/6879784
-	if (process.platform === 'linux') {
-		const homedir = os.homedir();
-		const cachePath = process.env.XDG_CACHE_HOME || path.join(homedir, '.cache');
-		const nodeGypCache = path.join(cachePath, 'node-gyp');
-		const localHeaderPath = path.join(nodeGypCache, local!.target, 'include', 'node');
-		if (fs.existsSync(localHeaderPath)) {
-			console.log('Applying v8-source-location.patch to', localHeaderPath);
-			try {
-				child_process.execFileSync('patch', ['-p0', '-i', path.join(import.meta.dirname, 'gyp', 'custom-headers', 'v8-source-location.patch')], {
-					cwd: localHeaderPath
-				});
-			} catch (error) {
-				throw new Error(`Error applying v8-source-location.patch: ${(error as Error).message}`);
-			}
+	// Overlay any custom headers shipped in build/npm/gyp/custom-headers on top of
+	// the downloaded Electron headers. This is used to work around upstream issues:
+	//   - v8-source-location.h: remove dependency on std::source_location (GCC 11+ requirement)
+	//     Refs https://chromium-review.googlesource.com/c/v8/v8/+/6879784
+	if (local !== undefined) {
+		const localHeaderPath = getLocalHeaderPath(local.target);
+		if (localHeaderPath && fs.existsSync(localHeaderPath)) {
+			copyCustomHeaders(path.join(import.meta.dirname, 'gyp', 'custom-headers'), localHeaderPath);
 		}
 	}
+}
+
+function copyCustomHeaders(sourceDir: string, targetDir: string): void {
+	for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+		const sourcePath = path.join(sourceDir, entry.name);
+		const targetPath = path.join(targetDir, entry.name);
+		if (entry.isDirectory()) {
+			fs.mkdirSync(targetPath, { recursive: true });
+			copyCustomHeaders(sourcePath, targetPath);
+		} else if (entry.isFile()) {
+			console.log('Overlaying custom header', targetPath);
+			fs.copyFileSync(sourcePath, targetPath);
+		}
+	}
+}
+
+function getLocalHeaderPath(target: string): string | undefined {
+	if (process.platform === 'win32') {
+		const localAppData = process.env.LOCALAPPDATA;
+		if (!localAppData) {
+			return undefined;
+		}
+		return path.join(localAppData, 'node-gyp', 'Cache', target, 'include', 'node');
+	}
+	const homedir = os.homedir();
+	const cachePath = process.env.XDG_CACHE_HOME || path.join(homedir, '.cache');
+	return path.join(cachePath, 'node-gyp', target, 'include', 'node');
 }
 
 function getHeaderInfo(rcFile: string): { disturl: string; target: string } | undefined {

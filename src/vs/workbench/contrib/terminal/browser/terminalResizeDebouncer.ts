@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow, runWhenWindowIdle } from '../../../../base/browser/dom.js';
-import { debounce } from '../../../../base/common/decorators.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import type { XtermTerminal } from './xterm/xtermTerminal.js';
 
@@ -13,6 +13,7 @@ const enum Constants {
 	 * The _normal_ buffer length threshold at which point resizing starts being debounced.
 	 */
 	StartDebouncingThreshold = 200,
+	DebounceResizeXDelay = 100,
 }
 
 export class TerminalResizeDebouncer extends Disposable {
@@ -21,6 +22,13 @@ export class TerminalResizeDebouncer extends Disposable {
 
 	private readonly _resizeXJob = this._register(new MutableDisposable());
 	private readonly _resizeYJob = this._register(new MutableDisposable());
+
+	// Owned by the disposable store so the pending timer is cancelled on dispose,
+	// avoiding callbacks that fire against a torn-down xterm renderer.
+	private readonly _debounceResizeXScheduler = this._register(new RunOnceScheduler(
+		() => this._resizeXCallback(this._latestX),
+		Constants.DebounceResizeXDelay,
+	));
 
 	constructor(
 		private readonly _isVisible: () => boolean,
@@ -43,6 +51,7 @@ export class TerminalResizeDebouncer extends Disposable {
 		if (immediate || this._getXterm()!.raw.buffer.normal.length < Constants.StartDebouncingThreshold) {
 			this._resizeXJob.clear();
 			this._resizeYJob.clear();
+			this._debounceResizeXScheduler.cancel();
 			this._resizeBothCallback(cols, rows);
 			return;
 		}
@@ -75,28 +84,18 @@ export class TerminalResizeDebouncer extends Disposable {
 		// expensive due to reflow.
 		this._resizeYCallback(rows);
 		this._latestX = cols;
-		this._debounceResizeX(cols);
+		this._debounceResizeXScheduler.schedule();
 	}
 
 	flush(): void {
 		if (this._store.isDisposed) {
 			return;
 		}
-		if (this._resizeXJob.value || this._resizeYJob.value) {
+		if (this._resizeXJob.value || this._resizeYJob.value || this._debounceResizeXScheduler.isScheduled()) {
 			this._resizeXJob.clear();
 			this._resizeYJob.clear();
+			this._debounceResizeXScheduler.cancel();
 			this._resizeBothCallback(this._latestX, this._latestY);
 		}
-	}
-
-	@debounce(100)
-	private _debounceResizeX(cols: number) {
-		// The @debounce decorator schedules a setTimeout that is not tied to the
-		// disposable store, so this can fire after the terminal/xterm renderer is
-		// disposed. Bail out to avoid throwing from xterm.js dimension getters.
-		if (this._store.isDisposed) {
-			return;
-		}
-		this._resizeXCallback(cols);
 	}
 }

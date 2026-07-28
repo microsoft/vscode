@@ -15,6 +15,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { BrowserSession } from './browserSession.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { BrowserViewCDPTarget } from './browserViewCDPTarget.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 
 /**
  * An isolated group of {@link BrowserView} instances exposed as CDP targets.
@@ -51,7 +52,8 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		readonly id: string,
 		readonly owner: IBrowserViewOwner,
 		@IBrowserViewMainService private readonly browserViewMainService: IBrowserViewMainService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 	}
@@ -239,7 +241,7 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 	}
 
 	async createBrowserContext(): Promise<string> {
-		const browserSession = BrowserSession.getOrCreateEphemeral(generateUuid(), 'cdp-created');
+		const browserSession = BrowserSession.getOrCreateEphemeral(this.instantiationService, generateUuid(), 'cdp-created');
 		const contextId = browserSession.id;
 		this.knownContextIds.add(contextId);
 		this.ownedContextIds.add(contextId);

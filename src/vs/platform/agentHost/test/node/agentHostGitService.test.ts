@@ -5,31 +5,41 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { EMPTY_TREE_OBJECT, getBranchCompletions, parseDefaultBranchRef, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseUntrackedPaths } from '../../node/agentHostGitService.js';
+import { formatGitError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
+import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
 
 suite('AgentHostGitService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('sorts common branch names to the top before applying limit', () => {
+	test('sorts the current and default branches before recent branches and applying the limit', () => {
 		assert.deepStrictEqual(
-			getBranchCompletions(['feature/recent', 'release', 'master', 'main', 'feature/older'], { limit: 3 }),
-			['main', 'master', 'feature/recent'],
+			getBranchCompletions(
+				['feature/recent', 'dev', 'feature/current', 'main', 'feature/older'],
+				{ currentBranch: 'feature/current', defaultBranch: 'dev', limit: 3 },
+			),
+			['feature/current', 'dev', 'feature/recent'],
 		);
 	});
 
-	test('preserves git order for non-common branches', () => {
+	test('preserves git order for branches other than the current and default branches', () => {
 		assert.deepStrictEqual(
-			getBranchCompletions(['feature/recent', 'release', 'feature/older']),
+			getBranchCompletions(
+				['feature/recent', 'release', 'feature/older'],
+				{ currentBranch: 'other', defaultBranch: 'main' },
+			),
 			['feature/recent', 'release', 'feature/older'],
 		);
 	});
 
-	test('filters before sorting common branch names', () => {
+	test('filters before prioritizing the current and default branches', () => {
 		assert.deepStrictEqual(
-			getBranchCompletions(['feature/recent', 'master', 'main', 'maintenance'], { query: 'ma' }),
-			['main', 'master', 'maintenance'],
+			getBranchCompletions(
+				['feature/recent', 'maintenance', 'main', 'feature/current'],
+				{ currentBranch: 'feature/current', defaultBranch: 'maintenance', query: 'ma' },
+			),
+			['maintenance', 'main'],
 		);
 	});
 
@@ -154,6 +164,27 @@ suite('AgentHostGitService', () => {
 		});
 	});
 
+	test('orders fetch remote URLs with origin first and excludes push URLs', () => {
+		assert.deepStrictEqual(parseFetchRemoteUrls([
+			'upstream\tgit@github.com:microsoft/vscode.git (fetch)',
+			'origin\thttps://github.com/me/vscode.git (push)',
+			'origin\thttps://github.com/me/vscode.git (fetch)',
+		].join('\n')), [
+			'https://github.com/me/vscode.git',
+			'git@github.com:microsoft/vscode.git',
+		]);
+	});
+
+	test('prefers the branch upstream remote before origin', () => {
+		assert.deepStrictEqual(parseFetchRemoteUrls([
+			'origin\thttps://github.com/me/vscode.git (fetch)',
+			'upstream\thttps://github.com/microsoft/vscode.git (fetch)',
+		].join('\n'), 'upstream'), [
+			'https://github.com/microsoft/vscode.git',
+			'https://github.com/me/vscode.git',
+		]);
+	});
+
 	suite('parseUntrackedPaths', () => {
 		test('returns empty for empty/undefined output', () => {
 			assert.deepStrictEqual(parseUntrackedPaths(undefined), []);
@@ -166,6 +197,51 @@ suite('AgentHostGitService', () => {
 			// must be skipped.
 			const out = '?? new.txt\x00 M edited.txt\x00R  to.txt\x00from.txt\x00?? other.txt\x00';
 			assert.deepStrictEqual(parseUntrackedPaths(out), ['new.txt', 'other.txt']);
+		});
+	});
+
+	suite('parseChangedPaths', () => {
+		test('returns every changed path including delete and index rename/copy sources', () => {
+			const out = [
+				' M modified.txt',
+				'A  added.txt',
+				' D deleted.txt',
+				'?? untracked.txt',
+				'R  renamed-new.txt',
+				'renamed-old.txt',
+				' C copied-new.txt',
+				'copied-old.txt',
+				' M modified.txt',
+				'',
+			].join('\x00');
+
+			assert.deepStrictEqual(parseChangedPaths(out), [
+				'modified.txt',
+				'added.txt',
+				'deleted.txt',
+				'untracked.txt',
+				'renamed-new.txt',
+				'renamed-old.txt',
+				'copied-new.txt',
+				'copied-old.txt',
+			]);
+		});
+
+		test('returns worktree rename/copy source paths too', () => {
+			const out = [
+				' R worktree-renamed-new.txt',
+				'worktree-renamed-old.txt',
+				' C worktree-copied-new.txt',
+				'worktree-copied-old.txt',
+				'',
+			].join('\x00');
+
+			assert.deepStrictEqual(parseChangedPaths(out), [
+				'worktree-renamed-new.txt',
+				'worktree-renamed-old.txt',
+				'worktree-copied-new.txt',
+				'worktree-copied-old.txt',
+			]);
 		});
 	});
 
@@ -192,7 +268,7 @@ suite('AgentHostGitService', () => {
 			const diffs = parseGitDiffRawNumstat(out, root, sessionUri, sha);
 			assert.deepStrictEqual(diffs, [
 				{
-					before: { uri: 'file:///repo/modified.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'modified.ts') } },
+					before: { uri: 'file:///repo/modified.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'modified.ts', '/repo/modified.ts') } },
 					after: { uri: 'file:///repo/modified.ts', content: { uri: 'file:///repo/modified.ts' } },
 					diff: { added: 5, removed: 2 },
 				},
@@ -201,11 +277,11 @@ suite('AgentHostGitService', () => {
 					diff: { added: 10, removed: 0 },
 				},
 				{
-					before: { uri: 'file:///repo/deleted.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'deleted.ts') } },
+					before: { uri: 'file:///repo/deleted.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'deleted.ts', '/repo/deleted.ts') } },
 					diff: { added: 0, removed: 7 },
 				},
 				{
-					before: { uri: 'file:///repo/old/path.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'old/path.ts') } },
+					before: { uri: 'file:///repo/old/path.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'old/path.ts', '/repo/old/path.ts') } },
 					after: { uri: 'file:///repo/new/path.ts', content: { uri: 'file:///repo/new/path.ts' } },
 					diff: { added: 3, removed: 3 },
 				},
@@ -245,21 +321,21 @@ suite('AgentHostGitService', () => {
 			const diffs = parseGitDiffRawNumstat(segments.join('\x00'), root, sessionUri, sha, toSha);
 			assert.deepStrictEqual(diffs, [
 				{
-					before: { uri: 'file:///repo/modified.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'modified.ts') } },
-					after: { uri: buildGitBlobUri(sessionUri, toSha, 'modified.ts'), content: { uri: buildGitBlobUri(sessionUri, toSha, 'modified.ts') } },
+					before: { uri: 'file:///repo/modified.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'modified.ts', '/repo/modified.ts') } },
+					after: { uri: 'file:///repo/modified.ts', content: { uri: buildGitBlobUri(sessionUri, toSha, 'modified.ts', '/repo/modified.ts') } },
 					diff: { added: 5, removed: 2 },
 				},
 				{
-					after: { uri: buildGitBlobUri(sessionUri, toSha, 'added.ts'), content: { uri: buildGitBlobUri(sessionUri, toSha, 'added.ts') } },
+					after: { uri: 'file:///repo/added.ts', content: { uri: buildGitBlobUri(sessionUri, toSha, 'added.ts', '/repo/added.ts') } },
 					diff: { added: 10, removed: 0 },
 				},
 				{
-					before: { uri: 'file:///repo/deleted.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'deleted.ts') } },
+					before: { uri: 'file:///repo/deleted.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'deleted.ts', '/repo/deleted.ts') } },
 					diff: { added: 0, removed: 7 },
 				},
 				{
-					before: { uri: 'file:///repo/old/path.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'old/path.ts') } },
-					after: { uri: buildGitBlobUri(sessionUri, toSha, 'new/path.ts'), content: { uri: buildGitBlobUri(sessionUri, toSha, 'new/path.ts') } },
+					before: { uri: 'file:///repo/old/path.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'old/path.ts', '/repo/old/path.ts') } },
+					after: { uri: 'file:///repo/new/path.ts', content: { uri: buildGitBlobUri(sessionUri, toSha, 'new/path.ts', '/repo/new/path.ts') } },
 					diff: { added: 3, removed: 3 },
 				},
 			]);
@@ -269,5 +345,111 @@ suite('AgentHostGitService', () => {
 	test('exports the well-known empty-tree object SHA', () => {
 		assert.strictEqual(EMPTY_TREE_OBJECT, '4b825dc642cb6eb9a060e54bf8d69288fbee4904');
 	});
-});
 
+	suite('formatGitError', () => {
+		test('reports timeout when our timer fired and summarises progress-meter stderr', () => {
+			const err = Object.assign(new Error('Command failed'), { killed: true, signal: 'SIGTERM' as const });
+			const progress = 'Updating files:   0% (7/14834)\rUpdating files:   0% (149/14834)\r';
+			assert.strictEqual(
+				formatGitError(['worktree', 'add', '-b', 'x', '/tmp/y', 'origin/main'], 30_000, true, err, progress),
+				'git worktree timed out after 30000ms: Updating files:   0% (149/14834)',
+			);
+		});
+
+		test('reports kill signal when killed but not by our timer', () => {
+			const err = Object.assign(new Error('Command failed'), { killed: true, signal: 'SIGTERM' as const });
+			assert.strictEqual(
+				formatGitError(['worktree', 'add'], 30_000, false, err, ''),
+				'git worktree killed by SIGTERM',
+			);
+		});
+
+		test('reports numeric exit code when git failed normally', () => {
+			const err = Object.assign(new Error('Command failed'), { code: 128 });
+			assert.strictEqual(
+				formatGitError(['worktree', 'add', '/tmp/y', 'missing-branch'], 30_000, false, err, 'fatal: invalid reference: missing-branch\n'),
+				'git worktree exited with code 128: fatal: invalid reference: missing-branch',
+			);
+		});
+
+		test('keeps missing git-lfs error over the later generic fatal line', () => {
+			const err = Object.assign(new Error('Command failed'), { code: 128 });
+			const stderr = [
+				'Preparing worktree (new branch \'agents/example\')',
+				'git-lfs filter-process: git-lfs: command not found',
+				'fatal: the remote end hung up unexpectedly',
+			].join('\n');
+			assert.strictEqual(
+				formatGitError(['worktree', 'add', '--no-track', '-b', 'agents/example', '/tmp/worktree', 'origin/main'], 60_000, false, err, stderr),
+				'git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found',
+			);
+		});
+
+		test('falls back to error message when there is no signal or exit code', () => {
+			const err = new Error('spawn git ENOENT');
+			assert.strictEqual(
+				formatGitError(['status'], 5_000, false, err, ''),
+				'spawn git ENOENT',
+			);
+		});
+	});
+
+	suite('summarizeStderrForError', () => {
+		test('returns empty string for empty input', () => {
+			assert.strictEqual(summarizeStderrForError(''), '');
+		});
+
+		test('returns empty string for whitespace-only input', () => {
+			assert.strictEqual(summarizeStderrForError('  \r\n\r\n  '), '');
+		});
+
+		test('keeps the last non-empty line of a multi-line progress meter', () => {
+			const progress = 'Updating files:   0% (7/14834)\rUpdating files:   0% (149/14834)\r';
+			assert.strictEqual(summarizeStderrForError(progress), 'Updating files:   0% (149/14834)');
+		});
+
+		test('passes through a normal single-line message', () => {
+			assert.strictEqual(summarizeStderrForError('fatal: invalid reference: x\n'), 'fatal: invalid reference: x');
+		});
+
+		test('truncates very long lines with an ellipsis', () => {
+			const long = `fatal: ${'a'.repeat(500)}`;
+			const result = summarizeStderrForError(long);
+			assert.strictEqual(result.length, 200);
+			assert.ok(result.endsWith('…'), 'expected trailing ellipsis');
+		});
+	});
+
+	suite('resolveDiffBaseBranchName', () => {
+		test('prefers the persisted base branch, then git state, then undefined', () => {
+			assert.deepStrictEqual(
+				[
+					resolveDiffBaseBranchName('persisted', 'gitState'),
+					resolveDiffBaseBranchName(undefined, 'gitState'),
+					resolveDiffBaseBranchName('persisted', undefined),
+					resolveDiffBaseBranchName(undefined, undefined),
+				],
+				['persisted', 'gitState', 'persisted', undefined],
+			);
+		});
+	});
+
+	suite('parseSingleLsTreeEntry', () => {
+		test('parses mode/oid and treats empty output as absent', () => {
+			assert.deepStrictEqual(
+				[
+					parseSingleLsTreeEntry('100644 blob e69de29bb2d1d6434b8b29ae775ad8c2e48c5391\ta.txt\x00'),
+					parseSingleLsTreeEntry('100755 blob abc123\tdir/with space.txt\x00'),
+					parseSingleLsTreeEntry(''),
+					parseSingleLsTreeEntry(undefined),
+				],
+				[
+					{ mode: '100644', oid: 'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391' },
+					{ mode: '100755', oid: 'abc123' },
+					undefined,
+					undefined,
+				],
+			);
+		});
+	});
+});

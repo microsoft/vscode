@@ -111,8 +111,36 @@ function createState(): MessageHandlerState {
 		toolStartTimes: new Map(),
 		otelToolSpans: new Map(),
 		otelHookSpans: new Map(),
+		hookStartTimes: new Map(),
 		subagentTraceContexts: new Map(),
+		extractToolParameters: stubExtractToolParameters,
 	};
+}
+
+/**
+ * Test stub that mimics the real `extractToolParameters` for the small set of
+ * Claude tool inputs exercised in these tests. Keeps the test in the `common/`
+ * layer (the real implementation lives in `node/` and cannot be imported here).
+ */
+function stubExtractToolParameters(toolName: string, input: unknown): { attrs: Record<string, string>; gatedAttrs: Record<string, string> } {
+	const attrs: Record<string, string> = {};
+	const gatedAttrs: Record<string, string> = {};
+	if (typeof input !== 'object' || input === null) {
+		return { attrs, gatedAttrs };
+	}
+	const obj = input as Record<string, unknown>;
+	if (toolName === 'Edit' || toolName === 'MultiEdit') {
+		attrs['github.copilot.tool.parameters.edit_type'] = 'str_replace';
+	} else if (toolName === 'Write') {
+		attrs['github.copilot.tool.parameters.edit_type'] = 'create';
+	}
+	if (typeof obj.file_path === 'string') {
+		gatedAttrs['github.copilot.tool.parameters.file_path'] = obj.file_path;
+	}
+	if (typeof obj.command === 'string') {
+		gatedAttrs['github.copilot.tool.parameters.command'] = obj.command;
+	}
+	return { attrs, gatedAttrs };
 }
 
 function createMockSpan(): ISpanHandle {
@@ -435,6 +463,18 @@ describe('handleAssistantMessage', () => {
 			expect.objectContaining({ attributes: expect.any(Object) }),
 		);
 		expect(state.otelToolSpans.has('tool-456')).toBe(true);
+	});
+
+	it('emits github.copilot.tool.parameters.* via extractToolParameters', () => {
+		const mockSpan = createMockSpan();
+		vi.spyOn(services.otelService, 'startSpan').mockReturnValue(mockSpan);
+		handleAssistantMessage(
+			makeAssistantMessage([{
+				type: 'tool_use', id: 'tool-edit', name: 'Edit', input: { file_path: '/x.ts', old_string: 'a', new_string: 'b' },
+			}]),
+			accessor, TEST_SESSION_ID, request, state,
+		);
+		expect(mockSpan.setAttribute).toHaveBeenCalledWith('github.copilot.tool.parameters.edit_type', 'str_replace');
 	});
 
 	it('sets subAgentInvocationId when parent_tool_use_id is present', () => {
@@ -793,6 +833,33 @@ describe('handleHookResponse', () => {
 		expect(mockSpan.setStatus).toHaveBeenCalledWith(expect.anything()); // SpanStatusCode.OK
 		expect(mockSpan.end).toHaveBeenCalled();
 		expect(state.otelHookSpans.has('hook-1')).toBe(false);
+	});
+
+	it('sets github.copilot.hook.decision and hook.duration on hook completion', () => {
+		const mockSpan = createMockSpan();
+		state.otelHookSpans.set('hook-1', mockSpan);
+		state.hookStartTimes.set('hook-1', Date.now() - 100);
+
+		handleHookResponse(makeHookResponse('hook-1', 'success'), accessor, request, state);
+
+		expect(mockSpan.setAttribute).toHaveBeenCalledWith('github.copilot.hook.decision', 'pass');
+		expect(mockSpan.setAttribute).toHaveBeenCalledWith(
+			'github.copilot.hook.duration',
+			expect.any(Number),
+		);
+		expect(state.hookStartTimes.has('hook-1')).toBe(false);
+	});
+
+	it('maps exit_code 2 to hook.decision=block', () => {
+		const mockSpan = createMockSpan();
+		state.otelHookSpans.set('hook-1', mockSpan);
+
+		handleHookResponse(
+			makeHookResponse('hook-1', 'error', { exit_code: 2, stderr: 'blocked', hook_event: 'PreToolUse' }),
+			accessor, request, state,
+		);
+
+		expect(mockSpan.setAttribute).toHaveBeenCalledWith('github.copilot.hook.decision', 'block');
 	});
 
 	it('ends the OTel span with ERROR on failure and surfaces error via hookProgress', () => {

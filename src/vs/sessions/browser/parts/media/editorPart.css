@@ -21,14 +21,27 @@
 	overflow: hidden;
 }
 
-.agent-sessions-workbench.nosidebar.nochatbar .monaco-grid-view .part.editor:not(.modal-editor-part) {
-	margin-left: 10px;
-}
-
 /* Editor Layout Actions Toolbar */
 
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
 	padding-right: 0;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom > .monaco-scrollable-element {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom > .editor-actions:has(.changes-actions-bar > .monaco-button-dropdown) {
+	flex: 0 999 auto;
+	min-width: 70px;
+	overflow: hidden;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom > .editor-actions:has(.changes-actions-bar > .monaco-button) {
+	flex: 0 999 auto;
+	min-width: 32px;
+	overflow: hidden;
 }
 
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions-separator {

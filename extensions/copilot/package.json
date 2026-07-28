@@ -1,8 +1,8 @@
 {
   "name": "copilot-chat",
-  "displayName": "GitHub Copilot Chat",
+  "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.50.0",
+  "version": "0.60.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.122.0",
+    "vscode": "^1.132.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -160,6 +160,7 @@
         "icon": "$(folder)",
         "userDescription": "%copilot.codebase.tool.description%",
         "modelDescription": "Run a natural language search for relevant code or documentation comments from the user's current workspace. Returns relevant code snippets from the user's current workspace if it is large, or the full contents of the workspace if it is small.",
+        "when": "!config.github.copilot.chat.semanticSearchTool.disabled",
         "tags": [
           "codesearch",
           "vscode_codesearch"
@@ -626,7 +627,6 @@
       {
         "name": "copilot_runVscodeCommand",
         "displayName": "Run VS Code Command",
-        "when": "config.github.copilot.chat.newWorkspaceCreation.enabled",
         "toolReferenceName": "runCommand",
         "legacyToolReferenceFullNames": [
           "new/runVscodeCommand"
@@ -1236,7 +1236,7 @@
         "toolReferenceName": "sessionStoreSql",
         "when": "github.copilot.sessionSearch.enabled",
         "userDescription": "Query your Copilot session history using SQL",
-        "modelDescription": "Query the local session store containing history from past coding sessions. Uses SQLite syntax (NOT DuckDB or Postgres). SQL queries are read-only — only SELECT and WITH are allowed. Use `datetime('now', '-1 day')` for date math (NOT `now() - INTERVAL '1 day'`), FTS5 `MATCH` for text search.\n\nTables: `sessions`, `turns`, `session_files`, `session_refs`, `checkpoints`, `search_index`. For column details and query patterns, use the **chronicle** skill.\n\nActions: 'query' (execute SQL — supports JOINs, FTS5 MATCH, aggregations), 'standup' (pre-fetch last 24h data), 'reindex' (rebuild index from debug logs).",
+        "modelDescription": "Query the local session store containing history from past coding sessions. Uses SQLite syntax (NOT DuckDB or Postgres). SQL queries are read-only — only SELECT and WITH are allowed. Use `datetime('now', '-1 day')` for date math (NOT `now() - INTERVAL '1 day'`), FTS5 `MATCH` for text search.\n\nTables: `sessions`, `turns`, `session_files`, `session_refs`, `checkpoints`, `search_index`. For column details and query patterns, use the **chronicle** skill.\n\nActions: 'query' (execute SQL — supports JOINs, FTS5 MATCH, aggregations), 'reindex' (rebuild index from debug logs).",
         "tags": [],
         "canBeReferencedInPrompt": false,
         "inputSchema": {
@@ -1246,10 +1246,9 @@
               "type": "string",
               "enum": [
                 "query",
-                "standup",
                 "reindex"
               ],
-              "description": "The action to perform. 'query' (default) executes a SQL query. 'standup' pre-fetches last 24h session data for standup reports. 'reindex' rebuilds the local session index and syncs to cloud if enabled."
+              "description": "The action to perform. 'query' (default) executes a SQL query. 'reindex' rebuilds the local session index and syncs to cloud if enabled."
             },
             "query": {
               "type": "string",
@@ -1262,6 +1261,18 @@
             "description": {
               "type": "string",
               "description": "A 2-5 word summary of what this call does (e.g. 'Recent sessions overview', 'Generate standup', 'Reindex sessions')."
+            },
+            "subcommand": {
+              "type": "string",
+              "enum": [
+                "standup",
+                "tips",
+                "cost-tips",
+                "search",
+                "improve",
+                "reindex"
+              ],
+              "description": "The chronicle subcommand that triggered this call (e.g. 'tips' for /chronicle tips). Used for telemetry attribution only — pass this whenever the call originates from a /chronicle slash command."
             }
           },
           "required": [
@@ -1816,6 +1827,11 @@
               "secret": true,
               "description": "API key for OpenAI",
               "title": "API Key"
+            },
+            "zeroDataRetentionEnabled": {
+              "type": "boolean",
+              "default": false,
+              "markdownDescription": "Whether Zero Data Retention (ZDR) is enabled for this provider group. When `true`, OpenAI Responses requests from this group do not send `previous_response_id`."
             }
           },
           "required": [
@@ -1825,7 +1841,10 @@
       },
       {
         "vendor": "ollama",
-        "displayName": "Ollama",
+        "displayName": "Ollama (Deprecated)",
+        "deprecation": {
+          "link": "vscode:extension/Ollama.ollama"
+        },
         "configuration": {
           "type": "object",
           "properties": {
@@ -1900,11 +1919,15 @@
                   },
                   "maxInputTokens": {
                     "type": "number",
-                    "description": "Maximum number of input tokens supported by the model"
+                    "markdownDescription": "Maximum number of input (prompt) tokens supported by the model. Optional when `contextWindow` is set, in which case it is derived as `contextWindow - maxOutputTokens`."
                   },
                   "maxOutputTokens": {
                     "type": "number",
                     "description": "Maximum number of output tokens supported by the model"
+                  },
+                  "contextWindow": {
+                    "type": "number",
+                    "markdownDescription": "The model's full context window (input + output) in tokens, e.g. `1000000` for a 1M model. When set it is the source of truth for the context window and `maxInputTokens` can be omitted. Otherwise the window is derived as `maxInputTokens + maxOutputTokens`."
                   },
                   "editTools": {
                     "type": "array",
@@ -1945,9 +1968,10 @@
                     "type": "string",
                     "enum": [
                       "chat-completions",
-                      "responses"
+                      "responses",
+                      "messages"
                     ],
-                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` \u2192 nested, otherwise top-level."
+                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. `messages` sends the Anthropic Messages `output_config.effort` field. When unset the format follows the URL: `/responses` → nested, `/messages` → `output_config.effort`, otherwise top-level."
                   },
                   "requestHeaders": {
                     "type": "object",
@@ -1963,8 +1987,19 @@
                   "url",
                   "toolCalling",
                   "vision",
-                  "maxInputTokens",
                   "maxOutputTokens"
+                ],
+                "anyOf": [
+                  {
+                    "required": [
+                      "maxInputTokens"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "contextWindow"
+                    ]
+                  }
                 ]
               }
             }
@@ -1973,7 +2008,6 @@
       },
       {
         "vendor": "customendpoint",
-        "when": "productQualityType != 'stable'",
         "displayName": "Custom Endpoint",
         "configuration": {
           "type": "object",
@@ -2072,11 +2106,15 @@
                   },
                   "maxInputTokens": {
                     "type": "number",
-                    "description": "Maximum number of input tokens supported by the model"
+                    "markdownDescription": "Maximum number of input (prompt) tokens supported by the model. Optional when `contextWindow` is set, in which case it is derived as `contextWindow - maxOutputTokens`."
                   },
                   "maxOutputTokens": {
                     "type": "number",
                     "description": "Maximum number of output tokens supported by the model"
+                  },
+                  "contextWindow": {
+                    "type": "number",
+                    "markdownDescription": "The model's full context window (input + output) in tokens, e.g. `1000000` for a 1M model. When set it is the source of truth for the context window and `maxInputTokens` can be omitted. Otherwise the window is derived as `maxInputTokens + maxOutputTokens`."
                   },
                   "editTools": {
                     "type": "array",
@@ -2117,9 +2155,10 @@
                     "type": "string",
                     "enum": [
                       "chat-completions",
-                      "responses"
+                      "responses",
+                      "messages"
                     ],
-                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` \u2192 nested, otherwise top-level."
+                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. `messages` sends the Anthropic Messages `output_config.effort` field. When unset the format follows the URL: `/responses` → nested, `/messages` → `output_config.effort`, otherwise top-level."
                   },
                   "requestHeaders": {
                     "type": "object",
@@ -2127,6 +2166,30 @@
                     "additionalProperties": {
                       "type": "string"
                     }
+                  },
+                  "modelOptions": {
+                    "type": "object",
+                    "markdownDescription": "Sampling parameters to send with requests to this model. These override Copilot's defaults but are overridden by explicit per-request values. Set a property to `null` to omit it and use the model server's default.",
+                    "properties": {
+                      "temperature": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "markdownDescription": "Sampling temperature. Set to `null` to omit the parameter."
+                      },
+                      "top_p": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 1,
+                        "markdownDescription": "Nucleus sampling probability. Set to `null` to omit the parameter."
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -2135,8 +2198,19 @@
                   "url",
                   "toolCalling",
                   "vision",
-                  "maxInputTokens",
                   "maxOutputTokens"
+                ],
+                "anyOf": [
+                  {
+                    "required": [
+                      "maxInputTokens"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "contextWindow"
+                    ]
+                  }
                 ]
               }
             }
@@ -2199,11 +2273,15 @@
                   },
                   "maxInputTokens": {
                     "type": "number",
-                    "description": "Maximum number of input tokens supported by the model"
+                    "markdownDescription": "Maximum number of input (prompt) tokens supported by the model. Optional when `contextWindow` is set, in which case it is derived as `contextWindow - maxOutputTokens`."
                   },
                   "maxOutputTokens": {
                     "type": "number",
                     "description": "Maximum number of output tokens supported by the model"
+                  },
+                  "contextWindow": {
+                    "type": "number",
+                    "markdownDescription": "The model's full context window (input + output) in tokens, e.g. `1000000` for a 1M model. When set it is the source of truth for the context window and `maxInputTokens` can be omitted. Otherwise the window is derived as `maxInputTokens + maxOutputTokens`."
                   },
                   "thinking": {
                     "type": "boolean",
@@ -2231,9 +2309,10 @@
                     "type": "string",
                     "enum": [
                       "chat-completions",
-                      "responses"
+                      "responses",
+                      "messages"
                     ],
-                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` \u2192 nested, otherwise top-level."
+                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. `messages` sends the Anthropic Messages `output_config.effort` field. When unset the format follows the URL: `/responses` → nested, `/messages` → `output_config.effort`, otherwise top-level."
                   },
                   "requestHeaders": {
                     "type": "object",
@@ -2249,8 +2328,19 @@
                   "url",
                   "toolCalling",
                   "vision",
-                  "maxInputTokens",
                   "maxOutputTokens"
+                ],
+                "anyOf": [
+                  {
+                    "required": [
+                      "maxInputTokens"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "contextWindow"
+                    ]
+                  }
                 ]
               }
             }
@@ -2845,6 +2935,12 @@
         "enablement": "config.github.copilot.chat.otel.dbSpanExporter.enabled"
       },
       {
+        "command": "github.copilot.chat.otel.statusActive",
+        "title": "OpenTelemetry",
+        "category": "Chat",
+        "icon": "$(broadcast)"
+      },
+      {
         "command": "github.copilot.sessionSync.deleteSessions",
         "title": "%github.copilot.command.sessionSync.deleteSessions%",
         "category": "Chat",
@@ -3065,6 +3161,18 @@
         "category": "GitHub Pull Request"
       },
       {
+        "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
+        "title": "%github.copilot.command.cloudSessions.createPullRequestForTask.title%",
+        "icon": "$(git-pull-request-create)",
+        "category": "GitHub Pull Request"
+      },
+      {
+        "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
+        "title": "%github.copilot.command.cloudSessions.openPullRequestForTask.title%",
+        "icon": "$(git-pull-request)",
+        "category": "GitHub Pull Request"
+      },
+      {
         "command": "github.copilot.chat.cloudSessions.openRepository",
         "title": "%github.copilot.command.cloudSessions.openRepository.title%",
         "icon": "$(repo)",
@@ -3131,6 +3239,14 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cloudAgent.enabled%"
+          },
+          "github.copilot.chat.localIndex.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%github.copilot.config.localIndex.enabled%",
+            "tags": [
+              "onExp"
+            ]
           },
           "github.copilot.chat.codeGeneration.useInstructionFiles": {
             "type": "boolean",
@@ -3221,9 +3337,14 @@
             "markdownDescription": "%github.copilot.nextEditSuggestions.enabled%",
             "scope": "language-overridable"
           },
-          "github.copilot.nextEditSuggestions.extendedRange": {
+          "github.copilot.completions.chat.enabled": {
             "type": "boolean",
             "default": false,
+            "markdownDescription": "%github.copilot.completions.chat.enabled%"
+          },
+          "github.copilot.nextEditSuggestions.extendedRange": {
+            "type": "boolean",
+            "default": true,
             "tags": [
               "nextEditSuggestions",
               "onExp"
@@ -3294,6 +3415,11 @@
             "type": "boolean",
             "default": true,
             "description": "%github.copilot.config.agent.currentEditorContext.enabled%"
+          },
+          "github.copilot.chat.preferLongContext.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.preferLongContext.enabled%"
           },
           "github.copilot.enable": {
             "type": "object",
@@ -3415,6 +3541,11 @@
             "tags": [
               "onExp"
             ]
+          },
+          "github.copilot.chat.imageUpload.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%github.copilot.config.imageUpload.enabled%"
           }
         }
       },
@@ -3429,6 +3560,24 @@
               "onExp"
             ],
             "markdownDescription": "%github.copilot.config.claudeAgent.allowAutoPermissions%"
+          },
+          "github.copilot.chat.claudeAgent.useSdkExtension": {
+            "type": "boolean",
+            "default": false,
+            "tags": [
+              "preview",
+              "onExp"
+            ],
+            "markdownDescription": "%github.copilot.config.claudeAgent.useSdkExtension%"
+          },
+          "github.copilot.chat.claudeAgent.sdkExtensionInstallTimeout": {
+            "type": "number",
+            "default": 120000,
+            "minimum": 1000,
+            "tags": [
+              "preview"
+            ],
+            "markdownDescription": "%github.copilot.config.claudeAgent.sdkExtensionInstallTimeout%"
           },
           "github.copilot.chat.copilotDebugCommand.enabled": {
             "type": "boolean",
@@ -3529,7 +3678,8 @@
             ],
             "markdownDescription": "%github.copilot.config.cloudAgentBackend.version%",
             "tags": [
-              "experimental"
+              "experimental",
+              "onExp"
             ]
           },
           "github.copilot.chat.switchAgent.enabled": {
@@ -3540,15 +3690,6 @@
               "experimental",
               "onExp"
             ]
-          },
-          "github.copilot.chat.imageUpload.enabled": {
-            "type": "boolean",
-            "default": true,
-            "tags": [
-              "experimental",
-              "onExp"
-            ],
-            "markdownDescription": "%github.copilot.config.imageUpload.enabled%"
           },
           "github.copilot.chat.codeGeneration.instructions": {
             "markdownDeprecationMessage": "%github.copilot.config.codeGeneration.instructions.deprecated%",
@@ -3960,6 +4101,15 @@
             ],
             "description": "%github.copilot.config.alternateGeminiModelFPrompt.enabled%"
           },
+          "github.copilot.chat.gemini35FlashReducedToolUsePrompt.enabled": {
+            "type": "boolean",
+            "default": true,
+            "tags": [
+              "experimental",
+              "onExp"
+            ],
+            "description": "%github.copilot.config.gemini35FlashReducedToolUsePrompt.enabled%"
+          },
           "github.copilot.chat.anthropic.contextEditing.mode": {
             "type": "string",
             "default": "off",
@@ -3973,19 +4123,6 @@
               "clear-thinking",
               "clear-tooluse",
               "clear-both"
-            ]
-          },
-          "github.copilot.chat.responsesApiReasoningSummary": {
-            "type": "string",
-            "default": "detailed",
-            "markdownDescription": "%github.copilot.config.responsesApiReasoningSummary%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ],
-            "enum": [
-              "off",
-              "detailed"
             ]
           },
           "github.copilot.chat.responsesApiContextManagement.enabled": {
@@ -4006,6 +4143,15 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.responsesApi.promptCacheBreakpoint.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.responsesApi.promptCacheBreakpoint.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.updated53CodexPrompt.enabled": {
             "type": "boolean",
             "default": true,
@@ -4015,10 +4161,10 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.claude47OpusPrompt.enabled": {
+          "github.copilot.chat.claudeOpus5Prompt.enabled": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "%github.copilot.config.claude47OpusPrompt.enabled%",
+            "markdownDescription": "%github.copilot.config.claudeOpus5Prompt.enabled%",
             "tags": [
               "experimental",
               "onExp"
@@ -4033,6 +4179,33 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.gpt56Verbosity.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%github.copilot.config.gpt56Verbosity.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.gemini3GetChangedFilesTool.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.gemini3GetChangedFilesTool.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.gemini3LowReasoningEffort.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.gemini3LowReasoningEffort.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.gpt55ReadFileTool.enabled": {
             "type": "boolean",
             "default": true,
@@ -4042,19 +4215,10 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.gpt55EconomicalSearchAndEdit.enabled": {
+          "github.copilot.chat.semanticSearchTool.disabled": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "%github.copilot.config.gpt55EconomicalSearchAndEdit.enabled%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ]
-          },
-          "github.copilot.chat.gpt55LargePromptSections.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.gpt55LargePromptSections.enabled%",
+            "markdownDescription": "%github.copilot.config.semanticSearchTool.disabled%",
             "tags": [
               "experimental",
               "onExp"
@@ -4220,10 +4384,32 @@
               "experimental"
             ]
           },
-          "github.copilot.chat.localIndex.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.localIndex.enabled%",
+          "github.copilot.chat.tools.grepSearch.outputFormat": {
+            "type": "string",
+            "default": "grep",
+            "enum": [
+              "grep",
+              "tag"
+            ],
+            "markdownDescription": "%github.copilot.chat.tools.grepSearch.outputFormat%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.tools.grepSearch.defaultMaxResults": {
+            "type": "number",
+            "default": 100,
+            "markdownDescription": "%github.copilot.chat.tools.grepSearch.defaultMaxResults%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.tools.grepSearch.maxResultsCap": {
+            "type": "number",
+            "default": 200,
+            "markdownDescription": "%github.copilot.chat.tools.grepSearch.maxResultsCap%",
             "tags": [
               "experimental",
               "onExp"
@@ -4294,16 +4480,6 @@
             "tags": [
               "advanced"
             ]
-          },
-          "github.copilot.chat.freezeCustomizationsIndex": {
-            "type": "boolean",
-            "default": true,
-            "tags": [
-              "advanced",
-              "experimental",
-              "onExp"
-            ],
-            "description": "%github.copilot.config.freezeCustomizationsIndex%"
           },
           "github.copilot.chat.installExtensionSkill.enabled": {
             "type": "boolean",
@@ -4613,6 +4789,26 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.agent.longToolCallCachePreservation.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.agent.longToolCallCachePreservation.enabled%",
+            "tags": [
+              "advanced",
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.agent.longToolCallCachePreservation.maxProbes": {
+            "type": "number",
+            "default": 1,
+            "markdownDescription": "%github.copilot.config.agent.longToolCallCachePreservation.maxProbes%",
+            "tags": [
+              "advanced",
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.agent.largeToolResultsToDisk.enabled": {
             "type": "boolean",
             "default": true,
@@ -4693,7 +4889,7 @@
           },
           "github.copilot.chat.executionSubagent.model": {
             "type": "string",
-            "default": "",
+            "default": "gemini-3-flash",
             "markdownDescription": "%github.copilot.config.executionSubagent.model%",
             "tags": [
               "advanced",
@@ -4883,6 +5079,25 @@
               "default": true
             }
           },
+          "github.copilot.chat.cli.sandbox.enabled": {
+            "type": "string",
+            "enum": [
+              "off",
+              "on",
+              "allowNetwork"
+            ],
+            "enumDescriptions": [
+              "%github.copilot.config.cli.sandbox.enabled.offDescription%",
+              "%github.copilot.config.cli.sandbox.enabled.onDescription%",
+              "%github.copilot.config.cli.sandbox.enabled.allowNetworkDescription%"
+            ],
+            "default": "off",
+            "markdownDescription": "%github.copilot.config.cli.sandbox.enabled%",
+            "tags": [
+              "advanced",
+              "experimental"
+            ]
+          },
           "github.copilot.chat.cli.branchSupport.enabled": {
             "type": "boolean",
             "default": false,
@@ -4915,7 +5130,7 @@
           },
           "github.copilot.chat.cli.autoModel.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "markdownDescription": "%github.copilot.config.cli.autoModel.enabled%",
             "tags": [
               "advanced"
@@ -5137,7 +5352,11 @@
           "github.copilot.chat.otel.enabled": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "Enable OpenTelemetry trace/metric/log emission for Copilot Chat operations. Env var `COPILOT_OTEL_ENABLED` takes precedence. Requires window reload.",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelEnabled"
+            },
+            "markdownDescription": "Enable OpenTelemetry trace/metric/log emission for Copilot Chat operations. Precedence: enterprise policy > env var `COPILOT_OTEL_ENABLED` > user setting. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5151,7 +5370,29 @@
               "file"
             ],
             "default": "otlp-http",
-            "markdownDescription": "OTel exporter type for Copilot Chat telemetry. Requires window reload.",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelProtocol"
+            },
+            "markdownDescription": "OTel exporter type for Copilot Chat telemetry. Configurable in user settings or managed by enterprise policy (policy takes precedence). Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
+          "github.copilot.chat.otel.protocol": {
+            "type": "string",
+            "enum": [
+              "",
+              "http/json",
+              "http/protobuf",
+              "grpc"
+            ],
+            "default": "",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelOtlpProtocol"
+            },
+            "markdownDescription": "OTLP wire protocol for Copilot Chat OTel data, mirroring `OTEL_EXPORTER_OTLP_PROTOCOL`. `http/protobuf` selects the protobuf-over-HTTP exporter; the default (empty) uses `http/json`. Precedence: enterprise policy > env var > user setting. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5159,7 +5400,11 @@
           "github.copilot.chat.otel.otlpEndpoint": {
             "type": "string",
             "default": "http://localhost:4318",
-            "markdownDescription": "OTLP collector endpoint URL for Copilot Chat OTel data. Env var `OTEL_EXPORTER_OTLP_ENDPOINT` takes precedence. Requires window reload.",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelEndpoint"
+            },
+            "markdownDescription": "OTLP collector endpoint URL for Copilot Chat OTel data. Precedence: enterprise policy > env var `OTEL_EXPORTER_OTLP_ENDPOINT` > user setting. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5167,7 +5412,53 @@
           "github.copilot.chat.otel.captureContent": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "Capture input/output messages, system instructions, and tool definitions in OTel telemetry. **Contains potentially sensitive data.** Env var `COPILOT_OTEL_CAPTURE_CONTENT` takes precedence. Requires window reload.",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelCaptureContent"
+            },
+            "markdownDescription": "Capture input/output messages, system instructions, and tool definitions in OTel telemetry. **Contains potentially sensitive data.** Precedence: enterprise policy > env var `COPILOT_OTEL_CAPTURE_CONTENT` > user setting. Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
+          "github.copilot.chat.otel.serviceName": {
+            "type": "string",
+            "default": "",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelServiceName"
+            },
+            "markdownDescription": "OTel `service.name` resource attribute for Copilot Chat OTel data. Configurable in user settings only. Env var `OTEL_SERVICE_NAME` takes precedence over the setting; enterprise policy takes precedence over both. Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
+          "github.copilot.chat.otel.resourceAttributes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelResourceAttributes"
+            },
+            "markdownDescription": "Additional OTel resource attributes for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. Configurable in user settings only. Merged per-key with `OTEL_RESOURCE_ATTRIBUTES` env (env wins over the setting); enterprise policy wins over both. Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
+          "github.copilot.chat.otel.headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelHeaders"
+            },
+            "markdownDescription": "Extra OTLP exporter headers (e.g. auth tokens) for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. Applied directly to the OTLP exporter, not via environment variables. Configurable in user settings only. Merged per-key with `OTEL_EXPORTER_OTLP_HEADERS` env (env wins over the setting); enterprise policy wins over both. **Contains potentially sensitive credentials.** Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5176,7 +5467,8 @@
             "type": "integer",
             "default": 0,
             "minimum": 0,
-            "markdownDescription": "Maximum size **in characters** for free-form OTel content attributes (prompts, responses, tool arguments/results, hook input/output). `0` (the default) disables truncation so backends without per-attribute size limits receive full JSON payloads. Set to a positive value when your OTel backend caps attribute size — consult your backend's documentation for its per-attribute limit. Truncated values are suffixed with `...[truncated, original N chars]`. Env var `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` takes precedence. Requires window reload.",
+            "scope": "application",
+            "markdownDescription": "Maximum size **in characters** for free-form OTel content attributes (prompts, responses, tool arguments/results, hook input/output). `0` (the default) disables truncation so backends without per-attribute size limits receive full JSON payloads. Set to a positive value when your OTel backend caps attribute size — consult your backend's documentation for its per-attribute limit. Truncated values are suffixed with `...[truncated, original N chars]`. Configurable in user settings only. Env var `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` takes precedence. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5184,7 +5476,11 @@
           "github.copilot.chat.otel.outfile": {
             "type": "string",
             "default": "",
-            "markdownDescription": "File path for file-based OTel exporter output (JSON-lines). When set, overrides exporter type to `file`. Requires window reload.",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelOutfile"
+            },
+            "markdownDescription": "File path for file-based OTel exporter output (JSON-lines). When set, overrides exporter type to `file`. Configurable in user settings or managed by enterprise policy (policy takes precedence). Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5192,7 +5488,8 @@
           "github.copilot.chat.otel.dbSpanExporter.enabled": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "Enable SQLite DB span exporter. Persists OTel spans to a local SQLite database. Automatically enables OTel when set to true. Requires window reload.",
+            "scope": "application",
+            "markdownDescription": "Enable SQLite DB span exporter. Persists OTel spans to a local SQLite database. Automatically enables OTel when set to true. Configurable in user settings only. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5323,80 +5620,98 @@
           "command": "github.copilot.chat.checkoutPullRequestReroute",
           "when": "chatSessionType == copilot-cloud-agent && !github.vscode-pull-request-github.activated && gitOpenRepositoryCount != 0",
           "group": "navigation@0"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
+          "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanCreatePullRequest && !isSessionsWindow",
+          "group": "navigation@0"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
+          "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanOpenPullRequest && !isSessionsWindow",
+          "group": "navigation@0"
         }
       ],
       "agents/changes/actions/primary": [
         {
           "command": "github.copilot.sessions.initializeRepository",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && !sessions.hasGitRepository && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && !sessions.hasGitRepository && !sessions.isAgentHostSession",
           "group": "0_init@1"
         },
         {
           "command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
           "group": "1_merge@1"
         },
         {
           "command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.mergeAndSync",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
           "group": "1_merge@2"
         },
         {
           "command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && sessions.hasBranchChanges && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && sessions.hasBranchChanges && !sessions.isAgentHostSession",
           "group": "2_pull_request@1"
         },
         {
           "command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && sessions.hasBranchChanges && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && sessions.hasBranchChanges && !sessions.isAgentHostSession",
           "group": "2_pull_request@2"
         },
         {
           "command": "github.copilot.sessions.commit",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && !sessions.isAgentHostSession",
           "group": "3_commit@1"
         },
         {
           "command": "github.copilot.sessions.commitAndSync",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && !sessions.isAgentHostSession",
           "group": "3_commit@2"
         },
         {
           "command": "github.copilot.sessions.sync",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUpstream && !sessions.hasUncommittedChanges && (sessions.hasIncomingChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUpstream && !sessions.hasUncommittedChanges && (sessions.hasIncomingChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
           "group": "4_sync@1"
         },
         {
           "command": "github.copilot.claude.sessions.initializeRepository",
-          "when": "chatSessionType == claude-code && isSessionsWindow && !sessions.hasGitRepository",
+          "when": "sessionType == claude-code && isSessionsWindow && !sessions.hasGitRepository",
           "group": "init@1"
         },
         {
           "command": "github.copilot.claude.sessions.commit",
-          "when": "chatSessionType == claude-code && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges",
+          "when": "sessionType == claude-code && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges",
           "group": "commit@1"
         },
         {
           "command": "github.copilot.claude.sessions.commitAndSync",
-          "when": "chatSessionType == claude-code && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && sessions.hasUpstream",
+          "when": "sessionType == claude-code && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && sessions.hasUpstream",
           "group": "commit@2"
         },
         {
           "command": "github.copilot.claude.sessions.sync",
-          "when": "chatSessionType == claude-code && isSessionsWindow && sessions.hasGitRepository && !sessions.hasUncommittedChanges && sessions.hasUpstream",
+          "when": "sessionType == claude-code && isSessionsWindow && sessions.hasGitRepository && !sessions.hasUncommittedChanges && sessions.hasUpstream",
           "group": "sync@1"
         }
       ],
       "agents/change/inline": [
         {
           "command": "github.copilot.sessions.discardChanges",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && !isActiveSessionArchived && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && !sessionIsArchived && !sessions.isAgentHostSession",
           "group": "navigation@2"
         }
       ],
       "chat/contextUsage/actions": [
         {
-          "command": "github.copilot.chat.compact"
+          "command": "github.copilot.chat.compact",
+          "when": "!chatIsAgentHostSession"
+        }
+      ],
+      "chat/input/status": [
+        {
+          "command": "github.copilot.chat.otel.statusActive",
+          "when": "github.copilot.otel.enabledExplicitly && isSessionsWindow",
+          "group": "otel@1"
         }
       ],
       "chat/newSession": [
@@ -5438,6 +5753,10 @@
         },
         {
           "command": "github.copilot.chat.triggerPermissiveSignIn",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.otel.statusActive",
           "when": "false"
         },
         {
@@ -5706,6 +6025,14 @@
         },
         {
           "command": "github.copilot.chat.cloudSessions.openRepository",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
           "when": "false"
         },
         {
@@ -6117,6 +6444,18 @@
           "group": "1_edit@10"
         }
       ],
+      "chatSessions/item/context": [
+        {
+          "command": "github.copilot.claude.sessions.rename",
+          "when": "sessionType == claude-code && sessionProviderId == default-copilot",
+          "group": "1_edit@4"
+        },
+        {
+          "command": "github.copilot.cli.sessions.rename",
+          "when": "sessionType == copilotcli && sessionProviderId == default-copilot",
+          "group": "1_edit@4"
+        }
+      ],
       "chat/multiDiff/context": [
         {
           "command": "github.copilot.cloud.sessions.installPRExtension",
@@ -6127,7 +6466,7 @@
       "chat/input/editing/sessionTitleToolbar": [
         {
           "command": "github.copilot.sessions.refreshChanges",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && !sessions.isAgentHostSession",
           "group": "9_refresh@1"
         }
       ],
@@ -6493,9 +6832,11 @@
         "inputPlaceholder": "Run local tasks with Claude, type `#` for adding context",
         "order": 3,
         "description": "%github.copilot.session.providerDescription.claude%",
-        "when": "config.github.copilot.chat.claudeAgent.enabled",
+        "when": "config.github.copilot.chat.claudeAgent.enabled && ((isSessionsWindow && !config.chat.agents.claude.preferAgentHost) || (!isSessionsWindow && !config.chat.editor.claude.preferAgentHost))",
         "canDelegate": true,
         "requiresCustomModels": true,
+        "supportsAutoModel": false,
+        "requiresCopilotSignIn": true,
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsImageAttachments": true
@@ -6555,6 +6896,8 @@
         "canDelegate": true,
         "description": "%github.copilot.session.providerDescription.background%",
         "when": "config.github.copilot.chat.backgroundAgent.enabled",
+        "supportsAutoModel": true,
+        "requiresCopilotSignIn": true,
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsProblemAttachments": true,
@@ -6612,6 +6955,8 @@
         "canDelegate": true,
         "description": "%github.copilot.session.providerDescription.cloud%",
         "when": "config.github.copilot.chat.cloudAgent.enabled",
+        "supportsAutoModel": false,
+        "requiresCopilotSignIn": true,
         "capabilities": {
           "supportsFileAttachments": true
         },
@@ -6642,6 +6987,13 @@
       },
       {
         "path": "./assets/prompts/chronicle-cost-tips.prompt.md",
+        "when": "github.copilot.sessionSearch.enabled",
+        "sessionTypes": [
+          "local"
+        ]
+      },
+      {
+        "path": "./assets/prompts/chronicle-improve.prompt.md",
         "when": "github.copilot.sessionSearch.enabled",
         "sessionTypes": [
           "local"
@@ -6770,11 +7122,11 @@
     "compile": "node .esbuild.mts --dev",
     "watch": "npm-run-all -lp watch:esbuild watch:typecheck",
     "watch:esbuild": "node .esbuild.mts --watch --dev",
-    "watch:typecheck": "npx tsgo --noEmit --watch --preserveWatchOutput --project tsconfig.json",
-    "watch:typecheck-extension": "npx tsgo --noEmit --watch --project tsconfig.json",
-    "watch:typecheck-extension-web": "npx tsgo --noEmit --watch --project tsconfig.worker.json",
-    "watch:typecheck-simulation-workbench": "npx tsgo --noEmit --watch --project test/simulation/workbench/tsconfig.json",
-    "typecheck": "npx tsgo --noEmit --project tsconfig.json && npx tsgo --noEmit --project test/simulation/workbench/tsconfig.json && npx tsgo --noEmit --project tsconfig.worker.json && npx tsgo --noEmit --project src/extension/completions-core/vscode-node/extension/src/copilotPanel/webView/tsconfig.json",
+    "watch:typecheck": "tsc --noEmit --watch --preserveWatchOutput --project tsconfig.json",
+    "watch:typecheck-extension": "tsc --noEmit --watch --project tsconfig.json",
+    "watch:typecheck-extension-web": "tsc --noEmit --watch --project tsconfig.worker.json",
+    "watch:typecheck-simulation-workbench": "tsc --noEmit --watch --project test/simulation/workbench/tsconfig.json",
+    "typecheck": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project test/simulation/workbench/tsconfig.json && tsc --noEmit --project tsconfig.worker.json && tsc --noEmit --project src/extension/completions-core/vscode-node/extension/src/copilotPanel/webView/tsconfig.json",
     "lint": "npx eslint . --max-warnings=0",
     "lint-staged": "npx eslint --max-warnings=0",
     "tsfmt": "npx tsfmt -r --verify",
@@ -6812,7 +7164,6 @@
     "@fluentui/react-components": "^9.66.6",
     "@fluentui/react-icons": "^2.0.305",
     "@hediet/node-reload": "^0.8.0",
-    "@keyv/sqlite": "^4.0.5",
     "@octokit/types": "^14.1.0",
     "@stylistic/eslint-plugin": "^3.0.1",
     "@types/eslint": "^9.0.0",
@@ -6836,7 +7187,8 @@
     "@typescript-eslint/eslint-plugin": "^8.35.0",
     "@typescript-eslint/parser": "^8.32.0",
     "@typescript-eslint/typescript-estree": "^8.26.1",
-    "@vitest/coverage-v8": "^3.2.4",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "@vitest/coverage-v8": "^4.1.8",
     "@vitest/snapshot": "^1.5.0",
     "@vscode/debugadapter": "^1.68.0",
     "@vscode/debugprotocol": "^1.68.0",
@@ -6844,17 +7196,16 @@
     "@vscode/lsif-language-service": "^0.1.0-pre.4",
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
-    "@vscode/test-web": "^0.0.80",
+    "@vscode/test-web": "^0.0.81",
     "@vscode/vsce": "3.6.0",
     "copyfiles": "^2.4.1",
     "csv-parse": "^6.0.0",
     "dotenv": "^17.2.0",
-    "electron": "^39.8.5",
-    "esbuild": "0.27.2",
+    "electron": "^42.5.0",
+    "esbuild": "0.28.1",
     "fastq": "^1.19.1",
     "glob": "^11.1.0",
-    "js-yaml": "^4.1.1",
-    "keyv": "^5.3.2",
+    "js-yaml": "^4.3.0",
     "minimist": "^1.2.8",
     "mobx": "^6.13.7",
     "mobx-react-lite": "^4.1.0",
@@ -6867,7 +7218,7 @@
     "openai": "^6.7.0",
     "outdent": "^0.8.0",
     "picomatch": "^4.0.4",
-    "playwright": "^1.58.2",
+    "playwright": "^1.61.1",
     "prettier": "^3.6.2",
     "react": "^17.0.2",
     "react-dom": "17.0.2",
@@ -6876,13 +7227,12 @@
     "shiki": "~1.15.0",
     "sinon": "^21.0.0",
     "source-map-support": "^0.5.21",
-    "tar": "^7.5.11",
+    "tar": "^7.5.16",
     "ts-dedent": "^2.2.0",
-    "tsx": "^4.20.3",
-    "typescript": "^5.8.3",
-    "vite-plugin-top-level-await": "^1.5.0",
-    "vite-plugin-wasm": "^3.5.0",
-    "vitest": "^3.0.5",
+    "tsx": "^4.22.4",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vite-plugin-wasm": "^3.6.0",
+    "vitest": "^4.1.8",
     "vscode-languageserver-protocol": "^3.17.5",
     "vscode-languageserver-textdocument": "^1.0.12",
     "vscode-languageserver-types": "^3.17.5",
@@ -6894,26 +7244,29 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "1.0.49",
+    "@github/copilot": "^1.0.73",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/api-logs": "^0.212.0",
-    "@opentelemetry/exporter-logs-otlp-grpc": "^0.214.0",
-    "@opentelemetry/exporter-logs-otlp-http": "^0.214.0",
-    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.214.0",
-    "@opentelemetry/exporter-metrics-otlp-http": "^0.214.0",
-    "@opentelemetry/exporter-trace-otlp-grpc": "^0.214.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.214.0",
+    "@opentelemetry/exporter-logs-otlp-grpc": "^0.219.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.219.0",
+    "@opentelemetry/exporter-logs-otlp-proto": "^0.219.0",
+    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.219.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.219.0",
+    "@opentelemetry/exporter-metrics-otlp-proto": "^0.219.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.219.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.219.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.219.0",
     "@opentelemetry/resources": "^2.5.1",
     "@opentelemetry/sdk-logs": "^0.212.0",
     "@opentelemetry/sdk-metrics": "^2.5.1",
     "@opentelemetry/sdk-trace-node": "^2.5.1",
     "@opentelemetry/semantic-conventions": "^1.39.0",
     "@sinclair/typebox": "^0.34.41",
-    "@vscode/copilot-api": "^0.4.0",
+    "@vscode/copilot-api": "^0.4.3",
     "@vscode/extension-telemetry": "^1.5.1",
     "@vscode/l10n": "^0.0.18",
     "@vscode/prompt-tsx": "^0.4.0-alpha.8",
@@ -6924,22 +7277,20 @@
     "applicationinsights": "^2.9.7",
     "best-effort-json-parser": "^1.2.1",
     "diff": "^8.0.3",
-    "dompurify": "^3.4.1",
     "express": "^5.2.1",
     "ignore": "^7.0.5",
     "isbinaryfile": "^5.0.4",
     "jsonc-parser": "^3.3.1",
     "lru-cache": "^11.1.0",
-    "markdown-it": "^14.1.1",
+    "markdown-it": "^14.2.0",
     "minimatch": "^10.2.1",
     "undici": "^7.24.1",
     "vscode-tas-client": "^0.1.84",
     "web-tree-sitter": "^0.23.0"
   },
   "overrides": {
-    "@aminya/node-gyp-build": "npm:node-gyp-build@4.8.1",
     "string_decoder": "npm:string_decoder@1.2.0",
-    "node-gyp": "npm:node-gyp@10.3.1",
+    "yauzl": "^3.3.1",
     "zod": "3.25.76"
   },
   "vscodeCommit": "94c8e2adc50e26ef70af85a0de3a9efed757acaa",
@@ -6952,5 +7303,14 @@
       "flags": "verified"
     },
     "publisherDisplayName": "GitHub"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "keytar@7.9.0": true,
+    "@playwright/browser-chromium@1.61.1": true,
+    "@vscode/vsce-sign@2.0.5": true,
+    "protobufjs": false,
+    "fsevents@2.3.3": true,
+    "fsevents@2.3.2": true
   }
 }

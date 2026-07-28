@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, EventType, getWindow } from '../../../../../base/browser/dom.js';
-import { getZoomFactor } from '../../../../../base/browser/browser.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { ISashEvent, Orientation, OrthogonalEdge, Sash, SashState } from '../../../../../base/browser/ui/sash/sash.js';
@@ -20,18 +19,16 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { IBrowserDeviceProfile, IBrowserScreenProfile } from '../../../../../platform/browserView/common/browserView.js';
+import { IBrowserDeviceProfile } from '../../../../../platform/browserView/common/browserView.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
-import { BrowserEditor, BrowserEditorContribution, IContainerLayout, IContainerLayoutOverride } from '../browserEditor.js';
-import { BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserViewActions.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, IContainerLayout, IContainerLayoutOverride, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserEditor.js';
 
 const CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE = new RawContextKey<boolean>(
 	'browserEmulationToolbarVisible',
@@ -52,23 +49,22 @@ const CONTEXT_BROWSER_EMULATION_HAS_USER_AGENT = new RawContextKey<boolean>(
 );
 
 /**
- * A named device preset. Applying a preset stamps its `device` onto the
- * active device profile and its `screen` (size only) onto the active screen
- * profile, preserving the user's current zoom.
+ * A named device preset. Applying a preset stamps its `device` (including
+ * any embedded viewport width/height) onto the active device profile, while
+ * preserving the user's current scale.
  */
 export interface IBrowserDevicePreset {
 	readonly name: string;
 	readonly device?: IBrowserDeviceProfile;
-	readonly screen?: IBrowserScreenProfile;
 }
 
 /**
- * Keep track of the last used device and screen settings so we can restore them when the toolbar is opened.
- * Note this isn't (currently) persisted in storage.
+ * Keep track of the last used device + scale so we can restore them when the
+ * toolbar is reopened. Note this isn't (currently) persisted in storage.
  */
 const lastSettings = {
 	device: undefined as IBrowserDeviceProfile | undefined,
-	screen: undefined as IBrowserScreenProfile | undefined,
+	scale: undefined as number | undefined,
 };
 
 /**
@@ -178,14 +174,13 @@ class BrowserEmulationToolbar extends Disposable {
 			if (this._suppressChange || !model?.device) {
 				return;
 			}
-			const screen = this._feature.screen ?? {};
 			const scale = e.index === BrowserEmulationToolbar.AUTO_INDEX
 				? undefined
 				: BrowserEmulationToolbar.ZOOM_PRESETS[e.index - 1];
-			if (scale === screen.scale) {
+			if (scale === this._feature.scale) {
 				return;
 			}
-			this._feature.setScreen({ ...screen, scale });
+			this._feature.setScale(scale);
 		}));
 	}
 
@@ -221,29 +216,22 @@ class BrowserEmulationToolbar extends Disposable {
 	}
 
 	refresh(): void {
-		this._writeInputs(this._feature.model?.device, this._feature.screen);
+		this._writeInputs(this._feature.model?.device);
 		this._updateZoom();
 	}
 
-	/**
-	 * Update the inputs without touching the model. Used during resize-handle
-	 * drag so the toolbar reflects the in-flight viewport size.
-	 */
-	setPreviewScreen(screen: IBrowserScreenProfile | undefined): void {
-		this._writeInputs(this._feature.model?.device, screen);
-	}
-
-	private _writeInputs(device: IBrowserDeviceProfile | undefined, screen: IBrowserScreenProfile | undefined): void {
+	private _writeInputs(device: IBrowserDeviceProfile | undefined): void {
+		const width = device?.width;
+		const height = device?.height;
 		this._suppressChange = true;
 		try {
-			this._widthInput.value = screen?.width ? String(screen.width) : '';
-			this._heightInput.value = screen?.height ? String(screen.height) : '';
+			this._widthInput.value = width ? String(width) : '';
+			this._heightInput.value = height ? String(height) : '';
 			this._dprInput.value = device?.deviceScaleFactor ? String(device.deviceScaleFactor) : '';
 		} finally {
 			this._suppressChange = false;
 		}
-		const canSwapDimensions = !!screen?.width || !!screen?.height;
-		this._swapDimensionsAction.enabled = canSwapDimensions;
+		this._swapDimensionsAction.enabled = !!width || !!height;
 	}
 
 	private _appendGroup(name: string): HTMLElement {
@@ -260,7 +248,7 @@ class BrowserEmulationToolbar extends Disposable {
 	}
 
 	private _currentZoomIndex(): number {
-		const scale = this._feature.screen?.scale;
+		const scale = this._feature.scale;
 		if (scale === undefined) {
 			return BrowserEmulationToolbar.AUTO_INDEX;
 		}
@@ -297,11 +285,11 @@ class BrowserEmulationToolbar extends Disposable {
 		};
 		const width = parse(this._widthInput.value);
 		const height = parse(this._heightInput.value);
-		const screen = this._feature.screen ?? {};
-		if (screen.width === width && screen.height === height) {
+		const device = model.device;
+		if (device.width === width && device.height === height) {
 			return;
 		}
-		this._feature.setScreen({ ...screen, width, height });
+		void model.setDevice({ ...device, width, height });
 	}
 
 	private _onDprInput(): void {
@@ -338,11 +326,11 @@ class BrowserEmulationToolbar extends Disposable {
 }
 
 /**
- * Editor contribution that owns the device toolbar, the device-emulation
- * screen profile (viewport size + scale), and the resize sashes that drive
- * it interactively. Also implements {@link computeContainerLayout} so the
- * editor delegates container sizing to this contribution whenever device
- * emulation is engaged.
+ * Editor contribution that owns the device toolbar, the renderer-side scale
+ * for the emulated viewport, and the resize sashes that drive viewport size
+ * interactively (committed onto {@link IBrowserViewModel.device}). Also
+ * implements {@link computeContainerLayout} so the editor delegates container
+ * sizing to this contribution whenever device emulation is engaged.
  */
 export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 
@@ -351,15 +339,12 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 	private readonly _isMobile: IContextKey<boolean>;
 	private readonly _hasUserAgent: IContextKey<boolean>;
 
-	/** Committed screen profile (viewport size + scale). */
-	private _screen: IBrowserScreenProfile | undefined;
-	/** In-flight screen during a resize-sash drag; takes priority over {@link _screen} when set. */
-	private _screenInflight: IBrowserScreenProfile | undefined;
+	/** Committed renderer-side scale; undefined = auto-fit. Not persisted in the device model (rides on the layout call). */
+	private _scale: number | undefined;
 	/** Scale Auto-fit would produce for the current device + pane. Drives the toolbar's "Auto (X%)" label. */
 	private _autoFitScale = 1;
 
-	private readonly _onDidChangeScreen = this._register(new Emitter<IBrowserScreenProfile | undefined>());
-	private readonly _onDidPreviewScreen = this._register(new Emitter<IBrowserScreenProfile | undefined>());
+	private readonly _onDidChangeScale = this._register(new Emitter<number | undefined>());
 	private readonly _onDidChangeAutoFitScale = this._register(new Emitter<number>());
 
 	private _eastSash: Sash | undefined;
@@ -397,25 +382,21 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 
 		this._toolbar = this._register(instantiationService.createInstance(BrowserEmulationToolbar, this, actionsContainer, hoverDelegate));
 
-		// React to our own screen state: refresh the toolbar, sync context keys, and relayout.
-		this._register(this._onDidChangeScreen.event(screen => {
+		// React to our own scale state: refresh the toolbar, sync context keys, and relayout.
+		this._register(this._onDidChangeScale.event(() => {
 			this._toolbar.refresh();
-			this._syncContextKeys(this.editor.model?.device, screen);
 			this.editor.layoutBrowserContainer();
-		}));
-		this._register(this._onDidPreviewScreen.event(screen => {
-			this._toolbar.setPreviewScreen(screen);
 		}));
 		this._register(this._onDidChangeAutoFitScale.event(scale => this._toolbar.setAutoFitScale(scale)));
 	}
 
 	// -- BrowserEditorContribution hooks ------------------------------------
 
-	override get toolbarElements(): readonly HTMLElement[] {
-		return [this._toolbar.element];
+	override get widgets(): readonly IBrowserEditorWidget[] {
+		return [{ location: BrowserWidgetLocation.Toolbar, element: this._toolbar.element, order: 0 }];
 	}
 
-	override onContainerReady(container: HTMLElement): void {
+	override onContainerCreated(container: HTMLElement): void {
 		this._createResizeSashes(container);
 
 		const observer = new (getWindow(container).ResizeObserver)(() => {
@@ -426,86 +407,88 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		this._register({ dispose: () => observer.disconnect() });
 	}
 
-	override getContainerLayoutOverride(): IContainerLayoutOverride | undefined {
+	override beforeContainerLayout(): IContainerLayoutOverride | undefined {
 		if (!this.editor.model?.device) {
 			return undefined;
 		}
 		return {
 			// Reserve space for the east + south resize sashes that sit just outside the container.
 			padding: { right: 16, bottom: 16 },
-			compute: (w, h) => this._computeLayout(w, h),
+			compute: (_current, pane) => this._computeLayout(pane.width, pane.height),
+			priority: 0
 		};
 	}
 
 	private _computeLayout(paneWidth: number, paneHeight: number): IContainerLayout {
-		const screen = this._screenInflight ?? this._screen;
-		const z = getZoomFactor(this.editor.window);
-		const snap = (v: number) => Math.floor(v * z) / z;
+		const device = this.editor.model?.device;
+		const width = device?.width;
+		const height = device?.height;
 		const fitScale = paneWidth > 0 && paneHeight > 0
-			? Math.min(screen?.width ? paneWidth / screen.width : 1, screen?.height ? paneHeight / screen.height : 1, 1)
+			? Math.min(width ? paneWidth / width : 1, height ? paneHeight / height : 1, 1)
 			: 1;
 		if (this._autoFitScale !== fitScale) {
 			this._autoFitScale = fitScale;
 			this._onDidChangeAutoFitScale.fire(fitScale);
 		}
-		const scale = screen?.scale ?? fitScale;
-		const viewportWidth = screen?.width ?? Math.max(1, Math.round(paneWidth / scale));
-		const viewportHeight = screen?.height ?? Math.max(1, Math.round(paneHeight / scale));
+		const scale = this._scale ?? fitScale;
+		const layoutWidth = width ? Math.min(width * scale, paneWidth) : paneWidth;
+		const layoutHeight = height ? Math.min(height * scale, paneHeight) : paneHeight;
 		return {
-			width: snap(Math.min(viewportWidth * scale, paneWidth)),
-			height: snap(Math.min(viewportHeight * scale, paneHeight)),
-			emulation: { viewportWidth, viewportHeight, scale },
+			width: layoutWidth,
+			height: layoutHeight,
+			// Center the device within the available pane (the sash reservation
+			// is already accounted for via padding).
+			left: Math.max(0, (paneWidth - layoutWidth) / 2),
+			top: Math.max(0, (paneHeight - layoutHeight) / 2),
+			emulation: { scale },
 		};
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		this._toolbar.refresh();
-		this._syncContextKeys(model.device, this._screen);
+		this._syncContextKeys(model.device);
 		this._updateSashState();
 		this._setToolbarVisible(!!model.device);
 		store.add(model.onDidChangeDevice(device => {
 			this._updateSashState();
-			// Turning emulation off discards any in-progress screen overrides so
+			// Turning emulation off discards any in-progress scale override so
 			// reopening the toolbar starts clean.
-			if (!device && this._screen !== undefined) {
-				this.setScreen(undefined);
+			if (!device && this._scale !== undefined) {
+				this.setScale(undefined);
 			}
 			if (device) {
 				lastSettings.device = device;
 			}
 			this._toolbar.refresh();
-			this._syncContextKeys(device, this._screen);
+			this._syncContextKeys(device);
 			this._setToolbarVisible(!!device);
 			this.editor.layoutBrowserContainer();
 		}));
 	}
 
-	override clear(): void {
-		// Editor input is being cleared — drop screen state so a freshly
+	override onModelDetached(): void {
+		// Editor input is being cleared — drop renderer-side state so a freshly
 		// reopened input starts without stale viewport overrides.
-		this._screen = undefined;
-		this._screenInflight = undefined;
+		this._scale = undefined;
 		this._toolbar.refresh();
-		this._syncContextKeys(undefined, undefined);
+		this._syncContextKeys(undefined);
 		this._setToolbarVisible(false);
 	}
 
 	// -- Public API consumed by toolbar + actions --------------------------
 
-	/** Current committed screen profile, or undefined for full-pane fit. */
-	get screen(): IBrowserScreenProfile | undefined { return this._screen; }
+	/** Current renderer-side scale; undefined = auto-fit. */
+	get scale(): number | undefined { return this._scale; }
 	/** Convenience accessor for the toolbar — proxies the editor's model. */
 	get model(): IBrowserViewModel | undefined { return this.editor.model; }
 
-	setScreen(screen: IBrowserScreenProfile | undefined): void {
-		if (this._screen === screen) {
+	setScale(scale: number | undefined): void {
+		if (this._scale === scale) {
 			return;
 		}
-		if (screen) {
-			lastSettings.screen = screen;
-		}
-		this._screen = screen;
-		this._onDidChangeScreen.fire(screen);
+		lastSettings.scale = scale;
+		this._scale = scale;
+		this._onDidChangeScale.fire(scale);
 	}
 
 	get isVisible(): boolean {
@@ -524,7 +507,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		if (visible) {
 			if (model && !model.device) {
 				void model.setDevice({ ...lastSettings.device });
-				this.setScreen({ ...lastSettings.screen });
+				this.setScale(lastSettings.scale);
 			}
 			this._setToolbarVisible(true);
 		} else {
@@ -540,22 +523,16 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 			return;
 		}
 		void model.setDevice(preset.device ?? {});
-		const currentScale = this._screen?.scale;
-		this.setScreen({
-			width: preset.screen?.width,
-			height: preset.screen?.height,
-			scale: currentScale,
-		});
 	}
 
-	/** Reset all device + screen overrides to defaults while keeping emulation engaged. */
+	/** Reset all device + scale overrides to defaults while keeping emulation engaged. */
 	resetAll(): void {
 		const model = this.editor.model;
 		if (!model) {
 			return;
 		}
 		void model.setDevice({});
-		this.setScreen({});
+		this.setScale(undefined);
 	}
 
 	/** Set the user agent on the current device. Empty / undefined = default. Engages emulation if not already active. */
@@ -580,11 +557,11 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 	/** Swap the current viewport's width and height. No-op without any fixed dim. */
 	swapDimensions(): void {
 		const model = this.editor.model;
-		const screen = this._screen;
-		if (!model || !screen || (!screen.width && !screen.height)) {
+		const device = model?.device;
+		if (!model || !device || (!device.width && !device.height)) {
 			return;
 		}
-		this.setScreen({ ...screen, width: screen.height, height: screen.width });
+		void model.setDevice({ ...device, width: device.height, height: device.width });
 	}
 
 	/** Flip the mobile flag on the current device (drives touch + pointer media). Engages emulation if not already active. */
@@ -599,7 +576,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 
 	// -- Internal helpers ---------------------------------------------------
 
-	private _syncContextKeys(device: IBrowserDeviceProfile | undefined, _screen: IBrowserScreenProfile | undefined): void {
+	private _syncContextKeys(device: IBrowserDeviceProfile | undefined): void {
 		this._isMobile.set(!!device?.mobile);
 		this._hasUserAgent.set(!!device?.userAgent);
 	}
@@ -656,8 +633,6 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 			readonly scale: number;
 			readonly paneW: number;
 			readonly paneH: number;
-			screen: IBrowserScreenProfile;
-			changed: boolean;
 		};
 		let drag: DragState | undefined;
 
@@ -666,23 +641,21 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 			if (!model || !model.device) {
 				return;
 			}
-			const screen = this._screen ?? {};
+			const device = model.device;
 			container.classList.add('browser-container--dragging');
 			const pane = this.editor.paneSize;
 			const containerRect = container.getBoundingClientRect();
 			// Mirror computeContainerLayout's fit-scale math to derive starting scale.
 			const fitScale = pane.width > 0 && pane.height > 0
-				? Math.min(screen.width ? pane.width / screen.width : 1, screen.height ? pane.height / screen.height : 1, 1)
+				? Math.min(device.width ? pane.width / device.width : 1, device.height ? pane.height / device.height : 1, 1)
 				: 1;
-			const startScale = screen.scale ?? fitScale;
+			const startScale = this._scale ?? fitScale;
 			drag = {
 				startContainerW: containerRect.width,
 				startContainerH: containerRect.height,
 				scale: Math.max(0.01, startScale),
 				paneW: pane.width,
 				paneH: pane.height,
-				screen,
-				changed: false,
 			};
 		};
 
@@ -690,17 +663,14 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 			if (!drag) {
 				return;
 			}
+			const device = this.editor.model?.device ?? {};
 			if (axis === 'x') {
 				const w = Math.max(50, Math.min(drag.paneW, drag.startContainerW + (evt.currentX - evt.startX) * 2));
-				drag.screen = { ...drag.screen, width: Math.max(50, Math.round(w / drag.scale)) };
+				void this.editor.model?.setDevice({ ...device, width: Math.max(50, Math.round(w / drag.scale)) });
 			} else {
 				const h = Math.max(50, Math.min(drag.paneH, drag.startContainerH + (evt.currentY - evt.startY) * 2));
-				drag.screen = { ...drag.screen, height: Math.max(50, Math.round(h / drag.scale)) };
+				void this.editor.model?.setDevice({ ...device, height: Math.max(50, Math.round(h / drag.scale)) });
 			}
-			drag.changed = true;
-			this._screenInflight = drag.screen;
-			this.editor.layoutBrowserContainer();
-			this._onDidPreviewScreen.fire(drag.screen);
 		};
 
 		const onEnd = () => {
@@ -708,14 +678,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 				return;
 			}
 			container.classList.remove('browser-container--dragging');
-			const { screen, changed } = drag;
 			drag = undefined;
-			this._screenInflight = undefined;
-			if (changed) {
-				this.setScreen(screen);
-			} else {
-				this.editor.layoutBrowserContainer();
-			}
 		};
 
 		this._register(eastSash.onDidStart(onStart));
@@ -729,83 +692,53 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 	}
 
 	private _resetAxis(axis: 'x' | 'y'): void {
-		if (!this.editor.model?.device) {
+		const model = this.editor.model;
+		if (!model?.device) {
 			return;
 		}
-		const screen = this._screen ?? {};
-		const next: IBrowserScreenProfile = axis === 'x'
-			? { ...screen, width: undefined }
-			: { ...screen, height: undefined };
-		this.setScreen(next);
+		const device = model.device;
+		void model.setDevice(axis === 'x'
+			? { ...device, width: undefined }
+			: { ...device, height: undefined });
 	}
 }
 
 BrowserEditor.registerContribution(BrowserEditorEmulationSupport);
 
 /**
- * Show the emulation toolbar (engages device emulation). Mirrors the
- * find-widget pattern: show command on the main action bar / F1, and the
- * toolbar is dismissed via its own close button or the Escape keybinding.
+ * Toggle the emulation toolbar (engages or disables device emulation).
  */
-class ShowBrowserEmulationToolbarAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.showEmulationToolbar';
+class ToggleBrowserEmulationAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.toggleDeviceEmulation';
 
 	constructor() {
 		super({
-			id: ShowBrowserEmulationToolbarAction.ID,
-			title: localize2('browser.showEmulationToolbar', 'Show Emulation Toolbar'),
+			id: ToggleBrowserEmulationAction.ID,
+			title: localize2('browser.toggleDeviceEmulation', 'Device Emulation'),
 			category: BrowserActionCategory,
 			icon: Codicon.deviceMobile,
 			f1: true,
+			toggled: CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE,
 			precondition: BROWSER_EDITOR_ACTIVE,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Developer,
-				order: 10,
+				group: BrowserActionGroup.Tools,
+				order: 3,
+				isHiddenByDefault: true,
 			},
 		});
 	}
 
 	override run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): void {
 		if (browserEditor instanceof BrowserEditor) {
-			browserEditor.getContribution(BrowserEditorEmulationSupport)?.setVisible(true);
-		}
-	}
-}
-
-/**
- * Hide the emulation toolbar (disables emulation). Available via F1 and bound
- * to Escape while the toolbar is visible; also surfaced as the toolbar's
- * close button.
- */
-class HideBrowserEmulationToolbarAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.hideEmulationToolbar';
-
-	constructor() {
-		super({
-			id: HideBrowserEmulationToolbarAction.ID,
-			title: localize2('browser.hideEmulationToolbar', 'Hide Emulation Toolbar'),
-			category: BrowserActionCategory,
-			icon: Codicon.close,
-			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE),
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyCode.Escape,
-				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE),
-			},
-		});
-	}
-
-	override run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): void {
-		if (browserEditor instanceof BrowserEditor) {
-			browserEditor.getContribution(BrowserEditorEmulationSupport)?.setVisible(false);
+			const support = browserEditor.getContribution(BrowserEditorEmulationSupport);
+			support?.setVisible(!support.isVisible);
 		}
 	}
 }
 MenuRegistry.appendMenuItem(MenuId.BrowserEmulationToolbar, {
 	command: {
-		id: HideBrowserEmulationToolbarAction.ID,
+		id: ToggleBrowserEmulationAction.ID,
 		title: localize('browser.emulationToolbar.close', "Close"),
 		icon: Codicon.close,
 	},
@@ -846,23 +779,19 @@ MenuRegistry.appendMenuItem(MenuId.BrowserEmulationToolbar, {
 const DEFAULT_BROWSER_DEVICE_PRESETS: readonly IBrowserDevicePreset[] = [
 	{
 		name: 'iPhone 15 Pro',
-		device: { mobile: true, deviceScaleFactor: 3, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' },
-		screen: { width: 393, height: 852 },
+		device: { width: 393, height: 852, mobile: true, deviceScaleFactor: 3, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' },
 	},
 	{
 		name: 'iPhone SE',
-		device: { mobile: true, deviceScaleFactor: 2, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' },
-		screen: { width: 375, height: 667 },
+		device: { width: 375, height: 667, mobile: true, deviceScaleFactor: 2, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' },
 	},
 	{
 		name: 'Pixel 8',
-		device: { mobile: true, deviceScaleFactor: 2.625, userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36' },
-		screen: { width: 412, height: 915 },
+		device: { width: 412, height: 915, mobile: true, deviceScaleFactor: 2.625, userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36' },
 	},
 	{
 		name: 'iPad Mini',
-		device: { mobile: true, deviceScaleFactor: 2, userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' },
-		screen: { width: 768, height: 1024 },
+		device: { width: 768, height: 1024, mobile: true, deviceScaleFactor: 2, userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' },
 	},
 ];
 
@@ -893,8 +822,8 @@ class PickBrowserDevicePresetAction extends Action2 {
 		type PresetItem = IQuickPickItem & { preset: IBrowserDevicePreset };
 		const items: PresetItem[] = DEFAULT_BROWSER_DEVICE_PRESETS.map(p => ({
 			label: p.name,
-			description: p.screen?.width && p.screen?.height
-				? `${p.screen.width}\u00D7${p.screen.height}${p.device?.mobile ? ` \u2022 ${localize('browser.devicePresets.mobileTag', "mobile")}` : ''}`
+			description: p.device?.width && p.device?.height
+				? `${p.device.width}\u00D7${p.device.height}${p.device?.mobile ? ` \u2022 ${localize('browser.devicePresets.mobileTag', "mobile")}` : ''}`
 				: undefined,
 			preset: p,
 		}));
@@ -990,8 +919,7 @@ MenuRegistry.appendMenuItem(MenuId.BrowserEmulationToolbar, {
 	order: 90,
 });
 
-registerAction2(ShowBrowserEmulationToolbarAction);
-registerAction2(HideBrowserEmulationToolbarAction);
+registerAction2(ToggleBrowserEmulationAction);
 registerAction2(PickBrowserDevicePresetAction);
 registerAction2(SetBrowserUserAgentAction);
 registerAction2(ToggleBrowserMobileEmulationAction);

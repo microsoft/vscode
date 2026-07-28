@@ -1,0 +1,52 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: List the files in the current working directory. Reply with the filenames only.
+    response:
+      content:
+        - type: text
+          text: I’m listing the current working directory now and will return only the filenames.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: ls -1
+            workdir: ${workdir}/ahp-coverage-list-${temp}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: List the files in the current working directory. Reply with the filenames only.
+        - role: assistant
+          content: I’m listing the current working directory now and will return only the filenames.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: ls -1
+                workdir: ${workdir}/ahp-coverage-list-${temp}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: 2edea4
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 5
+                Output:
+                first.txt
+                second.md
+    response:
+      content: |-
+        first.txt
+        second.md
+      stopReason: end_turn

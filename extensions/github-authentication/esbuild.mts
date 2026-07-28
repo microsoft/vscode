@@ -15,4 +15,7 @@ run({
 	},
 	srcDir,
 	outdir: outDir,
+	additionalOptions: {
+		external: ['vscode', 'electron'],
+	},
 }, process.argv);
