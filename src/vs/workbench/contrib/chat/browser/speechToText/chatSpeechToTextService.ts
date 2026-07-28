@@ -6,7 +6,6 @@
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { VSBuffer, encodeBase64 } from '../../../../../base/common/buffer.js';
-import { safeIntl } from '../../../../../base/common/date.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { computeLevenshteinDistance } from '../../../../../base/common/diff/diff.js';
 import { joinPath } from '../../../../../base/common/resources.js';
@@ -35,109 +34,6 @@ import { IPromptsService } from '../../common/promptSyntax/service/promptsServic
 import { createPcmCaptureNode } from '../pcmCaptureWorklet.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
-
-const dictationCleanupWordSegmenter = safeIntl.Segmenter(undefined, { granularity: 'word' });
-
-function getDictationCleanupWords(text: string): string[] {
-	return Array.from(dictationCleanupWordSegmenter.value.segment(text
-		.replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, '')
-		.toLocaleLowerCase()
-		.normalize('NFC')
-		.replace(/['\u2019]/gu, '')))
-		.filter(segment => segment.isWordLike)
-		.map(segment => segment.segment);
-}
-
-function getDictationTerminologyWords(dictationInstructions: string | undefined): Set<string> {
-	if (!dictationInstructions) {
-		return new Set();
-	}
-
-	const terms: string[] = [];
-	for (const line of dictationInstructions.split(/\r?\n/)) {
-		for (const match of line.matchAll(/["\u201c]([^"\u201d]+)["\u201d]|`([^`]+)`/g)) {
-			terms.push(match[1] ?? match[2]);
-		}
-		const mappedTerm = line.match(/(?:->|=>)\s*(.+)$/)?.[1];
-		const namedTerm = line.match(/\b(?:product name|proper noun|terminology|term)\b(?:\s+(?:is|as))?\s*:?\s*(.+)$/i)?.[1];
-		const spelledTerm = line.match(/\b(?:spell|write|refer to)\b.*?\bas\s+(.+)$/i)?.[1];
-		for (const term of [mappedTerm, namedTerm, spelledTerm]) {
-			if (term) {
-				terms.push(term.replace(/^\s*as\s+/i, '').replace(/^["\u201c`]|["\u201d`.,;:!?]+$/g, ''));
-			}
-		}
-	}
-	return new Set(getDictationCleanupWords(terms.join('\n')));
-}
-
-interface IFaithfulDictationCleanupValidation {
-	readonly isFaithful: boolean;
-	readonly rawWordCount: number;
-	readonly cleanedWordCount: number;
-	readonly minimumCleanedWords: number;
-	readonly terminologySubstitutionCount: number;
-	readonly firstUnmatchedCleanedWordIndex?: number;
-	readonly firstUnmatchedCleanedWord?: string;
-}
-
-function validateFaithfulDictationCleanup(raw: string, cleaned: string, dictationInstructions?: string): IFaithfulDictationCleanupValidation {
-	const rawWords = getDictationCleanupWords(raw);
-	const cleanedWords = getDictationCleanupWords(cleaned);
-	const terminologyWords = getDictationTerminologyWords(dictationInstructions);
-	const minimumCleanedWords = Math.ceil(rawWords.length * 0.6);
-	const maximumTerminologySubstitutions = dictationInstructions ? Math.max(1, Math.ceil(rawWords.length * 0.2)) : 0;
-	if (
-		rawWords.length === 0 ||
-		cleanedWords.length < minimumCleanedWords
-	) {
-		return {
-			isFaithful: false,
-			rawWordCount: rawWords.length,
-			cleanedWordCount: cleanedWords.length,
-			minimumCleanedWords,
-			terminologySubstitutionCount: 0,
-		};
-	}
-
-	let rawIndex = 0;
-	let terminologySubstitutionCount = 0;
-	for (let cleanedIndex = 0; cleanedIndex < cleanedWords.length; cleanedIndex++) {
-		const cleanedWord = cleanedWords[cleanedIndex];
-		let matchingRawIndex = rawIndex;
-		while (matchingRawIndex < rawWords.length && rawWords[matchingRawIndex] !== cleanedWord) {
-			matchingRawIndex++;
-		}
-		if (matchingRawIndex < rawWords.length) {
-			rawIndex = matchingRawIndex + 1;
-			continue;
-		}
-		if (terminologyWords.has(cleanedWord) && terminologySubstitutionCount < maximumTerminologySubstitutions) {
-			terminologySubstitutionCount++;
-			continue;
-		}
-		return {
-			isFaithful: false,
-			rawWordCount: rawWords.length,
-			cleanedWordCount: cleanedWords.length,
-			minimumCleanedWords,
-			terminologySubstitutionCount,
-			firstUnmatchedCleanedWordIndex: cleanedIndex,
-			firstUnmatchedCleanedWord: cleanedWord,
-		};
-	}
-
-	return {
-		isFaithful: true,
-		rawWordCount: rawWords.length,
-		cleanedWordCount: cleanedWords.length,
-		minimumCleanedWords,
-		terminologySubstitutionCount,
-	};
-}
-
-export function isFaithfulDictationCleanup(raw: string, cleaned: string, dictationInstructions?: string): boolean {
-	return validateFaithfulDictationCleanup(raw, cleaned, dictationInstructions).isFaithful;
-}
 
 function joinIncrementalDictationText(prefix: string, suffix: string): string {
 	if (!prefix || !suffix) {
@@ -1510,17 +1406,13 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				this._logService.warn(`[chat-stt] language model cleanup returned empty output (source=${source}, rawChars=${text.length}); using raw transcript`);
 				return undefined;
 			}
-			const faithfulness = validateFaithfulDictationCleanup(text, cleaned, dictationInstructions);
-			if (!faithfulness.isFaithful) {
-				const refusalLikeOutput = isRefusalLikeCleanupOutput(cleaned);
-				if (refusalLikeOutput) {
-					const localFallback = stripDictationFillers(text);
-					if (localFallback && localFallback !== text) {
-						this._logService.info(`[chat-stt] language model cleanup returned refusal-like output; applying local filler cleanup (source=${source}, rawChars=${text.length}, cleanedChars=${localFallback.length})`);
-						return localFallback;
-					}
+			if (isRefusalLikeCleanupOutput(cleaned)) {
+				const localFallback = stripDictationFillers(text);
+				if (localFallback && localFallback !== text) {
+					this._logService.info(`[chat-stt] language model cleanup returned refusal-like output; applying local filler cleanup (source=${source}, rawChars=${text.length}, cleanedChars=${localFallback.length})`);
+					return localFallback;
 				}
-				this._logService.warn(`[chat-stt] language model transcript cleanup failed faithfulness validation (source=${source}, rawChars=${text.length}, cleanedChars=${cleaned.length}, rawWords=${faithfulness.rawWordCount}, cleanedWords=${faithfulness.cleanedWordCount}, minimumCleanedWords=${faithfulness.minimumCleanedWords}, terminologySubstitutions=${faithfulness.terminologySubstitutionCount}, refusalLikeOutput=${refusalLikeOutput}, firstUnmatchedCleanedWordIndex=${faithfulness.firstUnmatchedCleanedWordIndex ?? -1}, firstUnmatchedCleanedWord=${faithfulness.firstUnmatchedCleanedWord ?? ''}); using raw transcript`);
+				this._logService.warn(`[chat-stt] language model cleanup returned refusal-like output (source=${source}, rawChars=${text.length}, cleanedChars=${cleaned.length}); using raw transcript`);
 				return undefined;
 			}
 			this._logService.trace(`[chat-stt] applied language model cleanup (source=${source}, rawChars=${text.length}, cleanedChars=${cleaned.length})`);
