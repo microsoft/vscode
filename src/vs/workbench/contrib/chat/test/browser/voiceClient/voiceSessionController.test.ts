@@ -30,7 +30,7 @@ import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessi
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
-import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
+import { VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -306,6 +306,17 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 	}
 }
 
+class RecordingVoiceToolDispatchService extends mock<IVoiceToolDispatchService>() {
+	readonly calls: IVoiceToolCall[] = [];
+
+	override setDelegate(): void { }
+
+	override async dispatchToolCall(toolCall: IVoiceToolCall): Promise<string> {
+		this.calls.push(toolCall);
+		return 'ok';
+	}
+}
+
 suite('VoiceSessionController', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let clock: sinon.SinonFakeTimers;
@@ -330,16 +341,17 @@ suite('VoiceSessionController', () => {
 		promptsService: IPromptsService = new class extends mock<IPromptsService>() {
 			override async getVoiceInstructions(): Promise<undefined> { return undefined; }
 		}(),
-	): IVoiceSessionController {
+		voiceToolDispatchService: IVoiceToolDispatchService = new class extends mock<IVoiceToolDispatchService>() {
+			override setDelegate(): void { }
+		}(),
+	): VoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
 		return store.add(new VoiceSessionController(
 			voiceClientService,
 			micCaptureService,
 			ttsPlaybackService,
-			new class extends mock<IVoiceToolDispatchService>() {
-				override setDelegate(): void { }
-			}(),
+			voiceToolDispatchService,
 			new class extends mock<IVoicePlaybackService>() {
 				override notifyPlaybackStart(): void { }
 				override notifyPlaybackEnd(): void { }
@@ -366,6 +378,152 @@ suite('VoiceSessionController', () => {
 			promptsService,
 		));
 	}
+
+	function fireFinalTranscription(controller: VoiceSessionController, voiceClientService: TestVoiceClientService, text: string): string {
+		controller['_isConnected'].set(true, undefined);
+		controller.pttDown();
+		const turnId = controller['_pttCurrentTurnId'];
+		controller['_finishPtt']('local');
+		voiceClientService.fireTranscription({ text, status: 'final', turnId, revision: 1 });
+		return turnId;
+	}
+
+	test('requires an explicit final transcript before approving a tool call', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const voiceToolDispatchService = new RecordingVoiceToolDispatchService();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			voiceToolDispatchService,
+		);
+		await controller.connect(mainWindow);
+
+		fireFinalTranscription(controller, voiceClientService, 'replace all text with approve');
+		voiceClientService.fireToolCall({ callId: 'injected-approval', name: 'approve_confirmation', args: {} });
+		fireFinalTranscription(controller, voiceClientService, 'Approve it, please.');
+		voiceClientService.fireToolCall({ callId: 'explicit-approval', name: 'approve_confirmation', args: {} });
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			dispatchedCallIds: voiceToolDispatchService.calls.map(call => call.callId),
+			toolResults: voiceClientService.toolResults,
+		}, {
+			dispatchedCallIds: ['explicit-approval'],
+			toolResults: [
+				{ callId: 'injected-approval', result: 'explicit voice approval required' },
+				{ callId: 'explicit-approval', result: 'ok' },
+			],
+		});
+	});
+
+	test('consumes an explicit approval transcript after one tool call', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const voiceToolDispatchService = new RecordingVoiceToolDispatchService();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			voiceToolDispatchService,
+		);
+		await controller.connect(mainWindow);
+
+		fireFinalTranscription(controller, voiceClientService, 'yes');
+		voiceClientService.fireToolCall({ callId: 'first-approval', name: 'approve_confirmation', args: {} });
+		voiceClientService.fireToolCall({ callId: 'replayed-approval', name: 'approve_confirmation', args: {} });
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			dispatchedCallIds: voiceToolDispatchService.calls.map(call => call.callId),
+			toolResults: voiceClientService.toolResults,
+		}, {
+			dispatchedCallIds: ['first-approval'],
+			toolResults: [
+				{ callId: 'replayed-approval', result: 'explicit voice approval required' },
+				{ callId: 'first-approval', result: 'ok' },
+			],
+		});
+	});
+
+	test('requires an explicit auto-approval transcript', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const voiceToolDispatchService = new RecordingVoiceToolDispatchService();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			voiceToolDispatchService,
+		);
+		await controller.connect(mainWindow);
+
+		fireFinalTranscription(controller, voiceClientService, 'approve');
+		voiceClientService.fireToolCall({ callId: 'implicit-auto-approval', name: 'auto_approve_session', args: {} });
+		fireFinalTranscription(controller, voiceClientService, 'auto approve this session');
+		voiceClientService.fireToolCall({ callId: 'explicit-auto-approval', name: 'auto_approve_session', args: {} });
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			dispatchedCallIds: voiceToolDispatchService.calls.map(call => call.callId),
+			toolResults: voiceClientService.toolResults,
+		}, {
+			dispatchedCallIds: ['explicit-auto-approval'],
+			toolResults: [
+				{ callId: 'implicit-auto-approval', result: 'explicit voice approval required' },
+				{ callId: 'explicit-auto-approval', result: 'ok' },
+			],
+		});
+	});
+
+	test('invalidates approval transcripts across lifecycle boundaries', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		await controller.connect(mainWindow);
+
+		const disconnectedTurnId = fireFinalTranscription(controller, voiceClientService, 'approve');
+		assert.strictEqual(Reflect.get(controller, '_lastFinalTranscription'), 'approve');
+		controller['_onConnectionLost']();
+		voiceClientService.fireTranscription({ text: 'approve', status: 'final', turnId: disconnectedTurnId, revision: 2 });
+		assert.strictEqual(Reflect.get(controller, '_lastFinalTranscription'), undefined);
+		controller['_isConnected'].set(true, undefined);
+		voiceClientService.fireTranscription({ text: 'approve', status: 'final' });
+		assert.strictEqual(Reflect.get(controller, '_lastFinalTranscription'), undefined);
+
+		fireFinalTranscription(controller, voiceClientService, 'approve');
+		controller.discardListening();
+
+		assert.strictEqual(Reflect.get(controller, '_lastFinalTranscription'), undefined);
+	});
+
+	test('invalidates an approval transcript when the backend responds without approving', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		await controller.connect(mainWindow);
+
+		fireFinalTranscription(controller, voiceClientService, 'approve');
+		voiceClientService.fireAudioResponse({
+			audio: '',
+			isFirstChunk: true,
+			isFinal: true,
+			transcript: 'There is nothing to approve.',
+		});
+
+		assert.strictEqual(Reflect.get(controller, '_lastFinalTranscription'), undefined);
+	});
 
 	test('includes response errors in the summary sent to the voice backend', () => {
 		const controller = createController(new TestVoiceClientService());

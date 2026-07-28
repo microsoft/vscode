@@ -124,6 +124,46 @@ interface ITranscriptionTurnState {
 	phase: TranscriptionTurnPhase;
 }
 
+const EXPLICIT_VOICE_APPROVALS = new Set([
+	'allow',
+	'allow it',
+	'allow this',
+	'approve',
+	'approve it',
+	'approve this',
+	'confirm',
+	'confirm it',
+	'do it',
+	'go ahead',
+	'yes',
+	'yes allow',
+	'yes approve',
+	'yes confirm',
+]);
+
+const EXPLICIT_VOICE_AUTO_APPROVALS = new Set([
+	'always approve this session',
+	'auto approve',
+	'auto approve this session',
+	'enable auto approval',
+	'enable auto approval for this session',
+]);
+
+function isExplicitVoiceApproval(toolName: string, transcript: string | undefined): boolean {
+	if (!transcript) {
+		return false;
+	}
+	const normalized = transcript.toLocaleLowerCase().replace(/[.,!?;:]+/g, ' ').replace(/\s+/g, ' ').trim()
+		.replace(/^please /, '').replace(/ please$/, '');
+	if (toolName === 'approve_confirmation') {
+		return EXPLICIT_VOICE_APPROVALS.has(normalized);
+	}
+	if (toolName === 'auto_approve_session') {
+		return EXPLICIT_VOICE_AUTO_APPROVALS.has(normalized);
+	}
+	return true;
+}
+
 export interface IVoiceSessionController {
 	readonly _serviceBrand: undefined;
 
@@ -309,6 +349,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _enterListenOnSessionInit = false;
 	private _pttCurrentTurnId = '';
 	private _transcriptionTurnState: ITranscriptionTurnState | undefined;
+	private _lastFinalTranscription: string | undefined;
 	private _window: (Window & typeof globalThis) | undefined;
 	private readonly _voiceEventDisposables = this._register(new DisposableStore());
 	private readonly _voiceAutorunDisposable = this._register(new MutableDisposable());
@@ -890,6 +931,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	async connect(window: Window & typeof globalThis): Promise<void> {
 		if (this._isConnecting.get() || this._isConnected.get()) { return; }
 		const connectAttemptGeneration = ++this._connectAttemptGeneration;
+		this._resetTranscriptionTurn();
 
 		this._window = window;
 		this._onFocusedSessionChanged();
@@ -1578,6 +1620,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		// Audio response → fade transcript, queue for sequential playback
 		this._voiceEventDisposables.add(this.voiceClientService.onAudioResponse(e => {
+			if (e.isFirstChunk) {
+				this._lastFinalTranscription = undefined;
+			}
 			if (this._isInterruptedAudio(e)) {
 				return;
 			}
@@ -1702,6 +1747,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				'auto_approve_session', 'revoke_auto_approve',
 				'focus_session',
 			];
+			if ((e.name === 'approve_confirmation' || e.name === 'auto_approve_session') && !isExplicitVoiceApproval(e.name, this._lastFinalTranscription)) {
+				this.logService.warn(`[voice] blocked ${e.name}: the final transcript was not an explicit approval`);
+				this._lastFinalTranscription = undefined;
+				this.voiceClientService.sendToolResult(e.callId, 'explicit voice approval required');
+				return;
+			}
+			if (e.name === 'send_to_chat'
+				|| e.name === 'approve_confirmation'
+				|| e.name === 'reject_confirmation'
+				|| e.name === 'auto_approve_session'
+				|| e.name === 'revoke_auto_approve'
+				|| e.name === 'focus_session') {
+				this._lastFinalTranscription = undefined;
+			}
 			if (e.name === 'send_to_chat') {
 				// Drop a stray finalization from a turn we just discarded on a
 				// focus change, so buffered speech isn't misrouted to the newly
@@ -2014,6 +2073,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.micCaptureService.stopCapture();
 		this._pttHeld = false;
 		this._pttToggleMode = false;
+		this._resetTranscriptionTurn();
 		// No reconnect is coming and a later connect() does not reset narration
 		// bookkeeping, so clear the deferred/in-flight narration state and its
 		// timers here (as disconnect() does). Otherwise a narration_unblocked on a
@@ -2085,6 +2145,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private _resetTranscriptionTurn(): void {
 		this._transcriptionTurnState = undefined;
+		this._lastFinalTranscription = undefined;
 	}
 
 	private _handleTurnAutoEnded(event: IVoiceTurnAutoEnded): void {
@@ -2196,6 +2257,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._voiceState.set('processing', undefined);
 			this._statusText.set('Processing...', undefined);
 		}
+		this._lastFinalTranscription = this._isConnected.get() && event.turnId && state ? event.text : undefined;
 		this._persistTurn('user', event.text);
 		if (event.turnId && state) {
 			state.phase = 'final';
@@ -2386,6 +2448,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// stray `send_to_chat` the backend may already have in flight (e.g. it
 		// auto-ended the turn via VAD before we discarded).
 		if (!this._isConnected.get()) { return; }
+		this._lastFinalTranscription = undefined;
 		this._autoListenSuppressed = true;
 		this._pttToggleMode = false;
 		this._clearAutoListenTimer();
@@ -2396,6 +2459,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._voiceState.set('idle', undefined);
 			this._statusText.set('Tap to start', undefined);
 		}
+		this._resetTranscriptionTurn();
 	}
 
 	finishListeningAndSubmitTo(session: URI): void {
@@ -2953,6 +3017,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * landed), reuse it instead of pushing a duplicate empty entry.
 	 */
 	private _startUserTurn(): void {
+		this._lastFinalTranscription = undefined;
 		const cur = this._transcriptTurns.get();
 		const last = cur[cur.length - 1];
 		if (last && last.speaker === 'user' && !last.text) {
