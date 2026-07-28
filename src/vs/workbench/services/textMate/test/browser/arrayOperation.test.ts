@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ArrayEdit, MonotonousIndexTransformer, SingleArrayEdit } from '../../browser/arrayOperation.js';
+import { MonotonousIndexTransformer } from '../../browser/indexTransformer.js';
+import { LengthEdit, LengthReplacement } from '../../../../../editor/common/core/edits/lengthEdit.js';
 
 suite('array operation', () => {
 	function seq(start: number, end: number) {
@@ -17,16 +18,14 @@ suite('array operation', () => {
 	}
 
 	test('simple', () => {
-		const edit = new ArrayEdit([
-			new SingleArrayEdit(4, 3, 2),
-			new SingleArrayEdit(8, 0, 2),
-			new SingleArrayEdit(9, 2, 0),
+		const edit = LengthEdit.create([
+			LengthReplacement.create(4, 7, 2),
+			LengthReplacement.create(8, 8, 2),
+			LengthReplacement.create(9, 11, 0),
 		]);
 
 		const arr = seq(0, 15).map(x => `item${x}`);
-		const newArr = arr.slice();
-
-		edit.applyToArray(newArr);
+		const newArr = edit.applyArray(arr, undefined);
 		assert.deepStrictEqual(newArr, [
 			'item0',
 			'item1',

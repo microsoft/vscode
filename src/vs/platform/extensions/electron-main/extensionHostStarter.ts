@@ -7,12 +7,13 @@ import { Promises } from '../../../base/common/async.js';
 import { canceled } from '../../../base/common/errors.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
-import { IExtensionHostProcessOptions, IExtensionHostStarter } from '../common/extensionHostStarter.js';
+import { extensionHostGraceTimeMs, IExtensionHostProcessOptions, IExtensionHostStarter } from '../common/extensionHostStarter.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { WindowUtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 
 export class ExtensionHostStarter extends Disposable implements IDisposable, IExtensionHostStarter {
 
@@ -28,6 +29,7 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
 		@IWindowsMainService private readonly _windowsMainService: IWindowsMainService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -59,7 +61,7 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 		return this._getExtHost(id).onStderr;
 	}
 
-	onDynamicMessage(id: string): Event<any> {
+	onDynamicMessage(id: string): Event<unknown> {
 		return this._getExtHost(id).onMessage;
 	}
 
@@ -105,14 +107,21 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 			throw canceled();
 		}
 		const extHost = this._getExtHost(id);
+		const args = ['--skipWorkspaceStorageLock'];
+		if (this._configurationService.getValue<boolean>('extensions.supportNodeGlobalNavigator')) {
+			args.push('--supportGlobalNavigator');
+		}
 		extHost.start({
 			...opts,
 			type: 'extensionHost',
+			name: 'extension-host',
 			entryPoint: 'vs/workbench/api/node/extensionHostProcess',
-			args: ['--skipWorkspaceStorageLock'],
+			args,
 			execArgv: opts.execArgv,
 			allowLoadingUnsignedLibraries: true,
 			respondToAuthRequestsFromMainProcess: true,
+			windowLifecycleBound: true,
+			windowLifecycleGraceTime: extensionHostGraceTimeMs,
 			correlationId: id
 		});
 		const pid = await Event.toPromise(extHost.onSpawn);
@@ -140,6 +149,17 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 			return;
 		}
 		extHostProcess.kill();
+	}
+
+	async waitForExit(id: string, maxWaitTimeMs: number): Promise<void> {
+		if (this._shutdown) {
+			throw canceled();
+		}
+		const extHostProcess = this._extHosts.get(id);
+		if (!extHostProcess) {
+			return;
+		}
+		await extHostProcess.waitForExit(maxWaitTimeMs);
 	}
 
 	async _killAllNow(): Promise<void> {

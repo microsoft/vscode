@@ -24,13 +24,25 @@ suite('Collections', () => {
 		const grouped = collections.groupBy(source, x => x.key);
 
 		// Group 1
-		assert.strictEqual(grouped[group1].length, 2);
+		assert.strictEqual(grouped[group1]?.length, 2);
 		assert.strictEqual(grouped[group1][0].value, value1);
 		assert.strictEqual(grouped[group1][1].value, value2);
 
 		// Group 2
-		assert.strictEqual(grouped[group2].length, 1);
+		assert.strictEqual(grouped[group2]?.length, 1);
 		assert.strictEqual(grouped[group2][0].value, value3);
+	});
+
+	test('equalSets', () => {
+		assert.strictEqual(collections.equalSets(new Set(), new Set()), true);
+		assert.strictEqual(collections.equalSets(new Set(['a', 'b']), new Set(['b', 'a'])), true);
+
+		const same = new Set(['a']);
+		assert.strictEqual(collections.equalSets(same, same), true);
+
+		assert.strictEqual(collections.equalSets(new Set(['a']), new Set(['a', 'b'])), false);
+		assert.strictEqual(collections.equalSets(new Set(['a', 'b']), new Set(['a'])), false);
+		assert.strictEqual(collections.equalSets(new Set(['a', 'b']), new Set(['a', 'c'])), false);
 	});
 
 	suite('SetWithKey', () => {

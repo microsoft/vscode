@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/7418dd20d76c72e82fadee2909e03239e9973b35",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/0812fc4b190efc17bfed0d5b4ff918eff8e4e377",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -959,6 +959,39 @@
 				}
 			]
 		},
+		"fenced_code_block_ignore": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(gitignore|ignore)((\\s+|:|,|\\{|\\?)[^`]*)?$)",
+			"name": "markup.fenced_code.block.markdown",
+			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+			"beginCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				},
+				"4": {
+					"name": "fenced_code.block.language.markdown"
+				},
+				"5": {
+					"name": "fenced_code.block.language.attributes.markdown"
+				}
+			},
+			"endCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(^|\\G)(\\s*)(.*)",
+					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.block.ignore",
+					"patterns": [
+						{
+							"include": "source.ignore"
+						}
+					]
+				}
+			]
+		},
 		"fenced_code_block_js": {
 			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(js|jsx|javascript|es6|mjs|cjs|dataviewjs|\\{\\.js.+?\\})((\\s+|:|,|\\{|\\?)[^`]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
@@ -1086,6 +1119,39 @@
 					"patterns": [
 						{
 							"include": "source.json.comments"
+						}
+					]
+				}
+			]
+		},
+		"fenced_code_block_jsonl": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(jsonl|jsonlines)((\\s+|:|,|\\{|\\?)[^`]*)?$)",
+			"name": "markup.fenced_code.block.markdown",
+			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+			"beginCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				},
+				"4": {
+					"name": "fenced_code.block.language.markdown"
+				},
+				"5": {
+					"name": "fenced_code.block.language.attributes.markdown"
+				}
+			},
+			"endCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(^|\\G)(\\s*)(.*)",
+					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.block.jsonl",
+					"patterns": [
+						{
+							"include": "source.json.lines"
 						}
 					]
 				}
@@ -1916,6 +1982,105 @@
 				}
 			]
 		},
+		"fenced_code_block_yang": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(yang)((\\s+|:|,|\\{|\\?)[^`]*)?$)",
+			"name": "markup.fenced_code.block.markdown",
+			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+			"beginCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				},
+				"4": {
+					"name": "fenced_code.block.language.markdown"
+				},
+				"5": {
+					"name": "fenced_code.block.language.attributes.markdown"
+				}
+			},
+			"endCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(^|\\G)(\\s*)(.*)",
+					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.block.yang",
+					"patterns": [
+						{
+							"include": "source.yang"
+						}
+					]
+				}
+			]
+		},
+		"fenced_code_block_abap": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(abap)((\\s+|:|,|\\{|\\?)[^`]*)?$)",
+			"name": "markup.fenced_code.block.markdown",
+			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+			"beginCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				},
+				"4": {
+					"name": "fenced_code.block.language.markdown"
+				},
+				"5": {
+					"name": "fenced_code.block.language.attributes.markdown"
+				}
+			},
+			"endCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(^|\\G)(\\s*)(.*)",
+					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.block.abap",
+					"patterns": [
+						{
+							"include": "source.abap"
+						}
+					]
+				}
+			]
+		},
+		"fenced_code_block_restructuredtext": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(restructuredtext|rst)((\\s+|:|,|\\{|\\?)[^`]*)?$)",
+			"name": "markup.fenced_code.block.markdown",
+			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+			"beginCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				},
+				"4": {
+					"name": "fenced_code.block.language.markdown"
+				},
+				"5": {
+					"name": "fenced_code.block.language.attributes.markdown"
+				}
+			},
+			"endCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(^|\\G)(\\s*)(.*)",
+					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.block.restructuredtext",
+					"patterns": [
+						{
+							"include": "source.rst"
+						}
+					]
+				}
+			]
+		},
 		"fenced_code_block": {
 			"patterns": [
 				{
@@ -2000,6 +2165,9 @@
 					"include": "#fenced_code_block_pug"
 				},
 				{
+					"include": "#fenced_code_block_ignore"
+				},
+				{
 					"include": "#fenced_code_block_js"
 				},
 				{
@@ -2010,6 +2178,9 @@
 				},
 				{
 					"include": "#fenced_code_block_jsonc"
+				},
+				{
+					"include": "#fenced_code_block_jsonl"
 				},
 				{
 					"include": "#fenced_code_block_less"
@@ -2085,6 +2256,15 @@
 				},
 				{
 					"include": "#fenced_code_block_twig"
+				},
+				{
+					"include": "#fenced_code_block_yang"
+				},
+				{
+					"include": "#fenced_code_block_abap"
+				},
+				{
+					"include": "#fenced_code_block_restructuredtext"
 				},
 				{
 					"include": "#fenced_code_block_unknown"
@@ -3084,7 +3264,7 @@
 					"name": "punctuation.definition.strikethrough.markdown"
 				}
 			},
-			"match": "(?<!\\\\)(~{2,})((?:[^~]|(?!(?<![~\\\\])\\1(?!~))~)*+)(\\1)",
+			"match": "(?<!\\\\)(~{2,})(?!(?<=\\w~~)_)((?:[^~]|(?!(?<![~\\\\])\\1(?!~))~)*+)(\\1)(?!(?<=_\\1)\\w)",
 			"name": "markup.strikethrough.markdown"
 		}
 	}

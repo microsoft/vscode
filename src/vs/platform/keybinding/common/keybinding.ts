@@ -7,6 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { ResolvedKeybinding, Keybinding } from '../../../base/common/keybindings.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IContextKeyService, IContextKeyServiceTarget } from '../../contextkey/common/contextkey.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ResolutionResult } from './keybindingResolver.js';
@@ -17,6 +18,12 @@ export interface IUserFriendlyKeybinding {
 	command: string;
 	args?: any;
 	when?: string;
+	/**
+	 * When `true`, the keybinding is registered as a system-wide (OS global) shortcut that fires
+	 * even when VS Code does not have focus. Desktop only; ignored on web/server. Only honored for
+	 * user `keybindings.json` entries (not extension-contributed keybindings).
+	 */
+	systemWide?: boolean;
 }
 
 export interface IKeyboardEvent {
@@ -44,7 +51,7 @@ export interface IKeybindingService {
 
 	readonly inChordMode: boolean;
 
-	onDidUpdateKeybindings: Event<void>;
+	readonly onDidUpdateKeybindings: Event<void>;
 
 	/**
 	 * Returns none, one or many (depending on keyboard layout)!
@@ -101,9 +108,15 @@ export interface IKeybindingService {
 	 */
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
 
-	registerSchemaContribution(contribution: KeybindingsSchemaContribution): void;
+	registerSchemaContribution(contribution: KeybindingsSchemaContribution): IDisposable;
 
 	toggleLogging(): boolean;
+
+	/**
+	 * Given a UI element label and a command ID, appends the keybinding label if any.
+	 * If the command is defined and has a keybinding, returns `${label} (keybinding label)`, otherwise just `label`.
+	 */
+	appendKeybinding(label: string, commandId: string | undefined | null, context?: IContextKeyService, enforceContextCheck?: boolean): string;
 
 	_dumpDebugInfo(): string;
 	_dumpDebugInfoJSON(): string;

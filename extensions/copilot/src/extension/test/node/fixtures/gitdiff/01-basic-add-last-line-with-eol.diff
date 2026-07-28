@@ -1,0 +1,12 @@
+diff --git a/01-basic b/01-basic-add-last-line-with-eol
+index 30c5fc9cb..5fdf601c2 100644
+--- a/01-basic
++++ b/01-basic-add-last-line-with-eol
+@@ -13,4 +13,5 @@ export function f(args_: string[], flags: any, child: any) {
+ 	}
+ 	child.unref();
+ 	return Promise.resolve();
+-}
+\ No newline at end of file
++}
++// hello

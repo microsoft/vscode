@@ -120,6 +120,22 @@ export function onUnexpectedExternalError(e: any): undefined {
 	return undefined;
 }
 
+type ObjectWithCode = {
+	readonly code: unknown;
+};
+
+function hasErrorCode(error: object): error is ObjectWithCode {
+	return Object.hasOwn(error, 'code');
+}
+
+export function getErrorCode(error: unknown): string | undefined {
+	if (!error || typeof error !== 'object' || !hasErrorCode(error)) {
+		return undefined;
+	}
+	const code = error.code;
+	return typeof code === 'string' || typeof code === 'number' ? String(code) : undefined;
+}
+
 export interface SerializedError {
 	readonly $isError: true;
 	readonly name: string;
@@ -139,6 +155,7 @@ export function transformErrorForSerialization(error: any): any;
 export function transformErrorForSerialization(error: any): any {
 	if (error instanceof Error) {
 		const { name, message, cause } = error;
+		// eslint-disable-next-line local/code-no-any-casts
 		const stack: string = (<any>error).stacktrace || (<any>error).stack;
 		return {
 			$isError: true,
@@ -192,7 +209,7 @@ export interface V8CallSite {
 	toString(): string;
 }
 
-const canceledName = 'Canceled';
+export const canceledName = 'Canceled';
 
 /**
  * Checks if the given error is a promise in canceled state
@@ -210,6 +227,20 @@ export class CancellationError extends Error {
 	constructor() {
 		super(canceledName);
 		this.name = this.message;
+	}
+}
+
+export class PendingMigrationError extends Error {
+
+	private static readonly _name = 'PendingMigrationError';
+
+	static is(error: unknown): error is PendingMigrationError {
+		return error instanceof PendingMigrationError || (error instanceof Error && error.name === PendingMigrationError._name);
+	}
+
+	constructor(message: string) {
+		super(message);
+		this.name = PendingMigrationError._name;
 	}
 }
 

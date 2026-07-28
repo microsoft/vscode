@@ -17,7 +17,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import * as perf from '../../../../base/common/performance.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { ISplashStorageService } from './splash.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -84,6 +84,10 @@ export class PartsSplash {
 				activityBarBorder: theme.getColor(themes.ACTIVITY_BAR_BORDER)?.toString(),
 				sideBarBackground: theme.getColor(themes.SIDE_BAR_BACKGROUND)?.toString(),
 				sideBarBorder: theme.getColor(themes.SIDE_BAR_BORDER)?.toString(),
+				panelBackground: theme.getColor(themes.PANEL_BACKGROUND)?.toString(),
+				editorGroupBorder: theme.getColor(themes.EDITOR_GROUP_BORDER)?.toString(),
+				agentsPanelBackground: theme.getColor('agentsPanel.background')?.toString(),
+				agentsPanelBorder: theme.getColor('agentsPanel.border')?.toString(),
 				statusBarBackground: theme.getColor(themes.STATUS_BAR_BACKGROUND)?.toString(),
 				statusBarBorder: theme.getColor(themes.STATUS_BAR_BORDER)?.toString(),
 				statusBarNoFolderBackground: theme.getColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND)?.toString(),
@@ -92,15 +96,40 @@ export class PartsSplash {
 			layoutInfo: !this._shouldSaveLayoutInfo() ? undefined : {
 				sideBarSide: this._layoutService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
 				editorPartMinWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
-				titleBarHeight: this._layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow) ? dom.getTotalHeight(assertIsDefined(this._layoutService.getContainer(mainWindow, Parts.TITLEBAR_PART))) : 0,
-				activityBarWidth: this._layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? dom.getTotalWidth(assertIsDefined(this._layoutService.getContainer(mainWindow, Parts.ACTIVITYBAR_PART))) : 0,
-				sideBarWidth: this._layoutService.isVisible(Parts.SIDEBAR_PART) ? dom.getTotalWidth(assertIsDefined(this._layoutService.getContainer(mainWindow, Parts.SIDEBAR_PART))) : 0,
-				auxiliarySideBarWidth: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART) ? dom.getTotalWidth(assertIsDefined(this._layoutService.getContainer(mainWindow, Parts.AUXILIARYBAR_PART))) : 0,
-				statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? dom.getTotalHeight(assertIsDefined(this._layoutService.getContainer(mainWindow, Parts.STATUSBAR_PART))) : 0,
+				titleBarHeight: this._layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow) ? dom.getTotalHeight(assertReturnsDefined(this._layoutService.getContainer(mainWindow, Parts.TITLEBAR_PART))) : 0,
+				activityBarWidth: this._layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? dom.getTotalWidth(assertReturnsDefined(this._layoutService.getContainer(mainWindow, Parts.ACTIVITYBAR_PART))) : 0,
+				sideBarWidth: this._layoutService.isVisible(Parts.SIDEBAR_PART) ? dom.getTotalWidth(assertReturnsDefined(this._layoutService.getContainer(mainWindow, Parts.SIDEBAR_PART))) : 0,
+				auxiliaryBarWidth: this._layoutService.isAuxiliaryBarMaximized() ? Number.MAX_SAFE_INTEGER /* marker for maximized state */ : this._layoutService.isVisible(Parts.AUXILIARYBAR_PART) ? dom.getTotalWidth(assertReturnsDefined(this._layoutService.getContainer(mainWindow, Parts.AUXILIARYBAR_PART))) : 0,
+				statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? dom.getTotalHeight(assertReturnsDefined(this._layoutService.getContainer(mainWindow, Parts.STATUSBAR_PART))) : 0,
 				windowBorder: this._layoutService.hasMainWindowBorder(),
-				windowBorderRadius: this._layoutService.getMainWindowBorderRadius()
+				windowBorderRadius: this._layoutService.getMainWindowBorderRadius(),
+				modernUI: this._layoutService.isFloatingPanelsEnabled(),
+				partBounds: this._layoutService.isFloatingPanelsEnabled() ? {
+					sideBar: this._getPartBounds(Parts.SIDEBAR_PART),
+					auxiliaryBar: this._getPartBounds(Parts.AUXILIARYBAR_PART),
+					panel: this._getPartBounds(Parts.PANEL_PART),
+					editor: this._getPartBounds(Parts.EDITOR_PART)
+				} : undefined
 			}
 		});
+	}
+
+	private _getPartBounds(part: Parts.SIDEBAR_PART | Parts.AUXILIARYBAR_PART | Parts.PANEL_PART | Parts.EDITOR_PART): { top: number; left: number; width: number; height: number } | undefined {
+		if (part === Parts.EDITOR_PART) {
+			if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				return undefined;
+			}
+		} else if (!this._layoutService.isVisible(part)) {
+			return undefined;
+		}
+
+		const position = dom.getDomNodePagePosition(assertReturnsDefined(this._layoutService.getContainer(mainWindow, part)));
+		return {
+			top: position.top,
+			left: position.left,
+			width: position.width,
+			height: position.height
+		};
 	}
 
 	private _shouldSaveLayoutInfo(): boolean {
@@ -108,12 +137,14 @@ export class PartsSplash {
 	}
 
 	private _removePartsSplash(): void {
+		// eslint-disable-next-line no-restricted-syntax
 		const element = mainWindow.document.getElementById(PartsSplash._splashElementId);
 		if (element) {
 			element.style.display = 'none';
 		}
 
 		// remove initial colors
+		// eslint-disable-next-line no-restricted-syntax
 		const defaultStyles = mainWindow.document.head.getElementsByClassName('initialShellColors');
 		defaultStyles[0]?.remove();
 	}

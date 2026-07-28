@@ -684,4 +684,53 @@ suite('ExtHostEditorTabs', function () {
 		assert.strictEqual(extHostEditorTabs.tabGroups.all[0]?.tabs[0]?.label, 'label2');
 		assert.strictEqual(extHostEditorTabs.tabGroups.all[0]?.tabs[2]?.label, 'label1');
 	});
+
+	test('Reference stability across full model resync', function () {
+
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
+				// override/implement $moveTab or $closeTab
+			})
+		);
+
+		const tabAAA = createTabDto({ id: 'AAA', label: 'AAA', isActive: true, input: { kind: TabInputKind.TextInput, uri: URI.parse('file://abc/AAA.txt') } });
+		const tabBBB = createTabDto({ id: 'BBB', label: 'BBB', isActive: false, input: { kind: TabInputKind.TextInput, uri: URI.parse('file://abc/BBB.txt') } });
+
+		extHostEditorTabs.$acceptEditorTabModel([{
+			isActive: true,
+			viewColumn: 0,
+			groupId: 12,
+			tabs: [tabAAA, tabBBB]
+		}]);
+
+		const groupBefore = extHostEditorTabs.tabGroups.all[0];
+		const tabAAABefore = groupBefore.tabs[0];
+		const tabBBBBefore = groupBefore.tabs[1];
+
+		// A second group is opened: the existing model is resent wholesale, but
+		// the surviving group/tab objects must keep their identity so that
+		// extensions keying Maps/WeakMaps by them keep working.
+		extHostEditorTabs.$acceptEditorTabModel([
+			{ isActive: false, viewColumn: 0, groupId: 12, tabs: [tabAAA, tabBBB] },
+			{ isActive: true, viewColumn: 1, groupId: 13, tabs: [] }
+		]);
+
+		const groupAfter = extHostEditorTabs.tabGroups.all.find(g => g.tabs.length === 2)!;
+		assert.strictEqual(groupAfter, groupBefore);
+		assert.strictEqual(groupAfter.tabs[0], tabAAABefore);
+		assert.strictEqual(groupAfter.tabs[1], tabBBBBefore);
+
+		// A tab is closed during the resync: the survivor keeps its identity,
+		// and the removed one does not reappear.
+		extHostEditorTabs.$acceptEditorTabModel([
+			{ isActive: false, viewColumn: 0, groupId: 12, tabs: [{ ...tabAAA, isActive: true }] },
+			{ isActive: true, viewColumn: 1, groupId: 13, tabs: [] }
+		]);
+
+		const survivingGroup = extHostEditorTabs.tabGroups.all.find(g => g.tabs.length === 1)!;
+		assert.strictEqual(survivingGroup, groupBefore);
+		assert.strictEqual(survivingGroup.tabs.length, 1);
+		assert.strictEqual(survivingGroup.tabs[0], tabAAABefore);
+		assert.strictEqual(survivingGroup.activeTab, tabAAABefore);
+	});
 });

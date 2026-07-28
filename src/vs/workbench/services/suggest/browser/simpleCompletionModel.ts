@@ -112,9 +112,9 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
 			// different word, but in practice not - that's why we cache
-			// TODO: Fix
-			const overwriteBefore = item.completion.replacementLength; // item.position.column - item.editStart.column;
-			const wordLen = overwriteBefore + characterCountDelta; // - (item.position.column - this._column);
+
+			const overwriteBefore = item.completion.replacementRange ? (item.completion.replacementRange[1] - item.completion.replacementRange[0]) : 0;
+			const wordLen = overwriteBefore + characterCountDelta;
 			if (word.length !== wordLen) {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
 				wordLow = word.toLowerCase();
@@ -170,7 +170,7 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 
 				} else {
 					// by default match `word` against the `label`
-					const match = scoreFn(word, wordLow, wordPos, item.completion.label, item.labelLow, 0, this._fuzzyScoreOptions);
+					const match = scoreFn(word, wordLow, wordPos, item.textLabel, item.labelLow, 0, this._fuzzyScoreOptions);
 					if (!match && word !== '') {
 						continue; // NO match
 					}
@@ -182,7 +182,7 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 			target.push(item);
 
 			// update stats
-			labelLengths.push(item.completion.label.length);
+			labelLengths.push(item.textLabel.length);
 		}
 
 		this._filteredItems = target.sort(this._rawCompareFn?.bind(undefined, leadingLineContent));

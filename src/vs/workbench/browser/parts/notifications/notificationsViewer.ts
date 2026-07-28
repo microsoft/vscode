@@ -14,8 +14,8 @@ import { ActionRunner, IAction, IActionRunner, Separator, toAction } from '../..
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { dispose, DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { INotificationViewItem, NotificationViewItem, NotificationViewItemContentChangeKind, INotificationMessage, ChoiceAction } from '../../../common/notifications.js';
-import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from './notificationsActions.js';
+import { INotificationViewItem, NotificationViewItem, NotificationViewItemContentChangeKind, INotificationMessage, ChoiceAction, NotificationsSettings, getNotificationsPosition } from '../../../common/notifications.js';
+import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction, getNotificationExpandIcon, getNotificationCollapseIcon } from './notificationsActions.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { INotificationService, NotificationsFilter, Severity, isNotificationSource } from '../../../../platform/notification/common/notification.js';
@@ -32,10 +32,25 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+
+/** Default height (px) of a single notification row. */
+export const DEFAULT_NOTIFICATION_ROW_HEIGHT = 42;
+
+/** Current height (px) of a single notification row; overridable via {@link setNotificationRowHeight}. */
+let notificationRowHeight = DEFAULT_NOTIFICATION_ROW_HEIGHT;
+
+/**
+ * Overrides the height (px) of a single notification row. Used by the Modern UI
+ * style-override experiment to shrink the collapsed notification card.
+ */
+export function setNotificationRowHeight(height: number): void {
+	notificationRowHeight = height;
+}
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
-	private static readonly ROW_HEIGHT = 42;
+	private static get ROW_HEIGHT(): number { return notificationRowHeight; }
 	private static readonly LINE_HEIGHT = 22;
 
 	private offsetHelper: HTMLElement;
@@ -45,12 +60,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 	}
 
 	private createOffsetHelper(container: HTMLElement): HTMLElement {
-		const offsetHelper = document.createElement('div');
-		offsetHelper.classList.add('notification-offset-helper');
-
-		container.appendChild(offsetHelper);
-
-		return offsetHelper;
+		return container.appendChild($('.notification-offset-helper'));
 	}
 
 	getHeight(notification: INotificationViewItem): number {
@@ -70,7 +80,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		}
 
 		// Last row: source and buttons if we have any
-		if (notification.source || isNonEmptyArray(notification.actions && notification.actions.primary)) {
+		if (notification.source || isNonEmptyArray(notification.actions?.primary)) {
 			expandedHeight += NotificationsListDelegate.ROW_HEIGHT;
 		}
 
@@ -93,7 +103,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		if (notification.canCollapse) {
 			actions++; // expand/collapse
 		}
-		if (isNonEmptyArray(notification.actions && notification.actions.secondary)) {
+		if (isNonEmptyArray(notification.actions?.secondary)) {
 			actions++; // secondary actions
 		}
 		this.offsetHelper.style.width = `${450 /* notifications container width */ - (10 /* padding */ + 30 /* severity icon */ + (actions * 30) /* actions */ - (Math.max(actions - 1, 0) * 4) /* less padding for actions > 1 */)}px`;
@@ -146,7 +156,7 @@ interface IMessageActionHandler {
 class NotificationMessageRenderer {
 
 	static render(message: INotificationMessage, actionHandler?: IMessageActionHandler): HTMLElement {
-		const messageContainer = document.createElement('span');
+		const messageContainer = $('span');
 
 		for (const node of message.linkedText.nodes) {
 			if (typeof node === 'string') {
@@ -215,25 +225,20 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		data.toDispose = new DisposableStore();
 
 		// Container
-		data.container = document.createElement('div');
-		data.container.classList.add('notification-list-item');
+		data.container = $('.notification-list-item');
 
 		// Main Row
-		data.mainRow = document.createElement('div');
-		data.mainRow.classList.add('notification-list-item-main-row');
+		data.mainRow = $('.notification-list-item-main-row');
 
 		// Icon
-		data.icon = document.createElement('div');
-		data.icon.classList.add('notification-list-item-icon', 'codicon');
+		data.icon = $('.notification-list-item-icon.codicon');
 
 		// Message
-		data.message = document.createElement('div');
-		data.message.classList.add('notification-list-item-message');
+		data.message = $('.notification-list-item-message');
 
 		// Toolbar
 		const that = this;
-		const toolbarContainer = document.createElement('div');
-		toolbarContainer.classList.add('notification-list-item-toolbar-container');
+		const toolbarContainer = $('.notification-list-item-toolbar-container');
 		data.toolbar = new ActionBar(
 			toolbarContainer,
 			{
@@ -279,16 +284,13 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		data.toDispose.add(data.toolbar);
 
 		// Details Row
-		data.detailsRow = document.createElement('div');
-		data.detailsRow.classList.add('notification-list-item-details-row');
+		data.detailsRow = $('.notification-list-item-details-row');
 
 		// Source
-		data.source = document.createElement('div');
-		data.source.classList.add('notification-list-item-source');
+		data.source = $('.notification-list-item-source');
 
 		// Buttons Container
-		data.buttonsContainer = document.createElement('div');
-		data.buttonsContainer.classList.add('notification-list-item-buttons-container');
+		data.buttonsContainer = $('.notification-list-item-buttons-container');
 
 		container.appendChild(data.container);
 
@@ -329,6 +331,16 @@ export class NotificationTemplateRenderer extends Disposable {
 	private static expandNotificationAction: ExpandNotificationAction;
 	private static collapseNotificationAction: CollapseNotificationAction;
 
+	private static updateExpandCollapseIcons(configurationService: IConfigurationService): void {
+		if (!NotificationTemplateRenderer.expandNotificationAction) {
+			return;
+		}
+
+		const position = getNotificationsPosition(configurationService);
+		NotificationTemplateRenderer.expandNotificationAction.class = ThemeIcon.asClassName(getNotificationExpandIcon(position));
+		NotificationTemplateRenderer.collapseNotificationAction.class = ThemeIcon.asClassName(getNotificationCollapseIcon(position));
+	}
+
 	private static readonly SEVERITIES = [Severity.Info, Severity.Warning, Severity.Error];
 
 	private readonly inputDisposables = this._register(new DisposableStore());
@@ -341,6 +353,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -348,7 +361,14 @@ export class NotificationTemplateRenderer extends Disposable {
 			NotificationTemplateRenderer.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);
 			NotificationTemplateRenderer.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
 			NotificationTemplateRenderer.collapseNotificationAction = instantiationService.createInstance(CollapseNotificationAction, CollapseNotificationAction.ID, CollapseNotificationAction.LABEL);
+			NotificationTemplateRenderer.updateExpandCollapseIcons(configurationService);
 		}
+
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION)) {
+				NotificationTemplateRenderer.updateExpandCollapseIcons(configurationService);
+			}
+		}));
 	}
 
 	setInput(notification: INotificationViewItem): void {
@@ -491,7 +511,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		if (notification.expanded && isNonEmptyArray(primaryActions)) {
 			const that = this;
 
-			const actionRunner: IActionRunner = new class extends ActionRunner {
+			const actionRunner: IActionRunner = this.inputDisposables.add(new class extends ActionRunner {
 				protected override async runAction(action: IAction): Promise<void> {
 
 					// Run action
@@ -502,7 +522,7 @@ export class NotificationTemplateRenderer extends Disposable {
 						notification.close();
 					}
 				}
-			}();
+			}());
 
 			const buttonToolbar = this.inputDisposables.add(new ButtonBar(this.template.buttonsContainer));
 			for (let i = 0; i < primaryActions.length; i++) {

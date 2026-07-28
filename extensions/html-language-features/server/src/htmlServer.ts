@@ -7,25 +7,29 @@ import {
 	Connection, TextDocuments, InitializeParams, InitializeResult, RequestType,
 	DocumentRangeFormattingRequest, Disposable, ServerCapabilities,
 	ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
-	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind, NotificationType, RequestType0, DocumentFormattingRequest, FormattingOptions, TextEdit
+	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind, NotificationType, RequestType0, DocumentFormattingRequest, FormattingOptions, TextEdit,
+	TextDocumentContentRequest,
+	TextDocumentContentParams,
+	CancellationToken,
+	TextDocumentContentResult
 } from 'vscode-languageserver';
 import {
 	getLanguageModes, LanguageModes, Settings, TextDocument, Position, Diagnostic, WorkspaceFolder, ColorInformation,
-	Range, DocumentLink, SymbolInformation, TextDocumentIdentifier, isCompletionItemData
-} from './modes/languageModes';
+	Range, DocumentLink, SymbolInformation, TextDocumentIdentifier, isCompletionItemData, FILE_PROTOCOL
+} from './modes/languageModes.js';
 
-import { format } from './modes/formatting';
-import { pushAll } from './utils/arrays';
-import { getDocumentContext } from './utils/documentContext';
+import { format } from './modes/formatting.js';
+import { pushAll } from './utils/arrays.js';
+import { getDocumentContext } from './utils/documentContext.js';
 import { URI } from 'vscode-uri';
-import { formatError, runSafe } from './utils/runner';
-import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
+import { formatError, runSafe } from './utils/runner.js';
+import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation.js';
 
-import { getFoldingRanges } from './modes/htmlFolding';
-import { fetchHTMLDataProviders } from './customData';
-import { getSelectionRanges } from './modes/selectionRanges';
-import { SemanticTokenProvider, newSemanticTokenProvider } from './modes/semanticTokens';
-import { FileSystemProvider, getFileSystemProvider } from './requests';
+import { getFoldingRanges } from './modes/htmlFolding.js';
+import { fetchHTMLDataProviders } from './customData.js';
+import { getSelectionRanges } from './modes/selectionRanges.js';
+import { SemanticTokenProvider, newSemanticTokenProvider } from './modes/semanticTokens.js';
+import { FileSystemProvider, getFileSystemProvider } from './requests.js';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('html/customDataChanged');
@@ -51,7 +55,7 @@ interface AutoInsertParams {
 }
 
 namespace AutoInsertRequest {
-	export const type: RequestType<AutoInsertParams, string, any> = new RequestType('html/autoInsert');
+	export const type: RequestType<AutoInsertParams, string | null, any> = new RequestType('html/autoInsert');
 }
 
 // experimental: semantic tokens
@@ -133,14 +137,15 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	// After the server has started the client sends an initialize request. The server receives
 	// in the passed params the rootPath of the workspace plus the client capabilities
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
-		const initializationOptions = params.initializationOptions as any || {};
+		const initializationOptions = params.initializationOptions || {};
 
-		workspaceFolders = (<any>params).workspaceFolders;
-		if (!Array.isArray(workspaceFolders)) {
+		if (!Array.isArray(params.workspaceFolders)) {
 			workspaceFolders = [];
 			if (params.rootPath) {
 				workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString() });
 			}
+		} else {
+			workspaceFolders = params.workspaceFolders;
 		}
 
 		const handledSchemas = initializationOptions?.handledSchemas as string[] ?? ['file'];
@@ -213,6 +218,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				documentSelector: null,
 				interFileDependencies: false,
 				workspaceDiagnostics: false
+			},
+			workspace: {
+				textDocumentContent: { schemes: [FILE_PROTOCOL] }
 			}
 		};
 		return { capabilities };
@@ -536,6 +544,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.languages.onLinkedEditingRange((params, token) => {
+		// eslint-disable-next-line local/code-no-any-casts
 		return <any> /* todo remove when microsoft/vscode-languageserver-node#700 fixed */ runSafe(runtime, async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
@@ -582,6 +591,18 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		fetchHTMLDataProviders(dataPaths, customDataRequestService).then(dataProviders => {
 			languageModes.updateDataProviders(dataProviders);
 		});
+	});
+
+	connection.onRequest(TextDocumentContentRequest.type, (params: TextDocumentContentParams, token: CancellationToken) => {
+		return runSafe<TextDocumentContentResult>(runtime, async () => {
+			for (const languageMode of languageModes.getAllModes()) {
+				const content = await languageMode.getTextDocumentContent?.(params.uri);
+				if (content) {
+					return { text: content };
+				}
+			}
+			return { text: '' };
+		}, { text: '' }, `Error while computing text document content for ${params.uri}`, token);
 	});
 
 	// Listen on the connection

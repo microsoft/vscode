@@ -13,7 +13,7 @@ import { IWorkingCopyService } from './workingCopyService.js';
 import { IWorkingCopyBackup, IWorkingCopyBackupMeta, IWorkingCopySaveEvent, WorkingCopyCapabilities } from './workingCopy.js';
 import { raceCancellation, TaskSequentializer, timeout } from '../../../../base/common/async.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IWorkingCopyFileService } from './workingCopyFileService.js';
 import { VSBufferReadableStream } from '../../../../base/common/buffer.js';
 import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
@@ -527,7 +527,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			etag,
 			value: buffer,
 			readonly: false,
-			locked: false
+			locked: false,
+			executable: false
 		}, true /* dirty (resolved from buffer) */);
 	}
 
@@ -568,11 +569,12 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: backup.value,
 			readonly: false,
-			locked: false
+			locked: false,
+			executable: false
 		}, true /* dirty (resolved from backup) */);
 
 		// Restore orphaned flag based on state
-		if (backup.meta && backup.meta.orphaned) {
+		if (backup.meta?.orphaned) {
 			this.setOrphaned(true);
 		}
 	}
@@ -664,6 +666,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			etag: content.etag,
 			readonly: content.readonly,
 			locked: content.locked,
+			executable: false,
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,
@@ -1029,7 +1032,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			// participant triggering
 			progress.report({ message: localize('saveTextFile', "Writing into file...") });
 			this.trace(`doSave(${versionId}) - before write()`);
-			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
+			const lastResolvedFileStat = assertReturnsDefined(this.lastResolvedFileStat);
 			const resolvedFileWorkingCopy = this;
 			return this.saveSequentializer.run(versionId, (async () => {
 				try {
@@ -1074,9 +1077,9 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 						// Write them to disk
 						if (options?.writeElevated && this.elevatedFileService.isSupported(lastResolvedFileStat.resource)) {
-							stat = await this.elevatedFileService.writeFileElevated(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+							stat = await this.elevatedFileService.writeFileElevated(lastResolvedFileStat.resource, assertReturnsDefined(snapshot), writeFileOptions);
 						} else {
-							stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+							stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertReturnsDefined(snapshot), writeFileOptions);
 						}
 					}
 

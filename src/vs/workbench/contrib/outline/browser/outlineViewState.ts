@@ -66,7 +66,7 @@ export class OutlineViewState implements IOutlineViewState {
 		if (!raw) {
 			return;
 		}
-		let data: any;
+		let data;
 		try {
 			data = JSON.parse(raw);
 		} catch (e) {

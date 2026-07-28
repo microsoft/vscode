@@ -13,7 +13,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { createMatches, FuzzyScore } from '../../../../base/common/filters.js';
 import { normalizeDriveLetter, tildify } from '../../../../base/common/labels.js';
-import { dispose } from '../../../../base/common/lifecycle.js';
+import { dispose, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isAbsolute, normalize, posix } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ltrim } from '../../../../base/common/strings.js';
@@ -30,7 +30,6 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IFileIconTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from '../../../browser/labels.js';
@@ -437,10 +436,9 @@ export class LoadedScriptsView extends ViewPane {
 		@IPathService private readonly pathService: IPathService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
@@ -543,15 +541,21 @@ export class LoadedScriptsView extends ViewPane {
 			}
 		};
 
+		// Track listeners per session to avoid leaking disposables
+		const sessionListeners = this._register(new DisposableMap<string, DisposableStore>());
+
 		const registerSessionListeners = (session: IDebugSession) => {
-			this._register(session.onDidChangeName(async () => {
+			const store = new DisposableStore();
+			sessionListeners.set(session.getId(), store);
+
+			store.add(session.onDidChangeName(async () => {
 				const sessionRoot = root.find(session);
 				if (sessionRoot) {
 					sessionRoot.updateLabel(session.getLabel());
 					scheduleRefreshOnVisible();
 				}
 			}));
-			this._register(session.onDidLoadedSource(async event => {
+			store.add(session.onDidLoadedSource(async event => {
 				let sessionRoot: SessionTreeItem;
 				switch (event.reason) {
 					case 'new':
@@ -581,6 +585,7 @@ export class LoadedScriptsView extends ViewPane {
 		this.debugService.getModel().getSessions().forEach(registerSessionListeners);
 
 		this._register(this.debugService.onDidEndSession(({ session }) => {
+			sessionListeners.deleteAndDispose(session.getId());
 			root.remove(session.getId());
 			this.changeScheduler.schedule();
 		}));
@@ -683,7 +688,7 @@ class LoadedScriptsRenderer implements ICompressibleTreeRenderer<BaseTreeItem, F
 		this.render(element, label, data, node.filterData);
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<BaseTreeItem>, FuzzyScore>, index: number, data: ILoadedScriptsItemTemplateData, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<BaseTreeItem>, FuzzyScore>, index: number, data: ILoadedScriptsItemTemplateData): void {
 
 		const element = node.element.elements[node.element.elements.length - 1];
 		const labels = node.element.elements.map(e => e.getLabel());

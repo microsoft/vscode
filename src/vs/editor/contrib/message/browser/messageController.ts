@@ -16,7 +16,7 @@ import { IPosition } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
 import { PositionAffinity } from '../../../common/model.js';
-import { openLinkFromMarkdown } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { openLinkFromMarkdown } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import * as nls from '../../../../nls.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -37,7 +37,6 @@ export class MessageController implements IEditorContribution {
 	private readonly _visible: IContextKey<boolean>;
 	private readonly _messageWidget = new MutableDisposable<MessageWidget>();
 	private readonly _messageListeners = new DisposableStore();
-	private _message: { element: HTMLElement; dispose: () => void } | undefined;
 	private _mouseOverMessage: boolean = false;
 
 	constructor(
@@ -51,7 +50,6 @@ export class MessageController implements IEditorContribution {
 	}
 
 	dispose(): void {
-		this._message?.dispose();
 		this._messageListeners.dispose();
 		this._messageWidget.dispose();
 		this._visible.reset();
@@ -68,16 +66,18 @@ export class MessageController implements IEditorContribution {
 		this._visible.set(true);
 		this._messageWidget.clear();
 		this._messageListeners.clear();
-		this._message = isMarkdownString(message) ? renderMarkdown(message, {
-			actionHandler: {
-				callback: (url) => {
+
+		if (isMarkdownString(message)) {
+			const renderedMessage = this._messageListeners.add(renderMarkdown(message, {
+				actionHandler: (url, mdStr) => {
 					this.closeMessage();
-					openLinkFromMarkdown(this._openerService, url, isMarkdownString(message) ? message.isTrusted : undefined);
+					openLinkFromMarkdown(this._openerService, url, mdStr.isTrusted);
 				},
-				disposables: this._messageListeners
-			},
-		}) : undefined;
-		this._messageWidget.value = new MessageWidget(this._editor, position, typeof message === 'string' ? message : this._message!.element);
+			}));
+			this._messageWidget.value = new MessageWidget(this._editor, position, renderedMessage.element);
+		} else {
+			this._messageWidget.value = new MessageWidget(this._editor, position, message);
+		}
 
 		// close on blur (debounced to allow to tab into the message), cursor, model change, dispose
 		this._messageListeners.add(Event.debounce(this._editor.onDidBlurEditorText, (last, event) => event, 0)(() => {

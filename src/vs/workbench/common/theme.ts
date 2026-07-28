@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground, toolbarHoverBackground, inputBorder, widgetBorder, scrollbarShadow } from '../../platform/theme/common/colorRegistry.js';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionBackground, editorForeground, toolbarHoverBackground, inputBorder, widgetBorder, scrollbarShadow } from '../../platform/theme/common/colorRegistry.js';
+import { foreground } from '../../platform/theme/common/colors/baseColors.js';
 import { IColorTheme } from '../../platform/theme/common/themeService.js';
 import { Color } from '../../base/common/color.js';
 import { ColorScheme } from '../../platform/theme/common/theme.js';
@@ -136,9 +137,14 @@ export const TAB_UNFOCUSED_ACTIVE_BORDER_TOP = registerColor('tab.unfocusedActiv
 	hcLight: '#B5200D'
 }, localize('tabActiveUnfocusedBorderTop', "Border to the top of an active tab in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_SELECTED_BORDER_TOP = registerColor('tab.selectedBorderTop', TAB_ACTIVE_BORDER_TOP, localize('tabSelectedBorderTop', "Border to the top of a selected tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+export const TAB_SELECTED_BORDER_TOP = registerColor('tab.selectedBorderTop', {
+	dark: focusBorder,
+	light: focusBorder,
+	hcDark: activeContrastBorder,
+	hcLight: activeContrastBorder
+}, localize('tabSelectedBorderTop', "Border to the top of a selected tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_SELECTED_BACKGROUND = registerColor('tab.selectedBackground', TAB_ACTIVE_BACKGROUND, localize('tabSelectedBackground', "Background of a selected tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+export const TAB_SELECTED_BACKGROUND = registerColor('tab.selectedBackground', listInactiveSelectionBackground, localize('tabSelectedBackground', "Background of a selected tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_SELECTED_FOREGROUND = registerColor('tab.selectedForeground', TAB_ACTIVE_FOREGROUND, localize('tabSelectedForeground', "Foreground of a selected tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
@@ -257,74 +263,6 @@ export const SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER = registerColor('sideBySideEd
 
 export const SIDE_BY_SIDE_EDITOR_VERTICAL_BORDER = registerColor('sideBySideEditor.verticalBorder', EDITOR_GROUP_BORDER, localize('sideBySideEditor.verticalBorder', "Color to separate two editors from each other when shown side by side in an editor group from left to right."));
 
-// < --- Panels --- >
-
-export const PANEL_BACKGROUND = registerColor('panel.background', editorBackground, localize('panelBackground', "Panel background color. Panels are shown below the editor area and contain views like output and integrated terminal."));
-
-export const PANEL_BORDER = registerColor('panel.border', {
-	dark: Color.fromHex('#808080').transparent(0.35),
-	light: Color.fromHex('#808080').transparent(0.35),
-	hcDark: contrastBorder,
-	hcLight: contrastBorder
-}, localize('panelBorder', "Panel border color to separate the panel from the editor. Panels are shown below the editor area and contain views like output and integrated terminal."));
-
-export const PANEL_TITLE_BORDER = registerColor('panelTitle.border', {
-	dark: null,
-	light: null,
-	hcDark: PANEL_BORDER,
-	hcLight: PANEL_BORDER
-}, localize('panelTitleBorder', "Panel title border color on the bottom, separating the title from the views. Panels are shown below the editor area and contain views like output and integrated terminal."));
-
-export const PANEL_ACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.activeForeground', {
-	dark: '#E7E7E7',
-	light: '#424242',
-	hcDark: Color.white,
-	hcLight: editorForeground
-}, localize('panelActiveTitleForeground', "Title color for the active panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
-
-export const PANEL_INACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.inactiveForeground', {
-	dark: transparent(PANEL_ACTIVE_TITLE_FOREGROUND, 0.6),
-	light: transparent(PANEL_ACTIVE_TITLE_FOREGROUND, 0.75),
-	hcDark: Color.white,
-	hcLight: editorForeground
-}, localize('panelInactiveTitleForeground', "Title color for the inactive panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
-
-export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder', {
-	dark: PANEL_ACTIVE_TITLE_FOREGROUND,
-	light: PANEL_ACTIVE_TITLE_FOREGROUND,
-	hcDark: contrastBorder,
-	hcLight: '#B5200D'
-}, localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
-
-export const PANEL_INPUT_BORDER = registerColor('panelInput.border', {
-	dark: inputBorder,
-	light: Color.fromHex('#ddd'),
-	hcDark: inputBorder,
-	hcLight: inputBorder
-}, localize('panelInputBorder', "Input box border for inputs in the panel."));
-
-export const PANEL_DRAG_AND_DROP_BORDER = registerColor('panel.dropBorder', PANEL_ACTIVE_TITLE_FOREGROUND, localize('panelDragAndDropBorder', "Drag and drop feedback color for the panel titles. Panels are shown below the editor area and contain views like output and integrated terminal."));
-
-export const PANEL_SECTION_DRAG_AND_DROP_BACKGROUND = registerColor('panelSection.dropBackground', EDITOR_DRAG_AND_DROP_BACKGROUND, localize('panelSectionDragAndDropBackground', "Drag and drop feedback color for the panel sections. The color should have transparency so that the panel sections can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
-
-export const PANEL_SECTION_HEADER_BACKGROUND = registerColor('panelSectionHeader.background', {
-	dark: Color.fromHex('#808080').transparent(0.2),
-	light: Color.fromHex('#808080').transparent(0.2),
-	hcDark: null,
-	hcLight: null,
-}, localize('panelSectionHeaderBackground', "Panel section header background color. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
-
-export const PANEL_SECTION_HEADER_FOREGROUND = registerColor('panelSectionHeader.foreground', null, localize('panelSectionHeaderForeground', "Panel section header foreground color. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
-
-export const PANEL_SECTION_HEADER_BORDER = registerColor('panelSectionHeader.border', contrastBorder, localize('panelSectionHeaderBorder', "Panel section header border color used when multiple views are stacked vertically in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
-
-export const PANEL_SECTION_BORDER = registerColor('panelSection.border', PANEL_BORDER, localize('panelSectionBorder', "Panel section border color used when multiple views are stacked horizontally in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
-
-export const PANEL_STICKY_SCROLL_BACKGROUND = registerColor('panelStickyScroll.background', PANEL_BACKGROUND, localize('panelStickyScrollBackground', "Background color of sticky scroll in the panel."));
-
-export const PANEL_STICKY_SCROLL_BORDER = registerColor('panelStickyScroll.border', null, localize('panelStickyScrollBorder', "Border color of sticky scroll in the panel."));
-
-export const PANEL_STICKY_SCROLL_SHADOW = registerColor('panelStickyScroll.shadow', scrollbarShadow, localize('panelStickyScrollShadow', "Shadow color of sticky scroll in the panel."));
 
 // < --- Output Editor -->
 
@@ -404,18 +342,18 @@ export const STATUS_BAR_ITEM_FOCUS_BORDER = registerColor('statusBarItem.focusBo
 
 export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.hoverBackground', {
 	dark: Color.white.transparent(0.12),
-	light: Color.white.transparent(0.12),
-	hcDark: Color.white.transparent(0.12),
-	hcLight: Color.black.transparent(0.12)
+	light: Color.black.transparent(0.12),
+	hcDark: Color.black,
+	hcLight: Color.white
 }, localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ITEM_HOVER_FOREGROUND = registerColor('statusBarItem.hoverForeground', STATUS_BAR_FOREGROUND, localize('statusBarItemHoverForeground', "Status bar item foreground color when hovering. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND = registerColor('statusBarItem.compactHoverBackground', {
-	dark: Color.white.transparent(0.20),
-	light: Color.white.transparent(0.20),
-	hcDark: Color.white.transparent(0.20),
-	hcLight: Color.black.transparent(0.20)
+	dark: Color.white.transparent(0.12),
+	light: Color.black.transparent(0.12),
+	hcDark: Color.black,
+	hcLight: Color.white
 }, localize('statusBarItemCompactHoverBackground', "Status bar item background color when hovering an item that contains two hovers. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_PROMINENT_ITEM_FOREGROUND = registerColor('statusBarItem.prominentForeground', STATUS_BAR_FOREGROUND, localize('statusBarProminentItemForeground', "Status bar prominent items foreground color. Prominent items stand out from other status bar entries to indicate importance. The status bar is shown in the bottom of the window."));
@@ -543,6 +481,85 @@ export const ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER = registerColor('activityBarT
 export const ACTIVITY_BAR_TOP_BACKGROUND = registerColor('activityBarTop.background', null, localize('activityBarTopBackground', "Background color of the activity bar when set to top / bottom."));
 
 
+// < --- Panels --- >
+
+export const PANEL_BACKGROUND = registerColor('panel.background', editorBackground, localize('panelBackground', "Panel background color. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_BORDER = registerColor('panel.border', {
+	dark: Color.fromHex('#808080').transparent(0.35),
+	light: Color.fromHex('#808080').transparent(0.35),
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('panelBorder', "Panel border color to separate the panel from the editor. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_TITLE_BORDER = registerColor('panelTitle.border', {
+	dark: null,
+	light: null,
+	hcDark: PANEL_BORDER,
+	hcLight: PANEL_BORDER
+}, localize('panelTitleBorder', "Panel title border color on the bottom, separating the title from the views. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_ACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.activeForeground', {
+	dark: '#E7E7E7',
+	light: '#424242',
+	hcDark: Color.white,
+	hcLight: editorForeground
+}, localize('panelActiveTitleForeground', "Title color for the active panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_INACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.inactiveForeground', {
+	dark: transparent(PANEL_ACTIVE_TITLE_FOREGROUND, 0.6),
+	light: transparent(PANEL_ACTIVE_TITLE_FOREGROUND, 0.75),
+	hcDark: Color.white,
+	hcLight: editorForeground
+}, localize('panelInactiveTitleForeground', "Title color for the inactive panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder', {
+	dark: PANEL_ACTIVE_TITLE_FOREGROUND,
+	light: PANEL_ACTIVE_TITLE_FOREGROUND,
+	hcDark: contrastBorder,
+	hcLight: '#B5200D'
+}, localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_TITLE_BADGE_BACKGROUND = registerColor('panelTitleBadge.background', ACTIVITY_BAR_BADGE_BACKGROUND, localize('panelTitleBadgeBackground', "Panel title badge background color. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_TITLE_BADGE_FOREGROUND = registerColor('panelTitleBadge.foreground', ACTIVITY_BAR_BADGE_FOREGROUND, localize('panelTitleBadgeForeground', "Panel title badge foreground color. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_INPUT_BORDER = registerColor('panelInput.border', {
+	dark: inputBorder,
+	light: Color.fromHex('#ddd'),
+	hcDark: inputBorder,
+	hcLight: inputBorder
+}, localize('panelInputBorder', "Input box border for inputs in the panel."));
+
+export const PANEL_DRAG_AND_DROP_BORDER = registerColor('panel.dropBorder', PANEL_ACTIVE_TITLE_FOREGROUND, localize('panelDragAndDropBorder', "Drag and drop feedback color for the panel titles. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_SECTION_DRAG_AND_DROP_BACKGROUND = registerColor('panelSection.dropBackground', EDITOR_DRAG_AND_DROP_BACKGROUND, localize('panelSectionDragAndDropBackground', "Drag and drop feedback color for the panel sections. The color should have transparency so that the panel sections can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
+
+export const PANEL_SECTION_HEADER_BACKGROUND = registerColor('panelSectionHeader.background', {
+	dark: Color.fromHex('#808080').transparent(0.2),
+	light: Color.fromHex('#808080').transparent(0.2),
+	hcDark: null,
+	hcLight: null,
+}, localize('panelSectionHeaderBackground', "Panel section header background color. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
+
+export const PANEL_SECTION_HEADER_FOREGROUND = registerColor('panelSectionHeader.foreground', null, localize('panelSectionHeaderForeground', "Panel section header foreground color. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
+
+export const PANEL_SECTION_HEADER_BORDER = registerColor('panelSectionHeader.border', contrastBorder, localize('panelSectionHeaderBorder', "Panel section header border color used when multiple views are stacked vertically in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
+
+export const PANEL_SECTION_BORDER = registerColor('panelSection.border', PANEL_BORDER, localize('panelSectionBorder', "Panel section border color used when multiple views are stacked horizontally in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
+
+export const PANEL_STICKY_SCROLL_BACKGROUND = registerColor('panelStickyScroll.background', PANEL_BACKGROUND, localize('panelStickyScrollBackground', "Background color of sticky scroll in the panel."));
+
+export const PANEL_STICKY_SCROLL_BORDER = registerColor('panelStickyScroll.border', null, localize('panelStickyScrollBorder', "Border color of sticky scroll in the panel."));
+
+export const PANEL_STICKY_SCROLL_SHADOW = registerColor('panelStickyScroll.shadow', scrollbarShadow, localize('panelStickyScrollShadow', "Shadow color of sticky scroll in the panel."));
+
+
+// < --- Browser --- >
+
+export const BROWSER_BORDER = registerColor('browser.border', TAB_BORDER, localize('browserBorder', "Border color for integrated browser pages."));
+
+
 // < --- Profiles --- >
 
 export const PROFILE_BADGE_BACKGROUND = registerColor('profileBadge.background', {
@@ -559,11 +576,12 @@ export const PROFILE_BADGE_FOREGROUND = registerColor('profileBadge.foreground',
 	hcLight: Color.white
 }, localize('profileBadgeForeground', "Profile badge foreground color. The profile badge shows on top of the settings gear icon in the activity bar."));
 
+
 // < --- Remote --- >
 
-export const STATUS_BAR_REMOTE_ITEM_BACKGROUND = registerColor('statusBarItem.remoteBackground', ACTIVITY_BAR_BADGE_BACKGROUND, localize('statusBarItemHostBackground', "Background color for the remote indicator on the status bar."));
+export const STATUS_BAR_REMOTE_ITEM_BACKGROUND = registerColor('statusBarItem.remoteBackground', ACTIVITY_BAR_BADGE_BACKGROUND, localize('statusBarItemRemoteBackground', "Background color for the remote indicator on the status bar."));
 
-export const STATUS_BAR_REMOTE_ITEM_FOREGROUND = registerColor('statusBarItem.remoteForeground', ACTIVITY_BAR_BADGE_FOREGROUND, localize('statusBarItemHostForeground', "Foreground color for the remote indicator on the status bar."));
+export const STATUS_BAR_REMOTE_ITEM_FOREGROUND = registerColor('statusBarItem.remoteForeground', ACTIVITY_BAR_BADGE_FOREGROUND, localize('statusBarItemRemoteForeground', "Foreground color for the remote indicator on the status bar."));
 
 export const STATUS_BAR_REMOTE_ITEM_HOVER_FOREGROUND = registerColor('statusBarItem.remoteHoverForeground', STATUS_BAR_ITEM_HOVER_FOREGROUND, localize('statusBarRemoteItemHoverForeground', "Foreground color for the remote indicator on the status bar when hovering."));
 
@@ -587,9 +605,8 @@ export const STATUS_BAR_OFFLINE_ITEM_HOVER_BACKGROUND = registerColor('statusBar
 	hcLight: null
 }, localize('statusBarOfflineItemHoverBackground', "Status bar item background hover color when the workbench is offline."));
 
-export const EXTENSION_BADGE_REMOTE_BACKGROUND = registerColor('extensionBadge.remoteBackground', ACTIVITY_BAR_BADGE_BACKGROUND, localize('extensionBadge.remoteBackground', "Background color for the remote badge in the extensions view."));
-
-export const EXTENSION_BADGE_REMOTE_FOREGROUND = registerColor('extensionBadge.remoteForeground', ACTIVITY_BAR_BADGE_FOREGROUND, localize('extensionBadge.remoteForeground', "Foreground color for the remote badge in the extensions view."));
+export const EXTENSION_BADGE_BACKGROUND = registerColor('extensionBadge.remoteBackground', ACTIVITY_BAR_BADGE_BACKGROUND, localize('extensionBadge.remoteBackground', "Background color for the remote badge in the extensions view."));
+export const EXTENSION_BADGE_FOREGROUND = registerColor('extensionBadge.remoteForeground', ACTIVITY_BAR_BADGE_FOREGROUND, localize('extensionBadge.remoteForeground', "Foreground color for the remote badge in the extensions view."));
 
 
 // < --- Side Bar --- >
@@ -641,6 +658,29 @@ export const SIDE_BAR_STICKY_SCROLL_BACKGROUND = registerColor('sideBarStickyScr
 export const SIDE_BAR_STICKY_SCROLL_BORDER = registerColor('sideBarStickyScroll.border', null, localize('sideBarStickyScrollBorder', "Border color of sticky scroll in the side bar."));
 
 export const SIDE_BAR_STICKY_SCROLL_SHADOW = registerColor('sideBarStickyScroll.shadow', scrollbarShadow, localize('sideBarStickyScrollShadow', "Shadow color of sticky scroll in the side bar."));
+
+// < --- Surface --- >
+
+// Generic framed container surfaces ("cards"). Used by the modern workbench
+// layout to frame the floating parts (side bar, panel, auxiliary bar, editor).
+// Defaults mirror the agent sessions window's panel treatment so the look is
+// shared, but themes can target these tokens independently.
+
+export const SURFACE_BACKGROUND = registerColor('surface.background', {
+	dark: SIDE_BAR_BACKGROUND,
+	light: editorBackground,
+	hcDark: SIDE_BAR_BACKGROUND,
+	hcLight: SIDE_BAR_BACKGROUND
+}, localize('surfaceBackground', "Background color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
+
+export const SURFACE_FOREGROUND = registerColor('surface.foreground', SIDE_BAR_FOREGROUND, localize('surfaceForeground', "Foreground color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
+
+export const SURFACE_BORDER = registerColor('surface.border', {
+	dark: transparent(foreground, 0.15),
+	light: transparent(foreground, 0.15),
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('surfaceBorder', "Border color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
 
 // < --- Title Bar --- >
 
@@ -794,11 +834,11 @@ export const WINDOW_ACTIVE_BORDER = registerColor('window.activeBorder', {
 	light: null,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
-}, localize('windowActiveBorder', "The color used for the border of the window when it is active. Only supported in the macOS and Linux desktop client when using the custom title bar."));
+}, localize('windowActiveBorder', "The color used for the border of the window when it is active on macOS or Linux. Requires custom title bar style and custom or hidden window controls on Linux."));
 
 export const WINDOW_INACTIVE_BORDER = registerColor('window.inactiveBorder', {
 	dark: null,
 	light: null,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
-}, localize('windowInactiveBorder', "The color used for the border of the window when it is inactive. Only supported in the macOS and Linux desktop client when using the custom title bar."));
+}, localize('windowInactiveBorder', "The color used for the border of the window when it is inactive on macOS or Linux. Requires custom title bar style and custom or hidden window controls on Linux."));

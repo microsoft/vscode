@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { ScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Color } from '../../../../base/common/color.js';
@@ -26,7 +27,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IMarker, IRelatedInformation, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { contrastBorder, editorBackground, editorErrorBorder, editorErrorForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, oneOf, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 
@@ -111,6 +112,7 @@ class MessageWidget {
 
 		dom.clearNode(this._messageBlock);
 		this._messageBlock.setAttribute('aria-label', this.getAriaLabel(marker));
+		aria.status(this.getAriaLabel(marker));
 		this._editor.applyFontInfo(this._messageBlock);
 		let lastLineElement = this._messageBlock;
 		for (const line of lines) {
@@ -215,7 +217,7 @@ class MessageWidget {
 				break;
 		}
 
-		let ariaLabel = nls.localize('marker aria', "{0} at {1}. ", severityLabel, marker.startLineNumber + ':' + marker.startColumn);
+		let ariaLabel = nls.localize('marker aria', "{0}: {1} at {2}. ", severityLabel, marker.message, marker.startLineNumber + ':' + marker.startColumn);
 		const model = this._editor.getModel();
 		if (model && (marker.startLineNumber <= model.getLineCount()) && (marker.startLineNumber >= 1)) {
 			const lineContent = model.getLineContent(marker.startLineNumber);
@@ -294,6 +296,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	override dispose(): void {
 		this._callOnDispose.dispose();
+		this._onDidSelectRelatedInformation.dispose();
 		super.dispose();
 	}
 
@@ -358,7 +361,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		}
 		this._icon.className = `codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(this._severity))}`;
 
-		this.editor.revealPositionNearTop(position, ScrollType.Smooth);
+		this.editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth);
 		this.editor.focus();
 	}
 

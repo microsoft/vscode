@@ -4,20 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import type * as ESTree from 'estree';
 import { TSESTree } from '@typescript-eslint/utils';
 
-export = new class NoDangerousTypeAssertions implements eslint.Rule.RuleModule {
+export default new class NoDangerousTypeAssertions implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		// Disable in tests for now
-		if (context.getFilename().includes('.test')) {
-			return {};
-		}
-
 		return {
 			// Disallow type assertions on object literals: <T>{ ... } or {} as T
-			['TSTypeAssertion > ObjectExpression, TSAsExpression > ObjectExpression']: (node: any) => {
-				const objectNode = node as TSESTree.Node;
+			['TSTypeAssertion > ObjectExpression, TSAsExpression > ObjectExpression']: (node: ESTree.ObjectExpression) => {
+				const objectNode = node as TSESTree.ObjectExpression;
 
 				const parent = objectNode.parent as TSESTree.TSTypeAssertion | TSESTree.TSAsExpression;
 				if (
@@ -32,7 +28,7 @@ export = new class NoDangerousTypeAssertions implements eslint.Rule.RuleModule {
 
 				context.report({
 					node,
-					message: "Don't use type assertions for creating objects as this can hide type errors."
+					message: `Don't use type assertions for creating objects as this can hide type errors.`
 				});
 			},
 		};

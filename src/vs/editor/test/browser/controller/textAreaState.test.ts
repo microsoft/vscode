@@ -10,7 +10,7 @@ import { ITextAreaWrapper, TextAreaState } from '../../../browser/controller/edi
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { createTextModel } from '../../common/testTextModel.js';
-import { PagedScreenReaderStrategy } from '../../../browser/controller/editContext/screenReaderUtils.js';
+import { SimplePagedScreenReaderStrategy } from '../../../browser/controller/editContext/screenReaderUtils.js';
 
 class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
@@ -361,11 +361,12 @@ suite('TextAreaState', () => {
 		);
 	});
 
-	suite('PagedScreenReaderStrategy', () => {
+	suite('SimplePagedScreenReaderStrategy', () => {
 
 		function testPagedScreenReaderStrategy(lines: string[], selection: Selection, expected: TextAreaState): void {
 			const model = createTextModel(lines.join('\n'));
-			const screenReaderContentState = PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
+			const screenReaderStrategy = new SimplePagedScreenReaderStrategy();
+			const screenReaderContentState = screenReaderStrategy.fromEditorSelection(model, selection, 10, true);
 			const textAreaState = TextAreaState.fromScreenReaderContentState(screenReaderContentState);
 			assert.ok(equalsTextAreaState(textAreaState, expected));
 			model.dispose();

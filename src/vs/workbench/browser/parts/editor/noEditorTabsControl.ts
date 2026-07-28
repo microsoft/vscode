@@ -20,6 +20,13 @@ export class NoEditorTabsControl extends EditorTabsControl {
 		};
 	}
 
+	protected override prepareEditorLayoutActions(): IToolbarActions {
+		return {
+			primary: [],
+			secondary: []
+		};
+	}
+
 	openEditor(editor: EditorInput): boolean {
 		return this.handleOpenedEditors();
 	}

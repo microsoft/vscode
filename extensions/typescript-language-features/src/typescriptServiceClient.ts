@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { homedir } from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './configuration/configuration';
@@ -100,6 +99,8 @@ export const emptyAuthority = 'ts-nul-authority';
 
 export const inMemoryResourcePrefix = '^';
 
+const copilotChatExtensionId = 'github.copilot-chat';
+
 interface WatchEvent {
 	updated?: Set<string>;
 	created?: Set<string>;
@@ -107,7 +108,6 @@ interface WatchEvent {
 }
 
 export default class TypeScriptServiceClient extends Disposable implements ITypeScriptServiceClient {
-
 
 	private readonly _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void };
 	private _configuration: TypeScriptServiceConfiguration;
@@ -236,7 +236,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return this.apiVersion.fullVersionString;
 		});
 
-		this.diagnosticsManager = new DiagnosticsManager('typescript', this._configuration, this.telemetryReporter, onCaseInsensitiveFileSystem);
+		this.diagnosticsManager = this._register(new DiagnosticsManager('typescript', this._configuration, this.telemetryReporter, onCaseInsensitiveFileSystem));
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this._versionManager, this._nodeVersionManager, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer, this.processFactory);
 
 		this._register(this.pluginManager.onDidUpdateConfig(update => {
@@ -445,9 +445,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			typeScriptVersionSource: version.source,
 		});
 
-		handle.onError((err: Error) => {
+		handle.onError((err: unknown) => {
 			if (this.token !== mytoken) {
 				// this is coming from an old process
+				return;
+			}
+
+			if (!(err instanceof Error)) {
+				this.logger.error('TSServer got unknown error type:', err);
 				return;
 			}
 
@@ -533,13 +538,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	public async openTsServerLogFile(): Promise<boolean> {
 		if (this._configuration.tsServerLogLevel === TsServerLogLevel.Off) {
 			vscode.window.showErrorMessage<vscode.MessageItem>(
-				vscode.l10n.t("TS Server logging is off. Please set 'typescript.tsserver.log' and restart the TS server to enable logging"),
+				vscode.l10n.t("TS Server logging is off. Please set 'js/ts.tsserver.log' and restart the TS server to enable logging"),
 				{
 					title: vscode.l10n.t("Enable logging and restart TS server"),
 				})
 				.then(selection => {
 					if (selection) {
-						return vscode.workspace.getConfiguration().update('typescript.tsserver.log', 'verbose', true).then(() => {
+						return vscode.workspace.getConfiguration().update('js/ts.tsserver.log', 'verbose', true).then(() => {
 							this.restartTsServer();
 						});
 					}
@@ -632,12 +637,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		this.serverState = ServerState.None;
 
+		if (this.isDisposed) {
+			return;
+		}
+
 		if (restart) {
 			const diff = Date.now() - this.lastStart;
 			this.numberRestarts++;
 			let startService = true;
 
-			const pluginExtensionList = this.pluginManager.plugins.map(plugin => plugin.extension.id).join(', ');
+			const plugins = this.pluginManager.plugins;
+			const pluginsForCrashPrompt = plugins.filter(plugin => plugin.extension.id.toLowerCase() !== copilotChatExtensionId);
+			const pluginExtensionList = [...new Set(pluginsForCrashPrompt.map(plugin => plugin.extension.id))].join(', ');
 			const reportIssueItem: vscode.MessageItem = {
 				title: vscode.l10n.t("Report Issue"),
 			};
@@ -649,10 +660,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					this.lastStart = Date.now();
 					startService = false;
 					this.hasServerFatallyCrashedTooManyTimes = true;
-					if (this.pluginManager.plugins.length) {
+					if (pluginsForCrashPrompt.length) {
 						prompt = vscode.window.showErrorMessage<vscode.MessageItem>(
 							vscode.l10n.t("The JS/TS language service immediately crashed 5 times. The service will not be restarted.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
-					} else {
+					} else if (!plugins.length) {
 						prompt = vscode.window.showErrorMessage(
 							vscode.l10n.t("The JS/TS language service immediately crashed 5 times. The service will not be restarted."),
 							reportIssueItem);
@@ -670,10 +681,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				} else if (diff < 60 * 1000 * 5 /* 5 Minutes */) {
 					this.lastStart = Date.now();
 					if (!this._isPromptingAfterCrash) {
-						if (this.pluginManager.plugins.length) {
+						if (pluginsForCrashPrompt.length) {
 							prompt = vscode.window.showWarningMessage<vscode.MessageItem>(
 								vscode.l10n.t("The JS/TS language service crashed 5 times in the last 5 Minutes.\nThis may be caused by a plugin contributed by one of these extensions: {0}\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
-						} else {
+						} else if (!plugins.length) {
 							prompt = vscode.window.showWarningMessage(
 								vscode.l10n.t("The JS/TS language service crashed 5 times in the last 5 Minutes."),
 								reportIssueItem);
@@ -684,10 +695,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				// Prompt after a single restart
 				this.numberRestarts = 0;
 				if (!this._isPromptingAfterCrash) {
-					if (this.pluginManager.plugins.length) {
+					if (pluginsForCrashPrompt.length) {
 						prompt = vscode.window.showWarningMessage<vscode.MessageItem>(
 							vscode.l10n.t("The JS/TS language service crashed.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
-					} else {
+					} else if (!plugins.length) {
 						prompt = vscode.window.showWarningMessage(
 							vscode.l10n.t("The JS/TS language service crashed."),
 							reportIssueItem);
@@ -836,9 +847,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 		}
 
-		for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
+		// Find the highest level workspace folder that contains the file
+		for (const root of roots.sort((a, b) => a.uri.path.length - b.uri.path.length)) {
 			if (root.uri.scheme === resource.scheme && root.uri.authority === resource.authority) {
-				if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
+				if (resource.path.startsWith(root.uri.path + '/')) {
 					return root.uri;
 				}
 			}
@@ -847,7 +859,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return vscode.workspace.getWorkspaceFolder(resource)?.uri;
 	}
 
-	public execute(command: keyof TypeScriptRequests, args: any, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {
+	public execute(command: keyof TypeScriptRequests, args: unknown, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {
 		let executions: Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> | undefined;
 
 		if (config?.cancelOnResourceChange) {
@@ -903,7 +915,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return executions[0]!;
 	}
 
-	public executeWithoutWaitingForResponse(command: keyof TypeScriptRequests, args: any): void {
+	public executeWithoutWaitingForResponse(command: keyof TypeScriptRequests, args: unknown): void {
 		this.executeImpl(command, args, {
 			isAsync: false,
 			token: undefined,
@@ -919,7 +931,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		})[0]!;
 	}
 
-	private executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean; token?: vscode.CancellationToken; expectsResult: boolean; lowPriority?: boolean; requireSemantic?: boolean }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
+	private executeImpl(command: keyof TypeScriptRequests, args: unknown, executeInfo: { isAsync: boolean; token?: vscode.CancellationToken; expectsResult: boolean; lowPriority?: boolean; requireSemantic?: boolean }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
 		const serverState = this.serverState;
 		if (serverState.type === ServerState.Type.Running) {
 			this.bufferSyncSupport.beforeCommand(command);
@@ -1032,11 +1044,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			case EventName.createDirectoryWatcher: {
 				const fpath = (event.body as Proto.CreateDirectoryWatcherEventBody).path;
 				if (fpath.startsWith(inMemoryResourcePrefix)) {
-					return;
-				}
-				if (process.platform === 'darwin' && fpath === path.join(homedir(), 'Library')) {
-					// ignore directory watch requests on ~/Library
-					// until microsoft/TypeScript#59831 is resolved
 					return;
 				}
 
@@ -1214,9 +1221,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		/* __GDPR__
 			"typingsInstalled" : {
 				"owner": "mjbvz",
-				"installedPackages" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"installSuccess": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"installedPackages": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"installSuccess": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				]
@@ -1226,7 +1233,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.telemetryReporter.logTelemetry(telemetryData.telemetryEventName, properties);
 	}
 
-	private configurePlugin(pluginName: string, configuration: {}): any {
+	private configurePlugin(pluginName: string, configuration: unknown): void {
 		this.executeWithoutWaitingForResponse('configurePlugin', { pluginName, configuration });
 	}
 }

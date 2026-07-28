@@ -173,12 +173,25 @@ export class RevertHunkOrSelection extends Action2 {
 		super({
 			id: 'diffEditor.revert',
 			title: localize2('revert', 'Revert'),
-			f1: false,
+			f1: true,
 			category: diffEditorCategory,
+			precondition: ContextKeyExpr.has('isInDiffEditor'),
 		});
 	}
 
-	run(accessor: ServicesAccessor, arg: DiffEditorSelectionHunkToolbarContext): unknown {
+	run(accessor: ServicesAccessor, arg?: DiffEditorSelectionHunkToolbarContext): unknown {
+		return arg ? this.runViaToolbarContext(accessor, arg) : this.runViaCursorOrSelection(accessor);
+	}
+
+	runViaCursorOrSelection(accessor: ServicesAccessor): unknown {
+		const diffEditor = findFocusedDiffEditor(accessor);
+		if (diffEditor instanceof DiffEditorWidget) {
+			diffEditor.revertFocusedRangeMappings();
+		}
+		return undefined;
+	}
+
+	runViaToolbarContext(accessor: ServicesAccessor, arg: DiffEditorSelectionHunkToolbarContext): unknown {
 		const diffEditor = findDiffEditor(accessor, arg.originalUri, arg.modifiedUri);
 		if (diffEditor instanceof DiffEditorWidget) {
 			diffEditor.revertRangeMappings(arg.mapping.innerChanges ?? []);

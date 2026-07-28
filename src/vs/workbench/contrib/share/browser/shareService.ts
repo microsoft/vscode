@@ -15,7 +15,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ToggleTitleBarConfigAction } from '../../../browser/parts/titlebar/titlebarActions.js';
-import { WorkspaceFolderCountContext } from '../../../common/contextkeys.js';
+import { IsCompactTitleBarContext, WorkspaceFolderCountContext } from '../../../common/contextkeys.js';
 import { IShareProvider, IShareService, IShareableItem } from '../common/share.js';
 
 export const ShareProviderCountContext = new RawContextKey<number>('shareProviderCount', 0, localize('shareProviderCount', "The number of available share providers"));
@@ -89,6 +89,6 @@ export class ShareService implements IShareService {
 
 registerAction2(class ToggleShareControl extends ToggleTitleBarConfigAction {
 	constructor() {
-		super('workbench.experimental.share.enabled', localize('toggle.share', 'Share'), localize('toggle.shareDescription', "Toggle visibility of the Share action in title bar"), 3, false, ContextKeyExpr.and(ContextKeyExpr.has('config.window.commandCenter'), ContextKeyExpr.and(ShareProviderCountContext.notEqualsTo(0), WorkspaceFolderCountContext.notEqualsTo(0))));
+		super('workbench.experimental.share.enabled', localize('toggle.share', 'Share'), localize('toggle.shareDescription', "Toggle visibility of the Share action in title bar"), 3, ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), ContextKeyExpr.has('config.window.commandCenter'), ContextKeyExpr.and(ShareProviderCountContext.notEqualsTo(0), WorkspaceFolderCountContext.notEqualsTo(0))));
 	}
 });

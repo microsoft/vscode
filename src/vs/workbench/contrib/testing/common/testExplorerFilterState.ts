@@ -80,7 +80,7 @@ const trimExtraWhitespace = (str: string) => str.replace(/\s\s+/g, ' ').trim();
 
 export class TestExplorerFilterState extends Disposable implements ITestExplorerFilterState {
 	declare _serviceBrand: undefined;
-	private readonly focusEmitter = new Emitter<void>();
+	private readonly focusEmitter = this._register(new Emitter<void>());
 	/**
 	 * Mapping of terms to whether they're included in the text.
 	 */
@@ -99,11 +99,7 @@ export class TestExplorerFilterState extends Disposable implements ITestExplorer
 	public readonly text = this._register(new MutableObservableValue(''));
 
 	/** @inheritdoc */
-	public readonly fuzzy = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
-		key: 'testHistoryFuzzy',
-		scope: StorageScope.PROFILE,
-		target: StorageTarget.USER,
-	}, this.storageService), false));
+	public readonly fuzzy: MutableObservableValue<boolean>;
 
 	public readonly reveal: ISettableObservable<string | undefined> = observableValue('TestExplorerFilterState.reveal', undefined);
 
@@ -113,9 +109,14 @@ export class TestExplorerFilterState extends Disposable implements ITestExplorer
 	public readonly onDidSelectTestInExplorer = this.selectTestInExplorerEmitter.event;
 
 	constructor(
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
+		this.fuzzy = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
+			key: 'testHistoryFuzzy',
+			scope: StorageScope.PROFILE,
+			target: StorageTarget.USER,
+		}, storageService), false));
 	}
 
 	/** @inheritdoc */
@@ -145,12 +146,15 @@ export class TestExplorerFilterState extends Disposable implements ITestExplorer
 			let nextIndex = match.index + match[0].length;
 
 			const tag = match[0];
-			if (allTestFilterTerms.includes(tag as TestFilterTerm)) {
+			const isFilterTerm = allTestFilterTerms.includes(tag as TestFilterTerm);
+			if (isFilterTerm) {
 				this.termFilterState[tag as TestFilterTerm] = true;
 			}
 
 			// recognize and parse @ctrlId:tagId or quoted like @ctrlId:"tag \\"id"
+			let isTag = false;
 			if (text[nextIndex] === ':') {
+				isTag = true;
 				nextIndex++;
 
 				let delimiter = text[nextIndex];
@@ -177,6 +181,12 @@ export class TestExplorerFilterState extends Disposable implements ITestExplorer
 					this.includeTags.add(namespaceTestTag(match[1], tagId));
 				}
 				nextIndex++;
+			}
+
+			// If the @-prefixed text is not a known filter term or tag,
+			// treat it as regular filter text (e.g., a test named "@smoke")
+			if (!isFilterTerm && !isTag) {
+				continue;
 			}
 
 			globText += text.slice(lastIndex, match.index);

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n, LogOutputChannel } from 'vscode';
-import { Branch, RefType, Status } from './api/git';
+import type { Branch } from './api/git';
+import { RefType, Status } from './api/git.constants';
 import { OperationKind } from './operation';
 import { CommitCommandsCenter } from './postCommitCommands';
 import { Repository } from './repository';
@@ -262,7 +263,6 @@ export class ActionButton {
 		const isCommitInProgress =
 			this.repository.operations.isRunning(OperationKind.Commit) ||
 			this.repository.operations.isRunning(OperationKind.PostCommitCommand) ||
-			this.repository.operations.isRunning(OperationKind.MergeContinue) ||
 			this.repository.operations.isRunning(OperationKind.RebaseContinue);
 
 		const isSyncInProgress =

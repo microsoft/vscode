@@ -17,7 +17,7 @@ const rangeRe = /range=([0-9]+):([0-9]+)/;
 export class DebugMemoryFileSystemProvider extends Disposable implements IFileSystemProvider {
 	private memoryFdCounter = 0;
 	private readonly fdMemory = new Map<number, { session: IDebugSession; region: IMemoryRegion }>();
-	private readonly changeEmitter = new Emitter<readonly IFileChange[]>();
+	private readonly changeEmitter = this._register(new Emitter<readonly IFileChange[]>());
 
 	/** @inheritdoc */
 	public readonly onDidChangeCapabilities = Event.None;
@@ -231,15 +231,16 @@ export class DebugMemoryFileSystemProvider extends Disposable implements IFileSy
 
 /** A wrapper for a MemoryRegion that references a subset of data in another region. */
 class MemoryRegionView extends Disposable implements IMemoryRegion {
-	private readonly invalidateEmitter = new Emitter<IMemoryInvalidationEvent>();
+	private readonly invalidateEmitter = this._register(new Emitter<IMemoryInvalidationEvent>());
 
 	public readonly onDidInvalidate = this.invalidateEmitter.event;
 	public readonly writable: boolean;
-	private readonly width = this.range.toOffset - this.range.fromOffset;
+	private readonly width: number;
 
 	constructor(private readonly parent: IMemoryRegion, public readonly range: { fromOffset: number; toOffset: number }) {
 		super();
 		this.writable = parent.writable;
+		this.width = range.toOffset - range.fromOffset;
 
 		this._register(parent);
 		this._register(parent.onDidInvalidate(e => {

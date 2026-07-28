@@ -3,13 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
+import { resolveDefaultNewChatSessionType } from '../../common/constants.js';
+import { markPreferredCopilotHarness } from '../../common/chatSessionTypePreference.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 
-export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInput?: ChatEditorInput): Promise<void> {
+function getNewChatSessionResource(sessionType: string): URI {
+	return sessionType === localChatSessionType
+		? LocalChatSessionUri.getNewSessionUri()
+		: URI.from({ scheme: sessionType, path: `/untitled-${generateUuid()}` });
+}
+
+export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInput?: ChatEditorInput, targetSessionType?: string): Promise<void> {
 	const editorService = accessor.get(IEditorService);
+	const storageService = accessor.get(IStorageService);
 
 	if (!chatEditorInput) {
 		const editorInput = editorService.activeEditor;
@@ -17,11 +31,22 @@ export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInpu
 	}
 
 	if (chatEditorInput instanceof ChatEditorInput) {
+		const currentResource = chatEditorInput.sessionResource;
+		const currentSessionType = currentResource ? getChatSessionType(currentResource) : undefined;
+		const resolved = resolveDefaultNewChatSessionType(accessor, {
+			explicitOverride: targetSessionType,
+			currentSessionType,
+		});
+		if (resolved.isPreferCopilotHarnessSwap) {
+			markPreferredCopilotHarness(storageService);
+		}
+		const resource = getNewChatSessionResource(resolved.sessionType);
+
 		// A chat editor can only be open in one group
 		const identifier = editorService.findEditors(chatEditorInput.resource)[0];
 		await editorService.replaceEditors([{
 			editor: chatEditorInput,
-			replacement: { resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } satisfies IChatEditorOptions }
+			replacement: { resource, options: { pinned: true } satisfies IChatEditorOptions }
 		}], identifier.groupId);
 	}
 }

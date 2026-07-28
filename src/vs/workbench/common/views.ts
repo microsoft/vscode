@@ -39,10 +39,8 @@ export namespace Extensions {
 export const enum ViewContainerLocation {
 	Sidebar,
 	Panel,
-	AuxiliaryBar
+	AuxiliaryBar,
 }
-
-export const ViewContainerLocations = [ViewContainerLocation.Sidebar, ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar];
 
 export function ViewContainerLocationToString(viewContainerLocation: ViewContainerLocation) {
 	switch (viewContainerLocation) {
@@ -59,6 +57,24 @@ type OpenCommandActionDescriptor = {
 	readonly order?: number;
 	readonly keybindings?: IKeybindings & { when?: ContextKeyExpression };
 };
+
+/**
+ * Specifies in which window a view or view container should be visible.
+ */
+export const enum WindowEnablement {
+	/**
+	 * Visible only in the editor window
+	 */
+	Editor = 1,
+	/**
+	 * Visible only in agent sessions window
+	 */
+	Sessions = 2,
+	/**
+	 * Visible in both editor and agent sessions windows
+	 */
+	Both = 3,
+}
 
 /**
  * View Container Contexts
@@ -121,6 +137,12 @@ export interface IViewContainerDescriptor {
 
 	readonly rejectAddedViews?: boolean;
 
+	/**
+	 * Specifies in which window this view container should be enabled.
+	 * Defaults to WindowEnablement.Editor
+	 */
+	readonly windowEnablement?: WindowEnablement;
+
 	requestedIndex?: number;
 }
 
@@ -175,9 +197,9 @@ export interface IViewContainersRegistry {
 	getViewContainerLocation(container: ViewContainer): ViewContainerLocation;
 
 	/**
-	 * Return the default view container from the given location
+	 * Return the default view containers from the given location
 	 */
-	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined;
+	getDefaultViewContainers(location: ViewContainerLocation): ViewContainer[];
 }
 
 interface ViewOrderDelegate {
@@ -250,8 +272,8 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return [...this.viewContainers.keys()].filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer?.id === container.id).length > 0)[0];
 	}
 
-	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
-		return this.defaultViewContainers.find(viewContainer => this.getViewContainerLocation(viewContainer) === location);
+	getDefaultViewContainers(location: ViewContainerLocation): ViewContainer[] {
+		return this.defaultViewContainers.filter(viewContainer => this.getViewContainerLocation(viewContainer) === location);
 	}
 }
 
@@ -301,6 +323,12 @@ export interface IViewDescriptor {
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
 
 	readonly accessibilityHelpContent?: MarkdownString;
+
+	/**
+	 * Specifies in which window this view should be visible.
+	 * Defaults to WindowEnablement.Workbench (main workbench only).
+	 */
+	readonly windowEnablement?: WindowEnablement;
 }
 
 export interface ICustomViewDescriptor extends IViewDescriptor {
@@ -609,6 +637,8 @@ export interface IViewDescriptorService {
 	getDefaultContainerById(id: string): ViewContainer | null;
 	getViewLocationById(id: string): ViewContainerLocation | null;
 
+	canMoveViews(): boolean;
+
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }>;
 	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer, visibilityState?: ViewVisibilityState, reason?: string): void;
 
@@ -660,7 +690,7 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeCheckboxState: Event<readonly ITreeItem[]>;
 
-	readonly container: any | undefined;
+	readonly container: unknown /* HTMLElement */ | undefined;
 
 	// checkboxesChanged is a subset of treeItems
 	refresh(treeItems?: readonly ITreeItem[], checkboxesChanged?: readonly ITreeItem[]): Promise<void>;
@@ -685,7 +715,7 @@ export interface ITreeView extends IDisposable {
 
 	setFocus(item?: ITreeItem): void;
 
-	show(container: any): void;
+	show(container: unknown /* HTMLElement */): void;
 }
 
 export interface IRevealOptions {
@@ -721,11 +751,9 @@ export enum TreeItemCollapsibleState {
 
 export interface ITreeItemLabel {
 
-	label: string;
+	label: string | IMarkdownString;
 
 	highlights?: [number, number][];
-
-	strikethrough?: boolean;
 
 }
 
@@ -763,7 +791,7 @@ export interface ITreeItem {
 
 	command?: TreeCommand;
 
-	children?: ITreeItem[];
+	children?: readonly ITreeItem[];
 
 	parent?: ITreeItem;
 
@@ -845,9 +873,9 @@ export class NoTreeViewError extends Error {
 
 export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
-	onDidChangeEmpty?: Event<void>;
-	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
-	getChildrenBatch?(element?: ITreeItem[]): Promise<ITreeItem[][] | undefined>;
+	readonly onDidChangeEmpty?: Event<void>;
+	getChildren(element?: ITreeItem): Promise<readonly ITreeItem[] | undefined>;
+	getChildrenBatch?(element?: ITreeItem[]): Promise<(readonly ITreeItem[])[] | undefined>;
 }
 
 export interface ITreeViewDragAndDropController {
@@ -865,9 +893,9 @@ export interface IEditableData {
 }
 
 export interface IViewPaneContainer {
-	onDidAddViews: Event<IView[]>;
-	onDidRemoveViews: Event<IView[]>;
-	onDidChangeViewVisibility: Event<IView>;
+	readonly onDidAddViews: Event<IView[]>;
+	readonly onDidRemoveViews: Event<IView[]>;
+	readonly onDidChangeViewVisibility: Event<IView>;
 
 	readonly views: IView[];
 

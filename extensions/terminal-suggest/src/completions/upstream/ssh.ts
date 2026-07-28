@@ -43,7 +43,7 @@ const getConfigLines = async (
 		.map((line) => line.split(" ")[1]);
 
 	// Get the lines of every include file
-	const includeLines: any = await Promise.all(
+	const includeLines: string[][] = await Promise.all(
 		includes.map((file) =>
 			getConfigLines(file, executeShellCommand, home, basePath)
 		)
@@ -89,10 +89,10 @@ export const configHosts: Fig.Generator = {
 
 		return configLines
 			.filter(
-				(line: any) =>
+				(line) =>
 					line.trim().toLowerCase().startsWith("host ") && !line.includes("*")
 			)
-			.map((host: any) => ({
+			.map((host) => ({
 				name: host.split(" ")[1],
 				description: "SSH host",
 				priority: 90,

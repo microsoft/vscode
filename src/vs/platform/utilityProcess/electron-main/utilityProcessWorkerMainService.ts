@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUtilityProcessWorkerCreateConfiguration, IOnDidTerminateUtilityrocessWorkerProcess, IUtilityProcessWorkerConfiguration, IUtilityProcessWorkerProcessExit, IUtilityProcessWorkerService } from '../common/utilityProcessWorkerService.js';
@@ -26,7 +26,7 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly workers = new Map<number /* id */, UtilityProcessWorker>();
+	private readonly workers = this._register(new DisposableMap<number /* id */, UtilityProcessWorker>());
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -65,8 +65,13 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 				this.logService.error(`[UtilityProcessWorker]: terminated unexpectedly with code ${reason.code}, signal: ${reason.signal}`);
 			}
 
-			this.workers.delete(workerId);
 			onDidTerminate.complete({ reason });
+
+			// Only remove from map if this worker is still the one tracked.
+			if (this.workers.get(workerId) === worker) {
+				this.workers.deleteAndLeak(workerId);
+			}
+			worker.dispose();
 		});
 
 		return onDidTerminate.p;
@@ -87,10 +92,7 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 		}
 
 		this.logService.trace(`[UtilityProcessWorker]: disposeWorker(window: ${configuration.reply.windowId}, moduleId: ${configuration.process.moduleId})`);
-
 		worker.kill();
-		worker.dispose();
-		this.workers.delete(workerId);
 	}
 }
 
@@ -99,16 +101,18 @@ class UtilityProcessWorker extends Disposable {
 	private readonly _onDidTerminate = this._register(new Emitter<IUtilityProcessWorkerProcessExit>());
 	readonly onDidTerminate = this._onDidTerminate.event;
 
-	private readonly utilityProcess = this._register(new WindowUtilityProcess(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService));
+	private readonly utilityProcess: WindowUtilityProcess;
 
 	constructor(
-		@ILogService private readonly logService: ILogService,
+		@ILogService logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		private readonly configuration: IUtilityProcessWorkerCreateConfiguration
 	) {
 		super();
+
+		this.utilityProcess = this._register(new WindowUtilityProcess(logService, windowsMainService, telemetryService, lifecycleMainService));
 
 		this.registerListeners();
 	}
@@ -124,7 +128,9 @@ class UtilityProcessWorker extends Disposable {
 
 		return this.utilityProcess.start({
 			type: this.configuration.process.type,
+			name: this.configuration.process.name,
 			entryPoint: this.configuration.process.moduleId,
+			allowLoadingUnsignedLibraries: this.configuration.process.allowLoadingUnsignedLibraries,
 			parentLifecycleBound: windowPid,
 			windowLifecycleBound: true,
 			correlationId: `${this.configuration.reply.windowId}`,

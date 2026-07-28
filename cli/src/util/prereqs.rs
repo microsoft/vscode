@@ -6,34 +6,32 @@ use std::cmp::Ordering;
 
 use crate::constants::QUALITYLESS_SERVER_NAME;
 use crate::update_service::Platform;
-use lazy_static::lazy_static;
 use regex::bytes::Regex as BinRegex;
 use regex::Regex;
+use std::sync::LazyLock;
 use tokio::fs;
 
 use super::errors::CodeError;
 
-lazy_static! {
-	static ref LDCONFIG_STDC_RE: Regex = Regex::new(r"libstdc\+\+.* => (.+)").unwrap();
-	static ref LDD_VERSION_RE: BinRegex = BinRegex::new(r"^ldd.*\s(\d+)\.(\d+)(?:\.(\d+))?\s").unwrap();
-	static ref GENERIC_VERSION_RE: Regex = Regex::new(r"^([0-9]+)\.([0-9]+)$").unwrap();
-	static ref LIBSTD_CXX_VERSION_RE: BinRegex =
-		BinRegex::new(r"GLIBCXX_([0-9]+)\.([0-9]+)(?:\.([0-9]+))?").unwrap();
-	static ref MIN_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 28, 0);
-	static ref MIN_LEGACY_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 17, 0);
-}
+static LDCONFIG_STDC_RE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"libstdc\+\+.* => (.+)").unwrap());
+static LDD_VERSION_RE: LazyLock<BinRegex> =
+	LazyLock::new(|| BinRegex::new(r"^ldd.*\s(\d+)\.(\d+)(?:\.(\d+))?\s").unwrap());
+static GENERIC_VERSION_RE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"^([0-9]+)\.([0-9]+)$").unwrap());
+#[cfg(target_os = "linux")]
+static LIBSTD_CXX_VERSION_RE: LazyLock<BinRegex> =
+	LazyLock::new(|| BinRegex::new(r"GLIBCXX_([0-9]+)\.([0-9]+)(?:\.([0-9]+))?").unwrap());
+#[cfg(target_os = "linux")]
+static MIN_LDD_VERSION: LazyLock<SimpleSemver> = LazyLock::new(|| SimpleSemver::new(2, 28, 0));
 
+#[cfg(target_os = "linux")]
 #[cfg(target_arch = "arm")]
-lazy_static! {
-	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 26);
-	static ref MIN_LEGACY_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 22);
-}
+static MIN_CXX_VERSION: LazyLock<SimpleSemver> = LazyLock::new(|| SimpleSemver::new(3, 4, 26));
 
+#[cfg(target_os = "linux")]
 #[cfg(not(target_arch = "arm"))]
-lazy_static! {
-	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 25);
-	static ref MIN_LEGACY_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 19);
-}
+static MIN_CXX_VERSION: LazyLock<SimpleSemver> = LazyLock::new(|| SimpleSemver::new(3, 4, 25));
 
 const NIXOS_TEST_PATH: &str = "/etc/NIXOS";
 
@@ -74,27 +72,17 @@ impl PreReqChecker {
 		} else {
 			println!("!!! WARNING: Skipping server pre-requisite check !!!");
 			println!("!!! Server stability is not guaranteed. Proceed at your own risk. !!!");
-			// Use the legacy server for #210029
 			(Ok(true), Ok(true))
 		};
 
 		match (&gnu_a, &gnu_b, is_nixos) {
-			(Ok(false), Ok(false), _) | (_, _, true) => {
+			(Ok(true), Ok(true), _) | (_, _, true) => {
 				return Ok(if cfg!(target_arch = "x86_64") {
 					Platform::LinuxX64
 				} else if cfg!(target_arch = "arm") {
 					Platform::LinuxARM32
 				} else {
 					Platform::LinuxARM64
-				});
-			}
-			(Ok(_), Ok(_), _) => {
-				return Ok(if cfg!(target_arch = "x86_64") {
-					Platform::LinuxX64Legacy
-				} else if cfg!(target_arch = "arm") {
-					Platform::LinuxARM32Legacy
-				} else {
-					Platform::LinuxARM64Legacy
 				});
 			}
 			_ => {}
@@ -149,7 +137,7 @@ async fn check_musl_interpreter() -> Result<(), String> {
 	Ok(())
 }
 
-/// Checks the glibc version, returns "true" if the legacy server is required.
+/// Checks the glibc version, returns "true" if the default server is required.
 #[cfg(target_os = "linux")]
 async fn check_glibc_version() -> Result<bool, String> {
 	#[cfg(target_env = "gnu")]
@@ -169,8 +157,6 @@ async fn check_glibc_version() -> Result<bool, String> {
 
 	if let Some(v) = version {
 		return if v >= *MIN_LDD_VERSION {
-			Ok(false)
-		} else if v >= *MIN_LEGACY_LDD_VERSION {
 			Ok(true)
 		} else {
 			Err(format!(
@@ -192,13 +178,20 @@ async fn check_is_nixos() -> bool {
 
 /// Do not remove this check.
 /// Provides a way to skip the server glibc requirements check from
-/// outside the install flow. A system process can create this
-/// file before the server is downloaded and installed.
+/// outside the install flow.
+///
+/// 1) A system process can create this
+///    file before the server is downloaded and installed.
+///
+/// 2) An environment variable declared in host
+///    that contains path to a glibc sysroot satisfying the
+///    minimum requirements.
 #[cfg(not(windows))]
 pub async fn skip_requirements_check() -> bool {
-	fs::metadata("/tmp/vscode-skip-server-requirements-check")
-		.await
-		.is_ok()
+	std::env::var("VSCODE_SERVER_CUSTOM_GLIBC_LINKER").is_ok()
+		|| fs::metadata("/tmp/vscode-skip-server-requirements-check")
+			.await
+			.is_ok()
 }
 
 #[cfg(windows)]
@@ -206,7 +199,7 @@ pub async fn skip_requirements_check() -> bool {
 	false
 }
 
-/// Checks the glibc++ version, returns "true" if the legacy server is required.
+/// Checks the glibc++ version, returns "true" if the default server is required.
 #[cfg(target_os = "linux")]
 async fn check_glibcxx_version() -> Result<bool, String> {
 	let mut libstdc_path: Option<String> = None;
@@ -250,10 +243,6 @@ fn check_for_sufficient_glibcxx_versions(contents: Vec<u8>) -> Result<bool, Stri
 
 	if let Some(max_version) = &max_version {
 		if max_version >= &*MIN_CXX_VERSION {
-			return Ok(false);
-		}
-
-		if max_version >= &*MIN_LEGACY_CXX_VERSION {
 			return Ok(true);
 		}
 	}
@@ -414,5 +403,4 @@ mod tests {
 			Some(SimpleSemver::new(2, 40, 0)),
 		);
 	}
-
 }

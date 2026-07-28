@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { ICodeEditor, IPasteEvent } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorOpenContext, isTextEditorViewState } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -67,7 +67,7 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 		}
 
 		// Set Editor Model
-		const control = assertIsDefined(this.editorControl);
+		const control = assertReturnsDefined(this.editorControl);
 		const textEditorModel = resolvedModel.textEditorModel;
 		control.setModel(textEditorModel);
 

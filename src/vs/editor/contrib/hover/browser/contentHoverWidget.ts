@@ -41,6 +41,9 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	private readonly _onDidScroll = this._register(new Emitter<ScrollEvent>());
 	public readonly onDidScroll = this._onDidScroll.event;
 
+	private readonly _onContentsChanged = this._register(new Emitter<void>());
+	public readonly onContentsChanged = this._onContentsChanged.event;
+
 	public get isVisibleFromKeyboard(): boolean {
 		return (this._renderedHover?.source === HoverStartSource.Keyboard);
 	}
@@ -284,6 +287,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		const contentsDomNode = this._hover.contentsDomNode;
 		contentsDomNode.style.fontSize = `${fontSize}px`;
 		contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
+		// eslint-disable-next-line no-restricted-syntax
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}
@@ -311,7 +315,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._setRenderedHover(renderedHover);
 		this._updateFont();
 		this._updateContent(renderedHover.domNode);
-		this.onContentsChanged();
+		this.handleContentsChanged();
 		// Simply force a synchronous render on the editor
 		// such that the widget does not really render with left = '0px'
 		this._editor.render();
@@ -340,7 +344,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
-		this.onContentsChanged();
+		this.handleContentsChanged();
 		if (renderedHover.shouldFocus) {
 			this._hover.containerDomNode.focus();
 		}
@@ -399,7 +403,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._resizableNode.minSize = new dom.Dimension(width, this._minimumSize.height);
 	}
 
-	public onContentsChanged(): void {
+	public handleContentsChanged(): void {
 		this._removeConstraintsRenderNormally();
 		const contentsDomNode = this._hover.contentsDomNode;
 
@@ -420,6 +424,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			this._positionPreference = this._findPositionPreference(widgetHeight, this._renderedHover.showAtPosition);
 		}
 		this._layoutContentWidget();
+		this._onContentsChanged.fire();
 	}
 
 	public focus(): void {

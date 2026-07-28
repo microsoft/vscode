@@ -41,14 +41,14 @@ suite('Tests for completion in CSS embedded in HTML', () => {
 				{ label: 'widows: ;', documentation: `widows: |;` }
 			]);
 		} catch (e) {
-			assert.strictEqual(e.message, "Didn't find completion item with label widows: ;");
+			assert.strictEqual(e.message, `Didn't find completion item with label widows: ;`);
 		}
 		try {
 			await testCompletionProvider('css', `.foo { wid| }`, [
 				{ label: 'widows: ;', documentation: `widows: |;` }
 			]);
 		} catch (e) {
-			assert.strictEqual(e.message, "Didn't find completion item with label widows: ;");
+			assert.strictEqual(e.message, `Didn't find completion item with label widows: ;`);
 		}
 		await testCompletionProvider('css', `.foo { wido| }`, [
 			{ label: 'widows: ;', documentation: `widows: |;` }

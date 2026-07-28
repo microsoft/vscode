@@ -68,7 +68,7 @@ export class FindDecorations implements IDisposable {
 				this._editor.getModel().getDecorationRange(findScopeDecorationId)
 			).filter(element => !!element);
 			if (scopes.length) {
-				return scopes as Range[];
+				return scopes;
 			}
 		}
 		return null;
@@ -103,7 +103,7 @@ export class FindDecorations implements IDisposable {
 		const candidates = this._editor.getModel().getDecorationsInRange(desiredRange);
 		for (const candidate of candidates) {
 			const candidateOpts = candidate.options;
-			if (candidateOpts === FindDecorations._FIND_MATCH_DECORATION || candidateOpts === FindDecorations._CURRENT_FIND_MATCH_DECORATION) {
+			if (candidateOpts === FindDecorations._FIND_MATCH_DECORATION || candidateOpts === FindDecorations._FIND_MATCH_NO_OVERVIEW_DECORATION || candidateOpts === FindDecorations._CURRENT_FIND_MATCH_DECORATION) {
 				return this._getDecorationIndex(candidate.id);
 			}
 		}

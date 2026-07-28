@@ -5,6 +5,7 @@
 
 import 'mocha';
 import * as vscode from 'vscode';
+import type { ICompletionResource } from '../types';
 import type { Uri } from 'vscode';
 
 export interface ISuiteSpec {
@@ -20,9 +21,9 @@ export interface ITestSpec {
 	input: string;
 	expectedResourceRequests?: {
 		type: 'files' | 'folders' | 'both';
-		cwd: Uri;
+		cwd?: Uri;
 	};
-	expectedCompletions?: string[];
+	expectedCompletions?: (string | ICompletionResource)[];
 }
 
 const fixtureDir = vscode.Uri.joinPath(vscode.Uri.file(__dirname), '../../testWorkspace');

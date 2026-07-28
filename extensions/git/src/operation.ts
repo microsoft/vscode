@@ -22,6 +22,7 @@ export const enum OperationKind {
 	DeleteRef = 'DeleteRef',
 	DeleteRemoteRef = 'DeleteRemoteRef',
 	DeleteTag = 'DeleteTag',
+	DeleteWorktree = 'DeleteWorktree',
 	Diff = 'Diff',
 	Fetch = 'Fetch',
 	FindTrackingBranches = 'GetTracking',
@@ -39,7 +40,6 @@ export const enum OperationKind {
 	Merge = 'Merge',
 	MergeAbort = 'MergeAbort',
 	MergeBase = 'MergeBase',
-	MergeContinue = 'MergeContinue',
 	Move = 'Move',
 	PostCommitCommand = 'PostCommitCommand',
 	Pull = 'Pull',
@@ -52,6 +52,7 @@ export const enum OperationKind {
 	RebaseAbort = 'RebaseAbort',
 	RebaseContinue = 'RebaseContinue',
 	Refresh = 'Refresh',
+	Restore = 'Restore',
 	RevertFiles = 'RevertFiles',
 	RevList = 'RevList',
 	RevParse = 'RevParse',
@@ -63,6 +64,7 @@ export const enum OperationKind {
 	SubmoduleUpdate = 'SubmoduleUpdate',
 	Sync = 'Sync',
 	Tag = 'Tag',
+	Worktree = 'Worktree'
 }
 
 export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchOperation | CheckIgnoreOperation | CherryPickOperation |
@@ -70,10 +72,10 @@ export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchO
 	DeleteRefOperation | DeleteRemoteRefOperation | DeleteTagOperation | DiffOperation | FetchOperation | FindTrackingBranchesOperation |
 	GetBranchOperation | GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation | GetObjectFilesOperation | GetRefsOperation |
 	GetRemoteRefsOperation | HashObjectOperation | IgnoreOperation | LogOperation | LogFileOperation | MergeOperation | MergeAbortOperation |
-	MergeBaseOperation | MergeContinueOperation | MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation |
-	RenameBranchOperation | RemoveOperation | ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RefreshOperation |
-	RevertFilesOperation | RevListOperation | RevParseOperation | SetBranchUpstreamOperation | ShowOperation | StageOperation | StatusOperation |
-	StashOperation | SubmoduleUpdateOperation | SyncOperation | TagOperation;
+	MergeBaseOperation | MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation | RenameBranchOperation |
+	RemoveOperation | ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RefreshOperation | RestoreOperation | RevertFilesOperation |
+	RevListOperation | RevParseOperation | SetBranchUpstreamOperation | ShowOperation | StageOperation | StatusOperation | StashOperation |
+	SubmoduleUpdateOperation | SyncOperation | TagOperation | WorktreeOperation;
 
 type BaseOperation = { kind: OperationKind; blocking: boolean; readOnly: boolean; remote: boolean; retry: boolean; showProgress: boolean };
 export type AddOperation = BaseOperation & { kind: OperationKind.Add };
@@ -108,7 +110,6 @@ export type LogFileOperation = BaseOperation & { kind: OperationKind.LogFile };
 export type MergeOperation = BaseOperation & { kind: OperationKind.Merge };
 export type MergeAbortOperation = BaseOperation & { kind: OperationKind.MergeAbort };
 export type MergeBaseOperation = BaseOperation & { kind: OperationKind.MergeBase };
-export type MergeContinueOperation = BaseOperation & { kind: OperationKind.MergeContinue };
 export type MoveOperation = BaseOperation & { kind: OperationKind.Move };
 export type PostCommitCommandOperation = BaseOperation & { kind: OperationKind.PostCommitCommand };
 export type PullOperation = BaseOperation & { kind: OperationKind.Pull };
@@ -121,6 +122,7 @@ export type RebaseOperation = BaseOperation & { kind: OperationKind.Rebase };
 export type RebaseAbortOperation = BaseOperation & { kind: OperationKind.RebaseAbort };
 export type RebaseContinueOperation = BaseOperation & { kind: OperationKind.RebaseContinue };
 export type RefreshOperation = BaseOperation & { kind: OperationKind.Refresh };
+export type RestoreOperation = BaseOperation & { kind: OperationKind.Restore };
 export type RevertFilesOperation = BaseOperation & { kind: OperationKind.RevertFiles };
 export type RevListOperation = BaseOperation & { kind: OperationKind.RevList };
 export type RevParseOperation = BaseOperation & { kind: OperationKind.RevParse };
@@ -132,6 +134,7 @@ export type StashOperation = BaseOperation & { kind: OperationKind.Stash };
 export type SubmoduleUpdateOperation = BaseOperation & { kind: OperationKind.SubmoduleUpdate };
 export type SyncOperation = BaseOperation & { kind: OperationKind.Sync };
 export type TagOperation = BaseOperation & { kind: OperationKind.Tag };
+export type WorktreeOperation = BaseOperation & { kind: OperationKind.Worktree };
 
 export const Operation = {
 	Add: (showProgress: boolean): AddOperation => ({ kind: OperationKind.Add, blocking: false, readOnly: false, remote: false, retry: false, showProgress }),
@@ -166,7 +169,6 @@ export const Operation = {
 	Merge: { kind: OperationKind.Merge, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as MergeOperation,
 	MergeAbort: { kind: OperationKind.MergeAbort, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as MergeAbortOperation,
 	MergeBase: { kind: OperationKind.MergeBase, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as MergeBaseOperation,
-	MergeContinue: { kind: OperationKind.MergeContinue, blocking: true, readOnly: false, remote: false, retry: false, showProgress: true } as MergeAbortOperation,
 	Move: { kind: OperationKind.Move, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as MoveOperation,
 	PostCommitCommand: { kind: OperationKind.PostCommitCommand, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as PostCommitCommandOperation,
 	Pull: { kind: OperationKind.Pull, blocking: true, readOnly: false, remote: true, retry: true, showProgress: true } as PullOperation,
@@ -179,6 +181,7 @@ export const Operation = {
 	RebaseAbort: { kind: OperationKind.RebaseAbort, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseAbortOperation,
 	RebaseContinue: { kind: OperationKind.RebaseContinue, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseContinueOperation,
 	Refresh: { kind: OperationKind.Refresh, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RefreshOperation,
+	Restore: (showProgress: boolean) => ({ kind: OperationKind.Restore, blocking: false, readOnly: false, remote: false, retry: false, showProgress } as RestoreOperation),
 	RevertFiles: (showProgress: boolean) => ({ kind: OperationKind.RevertFiles, blocking: false, readOnly: false, remote: false, retry: false, showProgress } as RevertFilesOperation),
 	RevList: { kind: OperationKind.RevList, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as RevListOperation,
 	RevParse: { kind: OperationKind.RevParse, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as RevParseOperation,
@@ -186,15 +189,16 @@ export const Operation = {
 	Show: { kind: OperationKind.Show, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as ShowOperation,
 	Stage: { kind: OperationKind.Stage, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StageOperation,
 	Status: { kind: OperationKind.Status, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StatusOperation,
-	Stash: { kind: OperationKind.Stash, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StashOperation,
+	Stash: (readOnly: boolean) => ({ kind: OperationKind.Stash, blocking: false, readOnly, remote: false, retry: false, showProgress: true } as StashOperation),
 	SubmoduleUpdate: { kind: OperationKind.SubmoduleUpdate, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as SubmoduleUpdateOperation,
 	Sync: { kind: OperationKind.Sync, blocking: true, readOnly: false, remote: true, retry: true, showProgress: true } as SyncOperation,
-	Tag: { kind: OperationKind.Tag, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as TagOperation
+	Tag: { kind: OperationKind.Tag, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as TagOperation,
+	Worktree: (readOnly: boolean) => ({ kind: OperationKind.Worktree, blocking: false, readOnly, remote: false, retry: false, showProgress: true } as WorktreeOperation)
 };
 
 export interface OperationResult {
 	operation: Operation;
-	error: any;
+	error: unknown;
 }
 
 interface IOperationManager {

@@ -7,9 +7,9 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { findDiffEditorContainingCodeEditor } from '../../../../../editor/browser/widget/diffEditor/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IModifiedFileEntry } from '../../common/chatEditingService.js';
+import { IModifiedFileEntry } from '../../common/editing/chatEditingService.js';
 
-export function isDiffEditorForEntry(accessor: ServicesAccessor, entry: IModifiedFileEntry, editor: ICodeEditor) {
+export function isTextDiffEditorForEntry(accessor: ServicesAccessor, entry: IModifiedFileEntry, editor: ICodeEditor) {
 	const diffEditor = findDiffEditorContainingCodeEditor(accessor, editor);
 	if (!diffEditor) {
 		return false;

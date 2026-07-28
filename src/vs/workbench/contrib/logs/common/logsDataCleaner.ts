@@ -22,7 +22,7 @@ export class LogsDataCleaner extends Disposable {
 	}
 
 	private cleanUpOldLogsSoon(): void {
-		let handle: any = setTimeout(async () => {
+		let handle: Timeout | undefined = setTimeout(async () => {
 			handle = undefined;
 			const stat = await this.fileService.resolve(dirname(this.environmentService.logsHome));
 			if (stat.children) {
@@ -33,11 +33,11 @@ export class LogsDataCleaner extends Disposable {
 				Promises.settled(toDelete.map(stat => this.fileService.del(stat.resource, { recursive: true })));
 			}
 		}, 10 * 1000);
-		this.lifecycleService.onWillShutdown(() => {
+		this._register(this.lifecycleService.onWillShutdown(() => {
 			if (handle) {
 				clearTimeout(handle);
 				handle = undefined;
 			}
-		});
+		}));
 	}
 }

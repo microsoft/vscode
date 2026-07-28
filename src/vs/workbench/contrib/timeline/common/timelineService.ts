@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Event, Emitter } from '../../../../base/common/event.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider, TimelinePaneId } from './timeline.js';
@@ -15,20 +15,22 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 
 export const TimelineHasProviderContext = new RawContextKey<boolean>('timelineHasProvider', false);
 
-export class TimelineService implements ITimelineService {
+export class TimelineService extends Disposable implements ITimelineService {
+
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeProviders = new Emitter<TimelineProvidersChangeEvent>();
-	readonly onDidChangeProviders: Event<TimelineProvidersChangeEvent> = this._onDidChangeProviders.event;
+	private readonly _onDidChangeProviders = this._register(new Emitter<TimelineProvidersChangeEvent>());
+	readonly onDidChangeProviders = this._onDidChangeProviders.event;
 
-	private readonly _onDidChangeTimeline = new Emitter<TimelineChangeEvent>();
-	readonly onDidChangeTimeline: Event<TimelineChangeEvent> = this._onDidChangeTimeline.event;
-	private readonly _onDidChangeUri = new Emitter<URI>();
-	readonly onDidChangeUri: Event<URI> = this._onDidChangeUri.event;
+	private readonly _onDidChangeTimeline = this._register(new Emitter<TimelineChangeEvent>());
+	readonly onDidChangeTimeline = this._onDidChangeTimeline.event;
+
+	private readonly _onDidChangeUri = this._register(new Emitter<URI>());
+	readonly onDidChangeUri = this._onDidChangeUri.event;
 
 	private readonly hasProviderContext: IContextKey<boolean>;
 	private readonly providers = new Map<string, TimelineProvider>();
-	private readonly providerSubscriptions = new Map<string, IDisposable>();
+	private readonly providerSubscriptions = this._register(new DisposableMap<string>());
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -36,6 +38,8 @@ export class TimelineService implements ITimelineService {
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IContextKeyService protected contextKeyService: IContextKeyService,
 	) {
+		super();
+
 		this.hasProviderContext = TimelineHasProviderContext.bindTo(this.contextKeyService);
 		this.updateHasProviderContext();
 	}
@@ -72,10 +76,10 @@ export class TimelineService implements ITimelineService {
 
 					return result;
 				}),
-			options: options,
+			options,
 			source: provider.id,
-			tokenSource: tokenSource,
-			uri: uri
+			tokenSource,
+			uri
 		};
 	}
 
@@ -120,7 +124,7 @@ export class TimelineService implements ITimelineService {
 		}
 
 		this.providers.delete(id);
-		this.providerSubscriptions.delete(id);
+		this.providerSubscriptions.deleteAndDispose(id);
 
 		this.updateHasProviderContext();
 

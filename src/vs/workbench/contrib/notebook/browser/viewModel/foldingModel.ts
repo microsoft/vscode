@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdownAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
@@ -317,7 +317,7 @@ export function* getMarkdownHeadersInCell(cellContent: string): Iterable<{ reado
 		if (token.type === 'heading') {
 			yield {
 				depth: token.depth,
-				text: renderMarkdownAsPlaintext({ value: token.raw }).trim()
+				text: renderAsPlaintext({ value: token.raw }).trim()
 			};
 		}
 	}

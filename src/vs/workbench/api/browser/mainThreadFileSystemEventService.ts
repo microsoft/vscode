@@ -208,6 +208,11 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions, correlate: boolean): Promise<void> {
 		const uri = URI.revive(resource);
 
+		const canHandleWatcher = await this._fileService.canHandleResource(uri);
+		if (!canHandleWatcher) {
+			this._logService.warn(`MainThreadFileSystemEventService#$watch(): cannot watch resource as its scheme is not handled by the file service (extension: ${extensionId}, path: ${uri.toString(true)})`);
+		}
+
 		const opts: IWatchOptions = {
 			...unvalidatedOpts
 		};

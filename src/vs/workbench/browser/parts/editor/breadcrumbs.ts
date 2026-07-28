@@ -71,8 +71,11 @@ export abstract class BreadcrumbsConfig<T> {
 	static readonly FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
 	static readonly SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
 	static readonly SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
+	static readonly SymbolPathSeparator = BreadcrumbsConfig._stub<string>('breadcrumbs.symbolPathSeparator');
 	static readonly Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
+	static readonly ShowEditorType = BreadcrumbsConfig._stub<boolean>('breadcrumbs.showEditorType');
 	static readonly TitleScrollbarSizing = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarSizing']>('workbench.editor.titleScrollbarSizing');
+	static readonly TitleScrollbarVisibility = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarVisibility']>('workbench.editor.titleScrollbarVisibility');
 
 	static readonly FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
 
@@ -123,7 +126,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'breadcrumbs.enabled': {
 			description: localize('enabled', "Enable/disable navigation breadcrumbs."),
 			type: 'boolean',
-			default: true
+			default: true,
+			agentsWindow: { default: false },
 		},
 		'breadcrumbs.filePath': {
 			description: localize('filepath', "Controls whether and how file paths are shown in the breadcrumbs view."),
@@ -163,6 +167,18 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('icons', "Render breadcrumb items with icons."),
 			type: 'boolean',
 			default: true
+		},
+		'breadcrumbs.showEditorType': {
+			markdownDescription: localize('showEditorType', "Controls whether the breadcrumbs bar shows a dropdown to switch between the editors that can open the current file (for example the text editor and a custom editor). The dropdown only appears when a more specialized editor is available."),
+			type: 'boolean',
+			default: false,
+			tags: ['experimental']
+		},
+		'breadcrumbs.symbolPathSeparator': {
+			description: localize('symbolPathSeparator', "The separator used when copying the breadcrumb symbol path."),
+			type: 'string',
+			default: '.',
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'breadcrumbs.showFiles': {
 			type: 'boolean',

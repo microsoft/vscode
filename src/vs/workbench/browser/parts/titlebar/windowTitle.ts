@@ -6,7 +6,9 @@
 import { localize } from '../../../../nls.js';
 import { dirname, basename } from '../../../../base/common/resources.js';
 import { ITitleProperties, ITitleVariable } from './titlebarPart.js';
-import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationChangeEvent, isConfigured } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { EditorResourceAccessor, Verbosity, SideBySideEditor } from '../../../common/editor.js';
@@ -15,7 +17,6 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from '../.
 import { isWindows, isWeb, isMacintosh, isNative } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { trim } from '../../../../base/common/strings.js';
-import { IEditorGroupsContainer } from '../../../services/editor/common/editorGroupsService.js';
 import { template } from '../../../../base/common/labels.js';
 import { ILabelService, Verbosity as LabelVerbosity } from '../../../../platform/label/common/label.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -30,10 +31,11 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { getWindowById } from '../../../../base/browser/dom.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
-	title = 'window.title'
+	title = 'window.title',
 }
 
 export const defaultWindowTitle = (() => {
@@ -62,7 +64,7 @@ export class WindowTitle extends Disposable {
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private readonly titleUpdater = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
 
-	private readonly onDidChangeEmitter = new Emitter<void>();
+	private readonly onDidChangeEmitter = this._register(new Emitter<void>());
 	readonly onDidChange = this.onDidChangeEmitter.event;
 
 	get value() { return this.title ?? ''; }
@@ -82,27 +84,24 @@ export class WindowTitle extends Disposable {
 	private titleIncludesFocusedView: boolean = false;
 	private titleIncludesEditorState: boolean = false;
 
-	private readonly editorService: IEditorService;
-
 	private readonly windowId: number;
 
 	constructor(
 		targetWindow: CodeWindow,
-		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IEditorService editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService private readonly productService: IProductService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IDecorationsService private readonly decorationsService: IDecorationsService
+		@IDecorationsService private readonly decorationsService: IDecorationsService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 
-		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
 		this.windowId = targetWindow.vscodeWindowId;
 
 		this.checkTitleVariables();
@@ -128,6 +127,7 @@ export class WindowTitle extends Disposable {
 				this.titleUpdater.schedule();
 			}
 		}));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.titleUpdater.schedule()));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
@@ -288,6 +288,7 @@ export class WindowTitle extends Disposable {
 	 * {activeEditorLong}: e.g. /Users/Development/myFolder/myFileFolder/myFile.txt
 	 * {activeEditorMedium}: e.g. myFolder/myFileFolder/myFile.txt
 	 * {activeEditorShort}: e.g. myFile.txt
+	 * {activeEditorLanguageId}: e.g. typescript
 	 * {activeFolderLong}: e.g. /Users/Development/myFolder/myFileFolder
 	 * {activeFolderMedium}: e.g. myFolder/myFileFolder
 	 * {activeFolderShort}: e.g. myFileFolder
@@ -361,6 +362,7 @@ export class WindowTitle extends Disposable {
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const focusedView: string = this.viewsService.getFocusedViewName();
 		const activeEditorState = editorResource ? this.decorationsService.getDecoration(editorResource, false)?.tooltip : undefined;
+		const activeEditorLanguageId = this.editorService.activeTextEditorLanguageId;
 
 		const variables: Record<string, string> = {};
 		for (const [contextKey, name] of this.variables) {
@@ -370,6 +372,10 @@ export class WindowTitle extends Disposable {
 		let titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
 		if (typeof titleTemplate !== 'string') {
 			titleTemplate = defaultWindowTitle;
+		}
+
+		if (!this.titleIncludesEditorState && this.accessibilityService.isScreenReaderOptimized() && this.configurationService.getValue('accessibility.windowTitleOptimized')) {
+			titleTemplate += '${separator}${activeEditorState}';
 		}
 
 		let separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
@@ -382,6 +388,7 @@ export class WindowTitle extends Disposable {
 			activeEditorShort,
 			activeEditorLong,
 			activeEditorMedium,
+			activeEditorLanguageId,
 			activeFolderShort,
 			activeFolderMedium,
 			activeFolderLong,
@@ -401,9 +408,19 @@ export class WindowTitle extends Disposable {
 	}
 
 	isCustomTitleFormat(): boolean {
+		if (this.accessibilityService.isScreenReaderOptimized() || this.titleIncludesEditorState) {
+			return true;
+		}
 		const title = this.configurationService.inspect<string>(WindowSettingNames.title);
 		const titleSeparator = this.configurationService.inspect<string>(WindowSettingNames.titleSeparator);
 
-		return title.value !== title.defaultValue || titleSeparator.value !== titleSeparator.defaultValue;
+		if (isConfigured(title) || isConfigured(titleSeparator)) {
+			return true;
+		}
+
+		// Check if the default value is overridden from the configuration registry
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		const configurationProperties = configurationRegistry.getConfigurationProperties();
+		return title.defaultValue !== configurationProperties[WindowSettingNames.title]?.defaultDefaultValue;
 	}
 }

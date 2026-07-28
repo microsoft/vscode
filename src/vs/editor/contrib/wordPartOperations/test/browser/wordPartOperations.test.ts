@@ -228,7 +228,7 @@ suite('WordPartOperations', () => {
 			ed => cursorWordPartLeft(ed),
 			ed => ed.getPosition()!,
 			ed => ed.getPosition()!.equals(new Position(1, 1)),
-			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
+			{ wordSeparators: '!"#&\'()*+,./:;<=>?@[\\]^`{|}·' } // default characters sans '$-%~' plus '·'
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepStrictEqual(actual, EXPECTED);
@@ -245,7 +245,7 @@ suite('WordPartOperations', () => {
 			ed => cursorWordPartRight(ed),
 			ed => ed.getPosition()!,
 			ed => ed.getPosition()!.equals(new Position(1, 60)),
-			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
+			{ wordSeparators: '!"#&\'()*+,./:;<=>?@[\\]^`{|}·' } // default characters sans '$-%~' plus '·'
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepStrictEqual(actual, EXPECTED);
@@ -262,7 +262,7 @@ suite('WordPartOperations', () => {
 			ed => deleteWordPartLeft(ed),
 			ed => ed.getPosition()!,
 			ed => ed.getValue().length === 0,
-			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
+			{ wordSeparators: '!"#&\'()*+,./:;<=>?@[\\]^`{|}·' } // default characters sans '$-%~' plus '·'
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepStrictEqual(actual, EXPECTED);
@@ -279,7 +279,7 @@ suite('WordPartOperations', () => {
 			ed => deleteWordPartRight(ed),
 			ed => new Position(1, text.length - ed.getValue().length + 1),
 			ed => ed.getValue().length === 0,
-			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
+			{ wordSeparators: '!"#&\'()*+,./:;<=>?@[\\]^`{|}·' } // default characters sans '$-%~' plus '·'
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepStrictEqual(actual, EXPECTED);
