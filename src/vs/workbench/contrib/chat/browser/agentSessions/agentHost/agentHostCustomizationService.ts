@@ -393,8 +393,28 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 
 	/**
 	 * De-duplicates working-directory roots by canonical URI identity (so
-	 * `file:///a` and `file:///a/` or case variants collapse) and returns the
-	 * representative strings sorted for a stable, order-independent key.
+	 * `file:///a` and `file:///a/` or case variants collapse to one root) and
+	 * returns a stable, order-independent list of representative strings.
+	 *
+	 * Order-independence requires that (a) a trailing path separator does not
+	 * change identity — {@link IExtUri.getComparisonKey} preserves it, so it is
+	 * stripped first — and (b) among case-variant spellings that share a
+	 * comparison key, a deterministic representative is chosen (the
+	 * lexicographically smallest) rather than the first one encountered.
+	 *
+	 * @example
+	 * // Distinct roots (any order) → same sorted list:
+	 * _canonicalWorkspaceRoots(['file:///b', 'file:///a']) // ['file:///a', 'file:///b']
+	 * _canonicalWorkspaceRoots(['file:///a', 'file:///b']) // ['file:///a', 'file:///b']
+	 *
+	 * // Trailing separator collapses (`/a/` === `/a`):
+	 * _canonicalWorkspaceRoots(['file:///a/', 'file:///a']) // ['file:///a']
+	 *
+	 * // Case-variant spellings of one root collapse to the smallest spelling,
+	 * // regardless of order (for case-insensitive schemes):
+	 * _canonicalWorkspaceRoots(['vscode-remote://h/Repo', 'vscode-remote://h/repo'])
+	 * _canonicalWorkspaceRoots(['vscode-remote://h/repo', 'vscode-remote://h/Repo'])
+	 * // both → ['vscode-remote://h/Repo']  ('R' (0x52) sorts before 'r' (0x72))
 	 */
 	private _canonicalWorkspaceRoots(roots: readonly string[]): string[] {
 		const byComparisonKey = new Map<string, string>();
@@ -402,14 +422,15 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			let key: string;
 			let representative: string;
 			try {
-				const uri = URI.parse(root);
+				const uri = extUriBiasedIgnorePathCase.removeTrailingPathSeparator(URI.parse(root));
 				key = extUriBiasedIgnorePathCase.getComparisonKey(uri);
 				representative = uri.toString();
 			} catch {
 				key = root;
 				representative = root;
 			}
-			if (!byComparisonKey.has(key)) {
+			const existing = byComparisonKey.get(key);
+			if (existing === undefined || compare(representative, existing) < 0) {
 				byComparisonKey.set(key, representative);
 			}
 		}

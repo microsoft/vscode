@@ -197,6 +197,30 @@ suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
 		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledWorkspace);
 	});
 
+	test('canonicalizes case variants order-independently (case-insensitive scheme)', () => {
+		const sut = createSut();
+		// Non-`file` schemes are case-insensitive on every platform, so `Repo-A` and
+		// `repo-a` denote the same root. Paired with a stable second root, the workspace
+		// preference must be shared regardless of which spelling/order each session uses.
+		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'vscode-remote://host/repo-a', ['vscode-remote://host/Repo-A', 'vscode-remote://host/repo-b']));
+		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'vscode-remote://host/repo-b', ['vscode-remote://host/repo-b', 'vscode-remote://host/repo-a']));
+
+		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
+
+		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledWorkspace);
+	});
+
+	test('a trailing-separator-only variant of a single root shares the single-root key', () => {
+		const sut = createSut();
+		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a']));
+		// `/repo-a/` collapses to `/repo-a`, so the two-entry set is really one root.
+		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a', 'file:///repo-a/']));
+
+		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
+
+		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledWorkspace);
+	});
+
 	test('getMcpServers is pure and prepare applies an explicit durable policy', () => {
 		const sut = createSut();
 		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledProfile);
