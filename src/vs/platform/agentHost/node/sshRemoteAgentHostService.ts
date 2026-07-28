@@ -871,6 +871,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, agentSocket?: string): Promise<ISSHConnectResult> {
 		this._logService.info(`${LOG_PREFIX} Reconnecting via SSH config host: ${sshConfigHost}`);
 		const resolved = await this.resolveSSHConfig(sshConfigHost);
+		const enableAgentForwarding = agentForward && resolved.forwardAgent;
 
 		// Always use Agent auth — the auth handler will walk through the SSH
 		// agent and any default identities. If the user pinned a non-default
@@ -892,8 +893,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			name,
 			sshConfigHost,
 			remoteAgentHostCommand,
-			agentForward: agentForward && resolved.forwardAgent ? true : undefined,
-			agentSocket,
+			agentForward: enableAgentForwarding ? true : undefined,
+			agentSocket: enableAgentForwarding ? agentSocket : undefined,
 		}, /* replaceRelay */ true);
 	}
 
@@ -1267,7 +1268,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		if (!trimmed || trimmed.toLowerCase() === 'none') {
 			return undefined;
 		}
-		if (trimmed === 'SSH_AUTH_SOCK') {
+		if (trimmed === 'SSH_AUTH_SOCK' || trimmed === '$SSH_AUTH_SOCK' || trimmed === '${SSH_AUTH_SOCK}') {
 			return agentSocket ?? this._isAgentAvailable();
 		}
 		if (trimmed.startsWith('$')) {
