@@ -2151,7 +2151,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			let value = configuration[key];
 			if (schema.properties?.[key]?.secret && isString(value)) {
 				const secretKey = `${LanguageModelsService.SECRET_KEY_PREFIX}${hash(generateUuid()).toString(16)}`;
-				await this._secretStorageService.set(secretKey, value);
+				await this._secretStorageService.set(secretKey, key === 'apiKey' ? value.trim() : value);
 				value = this.encodeSecretKey(secretKey);
 			}
 			result[key] = value;
