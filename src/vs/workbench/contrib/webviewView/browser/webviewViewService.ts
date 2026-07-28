@@ -132,6 +132,13 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 				throw new Error('View already awaiting revival');
 			}
 
+			// Already cancelled: don't record a pending entry at all, otherwise it would
+			// never be cleaned up (the cancellation listener fires synchronously before
+			// the entry is registered).
+			if (cancellation.isCancellationRequested) {
+				return Promise.resolve();
+			}
+
 			const { promise, resolve } = promiseWithResolvers<void>();
 
 			// If the caller is cancelled (e.g. the view pane is torn down or re-activated)
