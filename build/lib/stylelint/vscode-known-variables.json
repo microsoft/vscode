@@ -1000,6 +1000,7 @@
 		"--chat-tab-active-foreground",
 		"--chat-tab-inactive-foreground",
 		"--chat-tab-max-width",
+		"--agent-sessions-editor-tab-padding",
 		"--status-border-top-color",
 		"--tab-border-bottom-color",
 		"--tab-border-top-color",
