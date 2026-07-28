@@ -25,6 +25,7 @@ import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionH
 import { SessionHasWorkspaceContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getSessionWorkspaceKind, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { SESSIONS_FILES_VIEW_ID } from './filesView.js';
 
@@ -75,6 +76,8 @@ interface IWorkspaceInfo {
 	readonly icon: ThemeIcon;
 	readonly workingDirectoryPath: string | undefined;
 	readonly branch: string | undefined;
+	/** The session's worktree does not exist yet, so path and branch are unknown. */
+	readonly worktreePending: boolean;
 }
 
 /**
@@ -102,12 +105,15 @@ export class OpenFilesViewActionViewItem extends SessionHeaderMetaActionViewItem
 			}
 			// Mirror the sessions list / hover icon logic: cloud for virtual
 			// workspaces, folder when the session runs in the repo checkout,
-			// worktree otherwise.
+			// worktree otherwise. Path and branch are withheld while the
+			// worktree is pending, as they still describe the checkout.
+			const worktreePending = session?.worktreePending?.read(reader) ?? false;
+			const kind = getSessionWorkspaceKind(workspace, worktreePending);
+			const icon = kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact;
 			const folder = workspace.folders[0];
-			const isWorkspaceFolder = workspace.folders.length > 0 && folder?.gitRepository?.workTreeUri === undefined;
-			const icon = workspace.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceFolder ? Codicon.folderCompact : Codicon.worktreeCompact;
-			const branch = folder?.gitRepository?.branchName?.trim() || undefined;
-			return { label: workspace.label, icon, workingDirectoryPath: folder?.workingDirectory.fsPath, branch };
+			const branch = worktreePending ? undefined : folder?.gitRepository?.branchName?.trim() || undefined;
+			const workingDirectoryPath = worktreePending ? undefined : folder?.workingDirectory.fsPath;
+			return { label: workspace.label, icon, workingDirectoryPath, branch, worktreePending };
 		});
 
 		this._register(autorun(reader => {
@@ -146,6 +152,14 @@ export class OpenFilesViewActionViewItem extends SessionHeaderMetaActionViewItem
 
 	protected override getHoverContents(): IManagedHoverContent {
 		const workspace = this._workspaceObs.get();
+		if (workspace?.worktreePending) {
+			const message = localize('agentSessions.openFilesView.worktreePending', "Creating worktree… Its folder and branch are shown once ready.");
+			const md = new MarkdownString('', { supportThemeIcons: true });
+			md.appendMarkdown(`$(${Codicon.worktree.id}) `);
+			md.appendText(message);
+			return { markdown: md, markdownNotSupportedFallback: message };
+		}
+
 		if (!workspace?.workingDirectoryPath) {
 			return this.getTooltip();
 		}
