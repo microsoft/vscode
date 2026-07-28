@@ -20,6 +20,7 @@ function renderVoiceModeOnboarding(width: string) {
 			colorTheme: theme,
 			additionalServices: services => services.definePartialInstance(IVoiceSessionController, {
 				voiceState: constObservable<VoiceState>('idle'),
+				setAutoListenHeld: () => undefined,
 				stopListening: () => undefined,
 				pttDown: () => undefined,
 				pttUp: () => undefined,

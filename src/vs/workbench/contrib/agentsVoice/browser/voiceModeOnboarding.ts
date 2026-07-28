@@ -19,8 +19,8 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
+import { ChatInputOnboarding, ChatInputOnboardingCard } from '../../chat/browser/widget/input/chatInputOnboarding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
 import './media/voiceModeOnboarding.css';
@@ -522,8 +522,9 @@ export interface IVoiceModeOnboardingBannerOptions {
  */
 export class VoiceModeOnboardingBanner extends Disposable {
 
-	readonly domNode = dom.$('.voice-mode-onboarding-banner');
+	readonly domNode: HTMLElement;
 
+	private readonly card: ChatInputOnboardingCard;
 	private readonly player: VoiceSamplePlayer;
 	private readonly options: IVoiceModeOnboardingBannerOptions;
 
@@ -544,16 +545,15 @@ export class VoiceModeOnboardingBanner extends Disposable {
 
 		this.options = options;
 
-		// Attach up front: the Agents window is an auxiliary window, so anything
-		// window-bound below (`ResizeObserver`, `Audio`) has to resolve against
-		// the document the banner actually lives in.
-		options.container.appendChild(this.domNode);
-		this._register(toDisposable(() => this.domNode.remove()));
+		this.card = this._register(new ChatInputOnboardingCard({
+			container: options.container,
+			className: 'voice-mode-onboarding-banner',
+			ariaLabel: localize('voiceMode.onboarding.region', "Voice Mode introduction"),
+			onEscape: () => this.options.onDismiss(),
+		}));
+		this.domNode = this.card.domNode;
 		this.player = this._register(instantiationService.createInstance(VoiceSamplePlayer, this.domNode));
 		this._register(this.player.onDidChangePlayingVoice(voiceId => this.updatePlaying(voiceId)));
-
-		this.domNode.setAttribute('role', 'region');
-		this.domNode.setAttribute('aria-label', localize('voiceMode.onboarding.region', "Voice Mode introduction"));
 
 		// Voice Mode is live, but it must not be listening while the user is still
 		// reading and picking a voice. A hold is used rather than `stopListening`
@@ -574,13 +574,6 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		const actions = dom.append(this.domNode, dom.$('.voice-mode-onboarding-actions'));
 		this.renderVoices(actions);
 		this.renderClose();
-
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => {
-			if (new StandardKeyboardEvent(event).equals(KeyCode.Escape)) {
-				dom.EventHelper.stop(event, true);
-				this.options.onDismiss();
-			}
-		}));
 	}
 
 	/**
@@ -721,19 +714,12 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	 * ever "I am done here" - and closing is what hands the session back.
 	 */
 	private renderClose(): void {
-		const close = dom.append(this.domNode, dom.$('.voice-mode-onboarding-close'));
-		close.tabIndex = 0;
-		close.setAttribute('role', 'button');
-		close.setAttribute('aria-label', localize('voiceMode.onboarding.close', "Close the Voice Mode introduction"));
-		dom.append(close, dom.$(`span.codicon.codicon-${Codicon.closeCompact.id}`)).setAttribute('aria-hidden', 'true');
-		this._register(dom.addDisposableListener(close, dom.EventType.CLICK, () => this.finish()));
-		this._register(dom.addDisposableListener(close, dom.EventType.KEY_DOWN, event => {
-			const keyboardEvent = new StandardKeyboardEvent(event);
-			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
-				keyboardEvent.preventDefault();
-				this.finish();
-			}
-		}));
+		this.card.addAction({
+			className: 'voice-mode-onboarding-close',
+			ariaLabel: localize('voiceMode.onboarding.close', "Close the Voice Mode introduction"),
+			icon: Codicon.closeCompact,
+			onActivate: () => this.finish(),
+		});
 	}
 
 	private selectVoice(voice: IVoiceModeVoice): void {
@@ -818,105 +804,32 @@ export interface IVoiceModeOnboardingService {
 	showIfNeeded(): void;
 }
 
-interface IHost {
-	readonly container: HTMLElement;
-	readonly focusRoot: HTMLElement;
-	readonly focus: () => void;
-	lastFocused: number;
-}
-
 export class VoiceModeOnboardingService extends Disposable implements IVoiceModeOnboardingService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly hosts = new Set<IHost>();
-	private readonly banner = this._register(new MutableDisposable<VoiceModeOnboardingBanner>());
+	private readonly onboarding: ChatInputOnboarding;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
+
+		this.onboarding = this._register(this.instantiationService.createInstance(ChatInputOnboarding, {
+			storageKey: AgentsVoiceStorageKeys.IntroBannerShown,
+			hostClass: 'has-voice-mode-onboarding',
+		}));
 	}
 
 	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void): IDisposable {
-		const host: IHost = { container, focusRoot, focus, lastFocused: 0 };
-		this.hosts.add(host);
-
-		const store = new DisposableStore();
-		const focusTracker = store.add(dom.trackFocus(focusRoot));
-		store.add(focusTracker.onDidFocus(() => host.lastFocused = Date.now()));
-		store.add(toDisposable(() => {
-			this.hosts.delete(host);
-			if (this.bannerHost === host) {
-				this.hide();
-			}
-		}));
-		return store;
+		return this.onboarding.registerHost(container, focusRoot, focus);
 	}
-
-	private bannerHost: IHost | undefined;
 
 	showIfNeeded(): void {
-		if (this.storageService.getBoolean(AgentsVoiceStorageKeys.IntroBannerShown, StorageScope.APPLICATION, false)) {
-			return;
-		}
-
-		const host = this.pickHost();
-		if (!host) {
-			// No visible chat input to dock to. Leave the gate open so the
-			// introduction still gets its one showing next time.
-			return;
-		}
-
-		// The host class is owned here and in `hide()` rather than by the card's
-		// own disposer: a disposer runs when the *next* card replaces this one,
-		// which would strip the class the new card had just added.
-		this.banner.value = this.instantiationService.createInstance(VoiceModeOnboardingBanner, {
-			container: host.container,
-			onDismiss: () => this.hide(),
-		});
-		host.container.classList.add('has-voice-mode-onboarding');
-		this.bannerHost = host;
-
-		// Only now is the one appearance actually spent. Storing any earlier
-		// would burn it on a card that threw on the way up and was never seen.
-		this.storageService.store(AgentsVoiceStorageKeys.IntroBannerShown, true, StorageScope.APPLICATION, StorageTarget.USER);
-	}
-
-	/**
-	 * The visible host that was focused most recently - i.e. the chat input the
-	 * user just started Voice Mode from. Falls back to any visible host so a
-	 * keyboard-only invocation still gets the introduction.
-	 */
-	private pickHost(): IHost | undefined {
-		let best: IHost | undefined;
-		for (const host of this.hosts) {
-			if (!host.container.isConnected || host.focusRoot.getClientRects().length === 0) {
-				continue;
-			}
-			if (!best || host.lastFocused > best.lastFocused) {
-				best = host;
-			}
-		}
-		return best;
-	}
-
-	private hide(): void {
-		const host = this.bannerHost;
-		// Whether focus comes back depends on where it is now: someone who
-		// dismissed from the keyboard is standing inside the card and would
-		// otherwise be dropped on the document body. Someone who clicked away
-		// first should not have the caret yanked back to the input.
-		const restoreFocus = !!host && dom.isAncestorOfActiveElement(host.container);
-
-		host?.container.classList.remove('has-voice-mode-onboarding');
-		this.bannerHost = undefined;
-		this.banner.clear();
-
-		if (restoreFocus) {
-			host.focus();
-		}
+		this.onboarding.showIfNeeded(context => this.instantiationService.createInstance(VoiceModeOnboardingBanner, {
+			container: context.container,
+			onDismiss: () => context.dismiss(dom.isAncestorOfActiveElement(context.container)),
+		}));
 	}
 }
 
