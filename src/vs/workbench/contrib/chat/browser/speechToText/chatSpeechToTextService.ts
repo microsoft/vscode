@@ -554,6 +554,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _sourceNode: MediaStreamAudioSourceNode | undefined;
 	private _analyserNode: AnalyserNode | undefined;
 	private _workletNode: AudioWorkletNode | undefined;
+	/** Drains the capture worklet's trailing buffer; see {@link IPcmCaptureNode.flush}. */
+	private _flushCapture: (() => Promise<void>) | undefined;
 
 	private readonly _localSessionDisposables = this._register(new DisposableStore());
 
@@ -1384,6 +1386,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 		this._setState(ChatSpeechToTextState.Transcribing);
 		this._resetIncrementalCleanup();
+		// Flush trailing audio before stopping the backend so transport ordering is preserved.
+		await this._flushCapture?.();
 		this._stopCapture();
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
 
@@ -1598,18 +1602,19 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 		// The session may have been torn down while the module was loading.
 		if (this._audioContext !== ctx) {
-			try { node.disconnect(); } catch { /* ignore */ }
+			try { node.node.disconnect(); } catch { /* ignore */ }
 			return;
 		}
 
-		this._workletNode = node;
+		this._workletNode = node.node;
+		this._flushCapture = node.flush;
 		const analyser = ctx.createAnalyser();
 		analyser.fftSize = 256;
 		analyser.smoothingTimeConstant = 0.75;
 		this._analyserNode = analyser;
 		source.connect(analyser);
-		analyser.connect(node);
-		node.connect(ctx.destination);
+		analyser.connect(node.node);
+		node.node.connect(ctx.destination);
 	}
 
 	/**
@@ -1629,6 +1634,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	private _stopCapture(): void {
+		this._flushCapture = undefined;
 		if (this._workletNode) {
 			this._workletNode.port.onmessage = null;
 			try { this._workletNode.disconnect(); } catch { /* ignore */ }

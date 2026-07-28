@@ -949,10 +949,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables };
 		this.templateDataByRow.set(rowContainer, template);
 
-		connectionObserver.onDidDisconnect = () => {
-			template.renderedPartsMounted = false;
-		};
-
 		templateDisposables.add(this._onDidUpdateViewModel.event(() => {
 			if (!template.currentElement || !this.viewModel?.sessionResource || !isEqual(template.currentElement.sessionResource, this.viewModel.sessionResource)) {
 				this.clearRenderedParts(template);
@@ -981,7 +977,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.fireItemHeightChange(template, entry.borderBoxSize.at(0)?.blockSize);
 			}
 		}));
-		templateDisposables.add(resizeObserver.observe(rowContainer));
+		const resizeObservation = templateDisposables.add(new MutableDisposable<IDisposable>());
+		connectionObserver.onDidConnect = () => {
+			resizeObservation.value = resizeObserver.observe(rowContainer);
+		};
+		connectionObserver.onDidDisconnect = () => {
+			template.renderedPartsMounted = false;
+			resizeObservation.clear();
+		};
+		if (rowContainer.isConnected) {
+			connectionObserver.onDidConnect();
+		}
 
 		return template;
 	}

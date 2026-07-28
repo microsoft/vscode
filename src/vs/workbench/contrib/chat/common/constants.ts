@@ -369,6 +369,10 @@ export function getDefaultNewChatSessionType(
 		return options.explicitOverride;
 	}
 
+	if (isVirtualWorkspace(workspace)) {
+		return localChatSessionType;
+	}
+
 	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace);
 	if (remembered) {
 		return remembered;
@@ -393,6 +397,10 @@ export function resolveDefaultNewChatSessionType(
 
 	if (options?.explicitOverride) {
 		return { sessionType: options.explicitOverride, isPreferCopilotHarnessSwap: false };
+	}
+
+	if (isVirtualWorkspace(workspace)) {
+		return { sessionType: localChatSessionType, isPreferCopilotHarnessSwap: false };
 	}
 
 	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace);
