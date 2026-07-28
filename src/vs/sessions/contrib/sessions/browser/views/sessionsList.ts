@@ -17,7 +17,7 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IObservable, IReader, autorun, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
@@ -1228,7 +1228,7 @@ class SessionsAccessibilityProvider {
 		return localize('sessionsList', "Sessions");
 	}
 
-	getAriaLabel(element: SessionListItem): string | null {
+	getAriaLabel(element: SessionListItem): string | IObservable<string> | null {
 		if (isSessionGroupItem(element)) {
 			return `${element.group.name}, ${element.sessions.length}`;
 		}
@@ -1252,12 +1252,13 @@ class SessionsAccessibilityProvider {
 				? localize('sessionPlaceholderAria', "{0}. {1}", element.label, element.hover)
 				: element.label;
 		}
-		const title = element.title.get();
-		const updated = fromNow(element.updatedAt.get(), true);
-		if (element.worktreePending?.get()) {
-			return localize('sessionItemWorktreePendingAria', "{0}, creating worktree, updated {1}", title, updated);
-		}
-		return localize('sessionItemAria', "{0}, updated {1}", title, updated);
+		return derived(this, reader => {
+			const title = element.title.read(reader);
+			const updated = fromNow(element.updatedAt.read(reader), true);
+			return element.worktreePending?.read(reader)
+				? localize('sessionItemWorktreePendingAria', "{0}, creating worktree, updated {1}", title, updated)
+				: localize('sessionItemAria', "{0}, updated {1}", title, updated);
+		});
 	}
 }
 
