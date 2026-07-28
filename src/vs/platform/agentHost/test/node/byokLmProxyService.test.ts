@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IByokLmChatRequest, IByokLmChatResult } from '../../common/agentHostByokLm.js';
+import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { ByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
 
@@ -20,16 +21,27 @@ import { ByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/
  */
 suite('ByokLmProxyService', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sessionId = 'sess-1';
+
+	/**
+	 * A serving bridge connection: it pushes its model snapshot (default empty)
+	 * synchronously when the registry subscribes, so it is a valid routing target.
+	 */
+	function servingConnection(chat: IByokLmBridgeConnection['chat'], models: IByokLmModelInfo[] = []): IByokLmBridgeConnection {
+		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
+			onDidAddFirstListener: () => emitter.fire(models),
+		}));
+		return { chat, onDidChangeModels: emitter.event };
+	}
 
 	async function withProxy(
 		chat: (request: IByokLmChatRequest) => Promise<IByokLmChatResult>,
 		run: (handle: IByokLmProxyHandle) => Promise<void>,
 	): Promise<void> {
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client-1', { chat, listModels: async () => [] });
+		const registration = registry.register('client-1', servingConnection(chat));
 		const service = new ByokLmProxyService(new NullLogService(), registry);
 		const handle = await service.start();
 		try {
@@ -125,6 +137,44 @@ suite('ByokLmProxyService', () => {
 		assert.strictEqual(captured?.vendor, 'acme');
 		assert.strictEqual(captured?.modelId, 'claude');
 		assert.deepStrictEqual(captured?.messages, [{ role: 'user', content: 'hi', toolCalls: undefined, toolCallId: undefined }]);
+	});
+
+	test('forwards custom tool call history with freeform input', async () => {
+		let captured: IByokLmChatRequest | undefined;
+		await withProxy(
+			async (request) => {
+				captured = request;
+				return { content: 'done' };
+			},
+			async (handle) => {
+				const response = await fetch(chatUrl(handle, 'acme'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({
+						model: 'm',
+						messages: [
+							{
+								role: 'assistant',
+								content: '',
+								tool_calls: [{ id: 'call_1', type: 'custom', custom: { name: 'apply_patch', input: '*** Begin Patch\n*** End Patch' } }],
+							},
+							{ role: 'tool', tool_call_id: 'call_1', content: 'Done!' },
+						],
+					}),
+				});
+				assert.strictEqual(response.status, 200);
+				await response.text();
+			},
+		);
+		assert.deepStrictEqual(captured?.messages, [
+			{
+				role: 'assistant',
+				content: '',
+				toolCalls: [{ id: 'call_1', name: 'apply_patch', argumentsJson: '{"input":"*** Begin Patch\\n*** End Patch"}' }],
+				toolCallId: undefined,
+			},
+			{ role: 'tool', content: 'Done!', toolCalls: undefined, toolCallId: 'call_1' },
+		]);
 	});
 
 	test('decodes a url-encoded vendor path segment', async () => {
@@ -243,20 +293,18 @@ suite('ByokLmProxyService', () => {
 	test('routes requests to a serving window and excludes a non-serving one', async () => {
 		const registry = new ByokLmBridgeRegistry();
 		const calls: string[] = [];
-		// The serving window (editor): enumerates models and answers chat.
-		const regServing = registry.register('editor', {
-			chat: async () => { calls.push('serving'); return { content: 'from serving' }; },
-			listModels: async () => [{ vendor: 'acme', id: 'claude' }],
-		});
-		// A non-serving window (connected without a BYOK handler): its bridge
-		// rejects, so it must never be picked for routing even though it is connected.
+		// The serving window (editor): pushes models and answers chat.
+		const regServing = registry.register('editor', servingConnection(
+			async () => { calls.push('serving'); return { content: 'from serving' }; },
+			[{ vendor: 'acme', id: 'claude' }],
+		));
+		// A non-serving window (connected without a BYOK handler): it never pushes
+		// a snapshot, so it must never be picked for routing even though connected.
 		const regNonServing = registry.register('no-handler', {
 			chat: async () => { calls.push('no-handler'); return { content: 'from non-serving' }; },
-			listModels: async () => { throw new Error('no BYOK handler'); },
+			onDidChangeModels: Event.None,
 		});
 		const service = new ByokLmProxyService(new NullLogService(), registry);
-		// Warm the cache so the serving window is known before routing.
-		await registry.listModels();
 		const handle = await service.start();
 		try {
 			const res = await fetch(chatUrl(handle, 'acme'), {
@@ -277,7 +325,7 @@ suite('ByokLmProxyService', () => {
 
 	test('rebinds with a fresh nonce after every handle is disposed', async () => {
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client-1', { chat: async () => ({ content: 'ok' }), listModels: async () => [] });
+		const registration = registry.register('client-1', servingConnection(async () => ({ content: 'ok' })));
 		const service = new ByokLmProxyService(new NullLogService(), registry);
 		const first = await service.start();
 		const firstNonce = first.nonce;

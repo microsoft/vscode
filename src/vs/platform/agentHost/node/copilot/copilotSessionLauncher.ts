@@ -10,6 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME } from './toolSearchDeferral.js';
 import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -48,6 +49,7 @@ type ReasoningEffort = NonNullable<SessionConfig['reasoningEffort']>;
 
 const ContextTiers = ['default', 'long_context'] as const;
 type ContextTier = NonNullable<SessionConfig['contextTier']>;
+const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
@@ -122,6 +124,16 @@ interface ICopilotSessionLaunchBase {
 	readonly client: CopilotSessionClient;
 	readonly sessionId: string;
 	readonly workingDirectory: URI | undefined;
+	/**
+	 * The additional working directories beyond the primary process root
+	 * ({@link workingDirectory} = index 0). These are the peer roots of a
+	 * multi-root session's ordered set — the directories the agent should be
+	 * granted tool access to in addition to its process cwd. Empty (or absent)
+	 * for a single-root session. Passed through so the SDK can register them as
+	 * extra accessible roots once that surface is available; the process still
+	 * launches in {@link workingDirectory}.
+	 */
+	readonly additionalDirectories?: readonly URI[];
 	readonly resolvedAgentName: string | undefined;
 	readonly snapshot: IActiveClientSnapshot;
 	/**
@@ -300,15 +312,12 @@ export async function resolveByokSessionConfig(
 	startProxy: () => Promise<IByokLmProxyHandle>,
 	logService: ILogService,
 ): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
-	// Surface the serving window's BYOK models. The registry tracks every
-	// connected renderer but does not union their model sets — a window's BYOK
-	// models come from its installed extensions, so all serving windows expose
-	// the same set and the registry picks one serving window (see
-	// `IByokLmBridgeRegistry`). Inbound inference is routed to that same serving
-	// connection by the proxy (`getServingConnection`).
+	// Surface the serving window's BYOK models. The registry does not union
+	// windows' model sets — all serving windows expose the same set, so it picks
+	// one (see `IByokLmBridgeRegistry`) and the proxy routes inference there.
 	let byokModels: IByokLmModelInfo[];
 	try {
-		byokModels = await bridgeRegistry.listModels();
+		byokModels = [...bridgeRegistry.getModels()];
 	} catch (err) {
 		logService.warn(`[Copilot:${sessionId}] Failed to enumerate BYOK models from renderer bridges`, err);
 		return {};
@@ -530,7 +539,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionLaunchConfig> {
 		const plugins = plan.snapshot.plugins;
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
-		// renderer reports no BYOK models). Merged into the returned config so both
+		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
 		const byok = await this._resolveByokSessionConfig(plan.sessionId);
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
@@ -550,20 +559,23 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
-		// Client tools (browser tools, tasks, etc.) are addressed by the name the
-		// agent sees them under; used to gate tool-specific prompt sections.
 		const clientToolNames = clientToolNamesFromSnapshot(plan.snapshot);
-		const promptContext: IAgentHostPromptContext = {
-			getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
-			hasClientTool: name => clientToolNames.has(name),
-			workspaceless: plan.workspaceless === true,
-		};
-		// Prompt routing uses the family-aliased selection; the wire model id in
-		// _createSession comes from plan.model and is unaffected.
+		// Prompt routing and capability decisions use the family-aliased
+		// selection; the wire model id in _createSession comes from plan.model
+		// and is unaffected.
 		const effectiveModel = applyModelFamilyAlias(model, this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides));
 		if (model && effectiveModel !== model) {
 			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: routing prompt for '${model.id}' as family '${effectiveModel?.id}'`);
 		}
+		const toolSearchActive = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
+			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
+			&& clientToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
+		const promptContext: IAgentHostPromptContext = {
+			getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
+			hasClientTool: name => clientToolNames.has(name),
+			workspaceless: plan.workspaceless === true,
+			toolSearchActive,
+		};
 		// Resolved once per (re)launch — the SDK has no mid-session system-message
 		// update, so this reflects the model/tools/settings at launch time. Log a
 		// summary at info for prompt observability; the full config at trace.
@@ -576,10 +588,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		return {
 			...byok,
-			clientName: 'vscode',
+			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			enableMcpApps: true,
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
+			requestExtensions: false, // force-disable copilot extension management tools (otherwise enabled in experimental mode)
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
@@ -596,6 +609,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			skillDirectories,
 			instructionDirectories,
 			systemMessage,
+			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: 1 } : { enabled: false },
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 			tools: [...shellTools, ...runtime.createClientSdkTools(), ...runtime.createServerSdkTools()],
@@ -618,6 +632,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// session must opt in via `remoteSession` to actually export
 			// events. Without this, sessions default to "off".
 			remoteSession: this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true ? 'export' : undefined,
+			enableManagedSettings: true,
 		};
 	}
 }

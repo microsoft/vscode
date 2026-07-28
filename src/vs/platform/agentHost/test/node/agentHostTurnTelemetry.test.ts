@@ -12,6 +12,8 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
+import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
@@ -69,7 +71,9 @@ class CapturingTelemetryService implements ITelemetryService {
 		this.events.push({ eventName, data });
 	}
 	publicLogError(): void { }
-	publicLogError2(): void { }
+	publicLogError2(eventName: string, data?: unknown): void {
+		this.events.push({ eventName, data });
+	}
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
 }
@@ -93,7 +97,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	const sessionKey = sessionUri.toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
 
-	function setupSession(): void {
+	function setupSession(ready = true): void {
 		stateManager.createSession({
 			resource: sessionKey,
 			provider: 'mock',
@@ -102,7 +106,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 		});
-		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
+		if (ready) {
+			stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
+		}
 	}
 
 	function setAutoApprove(level: string): void {
@@ -126,6 +132,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const action: ChatAction = {
 			type: ActionType.ChatTurnStarted,
 			turnId,
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text, origin: { kind: MessageKind.User }, model: modelId ? { id: modelId } : undefined },
 		};
 		// Dispatch into the state manager so `getActiveTurnId` returns the
@@ -142,6 +149,15 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	function completedEvents(): { eventName: string; data: unknown }[] {
 		return telemetry.events.filter(e => e.eventName === 'agentHost.turnCompleted');
+	}
+
+	function capturedModel(data: Record<string, unknown>): { trusted: boolean; value: unknown } {
+		const model = data.model;
+		return model instanceof TelemetryTrustedValue ? { trusted: true, value: model.value } : { trusted: false, value: model };
+	}
+
+	function failedEvents(): { eventName: string; data: unknown }[] {
+		return telemetry.events.filter(e => e.eventName === 'agentHost.turnFailed');
 	}
 
 	setup(() => {
@@ -183,22 +199,49 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	test('emits turnCompleted with timing, model and permissionLevel on success', () => {
 		setupSession();
+		agent.setModels([{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false }]);
 		setAutoApprove('autopilot');
 		startTurn('turn-1', 'hello', 'gpt-5.5');
 
 		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'p1', content: 'hi' } });
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
 		const data = events[0].data as Record<string, unknown>;
 		assert.strictEqual(data.provider, 'mock');
 		assert.strictEqual(data.agentSessionId, 'session-1');
+		assert.strictEqual(data.turnId, 'turn-1');
 		assert.strictEqual(data.result, 'success');
-		assert.strictEqual(data.model, 'gpt-5.5');
+		assert.deepStrictEqual(capturedModel(data), { trusted: true, value: 'gpt-5.5' });
+		assert.strictEqual(data.modelSelectionKind, 'explicit');
 		assert.strictEqual(data.permissionLevel, 'autopilot');
 		assert.strictEqual(typeof data.totalTime, 'number');
 		assert.strictEqual(typeof data.timeToFirstProgress, 'number');
+	});
+
+	test('uses generic model values for BYOK and unknown selections', () => {
+		setupSession();
+		agent.setModels([{
+			provider: 'mock',
+			id: 'openrouter/private-model',
+			name: 'Private Model',
+			supportsVision: false,
+			_meta: createAgentModelByokMeta('openrouter/private-model'),
+		}]);
+
+		startTurn('turn-byok', 'hello', 'openrouter/private-model');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-byok', duration: 1000 });
+		startTurn('turn-unknown', 'hello', 'unadvertised/private-model');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-unknown', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { model: data.model, modelSelectionKind: data.modelSelectionKind };
+		}), [
+			{ model: 'byokModel', modelSelectionKind: 'explicit' },
+			{ model: 'unknown', modelSelectionKind: 'explicit' },
+		]);
 	});
 
 	test('timeToFirstProgress is undefined when no visible progress arrives before completion', () => {
@@ -207,7 +250,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		// Usage is not a "visible progress" action — it should not mark first progress.
 		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { inputTokens: 1, outputTokens: 1 } });
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.timeToFirstProgress, undefined);
@@ -215,31 +258,35 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	test('emits result=cancelled on ChatTurnCancelled', () => {
 		setupSession();
-		startTurn('turn-1');
-		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1' });
+		startTurn('turn-1', 'hello', 'auto');
+		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1000 });
 
-		const events = completedEvents();
-		assert.strictEqual(events.length, 1);
-		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'cancelled');
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			model: capturedModel(data),
+			result: data.result,
+			modelSelectionKind: data.modelSelectionKind,
+		}, { model: { trusted: true, value: 'auto' }, result: 'cancelled', modelSelectionKind: 'auto' });
 	});
 
 	test('emits result=error on ChatError', () => {
 		setupSession();
 		startTurn('turn-1');
-		fire({ type: ActionType.ChatError, turnId: 'turn-1', error: { errorType: 'oops', message: 'fail' } });
+		fire({ type: ActionType.ChatError, turnId: 'turn-1', duration: 1000, error: { errorType: 'oops', message: 'fail' } });
 
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
 		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'error');
+		assert.strictEqual((events[0].data as Record<string, unknown>).errorType, 'oops');
 	});
 
 	test('emits a single turnCompleted per turn even when followed by duplicate completions', () => {
 		setupSession();
 		startTurn('turn-1');
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 		// A duplicate turn-complete should not produce a second telemetry event because the tracker
 		// drops its per-turn state on the first completion.
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 
 		assert.strictEqual(completedEvents().length, 1);
 	});
@@ -252,7 +299,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		// Change config mid-turn — should not affect the recorded event.
 		setAutoApprove('autopilot');
 
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.permissionLevel, 'default');
@@ -261,10 +308,11 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('model and permissionLevel are undefined when never set', () => {
 		setupSession();
 		startTurn('turn-1');
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.model, undefined);
+		assert.strictEqual(data.modelSelectionKind, 'default');
 		assert.strictEqual(data.permissionLevel, undefined);
 	});
 
@@ -280,6 +328,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		sideEffects.handleAction(defaultChatUri, {
 			type: ActionType.ChatTurnCancelled,
 			turnId: 'turn-1',
+			duration: 1000,
 		});
 
 		await new Promise(r => setTimeout(r, 10));
@@ -300,6 +349,45 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
 		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'error');
+		assert.strictEqual((events[0].data as Record<string, unknown>).errorType, 'sendFailed');
+		assert.deepStrictEqual(failedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return {
+				failureStage: data.failureStage,
+				errorType: data.errorType,
+				errorName: data.errorName,
+				msg: data.msg,
+				hasStack: typeof data.callstack === 'string',
+			};
+		}), [{
+			failureStage: 'sendMessage',
+			errorType: 'sendFailed',
+			errorName: 'Error',
+			msg: 'Error: boom',
+			hasStack: true,
+		}]);
+	});
+
+	test('fails the turn when model selection rejects instead of sending with a stale model', async () => {
+		setupSession(false);
+		agent.changeModel = async () => { throw new Error('unknown model'); };
+
+		startTurn('turn-1', 'hello', 'missing-model');
+		await new Promise(r => setTimeout(r, 10));
+
+		const completed = completedEvents()[0].data as Record<string, unknown>;
+		const failed = failedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			completed: { result: completed.result, errorType: completed.errorType, failureStage: completed.failureStage },
+			failed: { errorType: failed.errorType, failureStage: failed.failureStage, msg: failed.msg },
+			creationErrorType: stateManager.getSessionState(sessionKey)?.creationError?.errorType,
+			sendMessageCalls: agent.sendMessageCalls.length,
+		}, {
+			completed: { result: 'error', errorType: 'modelSelectionFailed', failureStage: 'modelSelection' },
+			failed: { errorType: 'modelSelectionFailed', failureStage: 'modelSelection', msg: 'Error: unknown model' },
+			creationErrorType: 'modelSelectionFailed',
+			sendMessageCalls: 0,
+		});
 	});
 
 	test('emits result=error when a queued sendMessage rejects', async () => {
@@ -332,8 +420,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		sideEffects.handleAction(defaultChatUri, {
 			type: ActionType.ChatTurnCancelled,
 			turnId: 'turn-1',
+			duration: 1000,
 		});
-		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1000 });
 
 		assert.strictEqual(completedEvents().length, 1);
 	});

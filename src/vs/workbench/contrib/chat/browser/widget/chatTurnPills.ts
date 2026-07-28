@@ -116,17 +116,24 @@ export interface IChatTurnPillsModel {
 	openPreviewFile(file: IPreviewFile): void;
 }
 
-/** Per-pill visibility for the agent turn status pills ({@link ChatConfiguration.TurnStatusPills}). */
-export interface IChatTurnStatusPillsConfig {
-	readonly changes: boolean;
-	readonly preview: boolean;
+/** The former per-pill setting shape, retained for existing user settings. */
+export interface IChatTurnStatusPillsLegacyConfig {
+	readonly changes?: boolean;
+	readonly preview?: boolean;
+	readonly browser?: boolean;
 }
 
-const TURN_STATUS_PILLS_DEFAULT: IChatTurnStatusPillsConfig = { changes: false, preview: false };
+export type ChatTurnStatusPillsSetting = boolean | IChatTurnStatusPillsLegacyConfig;
 
-/** Observe the per-pill turn status pills visibility setting. */
-export function observeTurnStatusPillsConfig(configurationService: IConfigurationService): IObservable<IChatTurnStatusPillsConfig> {
-	return observableConfigValue(ChatConfiguration.TurnStatusPills, TURN_STATUS_PILLS_DEFAULT, configurationService);
+/** Normalize the boolean setting and its legacy per-pill object form. */
+export function isChatTurnStatusPillsEnabled(value: ChatTurnStatusPillsSetting | undefined): boolean {
+	return typeof value === 'boolean' ? value : !!(value?.changes || value?.preview || value?.browser);
+}
+
+/** Observe whether agent turn status pills are enabled. */
+export function observeTurnStatusPillsEnabled(configurationService: IConfigurationService): IObservable<boolean> {
+	const value = observableConfigValue<ChatTurnStatusPillsSetting>(ChatConfiguration.TurnStatusPills, true, configurationService);
+	return derived(reader => isChatTurnStatusPillsEnabled(value.read(reader)));
 }
 
 /**
@@ -196,8 +203,8 @@ class ChangesPillActionViewItem extends BaseActionViewItem {
 			? localize('chatTurnPills.changes.file', "{0} File", files)
 			: localize('chatTurnPills.changes.files', "{0} Files", files);
 		this._filesLabel.textContent = filesLabel;
-		this._button.setTitle(localize('chatTurnPills.changes.tooltip', "View Changes"));
-		this._button.element.setAttribute('aria-label', localize('chatTurnPills.changes.ariaLabel', "View Changes: {0}, +{1}, -{2}", filesLabel, insertions, deletions));
+		this._button.setTitle(localize('chatTurnPills.changes.tooltip', "View Current Turn Changes"));
+		this._button.element.setAttribute('aria-label', localize('chatTurnPills.changes.ariaLabel', "View Current Turn Changes: {0}, +{1}, -{2}", filesLabel, insertions, deletions));
 	}
 
 	override focus(): void {
@@ -286,7 +293,6 @@ class PreviewPillActionViewItem extends BaseActionViewItem {
  * - **Preview** — shown when the turn created or edited a markdown file.
  *   Rendered as a resource label for the primary file. Activating it opens that
  *   file as a markdown preview; when several exist, a dropdown lists them all.
- *
  * The data and the open actions are supplied by the {@link IChatTurnPillsModel}
  * so the same widget serves surfaces with different data sources.
  */
@@ -318,7 +324,7 @@ export class ChatTurnPillsWidget extends Disposable {
 		this.element = $('.chat-turn-pills.show-file-icons.hidden');
 		this._resourceLabels = this._register(this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 
-		this._changesAction = this._register(new Action(CHANGES_PILL_ACTION_ID, localize('chatTurnPills.changes.tooltip', "View Changes"), undefined, true, async () => this._model.openChanges()));
+		this._changesAction = this._register(new Action(CHANGES_PILL_ACTION_ID, localize('chatTurnPills.changes.tooltip', "View Current Turn Changes"), undefined, true, async () => this._model.openChanges()));
 		this._previewAction = this._register(new Action(PREVIEW_PILL_ACTION_ID, localize('chatTurnPills.preview.label', "Open Preview"), undefined, true, async () => this._openPrimaryPreview()));
 
 		this._toolbar = this._register(new ToolBar(this.element, this._contextMenuService, {
@@ -358,7 +364,6 @@ export class ChatTurnPillsWidget extends Disposable {
 		if (showPreview) {
 			actions.push(this._previewAction);
 		}
-
 		const signature = actions.map(a => a.id).join(',');
 		if (signature !== this._visibleSignature) {
 			this._visibleSignature = signature;

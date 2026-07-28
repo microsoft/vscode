@@ -4,11 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import type { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { NullLoggerService, NullLogService } from '../../../log/common/log.js';
+import type { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
-import { IAgentHostRestrictedTelemetry, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
-import { AgentHostTelemetryService, updateAgentHostTelemetryLevelFromConfig } from '../../node/agentHostTelemetryService.js';
+import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
+import { AgentHostTelemetryService, createAgentHostTelemetryService, updateAgentHostTelemetryLevelFromConfig } from '../../node/agentHostTelemetryService.js';
+import { AgentHostInternalTelemetrySender } from '../../node/agentHostMicrosoftTelemetry.js';
 
 class TestTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -49,6 +59,8 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 	readonly trackingIds: (string | undefined)[] = [];
 	readonly endpoints: (string | undefined)[] = [];
 	readonly enabledFlags: boolean[] = [];
+	readonly internal: string[] = [];
+	readonly internalContexts: (IAgentHostInternalTelemetryContext | undefined)[] = [];
 
 	sendGHTelemetryEvent(eventName: string, _properties?: TelemetryProps): void {
 		this.standard.push(eventName);
@@ -56,7 +68,15 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 	sendEnhancedGHTelemetryEvent(eventName: string, _properties?: TelemetryProps): void {
 		this.enhanced.push(eventName);
 	}
-	sendInternalMSFTTelemetryEvent(): void { }
+	sendEnhancedGHTelemetryEventForContext(_context: IAgentHostRestrictedTelemetryContext, eventName: string): void {
+		this.enhanced.push(eventName);
+	}
+	sendInternalMSFTTelemetryEvent(eventName: string): void {
+		this.internal.push(eventName);
+	}
+	sendInternalMSFTTelemetryEventForContext(_context: IAgentHostInternalTelemetryContext, eventName: string): void {
+		this.internal.push(eventName);
+	}
 	setCopilotTrackingId(trackingId: string | undefined): void {
 		this.trackingIds.push(trackingId);
 	}
@@ -66,10 +86,77 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 	setRestrictedTelemetryEnabled(enabled: boolean): void {
 		this.enabledFlags.push(enabled);
 	}
+	setInternalTelemetryContext(context: IAgentHostInternalTelemetryContext | undefined): void {
+		this.internalContexts.push(context);
+	}
 }
 
 suite('AgentHostTelemetryService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('logging-only builds do not create restricted network senders', async () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const logService = new NullLogService();
+		const fileService = localDisposables.add(new FileService(logService));
+		const fileSystemProvider = localDisposables.add(new InMemoryFileSystemProvider());
+		localDisposables.add(fileService.registerProvider(Schemas.inMemory, fileSystemProvider));
+		const service = await createAgentHostTelemetryService({
+			environmentService: {
+				isBuilt: false,
+				disableTelemetry: false,
+				appRoot: '/app',
+				extensionsPath: '/extensions',
+				userHome: URI.from({ scheme: Schemas.inMemory, path: '/home' }),
+				tmpDir: URI.from({ scheme: Schemas.inMemory, path: '/tmp' }),
+				userDataPath: '/user-data',
+				appSettingsHome: URI.from({ scheme: Schemas.inMemory, path: '/User' }),
+			} as INativeEnvironmentService,
+			productService: { _serviceBrand: undefined, version: '1.130.0' } as IProductService,
+			fileService,
+			loggerService: localDisposables.add(new NullLoggerService()),
+			logService,
+			disposables: localDisposables,
+		});
+		assert.strictEqual((service as unknown as { _restricted: AgentHostRestrictedTelemetrySender | undefined })._restricted, undefined);
+	});
+
+	test('uses the built-in Copilot manifest version for internal telemetry', async () => {
+		const localDisposables = disposables.add(new DisposableStore());
+		const logService = new NullLogService();
+		const fileService = localDisposables.add(new FileService(logService));
+		const fileSystemProvider = localDisposables.add(new InMemoryFileSystemProvider());
+		localDisposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		await fileService.createFolder(URI.file('/extensions/copilot'));
+		await fileService.writeFile(URI.file('/extensions/copilot/package.json'), VSBuffer.fromString(JSON.stringify({ version: '0.58.0' })));
+
+		const service = await createAgentHostTelemetryService({
+			environmentService: {
+				isBuilt: true,
+				disableTelemetry: false,
+				appRoot: '/app',
+				extensionsPath: '/extensions',
+				builtinExtensionsPath: '/extensions',
+				userHome: URI.file('/home'),
+				tmpDir: URI.file('/tmp'),
+				userDataPath: '/user-data',
+				appSettingsHome: URI.file('/User'),
+			} as INativeEnvironmentService,
+			productService: {
+				_serviceBrand: undefined,
+				version: '1.130.0',
+				enableTelemetry: true,
+				aiConfig: { ariaKey: 'test-key' },
+			} as IProductService,
+			fileService,
+			loggerService: localDisposables.add(new NullLoggerService()),
+			logService,
+			disposables: localDisposables,
+		});
+		const restricted = (service as unknown as { _restricted: AgentHostRestrictedTelemetrySender })._restricted;
+		const internalSender = (restricted as unknown as { _internalSink: AgentHostInternalTelemetrySender })._internalSink;
+
+		assert.strictEqual((internalSender as unknown as { _options: { extensionVersion: string | undefined } })._options.extensionVersion, '0.58.0');
+	});
 
 	test('permanently disables usage and error telemetry after TelemetryLevel.NONE', async () => {
 		const delegate = new TestTelemetryService();
@@ -154,5 +241,22 @@ suite('AgentHostTelemetryService', () => {
 
 		// Neither standard nor enhanced GH telemetry is delegated below USAGE, regardless of rt.
 		assert.deepStrictEqual({ enhanced: restricted.enhanced, standard: restricted.standard }, { enhanced: [], standard: [] });
+	});
+
+	test('internal telemetry is independently gated and identity is cleared on account changes', () => {
+		const restricted = new TestRestrictedSink();
+		const service = disposables.add(new AgentHostTelemetryService(new TestTelemetryService(), restricted));
+		const internalContext = { isInternal: true, trackingId: 'tid-1', userName: 'octocat', isVscodeTeamMember: true };
+
+		service.sendInternalMSFTTelemetryEvent('beforeIdentity');
+		service.setInternalTelemetryContext(internalContext);
+		service.sendInternalMSFTTelemetryEvent('internal');
+		service.setInternalTelemetryContext(undefined);
+		service.sendInternalMSFTTelemetryEvent('afterClear');
+
+		assert.deepStrictEqual({ internal: restricted.internal, contexts: restricted.internalContexts }, {
+			internal: ['internal'],
+			contexts: [internalContext, undefined],
+		});
 	});
 });

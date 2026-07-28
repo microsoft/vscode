@@ -15,10 +15,14 @@ import type { ModelSelection } from './state/protocol/state.js';
 export const enum CopilotCliConfigKey {
 	/** Use Agent Host's custom terminal tool instead of the SDK's default. Off by default. */
 	EnableCustomTerminalTool = 'enableCustomTerminalTool',
+	/** Log level passed to the Copilot SDK client. */
+	CopilotSdkLogLevel = 'copilotSdkLogLevel',
 	/** Enable the rubber duck critic subagent. */
 	RubberDuck = 'rubberDuck',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
 	Opus48Prompt = 'opus48Prompt',
+	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. Off by default. */
+	ToolSearchEnabled = 'toolSearchEnabled',
 	/** Override reasoning effort regardless of the picker value; unsupported values are ignored. */
 	ReasoningEffortOverride = 'reasoningEffortOverride',
 	/** Per-model capability overrides (family aliases) keyed by model id. */
@@ -32,11 +36,18 @@ export const enum CopilotCliConfigKey {
 
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
 
+export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.logLevel';
+
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
+
+export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
 
 export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.reasoningEffortOverride';
 
 export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelCapabilityOverrides';
+
+export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
+export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
 
 /** Per-model capability override; the agent-host equivalent of the extension's `IModelCapabilityOverride`. */
 interface ICopilotCliModelCapabilityOverride {
@@ -54,6 +65,17 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.enableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use Agent Host's terminal tool override instead of the SDK's default terminal behavior."),
 		default: false,
 	}),
+	[CopilotCliConfigKey.CopilotSdkLogLevel]: schemaProperty<CopilotSdkLogLevelSetting>({
+		type: 'string',
+		title: localize('agentHost.config.copilotSdkLogLevel.title', "Copilot SDK Log Level"),
+		description: localize('agentHost.config.copilotSdkLogLevel.description', "Controls logging from the Copilot SDK runtime. Agent host trace logging always enables trace output."),
+		enum: [...copilotSdkLogLevelSettingValues],
+		enumLabels: [
+			localize('agentHost.config.copilotSdkLogLevel.info', "Info"),
+			localize('agentHost.config.copilotSdkLogLevel.trace', "Trace"),
+		],
+		default: 'info',
+	}),
 	[CopilotCliConfigKey.RubberDuck]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
@@ -64,6 +86,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.opus48Prompt.title', "Opus 4.8 Agent Prompt"),
 		description: localize('agentHost.config.opus48Prompt.description', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.toolSearchEnabled.title', "Agent Host Tool Search"),
+		description: localize('agentHost.config.toolSearchEnabled.description', "When enabled, Copilot SDK sessions defer MCP and non-core VS Code tools behind a tool-search tool so the model discovers them on demand instead of loading every tool definition up front."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.ReasoningEffortOverride]: schemaProperty<string>({

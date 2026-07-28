@@ -15,10 +15,11 @@ import { softAssertNever } from '../common/reducer-helpers.js';
  * Pure reducer for changeset state. Handles all {@link ChangesetAction}
  * variants.
  *
- * Per the spec, every changeset action is server-only; the reducer
- * preserves a stable file order by appending new files via
- * {@link ActionType.ChangesetFileSet} when the id is unknown, and
- * replacing in place when it matches an existing entry.
+ * The reducer preserves a stable file order by appending new files via
+ * {@link ActionType.ChangesetFileSet} when the id is unknown, and replacing in
+ * place when it matches an existing entry. Per-file review lives on
+ * {@link ChangesetFile.reviewed} and is toggled (per file, in batches) by the
+ * client-dispatchable {@link ActionType.ChangesetFilesReviewChanged}.
  */
 export function changesetReducer(state: ChangesetState, action: ChangesetAction, log?: (msg: string) => void): ChangesetState {
 	switch (action.type) {
@@ -52,9 +53,9 @@ export function changesetReducer(state: ChangesetState, action: ChangesetAction,
 			return { ...state, files: next };
 		}
 
-		case ActionType.ChangesetFilesReviewedChanged: {
+		case ActionType.ChangesetFilesReviewChanged: {
 			let changed = false;
-			const ids = new Set(action.fileIds);
+			const ids = new Set(action.files);
 			const next: ChangesetFile[] = state.files.map(f => {
 				if (!ids.has(f.id) || f.reviewed === action.reviewed) {
 					return f;

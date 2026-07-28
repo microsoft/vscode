@@ -10,9 +10,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { AICustomizationSource, AICustomizationSources, BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { IPromptPath, IPromptsService, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../../common/enablement.js';
@@ -21,7 +21,7 @@ import { IMcpService, McpCollectionDefinition, McpServerLaunch, McpServerTranspo
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
-import type { ISyncableMcpServer, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import type { ISyncableFile, ISyncableMcpServer, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 
@@ -39,13 +39,18 @@ export const SYNCABLE_PROMPT_TYPES: readonly PromptsType[] = [
 ];
 
 /**
- * Storage sources whose contents are auto-synced. Extension and built-in
- * customizations are included so the agent host has the same skills,
+ * Storage sources whose contents are auto-synced. Extension, plugin, and
+ * built-in customizations are included so the agent host has the same skills,
  * instructions, and agents available as the local VS Code client.
+ *
+ * `builtin` only yields skills bundled with the Agents app (e.g. `/create-pr`,
+ * `/merge`); for every other prompt type the prompts service returns nothing,
+ * and in the regular VS Code workbench window it returns nothing at all.
  */
 export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
 	PromptsStorage.plugin,
-	PromptsStorage.extension
+	PromptsStorage.extension,
+	PromptsStorage.builtIn,
 ];
 
 export interface ILocalCustomizationFile {
@@ -96,33 +101,6 @@ export async function enumerateLocalCustomizationsForHarness(
 					});
 				}
 			}
-		}
-	}
-
-	// Built-in skills (e.g. `/create-pr`, `/merge`) are exposed via
-	// `BUILTIN_STORAGE`, which is not a member of the core `PromptsStorage`
-	// enum. The sessions-aware prompts service supports this extra storage,
-	// but the regular workbench prompts service throws on unknown storage
-	// values; treat that case as "no built-in skills available" so
-	// enumeration remains a no-op outside Sessions.
-	let builtinSkills: readonly IPromptPath[] = [];
-	try {
-		builtinSkills = await promptsService.listPromptFilesForStorage(
-			PromptsType.skill,
-			BUILTIN_STORAGE as unknown as PromptsStorage,
-			token,
-		);
-	} catch {
-		builtinSkills = [];
-	}
-	for (const file of builtinSkills) {
-		if (matchesSessionType(file.sessionTypes, sessionType)) {
-			result.push({
-				uri: file.uri,
-				type: PromptsType.skill,
-				source: BUILTIN_STORAGE,
-				disabled: syncProvider.isDisabled(file.uri),
-			});
 		}
 	}
 
@@ -280,7 +258,7 @@ export async function resolveCustomizationRefs(
 
 	const plugins = agentPluginService.plugins.get();
 	const pluginRefs = new Map<string, Promise<ClientPluginCustomization>>();
-	const looseFiles: { uri: URI; type: PromptsType }[] = [];
+	const looseFiles: ISyncableFile[] = [];
 
 	const addPluginRef = (plugin: IAgentPlugin) => {
 		const key = plugin.uri.toString();
@@ -320,7 +298,7 @@ export async function resolveCustomizationRefs(
 			}
 			addPluginRef(plugin);
 		} else {
-			looseFiles.push({ uri: entry.uri, type: entry.type });
+			looseFiles.push({ uri: entry.uri, type: entry.type, source: entry.source, extensionId: entry.extensionId, pluginUri: entry.pluginUri });
 		}
 	}
 

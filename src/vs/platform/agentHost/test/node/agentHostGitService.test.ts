@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatGitError, parseChangedPaths, parseDefaultBranchRef, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { formatGitError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
@@ -13,24 +13,33 @@ import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } fr
 suite('AgentHostGitService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('sorts common branch names to the top before applying limit', () => {
+	test('sorts the current and default branches before recent branches and applying the limit', () => {
 		assert.deepStrictEqual(
-			getBranchCompletions(['feature/recent', 'release', 'master', 'main', 'feature/older'], { limit: 3 }),
-			['main', 'master', 'feature/recent'],
+			getBranchCompletions(
+				['feature/recent', 'dev', 'feature/current', 'main', 'feature/older'],
+				{ currentBranch: 'feature/current', defaultBranch: 'dev', limit: 3 },
+			),
+			['feature/current', 'dev', 'feature/recent'],
 		);
 	});
 
-	test('preserves git order for non-common branches', () => {
+	test('preserves git order for branches other than the current and default branches', () => {
 		assert.deepStrictEqual(
-			getBranchCompletions(['feature/recent', 'release', 'feature/older']),
+			getBranchCompletions(
+				['feature/recent', 'release', 'feature/older'],
+				{ currentBranch: 'other', defaultBranch: 'main' },
+			),
 			['feature/recent', 'release', 'feature/older'],
 		);
 	});
 
-	test('filters before sorting common branch names', () => {
+	test('filters before prioritizing the current and default branches', () => {
 		assert.deepStrictEqual(
-			getBranchCompletions(['feature/recent', 'master', 'main', 'maintenance'], { query: 'ma' }),
-			['main', 'master', 'maintenance'],
+			getBranchCompletions(
+				['feature/recent', 'maintenance', 'main', 'feature/current'],
+				{ currentBranch: 'feature/current', defaultBranch: 'maintenance', query: 'ma' },
+			),
+			['maintenance', 'main'],
 		);
 	});
 
@@ -153,6 +162,27 @@ suite('AgentHostGitService', () => {
 			const out = 'origin\thttps://gitlab.com/foo/bar.git (fetch)\n';
 			assert.strictEqual(parseGitHubRepoFromRemote(out), undefined);
 		});
+	});
+
+	test('orders fetch remote URLs with origin first and excludes push URLs', () => {
+		assert.deepStrictEqual(parseFetchRemoteUrls([
+			'upstream\tgit@github.com:microsoft/vscode.git (fetch)',
+			'origin\thttps://github.com/me/vscode.git (push)',
+			'origin\thttps://github.com/me/vscode.git (fetch)',
+		].join('\n')), [
+			'https://github.com/me/vscode.git',
+			'git@github.com:microsoft/vscode.git',
+		]);
+	});
+
+	test('prefers the branch upstream remote before origin', () => {
+		assert.deepStrictEqual(parseFetchRemoteUrls([
+			'origin\thttps://github.com/me/vscode.git (fetch)',
+			'upstream\thttps://github.com/microsoft/vscode.git (fetch)',
+		].join('\n'), 'upstream'), [
+			'https://github.com/microsoft/vscode.git',
+			'https://github.com/me/vscode.git',
+		]);
 	});
 
 	suite('parseUntrackedPaths', () => {

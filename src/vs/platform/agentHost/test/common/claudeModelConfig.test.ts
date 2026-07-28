@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CLAUDE_THINKING_LEVEL_KEY, clampEffortForRuntime, createClaudeThinkingLevelSchema, isClaudeEffortLevel, resolveClaudeEffort, type ClaudeEffortLevel } from '../../common/claudeModelConfig.js';
+import { CLAUDE_THINKING_LEVEL_KEY, toRuntimeEffortLevel, createClaudeThinkingLevelSchema, isClaudeEffortLevel, resolveClaudeEffort, type ClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 
 suite('resolveClaudeEffort (Phase 6.1 / Cycle E)', () => {
@@ -39,20 +39,20 @@ suite('resolveClaudeEffort (Phase 6.1 / Cycle E)', () => {
 	});
 });
 
-suite('clampEffortForRuntime (Phase 9 / Step 4)', () => {
+suite('toRuntimeEffortLevel', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('clamps `max` to `xhigh`; passes other levels through; preserves undefined', () => {
-		// `Query.applyFlagSettings({ effortLevel })` (sdk.d.ts:4914) only
-		// accepts `'low' | 'medium' | 'high' | 'xhigh'` — `'max'` is a
-		// startup-only level. The clamp seam keeps `'max'` selections from
-		// being lost entirely on the runtime path; genuine `'max'` would
-		// require the restart-required path (Phase 9 D7).
+	test('passes every level through unchanged — including `max` — and preserves undefined', () => {
+		// The SDK's runtime `Settings.effortLevel` type declares it can't accept
+		// `'max'`, but the Anthropic API / CAPI do accept it, so the clamp
+		// deliberately lets `'max'` flow through rather than degrading it to
+		// `'xhigh'`. The declared return type still excludes `'max'`; the value
+		// carried at runtime does not.
 		const inputs: readonly (ClaudeEffortLevel | undefined)[] = [undefined, 'low', 'medium', 'high', 'xhigh', 'max'];
 		assert.deepStrictEqual(
-			inputs.map(clampEffortForRuntime),
-			[undefined, 'low', 'medium', 'high', 'xhigh', 'xhigh'],
+			inputs.map(toRuntimeEffortLevel),
+			[undefined, 'low', 'medium', 'high', 'xhigh', 'max'],
 		);
 	});
 });

@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, CopilotCliConfigKey, type CopilotCliModelCapabilityOverrides } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotSdkLogLevelSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostToolSearchEnabledSettingId, CopilotCliConfigKey, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
 
 /**
- * Forwards the Copilot-CLI experimentation settings (Opus 4.8 prompt opt-in,
- * reasoning-effort override, per-model family-alias overrides) into the
- * **local** agent host's root config so `CopilotSessionLauncher` can read them
- * at session launch. Gated on `chat.agentHost.enabled`. The schema-gate /
- * hydration-retry / loop-guard machinery lives in the shared
+ * Forwards Copilot-CLI settings into the **local** agent host's root config so
+ * `CopilotAgent` and `CopilotSessionLauncher` can read them. Gated on
+ * `chat.agentHost.enabled`. The schema-gate / hydration-retry / loop-guard
+ * machinery lives in the shared
  * {@link AgentHostRootConfigForwarder}; this contribution only declares the keys.
  */
 export class AgentHostCopilotCliSettingsContribution extends Disposable implements IWorkbenchContribution {
@@ -34,9 +34,19 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 
 		const keys: readonly IForwardedRootConfigKey[] = [
 			{
+				key: CopilotCliConfigKey.CopilotSdkLogLevel,
+				computeValue: () => this._configurationService.getValue<CopilotSdkLogLevelSetting>(AgentHostCopilotSdkLogLevelSettingId) ?? 'info',
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotSdkLogLevelSettingId),
+			},
+			{
 				key: CopilotCliConfigKey.Opus48Prompt,
 				computeValue: () => this._configurationService.getValue<boolean>(AgentHostOpus48PromptEnabledSettingId) === true,
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostOpus48PromptEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.ToolSearchEnabled,
+				computeValue: () => this._configurationService.getValue<boolean>(AgentHostToolSearchEnabledSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostToolSearchEnabledSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.ReasoningEffortOverride,
@@ -58,9 +68,11 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 		];
 		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, agentHostService));
 
-		if (this._agentHostEnablementService.enabled) {
-			this._forwarder.start();
-		}
+		this._register(autorun(reader => {
+			if (this._agentHostEnablementService.enabled.read(reader)) {
+				this._forwarder.start();
+			}
+		}));
 	}
 
 	private _pushOnSettingChange(store: DisposableStore, push: () => void, settingId: string): void {

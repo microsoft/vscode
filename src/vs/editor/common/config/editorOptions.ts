@@ -902,6 +902,13 @@ export interface IDiffEditorBaseOptions {
 	compactMode?: boolean;
 
 	/**
+	 * If set, the original editor's line numbers are hidden in the inline view.
+	 * Defaults to `false`.
+	 * @internal
+	*/
+	hideOriginalLineNumbers?: boolean;
+
+	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * Defaults to 5000.
 	 */
@@ -5218,10 +5225,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					type: 'boolean',
 					default: defaults.showInlineDetails,
 					description: nls.localize('suggest.showInlineDetails', "Controls whether suggest details show inline with the label or only in the details widget.")
-				},
-				'editor.suggest.maxVisibleSuggestions': {
-					type: 'number',
-					deprecationMessage: nls.localize('suggest.maxVisibleSuggestions.dep', "This setting is deprecated. The suggest widget can now be resized."),
 				},
 				'editor.suggest.filteredTypes': {
 					type: 'object',

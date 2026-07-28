@@ -6,10 +6,10 @@
 import type { Language, Parser, Query, QueryCapture } from '@vscode/tree-sitter-wasm';
 import * as fs from 'fs';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../base/common/network.js';
+import { FileAccess } from '../../../base/common/network.js';
 import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
-import product from '../../product/common/product.js';
+import { getAppNodeModulesPath } from './appNodeModules.js';
 import { ILogService } from '../../log/common/log.js';
 import type { AgentHostTerminalAutoApproveRuleValue, AgentHostTerminalAutoApproveRules } from '../common/agentHostSchema.js';
 
@@ -299,11 +299,11 @@ export class CommandAutoApprover extends Disposable {
 				return;
 			}
 
-			// Resolve WASM files from node_modules. In a built app the `.wasm` files
-			// are unpacked next to the ASAR archive (`node_modules.asar.unpacked`),
-			// while in dev they live in `node_modules`.
-			const moduleRootPath = product.commit ? nodeModulesAsarUnpackedPath : nodeModulesPath;
-			const moduleRoot = URI.joinPath(FileAccess.asFileUri(moduleRootPath), '@vscode', 'tree-sitter-wasm', 'wasm');
+			// Resolve WASM files from node_modules. In the desktop app the `.wasm`
+			// files are unpacked next to the ASAR archive (`node_modules.asar.unpacked`),
+			// while in dev and on the server (which has no ASAR) they live in a plain
+			// `node_modules`.
+			const moduleRoot = URI.joinPath(FileAccess.asFileUri(getAppNodeModulesPath()), '@vscode', 'tree-sitter-wasm', 'wasm');
 			const wasmPath = URI.joinPath(moduleRoot, 'tree-sitter.wasm').fsPath;
 
 			await TreeSitter.Parser.init({

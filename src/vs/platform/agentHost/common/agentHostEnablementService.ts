@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IObservable } from '../../../base/common/observable.js';
 import { isWeb } from '../../../base/common/platform.js';
 import * as nls from '../../../nls.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
@@ -22,10 +23,10 @@ export const IAgentHostEnablementService = createDecorator<IAgentHostEnablementS
 export interface IAgentHostEnablementService {
 	readonly _serviceBrand: undefined;
 	/**
-	 * Whether the local agent host process is enabled in this runtime.
-	 * Returns `false` on web. This value is fixed at startup and never changes.
+	 * Whether Agent Host features are enabled in this runtime.
+	 * This can transition from `false` to `true` when a startup experiment is applied or AI features are explicitly enabled.
 	 */
-	readonly enabled: boolean;
+	readonly enabled: IObservable<boolean>;
 }
 
 // Register `chat.agentHost.enabled` and related settings.
@@ -53,22 +54,23 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
-		'chat.editor.defaultProvider': {
-			type: 'string',
-			enum: ['local', 'copilotEh', 'copilotAh'],
-			enumDescriptions: [
-				nls.localize('chat.editor.defaultProvider.local', "Use the built-in VS Code local chat harness"),
-				nls.localize('chat.editor.defaultProvider.copilotEh', "Use the Extension Host Copilot CLI"),
-				nls.localize('chat.editor.defaultProvider.copilotAh', "Use the Agent Host Copilot CLI"),
-			],
-			description: nls.localize('chat.editor.defaultProvider', "Controls which provider is used as the default for new editor chat sessions."),
-			default: 'local',
+		'chat.editor.preferCopilotHarness': {
+			type: 'boolean',
+			description: nls.localize('chat.editor.preferCopilotHarness', "When enabled, prefers the Agent Host Copilot CLI for new editor chat sessions. If the local harness is selected, it is replaced with Copilot once."),
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
+		'chat.defaultToCopilotHarness': {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.defaultToCopilotHarness', "When enabled, new editor and panel chat sessions default to the Agent Host Copilot CLI instead of the local harness. Requires `#{0}#`.", agentHostEnabledSettingId),
+			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
 		'chat.editor.localAgent.enabled': {
 			type: 'boolean',
-			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the VS Code local chat harness in the chat picker."),
+			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the VS Code local chat harness in the chat picker. This setting is ignored in virtual workspaces, where the local chat harness is always available."),
 			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
