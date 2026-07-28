@@ -16,18 +16,10 @@ import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 const SESSION_DB_SCHEME = 'session-db';
 
 /**
- * Builds a `session-db:` URI that references a file-edit content blob
- * stored in the session database. Parsed by {@link parseSessionDbUri}.
- *
- * The URI path is the edited file's path so resource labels show a
- * recognizable path and the snapshot lines up with the working-tree side
- * in diff editors. The session URI, tool call, exact file path, and
- * snapshot part needed to fetch the blob are carried in the query.
- *
- * @param sessionUri Session the blob belongs to; used to find the database.
- * @param toolCallId Tool call whose edit produced the snapshot.
- * @param filePath Absolute path of the edited file, as recorded in the database.
- * @param part Which side of the edit the blob holds.
+ * Builds a `session-db:` URI referencing a file-edit content blob in the
+ * session database. The path is the edited file's path so resource labels
+ * show a real path; the lookup fields live in the query, where `filePath` is
+ * kept verbatim because it is part of the database key.
  */
 export function buildSessionDbUri(sessionUri: string, toolCallId: string, filePath: string, part: 'before' | 'after'): string {
 	return URI.from({
@@ -62,6 +54,10 @@ export function parseSessionDbUri(raw: string): ISessionDbUriFields | undefined 
 	return parsed.query ? parseSessionDbUriQuery(parsed.query) : parseLegacySessionDbUri(parsed);
 }
 
+function isNonEmptyString(value: unknown): value is string {
+	return typeof value === 'string' && value.length > 0;
+}
+
 function parseSessionDbUriQuery(query: string): ISessionDbUriFields | undefined {
 	let fields: Partial<ISessionDbUriFields>;
 	try {
@@ -69,8 +65,11 @@ function parseSessionDbUriQuery(query: string): ISessionDbUriFields | undefined 
 	} catch {
 		return undefined;
 	}
+	if (typeof fields !== 'object' || fields === null) {
+		return undefined;
+	}
 	const { sessionUri, toolCallId, filePath, part } = fields;
-	if (typeof sessionUri !== 'string' || typeof toolCallId !== 'string' || typeof filePath !== 'string' || (part !== 'before' && part !== 'after')) {
+	if (!isNonEmptyString(sessionUri) || !isNonEmptyString(toolCallId) || !isNonEmptyString(filePath) || (part !== 'before' && part !== 'after')) {
 		return undefined;
 	}
 	return { sessionUri, toolCallId, filePath, part };

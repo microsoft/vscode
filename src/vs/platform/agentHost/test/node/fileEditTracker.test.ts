@@ -207,6 +207,25 @@ suite('buildSessionDbUri / parseSessionDbUri', () => {
 		assert.strictEqual(parseSessionDbUri('session-db:copilot:/s1?toolCallId=tc-1&filePath=/f&part=middle'), undefined);
 	});
 
+	test('parseSessionDbUri returns undefined for JSON queries that are not objects', () => {
+		const queries = ['null', '123', '"a string"', 'true', '[]'];
+		assert.deepStrictEqual(
+			queries.map(query => parseSessionDbUri(`session-db:/f.ts?${encodeURIComponent(query)}`)),
+			queries.map(() => undefined),
+		);
+	});
+
+	test('parseSessionDbUri rejects empty lookup keys, which would hit the database', () => {
+		const withField = (field: Partial<Record<'sessionUri' | 'toolCallId' | 'filePath', string>>) =>
+			`session-db:/f.ts?${encodeURIComponent(JSON.stringify({ sessionUri: 's', toolCallId: 't', filePath: '/f.ts', part: 'before', ...field }))}`;
+
+		assert.deepStrictEqual([
+			parseSessionDbUri(withField({ sessionUri: '' })),
+			parseSessionDbUri(withField({ toolCallId: '' })),
+			parseSessionDbUri(withField({ filePath: '' })),
+		], [undefined, undefined, undefined]);
+	});
+
 	test('URI path is the file path, so labels show a real path', () => {
 		const uri = buildSessionDbUri('copilot:/s1', 'tc-1', '/workspace/src/index.ts', 'before');
 		assert.strictEqual(URI.parse(uri).path, '/workspace/src/index.ts');
