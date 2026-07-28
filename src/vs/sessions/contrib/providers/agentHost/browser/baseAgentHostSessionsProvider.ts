@@ -64,6 +64,16 @@ const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototy
 // than blanking then reappearing.
 const SEEDED_CONFIG_SCHEMA_KEYS = [SessionConfigKey.Isolation, SessionConfigKey.Branch] as const;
 
+/**
+ * {@link SessionConfigKey.Isolation} value that runs a session in its own git worktree.
+ */
+const WORKTREE_ISOLATION_VALUE = 'worktree';
+
+/** Whether the given session config values select worktree isolation. */
+function isWorktreeIsolation(values: Record<string, unknown> | undefined): boolean {
+	return values?.[SessionConfigKey.Isolation] === WORKTREE_ISOLATION_VALUE;
+}
+
 /** Maximum number of cached session summaries persisted per provider. */
 const CACHED_SESSIONS_MAX_PER_HOST = 100;
 
@@ -408,6 +418,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly createdAt: Date;
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	readonly isQuickChat: IObservable<boolean>;
+	/** See {@link ISession.worktreePending}. */
+	readonly worktreePending: IObservable<boolean>;
 	readonly title: ISettableObservable<string>;
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
@@ -468,6 +480,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * (which may have been promoted by a running peer chat).
 	 */
 	private readonly _defaultChatStatusOverride = observableValue<SessionStatus | undefined>('defaultChatStatusOverride', undefined);
+	/** Whether this session was created with worktree isolation. */
+	private readonly _worktreeIsolation = observableValue<boolean>('worktreeIsolation', false);
 	/** Interactivity of the default chat. Driven from the default chat's protocol summary. */
 	private readonly _defaultChatInteractivity = observableValue<ChatInteractivity>('defaultChatInteractivity', ChatInteractivity.Full);
 	private readonly _mainChatObs: ISettableObservable<IChat>;
@@ -641,6 +655,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const initialWorkspace = this._computeWorkspace();
 		this.workspace = observableValue('workspace', initialWorkspace);
 		this.isQuickChat = this._isQuickChat;
+		// A worktree-isolated session keeps reporting the checkout it was started
+		// from until the agent host creates and reports the worktree.
+		this.worktreePending = derived(this, reader =>
+			this._worktreeIsolation.read(reader)
+			&& !this.workspace.read(reader)?.folders.some(folder => !!folder.gitRepository?.workTreeUri));
 		this.loading = _options.loading;
 		this.description = derived(reader => {
 			const status = this.status.read(reader);
@@ -1196,6 +1215,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return didChange;
 	}
 
+	/** Records that this session runs with worktree isolation. See {@link worktreePending}. */
+	setWorktreeIsolation(isolated: boolean): void {
+		this._worktreeIsolation.set(isolated, undefined);
+	}
+
 	/**
 	 * Heal an adapter born mis-classified because the path that materialized it
 	 * carried no `_meta` (a stale persisted cache, an older host). One-way: an
@@ -1363,6 +1387,7 @@ class NewSession extends Disposable {
 	private readonly _modelId: ISettableObservable<string | undefined>;
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	private readonly _changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
+	private readonly _worktreePending = observableValue<boolean>(this, false);
 	private readonly _isActiveSessionObs: IObservable<boolean>;
 	private readonly _loading: ISettableObservable<boolean>;
 	private readonly _mainChat: ISettableObservable<IChat>;
@@ -1480,6 +1505,7 @@ class NewSession extends Disposable {
 			createdAt,
 			workspace: workspaceObs,
 			isQuickChat: constObservable(this._kind.isQuickChat),
+			worktreePending: this._worktreePending,
 			title,
 			updatedAt,
 			status: this._status,
@@ -1504,6 +1530,12 @@ class NewSession extends Disposable {
 				values: { ...ctx.initialConfigValues },
 			};
 		}
+		this._syncWorktreePending();
+	}
+
+	/** Re-reads the isolation pick from the cached config into {@link _worktreePending}. */
+	private _syncWorktreePending(): void {
+		this._worktreePending.set(isWorktreeIsolation(this._config?.values), undefined);
 	}
 
 	// -- Picker mutations ----------------------------------------------------
@@ -1549,6 +1581,7 @@ class NewSession extends Disposable {
 			schema: current?.schema ?? { type: 'object', properties: {} },
 			values: { ...(current?.values ?? {}), [property]: value },
 		};
+		this._syncWorktreePending();
 	}
 
 	/**
@@ -1593,12 +1626,14 @@ class NewSession extends Disposable {
 				return false;
 			}
 			this._config = result;
+			this._syncWorktreePending();
 			return true;
 		} catch (error) {
 			if (seq !== this._configRequestSeq) {
 				return false;
 			}
 			this._config = undefined;
+			this._syncWorktreePending();
 			if (strict) {
 				throw error;
 			}
@@ -3728,6 +3763,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				values: { ...config.values },
 			});
 		}
+
+		this._applyWorktreeIsolation(committedSessionId, config?.values);
 	}
 
 	protected _rawIdFromChatId(chatId: string): string | undefined {
@@ -4092,7 +4129,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		this._runningSessionConfigs.set(sessionId, seeded);
+		this._applyWorktreeIsolation(sessionId, seeded.values);
 		this._onDidChangeSessionConfig.fire(sessionId);
+	}
+
+	/** Mirrors a session's `isolation` pick onto its adapter. See {@link ISession.worktreePending}. */
+	private _applyWorktreeIsolation(sessionId: string, values: Record<string, unknown> | undefined): void {
+		if (!isWorktreeIsolation(values)) {
+			return;
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		const adapter = rawId ? this._sessionCache.get(rawId) : undefined;
+		adapter?.setWorktreeIsolation(true);
 	}
 
 	// -- Session cache management --------------------------------------------

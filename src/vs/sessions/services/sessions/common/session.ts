@@ -161,6 +161,30 @@ export interface ISessionWorkspace {
 }
 
 /**
+ * How a session's workspace should be presented: a virtual (cloud) workspace,
+ * the repository checkout itself, or an isolated git worktree.
+ */
+export const enum SessionWorkspaceKind {
+	Virtual = 'virtual',
+	Folder = 'folder',
+	Worktree = 'worktree',
+}
+
+/**
+ * Classifies a session's workspace for presentation (icon, hover). A session whose
+ * worktree is still pending is already reported as {@link SessionWorkspaceKind.Worktree}.
+ */
+export function getSessionWorkspaceKind(workspace: ISessionWorkspace | undefined, worktreePending = false): SessionWorkspaceKind {
+	if (workspace?.isVirtualWorkspace) {
+		return SessionWorkspaceKind.Virtual;
+	}
+	if (!worktreePending && workspace && workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined) {
+		return SessionWorkspaceKind.Folder;
+	}
+	return SessionWorkspaceKind.Worktree;
+}
+
+/**
  * GitHub information associated with a session.
  */
 export interface IGitHubInfo {
@@ -504,6 +528,11 @@ export interface ISession {
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 	/** Whether the session has a usable Git repository. Providers may refine this beyond workspace metadata. */
 	readonly hasGitRepository?: IObservable<boolean>;
+	/**
+	 * Whether the session's isolated git worktree does not exist yet, so {@link workspace}
+	 * still describes the checkout it was started from. Absent means `false`.
+	 */
+	readonly worktreePending?: IObservable<boolean>;
 	/** Whether this is a workspace-less "quick chat". Only quick-chat-capable providers set this; absent means `false`. */
 	readonly isQuickChat?: IObservable<boolean>;
 
