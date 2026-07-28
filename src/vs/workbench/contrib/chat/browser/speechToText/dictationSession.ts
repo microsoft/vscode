@@ -92,6 +92,19 @@ class LiveTranscriptInserter {
 	 * so dictation keeps working after a manual edit instead of stopping.
 	 */
 	private _committedText = '';
+	/**
+	 * The position where dictation first began; set the first time `_anchor` is
+	 * assigned and preserved even after user edits (unlike `_anchor`, which is
+	 * reset to re-anchor subsequent speech). Used by `revert()` so cancellation
+	 * can remove the full dictated region even after a user edit.
+	 */
+	private _revertAnchor: Position | undefined;
+	/**
+	 * The end of the last inserted transcript region at the time the user made
+	 * a manual edit. Preserved so `revert()` can remove the original dictated
+	 * text if the user cancels before any further speech arrives.
+	 */
+	private _revertEnd: Position | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -137,7 +150,11 @@ class LiveTranscriptInserter {
 		let renderText = fullText;
 		let renderFinalized = finalizedText;
 		if (this._committedText) {
-			const committedLength = commonPrefixLength(fullText, this._committedText);
+			// Use the committed text's length as a stable boundary so that
+			// backend-only corrections to already-committed words (e.g. "one
+			// two" → "one too") do not produce spurious renderText and get
+			// inserted at the caret as if the user had spoken something new.
+			const committedLength = this._committedText.length;
 			renderText = fullText.slice(committedLength);
 			renderFinalized = finalizedText.length > committedLength ? finalizedText.slice(committedLength) : '';
 			// Drop the whitespace that joined the committed and new portions; the
@@ -158,6 +175,7 @@ class LiveTranscriptInserter {
 			const start = selection.getStartPosition();
 			this._anchor = start;
 			this._end = start;
+			this._revertAnchor ??= start;
 			this._needsLeadingSpace = start.column > 1 && !/\s$/.test(model.getValueInRange(new Range(
 				start.lineNumber, Math.max(1, start.column - 1), start.lineNumber, start.column,
 			)));
@@ -213,10 +231,16 @@ class LiveTranscriptInserter {
 		// inserted into a fresh region at the caret instead of overwriting the
 		// user's edits. This keeps dictation working after a manual edit.
 		this._committedText = this._lastCumulativeText;
+		// Preserve the current dictated range so revert() can still restore the
+		// pre-dictation state if the user cancels before any further speech.
+		this._revertAnchor ??= this._anchor;
+		this._revertEnd = this._end;
 		this._anchor = undefined;
 		this._end = undefined;
 		this._prevInterimText = '';
-		this._finalized = false;
+		// Do NOT reset _finalized: if stopAndTranscribe() is already in progress
+		// (state is Transcribing), clearing the flag would let a trailing interim
+		// transcript overwrite text despite the lock set by beginFinalize().
 		this.clearShimmer();
 	}
 
@@ -341,22 +365,34 @@ class LiveTranscriptInserter {
 	 * Remove everything this inserter has written (including any leading space it
 	 * added) and restore the caret to where dictation began. Used when dictation
 	 * is cancelled so no dictated text is left behind.
+	 *
+	 * Falls back to `_revertAnchor`/`_revertEnd` when `_anchor`/`_end` have been
+	 * reset after a user edit, so cancelling dictation after a manual edit still
+	 * removes the originally-dictated text.
 	 */
 	revert(): void {
 		this._settledDecorations?.clear();
 		this._shimmerDecorations?.clear();
 		const model = this._editor.getModel();
-		if (!model || !this._anchor || !this._end) {
+		// Use the original dictation start if available; fall back to the current
+		// anchor for the case where the user never edited.
+		const anchor = this._revertAnchor ?? this._anchor;
+		// Use the current end (covers new speech after a user edit) when present;
+		// otherwise fall back to the preserved end from the last user edit.
+		const end = this._end ?? this._revertEnd;
+		if (!model || !anchor || !end) {
 			return;
 		}
 		this._editor.executeEdits('chatSpeechToText', [{
-			range: Range.fromPositions(this._anchor, this._end),
+			range: Range.fromPositions(anchor, end),
 			text: '',
 			forceMoveMarkers: true,
 		}]);
-		this._editor.setPosition(this._anchor);
+		this._editor.setPosition(anchor);
 		this._anchor = undefined;
 		this._end = undefined;
+		this._revertAnchor = undefined;
+		this._revertEnd = undefined;
 	}
 }
 
