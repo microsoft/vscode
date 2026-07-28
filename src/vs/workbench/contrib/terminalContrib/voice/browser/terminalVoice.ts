@@ -407,7 +407,9 @@ export class TerminalVoiceSession extends Disposable {
 		store.add(addDisposableListener(element, 'click', e => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.stop(true);
+			if (!this._builtinFinalizing) {
+				this.stop(true);
+			}
 		}));
 	}
 
