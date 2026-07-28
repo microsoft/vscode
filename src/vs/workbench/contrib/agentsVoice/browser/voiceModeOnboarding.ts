@@ -21,16 +21,22 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
-import { agentsVoiceWaveFrom, agentsVoiceWaveTo } from '../common/agentsVoiceColors.js';
-import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
 import './media/voiceModeOnboarding.css';
 
 /** Setting the banner writes when a voice chip is picked. */
 const VOICE_SETTING = 'agents.voice.voice';
 
-/** Where the footnote sends anyone who wants to change their mind later. */
+/** Where the first link sends anyone who wants to change their mind later. */
 const VOICE_SETTINGS_COMMAND = 'agentsVoice.openSettings';
+
+/**
+ * Where the second link goes: `voice.md`, the customization file sent to the
+ * backend as `voice_instructions`. It shapes what the agent *says back*, which
+ * is why the link reads "how it responds" rather than naming the file.
+ */
+const VOICE_INSTRUCTIONS_COMMAND = 'workbench.action.chat.configureVoiceInstructions';
 
 /**
  * The voices Voice Mode actually speaks with (mirrors the `agents.voice.voice`
@@ -123,7 +129,25 @@ const RESTING_SIGNATURE: readonly IWave[] = VOICES[0].signature.map((_, index) =
 	};
 });
 
-// --- ASCII waveform ------------------------------------------------------
+/**
+ * How long the dominant component takes to complete one cycle, matching the
+ * `chat-voice-input-mode-wave` keyframe the toolbar waveform idles on. Same
+ * instrument, same tempo.
+ */
+const IDLE_CYCLE_SECONDS = 2.6;
+
+/**
+ * Scales every declared `speed` so the resting trace cycles at
+ * {@link IDLE_CYCLE_SECONDS}. The signatures are written as a *relative* set -
+ * component 1 drifts against component 0, and so on - which makes them
+ * readable, but taken literally the dominant component turns once every ~17
+ * seconds. That is roughly 1px of movement per bar per second: technically
+ * animating, visibly frozen. Derived rather than hardcoded so editing a
+ * signature cannot silently put the trace back to sleep.
+ */
+const WAVE_TEMPO = (2 * Math.PI) / IDLE_CYCLE_SECONDS / Math.abs(RESTING_SIGNATURE[0].speed);
+
+// --- Waveform -----------------------------------------------------------
 
 /** Amplitude with nothing playing: present, but clearly at rest. */
 const IDLE_GAIN = 0.55;
@@ -134,14 +158,16 @@ const LEVEL_EASING = 0.08;
 /** How quickly the trace morphs from one voice's signature to another. */
 const SIGNATURE_EASING = 0.06;
 /**
- * Bar metrics. Voice Mode's own waveform is a row of thin vertical bars - see
- * `voiceInputMode.css` - so the introduction uses the same instrument, just a
- * wider one: same thin bars and rounded caps, many more of them.
+ * Bar metrics, taken from Voice Mode's own waveform in `voiceInputMode.css`,
+ * which states the rule directly: *bars are strokes, not shapes* - they carry
+ * the same visual weight as the codicon glyphs beside them so the waveform
+ * never reads as bolder than the mic. Same 1px stroke and 2px gap here, just
+ * many more of them.
  */
-const BAR_WIDTH = 2;
+const BAR_WIDTH = 1;
 const BAR_GAP = 2;
-/** Shortest a bar ever gets, so the row still reads as a waveform at rest. */
-const BAR_MIN = 2;
+/** Shortest a bar ever gets: a dot, so a resting bar keeps its round cap. */
+const BAR_MIN = 1;
 
 /** A signature being eased towards another, one component at a time. */
 type MutableWave = { frequency: number; amplitude: number; speed: number; phase: number };
@@ -168,24 +194,6 @@ function easeSignature(current: MutableWave[], target: readonly IWave[]): void {
 		current[i].speed += (target[i].speed - current[i].speed) * SIGNATURE_EASING;
 		current[i].phase += (target[i].phase - current[i].phase) * SIGNATURE_EASING;
 	}
-}
-
-/**
- * The gradient the ribbons are painted with, or a plain colour when a theme
- * does not define the pair. `addColorStop` throws on an unresolved colour, so
- * the gradient is only built once both ends are known; an empty string is a
- * no-op for `fillStyle`, which is the safe way to say "leave it alone".
- */
-function waveFill(context: CanvasRenderingContext2D, theme: IColorTheme, width: number): string | CanvasGradient {
-	const from = theme.getColor(agentsVoiceWaveFrom)?.toString();
-	const to = theme.getColor(agentsVoiceWaveTo)?.toString();
-	if (!from || !to) {
-		return from ?? to ?? '';
-	}
-	const gradient = context.createLinearGradient(0, 0, width, 0);
-	gradient.addColorStop(0, from);
-	gradient.addColorStop(1, to);
-	return gradient;
 }
 
 /**
@@ -229,7 +237,7 @@ function bandFraction(position: number, time: number, waves: readonly MutableWav
 	let amplitude = 0;
 	let total = 0;
 	for (const wave of waves) {
-		const phase = position * wave.frequency * Math.PI * 2 + time * wave.speed + wave.phase;
+		const phase = position * wave.frequency * Math.PI * 2 + time * wave.speed * WAVE_TEMPO + wave.phase;
 		amplitude += (0.5 + 0.5 * Math.sin(phase)) * wave.amplitude;
 		total += wave.amplitude;
 	}
@@ -252,9 +260,9 @@ interface IWaveformSource {
 }
 
 /**
- * Draws the animated ASCII waveform. Owns a single canvas, a `ResizeObserver`
- * and an animation-frame loop; disposing stops both. Honors reduced motion by
- * painting a single static frame instead of animating.
+ * Draws the animated waveform. Owns a single canvas, a `ResizeObserver` and an
+ * animation-frame loop; disposing stops both. Honors reduced motion by painting
+ * a single static frame instead of animating.
  */
 class VoiceModeOnboardingAnimator extends Disposable {
 
@@ -265,6 +273,14 @@ class VoiceModeOnboardingAnimator extends Disposable {
 	private running = false;
 	private level = 0;
 	private readonly waves: MutableWave[];
+	/**
+	 * The stroke colour, taken from the canvas's own computed `color` so CSS
+	 * owns the tier and theme overrides work for free - the same `currentColor`
+	 * arrangement the toolbar waveform uses. Cached rather than read per frame:
+	 * `getComputedStyle` inside the animation loop forces a style recalculation
+	 * on every tick.
+	 */
+	private stroke = '';
 
 	constructor(
 		private readonly canvas: HTMLCanvasElement,
@@ -287,12 +303,20 @@ class VoiceModeOnboardingAnimator extends Disposable {
 		observer.observe(container);
 		this._register(toDisposable(() => observer.disconnect()));
 
-		this._register(this.themeService.onDidColorThemeChange(() => this.draw(targetWindow.performance.now())));
+		this._register(this.themeService.onDidColorThemeChange(() => {
+			this.readStroke();
+			this.draw(targetWindow.performance.now());
+		}));
 		this._register(this.accessibilityService.onDidChangeReducedMotion(() => this.updateMotion()));
 		this._register(toDisposable(() => this.stop()));
 
+		this.readStroke();
 		this.resize();
 		this.updateMotion();
+	}
+
+	private readStroke(): void {
+		this.stroke = dom.getWindow(this.canvas).getComputedStyle(this.canvas).color;
 	}
 
 	private updateMotion(): void {
@@ -354,7 +378,7 @@ class VoiceModeOnboardingAnimator extends Disposable {
 		const gain = IDLE_GAIN + this.level * SPEAKING_GAIN;
 
 		this.context.clearRect(0, 0, this.width, this.height);
-		this.context.fillStyle = waveFill(this.context, this.themeService.getColorTheme(), this.width);
+		this.context.fillStyle = this.stroke;
 
 		drawBars(this.context, this.width, this.height, this.waves, time, gain);
 	}
@@ -640,36 +664,45 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	}
 
 	/**
-	 * One paragraph: what Voice Mode does, what to do about it, and that none of
-	 * it is permanent. The reassurance belongs in the same breath as the ask -
-	 * split onto its own line it read as a separate instruction rather than the
-	 * aside it is.
+	 * One short paragraph: what Voice Mode does, and the two places to change
+	 * your mind - the settings that control it, and the customization file that
+	 * shapes what it says back.
 	 *
-	 * `[[...]]` marks the clause that becomes the link, so translators can keep
-	 * the sentence natural instead of having a fixed phrase concatenated on.
+	 * `[[...]]` marks each clause that becomes a link, so translators can place
+	 * them naturally in the sentence instead of receiving fixed phrases
+	 * concatenated onto the end. `renderFormattedText` numbers them in source
+	 * order and hands the index to the callback.
 	 */
 	private renderDescription(container: HTMLElement): void {
 		const description = dom.append(container, dom.$('.voice-mode-onboarding-description'));
 		const text = localize({
 			key: 'voiceMode.onboarding.description',
-			comment: ['Preserve the double square brackets: they mark the text that becomes a link.'],
-		}, "Your agent can speak back to you, free of charge. Pick a voice to hear it and keep it - you can change this in [[settings]] at any time.");
+			comment: [
+				'Preserve the double square brackets: they mark the two pieces of text that become links.',
+				'The first link opens Voice Mode settings; the second opens a file for customizing how the agent speaks.',
+			],
+		}, "Your agent can speak back to you, free of charge. Adjust [[settings]] or [[how it responds]] anytime.");
 
+		const commands = [VOICE_SETTINGS_COMMAND, VOICE_INSTRUCTIONS_COMMAND];
 		dom.append(description, renderFormattedText(text, {
 			actionHandler: {
-				callback: () => this.commandService.executeCommand(VOICE_SETTINGS_COMMAND)
-					.catch(error => this.logService.error(`[voice] Failed to open Voice Mode settings: ${error}`)),
+				callback: index => {
+					const command = commands[Number(index)];
+					if (command) {
+						this.commandService.executeCommand(command)
+							.catch(error => this.logService.error(`[voice] Failed to run ${command}: ${error}`));
+					}
+				},
 				disposables: this._store,
 			},
 		}, dom.$('span')));
 
-		// `renderFormattedText` gives the anchor a click listener and nothing
-		// else, so make it a real control: reachable by Tab and operable by
+		// `renderFormattedText` gives each anchor a click listener and nothing
+		// else, so make them real controls: reachable by Tab and operable by
 		// Enter or Space like any other button. The renderer owns this DOM, so a
 		// selector is the only handle on it - same as the empty-editor hint.
 		// eslint-disable-next-line no-restricted-syntax
-		const link = description.querySelector('a');
-		if (link) {
+		for (const link of description.querySelectorAll('a')) {
 			link.tabIndex = 0;
 			link.setAttribute('role', 'button');
 			this._register(dom.addDisposableListener(link, dom.EventType.KEY_DOWN, event => {

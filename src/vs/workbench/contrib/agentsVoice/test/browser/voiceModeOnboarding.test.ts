@@ -124,19 +124,26 @@ suite('Voice Mode onboarding', () => {
 		assert.strictEqual(host.container.classList.contains('has-voice-mode-onboarding'), true);
 	});
 
-	test('the settings link routes to Voice Mode settings', () => {
+	test('each link in the sentence routes to its own command', () => {
 		const executed: string[] = [];
 		const service = createService(disposables, executed);
 		const host = createHost(disposables);
 		disposables.add(register(service, host));
 
 		service.showIfNeeded();
-		const link = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-description a');
-		link?.click();
+		const links = [...host.container.querySelectorAll<HTMLElement>('.voice-mode-onboarding-description a')];
+		for (const link of links) {
+			link.click();
+		}
 
+		// Order matters: `renderFormattedText` numbers the `[[...]]` segments in
+		// source order, and the callback dispatches on that index.
 		assert.deepStrictEqual(
-			{ hasLink: !!link, executed },
-			{ hasLink: true, executed: ['agentsVoice.openSettings'] });
+			{ labels: links.map(link => link.textContent), executed },
+			{
+				labels: ['settings', 'how it responds'],
+				executed: ['agentsVoice.openSettings', 'workbench.action.chat.configureVoiceInstructions'],
+			});
 	});
 
 	test('holds the microphone shut for as long as the card is up', () => {

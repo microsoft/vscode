@@ -16,18 +16,3 @@ export const agentsVoiceSpeakingBackground = registerColor('agentsVoice.speaking
 	localize('agentsVoice.speakingBackground', "Background color for the speaking voice state row highlight")
 );
 
-/**
- * The introduction's waveform is drawn as a gradient across Voice Mode's own
- * two ambient states - the listening blue and the speaking violet - rather than
- * giving each voice its own hue. One sweep reads as a single considered
- * material; four competing colours read as a palette test.
- */
-export const agentsVoiceWaveFrom = registerColor('agentsVoice.waveFrom',
-	{ dark: '#58a6ff', light: '#0969da', hcDark: '#79c0ff', hcLight: '#0550ae' },
-	localize('agentsVoice.waveFrom', "Start color of the Voice Mode waveform gradient.")
-);
-
-export const agentsVoiceWaveTo = registerColor('agentsVoice.waveTo',
-	{ dark: '#a371f7', light: '#8250df', hcDark: '#d2a8ff', hcLight: '#6639ba' },
-	localize('agentsVoice.waveTo', "End color of the Voice Mode waveform gradient.")
-);

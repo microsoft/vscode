@@ -104,10 +104,18 @@
 	mask-image: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 1) 12%, rgba(0, 0, 0, 1) 88%, transparent 100%);
 }
 
+/*
+ * Monochrome, and it is this declaration that decides the tier: the canvas
+ * paints its bars in its own computed `color`, the same way the toolbar
+ * waveform uses `currentColor`. It sits at the description's tier because it is
+ * ambient - present, but never louder than the choice below it - and taking a
+ * theme token means it stays legible in light, dark and high-contrast alike.
+ */
 .voice-mode-onboarding-canvas {
 	display: block;
 	width: 100%;
 	height: 100%;
+	color: var(--vscode-descriptionForeground);
 }
 
 /* --- Voices and confirmation --- */
