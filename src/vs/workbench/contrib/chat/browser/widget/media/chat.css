@@ -4590,11 +4590,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 @keyframes chat-voice-icon-glow {
 	0%,
 	100% {
-		box-shadow: 0 0 4px var(--chat-voice-icon-glow-color);
+		box-shadow: 0 0 2px var(--chat-voice-icon-glow-color);
 	}
 
 	50% {
-		box-shadow: 0 0 9px var(--chat-voice-icon-glow-color);
+		box-shadow: 0 0 5px var(--chat-voice-icon-glow-color);
 	}
 }
 
@@ -4602,7 +4602,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	only its color and the pulse change between states, so the control never
 	morphs from a rounded square into a circle mid-session. */
 .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode-compact {
-	--chat-voice-icon-glow-color: rgba(88, 166, 255, 0.65);
+	--chat-voice-icon-glow-color: rgba(88, 166, 255, 0.4);
 	color: var(--vscode-charts-blue, #58a6ff) !important;
 	border-radius: var(--vscode-cornerRadius-small);
 }
@@ -4613,7 +4613,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* Voice mode: purple when speaking */
 .chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode-compact {
-	--chat-voice-icon-glow-color: rgba(163, 113, 247, 0.65);
+	--chat-voice-icon-glow-color: rgba(163, 113, 247, 0.4);
 	color: var(--vscode-charts-purple, #a371f7) !important;
 	border-radius: var(--vscode-cornerRadius-small);
 }
