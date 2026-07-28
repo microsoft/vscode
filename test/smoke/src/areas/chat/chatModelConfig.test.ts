@@ -188,7 +188,7 @@ export function setup(logger: Logger) {
 		});
 
 		installAllHandlers(logger, opts => {
-			const copilotEnv = getCopilotSmokeTestEnv(mockServer);
+			const copilotEnv = getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir });
 			return {
 				...opts,
 				extraArgs: [...(opts.extraArgs ?? []), '--log=trace'],

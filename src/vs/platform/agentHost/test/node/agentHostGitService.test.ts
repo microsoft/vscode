@@ -13,24 +13,33 @@ import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } fr
 suite('AgentHostGitService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('sorts common branch names to the top before applying limit', () => {
+	test('sorts the current and default branches before recent branches and applying the limit', () => {
 		assert.deepStrictEqual(
-			getBranchCompletions(['feature/recent', 'release', 'master', 'main', 'feature/older'], { limit: 3 }),
-			['main', 'master', 'feature/recent'],
+			getBranchCompletions(
+				['feature/recent', 'dev', 'feature/current', 'main', 'feature/older'],
+				{ currentBranch: 'feature/current', defaultBranch: 'dev', limit: 3 },
+			),
+			['feature/current', 'dev', 'feature/recent'],
 		);
 	});
 
-	test('preserves git order for non-common branches', () => {
+	test('preserves git order for branches other than the current and default branches', () => {
 		assert.deepStrictEqual(
-			getBranchCompletions(['feature/recent', 'release', 'feature/older']),
+			getBranchCompletions(
+				['feature/recent', 'release', 'feature/older'],
+				{ currentBranch: 'other', defaultBranch: 'main' },
+			),
 			['feature/recent', 'release', 'feature/older'],
 		);
 	});
 
-	test('filters before sorting common branch names', () => {
+	test('filters before prioritizing the current and default branches', () => {
 		assert.deepStrictEqual(
-			getBranchCompletions(['feature/recent', 'master', 'main', 'maintenance'], { query: 'ma' }),
-			['main', 'master', 'maintenance'],
+			getBranchCompletions(
+				['feature/recent', 'maintenance', 'main', 'feature/current'],
+				{ currentBranch: 'feature/current', defaultBranch: 'maintenance', query: 'ma' },
+			),
+			['maintenance', 'main'],
 		);
 	});
 

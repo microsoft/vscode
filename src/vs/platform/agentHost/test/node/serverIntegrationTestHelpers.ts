@@ -59,6 +59,7 @@ import {
 	type ProtocolMessage,
 } from '../../common/state/sessionProtocol.js';
 import { AhpSnapshotRecorder, type IAhpSnapshotNormalization, type IAhpSnapshotOptions } from './e2e/harness/ahpSnapshot.js';
+import { recordAhpSurface } from './ahpSurfaceCoverage.js';
 import { isWindows } from '../../../../base/common/platform.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
@@ -159,9 +160,15 @@ export class TestProtocolClient {
 				}
 			}
 		} else if (isJsonRpcRequest(msg)) {
+			recordAhpSurface('command', msg.method);
 			void this._handleServerRequest(msg);
 		} else if (isJsonRpcNotification(msg)) {
 			const notif = msg;
+			recordAhpSurface('notification', notif.method);
+			if (notif.method === 'action') {
+				const envelope = notif.params as unknown as ActionEnvelope | undefined;
+				recordAhpSurface('action', envelope?.action?.type ?? '');
+			}
 			this._notifications.push(notif);
 			this._flushNotificationWaiters();
 		}
@@ -401,6 +408,11 @@ export class TestProtocolClient {
 
 	/** Send a JSON-RPC notification (fire-and-forget). */
 	notify(method: string, params?: unknown): void {
+		recordAhpSurface('command', method);
+		if (method === 'dispatchAction') {
+			const dispatched = params as DispatchActionParams | undefined;
+			recordAhpSurface('action', dispatched?.action?.type ?? '');
+		}
 		const message: JsonRpcNotification = { jsonrpc: '2.0', method, params };
 		this._ahpSnapshot.record('c2s', message);
 		this._ws.send(JSON.stringify(message));
@@ -421,6 +433,7 @@ export class TestProtocolClient {
 
 	/** Send a JSON-RPC request and await the response. */
 	call<T>(method: string, params?: unknown, timeoutMs = getProtocolOperationTimeout()): Promise<T> {
+		recordAhpSurface('command', method);
 		const id = this._nextId++;
 		const message: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
 		this._ahpSnapshot.record('c2s', message);
@@ -735,7 +748,7 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the Copilot SDK agent with either a real or mocked LLM.
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly mockLlm?: boolean; readonly homeDir?: string; readonly userDataDir?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean }; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
+export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly mockLlm?: boolean; readonly homeDir?: string; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean }; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
 	// `capiReplay` records/replays in front of the mock LLM server, so it implies
 	// a mock upstream even when `mockLlm` was not explicitly requested — unless
 	// `real` is set, in which case the proxy forwards to real CAPI/GitHub.
@@ -775,6 +788,9 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 		}
 		if (options?.userDataDir) {
 			args.push('--user-data-dir', options.userDataDir);
+		}
+		if (options?.logLevel) {
+			args.push('--log', options.logLevel);
 		}
 		const childEnv = withAgentHostCoverage({
 			...process.env,

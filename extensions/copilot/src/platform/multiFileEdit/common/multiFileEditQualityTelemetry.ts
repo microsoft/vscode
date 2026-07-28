@@ -168,7 +168,7 @@ export class MultiFileEditInternalTelemetryService extends Disposable implements
 			);
 
 			const workspace = resolveWorkspaceOTelMetadata(this.gitService, uri);
-			const gitHubEnhancedTelemetryProperties = multiplexProperties({
+			void multiplexProperties({
 				headerRequestId: edit.speculationRequestId,
 				providerId: edit.mapper,
 				languageId: languageId,
@@ -181,8 +181,7 @@ export class MultiFileEditInternalTelemetryService extends Disposable implements
 				headCommitHash: workspace.headCommitHash,
 				remoteUrl: workspace.remoteUrl,
 				fileRelativePath: workspace.fileRelativePath,
-			});
-			this.telemetryService.sendEnhancedGHTelemetryEvent('fastApply/editOutcome', gitHubEnhancedTelemetryProperties);
+			}).then(gitHubEnhancedTelemetryProperties => this.telemetryService.sendEnhancedGHTelemetryEvent('fastApply/editOutcome', gitHubEnhancedTelemetryProperties)).catch(() => { /* best-effort telemetry */ });
 			this.logService.debug(`Sent telemetry for ${uri.toString()} with request ID ${edit.chatRequestId}, SD request ID ${edit.speculationRequestId}, and outcome ${outcome}`);
 		} catch (e) {
 			this.logService.error('Error sending multi-file edit telemetry', JSON.stringify(e));

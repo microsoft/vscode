@@ -1588,7 +1588,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// re-inferred later) and tagged on the generic `_meta` bag. Use
 			// `=== undefined` so an explicit empty set (`[]`) is NOT treated as
 			// workspace-less.
-			...(config && !config.fork && config.workingDirectories === undefined ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
+			...(!config?.fork && !config?.workingDirectories ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
 		};
 	}
 

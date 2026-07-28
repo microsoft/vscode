@@ -28,7 +28,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { AgentHostElementAttachmentDisplayKind } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
+import { AgentHostElementAttachmentDisplayKind, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -64,6 +64,7 @@ import {
 	isImageVariableEntry,
 	type IAgentFeedbackVariableEntry,
 	type IChatRequestVariableEntry,
+	type IElementVariableEntry,
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
@@ -4656,7 +4657,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			);
 		}
 		if (v.kind === 'element') {
-			return this._toSimpleAttachment(v.name, v.value, v._meta, AgentHostElementAttachmentDisplayKind, referenceRange);
+			const correlationId = generateUuid();
+			const metadata = { ...v._meta, ...toElementAttachmentMeta(correlationId) };
+			const elementAttachment = this._toSimpleAttachment(v.name, v.value, metadata, AgentHostElementAttachmentDisplayKind, referenceRange);
+			const imageAttachment = this._toElementImageAttachment(v, sessionResource, metadata);
+			return imageAttachment ? [elementAttachment, imageAttachment] : elementAttachment;
 		}
 		// Pasted code, prompt text, workspace context, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
@@ -4678,6 +4683,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		if (agentHostCompletionKind === AgentHostCompletionReferenceKind.Skill) {
 			return this._toSimpleAttachment(v.name, undefined, v._meta, 'skill', referenceRange);
+		}
+		return undefined;
+	}
+
+	private _toElementImageAttachment(v: IElementVariableEntry, sessionResource: URI, metadata: Record<string, unknown>): MessageAttachment | undefined {
+		if (v.imageData instanceof Uint8Array) {
+			return {
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: `${v.name} screenshot`,
+				displayKind: 'image',
+				data: encodeBase64(VSBuffer.wrap(v.imageData)),
+				contentType: v.imageMimeType ?? 'image/png',
+				_meta: metadata,
+			};
+		}
+		if (URI.isUri(v.imageData)) {
+			return this._toResourceAttachment(v.imageData, `${v.name} screenshot`, 'image', sessionResource, metadata);
 		}
 		return undefined;
 	}
