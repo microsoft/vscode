@@ -9,7 +9,7 @@ import { StringEdit, StringReplacement } from '../core/edits/stringEdit.js';
 import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { DetailedLineRangeMapping } from '../diff/rangeMapping.js';
 import { ITextModel, IIdentifiedSingleEditOperation } from '../model.js';
-import { IModelContentChange } from '../textModelEvents.js';
+import { IModelContentChange } from './mirrorTextModel.js';
 import { LengthEdit } from '../core/edits/lengthEdit.js';
 import { countEOL } from '../core/misc/eolCounter.js';
 

@@ -479,7 +479,7 @@ export function getWindowsStateStoreData(windowsState: IWindowsState): IWindowsS
 function serializeWindowState(windowState: IWindowState): ISerializedWindowState {
 	return {
 		workspaceIdentifier: windowState.workspace && { id: windowState.workspace.id, configURIPath: windowState.workspace.configPath.toString() },
-		folder: windowState.folderUri && windowState.folderUri.toString(),
+		folder: windowState.folderUri?.toString(),
 		backupPath: windowState.backupPath,
 		remoteAuthority: windowState.remoteAuthority,
 		uiState: windowState.uiState

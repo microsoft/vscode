@@ -312,6 +312,7 @@ export class Terminal {
 	}
 
 	async getPage(): Promise<any> {
+		// eslint-disable-next-line local/code-no-any-casts
 		return (this.code.driver as any).page;
 	}
 

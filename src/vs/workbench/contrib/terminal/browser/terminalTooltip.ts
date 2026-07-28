@@ -3,18 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../nls.js';
-import { ITerminalInstance } from './terminal.js';
+import type { IHoverAction } from '../../../../base/browser/ui/hover/hover.js';
 import { asArray } from '../../../../base/common/arrays.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import type { IHoverAction } from '../../../../base/browser/ui/hover/hover.js';
-import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import { TerminalStatus } from './terminalStatusList.js';
-import Severity from '../../../../base/common/severity.js';
-import { StorageScope, StorageTarget, type IStorageService } from '../../../../platform/storage/common/storage.js';
-import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
-import type { ITerminalStatusHoverAction } from '../common/terminal.js';
 import { basename } from '../../../../base/common/path.js';
+import { localize } from '../../../../nls.js';
+import { StorageScope, StorageTarget, type IStorageService } from '../../../../platform/storage/common/storage.js';
+import type { ITerminalStatusHoverAction } from '../common/terminal.js';
+import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
+import { ITerminalInstance } from './terminal.js';
 
 export function getInstanceHoverInfo(instance: ITerminalInstance, storageService: IStorageService): { content: MarkdownString; actions: IHoverAction[] } {
 	const showDetailed = parseInt(storageService.get(TerminalStorageKeys.TabsShowDetailed, StorageScope.APPLICATION) ?? '0');
@@ -77,48 +74,3 @@ export function getShellProcessTooltip(instance: ITerminalInstance, showDetailed
 	return lines.length ? `\n\n---\n\n${lines.join('\n')}` : '';
 }
 
-export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
-	if (!instance.xterm) {
-		return;
-	}
-	const cmdDetectionType = (
-		instance.capabilities.get(TerminalCapability.CommandDetection)?.hasRichCommandDetection
-			? localize('shellIntegration.rich', 'Rich')
-			: instance.capabilities.has(TerminalCapability.CommandDetection)
-				? localize('shellIntegration.basic', 'Basic')
-				: instance.usedShellIntegrationInjection
-					? localize('shellIntegration.injectionFailed', "Injection failed to activate")
-					: localize('shellIntegration.no', 'No')
-	);
-
-	const detailedAdditions: string[] = [];
-	if (instance.shellType) {
-		detailedAdditions.push(`Shell type: \`${instance.shellType}\``);
-	}
-	const cwd = instance.cwd;
-	if (cwd) {
-		detailedAdditions.push(`Current working directory: \`${cwd}\``);
-	}
-	const seenSequences = Array.from(instance.xterm.shellIntegration.seenSequences);
-	if (seenSequences.length > 0) {
-		detailedAdditions.push(`Seen sequences: ${seenSequences.map(e => `\`${e}\``).join(', ')}`);
-	}
-	const promptType = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptType;
-	if (promptType) {
-		detailedAdditions.push(`Prompt type: \`${promptType}\``);
-	}
-	const combinedString = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString();
-	if (combinedString !== undefined) {
-		detailedAdditions.push(`Prompt input: \`${combinedString}\``);
-	}
-	const detailedAdditionsString = detailedAdditions.length > 0
-		? '\n\n' + detailedAdditions.map(e => `- ${e}`).join('\n')
-		: '';
-
-	instance.statusList.add({
-		id: TerminalStatus.ShellIntegrationInfo,
-		severity: Severity.Info,
-		tooltip: `${localize('shellIntegration', "Shell integration")}: ${cmdDetectionType}`,
-		detailedTooltip: `${localize('shellIntegration', "Shell integration")}: ${cmdDetectionType}${detailedAdditionsString}`
-	});
-}

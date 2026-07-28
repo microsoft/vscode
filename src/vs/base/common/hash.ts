@@ -56,16 +56,16 @@ export function stringHash(s: string, hashVal: number) {
 	return hashVal;
 }
 
-function arrayHash(arr: any[], initialHashVal: number): number {
+function arrayHash(arr: unknown[], initialHashVal: number): number {
 	initialHashVal = numberHash(104579, initialHashVal);
-	return arr.reduce((hashVal, item) => doHash(item, hashVal), initialHashVal);
+	return arr.reduce<number>((hashVal, item) => doHash(item, hashVal), initialHashVal);
 }
 
-function objectHash(obj: any, initialHashVal: number): number {
+function objectHash(obj: object, initialHashVal: number): number {
 	initialHashVal = numberHash(181387, initialHashVal);
 	return Object.keys(obj).sort().reduce((hashVal, key) => {
 		hashVal = stringHash(key, hashVal);
-		return doHash(obj[key], hashVal);
+		return doHash((obj as Record<string, unknown>)[key], hashVal);
 	}, initialHashVal);
 }
 

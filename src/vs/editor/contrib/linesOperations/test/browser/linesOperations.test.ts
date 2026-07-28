@@ -106,6 +106,26 @@ suite('Editor Contrib - Line Operations', () => {
 					});
 				});
 		});
+
+		test('applies to whole document when selection is single line', function () {
+			withTestCodeEditor(
+				[
+					'omicron',
+					'beta',
+					'alpha'
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const sortLinesAscendingAction = new SortLinesAscendingAction();
+
+					editor.setSelection(new Selection(2, 1, 2, 4));
+					executeAction(sortLinesAscendingAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron'
+					]);
+				});
+		});
 	});
 
 	suite('SortLinesDescendingAction', () => {
@@ -187,7 +207,7 @@ suite('Editor Contrib - Line Operations', () => {
 						'beta',
 						'omicron',
 					]);
-					assertSelection(editor, new Selection(1, 1, 3, 7));
+					assertSelection(editor, new Selection(1, 1, 3, 8));
 				});
 		});
 
@@ -240,12 +260,29 @@ suite('Editor Contrib - Line Operations', () => {
 						'beta'
 					]);
 					const expectedSelections = [
-						new Selection(1, 1, 3, 7),
-						new Selection(5, 1, 6, 4)
+						new Selection(1, 1, 3, 8),
+						new Selection(5, 1, 6, 5)
 					];
 					editor.getSelections()!.forEach((actualSelection, index) => {
 						assert.deepStrictEqual(actualSelection.toString(), expectedSelections[index].toString());
 					});
+				});
+		});
+
+		test('applies to whole document when selection is single line', function () {
+			withTestCodeEditor(
+				[
+					'alpha',
+					'beta',
+					'alpha',
+					'omicron'
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
+
+					editor.setSelection(new Selection(2, 1, 2, 2));
+					executeAction(deleteDuplicateLinesAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), ['alpha', 'beta', 'omicron']);
 				});
 		});
 	});
@@ -729,7 +766,7 @@ suite('Editor Contrib - Line Operations', () => {
 				});
 		});
 
-		test('handles single line selection', function () {
+		test('applies to whole document when selection is single line', function () {
 			withTestCodeEditor(
 				[
 					'line1',
@@ -742,8 +779,7 @@ suite('Editor Contrib - Line Operations', () => {
 					// Select only line 2
 					editor.setSelection(new Selection(2, 1, 2, 6));
 					executeAction(reverseLinesAction, editor);
-					// Single line should remain unchanged
-					assert.deepStrictEqual(model.getLinesContent(), ['line1', 'line2', 'line3']);
+					assert.deepStrictEqual(model.getLinesContent(), ['line3', 'line2', 'line1']);
 				});
 		});
 
@@ -763,6 +799,26 @@ suite('Editor Contrib - Line Operations', () => {
 					editor.setSelection(new Selection(2, 1, 4, 1));
 					executeAction(reverseLinesAction, editor);
 					assert.deepStrictEqual(model.getLinesContent(), ['line1', 'line3', 'line2', 'line4', 'line5']);
+				});
+		});
+
+		test('applies to whole document when selection is single line', function () {
+			withTestCodeEditor(
+				[
+					'omicron',
+					'beta',
+					'alpha'
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const reverseLinesAction = new ReverseLinesAction();
+
+					editor.setSelection(new Selection(2, 1, 2, 4));
+					executeAction(reverseLinesAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron'
+					]);
 				});
 		});
 	});
@@ -1045,7 +1101,10 @@ suite('Editor Contrib - Line Operations', () => {
 				'ReTain_some_CAPitalization',
 				'my_var.test_function()',
 				'öçş_öç_şğü_ğü',
-				'XMLHttpRequest'
+				'XMLHttpRequest',
+				'\tfunction hello_world() {',
+				'\t\treturn some_global_object;',
+				'\t}',
 			], {}, (editor) => {
 				const model = editor.getModel()!;
 				const camelcaseAction = new CamelCaseAction();
@@ -1081,6 +1140,10 @@ suite('Editor Contrib - Line Operations', () => {
 				editor.setSelection(new Selection(8, 1, 8, 14));
 				executeAction(camelcaseAction, editor);
 				assert.strictEqual(model.getLineContent(8), 'XMLHttpRequest');
+
+				editor.setSelection(new Selection(9, 1, 11, 2));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getValueInRange(new Selection(9, 1, 11, 3)), '\tfunction helloWorld() {\n\t\treturn someGlobalObject;\n\t}');
 			}
 		);
 
@@ -1201,6 +1264,12 @@ suite('Editor Contrib - Line Operations', () => {
 				'Capital_Snake_Case',
 				'parseHTML4String',
 				'Kebab-Case',
+				'FOO_BAR',
+				'FOO BAR A',
+				'xML_HTTP-reQUEsT',
+				'ÉCOLE',
+				'ΩMEGA_CASE',
+				'ДОМ_ТЕСТ',
 			], {}, (editor) => {
 				const model = editor.getModel()!;
 				const pascalCaseAction = new PascalCaseAction();
@@ -1254,6 +1323,42 @@ suite('Editor Contrib - Line Operations', () => {
 				executeAction(pascalCaseAction, editor);
 				assert.strictEqual(model.getLineContent(10), 'KebabCase');
 				assertSelection(editor, new Selection(10, 1, 10, 10));
+
+				editor.setSelection(new Selection(9, 1, 10, 11));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getValueInRange(new Selection(9, 1, 10, 11)), 'ParseHTML4String\nKebabCase');
+				assertSelection(editor, new Selection(9, 1, 10, 10));
+
+				editor.setSelection(new Selection(11, 1, 11, 8));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(11), 'FooBar');
+				assertSelection(editor, new Selection(11, 1, 11, 7));
+
+				editor.setSelection(new Selection(12, 1, 12, 10));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(12), 'FooBarA');
+				assertSelection(editor, new Selection(12, 1, 12, 8));
+
+				editor.setSelection(new Selection(13, 1, 13, 17));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(13), 'XmlHttpReQUEsT');
+				assertSelection(editor, new Selection(13, 1, 13, 15));
+
+				editor.setSelection(new Selection(14, 1, 14, 6));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(14), 'École');
+				assertSelection(editor, new Selection(14, 1, 14, 6));
+
+				editor.setSelection(new Selection(15, 1, 15, 11));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(15), 'ΩmegaCase');
+				assertSelection(editor, new Selection(15, 1, 15, 10));
+
+				editor.setSelection(new Selection(16, 1, 16, 9));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(16), 'ДомТест');
+				assertSelection(editor, new Selection(16, 1, 16, 8));
+
 			}
 		);
 	});

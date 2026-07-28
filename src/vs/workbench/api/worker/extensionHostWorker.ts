@@ -80,19 +80,30 @@ self.importScripts = () => { throw new Error(`'importScripts' has been blocked`)
 // const nativeAddEventListener = addEventListener.bind(self);
 self.addEventListener = () => console.trace(`'addEventListener' has been blocked`);
 
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['AMDLoader'] = undefined;
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['NLSLoaderPlugin'] = undefined;
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['define'] = undefined;
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['require'] = undefined;
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['webkitRequestFileSystem'] = undefined;
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['webkitRequestFileSystemSync'] = undefined;
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['webkitResolveLocalFileSystemSyncURL'] = undefined;
+// eslint-disable-next-line local/code-no-any-casts
 (<any>self)['webkitResolveLocalFileSystemURL'] = undefined;
 
+// eslint-disable-next-line local/code-no-any-casts
 if ((<any>self).Worker) {
 
 	// make sure new Worker(...) always uses blob: (to maintain current origin)
+	// eslint-disable-next-line local/code-no-any-casts
 	const _Worker = (<any>self).Worker;
+	// eslint-disable-next-line local/code-no-any-casts
 	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
 		if (/^file:/i.test(stringUrl.toString())) {
 			stringUrl = FileAccess.uriToBrowserUri(URI.parse(stringUrl.toString())).toString(true);
@@ -144,6 +155,7 @@ if ((<any>self).Worker) {
 	};
 
 } else {
+	// eslint-disable-next-line local/code-no-any-casts
 	(<any>self).Worker = class extends NestedWorker {
 		constructor(stringOrUrl: string | URL, options?: WorkerOptions) {
 			super(nativePostMessage, stringOrUrl, { name: path.basename(stringOrUrl.toString()), ...options });

@@ -20,20 +20,22 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { mcpEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IMcpDevModeDebugging } from './mcpDevMode.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
+import { IMcpSandboxService } from './mcpSandboxService.js';
 import { McpServerConnection } from './mcpServerConnection.js';
-import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpServerTrust, McpStartServerInteraction } from './mcpTypes.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpServerTrust, McpStartServerInteraction, UserInteractionRequiredError } from './mcpTypes.js';
 
 const notTrustedNonce = '__vscode_not_trusted';
 
@@ -42,9 +44,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	private readonly _collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
 	private readonly _delegates = observableValue<readonly IMcpHostDelegate[]>('delegates', []);
-	private readonly _enabled: IObservable<boolean>;
+	private readonly _mcpAccessValue: IObservable<string>;
 	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = derived(reader => {
-		if (!this._enabled.read(reader)) {
+		if (this._mcpAccessValue.read(reader) === McpAccessValue.None) {
 			return [];
 		}
 		return this._collections.read(reader);
@@ -56,7 +58,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	private readonly _ongoingLazyActivations = observableValue(this, 0);
 
 	public readonly lazyCollectionState = derived(reader => {
-		if (this._enabled.read(reader) === false) {
+		if (this._mcpAccessValue.read(reader) === McpAccessValue.None) {
 			return { state: LazyCollectionState.AllKnown, collections: [] };
 		}
 
@@ -85,9 +87,12 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@ILogService private readonly _logService: ILogService,
+		@IMcpSandboxService private readonly _mcpSandboxService: IMcpSandboxService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
-		this._enabled = observableConfigValue(mcpEnabledConfig, true, configurationService);
+		this._mcpAccessValue = observableConfigValue(mcpAccessConfig, McpAccessValue.All, configurationService);
 	}
 
 	public registerDelegate(delegate: IMcpHostDelegate): IDisposable {
@@ -106,14 +111,16 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	public registerCollection(collection: McpCollectionDefinition): IDisposable {
 		const currentCollections = this._collections.get();
-		const toReplace = currentCollections.find(c => c.lazy && c.id === collection.id);
+		const toReplace = currentCollections.find(c => c.id === collection.id);
 
 		// Incoming collections replace the "lazy" versions. See `ExtensionMcpDiscovery` for an example.
-		if (toReplace) {
+		if (toReplace && !toReplace.lazy) {
+			return Disposable.None;
+		} else if (toReplace) {
 			this._collections.set(currentCollections.map(c => c === toReplace ? collection : c), undefined);
 		} else {
 			this._collections.set([...currentCollections, collection]
-				.sort((a, b) => (a.presentation?.order || 0) - (b.presentation?.order || 0)), undefined);
+				.sort((a, b) => a.order - b.order), undefined);
 		}
 
 		return {
@@ -209,7 +216,16 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		interaction,
 		promptType = 'only-new',
 		autoTrustChanges = false,
+		errorOnUserInteraction = false,
 	}: IMcpResolveConnectionOptions) {
+		if (collection.scope === StorageScope.WORKSPACE && !this._workspaceTrustManagementService.isWorkspaceTrusted()) {
+			if (errorOnUserInteraction) {
+				throw new UserInteractionRequiredError('workspaceTrust');
+			} else if (!await this._workspaceTrustRequestService.requestWorkspaceTrust({ message: localize('runTrust', "This MCP server definition is defined in your workspace files.") })) {
+				return false;
+			}
+		}
+
 		if (collection.trustBehavior === McpServerTrust.Kind.Trusted) {
 			this._logService.trace(`MCP server ${definition.id} is trusted, no trust prompt needed`);
 			return true;
@@ -227,6 +243,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 			if (trustNonceBearer.trustedAtNonce === notTrustedNonce) {
 				if (promptType === 'all-untrusted') {
+					if (errorOnUserInteraction) {
+						throw new UserInteractionRequiredError('serverTrust');
+					}
 					return this._promptForTrust(definition, collection, interaction, trustNonceBearer);
 				} else {
 					this._logService.trace(`MCP server ${definition.id} is untrusted, denying trust prompt`);
@@ -237,6 +256,10 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			if (promptType === 'never') {
 				this._logService.trace(`MCP server ${definition.id} trust state is unknown, skipping prompt`);
 				return false;
+			}
+
+			if (errorOnUserInteraction) {
+				throw new UserInteractionRequiredError('serverTrust');
 			}
 
 			const didTrust = await this._promptForTrust(definition, collection, interaction, trustNonceBearer);
@@ -398,13 +421,13 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		}));
 
 		return new Promise<string[] | undefined>(resolve => {
-			picker.onDidAccept(() => {
+			store.add(picker.onDidAccept(() => {
 				resolve(picker.selectedItems.map(item => item.definitonId));
 				picker.hide();
-			});
-			picker.onDidHide(() => {
+			}));
+			store.add(picker.onDidHide(() => {
 				resolve(undefined);
-			});
+			}));
 			picker.show();
 		}).finally(() => store.dispose());
 	}
@@ -425,23 +448,33 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		this._onDidChangeInputs.fire();
 	}
 
-	private async _replaceVariablesInLaunch(definition: McpServerDefinition, launch: McpServerLaunch) {
+	private async _replaceVariablesInLaunch(delegate: IMcpHostDelegate, definition: McpServerDefinition, launch: McpServerLaunch, errorOnUserInteraction?: boolean) {
 		if (!definition.variableReplacement) {
 			return launch;
 		}
 
 		const { section, target, folder } = definition.variableReplacement;
 		const inputStorage = this._getInputStorageInConfigTarget(target);
-		const previouslyStored = await inputStorage.getMap();
+		const [previouslyStored, withRemoteFilled] = await Promise.all([
+			inputStorage.getMap(),
+			delegate.substituteVariables(definition, launch),
+		]);
 
 		// pre-fill the variables we already resolved to avoid extra prompting
-		const expr = ConfigurationResolverExpression.parse(launch);
+		const expr = ConfigurationResolverExpression.parse(withRemoteFilled);
 		for (const replacement of expr.unresolved()) {
 			if (previouslyStored.hasOwnProperty(replacement.id)) {
 				expr.resolve(replacement, previouslyStored[replacement.id]);
 			}
 		}
 
+		// Check if there are still unresolved variables that would require interaction
+		if (errorOnUserInteraction) {
+			const unresolved = Array.from(expr.unresolved());
+			if (unresolved.length > 0) {
+				throw new UserInteractionRequiredError('variables');
+			}
+		}
 		// resolve variables requiring user input
 		await this._configurationResolverService.resolveWithInteraction(folder, expr, section, undefined, target);
 
@@ -484,12 +517,18 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		}
 
 		try {
-			launch = await this._replaceVariablesInLaunch(definition, launch);
+			launch = await this._replaceVariablesInLaunch(delegate, definition, launch, opts.errorOnUserInteraction);
 
 			if (definition.devMode && debug) {
 				launch = await this._instantiationService.invokeFunction(accessor => accessor.get(IMcpDevModeDebugging).transform(definition, launch!));
 			}
+			// If sandbox is enabled for this server, attempt to launch in sandbox
+			launch = await this._mcpSandboxService.launchInSandboxIfEnabled(definition, launch, collection.remoteAuthority ?? undefined, collection.configTarget);
 		} catch (e) {
+			if (e instanceof UserInteractionRequiredError) {
+				throw e;
+			}
+
 			this._notificationService.notify({
 				severity: Severity.Error,
 				message: localize('mcp.launchError', 'Error starting {0}: {1}', definition.label, String(e)),
@@ -519,6 +558,8 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			delegate,
 			launch,
 			logger,
+			opts.errorOnUserInteraction,
+			opts.taskManager,
 		);
 	}
 }

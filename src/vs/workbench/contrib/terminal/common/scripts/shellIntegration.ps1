@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------------------------
 
 # Prevent installing more than once per session
-if (Test-Path variable:global:__VSCodeState.OriginalPrompt) {
+if ((Test-Path variable:global:__VSCodeState) -and $null -ne $Global:__VSCodeState.OriginalPrompt) {
 	return;
 }
 
@@ -20,6 +20,7 @@ $Global:__VSCodeState = @{
 	EnvVarsToReport = @()
 	Nonce = $null
 	IsStable = $null
+	IsA11yMode = $null
 	IsWindows10 = $false
 }
 
@@ -31,6 +32,9 @@ $env:VSCODE_NONCE = $null
 
 $Global:__VSCodeState.IsStable = $env:VSCODE_STABLE
 $env:VSCODE_STABLE = $null
+
+$Global:__VSCodeState.IsA11yMode = $env:VSCODE_A11Y_MODE
+$env:VSCODE_A11Y_MODE = $null
 
 $__vscode_shell_env_reporting = $env:VSCODE_SHELL_ENV_REPORTING
 $env:VSCODE_SHELL_ENV_REPORTING = $null
@@ -74,16 +78,18 @@ if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
 	$env:VSCODE_PYTHON_AUTOACTIVATE_GUARD = '1'
 	if ($env:VSCODE_PYTHON_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
 		$activateScript = $env:VSCODE_PYTHON_PWSH_ACTIVATE
-		Remove-Item Env:VSCODE_PYTHON_PWSH_ACTIVATE
 
 		try {
 			Invoke-Expression $activateScript
+			$Global:__VSCodeState.OriginalPrompt = $function:Prompt
 		}
 		catch {
 			$activationError = $_
 			Write-Host "`e[0m`e[7m * `e[0;103m VS Code Python powershell activation failed with exit code $($activationError.Exception.Message) `e[0m"
 		}
 	}
+	# Remove any leftover Python activation env vars.
+	Get-ChildItem Env:VSCODE_PYTHON_*_ACTIVATE | Remove-Item -ErrorAction SilentlyContinue
 }
 
 function Global:__VSCode-Escape-Value([string]$value) {
@@ -169,6 +175,35 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 	[Console]::Write("$([char]0x1b)]633;P;PromptType=posh-git`a")
 }
 
+if ($Global:__VSCodeState.IsA11yMode -eq "1") {
+	# Check if the loaded PSReadLine already supports EnableScreenReaderMode
+	$hasScreenReaderParam = (Get-Module -Name PSReadLine) -and (Get-Command Set-PSReadLineOption).Parameters.ContainsKey('EnableScreenReaderMode')
+
+	if (-not $hasScreenReaderParam -and $PSVersionTable.PSVersion -ge "7.0") {
+		# The loaded PSReadLine lacks EnableScreenReaderMode (only available in 2.4.4-beta4+).
+		# PowerShell 7.0+ skips autoloading PSReadLine when the OS reports a screen reader active.
+		# When only VS Code's accessibility mode is enabled (no OS screen reader),
+		# it's still loaded and must be removed to load our bundled copy.
+		# Skip this on Windows PowerShell 5.1 where removing the built-in PSReadLine 2.0.0
+		# and replacing it can cause input handling issues (e.g. repeated Enter key presses).
+		if (Get-Module -Name PSReadLine) {
+			Remove-Module PSReadLine -Force
+		}
+
+		# Import VS Code's bundled PSReadLine 2.4.3 which has EnableScreenReaderMode
+		$specialPsrlPath = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'psreadline'
+		if (Test-Path $specialPsrlPath) {
+			Import-Module $specialPsrlPath
+		}
+
+		$hasScreenReaderParam = (Get-Module -Name PSReadLine) -and (Get-Command Set-PSReadLineOption).Parameters.ContainsKey('EnableScreenReaderMode')
+	}
+
+	if ($hasScreenReaderParam) {
+		Set-PSReadLineOption -EnableScreenReaderMode
+	}
+}
+
 # Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
 # still work thanks to the command line sequence
 $Global:__VSCodeState.HasPSReadLine = $false
@@ -239,4 +274,17 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
 	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
+}
+
+if ($Global:__VSCodeState.HasPSReadLine) {
+	Set-MappedKeyHandlers
+
+	# Prevent AI-executed commands from polluting shell history
+	if ($env:VSCODE_PREVENT_SHELL_HISTORY -eq "1") {
+		Set-PSReadLineOption -AddToHistoryHandler {
+			param([string]$line)
+			return $false
+		}
+		$env:VSCODE_PREVENT_SHELL_HISTORY = $null
+	}
 }

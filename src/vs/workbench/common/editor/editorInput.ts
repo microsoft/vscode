@@ -183,7 +183,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * Returns the icon which represents this editor input.
 	 * If undefined, the default icon will be used.
 	 */
-	getIcon(): ThemeIcon | undefined {
+	getIcon(): ThemeIcon | URI | undefined {
 		return undefined;
 	}
 
@@ -297,6 +297,16 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * moved.
 	 */
 	canMove(sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {
+		return true;
+	}
+
+	/**
+	 * Indicates if this editor can be reopened after being closed. By default
+	 * editors can be reopened. Subclasses can override to prevent this.
+	 *
+	 * @returns `true` if the editor can be reopened after being closed.
+	 */
+	canReopen(): boolean {
 		return true;
 	}
 

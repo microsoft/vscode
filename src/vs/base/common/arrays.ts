@@ -109,7 +109,16 @@ export function binarySearch2(length: number, compareToKey: (index: number) => n
 
 type Compare<T> = (a: T, b: T) => number;
 
-
+/**
+ * Finds the nth smallest element in the array using quickselect algorithm.
+ * The data does not need to be sorted.
+ *
+ * @param nth The zero-based index of the element to find (0 = smallest, 1 = second smallest, etc.)
+ * @param data The unsorted array
+ * @param compare A comparator function that defines the sort order
+ * @returns The nth smallest element
+ * @throws TypeError if nth is >= data.length
+ */
 export function quickSelect<T>(nth: number, data: T[], compare: Compare<T>): T {
 
 	nth = nth | 0;
@@ -193,8 +202,8 @@ export function forEachWithNeighbors<T>(arr: T[], f: (before: T | undefined, ele
 	}
 }
 
-export function concatArrays<TArr extends any[]>(...arrays: TArr): TArr[number][number][] {
-	return ([] as any[]).concat(...arrays);
+export function concatArrays<T extends any[]>(...arrays: T): T[number][number][] {
+	return [].concat(...arrays);
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
@@ -393,7 +402,7 @@ export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => unknow
 	const seen = new Set<any>();
 
 	return array.filter(element => {
-		const key = keyFn!(element);
+		const key = keyFn(element);
 		if (seen.has(key)) {
 			return false;
 		}
@@ -561,6 +570,22 @@ export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
 	return Array.isArray(items) ?
 		items.map(fn) :
 		fn(items);
+}
+
+export function mapFilter<T, U>(array: ReadonlyArray<T>, fn: (t: T) => U | undefined): U[] {
+	const result: U[] = [];
+	for (const item of array) {
+		const mapped = fn(item);
+		if (mapped !== undefined) {
+			result.push(mapped);
+		}
+	}
+	return result;
+}
+
+export function withoutDuplicates<T>(array: ReadonlyArray<T>): T[] {
+	const s = new Set(array);
+	return Array.from(s);
 }
 
 export function asArray<T>(x: T | T[]): T[];

@@ -1,0 +1,249 @@
+[
+	{
+		"name": "generate-InlineChatIntent [inline] [cpp] - cpp code generation",
+		"requests": [
+			"1abcc1dc7314c37868ec958ccaf27cd1e330a5f46ce9b43440da6bebfee6f5b8",
+			"e3b2c53b8d69bd0a34d4cd3f9e3caeba541171c749845a99bf5e1750bde32b38"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [cpp] - templated code generation",
+		"requests": [
+			"8a0d41d2f346d1fea03425436bce8e7aca2c63c867812254dbc5beb5f7219d93"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [html] - code below cursor is not duplicated",
+		"requests": [
+			"42c7335738b8199ec9150b4cf38f711927fde092371c11a0fa1999fd3e82cdb9",
+			"f17c89202f36331f0e84407d95f51b12859479d63270dc57274df93703de7a80"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [javascript] - Generate a nodejs server",
+		"requests": [
+			"5ee25d9f15f5944c6128dbb39392c92a18559ff9ebb0de287a2a12dd3a5f2bdb",
+			"8cb2a29fa1fe89412fd744e3243b2d0c0bd1f43f01d745892fd6fa6f6c20b3e0",
+			"db2feb0cfea8035b5721415e3dcbdb666945d945d7425ba3530236fa0898cbef"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [javascript] - issue #3597: gen twice",
+		"requests": [
+			"22b7a1ae55e6cf5d926ff38d28831fc0960f195827dd7e81bd4ffcf584a80d3f",
+			"39770a89aa9a84fd7bce8873502b7a99ffe8e302618da4edf365c61540223e76",
+			"b58348be9cd19f9d87ad0fc6f0b2a494a53e92b084651930579a82b7615c5887",
+			"e21bb491393e20b46e47fc7664942fd8e5c9402a86a19acf15075e961ef035b3"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [javascript] - issue #3782: gen twice",
+		"requests": [
+			"122c25f29185b3073a77c915599b30911c4bd84fac3c8ce6ac928849fea0e468"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [javascript] - Remember my name",
+		"requests": [
+			"cac4a32948420f743522db288425fd26389ad7eb27ebdf2199cb0ccfc9716656",
+			"d511ea4295e6eeb7b7886dbc18574ed90cc32b72af08089ce9b93d5682e17c1d"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [json] - issue #2589: IllegalArgument: line must be non-negative",
+		"requests": [
+			"5d09431b791128867823cf0d1367af1399a1aedd632b251363c58f60993ae1c7",
+			"674ca3be93cae6a9ca36fe60e1a07750ad8ba5de6be80fe9ba3a31b99583931a",
+			"6b7b5b317a53721ca60a25cf029d417e62e4572bdc129d9069936726947a8f19",
+			"7e41c9e02da1cc1f0fcc9ac87909e6a2d45379b9c7c33cc987e0aee9fce7a1b3",
+			"98dc4c11b2b647622f532b5f8be72679d10afbc74192a0ef373e3d035781765c",
+			"9bcc817325ab93b526f85b8ebef685591d89a533bd32c6e077aebd170a34a805"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [json] - issue #6163",
+		"requests": [
+			"bc79359c947eb349630bae351c1111a67e30972d21787029f6fe9fb2dfbed9b1"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [json] - Streaming gets confused due to jsdoc",
+		"requests": []
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [markdown] - doesn't handle markdown code response",
+		"requests": [
+			"1f1a12a7dfecc73ca4c8a621d6e7218eaaff2481cd4b2350b5773b9d0448eed8"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [markdown] - issue #224: Lots of lines deleted when using interactive chat in a markdown file",
+		"requests": []
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [powershell] - Inline chat response did not use code block #6554",
+		"requests": [
+			"b47c0040b145d2bbc55e24ec99bb22bf5c00dc22f63eefa9c793faefa7708aa3"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [powershell] - Issue #7088",
+		"requests": [
+			"6b326ab0db11e3694b9daf80b06ef9d78a9517f1e8e02f07b421da5f131a4838"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [python] - gen a palindrom fn",
+		"requests": [
+			"08f0b0d2416ae4e23872219b6bbf3c2f57cd2b416e0505cddc6b1e322a4082a9"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [python] - issue #2269: BEGIN and END were included in diff",
+		"requests": [
+			"075d1ece30070e48881ef9802b1238a47db16f7e9b277279f3a13c14118cdaea",
+			"07a6cf86724c57e5e43dfe4e957a082afb1690a0e585dcd8e1e18b6a6d10e9db",
+			"286a7d0a45af0448759b2c461548e98d433098fd564d7da284809e0400cd5c29",
+			"5b47ee404e18b193514eebd559cc685e183acd25766e761bb0ea56d9be121488",
+			"5e5b3a2f81a3b9759541fb08416015aa7a0ed72587cad966b92d99a81214a7b8",
+			"8657901fc88b506fe0293fd03528464d51f7c550e90f190f4f57920a5a00f589",
+			"961ac489e30ef27937ba99f63aa9d662aee0b139ee9e678fefca3127c27a46c3",
+			"a4aafd12a5f86ed8e1ee9f5f9dfd88d9245207361a969d0e6b846ba68cdedf4a",
+			"d38820ba0dd5f2e39f94b267e196e663e5ec00d626381d5ba7c80a9663b3b052",
+			"d665a2ca031348bb7adad28e1ecaae104f831d3c172df4cf4d0b40df8f4a576a"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [python] - issue #2303: FILEPATH not removed from generated code in empty file",
+		"requests": [
+			"accdd9e384e85fbe725df75a6fc7bec6176d1e9855bf9380695d0c200e15be0c"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [python] - issue #5439: import List in python",
+		"requests": [
+			"4dc7b9b838a5a0dffc173235dd8cf71468566b447afe92a3180c8ae5bfdbe4ca"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - gen-ts-ltrim",
+		"requests": [
+			"27ba1d6b74122732c9d692dc227342a336e64ab327af6752af6aa1c40d6816ba",
+			"8f370e0db1b768ff6c256a6d61060eafb0ec9184c0ee4b8daa3c395742472180",
+			"ae5b9339294aae50beafdbffd819230a89c9a90c61f26b9cb454b42c30f4870d"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - generate rtrim",
+		"requests": []
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - issue #2342: Use inline chat to generate a new function/property replaces other code",
+		"requests": [
+			"75907e32138875c6e13524d2d2ca3aad8a1a49eda1e8e7b3a452bcc69a90a958",
+			"e81f499f3163ca98acf23b1702257cd6edd8d3a072cd09aea57996e64d04cb3f"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - issue #2496: Range of interest is imprecise after a streaming edit",
+		"requests": []
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - issue #3370: generate code duplicates too much",
+		"requests": [
+			"595962398f37c9d3732cc4753f091eedffafd33dea7ef181d9257fc325b986cf"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - issue #3439: Bad edits in this case",
+		"requests": [
+			"36c9ecaa8225e656522ce72e45119df3952760600f9717a1d2ac5513127317da",
+			"96fa81b115b65f6315b28f31a21ce34514eadaae0ab3b8e91bae467c6d5a4aa4"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - issue #3602: gen method",
+		"requests": [
+			"e2580f42b45410af4bd4466b1e25dec10369b88b37be111c0eef6a30aea4e79a"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - issue #3604: gen nestjs route",
+		"requests": [
+			"ea0e43830edfced37afbcbe1c49dc2c2bf5feb17022700b5df5dd97e5ff4fe26"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - issue #3778: Incorrect streaming edits",
+		"requests": [
+			"04cca99a6ba50cc309415fe8138980cea4f6434299ba0ebe877e96e3c4a3f7fd",
+			"7d72b209e4fdb89ee02d3ddd27349f91bb6de3dbf5894f4c99e7d7f9e291cb64"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - issue #4080: Implementing a getter/method duplicates the signature",
+		"requests": [
+			"74d901b3f6b749d2e3fc2e3657bebc8da74cb9bf196880a1e1832ae82363a443"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - issue #4179: Imports aren't inserted to the top of the file anymore",
+		"requests": [
+			"4d975ae3f684c6b2f886265b902a52bd30722bd700dbe206144c948f79cfb994",
+			"e8ebf171cc521806ec82fce16980fdf3ffebc7dc35847ef57f49c17d0236c6f7"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - issue #6234: generate a TS interface for some JSON",
+		"requests": [
+			"e9d2bff551c38470846dc9a8626abf4bf91e058b2d696442f0090f84628425ad"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - issue #6505",
+		"requests": [
+			"28901ab918fdeca272b1127c8185e0059faea6c658c59c9b07ef1969c1d23713"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - issue #6788",
+		"requests": [
+			"01885446d6ea4491dccb1aa31f33e56f4eb40a0546b8646c94806a4e9a99693c",
+			"4702600563c46ea9eb0b7104ac7015b33b951a3deb40bdb087d74a9df5984ee3",
+			"6cdf859e84d382798565fdef53a629ca298a725bae571914337990b442ae6363",
+			"a0549d595cfcde3c0fd6011e8c423dfec763c045bdf1ff16d08a887710cfc615",
+			"c9baf8d2d3fb56bf3202fb2a2939937110664b759fd68afe4c9f2c5a70c03a1b",
+			"e27ba4be4b911a2b1a1c30c386a014814f7911c2cc0ec7b095c177572b7a395e"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - issue #7772",
+		"requests": [
+			"50538cdfbfd4f627e006d4de9e4e20e5aca30f91972d5cf582e4ffe693d66fa8"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - issue release#142: Inline chat updates code outside of area I expect",
+		"requests": [
+			"4aae8c2d700f401242173f3ee52f0add6c077dd9f41bf9bc11b64cd98b2ad2c3"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - parse keybindings",
+		"requests": [
+			"379a50238fbcfd9b910d0bf0ff4025c383dd4afe57ac3c48023ffe64e4fc95a9"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - too much code generated #6696",
+		"requests": [
+			"394bf214a728ed938ac9882fa416e8ecae83cd88a82b529358c9820d30959235"
+		]
+	},
+	{
+		"name": "generate-InlineChatIntent [inline] [typescript] - variables are used when generating",
+		"requests": [
+			"a22ccba81bd24acf6f5a3b16281db1e30720aab015964f8ecb6f815891f47e72"
+		]
+	}
+]

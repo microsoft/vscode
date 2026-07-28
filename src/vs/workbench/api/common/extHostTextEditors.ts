@@ -17,13 +17,13 @@ import * as vscode from 'vscode';
 
 export class ExtHostEditors extends Disposable implements ExtHostEditorsShape {
 
-	private readonly _onDidChangeTextEditorSelection = new Emitter<vscode.TextEditorSelectionChangeEvent>();
-	private readonly _onDidChangeTextEditorOptions = new Emitter<vscode.TextEditorOptionsChangeEvent>();
-	private readonly _onDidChangeTextEditorVisibleRanges = new Emitter<vscode.TextEditorVisibleRangesChangeEvent>();
-	private readonly _onDidChangeTextEditorViewColumn = new Emitter<vscode.TextEditorViewColumnChangeEvent>();
-	private readonly _onDidChangeTextEditorDiffInformation = new Emitter<vscode.TextEditorDiffInformationChangeEvent>();
-	private readonly _onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor | undefined>();
-	private readonly _onDidChangeVisibleTextEditors = new Emitter<readonly vscode.TextEditor[]>();
+	private readonly _onDidChangeTextEditorSelection = this._register(new Emitter<vscode.TextEditorSelectionChangeEvent>());
+	private readonly _onDidChangeTextEditorOptions = this._register(new Emitter<vscode.TextEditorOptionsChangeEvent>());
+	private readonly _onDidChangeTextEditorVisibleRanges = this._register(new Emitter<vscode.TextEditorVisibleRangesChangeEvent>());
+	private readonly _onDidChangeTextEditorViewColumn = this._register(new Emitter<vscode.TextEditorViewColumnChangeEvent>());
+	private readonly _onDidChangeTextEditorDiffInformation = this._register(new Emitter<vscode.TextEditorDiffInformationChangeEvent>());
+	private readonly _onDidChangeActiveTextEditor = this._register(new Emitter<vscode.TextEditor | undefined>());
+	private readonly _onDidChangeVisibleTextEditors = this._register(new Emitter<readonly vscode.TextEditor[]>());
 
 	readonly onDidChangeTextEditorSelection: Event<vscode.TextEditorSelectionChangeEvent> = this._onDidChangeTextEditorSelection.event;
 	readonly onDidChangeTextEditorOptions: Event<vscode.TextEditorOptionsChangeEvent> = this._onDidChangeTextEditorOptions.event;

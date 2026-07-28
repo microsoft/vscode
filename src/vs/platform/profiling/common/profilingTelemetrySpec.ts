@@ -70,6 +70,7 @@ class PerformanceError extends Error {
 		// Since the stacks are available via the sample
 		// we can avoid collecting them when constructing the error.
 		if (Error.hasOwnProperty('stackTraceLimit')) {
+			// eslint-disable-next-line local/code-no-any-casts
 			const Err = Error as any as { stackTraceLimit: number }; // For the monaco editor checks.
 			const stackTraceLimit = Err.stackTraceLimit;
 			Err.stackTraceLimit = 0;

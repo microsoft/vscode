@@ -5,28 +5,28 @@
 
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
+import * as nls from '../../../../nls.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
 import { ShiftCommand } from '../../../common/commands/shiftCommand.js';
 import { EditorAutoIndentStrategy, EditorOption } from '../../../common/config/editorOptions.js';
 import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorContribution } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
-import { EndOfLineSequence, ITextModel } from '../../../common/model.js';
-import { TextEdit } from '../../../common/languages.js';
 import { StandardTokenType } from '../../../common/encodedTokenAttributes.js';
+import { TextEdit } from '../../../common/languages.js';
+import { getGoodIndentForLine, getIndentMetadata } from '../../../common/languages/autoIndent.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { IndentConsts } from '../../../common/languages/supports/indentRules.js';
+import { EndOfLineSequence, ITextModel } from '../../../common/model.js';
 import { IModelService } from '../../../common/services/model.js';
-import * as indentUtils from '../common/indentUtils.js';
-import * as nls from '../../../../nls.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { getGoodIndentForLine, getIndentMetadata } from '../../../common/languages/autoIndent.js';
-import { getReindentEditOperations } from '../common/indentation.js';
 import { getStandardTokenTypeAtPosition } from '../../../common/tokens/lineTokens.js';
-import { Position } from '../../../common/core/position.js';
+import { getReindentEditOperations } from '../common/indentation.js';
+import * as indentUtils from '../common/indentUtils.js';
 
 export class IndentationToSpacesAction extends EditorAction {
 	public static readonly ID = 'editor.action.indentationToSpaces';
@@ -242,7 +242,8 @@ export class ReindentLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			metadata: {
 				description: nls.localize2('editor.reindentlinesDescription', "Reindent the lines of the editor."),
-			}
+			},
+			canTriggerInlineEdits: true,
 		});
 	}
 
@@ -270,7 +271,8 @@ export class ReindentSelectedLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			metadata: {
 				description: nls.localize2('editor.reindentselectedlinesDescription', "Reindent the selected lines of the editor."),
-			}
+			},
+			canTriggerInlineEdits: true,
 		});
 	}
 

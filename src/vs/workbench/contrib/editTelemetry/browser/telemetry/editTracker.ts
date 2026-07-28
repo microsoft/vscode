@@ -10,6 +10,9 @@ import { AnnotatedStringEdit } from '../../../../../editor/common/core/edits/str
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 import { IDocumentWithAnnotatedEdits, EditKeySourceData, EditSource } from '../helpers/documentWithAnnotatedEdits.js';
+import { IExternalEditCorrelation } from './agentHostEditMarkerService.js';
+
+const EXTERNAL_OBSERVATION_KEY_PREFIX = 'external-observation:';
 
 /**
  * Tracks a single document.
@@ -19,20 +22,38 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 	private _pendingExternalEdits: AnnotatedStringEdit<EditKeySourceData> = AnnotatedStringEdit.empty;
 
 	private readonly _update = observableSignal(this);
-	private readonly _sumAddedCharactersPerKey: Map<string, number> = new Map();
+	private readonly _representativePerKey: Map<string, TextModelEditSource> = new Map();
+	private readonly _sumAddedCharactersPerKey: Map</* key */string, number> = new Map();
+	private readonly _externalObservationIds = new Set<string>();
+	private readonly _ignoredInitialExternalObservationIds = new Set<string>();
+	private readonly _suppressedExternalObservationIds = new Set<string>();
+	private readonly _invalidatedExternalObservationIds = new Set<string>();
 
 	constructor(
 		private readonly _doc: IDocumentWithAnnotatedEdits,
 		public readonly data: T,
+		private readonly _externalEditCorrelation?: IExternalEditCorrelation,
 	) {
 		super();
 
 		this._register(runOnChange(this._doc.value, (_val, _prevVal, edits) => {
-			const eComposed = AnnotatedStringEdit.compose(edits.map(e => e.edit));
+			let eComposed = AnnotatedStringEdit.compose(edits.map(e => e.edit));
 			if (eComposed.replacements.every(e => e.data.source.category === 'external')) {
-				if (this._edits.isEmpty()) {
+				if (this._edits.isEmpty() && !this._externalEditCorrelation) {
 					// Ignore initial external edits
 				} else {
+					if (this._externalEditCorrelation) {
+						const observationId = this._externalEditCorrelation.register(_prevVal.value, _val.value);
+						this._externalObservationIds.add(observationId);
+						if (this._externalEditCorrelation.isSuppressed(observationId)) {
+							this._suppressedExternalObservationIds.add(observationId);
+						}
+						if (this._edits.isEmpty()) {
+							this._ignoredInitialExternalObservationIds.add(observationId);
+						}
+						const key = `${EXTERNAL_OBSERVATION_KEY_PREFIX}${observationId}`;
+						eComposed = eComposed.mapData(replacement => new EditKeySourceData(key, replacement.data.source, replacement.data.representative));
+					}
 					// queue pending external edits
 					this._pendingExternalEdits = this._pendingExternalEdits.compose(eComposed);
 				}
@@ -46,11 +67,37 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 
 			this._update.trigger(undefined);
 		}));
+		if (this._externalEditCorrelation) {
+			this._register(this._externalEditCorrelation.onDidSuppress(observationId => {
+				if (this._externalObservationIds.has(observationId)) {
+					this._suppressedExternalObservationIds.add(observationId);
+					this._update.trigger(undefined);
+				}
+			}));
+			this._register(this._externalEditCorrelation.onDidInvalidate(observationId => {
+				if (this._externalObservationIds.has(observationId)) {
+					this._suppressedExternalObservationIds.delete(observationId);
+					this._invalidatedExternalObservationIds.add(observationId);
+					this._update.trigger(undefined);
+				}
+			}));
+		}
+	}
+
+	public releaseExternalEditCorrelations(): void {
+		for (const observationId of this._externalObservationIds) {
+			this._externalEditCorrelation?.release(observationId);
+		}
+		this._externalObservationIds.clear();
 	}
 
 	private _applyEdit(e: AnnotatedStringEdit<EditKeySourceData>): void {
 		for (const r of e.replacements) {
-			const existing = this._sumAddedCharactersPerKey.get(r.data.key) ?? 0;
+			let existing = this._sumAddedCharactersPerKey.get(r.data.key);
+			if (existing === undefined) {
+				existing = 0;
+				this._representativePerKey.set(r.data.key, r.data.representative);
+			}
 			const newCount = existing + r.getNewLength();
 			this._sumAddedCharactersPerKey.set(r.data.key, newCount);
 		}
@@ -62,27 +109,58 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 		await this._doc.waitForQueue();
 	}
 
-	public getChangedCharactersCount(key: string): number {
+	public getTotalInsertedCharactersCount(key: string, includeSuppressed = false): number {
+		if (!this._shouldIncludeKey(key, includeSuppressed)) {
+			return 0;
+		}
 		const val = this._sumAddedCharactersPerKey.get(key);
 		return val ?? 0;
 	}
 
-	getTrackedRanges(reader?: IReader): TrackedEdit[] {
+	public getAllKeys(includeSuppressed = false): string[] {
+		return Array.from(this._sumAddedCharactersPerKey.keys()).filter(key => this._shouldIncludeKey(key, includeSuppressed));
+	}
+
+	public getRepresentative(key: string): TextModelEditSource | undefined {
+		return this._representativePerKey.get(key);
+	}
+
+	public applyPendingExternalEdits(): void {
+		if (this._pendingExternalEdits.isEmpty()) {
+			return;
+		}
+		this._applyEdit(this._pendingExternalEdits);
+		this._pendingExternalEdits = AnnotatedStringEdit.empty;
+		this._update.trigger(undefined);
+	}
+
+	public getTrackedRanges(reader?: IReader, includeSuppressed = false): TrackedEdit[] {
 		this._update.read(reader);
 		const ranges = this._edits.getNewRanges();
 		return ranges.map((r, idx) => {
 			const e = this._edits.replacements[idx];
 			const te = new TrackedEdit(e.replaceRange, r, e.data.key, e.data.source, e.data.representative);
 			return te;
-		});
+		}).filter(edit => this._shouldIncludeKey(edit.sourceKey, includeSuppressed));
 	}
 
-	isEmpty(): boolean {
-		return this._edits.isEmpty();
+	public isEmpty(): boolean {
+		return this.getAllKeys().length === 0;
 	}
 
-	public reset(): void {
-		this._edits = AnnotatedStringEdit.empty;
+	private _shouldIncludeKey(key: string, includeSuppressed: boolean): boolean {
+		if (!key.startsWith(EXTERNAL_OBSERVATION_KEY_PREFIX)) {
+			return true;
+		}
+		const observationId = key.substring(EXTERNAL_OBSERVATION_KEY_PREFIX.length);
+		if (this._invalidatedExternalObservationIds.has(observationId)) {
+			return true;
+		}
+		const isSuppressed = this._suppressedExternalObservationIds.has(observationId);
+		if (this._ignoredInitialExternalObservationIds.has(observationId)) {
+			return includeSuppressed && isSuppressed;
+		}
+		return includeSuppressed || !isSuppressed;
 	}
 
 	public _getDebugVisualization() {

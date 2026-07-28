@@ -52,7 +52,7 @@
 	font-size: 0.9em;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.backslash-path .monaco-breadcrumb-item::before  {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.backslash-path .monaco-breadcrumb-item::before {
 	content: '\\';
 	font-size: 0.9em;
 }

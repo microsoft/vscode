@@ -12,7 +12,8 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { IBackgroundTokenizationStore, ILanguageIdCodec } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { TokenizationStateStore } from '../../../../../editor/common/model/textModelTokens.js';
-import { IModelContentChange, IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { deserializeFontTokenOptions, IFontTokenOption, IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { IModelContentChange } from '../../../../../editor/common/model/mirrorTextModel.js';
 import { ContiguousMultilineTokensBuilder } from '../../../../../editor/common/tokens/contiguousMultilineTokensBuilder.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
@@ -20,6 +21,9 @@ import { MonotonousIndexTransformer } from '../indexTransformer.js';
 import type { StateDeltas, TextMateTokenizationWorker } from './worker/textMateTokenizationWorker.worker.js';
 import type { applyStateStackDiff, StateStack } from 'vscode-textmate';
 import { linesLengthEditFromModelContentChange } from '../../../../../editor/common/model/textModelStringEdit.js';
+import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { AnnotationsUpdate, ISerializedAnnotation } from '../../../../../editor/common/model/tokens/annotations.js';
 
 export class TextMateWorkerTokenizerController extends Disposable {
 	private static _id = 0;
@@ -108,7 +112,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 	/**
 	 * This method is called from the worker through the worker host.
 	 */
-	public async setTokensAndStates(controllerId: number, versionId: number, rawTokens: Uint8Array, stateDeltas: StateDeltas[]): Promise<void> {
+	public async setTokensAndStates(controllerId: number, versionId: number, rawTokens: Uint8Array, fontTokens: ISerializedAnnotation<IFontTokenOption>[], stateDeltas: StateDeltas[]): Promise<void> {
 		if (this.controllerId !== controllerId) {
 			// This event is for an outdated controller (the worker didn't receive the delete/create messages yet), ignore the event.
 			return;
@@ -121,6 +125,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		let tokens = ContiguousMultilineTokensBuilder.deserialize(
 			new Uint8Array(rawTokens)
 		);
+		const fontTokensUpdate = AnnotationsUpdate.deserialize(fontTokens, deserializeFontTokenOptions());
 
 		if (this._shouldLog) {
 			console.log('received background tokenization result', {
@@ -177,6 +182,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 					}
 				}
 			}
+			fontTokensUpdate.rebase(this._stringEditFromChanges(this._model, this._pendingChanges));
 		}
 
 		const curToFutureTransformerStates = MonotonousIndexTransformer.fromMany(
@@ -219,6 +225,21 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		}
 		// First set states, then tokens, so that events fired from set tokens don't read invalid states
 		this._backgroundTokenizationStore.setTokens(tokens);
+		this._backgroundTokenizationStore.setFontInfo(fontTokensUpdate);
+	}
+
+	private _stringEditFromChanges(model: ITextModel, pendingChanges: IModelContentChangedEvent[]): StringEdit {
+		const edits: StringEdit[] = [];
+		for (const change of pendingChanges) {
+			for (const innerChanges of change.changes) {
+				const range = Range.lift(innerChanges.range);
+				const text = innerChanges.text;
+				const offsetEditStart = model.getOffsetAt(range.getStartPosition());
+				const offsetEditEnd = model.getOffsetAt(range.getEndPosition());
+				edits.push(StringEdit.replace(new OffsetRange(offsetEditStart, offsetEditEnd), text));
+			}
+		}
+		return StringEdit.compose(edits);
 	}
 
 	private get _shouldLog() { return this._loggingEnabled.get(); }

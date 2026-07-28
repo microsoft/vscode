@@ -22,6 +22,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { RenderedContentHover } from './contentHoverRendered.js';
 import { isMousePositionWithinElement } from './hoverUtils.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 
 export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidget {
 
@@ -39,7 +40,8 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IHoverService private readonly _hoverService: IHoverService
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
 		super();
 		this._contentHoverWidget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
@@ -216,7 +218,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 
 	private _showHover(hoverResult: ContentHoverResult): void {
 		const context = this._getHoverContext();
-		this._renderedContentHover.value = new RenderedContentHover(this._editor, hoverResult, this._participants, context, this._keybindingService, this._hoverService);
+		this._renderedContentHover.value = new RenderedContentHover(this._editor, hoverResult, this._participants, context, this._keybindingService, this._hoverService, this._clipboardService);
 		if (this._renderedContentHover.value.domNodeHasChildren) {
 			this._contentHoverWidget.show(this._renderedContentHover.value);
 		} else {
@@ -247,6 +249,9 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	public showsOrWillShow(mouseEvent: IEditorMouseEvent): boolean {
 		const isContentWidgetResizing = this._contentHoverWidget.isResizing;
 		if (isContentWidgetResizing) {
+			return true;
+		}
+		if (this._isMouseOnCodeActionWidget(mouseEvent)) {
 			return true;
 		}
 		const anchorCandidates: HoverAnchor[] = this._findHoverAnchorCandidates(mouseEvent);
@@ -291,6 +296,14 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		}
 		anchorCandidates.sort((a, b) => b.priority - a.priority);
 		return anchorCandidates;
+	}
+
+	private _isMouseOnCodeActionWidget(mouseEvent: IEditorMouseEvent): boolean {
+		const target = mouseEvent.event.browserEvent.target;
+		if (target instanceof Element && !!target.closest('.action-widget')) {
+			return true;
+		}
+		return false;
 	}
 
 	private _onMouseLeave(e: MouseEvent): void {

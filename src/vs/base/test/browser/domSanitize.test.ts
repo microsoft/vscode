@@ -61,6 +61,23 @@ suite('DomSanitize', () => {
 		assert.ok(str.includes('custom-attr="value"'));
 	});
 
+	test('Attributes in config should be case insensitive', () => {
+		const html = '<div Custom-Attr="value">content</div>';
+
+		{
+			const result = sanitizeHtml(html, {
+				allowedAttributes: { override: ['custom-attr'] }
+			});
+			assert.ok(result.toString().includes('custom-attr="value"'));
+		}
+		{
+			const result = sanitizeHtml(html, {
+				allowedAttributes: { override: ['CUSTOM-ATTR'] }
+			});
+			assert.ok(result.toString().includes('custom-attr="value"'));
+		}
+	});
+
 	test('removes unsupported protocols for href by default', () => {
 		const html = '<a href="javascript:alert(1)">bad link</a>';
 		const result = sanitizeHtml(html);
@@ -82,9 +99,8 @@ suite('DomSanitize', () => {
 	test('allows safe protocols for href', () => {
 		const html = '<a href="https://example.com">safe link</a>';
 		const result = sanitizeHtml(html);
-		const str = result.toString();
 
-		assert.ok(str.includes('href="https://example.com"'));
+		assert.ok(result.toString().includes('href="https://example.com"'));
 	});
 
 	test('allows fragment links', () => {
@@ -109,9 +125,22 @@ suite('DomSanitize', () => {
 		const result = sanitizeHtml(html, {
 			allowedMediaProtocols: { override: [Schemas.data] }
 		});
-		const str = result.toString();
 
-		assert.ok(str.includes('src="data:image/png;base64,'));
+		assert.ok(result.toString().includes('src="data:image/png;base64,'));
+	});
+
+	test('Removes relative paths for img src by default', () => {
+		const html = '<img src="path/img.png">';
+		const result = sanitizeHtml(html);
+		assert.strictEqual(result.toString(), '<img>');
+	});
+
+	test('Can allow relative paths for image', () => {
+		const html = '<img src="path/img.png">';
+		const result = sanitizeHtml(html, {
+			allowRelativeMediaPaths: true,
+		});
+		assert.strictEqual(result.toString(), '<img src="path/img.png">');
 	});
 
 	test('Supports dynamic attribute sanitization', () => {
@@ -128,8 +157,7 @@ suite('DomSanitize', () => {
 				]
 			}
 		});
-		const str = result.toString();
-		assert.strictEqual(str, '<div>text1</div><div title="b">text2</div>');
+		assert.strictEqual(result.toString(), '<div>text1</div><div title="b">text2</div>');
 	});
 
 	test('Supports changing attributes in dynamic sanitization', () => {

@@ -11,7 +11,6 @@ import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { StandardMouseEvent } from '../../mouseEvent.js';
 import { ActionBar, ActionsOrientation, IActionViewItemProvider } from '../actionbar/actionbar.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
-import { AnchorAlignment, layout, LayoutAnchorPosition } from '../contextview/contextview.js';
 import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
 import { EmptySubmenuAction, IAction, IActionRunner, Separator, SubmenuAction } from '../../../common/actions.js';
 import { RunOnceScheduler } from '../../../common/async.js';
@@ -26,6 +25,8 @@ import { DisposableStore } from '../../../common/lifecycle.js';
 import { isLinux, isMacintosh } from '../../../common/platform.js';
 import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
 import * as strings from '../../../common/strings.js';
+import { AnchorAlignment, layout, LayoutAnchorPosition } from '../../../common/layout.js';
+import { CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE } from '../contextview/contextview.js';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
@@ -140,9 +141,9 @@ export class Menu extends ActionBar {
 		if (options.enableMnemonics) {
 			this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
 				const key = e.key.toLocaleLowerCase();
-				if (this.mnemonics.has(key)) {
+				const actions = this.mnemonics.get(key);
+				if (actions !== undefined) {
 					EventHelper.stop(e, true);
-					const actions = this.mnemonics.get(key)!;
 
 					if (actions.length === 1) {
 						if (actions[0] instanceof SubmenuMenuActionViewItem && actions[0].container) {
@@ -320,15 +321,11 @@ export class Menu extends ActionBar {
 
 		const fgColor = style.foregroundColor ?? '';
 		const bgColor = style.backgroundColor ?? '';
-		const border = style.borderColor ? `1px solid ${style.borderColor}` : '';
-		const borderRadius = '5px';
-		const shadow = style.shadowColor ? `0 2px 8px ${style.shadowColor}` : '';
+		const borderRadius = 'var(--vscode-cornerRadius-large)';
 
-		scrollElement.style.outline = border;
 		scrollElement.style.borderRadius = borderRadius;
 		scrollElement.style.color = fgColor;
 		scrollElement.style.backgroundColor = bgColor;
-		scrollElement.style.boxShadow = shadow;
 	}
 
 	override getContainer(): HTMLElement {
@@ -398,14 +395,12 @@ export class Menu extends ActionBar {
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionViewItem.getMnemonic();
 				if (mnemonic && menuActionViewItem.isEnabled()) {
-					let actionViewItems: BaseMenuActionViewItem[] = [];
-					if (this.mnemonics.has(mnemonic)) {
-						actionViewItems = this.mnemonics.get(mnemonic)!;
+					const actionViewItems = this.mnemonics.get(mnemonic);
+					if (actionViewItems !== undefined) {
+						actionViewItems.push(menuActionViewItem);
+					} else {
+						this.mnemonics.set(mnemonic, [menuActionViewItem]);
 					}
-
-					actionViewItems.push(menuActionViewItem);
-
-					this.mnemonics.set(mnemonic, actionViewItems);
 				}
 			}
 
@@ -423,14 +418,12 @@ export class Menu extends ActionBar {
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionViewItem.getMnemonic();
 				if (mnemonic && menuActionViewItem.isEnabled()) {
-					let actionViewItems: BaseMenuActionViewItem[] = [];
-					if (this.mnemonics.has(mnemonic)) {
-						actionViewItems = this.mnemonics.get(mnemonic)!;
+					const actionViewItems = this.mnemonics.get(mnemonic);
+					if (actionViewItems !== undefined) {
+						actionViewItems.push(menuActionViewItem);
+					} else {
+						this.mnemonics.set(mnemonic, [menuActionViewItem]);
 					}
-
-					actionViewItems.push(menuActionViewItem);
-
-					this.mnemonics.set(mnemonic, actionViewItems);
 				}
 			}
 
@@ -863,7 +856,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		const ret = { top: 0, left: 0 };
 
 		// Start with horizontal
-		ret.left = layout(windowDimensions.width, submenu.width, { position: expandDirection.horizontal === HorizontalDirection.Right ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, offset: entry.left, size: entry.width });
+		ret.left = layout(windowDimensions.width, submenu.width, { position: expandDirection.horizontal === HorizontalDirection.Right ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, offset: entry.left, size: entry.width }).position;
 
 		// We don't have enough room to layout the menu fully, so we are overlapping the menu
 		if (ret.left >= entry.left && ret.left < entry.left + entry.width) {
@@ -876,7 +869,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}
 
 		// Now that we have a horizontal position, try layout vertically
-		ret.top = layout(windowDimensions.height, submenu.height, { position: LayoutAnchorPosition.Before, offset: entry.top, size: 0 });
+		ret.top = layout(windowDimensions.height, submenu.height, { position: LayoutAnchorPosition.Before, offset: entry.top, size: 0 }).position;
 
 		// We didn't have enough room below, but we did above, so we shift down to align the menu
 		if (ret.top + submenu.height === entry.top && ret.top + entry.height + submenu.height <= windowDimensions.height) {
@@ -903,6 +896,8 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.submenuContainer.style.position = 'fixed';
 			this.submenuContainer.style.top = '0';
 			this.submenuContainer.style.left = '0';
+			// Fix to #263546, for submenu of treeView view/item/context z-index issue - ensure submenu appears above other elements
+			this.submenuContainer.style.zIndex = '1';
 
 			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions.length ? this.submenuActions : [new EmptySubmenuAction()], this.submenuOptions, this.menuStyle);
 
@@ -1020,11 +1015,14 @@ export function formatRule(c: ThemeIcon) {
 	return `.codicon-${c.id}:before { content: '\\${fontCharacter.toString(16)}'; }`;
 }
 
-function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
+export function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
+	const borderColor = style.borderColor ?? 'var(--vscode-menu-border)';
+	const menuShadow = `var(--vscode-shadow-lg${style.shadowColor ? `, 0 0 12px ${style.shadowColor}` : ''})`;
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
-	border-radius: 5px;
+	border-radius: var(--vscode-cornerRadius-large);
+	border: var(--vscode-strokeThickness) solid ${borderColor};
 	min-width: 160px;
 }
 
@@ -1139,11 +1137,11 @@ ${formatRule(Codicon.menuSubmenu)}
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
 	flex: 1 1 auto;
 	display: flex;
-	height: 2em;
+	height: 24px;
 	align-items: center;
 	position: relative;
 	margin: 0 4px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .keybinding,
@@ -1239,10 +1237,14 @@ ${formatRule(Codicon.menuSubmenu)}
 /* Context Menu */
 
 .context-view.monaco-menu-container {
+	${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE}: ${menuShadow};
 	outline: 0;
 	border: none;
 	animation: fadeIn 0.083s linear;
 	-webkit-app-region: no-drag;
+	box-shadow: var(${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE});
+	border-radius: var(--vscode-cornerRadius-large);
+	overflow: hidden;
 }
 
 .context-view.monaco-menu-container :focus,
@@ -1255,6 +1257,7 @@ ${formatRule(Codicon.menuSubmenu)}
 .hc-light .context-view.monaco-menu-container,
 :host-context(.hc-black) .context-view.monaco-menu-container,
 :host-context(.hc-light) .context-view.monaco-menu-container {
+	${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE}: none;
 	box-shadow: none;
 }
 
@@ -1265,6 +1268,26 @@ ${formatRule(Codicon.menuSubmenu)}
 	background: none;
 }
 
+/* Show the menu item selection border only for keyboard navigation. Pointer-driven focus typically does not set :focus-visible, so suppress the border in that case. */
+.monaco-menu .monaco-action-bar.vertical .action-menu-item:focus:not(:focus-visible) {
+	outline: none !important;
+	outline-offset: 0 !important;
+}
+
+/* High contrast themes always show the selection border to indicate the focused item, regardless of input modality. The duplicated .monaco-menu raises specificity above the keyboard-only suppression rule above so this wins independent of declaration order. */
+.hc-black .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
+.hc-light .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
+	outline: 1px solid var(--vscode-menu-selectionBorder) !important;
+	outline-offset: -1px !important;
+}
+
+/* Keep :host-context separate because WebKit otherwise rejects the valid selectors above. */
+:host-context(.hc-black) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
+:host-context(.hc-light) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
+	outline: 1px solid var(--vscode-menu-selectionBorder) !important;
+	outline-offset: -1px !important;
+}
+
 /* Vertical Action Bar Styles */
 
 .monaco-menu .monaco-action-bar.vertical {
@@ -1272,7 +1295,7 @@ ${formatRule(Codicon.menuSubmenu)}
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
-	height: 2em;
+	height: 24px;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),

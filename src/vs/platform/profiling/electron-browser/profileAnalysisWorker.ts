@@ -17,7 +17,7 @@ export function create(): IWebWorkerServerRequestHandler {
 
 class ProfileAnalysisWorker implements IWebWorkerServerRequestHandler, IProfileAnalysisWorker {
 
-	_requestHandlerBrand: any;
+	_requestHandlerBrand: void = undefined;
 
 	$analyseBottomUp(profile: IV8Profile): BottomUpAnalysis {
 		if (!Utils.isValidProfile(profile)) {

@@ -30,24 +30,24 @@ export interface ITestingContinuousRunService {
 	readonly lastRunProfileIds: ReadonlySet<number>;
 
 	/**
-	 * Fired when a test is added or removed from continous run, or when
+	 * Fired when a test is added or removed from continuous run, or when
 	 * enablement is changed globally.
 	 */
-	onDidChange: Event<string | undefined>;
+	readonly onDidChange: Event<string | undefined>;
 
 	/**
-	 * Gets whether continous run is specifically enabled for the given test ID.
+	 * Gets whether continuous run is specifically enabled for the given test ID.
 	 */
 	isSpecificallyEnabledFor(testId: string): boolean;
 
 	/**
-	 * Gets whether continous run is specifically enabled for
+	 * Gets whether continuous run is specifically enabled for
 	 * the given test ID, or any of its parents.
 	 */
 	isEnabledForAParentOf(testId: string): boolean;
 
 	/**
-	 * Gets whether continous run is specifically enabled for
+	 * Gets whether continuous run is specifically enabled for
 	 * the given test ID, or any of its parents.
 	 */
 	isEnabledForAChildOf(testId: string): boolean;
@@ -86,7 +86,7 @@ type RunningRef = { path: readonly string[]; profiles: ISettableObservable<ITest
 export class TestingContinuousRunService extends Disposable implements ITestingContinuousRunService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly changeEmitter = new Emitter<string | undefined>();
+	private readonly changeEmitter = this._register(new Emitter<string | undefined>());
 	private readonly running = new WellDefinedPrefixTree<RunningRef>();
 	private readonly lastRun: StoredValue<Set<number>>;
 

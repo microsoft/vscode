@@ -77,6 +77,7 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 		[IExtHostRpcService, new class extends mock<IExtHostRpcService>() {
 			declare readonly _serviceBrand: undefined;
 			override getProxy<T>(identifier: ProxyIdentifier<T>): Proxied<T> {
+				// eslint-disable-next-line local/code-no-any-casts
 				return <any>mainThreadExtensionsService;
 			}
 		}],
@@ -190,7 +191,7 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 
 	suite('https://gist.github.com/thecrypticace/f0f2e182082072efdaf0f8e1537d2cce', function () {
 
-		test("Restored, separate operations", () => {
+		test('Restored, separate operations', () => {
 			// Actual Test
 			let original;
 
@@ -228,7 +229,7 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 			assert.strictEqual(findSubstrCount, 4);
 		});
 
-		test("Never restored, separate operations", () => {
+		test('Never restored, separate operations', () => {
 			// Operation 1
 			for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
 			assert.ok(new Error().stack);
@@ -246,7 +247,7 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 			assert.ok(new Error().stack);
 		});
 
-		test("Restored, too many uses before restoration", async () => {
+		test('Restored, too many uses before restoration', async () => {
 			const original = Error.prepareStackTrace;
 			Error.prepareStackTrace = (_, stack) => stack;
 

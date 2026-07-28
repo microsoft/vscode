@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import * as nls from '../../../nls.js';
 import * as path from '../../../base/common/path.js';
 import * as performance from '../../../base/common/performance.js';
@@ -20,7 +18,7 @@ import { ExtHostConfiguration, IExtHostConfiguration } from './extHostConfigurat
 import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from './extHostExtensionActivator.js';
 import { ExtHostStorage, IExtHostStorage } from './extHostStorage.js';
 import { ExtHostWorkspace, IExtHostWorkspace } from './extHostWorkspace.js';
-import { MissingExtensionDependency, ActivationKind, checkProposedApiEnabled, isProposedApiEnabled, ExtensionActivationReason } from '../../services/extensions/common/extensions.js';
+import { MissingExtensionDependency, ActivationKind, checkProposedApiEnabled, isProposedApiEnabled, ExtensionActivationReason, IProposedApiUsage, setProposedApiUsageReporter, setEnabledApiProposalsFallbackExperiment } from '../../services/extensions/common/extensions.js';
 import { ExtensionDescriptionRegistry, IActivationEventsReader } from '../../services/extensions/common/extensionDescriptionRegistry.js';
 import * as errors from '../../../base/common/errors.js';
 import type * as vscode from 'vscode';
@@ -205,6 +203,30 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._resolvers = Object.create(null);
 		this._started = false;
 		this._remoteConnectionData = this._initData.remote.connectionData;
+
+		// report telemetry when an extension attempts to use a proposed API it is not entitled to use
+		this._register(setProposedApiUsageReporter(usage => this._reportProposedApiUsage(usage)));
+
+		// experiment: grant proposed API access to extension/proposal combinations that have not
+		// declared the proposal themselves (only takes effect on `stable`)
+		this._register(setEnabledApiProposalsFallbackExperiment(this._initData.enabledApiProposalsFallback, this._initData.quality));
+	}
+
+	private _reportProposedApiUsage(usage: IProposedApiUsage): void {
+		type ProposedApiUsageClassification = {
+			owner: 'alexr00';
+			comment: 'An extension attempted to use a proposed API it has not been allowlisted to use.';
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the extension attempting to use the proposed API.' };
+			proposalName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the proposed API the extension is not entitled to use.' };
+		};
+		type ProposedApiUsageEvent = {
+			extensionId: string;
+			proposalName: string;
+		};
+		this._mainThreadTelemetryProxy.$publicLog2<ProposedApiUsageEvent, ProposedApiUsageClassification>('extensionProposedApiNotEnabled', {
+			extensionId: usage.extensionId,
+			proposalName: usage.proposalName
+		});
 	}
 
 	public getRemoteConnectionData(): IRemoteConnectionData | null {
@@ -559,10 +581,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 							return undefined;
 						}
 
-						const onDidReceiveMessage = Event.buffer(Event.fromDOMEventEmitter(messagePort, 'message', e => e.data));
+						const onDidReceiveMessage = Event.buffer(Event.fromDOMEventEmitter(messagePort, 'message', e => e.data), 'onDidReceiveMessage');
 						messagePort.start();
 						messagePassingProtocol = {
 							onDidReceiveMessage,
+							// eslint-disable-next-line local/code-no-any-casts
 							postMessage: messagePort.postMessage.bind(messagePort) as any
 						};
 					}
@@ -1005,6 +1028,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		// eslint-disable-next-line local/code-no-any-casts
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
 		const { globalRegistry, myExtensions } = applyExtensionsDelta(this._activationEventsReader, this._globalRegistry, this._myRegistry, extensionsDelta);
@@ -1045,6 +1069,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		// eslint-disable-next-line local/code-no-any-casts
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
 		// First build up and update the trie and only afterwards apply the delta
@@ -1159,7 +1184,7 @@ export interface IExtHostExtensionService extends AbstractExtHostExtensionServic
 	registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable;
 	getRemoteExecServer(authority: string): Promise<vscode.ExecServer | undefined>;
 
-	onDidChangeRemoteConnectionData: Event<void>;
+	readonly onDidChangeRemoteConnectionData: Event<void>;
 	getRemoteConnectionData(): IRemoteConnectionData | null;
 }
 

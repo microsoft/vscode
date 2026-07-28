@@ -119,21 +119,30 @@ export class EditorMouseEvent extends StandardMouseEvent {
 	/**
 	 * Editor's coordinates relative to the whole document.
 	 */
-	public readonly editorPos: EditorPagePosition;
+	public get editorPos(): EditorPagePosition {
+		this._editorPos ??= createEditorPagePosition(this._editorViewDomNode);
+		return this._editorPos;
+	}
+	private _editorPos: EditorPagePosition | undefined;
 
 	/**
 	 * Coordinates relative to the (top;left) of the editor.
 	 * *NOTE*: These coordinates are preferred because they take into account transformations applied to the editor.
 	 * *NOTE*: These coordinates could be negative if the mouse position is outside the editor.
-	 */
-	public readonly relativePos: CoordinatesRelativeToEditor;
+	*/
+	public get relativePos(): CoordinatesRelativeToEditor {
+		this._relativePos ??= createCoordinatesRelativeToEditor(this._editorViewDomNode, this.editorPos, this.pos);
+		return this._relativePos;
+	}
+	private _relativePos: CoordinatesRelativeToEditor | undefined;
+
+	private readonly _editorViewDomNode: HTMLElement;
 
 	constructor(e: MouseEvent, isFromPointerCapture: boolean, editorViewDomNode: HTMLElement) {
 		super(dom.getWindow(editorViewDomNode), e);
 		this.isFromPointerCapture = isFromPointerCapture;
 		this.pos = new PageCoordinates(this.posx, this.posy);
-		this.editorPos = createEditorPagePosition(editorViewDomNode);
-		this.relativePos = createCoordinatesRelativeToEditor(editorViewDomNode, this.editorPos, this.pos);
+		this._editorViewDomNode = editorViewDomNode;
 	}
 }
 
@@ -242,7 +251,7 @@ export class GlobalEditorPointerMoveMonitor extends Disposable {
 
 		// Add a <<capture>> keydown event listener that will cancel the monitoring
 		// if something other than a modifier key is pressed
-		this._keydownListener = dom.addStandardDisposableListener(<any>initialElement.ownerDocument, 'keydown', (e) => {
+		this._keydownListener = dom.addStandardDisposableListener(initialElement.ownerDocument, 'keydown', (e) => {
 			const chord = e.toKeyCodeChord();
 			if (chord.isModifierKey()) {
 				// Allow modifier keys
@@ -381,8 +390,8 @@ class RefCountedCssRule {
 	private getCssText(className: string, properties: CssProperties): string {
 		let str = `.${className} {`;
 		for (const prop in properties) {
-			const value = (properties as any)[prop] as string | ThemeColor;
-			let cssValue;
+			const value = (properties as Record<string, unknown>)[prop] as string | ThemeColor;
+			let cssValue: unknown;
 			if (typeof value === 'object') {
 				cssValue = asCssVariable(value.id);
 			} else {

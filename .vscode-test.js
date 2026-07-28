@@ -79,6 +79,15 @@ const extensions = [
 		workspaceFolder: `extensions/vscode-api-tests/testworkspace.code-workspace`,
 		mocha: { timeout: 60_000 },
 		files: 'extensions/vscode-api-tests/out/workspace-tests/**/*.test.js',
+	},
+	{
+		label: 'git-base',
+		mocha: { timeout: 60_000 }
+	},
+	{
+		label: 'copilot',
+		files: 'extensions/copilot/dist/test-extension.js',
+		mocha: { ui: 'tdd', timeout: 60_000 }
 	}
 ];
 

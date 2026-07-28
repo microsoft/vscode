@@ -7,6 +7,7 @@ import * as nls from '../../../nls.js';
 import type * as vscode from 'vscode';
 import { URL } from 'url';
 import { ExtHostAuthentication, DynamicAuthProvider, IExtHostAuthentication } from '../common/extHostAuthentication.js';
+import { XaaifyAuthProvider } from '../common/extHostXaaAuthProvider.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
 import { IExtHostWindow } from '../common/extHostWindow.js';
@@ -254,6 +255,11 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			tokenRequest.append('device_code', deviceCodeData.device_code);
 			tokenRequest.append('client_id', this._clientId);
 
+			// Add resource indicator if available (RFC 8707)
+			if (this._resourceMetadata?.resource) {
+				tokenRequest.append('resource', this._resourceMetadata.resource);
+			}
+
 			try {
 				const tokenResponse = await fetch(this._serverMetadata.token_endpoint, {
 					method: 'POST',
@@ -316,6 +322,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 export class NodeExtHostAuthentication extends ExtHostAuthentication implements IExtHostAuthentication {
 
 	protected override readonly _dynamicAuthProviderCtor = NodeDynamicAuthProvider;
+	protected override readonly _xaaAuthProviderCtor = XaaifyAuthProvider(NodeDynamicAuthProvider);
 
 	constructor(
 		extHostRpc: IExtHostRpcService,

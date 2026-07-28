@@ -12,6 +12,18 @@ export interface IMcpDevModeConfig {
 	debug?: { type: 'node' } | { type: 'debugpy'; debugpyPath?: string };
 }
 
+export interface IMcpSandboxConfiguration {
+	network?: {
+		allowedDomains?: string[];
+		deniedDomains?: string[];
+	};
+	filesystem?: {
+		denyRead?: string[];
+		allowWrite?: string[];
+		denyWrite?: string[];
+	};
+}
+
 export const enum McpServerVariableType {
 	PROMPT = 'promptString',
 	PICK = 'pickString',
@@ -35,7 +47,7 @@ export const enum McpServerType {
 export interface ICommonMcpServerConfiguration {
 	readonly type: McpServerType;
 	readonly version?: string;
-	readonly gallery?: boolean;
+	readonly gallery?: boolean | string;
 }
 
 export interface IMcpStdioServerConfiguration extends ICommonMcpServerConfiguration {
@@ -45,13 +57,19 @@ export interface IMcpStdioServerConfiguration extends ICommonMcpServerConfigurat
 	readonly env?: Record<string, string | number | null>;
 	readonly envFile?: string;
 	readonly cwd?: string;
+	readonly sandboxEnabled?: boolean;
 	readonly dev?: IMcpDevModeConfig;
+}
+
+export interface IMcpRemoteServerOAuthConfiguration {
+	readonly clientId?: string;
 }
 
 export interface IMcpRemoteServerConfiguration extends ICommonMcpServerConfiguration {
 	readonly type: McpServerType.REMOTE;
 	readonly url: string;
 	readonly headers?: Record<string, string>;
+	readonly oauth?: IMcpRemoteServerOAuthConfiguration;
 	readonly dev?: IMcpDevModeConfig;
 }
 

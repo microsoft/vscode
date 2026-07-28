@@ -14,7 +14,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { parse } from '../../../../base/common/json.js';
-import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchema, TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { UserSettingsLabelProvider } from '../../../../base/common/keybindingLabels.js';
 import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
 import { Keybinding, KeyCodeChord, ResolvedKeybinding, ScanCodeChord } from '../../../../base/common/keybindings.js';
@@ -56,16 +56,7 @@ import { IUserDataProfileService } from '../../userDataProfile/common/userDataPr
 import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from '../common/keybindingIO.js';
 import { IKeyboard, INavigatorWithKeyboard } from './navigatorKeyboard.js';
 import { getAllUnboundCommands } from './unboundCommands.js';
-
-interface ContributedKeyBinding {
-	command: string;
-	args?: any;
-	key: string;
-	when?: string;
-	mac?: string;
-	linux?: string;
-	win?: string;
-}
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 
 function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects: string[]): boolean {
 	if (!keyBinding) {
@@ -99,9 +90,10 @@ function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects
 	return true;
 }
 
-const keybindingType: IJSONSchema = {
+const keybindingType = {
 	type: 'object',
 	default: { command: '', key: '' },
+	required: ['command', 'key'],
 	properties: {
 		command: {
 			description: nls.localize('vscode.extension.contributes.keybindings.command', 'Identifier of the command to run when keybinding is triggered.'),
@@ -131,7 +123,9 @@ const keybindingType: IJSONSchema = {
 			type: 'string'
 		},
 	}
-};
+} as const satisfies IJSONSchema;
+
+type ContributedKeyBinding = TypeFromJsonSchema<typeof keybindingType>;
 
 const keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>({
 	extensionPoint: 'keybindings',
@@ -206,7 +200,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService, logService);
 
-		this.isComposingGlobalContextKey = contextKeyService.createKey('isComposing', false);
+		this.isComposingGlobalContextKey = contextKeyService.createKey(EditorContextKeys.isComposing.key, false);
 
 		this.kbsJsonSchema = new KeybindingsJsonSchema();
 		this.updateKeybindingsJsonSchema();
@@ -493,11 +487,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			const when = item.when || undefined;
 			if (!item.keybinding) {
 				// This might be a removal keybinding item in user settings => accept it
-				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, null, false);
+				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, null, false, item.systemWide);
 			} else {
 				const resolvedKeybindings = this._keyboardMapper.resolveKeybinding(item.keybinding);
 				for (const resolvedKeybinding of resolvedKeybindings) {
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, null, false);
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, null, false, item.systemWide);
 				}
 			}
 		}
@@ -846,7 +840,7 @@ class KeybindingsJsonSchema {
 	private readonly commandsSchemas: IJSONSchema[] = [];
 	private readonly commandsEnum: string[] = [];
 	private readonly removalCommandsEnum: string[] = [];
-	private readonly commandsEnumDescriptions: (string | undefined)[] = [];
+	private readonly commandsEnumDescriptions: string[] = [];
 	private readonly schema: IJSONSchema = {
 		id: KeybindingsJsonSchema.schemaId,
 		type: 'array',
@@ -873,7 +867,7 @@ class KeybindingsJsonSchema {
 			'commandNames': {
 				'type': 'string',
 				'enum': this.commandsEnum,
-				'enumDescriptions': <any>this.commandsEnumDescriptions,
+				'enumDescriptions': this.commandsEnumDescriptions,
 				'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
 			},
 			'commandType': {
@@ -884,7 +878,7 @@ class KeybindingsJsonSchema {
 					{
 						'type': 'string',
 						'enum': this.removalCommandsEnum,
-						'enumDescriptions': <any>this.commandsEnumDescriptions,
+						'enumDescriptions': this.commandsEnumDescriptions,
 						'description': nls.localize('keybindings.json.removalCommand', "Name of the command to remove keyboard shortcut for"),
 					},
 					{
@@ -932,6 +926,11 @@ class KeybindingsJsonSchema {
 				},
 				'args': {
 					'description': nls.localize('keybindings.json.args', "Arguments to pass to the command to execute.")
+				},
+				'systemWide': {
+					'type': 'boolean',
+					'default': false,
+					'markdownDescription': nls.localize('keybindings.json.systemWide', "When `true`, registers this keybinding as a system-wide (OS global) shortcut that fires even when the application is not focused. Desktop only. Only single key combinations are supported (no chords), and any `when` clause is ignored for the global trigger.")
 				}
 			},
 			'$ref': '#/definitions/commandsSchemas'
@@ -960,7 +959,11 @@ class KeybindingsJsonSchema {
 					knownCommands.add(commandId);
 
 					this.commandsEnum.push(commandId);
-					this.commandsEnumDescriptions.push(isLocalizedString(description) ? description.value : description);
+					this.commandsEnumDescriptions.push(
+						description === undefined
+							? '' // `enumDescriptions` is an array of strings, so we can't use undefined
+							: (isLocalizedString(description) ? description.value : description)
+					);
 
 					// Also add the negative form for keybinding removal
 					this.removalCommandsEnum.push(`-${commandId}`);

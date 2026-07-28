@@ -57,7 +57,7 @@ class DidOrganizeImportsCommand implements Command {
 		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
-	public async execute(): Promise<any> {
+	public async execute(): Promise<void> {
 		/* __GDPR__
 			"organizeImports.execute" : {
 				"owner": "mjbvz",

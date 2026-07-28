@@ -14,15 +14,15 @@ import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import './parameterHints.css';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
-import { EDITOR_FONT_DEFAULTS, EditorOption } from '../../../common/config/editorOptions.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../common/config/fontInfo.js';
 import * as languages from '../../../common/languages.js';
-import { ILanguageService } from '../../../common/languages/language.js';
-import { IMarkdownRenderResult, MarkdownRenderer } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { ParameterHintsModel } from './parameterHintsModel.js';
 import { Context } from './provideSignatureHelp.js';
 import * as nls from '../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { listHighlightForeground, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -36,7 +36,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	private static readonly ID = 'editor.widget.parameterHintsWidget';
 
-	private readonly markdownRenderer: MarkdownRenderer;
 	private readonly renderDisposeables = this._register(new DisposableStore());
 	private readonly keyVisible: IContextKey<boolean>;
 	private readonly keyMultipleSignatures: IContextKey<boolean>;
@@ -59,12 +58,9 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		private readonly editor: ICodeEditor,
 		private readonly model: ParameterHintsModel,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IOpenerService openerService: IOpenerService,
-		@ILanguageService languageService: ILanguageService
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
-
-		this.markdownRenderer = new MarkdownRenderer({ editor }, languageService, openerService);
 
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
@@ -271,8 +267,9 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.domNodes.scrollbar.scanDomNode();
 	}
 
-	private renderMarkdownDocs(markdown: IMarkdownString): IMarkdownRenderResult {
-		const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(markdown, {
+	private renderMarkdownDocs(markdown: IMarkdownString): IRenderedMarkdown {
+		const renderedContents = this.renderDisposeables.add(this.markdownRendererService.render(markdown, {
+			context: this.editor,
 			asyncRenderCallback: () => {
 				this.domNodes?.scrollbar.scanDomNode();
 			}
@@ -359,6 +356,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
 		const maxHeight = `${height}px`;
 		this.domNodes.element.style.maxHeight = maxHeight;
+		// eslint-disable-next-line no-restricted-syntax
 		const wrapper = this.domNodes.element.getElementsByClassName('phwrapper') as HTMLCollectionOf<HTMLElement>;
 		if (wrapper.length) {
 			wrapper[0].style.maxHeight = maxHeight;

@@ -5,27 +5,47 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import type * as vscode from 'vscode';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { URI } from '../../../../base/common/uri.js';
+import { asSinonMethodStub } from '../../../../base/test/common/sinonUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
-import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
-import { ExtHostChatSessionsShape, IChatProgressDto } from '../../common/extHost.protocol.js';
+import { IAgentSessionsModel } from '../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { IAgentSessionsService } from '../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions/chatSessions.contribution.js';
+import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService/chatService.js';
+import { IChatSessionProviderOptionGroup, IChatSessionItem, IChatSessionRequestHistoryItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
+import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
+import { LocalChatSessionUri } from '../../../contrib/chat/common/model/chatUri.js';
+import { IChatAgentRequest, IChatAgentResult } from '../../../contrib/chat/common/participants/chatAgents.js';
+import { MockChatService } from '../../../contrib/chat/test/common/chatService/mockChatService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
 import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
-import { IChatProgress } from '../../../contrib/chat/common/chatService.js';
-import { IChatSessionItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IExtensionService, nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 import { mock, TestExtensionService } from '../../../test/common/workbenchTestServices.js';
-import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions.contribution.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
-import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
+import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionDto, IChatSessionProviderOptions, IChatSessionRequestHistoryItemDto } from '../../common/extHost.protocol.js';
+import { IExtHostAuthentication } from '../../common/extHostAuthentication.js';
+import { ExtHostChatSessions } from '../../common/extHostChatSessions.js';
+import { ExtHostCommands } from '../../common/extHostCommands.js';
+import { ExtHostLanguageModels } from '../../common/extHostLanguageModels.js';
+import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
+import * as extHostTypes from '../../common/extHostTypes.js';
+import { AnyCallRPCProtocol } from '../common/testRPCProtocol.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -45,11 +65,17 @@ suite('ObservableChatSession', function () {
 
 		proxy = {
 			$provideChatSessionContent: sinon.stub(),
+			$provideChatSessionProviderOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<IChatSessionProviderOptions | undefined>>().resolves(undefined),
+			$provideHandleOptionsChange: sinon.stub(),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
-			$provideChatSessionItems: sinon.stub(),
-			$provideNewChatSessionItem: sinon.stub().resolves({ id: 'new-session-id', label: 'New Session' } as IChatSessionItem)
+			$refreshChatSessionItems: sinon.stub(),
+			$onDidChangeChatSessionItemState: sinon.stub(),
+			$newChatSessionItem: sinon.stub().resolves(undefined),
+			$forkChatSession: sinon.stub().resolves(undefined),
+			$resolveChatSessionItem: sinon.stub().resolves(undefined),
+			$provideChatSessionInputState: sinon.stub().resolves(undefined),
 		};
 	});
 
@@ -62,29 +88,37 @@ suite('ObservableChatSession', function () {
 
 	function createSessionContent(options: {
 		id?: string;
+		title?: string;
 		history?: any[];
 		hasActiveResponseCallback?: boolean;
 		hasRequestHandler?: boolean;
-	} = {}) {
+		hasForkHandler?: boolean;
+	} = {}): IChatSessionDto {
+		const id = options.id || 'test-id';
 		return {
-			id: options.id || 'test-id',
+			resource: LocalChatSessionUri.forSession(id),
+			title: options.title,
 			history: options.history || [],
-			hasActiveResponseCallback: options.hasActiveResponseCallback || false,
-			hasRequestHandler: options.hasRequestHandler || false
+			hasActiveResponseCallback: options.hasActiveResponseCallback ?? false,
+			hasRequestHandler: options.hasRequestHandler ?? false,
+			hasForkHandler: options.hasForkHandler ?? false,
+			supportsInterruption: false,
 		};
 	}
 
 	async function createInitializedSession(sessionContent: any, sessionId = 'test-id'): Promise<ObservableChatSession> {
-		const session = new ObservableChatSession(sessionId, 1, proxy, logService, dialogService);
-		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
-		await session.initialize(CancellationToken.None);
+		const resource = LocalChatSessionUri.forSession(sessionId);
+		const session = new ObservableChatSession(resource, 1, proxy, logService, dialogService);
+		asSinonMethodStub(proxy.$provideChatSessionContent).resolves(sessionContent);
+		await session.initialize(CancellationToken.None, { initialSessionOptions: [] });
 		return session;
 	}
 
 	test('constructor creates session with proper initial state', function () {
-		const session = disposables.add(new ObservableChatSession('test-id', 1, proxy, logService, dialogService));
+		const sessionId = 'test-id';
+		const resource = LocalChatSessionUri.forSession(sessionId);
+		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
 
-		assert.strictEqual(session.sessionId, 'test-id');
 		assert.strictEqual(session.providerHandle, 1);
 		assert.deepStrictEqual(session.history, []);
 		assert.ok(session.progressObs);
@@ -96,7 +130,9 @@ suite('ObservableChatSession', function () {
 	});
 
 	test('session queues progress before initialization and processes it after', async function () {
-		const session = disposables.add(new ObservableChatSession('test-id', 1, proxy, logService, dialogService));
+		const sessionId = 'test-id';
+		const resource = LocalChatSessionUri.forSession(sessionId);
+		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
 
 		const progress1: IChatProgress = { kind: 'progressMessage', content: { value: 'Hello', isTrusted: false } };
 		const progress2: IChatProgress = { kind: 'progressMessage', content: { value: 'World', isTrusted: false } };
@@ -110,8 +146,8 @@ suite('ObservableChatSession', function () {
 
 		// Initialize the session
 		const sessionContent = createSessionContent();
-		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
-		await session.initialize(CancellationToken.None);
+		asSinonMethodStub(proxy.$provideChatSessionContent).resolves(sessionContent);
+		await session.initialize(CancellationToken.None, { initialSessionOptions: [] });
 
 		// Now progress should be visible
 		assert.strictEqual(session.progressObs.get().length, 2);
@@ -136,7 +172,7 @@ suite('ObservableChatSession', function () {
 		// Verify history was loaded
 		assert.strictEqual(session.history.length, 2);
 		assert.strictEqual(session.history[0].type, 'request');
-		assert.strictEqual((session.history[0] as any).prompt, 'Previous question');
+		assert.strictEqual(session.history[0].prompt, 'Previous question');
 		assert.strictEqual(session.history[1].type, 'response');
 
 		// Verify capabilities were set up
@@ -144,19 +180,167 @@ suite('ObservableChatSession', function () {
 		assert.ok(session.requestHandler);
 	});
 
-	test('initialization is idempotent and returns same promise', async function () {
-		const session = disposables.add(new ObservableChatSession('test-id', 1, proxy, logService, dialogService));
-		const sessionContent = createSessionContent();
-		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+	test('initialization revives modeInstructions in history', async function () {
+		const sessionContent = createSessionContent({
+			history: [
+				{
+					type: 'request',
+					prompt: 'Hello',
+					participant: 'test',
+					modeInstructions: {
+						uri: { $mid: MarshalledId.Uri, scheme: 'file', path: '/custom-agent' },
+						name: 'my-agent',
+						content: 'instructions',
+						toolReferences: [],
+						isBuiltin: false,
+					},
+				},
+			],
+		});
 
-		const promise1 = session.initialize(CancellationToken.None);
-		const promise2 = session.initialize(CancellationToken.None);
+		const session = disposables.add(await createInitializedSession(sessionContent));
+		const requestItem = session.history[0];
+		assert.strictEqual(requestItem.type, 'request');
+		if (requestItem.type === 'request') {
+			assert.ok(requestItem.modeInstructions);
+			assert.ok(URI.isUri(requestItem.modeInstructions.uri));
+			assert.strictEqual(requestItem.modeInstructions.name, 'my-agent');
+			assert.strictEqual(requestItem.modeInstructions.isBuiltin, false);
+		}
+	});
+
+	test('toRequestDto passes modeInstructions through', async function () {
+		const session = disposables.add(await createInitializedSession(createSessionContent({ hasForkHandler: true })));
+		assert.ok(session.forkSession);
+
+		const modeInstructions = {
+			uri: URI.parse('file:///custom-agent'),
+			name: 'my-agent',
+			content: 'agent instructions',
+			toolReferences: [],
+			isBuiltin: false,
+		};
+		const request: IChatSessionRequestHistoryItem = {
+			type: 'request',
+			id: 'req-1',
+			prompt: 'Hello with mode',
+			participant: 'participant',
+			modeInstructions,
+		};
+
+		const forkedItem = {
+			resource: URI.file('/tmp/forked.md'),
+			label: 'Forked',
+			changes: [],
+			timing: {
+				created: 123,
+				lastRequestStarted: 234,
+				lastRequestEnded: 345,
+			},
+		};
+		asSinonMethodStub(proxy.$forkChatSession).resolves(forkedItem);
+		await session.forkSession?.(request, CancellationToken.None);
+
+		const call = asSinonMethodStub(proxy.$forkChatSession).firstCall;
+		const sentDto = call.args[2] as IChatSessionRequestHistoryItemDto;
+		assert.deepStrictEqual(sentDto.modeInstructions, modeInstructions);
+	});
+
+	test('initialization sets forkSession and revives forked items', async function () {
+		const session = disposables.add(await createInitializedSession(createSessionContent({ hasForkHandler: true })));
+		assert.ok(session.forkSession);
+
+		const forkedResource = URI.file('/tmp/forked-chat.md');
+		const forkedItem = {
+			resource: forkedResource,
+			label: 'Forked Session',
+			timing: {
+				created: 123,
+				lastRequestStarted: 234,
+				lastRequestEnded: 345,
+			},
+			changes: [{
+				uri: URI.file('/tmp/changed.ts'),
+				originalUri: URI.file('/tmp/original.ts'),
+				insertions: 4,
+				deletions: 2,
+			}],
+		};
+		asSinonMethodStub(proxy.$forkChatSession).resolves(forkedItem);
+
+		const request: IChatSessionRequestHistoryItem = { type: 'request', id: 'request-1', prompt: 'Previous question', participant: 'participant' };
+		const expectedRequestDto: IChatSessionRequestHistoryItemDto = {
+			type: 'request',
+			id: 'request-1',
+			prompt: 'Previous question',
+			participant: 'participant',
+			command: undefined,
+			variableData: undefined,
+			modelId: undefined,
+			modeInstructions: undefined,
+		};
+		const result = await session.forkSession?.(request, CancellationToken.None);
+
+		assert.ok(asSinonMethodStub(proxy.$forkChatSession).calledOnceWithExactly(1, session.sessionResource, expectedRequestDto, CancellationToken.None));
+		assert.ok(result);
+		assert.ok(result.resource instanceof URI);
+		assert.ok(Array.isArray(result.changes));
+		assert.ok(result.changes[0].uri instanceof URI);
+		assert.ok(result.changes[0].originalUri instanceof URI);
+		assert.deepStrictEqual(result, forkedItem);
+	});
+
+	test('initialization sets title from session content', async function () {
+		const sessionContent = createSessionContent({
+			title: 'My Custom Title',
+		});
+
+		const session = disposables.add(await createInitializedSession(sessionContent));
+		assert.strictEqual(session.title, 'My Custom Title');
+	});
+
+	test('title is undefined when not provided in session content', async function () {
+		const sessionContent = createSessionContent();
+
+		const session = disposables.add(await createInitializedSession(sessionContent));
+		assert.strictEqual(session.title, undefined);
+	});
+
+	test('initialization is idempotent and returns same promise', async function () {
+		const sessionId = 'test-id';
+		const resource = LocalChatSessionUri.forSession(sessionId);
+		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
+
+		const sessionContent = createSessionContent();
+		asSinonMethodStub(proxy.$provideChatSessionContent).resolves(sessionContent);
+
+		const promise1 = session.initialize(CancellationToken.None, { initialSessionOptions: [] });
+		const promise2 = session.initialize(CancellationToken.None, { initialSessionOptions: [] });
 
 		assert.strictEqual(promise1, promise2);
 		await promise1;
 
 		// Should only call proxy once even though initialize was called twice
-		assert.ok((proxy.$provideChatSessionContent as sinon.SinonStub).calledOnce);
+		assert.ok(asSinonMethodStub(proxy.$provideChatSessionContent).calledOnce);
+	});
+
+	test('initialization forwards initial session options context', async function () {
+		const sessionId = 'test-id';
+		const resource = LocalChatSessionUri.forSession(sessionId);
+		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
+		const initialSessionOptions = [{ optionId: 'model', value: 'gpt-4.1' }];
+
+		const sessionContent = createSessionContent();
+		asSinonMethodStub(proxy.$provideChatSessionContent).resolves(sessionContent);
+
+		await session.initialize(CancellationToken.None, { initialSessionOptions });
+
+		assert.ok(asSinonMethodStub(proxy.$provideChatSessionContent).calledOnceWith(
+			1,
+			resource,
+			{ initialSessionOptions },
+			CancellationToken.None
+		));
 	});
 
 	test('progress handling works correctly after initialization', async function () {
@@ -209,12 +393,19 @@ suite('ObservableChatSession', function () {
 
 		assert.ok(session.requestHandler);
 
-		const request = { requestId: 'req1', prompt: 'Test prompt' } as any;
+		const request: IChatAgentRequest = {
+			requestId: 'req1',
+			sessionResource: LocalChatSessionUri.forSession('test-session'),
+			agentId: 'test-agent',
+			message: 'Test prompt',
+			location: ChatAgentLocation.Chat,
+			variables: { variables: [] }
+		};
 		const progressCallback = sinon.stub();
 
 		await session.requestHandler!(request, progressCallback, [], CancellationToken.None);
 
-		assert.ok((proxy.$invokeChatSessionRequestHandler as sinon.SinonStub).calledOnceWith(1, 'test-id', request, [], CancellationToken.None));
+		assert.ok(asSinonMethodStub(proxy.$invokeChatSessionRequestHandler).calledOnceWith(1, session.sessionResource, request, [], CancellationToken.None));
 	});
 
 	test('request handler forwards progress updates to external callback', async function () {
@@ -223,15 +414,22 @@ suite('ObservableChatSession', function () {
 
 		assert.ok(session.requestHandler);
 
-		const request = { requestId: 'req1', prompt: 'Test prompt' } as any;
+		const request: IChatAgentRequest = {
+			requestId: 'req1',
+			sessionResource: LocalChatSessionUri.forSession('test-session'),
+			agentId: 'test-agent',
+			message: 'Test prompt',
+			location: ChatAgentLocation.Chat,
+			variables: { variables: [] }
+		};
 		const progressCallback = sinon.stub();
 
-		let resolveRequest: () => void;
-		const requestPromise = new Promise<void>(resolve => {
+		let resolveRequest: (value: IChatAgentResult) => void;
+		const requestPromise = new Promise<IChatAgentResult>(resolve => {
 			resolveRequest = resolve;
 		});
 
-		(proxy.$invokeChatSessionRequestHandler as sinon.SinonStub).returns(requestPromise);
+		asSinonMethodStub(proxy.$invokeChatSessionRequestHandler).returns(requestPromise);
 
 		const requestHandlerPromise = session.requestHandler!(request, progressCallback, [], CancellationToken.None);
 
@@ -249,14 +447,16 @@ suite('ObservableChatSession', function () {
 		assert.deepStrictEqual(progressCallback.secondCall.args[0], [progress2]);
 
 		// Complete the request
-		resolveRequest!();
+		resolveRequest!({});
 		await requestHandlerPromise;
 
 		assert.strictEqual(session.isCompleteObs.get(), true);
 	});
 
 	test('dispose properly cleans up resources and notifies listeners', function () {
-		const session = new ObservableChatSession('test-id', 1, proxy, logService, dialogService);
+		const sessionId = 'test-id';
+		const resource = LocalChatSessionUri.forSession(sessionId);
+		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
 
 		let disposeEventFired = false;
 		const disposable = session.onWillDispose(() => {
@@ -266,18 +466,9 @@ suite('ObservableChatSession', function () {
 		session.dispose();
 
 		assert.ok(disposeEventFired);
-		assert.ok((proxy.$disposeChatSessionContent as sinon.SinonStub).calledOnceWith(1, 'test-id'));
+		assert.ok(asSinonMethodStub(proxy.$disposeChatSessionContent).calledOnceWith(1, resource));
 
 		disposable.dispose();
-	});
-
-	test('session key generation is consistent', function () {
-		const session = new ObservableChatSession('test-id', 42, proxy, logService, dialogService);
-
-		assert.strictEqual(session.sessionKey, '42_test-id');
-		assert.strictEqual(ObservableChatSession.generateSessionKey(42, 'test-id'), '42_test-id');
-
-		session.dispose();
 	});
 
 	test('session with multiple request/response pairs in history', async function () {
@@ -299,13 +490,13 @@ suite('ObservableChatSession', function () {
 		// Verify all history was loaded correctly
 		assert.strictEqual(session.history.length, 4);
 		assert.strictEqual(session.history[0].type, 'request');
-		assert.strictEqual((session.history[0] as any).prompt, 'First question');
+		assert.strictEqual(session.history[0].prompt, 'First question');
 		assert.strictEqual(session.history[1].type, 'response');
-		assert.strictEqual((session.history[1].parts[0] as any).content.value, 'First answer');
+		assert.strictEqual((session.history[1].parts[0] as IChatProgressMessage).content.value, 'First answer');
 		assert.strictEqual(session.history[2].type, 'request');
-		assert.strictEqual((session.history[2] as any).prompt, 'Second question');
+		assert.strictEqual(session.history[2].prompt, 'Second question');
 		assert.strictEqual(session.history[3].type, 'response');
-		assert.strictEqual((session.history[3].parts[0] as any).content.value, 'Second answer');
+		assert.strictEqual((session.history[3].parts[0] as IChatProgressMessage).content.value, 'Second answer');
 
 		// Session should be complete since it has no capabilities
 		assert.strictEqual(session.isCompleteObs.get(), true);
@@ -325,11 +516,17 @@ suite('MainThreadChatSessions', function () {
 
 		proxy = {
 			$provideChatSessionContent: sinon.stub(),
+			$provideChatSessionProviderOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<IChatSessionProviderOptions | undefined>>().resolves(undefined),
+			$provideHandleOptionsChange: sinon.stub(),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
-			$provideChatSessionItems: sinon.stub(),
-			$provideNewChatSessionItem: sinon.stub().resolves({ id: 'new-session-id', label: 'New Session' } as IChatSessionItem)
+			$refreshChatSessionItems: sinon.stub(),
+			$onDidChangeChatSessionItemState: sinon.stub(),
+			$newChatSessionItem: sinon.stub().resolves(undefined),
+			$forkChatSession: sinon.stub().resolves(undefined),
+			$resolveChatSessionItem: sinon.stub().resolves(undefined),
+			$provideChatSessionInputState: sinon.stub().resolves(undefined),
 		};
 
 		const extHostContext = new class implements IExtHostContext {
@@ -355,6 +552,22 @@ suite('MainThreadChatSessions', function () {
 				return { confirmed: true };
 			}
 		});
+		instantiationService.stub(ILabelService, new class extends mock<ILabelService>() {
+			override registerFormatter() {
+				return {
+					dispose: () => { }
+				};
+			}
+		});
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+			override get model(): IAgentSessionsModel {
+				return new class extends mock<IAgentSessionsModel>() {
+					override onDidChangeSessionArchivedState = Event.None;
+				};
+			}
+
+		});
 
 		chatSessionsService = disposables.add(instantiationService.createInstance(ChatSessionsService));
 		instantiationService.stub(IChatSessionsService, chatSessionsService);
@@ -369,67 +582,76 @@ suite('MainThreadChatSessions', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('provideNewChatSessionItem creates a new chat session', async function () {
-		mainThread.$registerChatSessionItemProvider(1, 'test-type');
-
-		// Valid
-		const chatSessionItem = await chatSessionsService.provideNewChatSessionItem('test-type', {
-			prompt: 'my prompt',
-			metadata: {}
-		}, CancellationToken.None);
-		assert.strictEqual(chatSessionItem.id, 'new-session-id');
-		assert.strictEqual(chatSessionItem.label, 'New Session');
-
-		// Invalid session type should throw
-		await assert.rejects(
-			chatSessionsService.provideNewChatSessionItem('invalid-type', {
-				prompt: 'my prompt',
-				metadata: {}
-			}, CancellationToken.None)
-		);
-
-		mainThread.$unregisterChatSessionItemProvider(1);
-	});
-
 	test('provideChatSessionContent creates and initializes session', async function () {
-		mainThread.$registerChatSessionContentProvider(1, 'test-type');
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
-		const sessionContent = {
-			id: 'test-session',
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		const sessionContent: IChatSessionDto = {
+			resource,
 			history: [],
 			hasActiveResponseCallback: false,
-			hasRequestHandler: false
+			hasRequestHandler: false,
+			hasForkHandler: false,
+			supportsInterruption: false,
 		};
 
-		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
-		const session1 = await chatSessionsService.provideChatSessionContent('test-type', 'test-session', CancellationToken.None);
+		asSinonMethodStub(proxy.$provideChatSessionContent).resolves(sessionContent);
+		const session1 = await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
 
 		assert.ok(session1);
-		assert.strictEqual(session1.sessionId, 'test-session');
 
-		const session2 = await chatSessionsService.provideChatSessionContent('test-type', 'test-session', CancellationToken.None);
+		const session2 = await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
 		assert.strictEqual(session1, session2);
 
-		assert.ok((proxy.$provideChatSessionContent as sinon.SinonStub).calledOnce);
+		assert.ok(asSinonMethodStub(proxy.$provideChatSessionContent).calledOnce);
+		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('provideChatSessionContent propagates title', async function () {
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		const sessionContent: IChatSessionDto = {
+			resource,
+			title: 'My Session Title',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			hasForkHandler: false,
+			supportsInterruption: false,
+		};
+
+		asSinonMethodStub(proxy.$provideChatSessionContent).resolves(sessionContent);
+		const session = await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
+
+		assert.strictEqual(session.title, 'My Session Title');
+
 		mainThread.$unregisterChatSessionContentProvider(1);
 	});
 
 	test('$handleProgressChunk routes to correct session', async function () {
-		mainThread.$registerChatSessionContentProvider(1, 'test-type');
+		const sessionScheme = 'test-session-type';
 
-		const sessionContent = {
-			id: 'test-session',
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		const sessionContent: IChatSessionDto = {
+			resource,
 			history: [],
 			hasActiveResponseCallback: false,
-			hasRequestHandler: false
+			hasRequestHandler: false,
+			hasForkHandler: false,
+			supportsInterruption: false,
 		};
 
-		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+		asSinonMethodStub(proxy.$provideChatSessionContent).resolves(sessionContent);
 
-		const session = await chatSessionsService.provideChatSessionContent('test-type', 'test-session', CancellationToken.None) as ObservableChatSession;
+		const session = await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None) as ObservableChatSession;
 
 		const progressDto: IChatProgressDto = { kind: 'progressMessage', content: { value: 'Test', isTrusted: false } };
-		await mainThread.$handleProgressChunk(1, 'test-session', 'req1', [progressDto]);
+		await mainThread.$handleProgressChunk(1, resource, 'req1', [progressDto]);
 
 		assert.strictEqual(session.progressObs.get().length, 1);
 		assert.strictEqual(session.progressObs.get()[0].kind, 'progressMessage');
@@ -438,22 +660,26 @@ suite('MainThreadChatSessions', function () {
 	});
 
 	test('$handleProgressComplete marks session complete', async function () {
-		mainThread.$registerChatSessionContentProvider(1, 'test-type');
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
-		const sessionContent = {
-			id: 'test-session',
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		const sessionContent: IChatSessionDto = {
+			resource,
 			history: [],
 			hasActiveResponseCallback: false,
-			hasRequestHandler: false
+			hasRequestHandler: false,
+			hasForkHandler: false,
+			supportsInterruption: false,
 		};
 
-		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+		asSinonMethodStub(proxy.$provideChatSessionContent).resolves(sessionContent);
 
-		const session = await chatSessionsService.provideChatSessionContent('test-type', 'test-session', CancellationToken.None) as ObservableChatSession;
+		const session = await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None) as ObservableChatSession;
 
 		const progressDto: IChatProgressDto = { kind: 'progressMessage', content: { value: 'Test', isTrusted: false } };
-		await mainThread.$handleProgressChunk(1, 'test-session', 'req1', [progressDto]);
-		mainThread.$handleProgressComplete(1, 'test-session', 'req1');
+		await mainThread.$handleProgressChunk(1, resource, 'req1', [progressDto]);
+		mainThread.$handleProgressComplete(1, resource, 'req1');
 
 		assert.strictEqual(session.isCompleteObs.get(), true);
 
@@ -461,40 +687,624 @@ suite('MainThreadChatSessions', function () {
 	});
 
 	test('integration with multiple request/response pairs', async function () {
-		mainThread.$registerChatSessionContentProvider(1, 'test-type');
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
-		const sessionContent = {
-			id: 'multi-turn-session',
+		const resource = URI.parse(`${sessionScheme}:/multi-turn-session`);
+		const sessionContent: IChatSessionDto = {
+			resource,
 			history: [
-				{ type: 'request', prompt: 'First question' },
-				{ type: 'response', parts: [{ kind: 'progressMessage', content: { value: 'First answer', isTrusted: false } }] },
-				{ type: 'request', prompt: 'Second question' },
-				{ type: 'response', parts: [{ kind: 'progressMessage', content: { value: 'Second answer', isTrusted: false } }] }
+				{ type: 'request', prompt: 'First question', participant: 'test-participant' },
+				{ type: 'response', parts: [{ kind: 'progressMessage', content: { value: 'First answer', isTrusted: false } }], participant: 'test-participant' },
+				{ type: 'request', prompt: 'Second question', participant: 'test-participant' },
+				{ type: 'response', parts: [{ kind: 'progressMessage', content: { value: 'Second answer', isTrusted: false } }], participant: 'test-participant' }
 			],
 			hasActiveResponseCallback: false,
-			hasRequestHandler: false
+			hasRequestHandler: false,
+			hasForkHandler: false,
+			supportsInterruption: false,
 		};
 
-		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
-
-		const session = await chatSessionsService.provideChatSessionContent('test-type', 'multi-turn-session', CancellationToken.None) as ObservableChatSession;
+		asSinonMethodStub(proxy.$provideChatSessionContent).resolves(sessionContent);
+		const session = await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None) as ObservableChatSession;
 
 		// Verify the session loaded correctly
 		assert.ok(session);
-		assert.strictEqual(session.sessionId, 'multi-turn-session');
 		assert.strictEqual(session.history.length, 4);
 
 		// Verify all history items are correctly loaded
 		assert.strictEqual(session.history[0].type, 'request');
-		assert.strictEqual((session.history[0] as any).prompt, 'First question');
+		assert.strictEqual(session.history[0].prompt, 'First question');
 		assert.strictEqual(session.history[1].type, 'response');
 		assert.strictEqual(session.history[2].type, 'request');
-		assert.strictEqual((session.history[2] as any).prompt, 'Second question');
+		assert.strictEqual(session.history[2].prompt, 'Second question');
 		assert.strictEqual(session.history[3].type, 'response');
 
 		// Session should be complete since it has no active capabilities
 		assert.strictEqual(session.isCompleteObs.get(), true);
 
 		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('$onDidChangeChatSessionProviderOptions refreshes option groups', async function () {
+		const sessionScheme = 'test-session-type';
+		const handle = 1;
+
+		const optionGroups1: IChatSessionProviderOptionGroup[] = [{
+			id: 'models',
+			name: 'Models',
+			items: [{ id: 'modelA', name: 'Model A' }]
+		}];
+		const optionGroups2: IChatSessionProviderOptionGroup[] = [{
+			id: 'models',
+			name: 'Models',
+			items: [{ id: 'modelB', name: 'Model B' }]
+		}];
+
+		const provideOptionsStub = asSinonMethodStub(proxy.$provideChatSessionProviderOptions);
+		provideOptionsStub.onFirstCall().resolves({ optionGroups: optionGroups1 } as IChatSessionProviderOptions);
+		provideOptionsStub.onSecondCall().resolves({ optionGroups: optionGroups2 } as IChatSessionProviderOptions);
+
+		mainThread.$registerChatSessionContentProvider(handle, sessionScheme);
+
+		// Wait for initial options fetch triggered on registration
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		let storedGroups = chatSessionsService.getOptionGroupsForSessionType(sessionScheme);
+		assert.ok(storedGroups);
+		assert.strictEqual(storedGroups![0].items[0].id, 'modelA');
+
+		// Simulate extension signaling that provider options have changed
+		mainThread.$onDidChangeChatSessionProviderOptions(handle);
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		storedGroups = chatSessionsService.getOptionGroupsForSessionType(sessionScheme);
+		assert.ok(storedGroups);
+		assert.strictEqual(storedGroups![0].items[0].id, 'modelB');
+
+		mainThread.$unregisterChatSessionContentProvider(handle);
+	});
+
+	test('getSessionOption returns undefined for unset options', async function () {
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		const sessionContent: IChatSessionDto = {
+			resource,
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			hasForkHandler: false,
+			supportsInterruption: false,
+		};
+
+		asSinonMethodStub(proxy.$provideChatSessionContent).resolves(sessionContent);
+
+		await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
+
+		// getSessionOption should return undefined for unset options
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), undefined);
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'anyOption'), undefined);
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('getSessionOption returns value for explicitly set options', async function () {
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		const sessionContent: IChatSessionDto = {
+			resource,
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			hasForkHandler: false,
+			supportsInterruption: false,
+			options: {
+				'models': 'gpt-4',
+				'region': { id: 'us-east', name: 'US East' }
+			}
+		};
+
+		asSinonMethodStub(proxy.$provideChatSessionContent).resolves(sessionContent);
+
+		await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
+
+		// getSessionOption should return the configured values
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), 'gpt-4');
+		assert.deepStrictEqual(chatSessionsService.getSessionOption(resource, 'region'), { id: 'us-east', name: 'US East' });
+
+		// getSessionOption should return undefined for options not in the session
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'notConfigured'), undefined);
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('option change notifications are sent to the extension', async function () {
+		const sessionScheme = 'test-session-type';
+		const handle = 1;
+
+		mainThread.$registerChatSessionContentProvider(handle, sessionScheme);
+
+		const sessionContent: IChatSessionDto = {
+			resource: URI.parse(`${sessionScheme}:/test-session`),
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			hasForkHandler: false,
+			supportsInterruption: false,
+			options: {
+				'models': 'gpt-4'
+			}
+		};
+
+		asSinonMethodStub(proxy.$provideChatSessionContent).resolves(sessionContent);
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
+
+		// Clear the stub call history
+		asSinonMethodStub(proxy.$provideHandleOptionsChange).resetHistory();
+
+		// Simulate an option change
+		chatSessionsService.setSessionOption(resource, 'models', 'gpt-4-turbo');
+
+		// Verify the extension was notified
+		assert.ok(asSinonMethodStub(proxy.$provideHandleOptionsChange).calledOnce);
+		const call = asSinonMethodStub(proxy.$provideHandleOptionsChange).firstCall;
+		assert.strictEqual(call.args[0], handle);
+		assert.deepStrictEqual(call.args[1], resource);
+		assert.deepStrictEqual(call.args[2], { models: 'gpt-4-turbo' });
+
+		mainThread.$unregisterChatSessionContentProvider(handle);
+	});
+
+	test('option change notifications fail silently when provider not registered', async function () {
+		const sessionScheme = 'unregistered-session-type';
+
+		// Do NOT register a content provider for this scheme
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+
+		// Clear any previous calls
+		asSinonMethodStub(proxy.$provideHandleOptionsChange).resetHistory();
+
+		// Attempt to notify option change for an unregistered scheme
+		// This should not throw, but also should not call the proxy
+		chatSessionsService.updateSessionOptions(resource, new Map([
+			['models', 'gpt-4-turbo']
+		]));
+
+		// Verify the extension was NOT notified (no provider registered)
+		assert.strictEqual(asSinonMethodStub(proxy.$provideHandleOptionsChange).callCount, 0);
+	});
+
+	test('setSessionOption updates option and getSessionOption reflects change', async function () {
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		const sessionContent: IChatSessionDto = {
+			resource,
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			hasForkHandler: false,
+			supportsInterruption: false,
+		};
+
+		asSinonMethodStub(proxy.$provideChatSessionContent).resolves(sessionContent);
+
+		await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
+
+		// Initially no options set
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), undefined);
+
+		// Set an option
+		chatSessionsService.setSessionOption(resource, 'models', 'gpt-4');
+
+		// Now getSessionOption should return the value
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), 'gpt-4');
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('$updateChatSessionInputState applies selected options only to the targeted session', async function () {
+		const sessionScheme = 'test-session-type';
+		const controllerHandle = 0;
+
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme, false);
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const resourceA = URI.parse(`${sessionScheme}:/session-a`);
+		const resourceB = URI.parse(`${sessionScheme}:/session-b`);
+
+		asSinonMethodStub(proxy.$provideChatSessionContent)
+			.withArgs(sinon.match.any, sinon.match((r: URI) => r.toString() === resourceA.toString()), sinon.match.any, sinon.match.any)
+			.resolves({ resource: resourceA, history: [], hasActiveResponseCallback: false, hasRequestHandler: false, hasForkHandler: false, supportsInterruption: false } satisfies IChatSessionDto);
+		asSinonMethodStub(proxy.$provideChatSessionContent)
+			.withArgs(sinon.match.any, sinon.match((r: URI) => r.toString() === resourceB.toString()), sinon.match.any, sinon.match.any)
+			.resolves({ resource: resourceB, history: [], hasActiveResponseCallback: false, hasRequestHandler: false, hasForkHandler: false, supportsInterruption: false } satisfies IChatSessionDto);
+
+		await chatSessionsService.getOrCreateChatSession(resourceA, CancellationToken.None);
+		await chatSessionsService.getOrCreateChatSession(resourceB, CancellationToken.None);
+
+		// Update input state targeting only session A
+		mainThread.$updateChatSessionInputState(controllerHandle, resourceA, [{
+			id: 'models',
+			name: 'Models',
+			items: [{ id: 'modelA', name: 'Model A' }, { id: 'modelB', name: 'Model B' }],
+			selected: { id: 'modelB', name: 'Model B' },
+		}]);
+
+		assert.deepStrictEqual(chatSessionsService.getSessionOption(resourceA, 'models'), { id: 'modelB', name: 'Model B' });
+		assert.strictEqual(chatSessionsService.getSessionOption(resourceB, 'models'), undefined);
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+		mainThread.$unregisterChatSessionItemController(controllerHandle);
+	});
+
+	test('$updateChatSessionInputState updates different sessions independently', async function () {
+		const sessionScheme = 'test-session-type';
+		const controllerHandle = 0;
+
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme, false);
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const resourceA = URI.parse(`${sessionScheme}:/session-a`);
+		const resourceB = URI.parse(`${sessionScheme}:/session-b`);
+
+		asSinonMethodStub(proxy.$provideChatSessionContent)
+			.withArgs(sinon.match.any, sinon.match((r: URI) => r.toString() === resourceA.toString()), sinon.match.any, sinon.match.any)
+			.resolves({ resource: resourceA, history: [], hasActiveResponseCallback: false, hasRequestHandler: false, hasForkHandler: false, supportsInterruption: false } satisfies IChatSessionDto);
+		asSinonMethodStub(proxy.$provideChatSessionContent)
+			.withArgs(sinon.match.any, sinon.match((r: URI) => r.toString() === resourceB.toString()), sinon.match.any, sinon.match.any)
+			.resolves({ resource: resourceB, history: [], hasActiveResponseCallback: false, hasRequestHandler: false, hasForkHandler: false, supportsInterruption: false } satisfies IChatSessionDto);
+
+		await chatSessionsService.getOrCreateChatSession(resourceA, CancellationToken.None);
+		await chatSessionsService.getOrCreateChatSession(resourceB, CancellationToken.None);
+
+		// Update session A with modelX
+		mainThread.$updateChatSessionInputState(controllerHandle, resourceA, [{
+			id: 'models',
+			name: 'Models',
+			items: [{ id: 'modelX', name: 'Model X' }, { id: 'modelY', name: 'Model Y' }],
+			selected: { id: 'modelX', name: 'Model X' },
+		}]);
+
+		// Update session B with modelY
+		mainThread.$updateChatSessionInputState(controllerHandle, resourceB, [{
+			id: 'models',
+			name: 'Models',
+			items: [{ id: 'modelX', name: 'Model X' }, { id: 'modelY', name: 'Model Y' }],
+			selected: { id: 'modelY', name: 'Model Y' },
+		}]);
+
+		assert.deepStrictEqual(chatSessionsService.getSessionOption(resourceA, 'models'), { id: 'modelX', name: 'Model X' });
+		assert.deepStrictEqual(chatSessionsService.getSessionOption(resourceB, 'models'), { id: 'modelY', name: 'Model Y' });
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+		mainThread.$unregisterChatSessionItemController(controllerHandle);
+	});
+
+	test('resolveChatSessionItem invokes proxy and updates item', async function () {
+		const sessionScheme = 'test-session-type';
+		const controllerHandle = 0;
+
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme, true);
+
+		const resource = URI.parse(`${sessionScheme}:/session-a`);
+		const initialItem: Dto<IChatSessionItem> = {
+			resource,
+			label: 'Session A',
+			timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined },
+		};
+
+		// Add initial item via $addOrUpdateChatSessionItem
+		await mainThread.$addOrUpdateChatSessionItem(controllerHandle, initialItem);
+
+		const resolvedItem: Dto<IChatSessionItem> = {
+			resource,
+			label: 'Session A',
+			timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined },
+			badge: 'resolved',
+		};
+
+		asSinonMethodStub(proxy.$resolveChatSessionItem).resolves(resolvedItem);
+
+		const result = await chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+
+		assert.ok(asSinonMethodStub(proxy.$resolveChatSessionItem).calledOnce);
+		assert.deepStrictEqual(result?.badge, 'resolved');
+
+		mainThread.$unregisterChatSessionItemController(controllerHandle);
+	});
+
+	test('resolveChatSessionItem returns undefined when supportsResolve is false', async function () {
+		const sessionScheme = 'test-session-type';
+		const controllerHandle = 0;
+
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme, false);
+
+		const resource = URI.parse(`${sessionScheme}:/session-a`);
+
+		const result = await chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+
+		assert.strictEqual(result, undefined);
+		assert.ok(asSinonMethodStub(proxy.$resolveChatSessionItem).notCalled);
+
+		mainThread.$unregisterChatSessionItemController(controllerHandle);
+	});
+
+	test('resolveChatSessionItem cache is invalidated on item update', async function () {
+		const sessionScheme = 'test-session-type';
+		const controllerHandle = 0;
+
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme, true);
+
+		const resource = URI.parse(`${sessionScheme}:/session-a`);
+		const timing = { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined };
+		const initialItem: Dto<IChatSessionItem> = {
+			resource,
+			label: 'Session A',
+			timing,
+		};
+
+		await mainThread.$addOrUpdateChatSessionItem(controllerHandle, initialItem);
+
+		const resolvedItem1: Dto<IChatSessionItem> = { resource, label: 'Session A', timing, badge: 'first' };
+		const resolvedItem2: Dto<IChatSessionItem> = { resource, label: 'Session A', timing, badge: 'second' };
+
+		const resolveStub = asSinonMethodStub(proxy.$resolveChatSessionItem);
+		resolveStub.onFirstCall().resolves(resolvedItem1);
+		resolveStub.onSecondCall().resolves(resolvedItem2);
+
+		// First resolve
+		const result1 = await chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+		assert.deepStrictEqual(result1?.badge, 'first');
+
+		// Simulate item update (should invalidate cache)
+		await mainThread.$addOrUpdateChatSessionItem(controllerHandle, { ...initialItem, label: 'Session A Updated' });
+
+		// Second resolve after cache invalidation should call proxy again
+		const result2 = await chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+		assert.deepStrictEqual(result2?.badge, 'second');
+
+		assert.strictEqual(resolveStub.callCount, 2);
+
+		mainThread.$unregisterChatSessionItemController(controllerHandle);
+	});
+
+	test('resolveChatSessionItem caches undefined result until item update invalidates it', async function () {
+		const sessionScheme = 'test-session-type';
+		const controllerHandle = 0;
+
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme, true);
+
+		const resource = URI.parse(`${sessionScheme}:/session-a`);
+		const timing = { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined };
+		const initialItem: Dto<IChatSessionItem> = {
+			resource,
+			label: 'Session A',
+			timing,
+		};
+
+		const resolveStub = asSinonMethodStub(proxy.$resolveChatSessionItem);
+		resolveStub.onFirstCall().resolves(undefined);
+		resolveStub.onSecondCall().resolves({ resource, label: 'Session A', timing, badge: 'resolved' } satisfies Dto<IChatSessionItem>);
+
+		// First resolve returns undefined and should be cached.
+		const result1 = await chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+		assert.strictEqual(result1, undefined);
+
+		// Second resolve should reuse the cached undefined result.
+		const result2 = await chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+		assert.strictEqual(result2, undefined);
+		assert.strictEqual(resolveStub.callCount, 1);
+
+		// Updating the item should invalidate the cached undefined result.
+		await mainThread.$addOrUpdateChatSessionItem(controllerHandle, initialItem);
+
+		const result3 = await chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+		assert.deepStrictEqual(result3?.badge, 'resolved');
+
+		assert.strictEqual(resolveStub.callCount, 2);
+
+		mainThread.$unregisterChatSessionItemController(controllerHandle);
+	});
+
+	test('resolveChatSessionItem ignores stale in-flight resolve result after item update', async function () {
+		const sessionScheme = 'test-session-type';
+		const controllerHandle = 0;
+
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme, true);
+
+		const resource = URI.parse(`${sessionScheme}:/session-a`);
+		const timing = { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined };
+		const initialItem: Dto<IChatSessionItem> = {
+			resource,
+			label: 'Session A',
+			timing,
+		};
+
+		await mainThread.$addOrUpdateChatSessionItem(controllerHandle, initialItem);
+
+		let resolvePending: ((value: Dto<IChatSessionItem>) => void) | undefined;
+		asSinonMethodStub(proxy.$resolveChatSessionItem).returns(new Promise<Dto<IChatSessionItem>>(resolve => {
+			resolvePending = resolve;
+		}));
+
+		const pendingResolve = chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+
+		await mainThread.$addOrUpdateChatSessionItem(controllerHandle, {
+			...initialItem,
+			label: 'Session A Updated',
+		});
+
+		resolvePending?.({
+			resource,
+			label: 'Session A',
+			timing,
+			badge: 'stale',
+		});
+
+		const result = await pendingResolve;
+		assert.strictEqual(result?.label, 'Session A Updated');
+		assert.strictEqual(result?.badge, undefined);
+
+		mainThread.$unregisterChatSessionItemController(controllerHandle);
+	});
+});
+
+suite('ExtHostChatSessions', function () {
+	let disposables: DisposableStore;
+	let extHostChatSessions: ExtHostChatSessions;
+	let mainThreadChatSessionsProxy: {
+		$registerChatSessionItemController: sinon.SinonStub;
+		$updateChatSessionItemControllerCapabilities: sinon.SinonStub;
+		$unregisterChatSessionItemController: sinon.SinonStub;
+		$updateChatSessionItems: sinon.SinonStub;
+		$addOrUpdateChatSessionItem: sinon.SinonStub;
+		$onDidCommitChatSessionItem: sinon.SinonStub;
+		$registerChatSessionContentProvider: sinon.SinonStub;
+		$unregisterChatSessionContentProvider: sinon.SinonStub;
+		$onDidChangeChatSessionOptions: sinon.SinonStub;
+		$onDidChangeChatSessionProviderOptions: sinon.SinonStub;
+		$updateChatSessionInputState: sinon.SinonStub;
+	};
+
+	setup(function () {
+		disposables = new DisposableStore();
+		mainThreadChatSessionsProxy = {
+			$registerChatSessionItemController: sinon.stub(),
+			$updateChatSessionItemControllerCapabilities: sinon.stub(),
+			$unregisterChatSessionItemController: sinon.stub(),
+			$updateChatSessionItems: sinon.stub().resolves(),
+			$addOrUpdateChatSessionItem: sinon.stub().resolves(),
+			$onDidCommitChatSessionItem: sinon.stub(),
+			$registerChatSessionContentProvider: sinon.stub(),
+			$unregisterChatSessionContentProvider: sinon.stub(),
+			$onDidChangeChatSessionOptions: sinon.stub(),
+			$onDidChangeChatSessionProviderOptions: sinon.stub(),
+			$updateChatSessionInputState: sinon.stub(),
+		};
+
+		const rpcProtocol = AnyCallRPCProtocol(mainThreadChatSessionsProxy);
+		const commands = new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() { });
+		const languageModels = new ExtHostLanguageModels(rpcProtocol, new NullLogService(), new class extends mock<IExtHostAuthentication>() { });
+
+		extHostChatSessions = disposables.add(new ExtHostChatSessions(commands, languageModels, rpcProtocol, new NullLogService()));
+	});
+
+	teardown(function () {
+		disposables.dispose();
+		sinon.restore();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createContentProvider(session: vscode.ChatSession): vscode.ChatSessionContentProvider {
+		return {
+			provideChatSessionContent: async () => session,
+		};
+	}
+
+	test('controller only advertises resolve support after resolve handler is assigned', function () {
+		const sessionScheme = 'test-session-type';
+		const controller = disposables.add(extHostChatSessions.createChatSessionItemController(nullExtensionDescription, sessionScheme, async () => { }));
+
+		assert.ok(mainThreadChatSessionsProxy.$registerChatSessionItemController.calledOnceWithExactly(0, sessionScheme, false));
+		assert.ok(mainThreadChatSessionsProxy.$updateChatSessionItemControllerCapabilities.notCalled);
+
+		controller.resolveChatSessionItem = async () => { };
+		assert.ok(mainThreadChatSessionsProxy.$updateChatSessionItemControllerCapabilities.calledOnceWithExactly(0, true));
+
+		controller.resolveChatSessionItem = undefined;
+		assert.ok(mainThreadChatSessionsProxy.$updateChatSessionItemControllerCapabilities.calledTwice);
+		assert.ok(mainThreadChatSessionsProxy.$updateChatSessionItemControllerCapabilities.secondCall.calledWithExactly(0, false));
+	});
+
+	test('advertises controller fork support when only the controller registers a fork handler', async function () {
+		const sessionScheme = 'test-session-type';
+		const sessionResource = URI.parse(`${sessionScheme}:/test-session`);
+		const controller = disposables.add(extHostChatSessions.createChatSessionItemController(nullExtensionDescription, sessionScheme, async () => { }));
+		controller.forkHandler = async resource => controller.createChatSessionItem(resource.with({ path: '/forked-session' }), 'Forked Session');
+
+		disposables.add(extHostChatSessions.registerChatSessionContentProvider(nullExtensionDescription, sessionScheme, undefined!, createContentProvider({
+			history: [],
+			requestHandler: undefined,
+		})));
+
+		const session = await extHostChatSessions.$provideChatSessionContent(0, sessionResource, { initialSessionOptions: [] }, CancellationToken.None);
+
+		assert.strictEqual(session.hasForkHandler, true);
+		await extHostChatSessions.$disposeChatSessionContent(0, sessionResource);
+	});
+
+	test('prefers controller fork handler over deprecated session fork handler', async function () {
+		const sessionScheme = 'test-session-type';
+		const sessionResource = URI.parse(`${sessionScheme}:/test-session`);
+		const requestTurn = new extHostTypes.ChatRequestTurn('prompt', undefined, [], 'participant', [], undefined, 'request-1');
+		const controller = disposables.add(extHostChatSessions.createChatSessionItemController(nullExtensionDescription, sessionScheme, async () => { }));
+		const controllerItem = controller.createChatSessionItem(URI.parse(`${sessionScheme}:/forked-by-controller`), 'Forked by Controller');
+		const sessionItem = {
+			resource: URI.parse(`${sessionScheme}:/forked-by-session`),
+			label: 'Forked by Session'
+		};
+
+		const controllerForkHandler = sinon.stub().resolves(controllerItem);
+		const deprecatedSessionForkHandler = sinon.stub().resolves(sessionItem);
+		controller.forkHandler = controllerForkHandler;
+
+		disposables.add(extHostChatSessions.registerChatSessionContentProvider(nullExtensionDescription, sessionScheme, undefined!, createContentProvider({
+			history: [requestTurn],
+			requestHandler: undefined,
+			forkHandler: deprecatedSessionForkHandler,
+		})));
+
+		await extHostChatSessions.$provideChatSessionContent(0, sessionResource, { initialSessionOptions: [] }, CancellationToken.None);
+		const result = await extHostChatSessions.$forkChatSession(0, sessionResource, {
+			type: 'request',
+			id: 'request-1',
+			prompt: 'prompt',
+			participant: 'participant',
+		}, CancellationToken.None);
+
+		assert.ok(controllerForkHandler.calledOnceWithExactly(sessionResource, requestTurn, CancellationToken.None));
+		assert.strictEqual(deprecatedSessionForkHandler.callCount, 0);
+		assert.strictEqual(result.resource.toString(), controllerItem.resource.toString());
+		assert.strictEqual(result.label, controllerItem.label);
+		await extHostChatSessions.$disposeChatSessionContent(0, sessionResource);
+	});
+
+	test('falls back to deprecated session fork handler when no controller fork handler exists', async function () {
+		const sessionScheme = 'test-session-type';
+		const sessionResource = URI.parse(`${sessionScheme}:/test-session`);
+		const requestTurn = new extHostTypes.ChatRequestTurn('prompt', undefined, [], 'participant', [], undefined, 'request-1');
+		const deprecatedSessionForkHandler = sinon.stub().resolves({
+			resource: URI.parse(`${sessionScheme}:/forked-by-session`),
+			label: 'Forked by Session'
+		});
+
+		disposables.add(extHostChatSessions.registerChatSessionContentProvider(nullExtensionDescription, sessionScheme, undefined!, createContentProvider({
+			history: [requestTurn],
+			requestHandler: undefined,
+			forkHandler: deprecatedSessionForkHandler,
+		})));
+
+		await extHostChatSessions.$provideChatSessionContent(0, sessionResource, { initialSessionOptions: [] }, CancellationToken.None);
+		const result = await extHostChatSessions.$forkChatSession(0, sessionResource, {
+			type: 'request',
+			id: 'request-1',
+			prompt: 'prompt',
+			participant: 'participant',
+		}, CancellationToken.None);
+
+		assert.ok(deprecatedSessionForkHandler.calledOnceWithExactly(sessionResource, requestTurn, CancellationToken.None));
+		assert.strictEqual(result.resource.toString(), `${sessionScheme}:/forked-by-session`);
+		assert.strictEqual(result.label, 'Forked by Session');
+		await extHostChatSessions.$disposeChatSessionContent(0, sessionResource);
 	});
 });

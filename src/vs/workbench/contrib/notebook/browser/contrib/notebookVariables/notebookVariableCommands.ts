@@ -59,10 +59,12 @@ registerAction2(class extends Action2 {
 
 		const selectedKernel = notebookKernelService.getMatchingKernel(notebookTextModel).selected;
 		if (selectedKernel && selectedKernel.hasVariableProvider) {
-			const variables = selectedKernel.provideVariables(notebookTextModel.uri, undefined, 'named', 0, CancellationToken.None);
-			return await variables
-				.map(variable => { return variable; })
-				.toPromise();
+			const variableIterable = selectedKernel.provideVariables(notebookTextModel.uri, undefined, 'named', 0, CancellationToken.None);
+			const collected: VariablesResult[] = [];
+			for await (const variable of variableIterable) {
+				collected.push(variable);
+			}
+			return collected;
 		}
 
 		return [];

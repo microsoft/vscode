@@ -101,4 +101,17 @@ export namespace ThemeIcon {
 		return ti1.id === ti2.id && ti1.color?.id === ti2.color?.id;
 	}
 
+	/**
+	 * Returns whether specified icon is defined and has 'file' ID.
+	 */
+	export function isFile(icon: ThemeIcon | undefined): boolean {
+		return icon?.id === Codicon.file.id;
+	}
+
+	/**
+	 * Returns whether specified icon is defined and has 'folder' ID.
+	 */
+	export function isFolder(icon: ThemeIcon | undefined): boolean {
+		return icon?.id === Codicon.folder.id;
+	}
 }

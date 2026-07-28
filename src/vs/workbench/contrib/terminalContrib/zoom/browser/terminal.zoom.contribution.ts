@@ -7,7 +7,7 @@ import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { Event } from '../../../../../base/common/event.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { MouseWheelClassifier } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
@@ -18,6 +18,7 @@ import { localize2 } from '../../../../../nls.js';
 import { isNumber } from '../../../../../base/common/types.js';
 import { defaultTerminalFontSize } from '../../../terminal/common/terminalConfiguration.js';
 import { TerminalZoomCommandId, TerminalZoomSettingId } from '../common/terminal.zoom.js';
+import * as dom from '../../../../../base/browser/dom.js';
 
 class TerminalMouseWheelZoomContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.mouseWheelZoom';
@@ -71,8 +72,7 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 		let gestureHasZoomModifiers = false;
 		let gestureAccumulatedDelta = 0;
 
-		raw.attachCustomWheelEventHandler((e: WheelEvent) => {
-			const browserEvent = e as any as IMouseWheelEvent;
+		const wheelListener = (browserEvent: WheelEvent) => {
 			if (classifier.isPhysicalMouseWheel()) {
 				if (this._hasMouseWheelZoomModifiers(browserEvent)) {
 					const delta = browserEvent.deltaY > 0 ? -1 : 1;
@@ -81,7 +81,6 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 					// EditorZoom.setZoomLevel(zoomLevel + delta);
 					browserEvent.preventDefault();
 					browserEvent.stopPropagation();
-					return false;
 				}
 			} else {
 				// we consider mousewheel events that occur within 50ms of each other to be part of the same gesture
@@ -106,15 +105,15 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 					gestureAccumulatedDelta += browserEvent.deltaY;
 					browserEvent.preventDefault();
 					browserEvent.stopPropagation();
-					return false;
 				}
 			}
-			return true;
-		});
-		this._listener.value = toDisposable(() => raw.attachCustomWheelEventHandler(() => true));
+		};
+
+		// Use the capture phase to ensure we catch the event before the terminal's scrollable element consumes it
+		this._listener.value = dom.addDisposableListener(raw.element!, dom.EventType.MOUSE_WHEEL, wheelListener, { capture: true, passive: false });
 	}
 
-	private _hasMouseWheelZoomModifiers(browserEvent: IMouseWheelEvent): boolean {
+	private _hasMouseWheelZoomModifiers(browserEvent: WheelEvent | IMouseWheelEvent): boolean {
 		return (
 			isMacintosh
 				// on macOS we support cmd + two fingers scroll (`metaKey` set)

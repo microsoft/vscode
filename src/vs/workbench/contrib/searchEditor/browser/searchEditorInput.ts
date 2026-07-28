@@ -64,7 +64,7 @@ export class SearchEditorInput extends EditorInput {
 		return capabilities;
 	}
 
-	private memento: Memento;
+	private memento: Memento<{ searchConfig: SearchConfiguration }>;
 
 	private dirty: boolean = false;
 
@@ -325,6 +325,7 @@ export class SearchEditorInput extends EditorInput {
 		// Use the 'rawData' variant and pass modelUri
 		return this.instantiationService.invokeFunction(
 			getOrMakeSearchEditorInput,
+			// eslint-disable-next-line local/code-no-any-casts
 			{ from: 'rawData', config, resultsContents: results, modelUri: newModelUri } as any // modelUri is not in the type, but we handle it below
 		);
 	}
@@ -361,7 +362,7 @@ export const getOrMakeSearchEditorInput = (
 			const reuseOldSettings = searchEditorSettings.reusePriorSearchConfiguration;
 			const defaultNumberOfContextLines = searchEditorSettings.defaultNumberOfContextLines;
 
-			const priorConfig: SearchConfiguration = reuseOldSettings ? new Memento(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig : {};
+			const priorConfig = reuseOldSettings ? new Memento<{ searchConfig?: SearchConfiguration }>(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig ?? {} : {};
 			const defaultConfig = defaultSearchConfig();
 
 			const config = { ...defaultConfig, ...priorConfig, ...existingData.config };

@@ -36,7 +36,7 @@ export interface ITextResourceConfigurationService {
 	/**
 	 * Event that fires when the configuration changes.
 	 */
-	onDidChangeConfiguration: Event<ITextResourceConfigurationChangeEvent>;
+	readonly onDidChangeConfiguration: Event<ITextResourceConfigurationChangeEvent>;
 
 	/**
 	 * Fetches the value of the section for the given resource by applying language overrides.

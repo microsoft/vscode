@@ -1,0 +1,61 @@
+name: Restore node_modules cache
+description: Computes the node_modules cache key, restores the cache, and extracts it on a hit.
+
+inputs:
+  key-prefix:
+    description: Prefix for the cache key. The package-lock hash is appended automatically.
+    required: true
+  key-args:
+    description: Arguments passed to build/azure-pipelines/common/computeNodeModulesCacheKey.ts.
+    required: true
+  lookup-only:
+    description: When 'true', only checks whether the cache entry exists (sets cache-hit) without downloading or extracting the archive. Use for cache-warming jobs that only need the cache-hit result.
+    default: 'false'
+
+outputs:
+  cache-hit:
+    description: "'true' when the node_modules cache was restored from an exact key match."
+    value: ${{ steps.restore.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare node_modules cache key
+      if: runner.os != 'Windows'
+      shell: bash
+      run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts ${{ inputs.key-args }} > .build/packagelockhash
+
+    - name: Prepare node_modules cache key
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        mkdir .build -ea 0
+        node build/azure-pipelines/common/computeNodeModulesCacheKey.ts ${{ inputs.key-args }} > .build/packagelockhash
+
+    - name: Restore node_modules cache
+      id: restore
+      uses: actions/cache/restore@v5
+      with:
+        path: .build/node_modules_cache
+        key: "${{ inputs.key-prefix }}-${{ hashFiles('.build/packagelockhash') }}"
+        lookup-only: ${{ inputs.lookup-only }}
+
+    - name: Export node_modules cache key
+      if: runner.os != 'Windows'
+      shell: bash
+      run: echo "NODE_MODULES_CACHE_KEY=${{ steps.restore.outputs.cache-primary-key }}" >> "$GITHUB_ENV"
+
+    - name: Export node_modules cache key
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: Add-Content -Path $env:GITHUB_ENV -Value "NODE_MODULES_CACHE_KEY=${{ steps.restore.outputs.cache-primary-key }}"
+
+    - name: Extract node_modules cache
+      if: runner.os != 'Windows' && inputs.lookup-only != 'true' && steps.restore.outputs.cache-hit == 'true'
+      shell: bash
+      run: ./.github/workflows/node_modules_cache/cache.sh extract
+
+    - name: Extract node_modules cache
+      if: runner.os == 'Windows' && inputs.lookup-only != 'true' && steps.restore.outputs.cache-hit == 'true'
+      shell: pwsh
+      run: ./.github/workflows/node_modules_cache/cache.ps1 extract

@@ -287,13 +287,16 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 		const semTokenText = semanticTokenInfo && renderTokenText(this._model.getValueInRange(semanticTokenInfo.range));
 		const tmTokenText = textMateTokenInfo && renderTokenText(this._model.getLineContent(position.lineNumber).substring(textMateTokenInfo.token.startIndex, textMateTokenInfo.token.endIndex));
+		const semTokenLength = semanticTokenInfo && this._model.getValueLengthInRange(semanticTokenInfo.range);
+		const tmTokenLength = textMateTokenInfo && (textMateTokenInfo.token.endIndex - textMateTokenInfo.token.startIndex);
 
 		const tokenText = semTokenText || tmTokenText || '';
+		const tokenLength = semTokenLength || tmTokenLength || 0;
 
 		dom.reset(this._domNode,
 			$('h2.tiw-token', undefined,
 				tokenText,
-				$('span.tiw-token-length', undefined, `${tokenText.length} ${tokenText.length === 1 ? 'char' : 'chars'}`)));
+				$('span.tiw-token-length', undefined, `${tokenLength} ${tokenLength === 1 ? 'char' : 'chars'}`)));
 		dom.append(this._domNode, $('hr.tiw-metadata-separator', { 'style': 'clear:both' }));
 		dom.append(this._domNode, $('table.tiw-metadata-table', undefined,
 			$('tbody', undefined,

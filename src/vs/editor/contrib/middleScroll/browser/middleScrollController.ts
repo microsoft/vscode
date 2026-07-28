@@ -11,7 +11,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { autorun, derived, disposableObservableValue, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { observableCodeEditor } from '../../../browser/observableCodeEditor.js';
 import { Point } from '../../../common/core/2d/point.js';
-import { AnimationFrameScheduler } from '../../inlineCompletions/browser/model/animation.js';
+import { AnimationFrameScheduler } from '../../../../base/browser/animatedValue.js';
 import { appendRemoveOnDispose } from '../../../browser/widget/diffEditor/utils.js';
 import './middleScroll.css';
 
@@ -47,7 +47,7 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 			);
 
 			reader.store.add(this._editor.onMouseDown(e => {
-				const session = scrollingSession.get();
+				const session = scrollingSession.read(undefined);
 				if (session) {
 					scrollingSession.set(undefined, undefined);
 					return;
@@ -75,7 +75,7 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 				}, undefined);
 
 				store.add(this._editor.onMouseUp(e => {
-					const session = scrollingSession.get();
+					const session = scrollingSession.read(undefined);
 					if (session && session.didScroll) {
 						// Only cancel session on release if the user scrolled during it
 						scrollingSession.set(undefined, undefined);
@@ -101,7 +101,7 @@ export class MiddleScrollController extends Disposable implements IEditorContrib
 					const frameDurationMs = curTime - lastTime;
 					lastTime = curTime;
 
-					const mouseDelta = session.mouseDeltaAfterThreshold.get();
+					const mouseDelta = session.mouseDeltaAfterThreshold.read(undefined);
 
 					// scroll by mouse delta every 32ms
 					const factor = frameDurationMs / 32;

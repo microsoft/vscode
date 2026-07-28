@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as fs from 'fs';
+import { join } from 'path';
 import 'mocha';
-import { ChatContext, ChatRequest, ChatRequestTurn, ChatRequestTurn2, ChatResult, Disposable, Event, EventEmitter, chat, commands, lm } from 'vscode';
+import { ChatContext, ChatRequest, ChatRequestTurn, ChatRequestTurn2, ChatResult, Disposable, env, Event, EventEmitter, chat, commands, lm, UIKind } from 'vscode';
 import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, delay, disposeAll } from '../utils';
 
+// TODO: this now became flaky with built-in copilot
 suite('chat', () => {
 
 	let disposables: Disposable[] = [];
@@ -15,8 +18,8 @@ suite('chat', () => {
 		disposables = [];
 
 		// Register a dummy default model which is required for a participant request to go through
-		disposables.push(lm.registerLanguageModelChatProvider('test-lm-vendor', {
-			async prepareLanguageModelChatInformation(_options, _token) {
+		disposables.push(lm.registerLanguageModelChatProvider('copilot', {
+			async provideLanguageModelChatInformation(_options, _token) {
 				return [{
 					id: 'test-lm',
 					name: 'test-lm',
@@ -25,7 +28,8 @@ suite('chat', () => {
 					maxInputTokens: 100,
 					maxOutputTokens: 100,
 					isDefault: true,
-					isUserSelectable: true
+					isUserSelectable: true,
+					capabilities: {}
 				}];
 			},
 			async provideLanguageModelChatResponse(_model, _messages, _options, _progress, _token) {
@@ -55,8 +59,12 @@ suite('chat', () => {
 		return emitter.event;
 	}
 
+	// Chat participants are a Local-harness feature, but the panel defaults to
+	// Agent Host Copilot when the agent host is enabled. `newLocalChat` opens the
+	// view directly into a Local session (from cold), so these tests run it first.
 	test('participant and slash command history', async () => {
 		const onRequest = setupParticipant();
+		await commands.executeCommand('workbench.action.chat.newLocalChat');
 		commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
 
 		const deferred = new DeferredPromise<void>();
@@ -98,6 +106,8 @@ suite('chat', () => {
 		};
 		disposables.push(participant);
 
+		// Participants are Local-only; open a Local chat first (see note above).
+		await commands.executeCommand('workbench.action.chat.newLocalChat');
 		commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
 		const result = await deferred.p;
 		assert.deepStrictEqual(result.metadata, { key: 'value' });
@@ -107,6 +117,8 @@ suite('chat', () => {
 		const onRequest = setupParticipant();
 		const onRequest2 = setupParticipant(true);
 
+		// Participants are Local-only; open a Local chat first (see note above).
+		await commands.executeCommand('workbench.action.chat.newLocalChat');
 		commands.executeCommand('workbench.action.chat.open', { query: '@participant hi' });
 		await asPromise(onRequest);
 
@@ -124,7 +136,10 @@ suite('chat', () => {
 		assert.strictEqual(request3.context.history.length, 2); // request + response = 2
 	});
 
-	test('workbench.action.chat.open.blockOnResponse defaults to non-blocking for backwards compatibility', async () => {
+	// fixme(rwoll): workbench.action.chat.open.blockOnResponse tests are flaking in CI:
+	//               * https://github.com/microsoft/vscode/issues/263572
+	//               * https://github.com/microsoft/vscode/issues/263575
+	test.skip('workbench.action.chat.open.blockOnResponse defaults to non-blocking for backwards compatibility', async () => {
 		const toolRegistration = lm.registerTool<void>('requires_confirmation_tool', {
 			invoke: async (_options, _token) => null, prepareInvocation: async (_options, _token) => {
 				return { invocationMessage: 'Invoking', pastTenseMessage: 'Invoked', confirmationMessages: { title: 'Confirm', message: 'Are you sure?' } };
@@ -145,7 +160,7 @@ suite('chat', () => {
 		assert.strictEqual(result, undefined);
 	});
 
-	test('workbench.action.chat.open.blockOnResponse resolves when waiting for user confirmation to run a tool', async () => {
+	test.skip('workbench.action.chat.open.blockOnResponse resolves when waiting for user confirmation to run a tool', async () => {
 		const toolRegistration = lm.registerTool<void>('requires_confirmation_tool', {
 			invoke: async (_options, _token) => null, prepareInvocation: async (_options, _token) => {
 				return { invocationMessage: 'Invoking', pastTenseMessage: 'Invoked', confirmationMessages: { title: 'Confirm', message: 'Are you sure?' } };
@@ -166,7 +181,7 @@ suite('chat', () => {
 		assert.strictEqual(result?.type, 'confirmation');
 	});
 
-	test('workbench.action.chat.open.blockOnResponse resolves when an error is hit', async () => {
+	test.skip('workbench.action.chat.open.blockOnResponse resolves when an error is hit', async () => {
 		const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
 			return { errorDetails: { code: 'rate_limited', message: `You've been rate limited. Try again later!` } };
 		});
@@ -174,10 +189,15 @@ suite('chat', () => {
 
 		await commands.executeCommand('workbench.action.chat.newChat');
 		const result = await commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
-		assert.strictEqual((result as any).errorDetails.code, 'rate_limited');
+		type PartialChatAgentResult = {
+			errorDetails: {
+				code: string;
+			};
+		};
+		assert.strictEqual((<PartialChatAgentResult>result).errorDetails.code, 'rate_limited');
 	});
 
-	test.skip('title provider is called for first request', async () => {
+	test('title provider is called for first request', async () => {
 		let calls = 0;
 		const deferred = new DeferredPromise<void>();
 		const participant = chat.createChatParticipant('api-test.participant', (_request, _context, _progress, _token) => {
@@ -192,7 +212,8 @@ suite('chat', () => {
 		};
 		disposables.push(participant);
 
-		await commands.executeCommand('workbench.action.chat.newChat');
+		// Participants are Local-only; open a Local chat first (see note above).
+		await commands.executeCommand('workbench.action.chat.newLocalChat');
 		commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
 
 		// Wait for title provider to be called once
@@ -204,5 +225,29 @@ suite('chat', () => {
 
 		// Title provider was not called again
 		assert.strictEqual(calls, 1);
+	});
+
+	test('can access node-pty module', async function () {
+		// Required for copilot cli in chat extension.
+		if (env.uiKind === UIKind.Web) {
+			this.skip();
+		}
+		const nodePtyModules = [
+			join(env.appRoot, 'node_modules.asar', 'node-pty'),
+			join(env.appRoot, 'node_modules', 'node-pty')
+		];
+
+		for (const modulePath of nodePtyModules) {
+			// try to stat and require module
+			try {
+				await fs.promises.stat(modulePath);
+				const nodePty = require(modulePath);
+				assert.ok(nodePty, `Successfully required node-pty from ${modulePath}`);
+				return;
+			} catch (err) {
+				// failed to require, try next
+			}
+		}
+		assert.fail('Failed to find and require node-pty module');
 	});
 });

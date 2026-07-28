@@ -38,6 +38,8 @@
 					'self'
 					https:
 					ws:
+					http://localhost:*
+					http://127.0.0.1:*
 				;
 				font-src
 					'self'
@@ -52,18 +54,22 @@
 					vscode-bootstrapImportMap
 					amdLoader
 					cellRendererEditorText
+					collapsedCellPreview
 					defaultWorkerFactory
 					diffEditorWidget
 					diffReview
 					domLineBreaksComputer
 					dompurify
+					lit-html
 					editorGhostText
 					editorViewLayer
+					htmlToMarkdown
 					notebookRenderer
 					stickyScrollViewLayer
 					tokenizeToString
 					notebookChatEditController
 					richScreenReaderContent
+					chatDebugTokenizer
 				;
 		"/>
 	</head>
@@ -72,5 +78,5 @@
 	</body>
 
 	<!-- Startup (do not modify order of script tags!) -->
-	<script src="./workbench.js"></script>
+	<script src="./workbench.js" type="module"></script>
 </html>

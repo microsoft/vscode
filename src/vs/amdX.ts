@@ -9,8 +9,6 @@ import { IProductConfiguration } from './base/common/product.js';
 import { URI } from './base/common/uri.js';
 import { generateUuid } from './base/common/uuid.js';
 
-export const canASAR = false; // TODO@esm: ASAR disabled in ESM
-
 declare const window: any;
 declare const document: any;
 declare const self: any;
@@ -38,9 +36,7 @@ class AMDModuleImporter {
 
 	private readonly _defineCalls: DefineCall[] = [];
 	private _state = AMDModuleImporterState.Uninitialized;
-	private _amdPolicy: Pick<TrustedTypePolicy<{
-		createScriptURL(value: string): string;
-	}>, 'name' | 'createScriptURL'> | undefined;
+	private _amdPolicy: Pick<TrustedTypePolicy, 'name' | 'createScriptURL'> | undefined;
 
 	constructor() { }
 
@@ -173,15 +169,22 @@ class AMDModuleImporter {
 		if (this._amdPolicy) {
 			scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as unknown as string;
 		}
-		await import(scriptSrc);
+		await import(/* webpackIgnore: true */ /* @vite-ignore */ scriptSrc);
 		return this._defineCalls.pop();
 	}
 
 	private async _nodeJSLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
 		try {
-			const fs = (await import(`${'fs'}`)).default;
-			const vm = (await import(`${'vm'}`)).default;
-			const module = (await import(`${'module'}`)).default;
+			// `import('module')` is not remapped (only `fs` is), so it yields the real
+			// `module` builtin. We use its `createRequire` to obtain `fs`/`vm`: the ESM
+			// resolution hook maps `import('fs')` to the ASAR-unaware `original-fs`, but
+			// `scriptSrc` may point inside the `node_modules.asar` archive. The `fs`
+			// returned by `require` stays ASAR-aware in Electron, so it can read module
+			// files from within the archive.
+			const module = (await import(/* webpackIgnore: true */ /* @vite-ignore */ `${'module'}`)).default;
+			const nodeRequire = module.createRequire(import.meta.url);
+			const fs = nodeRequire('fs');
+			const vm = nodeRequire('vm');
 
 			const filePath = URI.parse(scriptSrc).fsPath;
 			const content = fs.readFileSync(filePath).toString();
@@ -220,7 +223,7 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 		// bit of a special case for: src/vs/workbench/services/languageDetection/browser/languageDetectionWebWorker.ts
 		scriptSrc = nodeModulePath;
 	} else {
-		const useASAR = (canASAR && isBuilt && !platform.isWeb);
+		const useASAR = (isBuilt && (platform.isElectron || (platform.isWebWorker && platform.hasElectronUserAgent)));
 		const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);
 		const resourcePath: AppResourcePath = `${actualNodeModulesPath}/${nodeModulePath}`;
 		scriptSrc = FileAccess.asBrowserUri(resourcePath).toString(true);
@@ -233,7 +236,7 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 export function resolveAmdNodeModulePath(nodeModuleName: string, pathInsideNodeModule: string): string {
 	const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
 	const isBuilt = Boolean((product ?? globalThis.vscode?.context?.configuration()?.product)?.commit);
-	const useASAR = (canASAR && isBuilt && !platform.isWeb);
+	const useASAR = (isBuilt && (platform.isElectron || (platform.isWebWorker && platform.hasElectronUserAgent)));
 
 	const nodeModulePath = `${nodeModuleName}/${pathInsideNodeModule}`;
 	const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);

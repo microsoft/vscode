@@ -5,6 +5,7 @@
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -12,15 +13,18 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogger, log, LogLevel } from '../../../../platform/log/common/log.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { IMcpClientMethods, IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
+import { McpTaskManager } from './mcpTaskManager.js';
+import { IMcpClientMethods, IMcpPotentialSandboxBlock, IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 
 export class McpServerConnection extends Disposable implements IMcpServerConnection {
 	private readonly _launch = this._register(new MutableDisposable<IReference<IMcpMessageTransport>>());
 	private readonly _state = observableValue<McpConnectionState>('mcpServerState', { state: McpConnectionState.Kind.Stopped });
 	private readonly _requestHandler = observableValue<McpServerRequestHandler | undefined>('mcpServerRequestHandler', undefined);
+	private readonly _onPotentialSandboxBlock = this._register(new Emitter<IMcpPotentialSandboxBlock>());
 
 	public readonly state: IObservable<McpConnectionState> = this._state;
 	public readonly handler: IObservable<McpServerRequestHandler | undefined> = this._requestHandler;
+	public readonly onPotentialSandboxBlock = this._onPotentialSandboxBlock.event;
 
 	constructor(
 		private readonly _collection: McpCollectionDefinition,
@@ -28,6 +32,8 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		private readonly _delegate: IMcpHostDelegate,
 		public readonly launchDefinition: McpServerLaunch,
 		private readonly _logger: ILogger,
+		private readonly _errorOnUserInteraction: boolean | undefined,
+		private readonly _taskManager: McpTaskManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -45,7 +51,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		this._logger.info(localize('mcpServer.starting', 'Starting server {0}', this.definition.label));
 
 		try {
-			const launch = this._delegate.start(this._collection, this.definition, this.launchDefinition);
+			const launch = this._delegate.start(this._collection, this.definition, this.launchDefinition, { errorOnUserInteraction: this._errorOnUserInteraction });
 			this._launch.value = this.adoptLaunch(launch, methods);
 			return this._waitForState(McpConnectionState.Kind.Running, McpConnectionState.Kind.Error);
 		} catch (e) {
@@ -66,6 +72,10 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		store.add(launch);
 		store.add(launch.onDidLog(({ level, message }) => {
 			log(this._logger, level, message);
+			const potentialBlock = this._toPotentialSandboxBlock(message);
+			if (potentialBlock) {
+				this._onPotentialSandboxBlock.fire(potentialBlock);
+			}
 		}));
 
 		let didStart = false;
@@ -77,10 +87,11 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 			if (state.state === McpConnectionState.Kind.Running && !didStart) {
 				didStart = true;
 				McpServerRequestHandler.create(this._instantiationService, {
+					...methods,
 					launch,
 					logger: this._logger,
 					requestLogLevel: this.definition.devMode ? LogLevel.Info : LogLevel.Debug,
-					...methods,
+					taskManager: this._taskManager,
 				}, cts.token).then(
 					handler => {
 						if (!store.isDisposed) {
@@ -90,7 +101,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 						}
 					},
 					err => {
-						if (!store.isDisposed) {
+						if (!store.isDisposed && McpConnectionState.isRunning(this._state.read(undefined))) {
 							let message = err.message;
 							if (err instanceof CancellationError) {
 								message = 'Server exited before responding to `initialize` request.';
@@ -136,5 +147,49 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 				}
 			});
 		});
+	}
+
+	private _toPotentialSandboxBlock(message: string): IMcpPotentialSandboxBlock | undefined {
+		if (!this.definition.sandboxEnabled) {
+			return undefined;
+		}
+
+		if (/No matching config rule, denying:/i.test(message)) {
+			return {
+				kind: 'network',
+				message,
+				host: this._extractSandboxHost(message),
+			};
+		}
+
+		if (/(?:\b(?:EACCES|EPERM|ENOENT|EROFS|fail(?:ed|ure)?)\b|not accessible|read[- ]only)/i.test(message)) {
+			return {
+				kind: 'filesystem',
+				message,
+				path: this._extractSandboxPath(message),
+			};
+		}
+
+		return undefined;
+	}
+
+	private _extractSandboxPath(line: string): string | undefined {
+		const bracketedPath = line.match(/\[(\/[^\]\r\n]+)\]/);
+		if (bracketedPath?.[1]) {
+			return bracketedPath[1].trim();
+		}
+
+		const quotedPath = line.match(/["'`](\/[^"'`]+)["'`]/);
+		if (quotedPath?.[1]) {
+			return quotedPath[1];
+		}
+
+		const trailingPath = line.match(/(\/[\w.\-~/ ]+)$/);
+		return trailingPath?.[1]?.trim();
+	}
+
+	private _extractSandboxHost(value: string): string | undefined {
+		const match = value.match(/No matching config rule, denying:\s+(?<host>[^:\s]+):\d+\.?$/i);
+		return match?.groups?.host;
 	}
 }

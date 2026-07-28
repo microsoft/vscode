@@ -33,7 +33,7 @@ import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, I
 import { IExtensionsWorkbenchService, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from '../../extensions/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { RemoteNameContext, VirtualWorkspaceContext } from '../../../common/contextkeys.js';
+import { IsSessionsWindowContext, RemoteNameContext, VirtualWorkspaceContext } from '../../../common/contextkeys.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -78,6 +78,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private static readonly CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
 	private static readonly SHOW_CLOSE_REMOTE_COMMAND_ID = !isWeb; // web does not have a "Close Remote" command
 	private static readonly INSTALL_REMOTE_EXTENSIONS_ID = 'workbench.action.remote.extensions';
+
+	private static readonly DEFAULT_REMOTE_STATUS_LABEL = '$(remote)';
 
 	private static readonly REMOTE_STATUS_LABEL_MAX_LENGTH = 40;
 
@@ -211,7 +213,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						category,
 						title: nls.localize2('remote.close', "Close Remote Connection"),
 						f1: true,
-						precondition: ContextKeyExpr.or(RemoteNameContext, VirtualWorkspaceContext)
+						precondition: ContextKeyExpr.and(ContextKeyExpr.or(RemoteNameContext, VirtualWorkspaceContext), IsSessionsWindowContext.negate())
 					});
 				}
 				run = () => that.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: null });
@@ -223,6 +225,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
 						title: nls.localize({ key: 'miCloseRemote', comment: ['&& denotes a mnemonic'] }, "Close Re&&mote Connection")
 					},
+					when: IsSessionsWindowContext.negate(),
 					order: 3.5
 				});
 			}
@@ -553,7 +556,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
+		this.renderRemoteStatusIndicator(RemoteStatusIndicator.DEFAULT_REMOTE_STATUS_LABEL, nls.localize('noHost.tooltip', "Open a Remote Window"));
 		return;
 	}
 
@@ -562,7 +565,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		const properties: IStatusbarEntry = {
 			name: nls.localize('remoteHost', "Remote Host"),
-			kind: this.networkState === 'offline' ? 'offline' : 'remote',
+			kind: this.networkState === 'offline' ? 'offline' : text !== RemoteStatusIndicator.DEFAULT_REMOTE_STATUS_LABEL ? 'remote' : undefined, // only emphasize when applicable
 			ariaLabel,
 			text,
 			showProgress,
@@ -590,8 +593,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			// to replace with an alert icon for when a normal remote indicator
 			// is shown.
 
-			if (!showProgress && initialText.startsWith('$(remote)')) {
-				return initialText.replace('$(remote)', '$(alert)');
+			if (!showProgress && initialText.startsWith(RemoteStatusIndicator.DEFAULT_REMOTE_STATUS_LABEL)) {
+				return initialText.replace(RemoteStatusIndicator.DEFAULT_REMOTE_STATUS_LABEL, '$(alert)');
 			}
 
 			return initialText;
@@ -849,7 +852,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		if (!this.remoteMetadataInitialized) {
 			quickPick.busy = true;
-			this._register(this.onDidChangeEntries(() => {
+			disposables.add(this.onDidChangeEntries(() => {
 				// If quick pick is open, update the quick pick items after initialization.
 				quickPick.busy = false;
 				quickPick.items = computeItems();

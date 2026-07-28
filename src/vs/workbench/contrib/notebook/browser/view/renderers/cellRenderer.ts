@@ -11,7 +11,7 @@ import { Disposable, DisposableStore } from '../../../../../../base/common/lifec
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
-import { BareFontInfo } from '../../../../../../editor/common/config/fontInfo.js';
+import { createBareFontInfoFromRawSettings } from '../../../../../../editor/common/config/fontInfoFromSettings.js';
 import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../../editor/common/languages/modesRegistry.js';
 import { localize } from '../../../../../../nls.js';
@@ -64,7 +64,7 @@ export class NotebookCellListDelegate extends Disposable implements IListVirtual
 		super();
 
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value).lineHeight;
+		this.lineHeight = createBareFontInfoFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value).lineHeight;
 	}
 
 	getHeight(element: CellViewModel): number {

@@ -27,6 +27,11 @@ export interface RemoteTunnel {
 	dispose(silent?: boolean): Promise<void>;
 }
 
+export function isRemoteTunnel(something: unknown): something is RemoteTunnel {
+	const asTunnel: Partial<RemoteTunnel> = something as Partial<RemoteTunnel>;
+	return !!(asTunnel.tunnelRemotePort && asTunnel.tunnelRemoteHost && asTunnel.localAddress && asTunnel.privacy && asTunnel.dispose);
+}
+
 export interface TunnelOptions {
 	remoteAddress: { port: number; host: string };
 	localAddressPort?: number;
@@ -107,7 +112,7 @@ export interface ITunnel {
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
-	onDidDispose: Event<void>;
+	readonly onDidDispose: Event<void>;
 
 	dispose(): Promise<void> | void;
 }
@@ -202,7 +207,7 @@ export function isPortPrivileged(port: number, host: string, os: OperatingSystem
 
 export class DisposableTunnel {
 	private _onDispose: Emitter<void> = new Emitter();
-	onDidDispose: Event<void> = this._onDispose.event;
+	readonly onDidDispose: Event<void> = this._onDispose.event;
 
 	constructor(
 		public readonly remoteAddress: { port: number; host: string },
@@ -211,6 +216,7 @@ export class DisposableTunnel {
 
 	dispose(): Promise<void> {
 		this._onDispose.fire();
+		this._onDispose.dispose();
 		return this._dispose();
 	}
 }
@@ -218,11 +224,11 @@ export class DisposableTunnel {
 export abstract class AbstractTunnelService extends Disposable implements ITunnelService {
 	declare readonly _serviceBrand: undefined;
 
-	private _onTunnelOpened: Emitter<RemoteTunnel> = new Emitter();
+	private _onTunnelOpened = this._register(new Emitter<RemoteTunnel>());
 	public onTunnelOpened: Event<RemoteTunnel> = this._onTunnelOpened.event;
-	private _onTunnelClosed: Emitter<{ host: string; port: number }> = new Emitter();
+	private _onTunnelClosed = this._register(new Emitter<{ host: string; port: number }>());
 	public onTunnelClosed: Event<{ host: string; port: number }> = this._onTunnelClosed.event;
-	private _onAddedTunnelProvider: Emitter<void> = new Emitter();
+	private _onAddedTunnelProvider = this._register(new Emitter<void>());
 	public onAddedTunnelProvider: Event<void> = this._onAddedTunnelProvider.event;
 	protected readonly _tunnels = new Map</*host*/ string, Map</* port */ number, { refcount: number; readonly value: Promise<RemoteTunnel | string | undefined> }>>();
 	protected _tunnelProvider: ITunnelProvider | undefined;

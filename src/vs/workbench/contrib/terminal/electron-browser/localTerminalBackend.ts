@@ -37,6 +37,7 @@ import { IStatusbarService } from '../../../services/statusbar/browser/statusbar
 import { memoize } from '../../../../base/common/decorators.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { shouldUseEnvironmentVariableCollection } from '../../../../platform/terminal/common/terminalEnvironment.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 
@@ -95,6 +96,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 	) {
 		super(_localPtyService, logService, historyService, _configurationResolverService, statusBarService, workspaceContextService);
 
@@ -152,6 +154,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 				const pty = this._ptys.get(e.id);
 				if (pty) {
 					pty.handleExit(e.event);
+					pty.dispose();
 					this._ptys.delete(e.id);
 				}
 			}));
@@ -189,6 +192,10 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	async updateIcon(id: number, userInitiated: boolean, icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } }, color?: string): Promise<void> {
 		await this._proxy.updateIcon(id, userInitiated, icon, color);
+	}
+
+	async setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
+		await this._proxy.setNextCommandId(id, commandLine, commandId);
 	}
 
 	async updateProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
@@ -289,7 +296,14 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	@memoize
 	async getShellEnvironment(): Promise<IProcessEnvironment> {
-		return this._shellEnvironmentService.getShellEnv();
+		const env = { ... await this._shellEnvironmentService.getShellEnv() };
+
+		// If running in the context of an extension development host, include the environment derived from the launch configuration
+		if (this._environmentService.debugExtensionHost.env) {
+			terminalEnvironment.mergeEnvironments(env, this._environmentService.debugExtensionHost.env);
+		}
+
+		return env;
 	}
 
 	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
@@ -299,7 +313,8 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId(),
-			tabs: layoutInfo ? layoutInfo.tabs : []
+			tabs: layoutInfo ? layoutInfo.tabs : [],
+			background: layoutInfo ? layoutInfo.background : null
 		};
 		await this._proxy.setTerminalLayoutInfo(args);
 		// Store in the storage service as well to be used when reviving processes as normally this
@@ -346,7 +361,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				}
 			} catch (e: unknown) {
-				this._logService.warn('LocalTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
+				this._logService.warn('LocalTerminalBackend#getTerminalLayoutInfo Error', (<{ message?: string }>e).message ?? e);
 			}
 		}
 

@@ -180,11 +180,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		this.registerContributedEditSessionOptions();
 
 		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsStorageService)));
-		this.lifecycleService.onWillShutdown((e) => {
+		this._register(this.lifecycleService.onWillShutdown((e) => {
 			if (e.reason !== ShutdownReason.RELOAD && this.editSessionsStorageService.isSignedIn && this.configurationService.getValue('workbench.experimental.cloudChanges.autoStore') === 'onShutdown' && !isWeb) {
 				e.join(this.autoStoreEditSession(), { id: 'autoStoreWorkingChanges', label: localize('autoStoreWorkingChanges', 'Storing current working changes...') });
 			}
-		});
+		}));
 		this._register(this.editSessionsStorageService.onDidSignIn(() => this.updateAccountsMenuBadge()));
 		this._register(this.editSessionsStorageService.onDidSignOut(() => this.updateAccountsMenuBadge()));
 	}
@@ -302,7 +302,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				super(showOutputChannelCommand);
 			}
 
-			run(accessor: ServicesAccessor, ...args: any[]) {
+			run(accessor: ServicesAccessor, ...args: unknown[]) {
 				const outputChannel = accessor.get(IOutputService);
 				void outputChannel.showChannel(editSessionsLogId);
 			}
@@ -644,6 +644,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			for (const change of folder.workingChanges) {
 				const uri = joinPath(folderRoot.uri, change.relativeFilePath);
+				if (!this.uriIdentityService.extUri.isEqualOrParent(uri, folderRoot.uri) || this.uriIdentityService.extUri.isEqual(uri, folderRoot.uri)) {
+					this.logService.warn(`Skipping change outside workspace folder: ${change.relativeFilePath}`);
+					continue;
+				}
 
 				changes.push({ uri, type: change.type, contents: change.contents });
 				if (await this.willChangeLocalContents(localChanges, uri, change)) {
@@ -985,9 +989,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			: this.contextService.getWorkspace().folders.map((folder) => folder.name).join(', ');
 		quickPick.placeholder = localize('continueEditSessionPick.title.v2', "Select a development environment to continue working on {0} in", `'${workspaceContext}'`);
 		quickPick.items = this.createPickItems();
-		this.extensionService.onDidChangeExtensions(() => {
+		disposables.add(this.extensionService.onDidChangeExtensions(() => {
 			quickPick.items = this.createPickItems();
-		});
+		}));
 
 		const command = await new Promise<string | undefined>((resolve, reject) => {
 			disposables.add(quickPick.onDidHide(() => {
@@ -1010,8 +1014,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			disposables.add(quickPick.onDidTriggerItemButton(async (e) => {
 				if (e.item.documentation !== undefined) {
-					const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this.commandService.executeCommand(e.item.documentation);
-					void this.openerService.open(uri, { openExternal: true });
+					const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this.commandService.executeCommand<URI>(e.item.documentation);
+					if (uri) {
+						void this.openerService.open(uri, { openExternal: true });
+					}
 				}
 			}));
 		});
