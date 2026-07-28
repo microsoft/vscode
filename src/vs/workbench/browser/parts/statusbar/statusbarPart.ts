@@ -121,23 +121,24 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 	static readonly HEIGHT = 22;
 
-	/**
-	 * Vertical padding reserved around the main status bar under the floating panels
-	 * experiment so its items remain centered. The part grows by this amount and
-	 * the matching padding is applied in `floatingPanels.css`.
-	 */
-	static readonly FLOATING_BOTTOM_PADDING = 10;
+	/** Compact item height for the main status bar under the floating panels experiment. */
+	static readonly FLOATING_ITEM_HEIGHT = 20;
+
+	/** Keep in sync with the total vertical status bar padding in `floatingPanels.css`. */
+	static readonly FLOATING_VERTICAL_PADDING = 8;
 
 	//#region IView
 
-	private get floatingBottomPadding(): number {
-		return this.getId() === Parts.STATUSBAR_PART && this.layoutService.isFloatingPanelsEnabled() ? StatusbarPart.FLOATING_BOTTOM_PADDING : 0;
+	private get preferredHeight(): number {
+		return this.getId() === Parts.STATUSBAR_PART && this.layoutService.isFloatingPanelsEnabled()
+			? StatusbarPart.FLOATING_ITEM_HEIGHT + StatusbarPart.FLOATING_VERTICAL_PADDING
+			: StatusbarPart.HEIGHT;
 	}
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	get minimumHeight(): number { return StatusbarPart.HEIGHT + this.floatingBottomPadding; }
-	get maximumHeight(): number { return StatusbarPart.HEIGHT + this.floatingBottomPadding; }
+	get minimumHeight(): number { return this.preferredHeight; }
+	get maximumHeight(): number { return this.preferredHeight; }
 
 	//#endregion
 
