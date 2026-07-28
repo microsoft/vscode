@@ -128,10 +128,16 @@ function joinIncrementalDictationText(prefix: string, suffix: string): string {
 	return `${prefix}${normalizedSuffix}`;
 }
 
-function stripDictationFillers(text: string): string {
+export function stripDictationFillers(text: string): string {
 	return text
 		.replace(/\b(?:um+|uh+|ums|uhs)\b/giu, '')
 		.replace(/[ \t]+([,.;!?])/g, '$1')
+		// Collapse punctuation artifacts produced when a cleaned prefix and the
+		// raw transcript tail are concatenated (e.g. ".," or ",,"): keep the
+		// stronger sentence terminator and drop redundant separators.
+		.replace(/[,;]+[ \t]*([.!?])/g, '$1')
+		.replace(/([.!?])[ \t]*[,;]+/g, '$1')
+		.replace(/([,;])[ \t]*[,;]+/g, '$1')
 		.replace(/[ \t]{2,}/g, ' ')
 		.replace(/^[ \t]+|[ \t]+$/g, '');
 }
