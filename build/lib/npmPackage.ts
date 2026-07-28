@@ -57,14 +57,16 @@ export function ensureNpmPackage(packageName: string, nodeModulesRoot = 'node_mo
 /**
  * Materializes a SPECIFIC version of an npm package into `targetDir`, replacing
  * any existing contents. Unlike {@link ensureNpmPackage}, the version is passed
- * explicitly rather than read from a lockfile (so there is no integrity entry to
- * verify) — use for build-time payloads fetched from the trusted feed where the
- * required version does not match the adjacent lockfile.
+ * explicitly rather than read from the adjacent lockfile — use for build-time
+ * payloads whose required version does not match that lockfile. Pass
+ * `expectedIntegrity` (the `sha512-...` recorded for that version in the
+ * relevant lockfile) to verify the fetched tarball before extraction.
  */
-export function materializeNpmPackageVersion(packageName: string, version: string, targetDir: string, options: EnsureNpmPackageOptions = {}): void {
+export function materializeNpmPackageVersion(packageName: string, version: string, targetDir: string, expectedIntegrity: string | undefined, options: EnsureNpmPackageOptions = {}): void {
 	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-npm-package-'));
 	try {
 		const tarballPath = (options.packPackage ?? packNpmPackage)(packageName, version, tempDir);
+		verifyNpmIntegrity(tarballPath, expectedIntegrity);
 
 		fs.rmSync(targetDir, { recursive: true, force: true });
 		fs.mkdirSync(targetDir, { recursive: true });

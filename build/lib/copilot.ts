@@ -9,6 +9,16 @@ import * as path from 'path';
 import { ensureNpmPackage, materializeNpmPackageVersion, type EnsureNpmPackageOptions } from './npmPackage.ts';
 
 /**
+ * Options for {@link prepareBuiltInCopilotRipgrepShim}. Extends the npm packing
+ * options with an override for the extension lockfile used to verify natives
+ * fetched for the pinned version (defaults to the repo's copy; overridable in
+ * tests).
+ */
+export interface PrepareBuiltInCopilotOptions extends EnsureNpmPackageOptions {
+	extensionLockfilePath?: string;
+}
+
+/**
  * The platforms that @github/copilot ships platform-specific packages for.
  * These are the `@github/copilot-{platform}` optional dependency packages.
  */
@@ -233,7 +243,7 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
  * Failures throw to fail the build because built-in packaging must guarantee
  * this artifact is present.
  */
-export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string, builtInCopilotExtensionDir: string, appNodeModulesDir: string, options: EnsureNpmPackageOptions = {}): void {
+export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string, builtInCopilotExtensionDir: string, appNodeModulesDir: string, options: PrepareBuiltInCopilotOptions = {}): void {
 	const { nodePlatform, nodeArch } = toNodePlatformArch(platform, arch);
 	const platformArch = `${nodePlatform}-${nodeArch}`;
 	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
@@ -278,7 +288,7 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 	}
 }
 
-function materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch: string, tgrepPlatformArch: string, copilotBase: string, appNodeModulesDir: string, options: EnsureNpmPackageOptions = {}): void {
+function materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch: string, tgrepPlatformArch: string, copilotBase: string, appNodeModulesDir: string, options: PrepareBuiltInCopilotOptions = {}): void {
 	if (!copilotPlatforms.includes(copilotPackagePlatformArch)) {
 		return;
 	}
@@ -329,9 +339,11 @@ function materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch: s
  * otherwise fetches the exact extension version into a temp dir. The extension
  * is pinned to a fixed CLI version for the extension host while the agent host
  * (app-root) keeps updating, so app-root will normally NOT match and the fetch
- * is the expected path once the two versions diverge.
+ * is the expected path once the two versions diverge. The fetched tarball is
+ * verified against the SHA-512 the extension lockfile pins for that version
+ * before extraction; resolution fails closed if that integrity is missing.
  */
-function resolveVersionMatchedCopilotPlatformPackage(copilotPackagePlatformArch: string, extVersion: string, appNodeModulesDir: string, options: EnsureNpmPackageOptions): { dir: string; cleanup: () => void } {
+function resolveVersionMatchedCopilotPlatformPackage(copilotPackagePlatformArch: string, extVersion: string, appNodeModulesDir: string, options: PrepareBuiltInCopilotOptions): { dir: string; cleanup: () => void } {
 	const noop = () => { };
 	const packageName = `@github/copilot-${copilotPackagePlatformArch}`;
 
@@ -340,16 +352,46 @@ function resolveVersionMatchedCopilotPlatformPackage(copilotPackagePlatformArch:
 		return { dir: appRootDir, cleanup: noop };
 	}
 
+	const integrity = resolvePinnedPlatformPackageIntegrity(packageName, extVersion, options);
 	const staged = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-native-'));
 	try {
 		const stagedPackageDir = path.join(staged, `copilot-${copilotPackagePlatformArch}`);
-		materializeNpmPackageVersion(packageName, extVersion, stagedPackageDir, options);
+		materializeNpmPackageVersion(packageName, extVersion, stagedPackageDir, integrity, options);
 		console.log(`[prepareBuiltInCopilotRipgrepShim] ${packageName} in app-root does not match the built-in extension's @github/copilot@${extVersion}; using the version-matched package instead.`);
 		return { dir: stagedPackageDir, cleanup: () => fs.rmSync(staged, { recursive: true, force: true }) };
 	} catch (err) {
 		fs.rmSync(staged, { recursive: true, force: true });
 		throw err;
 	}
+}
+
+/**
+ * Reads the `sha512-...` integrity the built-in extension's lockfile pins for
+ * `packageName` at `extVersion`. Fails closed: a missing lockfile, entry,
+ * version mismatch, or integrity means the fetched native cannot be verified,
+ * so the build must stop rather than ship an unverified binary.
+ */
+function resolvePinnedPlatformPackageIntegrity(packageName: string, extVersion: string, options: PrepareBuiltInCopilotOptions): string {
+	const lockfilePath = options.extensionLockfilePath ?? path.join(import.meta.dirname, '..', '..', 'extensions', 'copilot', 'package-lock.json');
+
+	let lock: { packages?: Record<string, { version?: string; integrity?: string }> };
+	try {
+		lock = JSON.parse(fs.readFileSync(lockfilePath, 'utf8'));
+	} catch (err) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Could not read ${lockfilePath} to verify ${packageName}@${extVersion}: ${err instanceof Error ? err.message : String(err)}`);
+	}
+
+	const entry = lock.packages?.[path.posix.join('node_modules', packageName)];
+	if (!entry) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName} is not recorded in ${lockfilePath}; refusing to fetch an unverifiable native.`);
+	}
+	if (entry.version !== extVersion) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName} is pinned to ${entry.version} in ${lockfilePath} but the built-in extension is @github/copilot@${extVersion}; refusing to fetch an unverifiable native.`);
+	}
+	if (!entry.integrity) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName}@${extVersion} has no integrity in ${lockfilePath}; refusing to fetch an unverifiable native.`);
+	}
+	return entry.integrity;
 }
 
 function readCopilotPackageVersion(copilotBase: string): string {
