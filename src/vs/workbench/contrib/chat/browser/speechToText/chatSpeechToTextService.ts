@@ -1319,11 +1319,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 		this._setState(ChatSpeechToTextState.Transcribing);
 		this._resetIncrementalCleanup();
-		// Drain the capture worklet's partially-filled trailing buffer (up to one
-		// chunk of audio that has not yet reached the chunk size) so the final
-		// spoken words reach the backend before we stop capturing. Without this
-		// the tail is discarded when the worklet is disconnected, cutting off the
-		// end of the utterance.
+		// Flush trailing audio before stopping the backend so transport ordering is preserved.
 		await this._flushCapture?.();
 		this._stopCapture();
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped);
