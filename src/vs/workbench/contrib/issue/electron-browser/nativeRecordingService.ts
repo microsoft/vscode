@@ -46,10 +46,20 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 		return this.nativeHostService.getMediaAccessStatus('screen');
 	}
 
-	openScreenCapturePermissionSettings(): void {
+	requestScreenCapturePermission(): Promise<boolean> {
+		return this.nativeHostService.requestScreenCaptureAccess();
+	}
+
+	async openScreenCapturePermissionSettings(): Promise<void> {
 		if (isMacintosh) {
+			try {
+				await this.requestScreenCapturePermission();
+			} catch (error) {
+				this.logService.error('[NativeRecordingService] Failed to register screen capture permission:', error);
+			}
+
 			// Deep-link to the Screen Recording pane in macOS Privacy & Security.
-			void this.nativeHostService.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+			await this.nativeHostService.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
 		}
 	}
 
@@ -100,6 +110,12 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 		} catch (err) {
 			this.logService.error('[RecordingService] Failed to get display media:', err);
 			throw new Error('Failed to start recording. The user may have cancelled the source picker.');
+		}
+
+		const videoTracks = this.mediaStream.getVideoTracks();
+		if (videoTracks.length === 0 || videoTracks.every(track => track.readyState === 'ended')) {
+			this.stopTracks();
+			throw new Error('Failed to start recording because no live screen capture source was available.');
 		}
 
 		// Select mime type: prefer caller's choice, fall back to best available
@@ -166,8 +182,14 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 			};
 		}
 
-		this.mediaRecorder.start(1000); // 1-second timeslice for size tracking
-		this.setState(RecordingState.Recording);
+		try {
+			this.mediaRecorder.start(1000); // 1-second timeslice for size tracking
+			this.setState(RecordingState.Recording);
+		} catch (err) {
+			this.logService.error('[RecordingService] Failed to start MediaRecorder:', err);
+			this.cleanup();
+			throw new Error('Failed to start media recorder.');
+		}
 	}
 
 	async stopRecording(): Promise<IRecordingData | undefined> {

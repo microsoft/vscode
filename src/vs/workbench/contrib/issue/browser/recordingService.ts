@@ -70,10 +70,16 @@ export interface IRecordingService {
 	getScreenCapturePermissionStatus(): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'>;
 
 	/**
+	 * Requests screen-capture access from the OS without beginning capture. On macOS this
+	 * registers the application with Screen Recording privacy settings and may show the system prompt.
+	 */
+	requestScreenCapturePermission(): Promise<boolean>;
+
+	/**
 	 * Opens the OS-level UI for granting screen-capture permission. No-op on platforms
 	 * where this isn't applicable.
 	 */
-	openScreenCapturePermissionSettings(): void;
+	openScreenCapturePermissionSettings(): Promise<void>;
 }
 
 /**
@@ -105,7 +111,11 @@ export class BrowserRecordingService implements IRecordingService {
 		return 'granted';
 	}
 
-	openScreenCapturePermissionSettings(): void {
+	async requestScreenCapturePermission(): Promise<boolean> {
+		return true;
+	}
+
+	async openScreenCapturePermissionSettings(): Promise<void> {
 		// No-op
 	}
 }

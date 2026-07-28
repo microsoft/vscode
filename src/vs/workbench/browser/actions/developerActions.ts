@@ -133,11 +133,15 @@ class ToggleScreencastModeAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
+	run(accessor: ServicesAccessor, enabled?: boolean): boolean {
+		if (typeof enabled === 'boolean' && enabled === !!ToggleScreencastModeAction.disposable) {
+			return false;
+		}
+
 		if (ToggleScreencastModeAction.disposable) {
 			ToggleScreencastModeAction.disposable.dispose();
 			ToggleScreencastModeAction.disposable = undefined;
-			return;
+			return true;
 		}
 
 		const layoutService = accessor.get(ILayoutService);
@@ -394,6 +398,7 @@ class ToggleScreencastModeAction extends Action2 {
 		}));
 
 		ToggleScreencastModeAction.disposable = disposables;
+		return true;
 	}
 
 	private _isKbFound(resolutionResult: ResolutionResult): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: unknown; isBubble: boolean } {

@@ -59,6 +59,11 @@ export interface IScreenshot {
 	annotationState?: IAnnotationEditorState;
 }
 
+export interface IRequestedIssueAttachment {
+	readonly files: readonly File[];
+	readonly source: 'attachments' | 'description';
+}
+
 export class IssueReporterOverlay {
 
 	private readonly disposables = new DisposableStore();
@@ -76,6 +81,8 @@ export class IssueReporterOverlay {
 	readonly onDidRequestOpenRecording: Event<string> = this._onDidRequestOpenRecording.event;
 	private readonly _onDidRequestOpenScreenshot = new Emitter<IScreenshot>();
 	readonly onDidRequestOpenScreenshot: Event<IScreenshot> = this._onDidRequestOpenScreenshot.event;
+	private readonly _onDidRequestAddAttachments = new Emitter<IRequestedIssueAttachment>();
+	readonly onDidRequestAddAttachments: Event<IRequestedIssueAttachment> = this._onDidRequestAddAttachments.event;
 	private readonly _onDidChangeAttachments = new Emitter<void>();
 	/** Fires whenever the screenshot/recording collection changes so the host can persist it. */
 	readonly onDidChangeAttachments: Event<void> = this._onDidChangeAttachments.event;
@@ -253,13 +260,16 @@ export class IssueReporterOverlay {
 	// Step 0: Attachments
 	private createStep0Attachments(): void {
 		const page = append(this.stepContainer, $('div.wizard-step'));
+		page.classList.add('wizard-attachments-step');
 		this.stepPages.push(page);
 
 		const heading = append(page, $('h2.wizard-heading'));
 		heading.textContent = localize('screenshotsHeading', "Add attachments for better context");
 
 		const subtitle = append(page, $('p.wizard-subtitle'));
-		subtitle.textContent = localize('screenshotsSubtitle', "You can add up to {0} screenshots or videos. Navigate VS Code and choose when to capture.", MAX_ATTACHMENTS);
+		subtitle.textContent = localize('screenshotsSubtitle', "Add up to {0} screenshots or videos by capturing, pasting, or dragging and dropping files here.", MAX_ATTACHMENTS);
+
+		this.registerAttachmentInput(page);
 
 		const captureShortcut = this.resolveKeybinding?.('workbench.action.issueReporter.captureScreenshot');
 		const recordShortcut = this.recordingSupported ? this.resolveKeybinding?.('workbench.action.issueReporter.toggleRecording') : undefined;
@@ -716,6 +726,14 @@ export class IssueReporterOverlay {
 			autoGrowTextarea();
 			this.searchSimilarIssues();
 			this.updateGenerateTitleButtonState();
+		}));
+		this.disposables.add(addDisposableListener(this.descriptionTextarea, EventType.PASTE, (event: ClipboardEvent) => {
+			const files = this.getSupportedMediaFiles(event.clipboardData?.files);
+			if (files.length === 0) {
+				return;
+			}
+			event.preventDefault();
+			this.requestAddAttachments(files, 'description');
 		}));
 		this.descriptionError = this.createFieldError(descriptionGroup, localize('descriptionRequired', "Enter a description to continue."));
 
@@ -1936,6 +1954,63 @@ export class IssueReporterOverlay {
 		return this.screenshots.length + this.recordings.length;
 	}
 
+	private registerAttachmentInput(target: HTMLElement): void {
+		this.disposables.add(addDisposableListener(target, EventType.DRAG_OVER, (event: DragEvent) => {
+			if (!this.hasSupportedMedia(event.dataTransfer)) {
+				return;
+			}
+			event.preventDefault();
+			if (event.dataTransfer) {
+				event.dataTransfer.dropEffect = 'copy';
+			}
+			target.classList.add('drag-over');
+		}));
+		this.disposables.add(addDisposableListener(target, EventType.DRAG_LEAVE, () => target.classList.remove('drag-over')));
+		this.disposables.add(addDisposableListener(target, EventType.DROP, (event: DragEvent) => {
+			target.classList.remove('drag-over');
+			const files = this.getSupportedMediaFiles(event.dataTransfer?.files);
+			if (files.length === 0) {
+				return;
+			}
+			event.preventDefault();
+			this.requestAddAttachments(files, 'attachments');
+		}));
+		this.disposables.add(addDisposableListener(target, EventType.PASTE, (event: ClipboardEvent) => {
+			const files = this.getSupportedMediaFiles(event.clipboardData?.files);
+			if (files.length === 0) {
+				return;
+			}
+			event.preventDefault();
+			this.requestAddAttachments(files, 'attachments');
+		}));
+	}
+
+	private hasSupportedMedia(dataTransfer: DataTransfer | null): boolean {
+		if (!dataTransfer) {
+			return false;
+		}
+		if (this.getSupportedMediaFiles(dataTransfer.files).length > 0) {
+			return true;
+		}
+		return Array.from(dataTransfer.items).some(item => item.kind === 'file' && (item.type.startsWith('image/') || item.type.startsWith('video/')));
+	}
+
+	private getSupportedMediaFiles(files: FileList | undefined | null): File[] {
+		return Array.from(files ?? []).filter(file => {
+			if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+				return true;
+			}
+			return /\.(?:avif|gif|jpe?g|png|webp|mp4|mov|webm)$/i.test(file.name);
+		});
+	}
+
+	private requestAddAttachments(files: readonly File[], source: IRequestedIssueAttachment['source']): void {
+		const remaining = MAX_ATTACHMENTS - this.getTotalAttachments();
+		if (remaining > 0) {
+			this._onDidRequestAddAttachments.fire({ files: files.slice(0, remaining), source });
+		}
+	}
+
 	private getScreenshotDelayOptions(): { label: string; value: number }[] {
 		return [
 			{ label: localize('noDelay', "No delay"), value: 0 },
@@ -1957,14 +2032,14 @@ export class IssueReporterOverlay {
 		};
 	}
 
-	addScreenshot(screenshot: IScreenshot): void {
+	addScreenshot(screenshot: IScreenshot, options?: { reveal?: boolean; annotate?: boolean }): void {
 		if (this.getTotalAttachments() >= MAX_ATTACHMENTS) {
 			return;
 		}
 		this.screenshots.push(screenshot);
 		// Navigate to the Attachments step so the user sees where the screenshot
 		// was saved instead of staying on whatever step they were composing on.
-		if (this.currentStep !== WizardStep.Attachments) {
+		if (options?.reveal !== false && this.currentStep !== WizardStep.Attachments) {
 			this.setStep(WizardStep.Attachments);
 		}
 		this.updateAttachmentViews();
@@ -1973,7 +2048,9 @@ export class IssueReporterOverlay {
 		this._onDidChangeAttachments.fire();
 
 		// Immediately open the annotation editor for the new screenshot
-		this.openAnnotationEditor(this.screenshots.length - 1);
+		if (options?.annotate !== false) {
+			this.openAnnotationEditor(this.screenshots.length - 1);
+		}
 	}
 
 	private updateAttachmentButtons(): void {
@@ -2554,10 +2631,10 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		this.updateAttachmentButtons();
 	}
 
-	addRecording(filePath: string, durationMs: number, thumbnailDataUrl?: string): void {
+	addRecording(filePath: string, durationMs: number, thumbnailDataUrl?: string, options?: { reveal?: boolean }): void {
 		this.recordings.push({ filePath, durationMs, thumbnailDataUrl });
 		// Navigate to the Attachments step so the user sees the saved recording.
-		if (this.currentStep !== WizardStep.Attachments) {
+		if (options?.reveal !== false && this.currentStep !== WizardStep.Attachments) {
 			this.setStep(WizardStep.Attachments);
 		}
 		this.updateAttachmentViews();

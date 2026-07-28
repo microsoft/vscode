@@ -8,6 +8,7 @@ import { $, append, clearNode, Dimension } from '../../../../base/browser/dom.js
 import { mainWindow } from '../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -21,7 +22,7 @@ import { EditorActivation, IEditorOptions } from '../../../../platform/editor/co
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
@@ -73,6 +74,7 @@ export class IssueReporterEditorPane extends EditorPane {
 	/** Survives the framework calling clearInput() when the user switches away. */
 	private wizardInput: IssueReporterEditorInput | undefined;
 	private readonly inputDisposables = this._register(new DisposableStore());
+	private enabledScreencastForRecording = false;
 
 	constructor(
 		group: IEditorGroup,
@@ -99,6 +101,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(IssueReporterEditorPane.ID, group, telemetryService, themeService, storageService);
 		IssueReporterEditorPane.liveInstances.add(this);
@@ -213,6 +216,16 @@ export class IssueReporterEditorPane extends EditorPane {
 			input.savedScreenshots = this.wizard?.getScreenshots().slice();
 			input.savedRecordings = this.wizard?.getRecordings().slice();
 		}));
+		this.inputDisposables.add(this.wizard.onDidRequestAddAttachments(async ({ files, source }) => {
+			for (const file of files) {
+				try {
+					await this.addAttachmentFile(file, source === 'attachments');
+				} catch (err) {
+					this.logService.error('[IssueReporterEditorPane] Failed to add attachment:', err);
+					this.notificationService.error(localize('attachmentAddFailed', "Failed to add {0}.", file.name));
+				}
+			}
+		}));
 
 		// Populate system info in background (non-blocking)
 		void this.populateSystemInfo();
@@ -263,15 +276,25 @@ export class IssueReporterEditorPane extends EditorPane {
 			// macOS-only: skip getDisplayMedia when permission is denied and
 			// surface the grant-permission notification instead.
 			const permissionState = await this.recordingService.getScreenCapturePermissionStatus();
-			if (permissionState === 'denied' || permissionState === 'restricted') {
+			if (permissionState === 'not-determined') {
+				try {
+					await this.recordingService.requestScreenCapturePermission();
+				} catch (err) {
+					this.logService.error('[IssueReporterEditorPane] Screen recording permission request failed:', err);
+				}
+			}
+			const currentPermissionState = await this.recordingService.getScreenCapturePermissionStatus();
+			if (currentPermissionState === 'denied' || currentPermissionState === 'restricted') {
 				this.showScreenRecordingPermissionNotification();
 				this.wizard?.setRecordingState(RecordingState.Idle);
 				return;
 			}
 			try {
 				await this.recordingService.startRecording('video/mp4');
+				await this.enableScreencastForRecording();
 				this.wizard?.setRecordingState(RecordingState.Recording);
 			} catch (err) {
+				await this.disableScreencastForRecording();
 				this.logService.error('[IssueReporterEditorPane] Recording failed:', err);
 				this.wizard?.setRecordingState(RecordingState.Idle);
 				// Only nudge the user to System Settings on an explicit deny/restrict. On macOS,
@@ -289,6 +312,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		this.inputDisposables.add(this.wizard.onDidRequestStopRecording(async () => {
 			try {
 				const recordingData = await this.recordingService.stopRecording();
+				await this.disableScreencastForRecording();
 				if (recordingData) {
 					await this.saveRecordingAndAdd(recordingData);
 				}
@@ -296,6 +320,8 @@ export class IssueReporterEditorPane extends EditorPane {
 			} catch (err) {
 				this.logService.error('[IssueReporterEditorPane] Stop recording failed:', err);
 				this.wizard?.setRecordingState(RecordingState.Idle);
+			} finally {
+				await this.disableScreencastForRecording();
 			}
 		}));
 
@@ -306,6 +332,7 @@ export class IssueReporterEditorPane extends EditorPane {
 			if (state === RecordingState.Stopped && this.wizard?.recordingState === RecordingState.Recording) {
 				try {
 					const recordingData = await this.recordingService.stopRecording();
+					await this.disableScreencastForRecording();
 					if (recordingData) {
 						await this.saveRecordingAndAdd(recordingData);
 						if (recordingData.stoppedBySize) {
@@ -319,6 +346,7 @@ export class IssueReporterEditorPane extends EditorPane {
 					this.logService.error('[IssueReporterEditorPane] Auto-stop recording failed:', err);
 				}
 				this.wizard?.setRecordingState(RecordingState.Idle);
+				await this.disableScreencastForRecording();
 			}
 		}));
 
@@ -514,6 +542,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		if (this.recordingService.state === RecordingState.Recording) {
 			this.recordingService.discardRecording();
 		}
+		void this.disableScreencastForRecording();
 		this.inputDisposables.clear();
 		this.wizard = undefined;
 		this.wizardInput = undefined;
@@ -534,8 +563,8 @@ export class IssueReporterEditorPane extends EditorPane {
 				[
 					{
 						label: localize('openSystemSettings', "Open System Settings"),
-						run: () => {
-							this.recordingService.openScreenCapturePermissionSettings();
+						run: async () => {
+							await this.recordingService.openScreenCapturePermissionSettings();
 						},
 					},
 				],
@@ -568,14 +597,14 @@ export class IssueReporterEditorPane extends EditorPane {
 			// Generate thumbnail from the saved file — blob URLs are blocked by
 			// Electron's CSP for media elements, so we use the saved file via
 			// the vscode-file:// protocol which the renderer can load.
-			const thumbnailDataUrl = await this.generateVideoThumbnail(target);
-			this.wizard?.addRecording(target.fsPath, data.durationMs, thumbnailDataUrl);
+			const metadata = await this.generateVideoMetadata(target);
+			this.wizard?.addRecording(target.fsPath, data.durationMs, metadata.thumbnailDataUrl);
 		} catch (err) {
 			this.logService.error('[IssueReporterEditorPane] Failed to save recording:', err);
 		}
 	}
 
-	private generateVideoThumbnail(fileUri: URI): Promise<string | undefined> {
+	private generateVideoMetadata(fileUri: URI): Promise<{ thumbnailDataUrl: string | undefined; durationMs: number }> {
 		// The fileUri may use the vscode-userdata: scheme. Convert to a real
 		// file:// URI via fsPath, then to vscode-file://vscode-app/ so the
 		// renderer's CSP allows loading it as a media source.
@@ -585,6 +614,7 @@ export class IssueReporterEditorPane extends EditorPane {
 			const video = mainWindow.document.createElement('video');
 			const timeout = setTimeout(() => finish(undefined), 5000);
 			let resolved = false;
+			let durationMs = 0;
 			const finish = (result: string | undefined) => {
 				if (resolved) { return; }
 				resolved = true;
@@ -593,7 +623,7 @@ export class IssueReporterEditorPane extends EditorPane {
 				video.removeAttribute('src');
 				video.load();
 				video.remove();
-				resolve(result);
+				resolve({ thumbnailDataUrl: result, durationMs });
 			};
 			const captureFrame = () => {
 				try {
@@ -626,6 +656,7 @@ export class IssueReporterEditorPane extends EditorPane {
 			video.addEventListener('loadeddata', () => {
 				video.pause();
 				const duration = Number.isFinite(video.duration) ? video.duration : 0;
+				durationMs = Math.round(duration * 1000);
 				if (duration > 0.5) {
 					video.addEventListener('seeked', () => captureFrame(), { once: true });
 					try {
@@ -640,6 +671,69 @@ export class IssueReporterEditorPane extends EditorPane {
 			video.addEventListener('error', () => finish(undefined), { once: true });
 			video.load();
 		});
+	}
+
+	private async addAttachmentFile(file: File, reveal: boolean): Promise<void> {
+		if (file.size > 100 * 1024 * 1024) {
+			this.notificationService.warn(localize('attachmentTooLarge', "{0} is larger than the 100 MB attachment limit.", file.name));
+			return;
+		}
+
+		if (file.type.startsWith('image/') || /\.(?:avif|gif|jpe?g|png|webp)$/i.test(file.name)) {
+			const bytes = VSBuffer.wrap(new Uint8Array(await file.arrayBuffer()));
+			const mimeType = file.type || this.getImageMimeType(file.name);
+			const dataUrl = `data:${mimeType};base64,${encodeBase64(bytes)}`;
+			const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+				const element = mainWindow.document.createElement('img');
+				element.onload = () => resolve(element);
+				element.onerror = reject;
+				element.src = dataUrl;
+			});
+			this.wizard?.addScreenshot({ dataUrl, width: image.naturalWidth, height: image.naturalHeight }, { reveal, annotate: false });
+			if (!reveal) {
+				this.notificationService.info(localize('attachmentAdded', "Attached {0}.", file.name));
+			}
+			return;
+		}
+
+		const folder = URI.joinPath(this.environmentService.tmpDir, 'issue-recordings');
+		const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-') || 'attachment-video';
+		const target = URI.joinPath(folder, `${Date.now()}-${safeName}`);
+		await this.fileService.createFolder(folder);
+		await this.fileService.writeFile(target, VSBuffer.wrap(new Uint8Array(await file.arrayBuffer())));
+		const metadata = await this.generateVideoMetadata(target);
+		this.wizard?.addRecording(target.fsPath, metadata.durationMs, metadata.thumbnailDataUrl, { reveal });
+		if (!reveal) {
+			this.notificationService.info(localize('attachmentAdded', "Attached {0}.", file.name));
+		}
+	}
+
+	private getImageMimeType(fileName: string): string {
+		if (/\.gif$/i.test(fileName)) {
+			return 'image/gif';
+		}
+		if (/\.webp$/i.test(fileName)) {
+			return 'image/webp';
+		}
+		if (/\.avif$/i.test(fileName)) {
+			return 'image/avif';
+		}
+		if (/\.jpe?g$/i.test(fileName)) {
+			return 'image/jpeg';
+		}
+		return 'image/png';
+	}
+
+	private async enableScreencastForRecording(): Promise<void> {
+		this.enabledScreencastForRecording = await this.commandService.executeCommand<boolean>('workbench.action.toggleScreencastMode', true) ?? false;
+	}
+
+	private async disableScreencastForRecording(): Promise<void> {
+		if (!this.enabledScreencastForRecording) {
+			return;
+		}
+		this.enabledScreencastForRecording = false;
+		await this.commandService.executeCommand('workbench.action.toggleScreencastMode', false);
 	}
 
 	override layout(dimension: Dimension): void {

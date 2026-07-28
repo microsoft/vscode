@@ -617,6 +617,17 @@ label/control gap, so the buttons must not add their own margin. */
 	min-height: 50px;
 }
 
+.issue-reporter-wizard .wizard-attachments-step {
+	border: 1px dashed transparent;
+	border-radius: 6px;
+	transition: background-color 0.15s, border-color 0.15s;
+}
+
+.issue-reporter-wizard .wizard-attachments-step.drag-over {
+	background: var(--vscode-list-dropBackground, var(--vscode-editor-background));
+	border-color: var(--vscode-focusBorder, #007acc);
+}
+
 .issue-reporter-wizard .wizard-screenshots-empty {
 	color: var(--vscode-descriptionForeground, #888);
 	font-style: italic;

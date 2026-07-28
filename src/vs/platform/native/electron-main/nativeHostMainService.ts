@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, desktopCapturer, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
@@ -759,6 +759,26 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			return systemPreferences.getMediaAccessStatus(mediaType);
 		}
 		return 'granted';
+	}
+
+	async requestScreenCaptureAccess(): Promise<boolean> {
+		if (!isMacintosh) {
+			return true;
+		}
+
+		if (systemPreferences.getMediaAccessStatus('screen') === 'granted') {
+			return true;
+		}
+
+		// Electron does not currently expose CGRequestScreenCaptureAccess(). Asking
+		// the main process to enumerate displays ensures macOS attributes the TCC
+		// request to this application rather than to a spawned helper or launcher.
+		await desktopCapturer.getSources({
+			types: ['screen'],
+			thumbnailSize: { width: 0, height: 0 },
+		});
+
+		return systemPreferences.getMediaAccessStatus('screen') === 'granted';
 	}
 
 	async isAdmin(): Promise<boolean> {
