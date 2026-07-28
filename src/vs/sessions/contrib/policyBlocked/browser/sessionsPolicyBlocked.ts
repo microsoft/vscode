@@ -13,6 +13,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 
 export const enum SessionsBlockedReason {
 	AgentDisabled = 'agentDisabled',
@@ -41,6 +42,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -50,6 +52,10 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		this.overlay.tabIndex = -1;
 		this.overlay.focus();
 		this._register(toDisposable(() => this.overlay.remove()));
+
+		const workbenchRoot = layoutService.mainContainer;
+		workbenchRoot.classList.add('sessions-policy-blocked');
+		this._register(toDisposable(() => workbenchRoot.classList.remove('sessions-policy-blocked')));
 
 		const card = append(this.overlay, $('.sessions-policy-blocked-card'));
 

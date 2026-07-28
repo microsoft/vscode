@@ -1,0 +1,43 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.dictation-mic-active {
+	position: relative;
+}
+
+.dictation-mic-speaking::after {
+	content: '';
+	position: absolute;
+	inset: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-circle);
+	box-shadow: 0 0 var(--vscode-spacing-size80) var(--vscode-focusBorder);
+	pointer-events: none;
+}
+
+.dictation-mic-glow-level-1::after {
+	opacity: 0.3;
+}
+
+.dictation-mic-glow-level-2::after {
+	opacity: 0.5;
+}
+
+.dictation-mic-glow-level-3::after {
+	opacity: 0.7;
+}
+
+.dictation-mic-glow-level-4::after {
+	opacity: 0.9;
+}
+
+.hc-black .dictation-mic-speaking::after,
+.hc-light .dictation-mic-speaking::after {
+	/* The high-contrast fallback replaces the soft glow with a solid outline, so
+	force full opacity: the glow-level opacities (0.3 to 0.9) would otherwise make
+	the contrast border faint, especially at the lower levels. */
+	opacity: 1;
+	box-shadow: none;
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+}

@@ -152,6 +152,16 @@ export interface IAgentHostToolCallDetailsReport {
 	parallelToolCallsTotal: number;
 }
 
+export interface IAgentHostAutoModeRouterDecisionReport {
+	session: string;
+	turnId: string;
+	chosenModel: string;
+	predictedLabel: string | undefined;
+	confidence: number | undefined;
+	candidateModels: readonly string[] | undefined;
+	categoryScores: Readonly<Record<string, number | undefined>> | undefined;
+}
+
 export interface IAgentHostSkillContentReadReport {
 	/** The skill name. */
 	name: string;
@@ -288,23 +298,21 @@ export class AgentHostTelemetryReporter {
 	 * Mirrors the Copilot extension's enhanced GH `request.options.tools` event for the agent-host
 	 * flow. The extension emits it per LLM request from its model fetcher; the agent host observes
 	 * the equivalent boundary when an `assistant.message` arrives (one per model call). The
-	 * extension populates `headerRequestId` with the client-minted `x-request-id`, which the SDK
-	 * does not surface on success; we keep the same field name (so science queries are undisturbed)
-	 * but fill it with the model call's `x-copilot-service-request-id`, the per-call id the SDK does
-	 * expose. `messagesJson` is the raw tool definitions offered for the call, multiplexed across
-	 * ~8192-char chunks like the extension, so it lands identically downstream.
+	 * `headerRequestId` is the client-minted `x-request-id`, matching the extension. `messagesJson`
+	 * is the raw tool definitions offered for the call, multiplexed across ~8192-char chunks like
+	 * the extension, so it lands identically downstream.
 	 *
 	 * @param session Session URI string; its id becomes `conversationId`.
-	 * @param serviceRequestId The model call's `x-copilot-service-request-id`, mapped to the extension's `headerRequestId`. No-ops when absent (e.g. providers that don't surface it).
+	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to the extension's `headerRequestId`. No-ops when absent (e.g. providers that don't surface it).
 	 * @param tools The tool definitions offered to the model for this call.
 	 */
-	assistantMessageReceived(session: string, clientType: AgentHostClientType, serviceRequestId: string | undefined, tools: readonly ToolDefinition[]): void {
+	async assistantMessageReceived(session: string, clientType: AgentHostClientType, clientRequestId: string | undefined, tools: readonly ToolDefinition[]): Promise<void> {
 		const restricted = this._restricted;
-		if (!restricted || !serviceRequestId || tools.length === 0) {
+		if (!restricted || !clientRequestId || tools.length === 0) {
 			return;
 		}
-		restricted.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
-			headerRequestId: serviceRequestId,
+		restricted.sendEnhancedGHTelemetryEvent('request.options.tools', await multiplexProperties({
+			headerRequestId: clientRequestId,
 			conversationId: AgentSession.id(session),
 			initiatorClientType: clientType,
 			messagesJson: JSON.stringify(tools),
@@ -324,12 +332,12 @@ export class AgentHostTelemetryReporter {
 	 * @param content The user's prompt text. No-ops when empty.
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here (a non-numeric id lands empty).
 	 */
-	userMessageText(session: string, clientType: AgentHostClientType, content: string, turnIndex: number): void {
+	async userMessageText(session: string, clientType: AgentHostClientType, content: string, turnIndex: number): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
 		}
-		const properties = multiplexProperties({
+		const properties = await multiplexProperties({
 			source: 'user',
 			conversationId: AgentSession.id(session),
 			initiatorClientType: clientType,
@@ -344,26 +352,25 @@ export class AgentHostTelemetryReporter {
 	/**
 	 * The model-message counterpart to {@link userMessageText}. Emitted when an `assistant.message`
 	 * arrives (the agent host's per-model-call boundary), carrying the assistant's response text.
-	 * `headerRequestId` is filled with the model call's `x-copilot-service-request-id` (the id the
-	 * SDK exposes), mirroring the field the extension populates from the client-minted request id.
-	 * VS Code-only enrichment dims (code-block languages/counts) are not reconstructed here.
+	 * `headerRequestId` is filled with the model call's client-minted `x-request-id`, matching the
+	 * extension. VS Code-only enrichment dims (code-block languages/counts) are not reconstructed here.
 	 *
 	 * @param session Session URI string; its id becomes `conversationId`.
 	 * @param content The assistant's response text. No-ops when empty.
 	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here.
-	 * @param serviceRequestId The model call's `x-copilot-service-request-id`, mapped to `headerRequestId`.
+	 * @param clientRequestId The model call's client-minted `x-request-id`, mapped to `headerRequestId`.
 	 */
-	modelMessageText(session: string, clientType: AgentHostClientType, content: string, turnIndex: number, serviceRequestId: string | undefined): void {
+	async modelMessageText(session: string, clientType: AgentHostClientType, content: string, turnIndex: number, clientRequestId: string | undefined): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
 		}
-		const properties = multiplexProperties({
+		const properties = await multiplexProperties({
 			source: 'model',
 			conversationId: AgentSession.id(session),
 			initiatorClientType: clientType,
 			turnIndex: String(turnIndex),
-			...(serviceRequestId ? { headerRequestId: serviceRequestId } : {}),
+			...(clientRequestId ? { headerRequestId: clientRequestId } : {}),
 			messageText: content,
 		});
 		const measurements = { messageCharLen: content.length };
@@ -384,13 +391,13 @@ export class AgentHostTelemetryReporter {
 	 *
 	 * @param report The per-turn tool-call aggregate.
 	 */
-	toolCallDetails(report: IAgentHostToolCallDetailsReport): void {
+	async toolCallDetails(report: IAgentHostToolCallDetailsReport): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted || report.availableTools.length === 0) {
 			return;
 		}
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
-		const properties = multiplexProperties({
+		const properties = await multiplexProperties({
 			conversationId: AgentSession.id(session),
 			requestId: report.turnId,
 			messageId: report.turnId,
@@ -409,6 +416,40 @@ export class AgentHostTelemetryReporter {
 		};
 		restricted.sendEnhancedGHTelemetryEvent('toolCallDetailsExternal', properties, measurements);
 		restricted.sendInternalMSFTTelemetryEvent('toolCallDetailsInternal', properties, measurements);
+	}
+
+	/**
+	 * Emits the subset of the extension's restricted `automode.routerDecisionRestricted` event
+	 * available from the SDK's `session.auto_mode_resolved` event. Router-only fields that the SDK
+	 * does not expose are omitted rather than synthesized.
+	 */
+	autoModeRouterDecision(report: IAgentHostAutoModeRouterDecisionReport): void {
+		const restricted = this._restricted;
+		if (!restricted) {
+			return;
+		}
+
+		const categoryScores = report.categoryScores ?? {};
+		const isBinary = categoryScores.needs_reasoning !== undefined || categoryScores.no_reasoning !== undefined;
+		const scoreKeys = Object.keys(categoryScores).filter(key => categoryScores[key] !== undefined);
+		const candidateModels = report.candidateModels ?? [];
+		const properties = {
+			conversationId: AgentSession.id(report.session),
+			vscodeRequestId: report.turnId,
+			...(report.predictedLabel !== undefined ? { predictedLabel: report.predictedLabel } : {}),
+			candidateModel: candidateModels[0] ?? '',
+			chosenModel: report.chosenModel,
+			candidateModels: JSON.stringify(candidateModels),
+			...(scoreKeys.length > 0 ? {
+				[isBinary ? 'binaryScores' : 'hydraScores']: JSON.stringify(categoryScores),
+			} : {}),
+		};
+		const measurements = {
+			...(report.confidence !== undefined ? { confidence: report.confidence } : {}),
+			...(categoryScores.needs_reasoning !== undefined ? { scoreNeedsReasoning: categoryScores.needs_reasoning } : {}),
+			...(categoryScores.no_reasoning !== undefined ? { scoreNoReasoning: categoryScores.no_reasoning } : {}),
+		};
+		restricted.sendEnhancedGHTelemetryEvent('automode.routerDecisionRestricted', properties, measurements);
 	}
 
 	/**
@@ -452,7 +493,7 @@ export class AgentHostTelemetryReporter {
 		restricted.sendInternalMSFTTelemetryEvent('skillContentRead', plaintextProps);
 	}
 
-	reportRepoInfo(context: IAgentHostRestrictedTelemetryContext, report: IAgentHostRepoInfoReport): void {
+	async reportRepoInfo(context: IAgentHostRestrictedTelemetryContext, report: IAgentHostRepoInfoReport): Promise<void> {
 		const restricted = this._restricted;
 		if (!restricted) {
 			return;
@@ -478,8 +519,12 @@ export class AgentHostTelemetryReporter {
 			repoCount: 1,
 		};
 		const { headBranchName: _, fileRelativePaths: _2, ...internalProperties } = properties;
-		restricted.sendEnhancedGHTelemetryEventForContext(context, 'request.repoInfo', multiplexProperties(properties), measurements);
-		restricted.sendInternalMSFTTelemetryEventForContext(context, 'request.repoInfo', multiplexProperties(internalProperties), measurements);
+		const [enhancedProperties, internalMultiplexedProperties] = await Promise.all([
+			multiplexProperties(properties),
+			multiplexProperties(internalProperties),
+		]);
+		restricted.sendEnhancedGHTelemetryEventForContext(context, 'request.repoInfo', enhancedProperties, measurements);
+		restricted.sendInternalMSFTTelemetryEventForContext(context, 'request.repoInfo', internalMultiplexedProperties, measurements);
 	}
 
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {

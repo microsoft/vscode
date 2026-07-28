@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IManagedHoverContent } from '../../../../../base/browser/ui/hover/hover.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -13,6 +14,9 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IChatSpeechToTextService } from './chatSpeechToTextService.js';
+import { setupDictationMicGlow } from './dictationMicGlow.js';
+import { getDictationHoverContent } from './micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions } from './micButtonMenuActions.js';
 
 /**
@@ -20,7 +24,8 @@ import { addMicButtonContextMenuListener, getDictationContextMenuActions } from 
  * normal toolbar mic (click to dictate) but adds a right-click context menu with
  * dictation-specific entries — "Configure Keybinding" (mirroring the standard
  * toolbar affordance), "Select Microphone" and "Disable Dictation" — instead of
- * the generic toolbar context menu.
+ * the generic toolbar context menu. Its hover also describes what dictation does
+ * and which model transcribes the audio.
  */
 export class DictationActionViewItem extends MenuEntryActionViewItem {
 
@@ -34,9 +39,10 @@ export class DictationActionViewItem extends MenuEntryActionViewItem {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IAccessibilityService private readonly _dictationAccessibilityService: IAccessibilityService,
+		@IChatSpeechToTextService private readonly _speechToTextService: IChatSpeechToTextService,
 	) {
-		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
+		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _dictationAccessibilityService);
 	}
 
 	override render(container: HTMLElement): void {
@@ -47,5 +53,10 @@ export class DictationActionViewItem extends MenuEntryActionViewItem {
 			() => getDictationContextMenuActions(this._commandService, this._configurationService, this._keybindingService, this._action.id),
 			this._contextMenuService,
 		));
+		this._register(setupDictationMicGlow(container, this._speechToTextService, this._dictationAccessibilityService));
+	}
+
+	protected override getHoverContents(): IManagedHoverContent {
+		return getDictationHoverContent(this.getTooltip() ?? '', this._configurationService);
 	}
 }

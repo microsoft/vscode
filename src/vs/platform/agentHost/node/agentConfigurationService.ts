@@ -76,8 +76,19 @@ export interface IAgentConfigurationService {
 	 * to the parent (subagent) session's working directory when the
 	 * session itself does not have one set. The host layer does not carry
 	 * a working directory.
+	 * @deprecated Use {@link getEffectiveWorkingDirectories} instead, which preserves every root instead of collapsing to the primary.
 	 */
 	getEffectiveWorkingDirectory(session: ProtocolURI): string | undefined;
+
+	/**
+	 * Returns the full ordered set of effective working directories for a
+	 * session (index 0 = primary), falling back to the parent (subagent)
+	 * session's set when the session itself does not have one set. Mirrors
+	 * {@link getEffectiveWorkingDirectory} but preserves every root instead
+	 * of collapsing to the primary. The host layer does not carry a working
+	 * directory.
+	 */
+	getEffectiveWorkingDirectories(session: ProtocolURI): string[] | undefined;
 
 	/**
 	 * Whether a fresh worktree-isolation session's worktree has not yet been
@@ -226,6 +237,18 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const parentInfo = parseSubagentSessionUri(session);
 		if (parentInfo) {
 			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories?.[0];
+		}
+		return undefined;
+	}
+
+	getEffectiveWorkingDirectories(session: ProtocolURI): string[] | undefined {
+		const own = this._stateManager.getSessionState(session)?.workingDirectories;
+		if (own !== undefined) {
+			return own;
+		}
+		const parentInfo = parseSubagentSessionUri(session);
+		if (parentInfo) {
+			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories;
 		}
 		return undefined;
 	}

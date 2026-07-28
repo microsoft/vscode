@@ -153,7 +153,7 @@ export class ClaudeSessionMetadataStore {
 			startTime: entry.createdAt ?? entry.lastModified,
 			modifiedTime: entry.lastModified,
 			summary: entry.customTitle ?? entry.summary,
-			workingDirectory: entry.cwd ? URI.file(entry.cwd) : undefined,
+			workingDirectories: entry.cwd ? [URI.file(entry.cwd)] : undefined,
 		};
 	}
 }

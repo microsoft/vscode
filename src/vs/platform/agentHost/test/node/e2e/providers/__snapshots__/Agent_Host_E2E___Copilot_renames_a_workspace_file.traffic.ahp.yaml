@@ -6,7 +6,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: Rename before.txt to after.txt without changing its contents.
+            text: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').renameSync(''before.txt'',''after.txt'')"`. Then reply with exactly "renamed".'
             origin:
               kind: user
     serverToClient:
@@ -15,7 +15,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: Rename before.txt to after.txt without changing its contents.
+            text: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').renameSync(''before.txt'',''after.txt'')"`. Then reply with exactly "renamed".'
             origin:
               kind: user
       - channel: ${session_0}
@@ -30,7 +30,7 @@ rounds:
           type: chat/toolCallStart
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
-          toolName: bash
+          toolName: ${shell}
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete
@@ -40,24 +40,11 @@ rounds:
             success: true
       - channel: ${chat_0}
         action:
-          type: chat/toolCallStart
-          turnId: ${turn_0}
-          toolCallId: ${toolCall_1}
-          toolName: bash
-      - channel: ${chat_0}
-        action:
-          type: chat/toolCallComplete
-          turnId: ${turn_0}
-          toolCallId: ${toolCall_1}
-          result:
-            success: true
-      - channel: ${chat_0}
-        action:
           type: chat/responsePart
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: Renamed `before.txt` to `after.txt` — contents (`RENAME_VALUE`) unchanged.
+            content: renamed
       - channel: ${chat_0}
         action:
           type: chat/turnComplete

@@ -26,7 +26,18 @@ export interface IAgentHostE2ETestContext {
 	readonly client: TestProtocolClient;
 	readonly createdSessions: string[];
 	readonly tempDirs: string[];
-	readonly shellToolReplayEnabled: boolean;
+	/**
+	 * Whether shell-dependent tests can replay.
+	 *
+	 * This is only about the provider's shell-tool replay stability on Linux.
+	 * There is deliberately no Windows exclusion: every committed capture that
+	 * runs a shell command is expected to be platform-neutral, either because
+	 * the command is pinned to something `cmd`/PowerShell also understands or
+	 * because the prompt steers the agent to its file tools instead. A test that
+	 * cannot meet that bar should be scoped to a platform explicitly, so the
+	 * reason is visible at the call site.
+	 */
+	readonly portableShellToolReplayEnabled: boolean;
 	readonly stableNewScenarioResponse: boolean;
 	readonly isWindows: boolean;
 	readonly runRecordOnlyTests: boolean;

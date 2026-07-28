@@ -29,7 +29,7 @@ export class AgentHostGitHubTelemetryRouter {
 		return targetDestinations.has(notification.event.kind);
 	}
 
-	route(notification: GitHubTelemetryNotification, context?: IAgentHostRestrictedTelemetryContext, additionalProperties?: TelemetryProps): boolean {
+	async route(notification: GitHubTelemetryNotification, context?: IAgentHostRestrictedTelemetryContext, additionalProperties?: TelemetryProps): Promise<boolean> {
 		const { event } = notification;
 		const eventName = event.kind;
 		const destinations = targetDestinations.get(eventName);
@@ -48,7 +48,7 @@ export class AgentHostGitHubTelemetryRouter {
 			...(event.model_call_id && event.properties.modelCallId === undefined ? { modelCallId: event.model_call_id } : {}),
 			...additionalProperties,
 		};
-		const multiplexedProperties = multiplexProperties(properties);
+		const multiplexedProperties = await multiplexProperties(properties);
 		if ((destinations & TelemetryDestination.EnhancedGH) && context.restrictedTelemetryEnabled) {
 			this._telemetryService.sendEnhancedGHTelemetryEventForContext(context, eventName, multiplexedProperties, event.metrics);
 		}

@@ -166,6 +166,12 @@ export function anthropicMessagesToRawMessagesForLogging(messages: MessageParam[
 					imageUrl: { url: '(image)' }
 				};
 			}
+			if (part.type === Raw.ChatCompletionContentPartKind.Document) {
+				return {
+					...part,
+					documentData: { ...part.documentData, data: '(document)' }
+				};
+			}
 			return part;
 		});
 
@@ -217,6 +223,15 @@ export function anthropicMessagesToRawMessages(messages: MessageParam[], system:
 			}
 		};
 
+		const toRawDocument = (document: DocumentBlockParam): Raw.ChatCompletionContentPartDocument | undefined => {
+			if (document.source.type === 'base64') {
+				return {
+					type: Raw.ChatCompletionContentPartKind.Document,
+					documentData: { data: document.source.data, mediaType: document.source.media_type }
+				};
+			}
+		};
+
 		const pushImage = (img: ImageBlockParam) => {
 			const imagePart = toRawImage(img);
 			if (imagePart) {
@@ -238,6 +253,12 @@ export function anthropicMessagesToRawMessages(messages: MessageParam[], system:
 				} else if (block.type === 'image') {
 					pushImage(block);
 					pushCache(block);
+				} else if (block.type === 'document') {
+					const documentPart = toRawDocument(block);
+					if (documentPart) {
+						content.push(documentPart);
+						pushCache(block);
+					}
 				} else if (block.type === 'thinking') {
 					// Include thinking content for logging
 					content.push({
@@ -274,6 +295,11 @@ export function anthropicMessagesToRawMessages(messages: MessageParam[], system:
 								const imagePart = toRawImage(c);
 								if (imagePart) {
 									toolContent.push(imagePart);
+								}
+							} else if (c.type === 'document') {
+								const documentPart = toRawDocument(c);
+								if (documentPart) {
+									toolContent.push(documentPart);
 								}
 							}
 						}

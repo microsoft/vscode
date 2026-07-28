@@ -30,11 +30,12 @@ import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import { AutomationsListWidget } from '../../../browser/aiCustomization/automationsListWidget.js';
 import { IAutomation, IAutomationRun, IAutomationSchedule, AutomationRunTrigger, AutomationTarget } from '../../../common/automations/automation.js';
-import { IAutomationRunner, IAutomationRunOperation } from '../../../common/automations/automationRunner.js';
-import { IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../common/automations/automationService.js';
+import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../common/automations/automationRunner.js';
+import { IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../common/automations/automationService.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../common/automations/automationDialogService.js';
 
 const FOLDER = URI.parse('file:///workspace');
+const SESSION_RESOURCE = 'vscode-chat-session://copilot/sess-1';
 
 function hourly(): IAutomationSchedule {
 	return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -134,7 +135,11 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		this._runsForCache.delete(id);
 	}
 
-	override async recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRun> {
+	override async recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRunClaim> {
+		const activeRun = this._runs.get().find(run => run.automationId === automationId && (run.status === 'pending' || run.status === 'running'));
+		if (activeRun) {
+			return { claimed: false, run: activeRun };
+		}
 		const run: IAutomationRun = Object.freeze({
 			id: generateUuid(),
 			automationId,
@@ -144,7 +149,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 			leaderWindowId,
 		});
 		this._runs.set([run, ...this._runs.get()], undefined);
-		return run;
+		return { claimed: true, run };
 	}
 
 	override async updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined> {
@@ -167,7 +172,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 class RecordingRunner extends mock<IAutomationRunner>() {
 	readonly calls: { automationId: string; trigger: AutomationRunTrigger }[] = [];
 	error: Error | undefined;
-	whenDispatched: Promise<void> = Promise.resolve();
+	whenDispatched: Promise<IAutomationRunDispatch> = Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' });
 	whenCompleted: Promise<void> = Promise.resolve();
 
 	override runOnce(
@@ -384,7 +389,7 @@ suite('AutomationsListWidget', () => {
 
 	test('runNow announces start after dispatch before lifecycle completion', async () => {
 		const { widget, service, runner } = setup();
-		const dispatched = new DeferredPromise<void>();
+		const dispatched = new DeferredPromise<IAutomationRunDispatch>();
 		const completed = new DeferredPromise<void>();
 		runner.whenDispatched = dispatched.p;
 		runner.whenCompleted = completed.p;
@@ -393,9 +398,9 @@ suite('AutomationsListWidget', () => {
 		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 
 		const runNowPromise = widget.runNow(automation);
-		const run = await service.recordRunStart(automation.id, 'manual', 0);
-		await service.updateRun(run.id, { status: 'running' });
-		await dispatched.complete(undefined);
+		const claim = await service.recordRunStart(automation.id, 'manual', 0);
+		const run = await service.updateRun(claim.run.id, { status: 'running' }) ?? claim.run;
+		await dispatched.complete({ kind: 'started', run, sessionResource: SESSION_RESOURCE });
 		await Promise.resolve();
 
 		assert.deepStrictEqual(
@@ -405,6 +410,21 @@ suite('AutomationsListWidget', () => {
 
 		await completed.complete(undefined);
 		await runNowPromise;
+	});
+
+	test('runNow does not announce a start when dispatch never created a session', async () => {
+		const { widget, service, runner } = setup();
+		runner.whenDispatched = Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' });
+		const ariaParent = document.createElement('div');
+		setARIAContainer(ariaParent);
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+
+		await widget.runNow(automation);
+
+		assert.deepStrictEqual(
+			Array.from(ariaParent.querySelectorAll('.monaco-status')).map(element => element.textContent),
+			['', ''],
+		);
 	});
 
 	test('runNow clears inFlight when the runner fails', async () => {
@@ -588,10 +608,10 @@ suite('AutomationsListWidget', () => {
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 
 		// Record three runs in different states.
-		const r1 = await service.recordRunStart(a.id, 'schedule', 1);
+		const r1 = (await service.recordRunStart(a.id, 'schedule', 1)).run;
 		await service.updateRun(r1.id, { status: 'completed', completedAt: new Date().toISOString() });
 
-		const r2 = await service.recordRunStart(a.id, 'manual', 1);
+		const r2 = (await service.recordRunStart(a.id, 'manual', 1)).run;
 		await service.updateRun(r2.id, { status: 'failed', errorMessage: 'boom', completedAt: new Date().toISOString() });
 
 		await service.recordRunStart(a.id, 'catch_up', 1);

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { doesChatPetStateTrackCursor, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetSpriteName } from '../../../browser/widget/chatPetWidget.js';
+import { doesChatPetStateTrackCursor, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetSpriteName, isChatPetImageSource } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -96,6 +96,20 @@ suite('ChatPetWidget', () => {
 		], [
 			'buddy-idle-insiders',
 			'buddy-yapping-insiders',
+		]);
+	});
+
+	test('matches sprite sources without browser URL normalization', () => {
+		const source = 'vscode-file://vscode-app/Applications/Visual Studio Code - Insiders.app/pet.gif';
+		const image = document.createElement('img');
+		image.src = source;
+
+		assert.deepStrictEqual([
+			image.src === source,
+			isChatPetImageSource(image, source),
+		], [
+			false,
+			true,
 		]);
 	});
 

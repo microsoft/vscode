@@ -293,6 +293,10 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._currentView.value?.sendQuery(text);
 	}
 
+	submitInput(): Promise<boolean> {
+		return this._currentView.value?.submitInput() ?? Promise.resolve(false);
+	}
+
 	/**
 	 * Attaches the given resources as context to the hosted chat view's input.
 	 */

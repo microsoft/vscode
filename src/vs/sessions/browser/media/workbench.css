@@ -294,6 +294,7 @@
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-toolbars {
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+	padding-bottom: var(--vscode-spacing-size80, 8px) !important;
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container:not(:has(.editor-group-header-toolbars)) > .title {

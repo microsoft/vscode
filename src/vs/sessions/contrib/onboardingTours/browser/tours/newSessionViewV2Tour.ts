@@ -54,7 +54,7 @@ const newSessionViewV2Payload: ISpotlightPayload = {
 			description: localize('sessions.onboarding.newSessionViewV2.model.description', "The model powers your agent's reasoning. Choose one based on the balance of speed and capability your task needs."),
 			placement: 'below',
 			missingTarget: WAIT_FOR_PICKER,
-			openTarget: false,
+			openTarget: true,
 			allowTargetInteraction: true,
 		},
 	],

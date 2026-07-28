@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import {
 	filterModelsForSession,
 	findBestMatchingModel,
@@ -18,6 +20,7 @@ import {
 	isModelSupportedForInlineChat,
 	isModelSupportedForMode,
 	isModelValidForSession,
+	isNewConversation,
 	mergeModelsWithCache,
 	resolveModelFromSyncState,
 	shouldDropAgnosticDraftModel,
@@ -1610,6 +1613,21 @@ suite('ChatInputModelUtils', () => {
 				shouldRestorePerTypeModelOnSessionSwitch(false, true, false),
 				shouldRestorePerTypeModelOnSessionSwitch(true, false, false),
 			], [true, false, false, false]);
+		});
+
+		test('a started contributed session is never a new conversation, even before its requests load', () => {
+			const startedAgentHost = URI.parse('agent-host-copilotcli:/933e7602-f84e-431e-8756-c5e85c8f33d0');
+			const untitledAgentHost = URI.parse('agent-host-copilotcli:/untitled-933e7602');
+			const localSession = LocalChatSessionUri.getNewSessionUri();
+
+			assert.deepStrictEqual([
+				isNewConversation(startedAgentHost, true),
+				isNewConversation(startedAgentHost, false),
+				isNewConversation(untitledAgentHost, true),
+				isNewConversation(untitledAgentHost, false),
+				isNewConversation(localSession, true),
+				isNewConversation(localSession, false),
+			], [false, false, true, false, true, false]);
 		});
 
 		test('drops cross-pool draft models in both directions', () => {

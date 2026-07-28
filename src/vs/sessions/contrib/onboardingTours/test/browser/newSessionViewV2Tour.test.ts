@@ -62,7 +62,7 @@ suite('NewSessionViewV2Tour', () => {
 					id: 'modelPicker',
 					targetId: 'sessions.newSession.modelPicker',
 					missingTarget: { kind: 'wait', timeoutMs: 5_000 },
-					openTarget: false,
+					openTarget: true,
 					allowTargetInteraction: true,
 					advanceWhenWorkspaceSelected: false,
 				},

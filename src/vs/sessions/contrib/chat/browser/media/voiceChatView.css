@@ -119,24 +119,25 @@ so mirror the blue-listening / purple-speaking glow here. `voice-active` /
 	}
 }
 
-/* Blue when listening */
-.new-chat-input-area.voice-active.voice-listening .action-label.codicon-voice-mode {
+/* Blue when listening. The glow keeps the button's resting shape so the control
+never morphs between states — only its color and the pulse change. */
+.new-chat-input-area.voice-active.voice-listening .action-label.codicon-voice-mode-compact {
 	--sessions-voice-icon-glow-color: rgba(88, 166, 255, 0.65);
 	color: var(--vscode-charts-blue, #58a6ff) !important;
-	border-radius: 50%;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-listening .action-label.codicon-voice-mode {
+.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-listening .action-label.codicon-voice-mode-compact {
 	animation: sessionsVoiceIconGlow 1.4s ease-in-out infinite;
 }
 
 /* Purple when speaking */
-.new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode {
+.new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode-compact {
 	--sessions-voice-icon-glow-color: rgba(163, 113, 247, 0.65);
 	color: var(--vscode-charts-purple, #a371f7) !important;
-	border-radius: 50%;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode {
+.monaco-workbench.monaco-enable-motion .new-chat-input-area.voice-active.voice-speaking .action-label.codicon-voice-mode-compact {
 	animation: sessionsVoiceIconGlow 1.4s ease-in-out infinite;
 }

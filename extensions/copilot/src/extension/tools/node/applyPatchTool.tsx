@@ -656,14 +656,14 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 			},
 		);
 
-		this.telemetryService.sendEnhancedGHTelemetryEvent('applyPatchTool', multiplexProperties({
+		void multiplexProperties({
 			headerRequestId: options.chatRequestId,
 			baseModel: model,
 			messageText: file,
 			completionTextJson: options.input.input,
 			postProcessingOutcome: outcome,
 			healed: String(healed),
-		}));
+		}).then(properties => this.telemetryService.sendEnhancedGHTelemetryEvent('applyPatchTool', properties)).catch(() => { /* best-effort telemetry */ });
 	}
 
 	async resolveInput(input: IApplyPatchToolParams, promptContext: IBuildPromptContext): Promise<IApplyPatchToolParams> {

@@ -86,6 +86,15 @@ export interface IWorkspacePickerItem {
 	readonly run?: () => void;
 }
 
+export interface IWorkspacePickerOptions {
+	readonly canSelectWorkspace?: (folderUri: URI, providerId: string | undefined) => Promise<boolean>;
+}
+
+interface IBrowsedWorkspaceSelection {
+	readonly workspace: ISessionWorkspace;
+	readonly providerId: string;
+}
+
 type IWorkspacePickerAction = IAction & { icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
 
 /**
@@ -120,6 +129,13 @@ export class WorkspacePicker extends Disposable {
 	 * and we fall back.
 	 */
 	private readonly _connectionStatusWatch = this._register(new MutableDisposable());
+	private readonly _localBrowseAction: ISessionWorkspaceBrowseAction = {
+		label: localize('workspacePicker.browseSelectLocal', "Select..."),
+		group: SESSION_WORKSPACE_GROUP_LOCAL,
+		icon: Codicon.folderOpened,
+		providerId: '',
+		run: async () => (await this._browseForLocalFolder())?.workspace,
+	};
 
 	/**
 	 * "Primary" trigger. This is the most recently created entry. Preserved for subclass
@@ -162,6 +178,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	constructor(
+		private readonly options: IWorkspacePickerOptions,
 		@IActionWidgetService protected readonly actionWidgetService: IActionWidgetService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ISessionsProvidersService protected readonly sessionsProvidersService: ISessionsProvidersService,
@@ -501,14 +518,27 @@ export class WorkspacePicker extends Disposable {
 			return false;
 		}
 		if (item.browseActionIndex !== undefined) {
-			const folderUri = await this._executeBrowseAction(item.browseActionIndex);
+			const selection = await this._executeBrowseAction(item.browseActionIndex);
+			const folderUri = selection?.workspace.folders[0]?.root;
 			if (!folderUri || generation !== this._selectionGeneration) {
+				return false;
+			}
+			if (!await this._canSelectWorkspace(folderUri, selection.providerId)) {
+				return false;
+			}
+			if (generation !== this._selectionGeneration) {
 				return false;
 			}
 			this._selectFolder(folderUri);
 			return true;
 		} else if (item.folderUri) {
 			if (item.providerId && !await this._connectProviderOnDemand(item.providerId)) {
+				return false;
+			}
+			if (generation !== this._selectionGeneration) {
+				return false;
+			}
+			if (!await this._canSelectWorkspace(item.folderUri, item.providerId)) {
 				return false;
 			}
 			if (generation !== this._selectionGeneration) {
@@ -658,7 +688,7 @@ export class WorkspacePicker extends Disposable {
 	/**
 	 * Executes a browse action from a provider, identified by index.
 	 */
-	protected async _executeBrowseAction(actionIndex: number): Promise<URI | undefined> {
+	private async _executeBrowseAction(actionIndex: number): Promise<IBrowsedWorkspaceSelection | undefined> {
 		const allActions = this._getAllBrowseActions();
 		const action = allActions[actionIndex];
 		if (!action) {
@@ -666,17 +696,20 @@ export class WorkspacePicker extends Disposable {
 		}
 
 		try {
-			const workspace = await action.run();
-			if (workspace) {
-				const folderUri = workspace.folders[0]?.root;
-				if (folderUri) {
-					return folderUri;
-				}
+			if (action === this._localBrowseAction) {
+				return await this._browseForLocalFolder();
 			}
+			const workspace = await action.run();
+			return workspace ? { workspace, providerId: action.providerId } : undefined;
 		} catch {
 			// browse action was cancelled or failed
 		}
 		return undefined;
+	}
+
+	private async _canSelectWorkspace(folderUri: URI, providerId: string | undefined): Promise<boolean> {
+		return !this.options.canSelectWorkspace
+			|| await this.options.canSelectWorkspace(folderUri, providerId);
 	}
 
 	/**
@@ -687,14 +720,7 @@ export class WorkspacePicker extends Disposable {
 		const all = this.sessionsProvidersService.getProviders().flatMap(p => p.browseActions);
 		const hasLocalSupport = this.sessionsProvidersService.getProviders().some(p => p.supportsLocalWorkspaces);
 		if (hasLocalSupport) {
-			const localAction: ISessionWorkspaceBrowseAction = {
-				label: localize('workspacePicker.browseSelectLocal', "Select..."),
-				group: SESSION_WORKSPACE_GROUP_LOCAL,
-				icon: Codicon.folderOpened,
-				providerId: '',
-				run: () => this._browseForLocalFolder(),
-			};
-			all.unshift(localAction);
+			all.unshift(this._localBrowseAction);
 		}
 		if (!this._isTabFiltered()) {
 			return all;
@@ -707,7 +733,7 @@ export class WorkspacePicker extends Disposable {
 	 * provider is rediscovered later by the management service when the
 	 * session is created — no provider quick-pick is needed here.
 	 */
-	private async _browseForLocalFolder(): Promise<ISessionWorkspace | undefined> {
+	private async _browseForLocalFolder(): Promise<IBrowsedWorkspaceSelection | undefined> {
 		const localProviders = this.sessionsProvidersService.getProviders().filter(p => p.supportsLocalWorkspaces);
 		if (localProviders.length === 0) {
 			return undefined;
@@ -728,7 +754,7 @@ export class WorkspacePicker extends Disposable {
 		for (const provider of localProviders) {
 			const workspace = provider.resolveWorkspace(result[0]);
 			if (workspace) {
-				return workspace;
+				return { workspace, providerId: provider.id };
 			}
 		}
 		return undefined;

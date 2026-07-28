@@ -130,7 +130,7 @@ suite('ClaudeSessionMetadataStore', () => {
 			startTime: projected.startTime,
 			modifiedTime: projected.modifiedTime,
 			summary: projected.summary,
-			workingDirectory: projected.workingDirectory?.toString(),
+			workingDirectory: projected.workingDirectories?.[0]?.toString(),
 		}, {
 			session: 'claude:/abc',
 			startTime: 1000,
@@ -148,7 +148,7 @@ suite('ClaudeSessionMetadataStore', () => {
 
 		assert.deepStrictEqual({
 			summary: projected.summary,
-			workingDirectory: projected.workingDirectory,
+			workingDirectory: projected.workingDirectories?.[0],
 		}, {
 			summary: 'fallback',
 			workingDirectory: undefined,

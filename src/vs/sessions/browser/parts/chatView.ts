@@ -105,6 +105,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		// no-op by default
 	}
 
+	/** Submit the current composer input, returning whether it was sent. */
+	submitInput(): Promise<boolean> {
+		return Promise.resolve(false);
+	}
+
 	/**
 	 * Attach the given resources as context to this view's chat input. The
 	 * default implementation is a no-op; subclasses that host a chat widget

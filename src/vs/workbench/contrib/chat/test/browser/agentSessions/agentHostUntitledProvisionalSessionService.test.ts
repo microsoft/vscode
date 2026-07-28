@@ -19,6 +19,9 @@ import { ActionType } from '../../../../../../platform/agentHost/common/state/pr
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { ConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import type { AgentInfo, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -40,6 +43,19 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	readonly disposed: URI[] = [];
 	readonly dispatched: IDispatchedAction[] = [];
 	readonly resolveCalls: IAgentResolveSessionConfigParams[] = [];
+
+	/** Agents advertised by the (stubbed) root state; drives capability gating. */
+	rootStateAgents: AgentInfo[] = [];
+	override readonly rootState: IAgentSubscription<RootState> = (() => {
+		const self = this;
+		return {
+			get value(): RootState { return { agents: self.rootStateAgents } as unknown as RootState; },
+			verifiedValue: undefined,
+			onDidChange: Event.None,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		} as unknown as IAgentSubscription<RootState>;
+	})();
 
 	/**
 	 * Each entry is consumed in order by the next `resolveSessionConfig` call.
@@ -117,17 +133,24 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let cleanup: DisposableStore;
 	let workspaceTrusted: boolean;
 	let untrustedFolders: Set<string>;
+	let workspaceFolders: URI[];
 
 	setup(async () => {
 		agentHost = new MockAgentHostService();
 		workspaceTrusted = true;
 		untrustedFolders = new Set<string>();
+		workspaceFolders = [];
 		const insta = ds.add(new TestInstantiationService());
 		insta.stub(IAgentHostService, agentHost);
 		insta.stub(ILogService, new NullLogService());
 		insta.stub(IChatService, new MockChatService());
 		insta.stub(IConfigurationService, new TestConfigurationService());
 		insta.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
+		insta.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
+			override getWorkspace(): IWorkspace {
+				return { folders: workspaceFolders.map(uri => ({ uri } as IWorkspaceFolder)) } as IWorkspace;
+			}
+		});
 		insta.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 			override isWorkspaceTrusted(): boolean { return workspaceTrusted; }
 			override async getUriTrustInfo(uri: URI) { return { uri, trusted: !untrustedFolders.has(uri.toString()) }; }
@@ -434,7 +457,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			createCount: agentHost.createCalls.length,
 			disposedOld: agentHost.disposed.some(d => d.toString() === expectedBackendUri('cwd1').toString()),
 			recreatedSession: recreate.session?.toString(),
-			recreatedCwd: recreate.workingDirectory?.toString(),
+			recreatedCwd: recreate.workingDirectories?.[0]?.toString(),
 			recreatedConfig: recreate.config?.['isolation'],
 		}, {
 			createCount: 2,
@@ -466,4 +489,67 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.strictEqual(agentHost.createCalls.length, 0);
 		assert.strictEqual(provisional.get(ui), undefined);
 	});
+
+	test('derives the ordered working-directory set from the picked primary', async () => {
+		const folderA = URI.file('/repoA');
+		const folderB = URI.file('/repoB');
+		const folderC = URI.file('/repoC');
+		workspaceFolders = [folderA, folderB, folderC];
+		// The provider advertises multi-root support, so the client sends the set.
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+
+		const multiRoot = untitledChatUri('multi');
+		await provisional.getOrCreate(multiRoot, 'copilot', folderB);
+
+		// A single-folder workspace keeps just the primary (byte-identical to the
+		// previous single-directory behaviour).
+		workspaceFolders = [folderA];
+		const singleRoot = untitledChatUri('single');
+		await provisional.getOrCreate(singleRoot, 'copilot', folderA);
+
+		assert.deepStrictEqual({
+			multiRoot: agentHost.createCalls.find(c => c.session?.toString() === expectedBackendUri('multi').toString())?.workingDirectories?.map(d => d.toString()),
+			singleRoot: agentHost.createCalls.find(c => c.session?.toString() === expectedBackendUri('single').toString())?.workingDirectories?.map(d => d.toString()),
+		}, {
+			multiRoot: [folderB.toString(), folderA.toString(), folderC.toString()],
+			singleRoot: [folderA.toString()],
+		});
+	});
+
+	test('sends only the primary when the provider does not advertise multiple working directories', async () => {
+		const folderA = URI.file('/repoA');
+		const folderB = URI.file('/repoB');
+		const folderC = URI.file('/repoC');
+		workspaceFolders = [folderA, folderB, folderC];
+
+		// The same provider gets the full ordered set while it advertises the
+		// capability, and only the primary once it does not — the client mirrors
+		// the node-side guard instead of relying on it alone.
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const multi = untitledChatUri('cap-multi');
+		await provisional.getOrCreate(multi, 'copilot', folderB);
+
+		agentHost.rootStateAgents = [agentInfo('copilot', false)];
+		const single = untitledChatUri('cap-single');
+		await provisional.getOrCreate(single, 'copilot', folderB);
+
+		assert.deepStrictEqual({
+			advertising: agentHost.createCalls.find(c => c.session?.toString() === expectedBackendUri('cap-multi').toString())?.workingDirectories?.map(d => d.toString()),
+			nonAdvertising: agentHost.createCalls.find(c => c.session?.toString() === expectedBackendUri('cap-single').toString())?.workingDirectories?.map(d => d.toString()),
+		}, {
+			advertising: [folderB.toString(), folderA.toString(), folderC.toString()],
+			nonAdvertising: [folderB.toString()],
+		});
+	});
 });
+
+/** Minimal {@link AgentInfo} for capability-gating tests. */
+function agentInfo(provider: string, multipleWorkingDirectories: boolean): AgentInfo {
+	return {
+		provider,
+		displayName: provider,
+		description: '',
+		models: [],
+		capabilities: multipleWorkingDirectories ? { multipleWorkingDirectories: { immutablePrimary: true } } : {},
+	} as AgentInfo;
+}

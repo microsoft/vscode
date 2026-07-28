@@ -110,6 +110,18 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(envelopes[0].origin, undefined);
 	});
 
+	test('emits session title changes and suppresses no-op assignments', () => {
+		manager.createSession(makeSessionSummary());
+
+		const changes: Array<{ session: string; title: string }> = [];
+		disposables.add(manager.onDidChangeSessionTitle(e => changes.push(e)));
+
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Updated' });
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Updated' });
+
+		assert.deepStrictEqual(changes, [{ session: sessionUri, title: 'Updated' }]);
+	});
+
 	test('serverSeq increments monotonically', () => {
 		manager.createSession(makeSessionSummary());
 

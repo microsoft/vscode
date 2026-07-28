@@ -539,13 +539,11 @@ export class AutomationsListWidget extends Disposable {
 		}
 		this.runInFlight.add(automation.id);
 		this.updateList(this.automationService.automations.get());
-		const previousRunId = this.automationService.runsFor(automation.id).get()[0]?.id;
 		try {
 			// Manual runs do not currently expose cancellation.
 			const operation = this.automationRunner.runOnce(automation, 'manual', 0, CancellationToken.None);
-			await operation.whenDispatched;
-			const latestRun = this.automationService.runsFor(automation.id).get()[0];
-			if (latestRun && latestRun.id !== previousRunId && latestRun.status !== 'failed') {
+			const dispatch = await operation.whenDispatched;
+			if (dispatch.kind === 'started') {
 				status(localize('automationStartedStatus', "Started automation {0}", automation.name));
 			}
 			await operation.whenCompleted;

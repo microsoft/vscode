@@ -955,7 +955,7 @@ describe('ChatSessionContentProvider', () => {
 		let handlerProvider: ClaudeChatSessionContentProvider;
 		let handlerAccessor: ITestingServicesAccessor;
 
-		function createChatContext(sessionId: string): vscode.ChatContext {
+		function createChatContext(sessionId: string, options?: { folderPath?: string; allFolderPaths?: string[] }): vscode.ChatContext {
 			return {
 				history: [],
 				yieldRequested: false,
@@ -965,7 +965,7 @@ describe('ChatSessionContentProvider', () => {
 						resource: ClaudeSessionUri.forSessionId(sessionId),
 						label: 'Test Session',
 					},
-					inputState: { groups: buildInputStateGroups(), sessionResource: undefined, onDidChange: Event.None, onDidDispose: Event.None },
+					inputState: { groups: buildInputStateGroups(options), sessionResource: undefined, onDidChange: Event.None, onDidDispose: Event.None },
 				},
 			} as vscode.ChatContext;
 		}
@@ -996,6 +996,49 @@ describe('ChatSessionContentProvider', () => {
 			await handler(createTestRequest('hello'), context, stream, CancellationToken.None);
 
 			expect(setModelSpy).toHaveBeenCalledWith('session-1', parseClaudeModelId('claude-3-5-sonnet-20241022'));
+		});
+
+		it('rejects an untrusted folder before invoking the agent manager', async () => {
+			const mocks = createDefaultMocks();
+			const workspaceService = new TestWorkspaceService([workspaceFolderUri]);
+			vi.spyOn(workspaceService, 'isResourceTrusted').mockResolvedValue(false);
+			const untrustedAgentManager = createMockAgentManager();
+			const { provider } = createProviderWithServices(store, [workspaceFolderUri], mocks, untrustedAgentManager, workspaceService);
+			seedSessionItem('session-untrusted');
+
+			const result = await provider.createHandler()(
+				createTestRequest('hello'),
+				createChatContext('session-untrusted'),
+				new MockChatResponseStream(),
+				CancellationToken.None,
+			);
+
+			expect(result).toEqual({ errorDetails: { message: `Workspace '${workspaceFolderUri.fsPath}' is not trusted` } });
+			expect(vi.mocked(untrustedAgentManager.handleRequest)).not.toHaveBeenCalled();
+		});
+
+		it('rejects an untrusted additional directory before invoking the agent manager', async () => {
+			const primaryFolder = URI.file('/primary');
+			const additionalFolder = URI.file('/additional');
+			const mocks = createDefaultMocks();
+			const workspaceService = new TestWorkspaceService([primaryFolder, additionalFolder]);
+			vi.spyOn(workspaceService, 'isResourceTrusted').mockImplementation(async resource => resource.fsPath !== additionalFolder.fsPath);
+			const untrustedAgentManager = createMockAgentManager();
+			const { provider } = createProviderWithServices(store, [primaryFolder, additionalFolder], mocks, untrustedAgentManager, workspaceService);
+			seedSessionItem('session-additional-untrusted');
+
+			const result = await provider.createHandler()(
+				createTestRequest('hello'),
+				createChatContext('session-additional-untrusted', {
+					folderPath: primaryFolder.fsPath,
+					allFolderPaths: [primaryFolder.fsPath, additionalFolder.fsPath],
+				}),
+				new MockChatResponseStream(),
+				CancellationToken.None,
+			);
+
+			expect(result).toEqual({ errorDetails: { message: `Workspace '${additionalFolder.fsPath}' is not trusted` } });
+			expect(vi.mocked(untrustedAgentManager.handleRequest)).not.toHaveBeenCalled();
 		});
 
 		it('short-circuits before session resolution when slash command is handled', async () => {

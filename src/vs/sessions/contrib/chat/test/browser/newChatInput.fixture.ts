@@ -131,7 +131,7 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 	const widget = disposableStore.add(instantiationService.createInstance(NewChatInputWidget, {
 		session,
 		getContextFolderUri: () => undefined,
-		sendRequest: async () => { },
+		sendRequest: async () => true,
 		canSendRequest: observableValue('canSendRequest', true),
 		loading: observableValue('loading', false),
 	}));

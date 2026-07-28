@@ -294,10 +294,11 @@ function parseWorkspaceUri(workspace: string): URI | undefined {
 }
 
 function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMetadata[]): URI {
-	const matchingSession = sessions.find(session =>
-		session.workingDirectory?.toString() === workspace || session.workingDirectory?.fsPath === workspace);
-	if (matchingSession?.workingDirectory) {
-		return matchingSession.workingDirectory;
+	for (const session of sessions) {
+		const match = session.workingDirectories?.find(d => d.toString() === workspace || d.fsPath === workspace);
+		if (match) {
+			return match;
+		}
 	}
 	const parsed = parseWorkspaceUri(workspace);
 	if (!parsed) {
@@ -456,17 +457,19 @@ function sessionIsArchived(session: IAgentSessionMetadata): boolean {
 	return session.isArchived === true || (session.status !== undefined && (session.status & SessionStatus.IsArchived) !== 0);
 }
 
-/** Whether a session's working directory matches the given folder (absolute path or URI). */
+/** Whether any of a session's working directories matches the given folder (absolute path or URI). */
 function sessionMatchesWorkspace(session: IAgentSessionMetadata, workspace: string): boolean {
-	const dir = session.workingDirectory;
-	if (!dir) {
+	const dirs = session.workingDirectories;
+	if (!dirs || dirs.length === 0) {
 		return false;
 	}
-	if (dir.toString() === workspace || dir.fsPath === workspace) {
-		return true;
-	}
 	const parsed = parseWorkspaceUri(workspace);
-	return !!parsed && parsed.toString() === dir.toString();
+	// Any-root membership: a session matches when the folder is any of its
+	// working directories, not only the primary.
+	return dirs.some(dir =>
+		dir.toString() === workspace
+		|| dir.fsPath === workspace
+		|| (!!parsed && parsed.toString() === dir.toString()));
 }
 
 /** Applies the {@link IListSessionsArgs} filters to a set of sessions. */
@@ -547,7 +550,7 @@ function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
 		...(session.summary !== undefined ? { title: session.summary } : {}),
 		...(status !== undefined ? { status } : {}),
 		...(session.activity !== undefined ? { activity: session.activity } : {}),
-		...(session.workingDirectory !== undefined ? { workingDirectory: session.workingDirectory.toString() } : {}),
+		...(session.workingDirectories?.[0] !== undefined ? { workingDirectory: session.workingDirectories[0].toString() } : {}),
 		...(session.project !== undefined ? { project: session.project.displayName } : {}),
 		...(session.isRead === false ? { unread: true } : {}),
 		...(session.startTime > 0 ? { createdAt: new Date(session.startTime).toISOString() } : {}),
@@ -592,7 +595,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	const sessions = await accessor.listSessions();
 	const args = getCreateSessionArgs(rawArgs, sessions, accessor.getModels());
 	const config: IAgentCreateSessionConfig = {
-		workingDirectory: args.workspace,
+		workingDirectories: args.workspace ? [args.workspace] : undefined,
 		...(args.model !== undefined ? { provider: args.model.provider, model: { id: args.model.id } } : {}),
 	};
 	const session = await accessor.createSession(config);

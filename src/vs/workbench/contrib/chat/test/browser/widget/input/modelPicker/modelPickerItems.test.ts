@@ -433,6 +433,39 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions[1].label, 'Claude');
 	});
 
+	test('model variants sharing metadata ids remain visible across promoted and other sections', () => {
+		const auto = createAutoModel();
+		const copilotSol = createModel('gpt-5.6-sol', 'GPT-5.6 Sol');
+		const copilotTerra = createModel('gpt-5.6-terra', 'GPT-5.6 Terra');
+		const byokSol = createModel('gpt-5.6-sol', 'GPT-5.6 Sol', 'openai');
+		const byokTerra = createModel('gpt-5.6-terra', 'GPT-5.6 Terra', 'openai');
+		const copilotOther = createModel('gpt-5.5', 'GPT-5.5');
+		const byokOther = createModel('gpt-5.5', 'GPT-5.5', 'openai');
+		const languageModelsService = createLanguageModelsServiceStub([
+			{ vendor: 'copilot', displayName: 'Copilot', groups: [] },
+			{
+				vendor: 'openai',
+				displayName: 'OpenAI',
+				groups: [{ name: 'OpenAI (Work)', modelIdentifiers: [byokSol.identifier, byokTerra.identifier, byokOther.identifier] }],
+			},
+		]);
+		const items = callBuild([auto, copilotSol, copilotTerra, copilotOther, byokSol, byokTerra, byokOther], {
+			recentModelIds: [copilotSol.identifier, byokSol.identifier, copilotTerra.identifier, byokTerra.identifier],
+			languageModelsService,
+		});
+
+		assert.deepStrictEqual(getActionItems(items)
+			.filter(item => !item.isSectionToggle && item.label !== 'Auto' && item.item?.id !== 'manageModels')
+			.map(item => ({ id: item.item?.id, section: item.section, provider: item.badge })), [
+			{ id: copilotSol.identifier, section: undefined, provider: 'Copilot' },
+			{ id: byokSol.identifier, section: undefined, provider: 'OpenAI (Work)' },
+			{ id: copilotTerra.identifier, section: undefined, provider: 'Copilot' },
+			{ id: copilotOther.identifier, section: 'other', provider: undefined },
+			{ id: byokOther.identifier, section: 'other', provider: undefined },
+			{ id: byokTerra.identifier, section: 'other', provider: undefined },
+		]);
+	});
+
 	test('recently used model not in models list but in controlModels shows as unavailable (upgrade for free user)', () => {
 		const auto = createAutoModel();
 		const items = callBuild([auto], {

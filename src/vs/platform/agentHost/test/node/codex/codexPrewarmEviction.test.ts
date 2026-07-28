@@ -138,7 +138,7 @@ async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'ad
 
 	const folder = URI.file('/repo/folder');
 	const worktree = URI.file('/repo/worktree');
-	const { session } = await agent.createSession({ workingDirectory: folder, model: { id: 'gpt-test' } });
+	const { session } = await agent.createSession({ workingDirectories: [folder], model: { id: 'gpt-test' } });
 	const entry = agent['_sessions'].get(AgentSession.id(session))!;
 	const folderStart = await readNextRequest(peer.outbound);
 
@@ -151,7 +151,7 @@ async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'ad
 		const send = agent.chats.sendMessage(
 			URI.parse(buildDefaultChatUri(session)),
 			'hello',
-			worktree,
+			[worktree],
 			undefined,
 			'turn-1',
 		);

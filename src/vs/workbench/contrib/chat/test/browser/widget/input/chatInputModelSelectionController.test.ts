@@ -166,7 +166,7 @@ suite('ChatInputModelSelectionController', () => {
 		};
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 		controller.initialize(second.identifier, result => initialSelections.push(result.kind));
-		const pending = controller.hasPendingIntent();
+		const pending = controller.isAwaitingRememberedModel();
 		models = [first, second];
 		catalogResolved = true;
 		modelChanges.fire('test');
@@ -174,7 +174,7 @@ suite('ChatInputModelSelectionController', () => {
 		assert.deepStrictEqual({
 			initialSelections,
 			pending,
-			pendingAfterResolve: controller.hasPendingIntent(),
+			pendingAfterResolve: controller.isAwaitingRememberedModel(),
 			applied,
 		}, {
 			initialSelections: ['pending'],
@@ -215,14 +215,14 @@ suite('ChatInputModelSelectionController', () => {
 		models = [first];
 		modelChanges.fire('partial');
 		const resolutionAfterPartial = runtime.resolveModelIdentifier(remembered.identifier).kind;
-		const pendingAfterPartial = controller.hasPendingIntent();
+		const pendingAfterPartial = controller.isAwaitingRememberedModel();
 		models = [first, remembered];
 		modelChanges.fire('complete');
 
 		assert.deepStrictEqual({
 			resolutionAfterPartial,
 			pendingAfterPartial,
-			pendingAfterComplete: controller.hasPendingIntent(),
+			pendingAfterComplete: controller.isAwaitingRememberedModel(),
 			applied,
 			current: controller.currentModel.get()?.identifier,
 		}, {
@@ -379,13 +379,13 @@ suite('ChatInputModelSelectionController', () => {
 		controller.initialize(remembered.identifier, () => { });
 		state.models = [fallback, locationDefault];
 		controller.reconcileModelListChange(state.models);
-		const pendingAfterDefault = controller.hasPendingIntent();
+		const pendingAfterDefault = controller.isAwaitingRememberedModel();
 		state.models = [fallback, locationDefault, remembered];
 		modelChanges.fire('loaded');
 
 		assert.deepStrictEqual({
 			pendingAfterDefault,
-			pendingAfterLoad: controller.hasPendingIntent(),
+			pendingAfterLoad: controller.isAwaitingRememberedModel(),
 			applied,
 			current: controller.currentModel.get()?.identifier,
 		}, {
@@ -408,13 +408,13 @@ suite('ChatInputModelSelectionController', () => {
 		controller.initialize(remembered.identifier, () => { });
 		state.models = [replacement];
 		modelChanges.fire('fallback-removed');
-		const pendingAfterRepair = controller.hasPendingIntent();
+		const pendingAfterRepair = controller.isAwaitingRememberedModel();
 		state.models = [replacement, remembered];
 		modelChanges.fire('remembered-loaded');
 
 		assert.deepStrictEqual({
 			pendingAfterRepair,
-			pendingAfterLoad: controller.hasPendingIntent(),
+			pendingAfterLoad: controller.isAwaitingRememberedModel(),
 			applied,
 			current: controller.currentModel.get()?.identifier,
 		}, {
@@ -422,6 +422,164 @@ suite('ChatInputModelSelectionController', () => {
 			pendingAfterLoad: false,
 			applied: [fallback.identifier, replacement.identifier, remembered.identifier],
 			current: remembered.identifier,
+		});
+	});
+
+	test('reclaims the selected model after it disappears and comes back', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const selected = targetedModel('agent-host/selected', 'agent-host');
+		const other = targetedModel('agent-host/other', 'agent-host');
+		const state: IRuntimeState = { models: [selected, other], resolved: true, sessionType: 'agent-host' };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.applyExplicitSelection(selected, () => { }, false);
+		state.models = [other];
+		modelChanges.fire('agent-host-restarting');
+		const duringRestart = controller.currentModel.get()?.identifier;
+		state.models = [selected, other];
+		modelChanges.fire('agent-host-restarted');
+
+		assert.deepStrictEqual({
+			duringRestart,
+			current: controller.currentModel.get()?.identifier,
+			reason: controller.selectionReason,
+			pending: controller.hasPendingIntent(),
+			applied,
+		}, {
+			duringRestart: other.identifier,
+			current: selected.identifier,
+			// The restore reinstates the original authority rather than downgrading to `Remembered`.
+			reason: ModelSelectionReason.UserSelection,
+			pending: false,
+			applied: [other.identifier, selected.identifier],
+		});
+	});
+
+	test('reclaims a storage-seeded remembered model that disappears mid-session', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const remembered = model('test/remembered');
+		const other = model('test/other');
+		const state: IRuntimeState = { models: [remembered, other], resolved: true, sessionType: 'local' };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		// The remembered model is already available, so `initialize` applies it and arms no wait.
+		controller.initialize(remembered.identifier, () => { });
+		state.models = [other];
+		modelChanges.fire('model-gone');
+		const duringOutage = controller.currentModel.get()?.identifier;
+		state.models = [remembered, other];
+		modelChanges.fire('model-back');
+
+		assert.deepStrictEqual({
+			duringOutage,
+			current: controller.currentModel.get()?.identifier,
+			pending: controller.hasPendingIntent(),
+			applied,
+		}, {
+			duringOutage: other.identifier,
+			current: remembered.identifier,
+			pending: false,
+			applied: [remembered.identifier, other.identifier, remembered.identifier],
+		});
+	});
+
+	test('reclaims the selected model even after a same-family substitute stood in', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const selected = model('test/selected');
+		const substitute: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'test/substitute',
+			metadata: { ...selected.metadata, id: 'test/substitute', name: 'test/substitute' },
+		};
+		const state: IRuntimeState = { models: [selected, substitute], resolved: true, sessionType: 'local' };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.applyExplicitSelection(selected, () => { }, false);
+		state.models = [substitute];
+		modelChanges.fire('model-gone');
+		const duringOutage = controller.currentModel.get()?.identifier;
+		state.models = [selected, substitute];
+		modelChanges.fire('model-back');
+
+		assert.deepStrictEqual({
+			duringOutage,
+			current: controller.currentModel.get()?.identifier,
+			applied,
+		}, {
+			// The shared family makes `substitute` a best match, so it stands in rather than the default.
+			duringOutage: substitute.identifier,
+			current: selected.identifier,
+			applied: [substitute.identifier, selected.identifier],
+		});
+	});
+
+	test('an explicit selection outlives the model it displaced', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const selected = model('test/selected');
+		const other = model('test/other');
+		const chosen = model('test/chosen');
+		const state: IRuntimeState = { models: [selected, other, chosen], resolved: true, sessionType: 'local' };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.applyExplicitSelection(selected, () => { }, false);
+		state.models = [other, chosen];
+		modelChanges.fire('model-removed');
+		controller.applyExplicitSelection(chosen, () => { }, false);
+		state.models = [selected, other, chosen];
+		modelChanges.fire('model-back');
+
+		assert.deepStrictEqual({
+			current: controller.currentModel.get()?.identifier,
+			reason: controller.selectionReason,
+			pending: controller.hasPendingIntent(),
+			applied,
+		}, {
+			current: chosen.identifier,
+			reason: ModelSelectionReason.UserSelection,
+			pending: false,
+			applied: [other.identifier],
+		});
+	});
+
+	test('reclaims an explicit pick that was displaced while chat.defaultModel stood in', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const configured = model('test/configured');
+		const picked = model('test/picked');
+		const state: IRuntimeState = {
+			models: [configured, picked],
+			resolved: true,
+			sessionType: 'local',
+			configuredModel: configured.metadata.id,
+		};
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.applyExplicitSelection(picked, () => { }, false);
+		state.models = [configured];
+		modelChanges.fire('picked-gone');
+		const duringOutage = controller.currentModel.get()?.identifier;
+		const reasonDuringOutage = controller.selectionReason;
+		state.models = [configured, picked];
+		modelChanges.fire('picked-back');
+		const afterReturn = controller.currentModel.get()?.identifier;
+		// A later refresh must not let the configured default reclaim an explicit pick.
+		modelChanges.fire('later-refresh');
+
+		assert.deepStrictEqual({
+			duringOutage,
+			reasonDuringOutage,
+			afterReturn,
+			afterRefresh: controller.currentModel.get()?.identifier,
+			reason: controller.selectionReason,
+		}, {
+			duringOutage: configured.identifier,
+			reasonDuringOutage: ModelSelectionReason.ConfiguredDefault,
+			afterReturn: picked.identifier,
+			afterRefresh: picked.identifier,
+			reason: ModelSelectionReason.UserSelection,
 		});
 	});
 
@@ -784,6 +942,29 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
+	test('keeps a reopened conversation on its own model instead of the configured default', () => {
+		// Switching back to a chat that already has history must not re-seed it from
+		// `chat.defaultModel` — that busts the prompt cache on every switch.
+		const gpt = model('test/gpt');
+		const opus = model('test/opus');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(
+			{ models: [gpt, opus], resolved: true, sessionType: 'test', configuredModel: gpt.metadata.id, isEmpty: false },
+			modelChanges,
+			applied)));
+
+		controller.beginSessionSwitch(false, false, true);
+		controller.initialize(opus.identifier, () => { });
+		const configuredApplied = controller.applyConfiguredDefault();
+
+		assert.deepStrictEqual({ configuredApplied, applied, current: controller.currentModel.get()?.identifier }, {
+			configuredApplied: false,
+			applied: [opus.identifier],
+			current: opus.identifier,
+		});
+	});
+
 	test('preserves an explicit user pick on an empty session over the configured default', () => {
 		const gpt = model('test/gpt');
 		const opus = model('test/opus');
@@ -1043,11 +1224,11 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
 		controller.initialize(remembered.identifier, () => { });
-		const pendingAfterInit = controller.hasPendingIntent();
+		const pendingAfterInit = controller.isAwaitingRememberedModel();
 		const appliedAfterInit = [...applied];
 		// An intermediate empty re-resolution must not end the wait or apply a default.
 		modelChanges.fire('still-empty');
-		const pendingAfterEmpty = controller.hasPendingIntent();
+		const pendingAfterEmpty = controller.isAwaitingRememberedModel();
 		// The remembered model finally appears.
 		models = [remembered];
 		modelChanges.fire('loaded');
@@ -1056,7 +1237,7 @@ suite('ChatInputModelSelectionController', () => {
 			pendingAfterInit,
 			appliedAfterInit,
 			pendingAfterEmpty,
-			pendingAfterLoad: controller.hasPendingIntent(),
+			pendingAfterLoad: controller.isAwaitingRememberedModel(),
 			applied,
 			current: controller.currentModel.get()?.identifier,
 		}, {
@@ -1259,13 +1440,13 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
 		controller.initialize(remembered.identifier, () => { });
-		const pendingAfterInit = controller.hasPendingIntent();
+		const pendingAfterInit = controller.isAwaitingRememberedModel();
 		models = [fallback, remembered];
 		modelChanges.fire('loaded');
 
 		assert.deepStrictEqual({
 			pendingAfterInit,
-			pendingAfterLoad: controller.hasPendingIntent(),
+			pendingAfterLoad: controller.isAwaitingRememberedModel(),
 			applied,
 			current: controller.currentModel.get()?.identifier,
 		}, {
@@ -1345,9 +1526,9 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(runtime));
 
 		controller.initialize(remembered.identifier, () => { });
-		const pendingAfterInit = controller.hasPendingIntent();
+		const pendingAfterInit = controller.isAwaitingRememberedModel();
 		controller.applyExplicitSelection(explicit, () => applied.push(explicit.identifier), false);
-		const pendingAfterExplicit = controller.hasPendingIntent();
+		const pendingAfterExplicit = controller.isAwaitingRememberedModel();
 		models = [fallback, explicit, remembered];
 		modelChanges.fire('loaded');
 

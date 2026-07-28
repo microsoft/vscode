@@ -134,6 +134,8 @@ export class ActivitybarPart extends Part {
 	private updateCompactStyle(): void {
 		if (this.element) {
 			this.element.classList.toggle('compact', this._isCompact);
+			// Mirrored on the workbench root for floatingPanels.css
+			this.layoutService.mainContainer.classList.toggle('activitybar-compact', this._isCompact);
 			this.element.style.setProperty('--activity-bar-width', `${this.baseWidth}px`);
 			this.element.style.setProperty('--activity-bar-action-height', `${this.actionHeight}px`);
 			this.element.style.setProperty('--activity-bar-icon-size', `${this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE}px`);
@@ -387,7 +389,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		content.prepend(this.menuBarContainer);
 
 		// Menubar: install a custom menu bar depending on configuration
-		this.menuBar.value = this._register(this.instantiationService.createInstance(CustomMenubarControl));
+		this.menuBar.value = this.instantiationService.createInstance(CustomMenubarControl);
 		this.menuBar.value.create(this.menuBarContainer);
 
 	}

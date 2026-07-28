@@ -90,6 +90,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 		@IClaudeAgentSdkLoaderService private readonly _sdkLoader: IClaudeAgentSdkLoaderService,
+		@IWorkspaceService private readonly _workspaceService: IWorkspaceService,
 	) {
 		super();
 		this._controller = this._register(instantiationService.createInstance(ClaudeChatSessionItemController));
@@ -162,6 +163,21 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			const permissionMode = selectedPermissionId;
 			const selectedFolderUri = getSelectedFolderUri(chatSessionContext.inputState);
 			const folderInfo = await this._controller.getFolderInfoForSession(effectiveSessionId, selectedFolderUri);
+			let untrustedDirectory: URI | undefined;
+			for (const directory of [folderInfo.cwd, ...folderInfo.additionalDirectories]) {
+				const directoryUri = URI.file(directory);
+				if (!await this._workspaceService.isResourceTrusted(directoryUri)) {
+					untrustedDirectory = directoryUri;
+					break;
+				}
+			}
+			if (untrustedDirectory) {
+				return {
+					errorDetails: {
+						message: vscode.l10n.t("Workspace '{0}' is not trusted", untrustedDirectory.fsPath)
+					}
+				};
+			}
 
 			// Commit UI state to session state service before invoking agent manager
 			this.sessionStateService.setModelIdForSession(effectiveSessionId, modelId);

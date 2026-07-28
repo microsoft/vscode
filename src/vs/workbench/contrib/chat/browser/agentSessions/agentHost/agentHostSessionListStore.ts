@@ -213,7 +213,7 @@ export class AgentHostSessionListStore extends Disposable {
 
 		const nextEntries: IAgentHostSessionListEntry[] = [];
 		for (const session of sessions) {
-			if (!this._isWorkingDirectoryInWorkspace(session.workingDirectory)) {
+			if (!this._isWorkingDirectoryInWorkspace(session.workingDirectories?.[0])) {
 				continue;
 			}
 			const entry = this._makeEntryFromMetadata(session);
@@ -323,7 +323,7 @@ export class AgentHostSessionListStore extends Disposable {
 				createdAt: new Date(session.startTime).toISOString(),
 				modifiedAt: new Date(session.modifiedTime).toISOString(),
 				changes: session.changes,
-				workingDirectories: session.workingDirectory ? [session.workingDirectory.toString()] : undefined,
+				workingDirectories: session.workingDirectories?.map(d => d.toString()),
 			},
 		};
 	}

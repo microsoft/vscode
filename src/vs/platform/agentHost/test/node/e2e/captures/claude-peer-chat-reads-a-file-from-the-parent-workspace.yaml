@@ -9,8 +9,6 @@ exchanges:
           content: Read the file at ${workdir}/peer-note.txt and reply with its exact contents only.
     response:
       content:
-        - type: text
-          text: I'll read the file.
         - type: tool_use
           id: toolcall_0
           name: Read
@@ -25,8 +23,7 @@ exchanges:
           content: Read the file at ${workdir}/peer-note.txt and reply with its exact contents only.
         - role: assistant
           content:
-            - type: text
-              text: I'll read the file.
+            - type: thinking
             - type: tool_use
               name: Read
               input:

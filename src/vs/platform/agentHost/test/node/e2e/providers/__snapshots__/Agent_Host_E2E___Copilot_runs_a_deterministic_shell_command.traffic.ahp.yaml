@@ -6,7 +6,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: Run a shell command that prints SHELL_VALUE_73, then reply with that exact value only.
+            text: 'Run exactly this shell command, with no modifications: `echo SHELL_VALUE_73`. Then reply with that exact value only.'
             origin:
               kind: user
     serverToClient:
@@ -15,7 +15,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: Run a shell command that prints SHELL_VALUE_73, then reply with that exact value only.
+            text: 'Run exactly this shell command, with no modifications: `echo SHELL_VALUE_73`. Then reply with that exact value only.'
             origin:
               kind: user
       - channel: ${session_0}
@@ -30,7 +30,7 @@ rounds:
           type: chat/toolCallStart
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
-          toolName: bash
+          toolName: ${shell}
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete

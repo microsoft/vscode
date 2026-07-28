@@ -54,6 +54,7 @@ export function getChatPetSpriteName(state: ChatPetState, quality: string | unde
 	}
 }
 
+// TODO @justschen: convert resources to spritesheet instead of gif
 function createSpriteSources(name: string, tracksCursor = true): { animated: string; reducedMotion: string } {
 	const root = 'vs/workbench/contrib/chat/browser/widget/media/chatPet';
 	const suffix = tracksCursor ? '-tracking-96' : '-96';
@@ -80,6 +81,10 @@ function getSpriteSources(): Record<ChatPetState, { animated: string; reducedMot
 	}
 
 	return spriteSources;
+}
+
+export function isChatPetImageSource(image: Pick<HTMLImageElement, 'getAttribute'>, source: string): boolean {
+	return image.getAttribute('src') === source;
 }
 
 export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boolean, idleExpired: boolean): ChatPetState {
@@ -435,7 +440,7 @@ export class ChatPetWidget extends Disposable {
 	private _renderState(state: ChatPetState, restart = false): void {
 		const sources = getSpriteSources()[state];
 		const source = this._motionReduced ? sources.reducedMotion : sources.animated;
-		if (!restart && this._activeImage?.src === source) {
+		if (!restart && this._activeImage && isChatPetImageSource(this._activeImage, source)) {
 			this._button.element.dataset.state = state;
 			this._renderedState = state;
 			return;
@@ -454,7 +459,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _onImageLoad(image: HTMLImageElement): void {
-		if (image !== this._pendingImage || image.src !== this._pendingSource || this._pendingState === undefined) {
+		if (image !== this._pendingImage || this._pendingSource === undefined || !isChatPetImageSource(image, this._pendingSource) || this._pendingState === undefined) {
 			return;
 		}
 

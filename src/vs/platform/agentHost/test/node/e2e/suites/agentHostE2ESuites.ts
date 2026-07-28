@@ -29,7 +29,7 @@ interface IDefineOptions {
 
 function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOptions): void {
 	(config.enabled ? suite : suite.skip)(options.suiteTitle, function () {
-		const shellToolReplayEnabled = !isWindows && (RECORD || !isLinux || !config.shellToolReplayUnstableOnLinux);
+		const portableShellToolReplayEnabled = RECORD || !isLinux || !config.shellToolReplayUnstableOnLinux;
 		let client: TestProtocolClient;
 		let lease: AgentHostE2EServerLease | undefined;
 		const createdSessions: string[] = [];
@@ -41,7 +41,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			get client() { return client; },
 			createdSessions,
 			tempDirs,
-			shellToolReplayEnabled,
+			portableShellToolReplayEnabled,
 			stableNewScenarioResponse: config.stableNewScenarioResponse,
 			isWindows,
 			runRecordOnlyTests: RUN_RECORD_ONLY_TESTS,
@@ -85,6 +85,11 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			// killed) the shared host; restart it so the failure does not cascade
 			// into the next, unrelated test.
 			const failed = this.currentTest?.state === 'failed';
+			if (failed) {
+				// Surface the Copilot runtime's own logs for a hang/timeout before
+				// the server is restarted and its temp home is eventually removed.
+				lease.dumpRuntimeLogsOnFailure(this.currentTest?.title ?? 'unknown');
+			}
 			await lease.release(createdSessions, failed);
 		});
 

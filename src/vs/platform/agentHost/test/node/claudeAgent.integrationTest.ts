@@ -668,7 +668,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		assert.strictEqual(accepted, true);
 
 		// Create a provisional session — no SDK contact yet.
-		const created = await agent.createSession({ workingDirectory: URI.file('/integration-cwd') });
+		const created = await agent.createSession({ workingDirectories: [URI.file('/integration-cwd')] });
 		assert.strictEqual(sdk.capturedStartupOptions.length, 0, 'createSession does not touch the SDK');
 
 		// Stage a transcript on the SDK so `sendMessage` resolves.
@@ -796,7 +796,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'gh-int-test-token');
-		const created = await agent.createSession({ workingDirectory: URI.file('/integration-cwd') });
+		const created = await agent.createSession({ workingDirectories: [URI.file('/integration-cwd')] });
 		const sessionId = created.session.path.replace(/^\//, '');
 		sdk.queryMessages = [
 			makeSystemInitMessage(sessionId),
@@ -872,7 +872,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'gh-int-test-token');
-		const created = await agent.createSession({ workingDirectory: URI.file('/integration-cwd') });
+		const created = await agent.createSession({ workingDirectories: [URI.file('/integration-cwd')] });
 		const sessionId = created.session.path.replace(/^\//, '');
 
 		// Canned turn: assistant says "reading", calls `Read`, the SDK

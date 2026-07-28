@@ -5,6 +5,9 @@
 
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, isLanguageModelVendorAbsenceConclusive } from '../../../common/languageModels.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { localChatSessionType } from '../../../common/chatSessionsService.js';
+import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 
 /**
  * Describes the context needed for model selection decisions.
@@ -146,6 +149,20 @@ export function shouldDropAgnosticDraftModel(
 	sessionType: string | undefined,
 ): boolean {
 	return !!draftModel && !isModelValidForSession(draftModel, allModels, sessionType);
+}
+
+/**
+ * Whether the input should treat a session as a brand-new conversation, which is what unlocks the
+ * shared new-chat draft, the default mode/permission level, and `chat.defaultModel`.
+ *
+ * `hasNoRequests` is sampled when the input binds, and a contributed session's requests load after
+ * that — so on its own it reports a started agent-host session as new. A contributed session's
+ * resource keeps its `untitled-` path until the session is started, so it stays accurate
+ * regardless of load timing. Local sessions have no such marker and rely on `hasNoRequests`.
+ */
+export function isNewConversation(sessionResource: URI, hasNoRequests: boolean): boolean {
+	return hasNoRequests
+		&& (getChatSessionType(sessionResource) === localChatSessionType || isUntitledChatSession(sessionResource));
 }
 
 /**

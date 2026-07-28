@@ -9,7 +9,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { mkdtempSync, rmSync } from 'fs';
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -61,6 +61,41 @@ const TEMP_DIR_CLEANUP_TIMEOUT_MS = 30_000;
 export const REPLAY_PLACEHOLDER_TOKEN = 'replay-no-token';
 export type AgentHostE2EModelTraffic = 'recorded' | 'none';
 
+/**
+ * Clears read-only attributes across a directory tree.
+ *
+ * Git marks the files under `.git/objects` read-only, and on Windows a
+ * read-only file cannot be deleted — `rmSync`'s `force` option only suppresses
+ * `ENOENT`, it does not override the attribute. Without this, any test that
+ * creates a git repository in a temp directory fails teardown on Windows after
+ * burning the full cleanup timeout, even though the test itself passed.
+ *
+ * Best-effort throughout: entries can disappear underneath us while the failed
+ * removal is still unwinding, and a failure here just means the retry fails the
+ * same way it already did.
+ */
+function clearReadOnlyAttributes(dir: string): void {
+	let entries: string[];
+	try {
+		entries = readdirSync(dir);
+	} catch {
+		return;
+	}
+	for (const entry of entries) {
+		const entryPath = join(dir, entry);
+		try {
+			// Directories need the execute bit to stay traversable.
+			const isDirectory = statSync(entryPath).isDirectory();
+			chmodSync(entryPath, isDirectory ? 0o700 : 0o600);
+			if (isDirectory) {
+				clearReadOnlyAttributes(entryPath);
+			}
+		} catch {
+			// Entry vanished or cannot be changed; the retry will report it.
+		}
+	}
+}
+
 export async function removeTempDirs(tempDirs: string[]): Promise<void> {
 	const pendingDirs = tempDirs.splice(0);
 	const errors = new Map<string, Error>();
@@ -74,6 +109,10 @@ export async function removeTempDirs(tempDirs: string[]): Promise<void> {
 				errors.delete(dir);
 			} catch (error) {
 				errors.set(dir, error instanceof Error ? error : new Error(String(error)));
+				// A read-only file never becomes deletable by waiting, so clear the
+				// attributes before the retry rather than spinning until the
+				// deadline. Harmless when the real cause is a transient lock.
+				clearReadOnlyAttributes(dir);
 			}
 		}
 		if (pendingDirs.length === 0) {
@@ -108,11 +147,27 @@ function fixturePathFor(provider: string, testTitle: string): string {
  * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Tests that
  * declare no model traffic always use the strict shared empty replay fixture.
  */
-export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode } {
+/**
+ * Tests whose recorded capture is allowed to contain POSIX-only commands.
+ *
+ * Each entry must correspond to a test that is *also* scoped away from Windows
+ * at its call site, with the reason stated there. This list exists so the
+ * exceptions are countable in one place; adding to it should be rare and
+ * deliberate. See `harness/posixCommandLint.ts`.
+ */
+const POSIX_COMMAND_EXCEPTIONS = new Set([
+	// `pwd` is auto-approved as a safe read-only command while a pinned
+	// `node -e "…"` is not, so pinning stops the turn on a permission prompt the
+	// test never answers. Its assertions also compare POSIX-shaped paths.
+	'worktree session uses the resolved worktree as working directory',
+]);
+
+export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode; allowPosixCommands: boolean } {
+	const allowPosixCommands = POSIX_COMMAND_EXCEPTIONS.has(testTitle);
 	if (modelTraffic === 'none') {
-		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay' };
+		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay', allowPosixCommands };
 	}
-	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE };
+	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, allowPosixCommands };
 }
 
 // #endregion
@@ -673,7 +728,9 @@ export class AgentHostE2EServerLease {
 			}
 			proxy.resetForReplay(capiReplay.fixturePath);
 		} else {
-			this._server = await this._target.launch({ ...this._startOptions, capiReplay });
+			// Only the Copilot CLI provider writes the `@github/copilot` runtime logs we
+			// capture, so only it is run verbosely; Claude/Codex use their own runtimes.
+			this._server = await this._target.launch({ ...this._startOptions, capiReplay, logLevel: this._isCopilotProvider ? 'trace' : undefined });
 			this._modelBackedTestsOnCurrentServer = 0;
 		}
 		if (modelTraffic === 'recorded') {
@@ -701,6 +758,66 @@ export class AgentHostE2EServerLease {
 
 	get observedModelRequestBodies(): readonly string[] {
 		return this._server?.capiReplay?.observedModelRequestBodies ?? [];
+	}
+
+	/** The bundled `@github/copilot` CLI is the only provider whose runtime logs we capture / run verbosely. */
+	private get _isCopilotProvider(): boolean {
+		return this._config.provider === 'copilotcli';
+	}
+
+	/**
+	 * Tail the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log`
+	 * into the test output. This is the SDK/CLI's own diagnostics — the key signal
+	 * when a turn hangs or times out, which the AHP assertions alone don't explain.
+	 * The runtime writes these under `${COPILOT_HOME}/logs`, and the harness pins
+	 * `COPILOT_HOME` to `${homeDir}/.copilot` (see `startRealServer`), running it
+	 * at `trace`. Only the Copilot CLI provider is captured — Claude/Codex use their
+	 * own runtimes and log elsewhere. Best-effort: never throws (it runs in a
+	 * `teardown`, right before the failure is re-raised). Output goes to
+	 * `process.stdout` directly (not `console.*`): the integration harness overrides
+	 * `console.*` and fails the test on ANY unexpected console output during a test,
+	 * and `currentTest` is still set during `teardown`.
+	 */
+	dumpRuntimeLogsOnFailure(label: string): void {
+		if (!this._isCopilotProvider) {
+			return;
+		}
+		try {
+			const logsDir = join(this._startOptions.homeDir, '.copilot', 'logs');
+			let entries: string[];
+			try {
+				entries = readdirSync(logsDir);
+			} catch {
+				// No log dir at all — the CLI never spawned. That itself is a signal.
+				process.stdout.write(`[agent-host-e2e] no Copilot runtime logs for failed test "${label}" (CLI never spawned; ${logsDir} absent)\n`);
+				return;
+			}
+			const newest = entries
+				.filter(name => /^process-.*\.log$/.test(name))
+				.map(name => {
+					const full = join(logsDir, name);
+					try {
+						return { full, mtimeMs: statSync(full).mtimeMs };
+					} catch {
+						return undefined;
+					}
+				})
+				.filter((v): v is { full: string; mtimeMs: number } => v !== undefined)
+				.sort((a, b) => b.mtimeMs - a.mtimeMs)[0];
+			if (!newest) {
+				process.stdout.write(`[agent-host-e2e] no Copilot runtime process-*.log for failed test "${label}" under ${logsDir}\n`);
+				return;
+			}
+			const lines = readFileSync(newest.full, 'utf8').split(/\r?\n/);
+			const tail = lines.slice(-200);
+			process.stdout.write(`[agent-host-e2e] --- Copilot runtime log for failed test "${label}" (${newest.full}; last ${tail.length} of ${lines.length} lines) ---\n`);
+			for (const ln of tail) {
+				process.stdout.write(`[agent-host-e2e] # ${ln}\n`);
+			}
+			process.stdout.write('[agent-host-e2e] --- end Copilot runtime log ---\n');
+		} catch {
+			// never let diagnostics break teardown
+		}
 	}
 
 	/**

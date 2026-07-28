@@ -6,37 +6,33 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Try to read missing.txt. If it does not exist, reply exactly "missing".
+          content: Try to read missing.txt. If it does not exist, reply exactly "missing". Use your file tools rather than running a shell command.
     response:
       content:
         - type: tool_use
           id: toolcall_0
-          name: bash
+          name: view
           input:
-            command: cat missing.txt 2>&1
-            description: Try to read missing.txt
+            path: ${workdir}/missing.txt
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: Try to read missing.txt. If it does not exist, reply exactly "missing".
+          content: Try to read missing.txt. If it does not exist, reply exactly "missing". Use your file tools rather than running a shell command.
         - role: assistant
           content:
             - type: thinking
             - type: tool_use
-              name: bash
+              name: view
               input:
-                command: cat missing.txt 2>&1
-                description: Try to read missing.txt
+                path: ${workdir}/missing.txt
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: |-
-                cat: missing.txt: No such file or directory
-                <shellId: 0 completed with exit code 1>
+              content: Path ${workdir}/missing.txt does not exist. Please provide a valid path.
     response:
       content: missing
       stopReason: end_turn

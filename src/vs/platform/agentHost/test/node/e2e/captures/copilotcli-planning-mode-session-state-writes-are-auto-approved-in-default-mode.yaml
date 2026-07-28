@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.6
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
@@ -11,30 +11,25 @@ exchanges:
       content:
         - type: tool_use
           id: toolcall_0
-          name: report_intent
-          input:
-            intent: Planning Python script
-        - type: tool_use
-          id: toolcall_1
           name: create
           input:
             path: ${homedir}/.copilot/session-state/${uuid_0}/plan.md
             file_text: |
-              # Plan
+              # Plan: Hello World Script
 
-              Create `hello.py` that prints "hello world" to stdout.
+              Create `hello.py` that prints `hello world` to stdout.
+
+              ## Todos
+              - create-hello-script: Create hello.py with `print("hello world")`
         - type: tool_use
-          id: toolcall_2
+          id: toolcall_1
           name: sql
           input:
             description: Insert hello world todo
-            query: INSERT INTO todos (id, title, description) VALUES ('create-hello-py', 'Creating hello.py script', 'Create hello.py with print("hello world")');
+            query: INSERT INTO todos (id, title, description, status) VALUES ('create-hello-script', 'Creating hello world script', 'Create hello.py in the workspace root containing print("hello world")', 'pending')
       stopReason: tool_use
-      usage:
-        inputTokens: 3
-        outputTokens: 287
   - request:
-      model: claude-opus-4.6
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
@@ -43,50 +38,39 @@ exchanges:
           content:
             - type: thinking
             - type: tool_use
-              name: report_intent
-              input:
-                intent: Planning Python script
-            - type: tool_use
               name: create
               input:
                 path: ${homedir}/.copilot/session-state/${uuid_0}/plan.md
                 file_text: |
-                  # Plan
+                  # Plan: Hello World Script
 
-                  Create `hello.py` that prints "hello world" to stdout.
+                  Create `hello.py` that prints `hello world` to stdout.
+
+                  ## Todos
+                  - create-hello-script: Create hello.py with `print("hello world")`
             - type: tool_use
               name: sql
               input:
                 description: Insert hello world todo
-                query: INSERT INTO todos (id, title, description) VALUES ('create-hello-py', 'Creating hello.py script', 'Create hello.py with print("hello world")');
+                query: INSERT INTO todos (id, title, description, status) VALUES ('create-hello-script', 'Creating hello world script', 'Create hello.py in the workspace root containing print("hello world")', 'pending')
         - role: user
           content:
             - type: tool_result
-              tool_use_id: toolcall_0
-              content: Intent logged
-            - type: tool_result
-              tool_use_id: toolcall_2
+              tool_use_id: toolcall_1
               content: '1 row(s) inserted. Last inserted row ID: 1.'
             - type: tool_result
-              tool_use_id: toolcall_1
-              content: Created file ${homedir}/.copilot/session-state/${uuid_0}/plan.md with 63 characters
+              tool_use_id: toolcall_0
+              content: Created file ${homedir}/.copilot/session-state/${uuid_0}/plan.md with 160 characters
     response:
       content:
         - type: tool_use
-          id: toolcall_3
+          id: toolcall_2
           name: exit_plan_mode
           input:
-            summary: '- Create `hello.py` with `print("hello world")`'
-            actions:
-              - autopilot
-              - exit_only
-            recommendedAction: autopilot
+            summary: '- Create `hello.py` with a single line: `print("hello world")`'
       stopReason: tool_use
-      usage:
-        inputTokens: 45
-        outputTokens: 116
   - request:
-      model: claude-opus-4.6
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
@@ -95,59 +79,48 @@ exchanges:
           content:
             - type: thinking
             - type: tool_use
-              name: report_intent
-              input:
-                intent: Planning Python script
-            - type: tool_use
               name: create
               input:
                 path: ${homedir}/.copilot/session-state/${uuid_0}/plan.md
                 file_text: |
-                  # Plan
+                  # Plan: Hello World Script
 
-                  Create `hello.py` that prints "hello world" to stdout.
+                  Create `hello.py` that prints `hello world` to stdout.
+
+                  ## Todos
+                  - create-hello-script: Create hello.py with `print("hello world")`
             - type: tool_use
               name: sql
               input:
                 description: Insert hello world todo
-                query: INSERT INTO todos (id, title, description) VALUES ('create-hello-py', 'Creating hello.py script', 'Create hello.py with print("hello world")');
+                query: INSERT INTO todos (id, title, description, status) VALUES ('create-hello-script', 'Creating hello world script', 'Create hello.py in the workspace root containing print("hello world")', 'pending')
         - role: user
           content:
             - type: tool_result
-              tool_use_id: toolcall_0
-              content: Intent logged
-            - type: tool_result
-              tool_use_id: toolcall_2
+              tool_use_id: toolcall_1
               content: '1 row(s) inserted. Last inserted row ID: 1.'
             - type: tool_result
-              tool_use_id: toolcall_1
-              content: Created file ${homedir}/.copilot/session-state/${uuid_0}/plan.md with 63 characters
+              tool_use_id: toolcall_0
+              content: Created file ${homedir}/.copilot/session-state/${uuid_0}/plan.md with 160 characters
         - role: assistant
           content:
             - type: tool_use
               name: exit_plan_mode
               input:
-                summary: '- Create `hello.py` with `print("hello world")`'
-                actions:
-                  - autopilot
-                  - exit_only
-                recommendedAction: autopilot
+                summary: '- Create `hello.py` with a single line: `print("hello world")`'
         - role: user
           content:
             - type: tool_result
-              tool_use_id: toolcall_3
+              tool_use_id: toolcall_2
               content: |-
                 Plan approved! Exited plan mode.
 
                 You are now in interactive mode without automatic execution (wait for the user's next prompt). Wait for the user to prompt you before taking any action.
     response:
-      content: Ready to implement when you say go.
+      content: Plan approved. Let me know when you'd like me to create `hello.py` with `print("hello world")`.
       stopReason: end_turn
-      usage:
-        inputTokens: 1
-        outputTokens: 11
   - request:
-      model: claude-opus-4.6
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
@@ -156,65 +129,47 @@ exchanges:
           content:
             - type: thinking
             - type: tool_use
-              name: report_intent
-              input:
-                intent: Planning Python script
-            - type: tool_use
               name: create
               input:
                 path: ${homedir}/.copilot/session-state/${uuid_0}/plan.md
                 file_text: |
-                  # Plan
+                  # Plan: Hello World Script
 
-                  Create `hello.py` that prints "hello world" to stdout.
+                  Create `hello.py` that prints `hello world` to stdout.
+
+                  ## Todos
+                  - create-hello-script: Create hello.py with `print("hello world")`
             - type: tool_use
               name: sql
               input:
                 description: Insert hello world todo
-                query: INSERT INTO todos (id, title, description) VALUES ('create-hello-py', 'Creating hello.py script', 'Create hello.py with print("hello world")');
+                query: INSERT INTO todos (id, title, description, status) VALUES ('create-hello-script', 'Creating hello world script', 'Create hello.py in the workspace root containing print("hello world")', 'pending')
         - role: user
           content:
             - type: tool_result
-              tool_use_id: toolcall_0
-              content: Intent logged
-            - type: tool_result
-              tool_use_id: toolcall_2
+              tool_use_id: toolcall_1
               content: '1 row(s) inserted. Last inserted row ID: 1.'
             - type: tool_result
-              tool_use_id: toolcall_1
-              content: Created file ${homedir}/.copilot/session-state/${uuid_0}/plan.md with 63 characters
+              tool_use_id: toolcall_0
+              content: Created file ${homedir}/.copilot/session-state/${uuid_0}/plan.md with 160 characters
         - role: assistant
           content:
             - type: tool_use
               name: exit_plan_mode
               input:
-                summary: '- Create `hello.py` with `print("hello world")`'
-                actions:
-                  - autopilot
-                  - exit_only
-                recommendedAction: autopilot
+                summary: '- Create `hello.py` with a single line: `print("hello world")`'
         - role: user
           content:
             - type: tool_result
-              tool_use_id: toolcall_3
+              tool_use_id: toolcall_2
               content: |-
                 Plan approved! Exited plan mode.
 
                 You are now in interactive mode without automatic execution (wait for the user's next prompt). Wait for the user to prompt you before taking any action.
         - role: assistant
-          content: Ready to implement when you say go.
+          content: Plan approved. Let me know when you'd like me to create `hello.py` with `print("hello world")`.
         - role: user
-          content: |-
-            <tools_changed_notice>
-            Tools no longer available: exit_plan_mode
-
-            Important: Do not attempt to call tools that are no longer available unless you've been notified that they're available again.
-            </tools_changed_notice>
-
-            What did the plan I just approved say to print? Reply with exactly "hello world".
+          content: What did the plan I just approved say to print? Reply with exactly "hello world".
     response:
       content: hello world
       stopReason: end_turn
-      usage:
-        inputTokens: 3
-        outputTokens: 5

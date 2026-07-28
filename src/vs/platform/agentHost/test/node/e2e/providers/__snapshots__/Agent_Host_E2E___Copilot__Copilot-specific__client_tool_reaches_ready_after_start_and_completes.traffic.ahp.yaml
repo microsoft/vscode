@@ -168,7 +168,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: The magic word is **XYLOPHONE**.
+            content: 'The magic word is: **XYLOPHONE**'
       - channel: ${session_0}
         action:
           type: session/metaChanged

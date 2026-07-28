@@ -70,8 +70,12 @@ function createAgentFeedbackService(): IAgentFeedbackService {
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
+		override readonly onDidChangeFeedbackScope = Event.None;
 		override getSessionForFile(resource: URI): ISession | undefined {
 			return resource.toString() === MODIFIED_FIRST_RESOURCE.toString() ? session : undefined;
+		}
+		override getFeedbackSessionResource(resource: URI): URI | undefined {
+			return resource.toString() === MODIFIED_FIRST_RESOURCE.toString() ? SESSION_RESOURCE : undefined;
 		}
 		override getFeedback() {
 			return [];

@@ -142,7 +142,7 @@ interface IGroupedContext {
 	readonly placed: Set<string>;
 	readonly showGroupLabel: boolean;
 	readonly makePinAction: (model: ILanguageModelChatMetadataAndIdentifier) => ReturnType<typeof createPinAction> | undefined;
-	markPlaced(identifierOrId: string, metadataId?: string): void;
+	markPlaced(identifierOrId: string): void;
 }
 
 function createGroupedContext(options: IBuildModelPickerItemsOptions): IGroupedContext {
@@ -163,12 +163,7 @@ function createGroupedContext(options: IBuildModelPickerItemsOptions): IGroupedC
 		makePinAction: model => options.actions.onTogglePin
 			? createPinAction(model.identifier, options.pinnedModelIds.includes(model.identifier), options.actions.onTogglePin)
 			: undefined,
-		markPlaced: (identifierOrId, metadataId) => {
-			placed.add(identifierOrId);
-			if (metadataId) {
-				placed.add(metadataId);
-			}
-		},
+		markPlaced: identifierOrId => placed.add(identifierOrId),
 	};
 }
 
@@ -179,13 +174,13 @@ function appendLeadingModels(context: IGroupedContext): ILanguageModelChatMetada
 		items.push(createSyntheticAutoItem());
 	}
 	if (autoModel) {
-		context.markPlaced(autoModel.identifier, autoModel.metadata.id);
+		context.markPlaced(autoModel.identifier);
 		const { action, ariaDescription } = createModelAction(autoModel, options.selectedModelId, options.actions.onSelect);
 		items.push(createModelItem(action, autoModel, options.openerService, undefined, options.presentation.isUBB, ariaDescription));
 	}
 	for (const model of options.models) {
-		if (!context.placed.has(model.identifier) && !context.placed.has(model.metadata.id) && ILanguageModelChatMetadata.hasPromoDiscount(model.metadata)) {
-			context.markPlaced(model.identifier, model.metadata.id);
+		if (!context.placed.has(model.identifier) && ILanguageModelChatMetadata.hasPromoDiscount(model.metadata)) {
+			context.markPlaced(model.identifier);
 			const { action, ariaDescription } = createModelAction(model, options.selectedModelId, options.actions.onSelect);
 			items.push(createModelItem(action, model, options.openerService, undefined, options.presentation.isUBB, ariaDescription));
 		}
@@ -200,7 +195,7 @@ function appendPinnedModels(context: IGroupedContext): Set<string> {
 	for (const id of options.pinnedModelIds) {
 		const model = context.resolveModel(id);
 		if (!context.placed.has(id) && model && !context.placed.has(model.identifier)) {
-			context.markPlaced(model.identifier, model.metadata.id);
+			context.markPlaced(model.identifier);
 			pinnedModels.push(model);
 		}
 	}
@@ -233,7 +228,7 @@ function appendPromotedModels(context: IGroupedContext, autoModel: ILanguageMode
 		}
 		const model = context.resolveModel(id);
 		if (model && !context.placed.has(model.identifier)) {
-			context.markPlaced(model.identifier, model.metadata.id);
+			context.markPlaced(model.identifier);
 			const entry = options.controlModels[model.metadata.id];
 			if (entry?.minVSCodeVersion && !isVersionAtLeast(options.currentVSCodeVersion, entry.minVSCodeVersion)) {
 				promoted.push({ kind: 'unavailable', id: model.metadata.id, entry, reason: 'update' });
@@ -270,11 +265,11 @@ function appendPromotedModels(context: IGroupedContext, autoModel: ILanguageMode
 			if (model && !context.placed.has(model.identifier)) {
 				if (entry.minVSCodeVersion && !isVersionAtLeast(options.currentVSCodeVersion, entry.minVSCodeVersion)) {
 					if (options.presentation.showUnavailableFeatured) {
-						context.markPlaced(model.identifier, model.metadata.id);
+						context.markPlaced(model.identifier);
 						promoted.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
 					}
 				} else {
-					context.markPlaced(model.identifier, model.metadata.id);
+					context.markPlaced(model.identifier);
 					promoted.push({ kind: 'available', model });
 				}
 			} else if (!model && !entry.exists && options.presentation.showUnavailableFeatured) {
@@ -308,7 +303,7 @@ function appendPromotedModels(context: IGroupedContext, autoModel: ILanguageMode
 
 function appendOtherModels(context: IGroupedContext): boolean {
 	const { options, items } = context;
-	const otherModels = options.models.filter(model => !context.placed.has(model.identifier) && !context.placed.has(model.metadata.id));
+	const otherModels = options.models.filter(model => !context.placed.has(model.identifier));
 	if (otherModels.length === 0) {
 		return false;
 	}

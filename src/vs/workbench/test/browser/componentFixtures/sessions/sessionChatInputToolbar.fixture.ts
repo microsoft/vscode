@@ -131,7 +131,9 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 				}());
 				reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 					override readonly onDidChangeFeedback = Event.None;
+					override readonly onDidChangeFeedbackScope = Event.None;
 					override getFeedback() { return []; }
+					override getFeedbackSessionResource() { return undefined; }
 				}());
 			}
 		},
