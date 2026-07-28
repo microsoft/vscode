@@ -51,11 +51,11 @@
 }
 
 /* ---- Sticky prompt header ------------------------------------------------------------------
- * A flat, opaque band pinned to the top of the transcript (editor "sticky scroll" pattern): it
- * shares the transcript surface, carries only a hairline bottom border and a soft downward shadow,
- * and names the prompt currently scrolled off the top. Independent of the rail: `.hidden` (toggled
- * in JS once a prompt is pinned, alongside the `inert` attribute) drives the reveal, so it also
- * works in header-only mode. */
+ * A flat, opaque band pinned to the top of the transcript (editor "sticky scroll" pattern). The outer
+ * element only handles positioning and the reveal; the visible band (background/border/shadow) lives on
+ * the centered content element so it matches the transcript's message column instead of bleeding to the
+ * window edges. Independent of the rail: `.hidden` (toggled in JS once a prompt is pinned, alongside the
+ * `inert` attribute) drives the reveal, so it also works in header-only mode. */
 .prompt-timeline-sticky {
 	position: absolute;
 	top: 0;
@@ -66,9 +66,6 @@
 	transform: translateY(-6px);
 	transition: opacity 140ms ease, transform 140ms ease;
 	pointer-events: none;
-	border-bottom: 1px solid var(--vscode-agentsPanel-border, transparent);
-	background: var(--vscode-agentsPanel-background);
-	box-shadow: 0 6px 6px -6px var(--vscode-widget-shadow, transparent);
 	color: var(--vscode-foreground);
 }
 
@@ -78,48 +75,69 @@
 	pointer-events: auto;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.prompt-timeline-sticky {
-		transition: none;
-		transform: none;
-	}
+/* Reduced motion follows the workbench-managed `.monaco-reduce-motion` class rather than the
+ * `prefers-reduced-motion` media query: the class tracks the effective `workbench.reduceMotion`
+ * setting, which can force motion on or off independently of the OS preference. */
+.monaco-reduce-motion .prompt-timeline-sticky {
+	transition: none;
+	transform: none;
 }
 
 /* High-contrast themes rely on the explicit contrast border and suppress decorative shadows. */
-.hc-black .prompt-timeline-sticky,
-.hc-light .prompt-timeline-sticky {
+.hc-black .prompt-timeline-sticky-band,
+.hc-light .prompt-timeline-sticky-band {
 	box-shadow: none;
 }
 
-/* Match the transcript's centered message column (chatView.css: max-width 950, margin auto, 32px inset)
- * so the pinned prompt aligns with the prompts underneath. The right inset matches the column too:
- * 32px normally, widened to clear the rail lane when the rail is present. */
+/* The centered host mirrors the session header: the shared centered-content width (sessionView.css:
+ * .session-view-centered-content / --session-view-centered-content-max-width) with the header bar's
+ * 10px side padding (chatCompositeBar.css: .chat-composite-bar.session-header-bar). The band inside
+ * fills the padded area. */
 .prompt-timeline-sticky-content {
+	display: flex;
+	max-width: var(--session-view-centered-content-max-width, 950px);
+	margin: 0 auto;
+	padding: 0 10px;
+	box-sizing: border-box;
+}
+
+/* The visible band mirrors .chat-composite-bar-header: it fills the padded host and carries the
+ * background, hairline side and bottom border, and soft shadow, so it lines up with the header above.
+ * The top is left open so it reads as anchored to the top of the transcript. The left inset matches the
+ * header's status-icon column (codicon size + 6px gap) so the prompt text aligns with the title and the
+ * prompts below. It overlays scrolling transcript rows, so it stays opaque by compositing the
+ * (translucent) chat request-bubble tint over the opaque panel base. */
+.prompt-timeline-sticky-band {
 	display: flex;
 	align-items: center;
 	gap: 6px;
+	flex: 1 1 auto;
+	min-width: 0;
 	height: 30px;
 	box-sizing: border-box;
-	max-width: 950px;
-	margin: 0 auto;
-	padding-left: 32px;
-	padding-right: 32px;
+	padding-left: calc(var(--vscode-codiconFontSize, 16px) + 6px);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border, transparent);
+	border-top: none;
+	border-radius: 0 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-agentsPanel-background);
+	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
+	box-shadow: 0 6px 6px -6px var(--vscode-widget-shadow, transparent);
+	color: var(--vscode-foreground);
 }
 
-.prompt-timeline-host.prompt-timeline-with-rail .prompt-timeline-sticky-content {
-	padding-right: calc(var(--prompt-timeline-rail-width) + var(--prompt-timeline-content-gap) + var(--prompt-timeline-scrollbar-gutter));
-}
-
-/* The label area names the pinned prompt and opens the prompt picker when activated. */
+/* The label area names the pinned prompt and reveals it when activated. The horizontal padding gives
+ * the hover background breathing room; the matching negative left margin keeps the label text aligned
+ * with the prompts scrolling underneath. */
 .prompt-timeline-sticky-label-button {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 	flex: 1 1 auto;
 	min-width: 0;
-	height: 100%;
-	padding: 0;
+	padding: 4px 8px;
+	margin-left: -8px;
 	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: none;
 	color: inherit;
 	font: inherit;
@@ -127,7 +145,25 @@
 	cursor: pointer;
 }
 
+/* The label is a one-line clip viewport; each prompt name is a line that rolls in/out on change.
+ * It stretches to the button's height (kept by the count sibling) so the absolutely-positioned lines
+ * have room to roll. */
 .prompt-timeline-sticky-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	align-self: stretch;
+	position: relative;
+	overflow: hidden;
+}
+
+.prompt-timeline-sticky-label-line {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+}
+
+.prompt-timeline-sticky-label-text {
 	flex: 1 1 auto;
 	min-width: 0;
 	overflow: hidden;
@@ -135,11 +171,12 @@
 	text-overflow: ellipsis;
 }
 
-/* The label is the picker target, so underline the prompt text on hover/focus to distinguish it from
- * the static header. Underline (rather than a background) keeps the text aligned with the prompts below. */
-.prompt-timeline-sticky-label-button:hover .prompt-timeline-sticky-label,
-.prompt-timeline-sticky-label-button:focus-visible .prompt-timeline-sticky-label {
-	text-decoration: underline;
+/* Cover the band tint with the opaque base first, then composite the request-bubble hover token so it
+ * matches the standard bubble hover instead of stacking over the band's own tint. */
+.prompt-timeline-sticky-label-button:hover,
+.prompt-timeline-sticky-label-button:focus-visible {
+	background-color: var(--vscode-agentsPanel-background);
+	background-image: linear-gradient(var(--vscode-chat-requestBubbleHoverBackground, var(--vscode-toolbar-hoverBackground)), var(--vscode-chat-requestBubbleHoverBackground, var(--vscode-toolbar-hoverBackground)));
 }
 
 .prompt-timeline-sticky-count {
@@ -320,10 +357,8 @@
 	opacity: 1;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.prompt-timeline-ruler-marks {
-		transition: none;
-	}
+.monaco-reduce-motion .prompt-timeline-ruler-marks {
+	transition: none;
 }
 
 /* Each mark is a >=24px hit target positioned at its proportional scroll offset. */
@@ -351,10 +386,8 @@
 	transition: top 200ms ease;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.prompt-timeline-ruler-marks.glide .prompt-timeline-ruler-mark {
-		transition: none;
-	}
+.monaco-reduce-motion .prompt-timeline-ruler-marks.glide .prompt-timeline-ruler-mark {
+	transition: none;
 }
 
 /* The visible mark: a short bar, neutral unless the turn changed code. */
@@ -377,14 +410,12 @@
 	transition: transform 90ms ease;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.prompt-timeline-ruler-bar {
-		transition: width 80ms ease, height 80ms ease, background-color 80ms ease;
-	}
+.monaco-reduce-motion .prompt-timeline-ruler-bar {
+	transition: width 80ms ease, height 80ms ease, background-color 80ms ease;
+}
 
-	.prompt-timeline-ruler-mark {
-		transition: none;
-	}
+.monaco-reduce-motion .prompt-timeline-ruler-mark {
+	transition: none;
 }
 
 /* Two-tone edited signal: a green added segment and a red removed segment, sized by the turn's split. */
@@ -442,24 +473,30 @@
 	outline-offset: 2px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.prompt-timeline-ruler-bar {
-		transition: none;
-	}
+.monaco-reduce-motion .prompt-timeline-ruler-bar {
+	transition: none;
 }
 
 /* ---- Dock rail ------------------------------------------------------------------------------
  * A minimal alternative to the overview ruler, pinned to the transcript's LEFT edge. At rest it is
- * a small handle (one dot per prompt) sitting in the left gutter; hovering, tapping, or
- * keyboard-activating it expands a flyout that lists every prompt. Unlike the ruler it is not tied
- * to scroll position, so it stays stable while the transcript virtualizes. The handle lives in the
- * existing left inset, so no content reservation is needed. */
+ * a small handle (one dot per prompt, the current prompt's dot accented) sitting in the left gutter;
+ * hovering, tapping, or keyboard-activating it expands a flyout to the right of the dots that lists
+ * every prompt. The dots stay visible while the flyout is open, so they double as a scrubber: each
+ * one previews its prompt in the list. Unlike the ruler the list is not tied to scroll position, so
+ * it stays stable while the transcript virtualizes. The handle lives in the existing left inset, so
+ * no content reservation is needed. */
 .prompt-timeline-rail.prompt-timeline-rail-dock {
 	left: 0;
 	right: auto;
 	/* Wide enough to host the flyout as a hover surface; the rail itself is pointer-transparent and
 	 * only its children (the handle and the flyout) opt back in. */
 	width: 300px;
+	/* The handle's geometry, shared with the flyout so the two are laid out flush: the flyout starts
+	 * exactly at the handle's right edge, making them one contiguous hover region. Without that the
+	 * pointer would cross a dead gap between them and the flyout would collapse mid-travel. */
+	--prompt-timeline-dock-handle-left: 4px;
+	/* Horizontal padding (2 * 6px) plus the dot width (4px) — the handle's widest child. */
+	--prompt-timeline-dock-handle-width: 16px;
 }
 
 /* Too narrow to place the handle beside the content: hide it (the native scrollbar remains). */
@@ -468,11 +505,12 @@
 	display: none;
 }
 
-/* The resting handle: a disclosure button carrying one neutral dot per prompt, vertically centred
- * against the transcript. It carries no count text or diff colour — deliberately quiet. */
+/* The resting handle: a disclosure button carrying one dot per prompt, vertically centred against the
+ * transcript. Apart from the accented "you are here" dot it carries no count text or diff colour —
+ * deliberately quiet. */
 .prompt-timeline-dock-rest {
 	position: absolute;
-	left: 4px;
+	left: var(--prompt-timeline-dock-handle-left);
 	top: 50%;
 	transform: translateY(-50%);
 	display: flex;
@@ -487,12 +525,13 @@
 	font: inherit;
 	pointer-events: auto;
 	cursor: pointer;
-	opacity: 1;
-	transition: opacity 140ms ease, transform 140ms ease, background-color 140ms ease;
+	transition: background-color 140ms ease;
 }
 
-.prompt-timeline-dock-rest:hover {
-	transform: translateY(-50%) translateX(1px);
+/* Hover only tints the background: nudging the handle would move it out from under a pointer
+ * arriving from the left, which re-triggers hover and flickers. */
+.prompt-timeline-dock-rest:hover,
+.prompt-timeline-rail-dock.revealed .prompt-timeline-dock-rest {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
@@ -501,29 +540,35 @@
 	outline-offset: 1px;
 }
 
-/* The flyout takes over on reveal; fade the handle out so they don't overlap. Reveal is driven by
- * the JS-managed `.revealed` class (hover or explicit disclosure), not `:focus-within`, so returning
- * focus to the handle after activation collapses the flyout instead of pinning it open. */
-.prompt-timeline-rail-dock.revealed .prompt-timeline-dock-rest {
-	opacity: 0;
-	pointer-events: none;
-}
-
 .prompt-timeline-dock-dot {
 	width: 4px;
 	height: 4px;
 	border-radius: 50%;
 	background-color: var(--vscode-descriptionForeground);
 	opacity: 0.55;
-	transition: opacity 140ms ease;
+	transition: opacity 140ms ease, transform 140ms ease, background-color 140ms ease;
 }
 
 .prompt-timeline-dock-rest:hover .prompt-timeline-dock-dot {
 	opacity: 1;
 }
 
-/* Overflow marker shown when there are more prompts than dots: a short vertical bar reading as
- * "…and more", dimmer than the dots so it recedes. */
+/* "You are here": the dot for the prompt the transcript is scrolled to takes the accent, so the
+ * resting handle doubles as a position indicator that tracks scrolling. */
+.prompt-timeline-dock-dot.active {
+	background-color: var(--vscode-focusBorder);
+	opacity: 1;
+	transform: scale(1.5);
+}
+
+/* The dot under the pointer — its prompt is the one previewed in the flyout. */
+.prompt-timeline-dock-dot.preview {
+	opacity: 1;
+	transform: scale(1.5);
+}
+
+/* Overflow marker shown when the dots are sampled rather than one-per-prompt: a short vertical bar
+ * reading as "…and more", dimmer than the dots so it recedes. */
 .prompt-timeline-dock-dot-more {
 	width: 2px;
 	height: 8px;
@@ -537,20 +582,28 @@
 	opacity: 0.7;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.prompt-timeline-dock-rest {
-		transition: opacity 140ms ease;
-	}
+.monaco-reduce-motion .prompt-timeline-dock-dot {
+	transition: opacity 140ms ease, background-color 140ms ease;
 }
 
-/* The flyout: a hover-card-styled popover listing the prompts. Hidden at rest (kept in the DOM and
- * only faded, so its rows stay keyboard-focusable), and pointer-transparent so the resting state
- * never blocks the transcript. Visibility is driven by the JS-managed `.revealed` class. */
+.monaco-reduce-motion .prompt-timeline-dock-dot.active,
+.monaco-reduce-motion .prompt-timeline-dock-dot.preview {
+	transform: none;
+}
+
+/* The flyout: a hover-card-styled popover listing the prompts, placed to the RIGHT of the dots so the
+ * handle stays visible (and hoverable, dot by dot) while it is open. Hidden at rest (kept in the DOM
+ * and only faded, so its rows stay keyboard-focusable), and pointer-transparent so the resting state
+ * never blocks the transcript. Visibility is driven by the JS-managed `.revealed` class. It grows out
+ * of its left edge rather than sliding: any horizontal travel would move the surface out from under
+ * the pointer that opened it, which reads as a flicker. */
 .prompt-timeline-dock-panel {
 	position: absolute;
-	left: 8px;
+	/* Flush against the handle's right edge, so the two form one contiguous hover region and
+	 * travelling from a dot into the list never crosses a dead gap. */
+	left: calc(var(--prompt-timeline-dock-handle-left) + var(--prompt-timeline-dock-handle-width));
 	top: 50%;
-	transform: translate(-6px, -50%) scale(0.98);
+	transform: translateY(-50%) scale(0.98);
 	transform-origin: left center;
 	display: flex;
 	flex-direction: column;
@@ -572,19 +625,17 @@
 
 .prompt-timeline-rail-dock.revealed .prompt-timeline-dock-panel {
 	opacity: 1;
-	transform: translate(0, -50%) scale(1);
+	transform: translateY(-50%) scale(1);
 	pointer-events: auto;
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.prompt-timeline-dock-panel {
-		transition: opacity 140ms ease;
-		transform: translateY(-50%);
-	}
+.monaco-reduce-motion .prompt-timeline-dock-panel {
+	transition: opacity 140ms ease;
+	transform: translateY(-50%);
+}
 
-	.prompt-timeline-rail-dock.revealed .prompt-timeline-dock-panel {
-		transform: translateY(-50%);
-	}
+.monaco-reduce-motion .prompt-timeline-rail-dock.revealed .prompt-timeline-dock-panel {
+	transform: translateY(-50%);
 }
 
 /* High-contrast themes suppress the decorative shadow and lean on the explicit border. */
@@ -609,7 +660,10 @@
 	cursor: pointer;
 }
 
-.prompt-timeline-dock-row:hover {
+/* `.preview` is the row a hovered dot points at: it takes the same plain hover tint, since the
+ * highlight alone is enough to tie it back to the dot under the pointer. */
+.prompt-timeline-dock-row:hover,
+.prompt-timeline-dock-row.preview {
 	background-color: var(--vscode-list-hoverBackground);
 }
 

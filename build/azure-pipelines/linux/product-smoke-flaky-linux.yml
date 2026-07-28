@@ -39,6 +39,7 @@ jobs:
           VSCODE_ARCH: x64
           VSCODE_CIBUILD: true
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+          VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: true
 
       - script: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
         env:

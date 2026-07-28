@@ -35,7 +35,7 @@ import { SingleSlotTtlCache, TtlCache } from '../common/ttlCache';
 import { isUntitledSessionId } from '../common/utils';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
 import { CONTINUE_TRUNCATION, extractTitle, getAuthorDisplayName, getRepoId, isActiveTaskState, SessionIdForPr, SessionIdForTask, toOpenPullRequestWebviewUri, truncatePrompt } from '../vscode/copilotCodingAgentUtils';
-import { CloudAgentBackend, PullArtifactRef, TaskCloudAgentBackend, TaskContent } from '../vscode/cloudAgentBackend';
+import { CloudAgentBackend, CloudSessionData, PullArtifactRef, TaskCloudAgentBackend, TaskContent } from '../vscode/cloudAgentBackend';
 import { CopilotCloudGitOperationsManager } from './copilotCloudGitOperationsManager';
 import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotCloudSessionContentBuilder';
 import { StreamBaseline, TaskTurnStreamer } from './taskTurnStreamer';
@@ -139,6 +139,18 @@ export function normalizeInitialSessionOptions(initialOptions: unknown, logServi
 
 	logService?.warn(`[chatParticipantImpl] Ignoring unsupported initialSessionOptions for ${chatResource?.toString() ?? 'unknown-resource'}. Received ${describeRuntimeValue(initialOptions)}.`);
 	return [];
+}
+
+export function getCloudSessionItemMetadata(repo: CloudSessionData['repo'], diffRefs: CloudSessionData['diffRefs']): { readonly owner: string; readonly name: string; readonly host?: string; readonly branch?: string } | undefined {
+	if (!repo) {
+		return undefined;
+	}
+	return {
+		owner: repo.owner,
+		name: repo.name,
+		...(repo.host ? { host: repo.host } : {}),
+		...(diffRefs?.headRef ? { branch: diffRefs.headRef } : {}),
+	};
 }
 
 export function parseSessionLogChunksSafely(rawText: string, logService: ILogService, parser: (value: string) => SessionResponseLogChunk[]): SessionResponseLogChunk[] {
@@ -1327,12 +1339,13 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					const changes = entry.diffRefs
 						? await this._prFileChangesService.getComparisonChangedFiles(entry.diffRefs)
 						: undefined;
+					const metadata = getCloudSessionItemMetadata(entry.repo, entry.diffRefs);
 					return {
 						resource: vscode.Uri.from({ scheme: CopilotCloudSessionsProvider.TYPE, path: '/' + SessionIdForTask.getId(taskId) }),
 						label: entry.latestSession.name || taskId,
 						status,
 						...(changes?.length ? { changes } : {}),
-						...(entry.repo ? { metadata: { owner: entry.repo.owner, name: entry.repo.name } } : {}),
+						...(metadata ? { metadata } : {}),
 						...(createdAt ? {
 							timing: {
 								created: createdAt,

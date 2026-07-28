@@ -965,6 +965,8 @@
 		"--prompt-timeline-rail-width",
 		"--prompt-timeline-content-gap",
 		"--prompt-timeline-scrollbar-gutter",
+		"--prompt-timeline-dock-handle-left",
+		"--prompt-timeline-dock-handle-width",
 		"--chat-editing-last-edit-shift",
 		"--chat-voice-icon-glow-color",
 		"--sessions-voice-icon-glow-color",
@@ -1103,8 +1105,10 @@
 		"--slide-from-y"
 	],
 	"sizes": [
+		"--segmented-icon-toggle-cell-radius",
 		"--segmented-icon-toggle-cell-width",
 		"--segmented-icon-toggle-height",
+		"--segmented-icon-toggle-radius",
 		"--segmented-icon-toggle-single-width",
 		"--segmented-icon-toggle-width",
 		"--vscode-agents-fontSize-body1",

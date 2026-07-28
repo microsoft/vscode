@@ -16,6 +16,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { LocalAgentHostServiceClient } from '../../../../platform/agentHost/electron-browser/localAgentHostService.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { EditorRemoteAgentHostServiceClient } from '../browser/editorRemoteAgentHostServiceClient.js';
@@ -36,7 +37,10 @@ class WorkbenchAgentHostService {
 	) {
 		const inner = environmentService.remoteAuthority
 			? instantiationService.createInstance(EditorRemoteAgentHostServiceClient)
-			: instantiationService.createInstance(LocalAgentHostServiceClient);
+			: instantiationService.createInstance(
+				LocalAgentHostServiceClient,
+				environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo,
+			);
 		return inner as unknown as WorkbenchAgentHostService;
 	}
 }

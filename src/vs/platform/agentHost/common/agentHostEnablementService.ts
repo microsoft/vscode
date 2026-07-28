@@ -23,9 +23,8 @@ export const IAgentHostEnablementService = createDecorator<IAgentHostEnablementS
 export interface IAgentHostEnablementService {
 	readonly _serviceBrand: undefined;
 	/**
-	 * Whether the local agent host process is enabled in this runtime.
-	 * Returns `false` on web and can transition from `false` to `true` once
-	 * when a cached startup experiment is applied.
+	 * Whether Agent Host features are enabled in this runtime.
+	 * This can transition from `false` to `true` when a startup experiment is applied or AI features are explicitly enabled.
 	 */
 	readonly enabled: IObservable<boolean>;
 }
