@@ -15,6 +15,7 @@ import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IVoiceToolCall } from '../../common/voiceClient/voiceClientService.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 
 /**
  * Callbacks that require access to the chat widget or view state.
@@ -206,6 +207,16 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 							}
 						}
 					}
+					// Session not loaded — acquire it so we can confirm the tool invocation
+					if (!model && agentSession) {
+						const cts = new CancellationTokenSource();
+						const ref = await this.chatService.acquireOrLoadSession(agentSession.resource, ChatAgentLocation.Chat, cts.token, 'voice-confirm').catch(() => undefined);
+						cts.dispose();
+						if (ref) {
+							model = this.chatService.getSession(agentSession.resource);
+							ref.dispose();
+						}
+					}
 				}
 				if (!model) {
 					// Last resort: use the currently focused session
@@ -221,13 +232,16 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 									? IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction })
 									: IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied });
 								if (confirmed) {
-									break;
+									return toolCall.name === 'approve_confirmation' ? 'approved' : 'rejected';
 								}
 							}
 						}
 					}
+					// Found a model but no tool invocation was awaiting confirmation.
+					return 'no pending confirmation';
 				}
-				break;
+				// No target session could be resolved for the confirmation.
+				return 'no session';
 			}
 			case 'auto_approve_session': {
 				delegate.addAllAutoApprovedSessions();

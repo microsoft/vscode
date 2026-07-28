@@ -51,6 +51,7 @@ export interface InstructionsCollectionEvent {
 	claudeAgentsCount: number;
 }
 
+
 export interface IAutomaticInstructionsCollectorContext {
 	readonly tools: Map<vscode.LanguageModelToolInformation, boolean>;
 	readonly modeInstructions2?: vscode.ChatRequestModeInstructions;
@@ -64,12 +65,6 @@ export interface IAutomaticInstructionsCollector {
 }
 
 export const IAutomaticInstructionsCollector = createServiceIdentifier<IAutomaticInstructionsCollector>('IAutomaticInstructionsCollector');
-
-
-// Mirror of `GeneralPurposeAgentName` in core. Kept in sync manually since
-// the constant lives in the workbench layer that the extension does not
-// depend on at runtime.
-const GENERAL_PURPOSE_AGENT_NAME = 'General Purpose';
 
 // Path suffix of the built-in troubleshoot skill. Excluded from the
 // customizations index when agent debug log file logging is disabled,
@@ -539,7 +534,6 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 
 		// ── <agents> section ────────────────────────────────────────────
 		if (runSubagentTool) {
-			const generalPurposeAgentEnabled = this._configurationService.getNonExtensionConfig<boolean>(PromptConfig.GENERAL_PURPOSE_AGENT_ENABLED) === true;
 			const customAgents = (await this._promptsService.getCustomAgents(token)).filter(a => a.enabled);
 
 			const canInvokeAgent = (agent: vscode.ChatCustomAgent): boolean => {
@@ -553,18 +547,11 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 				return !agent.disableModelInvocation;
 			};
 
-			if (generalPurposeAgentEnabled || customAgents.length > 0) {
+			if (customAgents.length > 0) {
 				lines.push('<agents>');
 				lines.push('Here is a list of agents that can be used when running a subagent.');
 				lines.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
 				lines.push(`Use the ${getToolReferencePromptContent(runSubagentTool)} tool with the agent name to run the subagent.`);
-
-				if (generalPurposeAgentEnabled) {
-					lines.push('<agent>');
-					lines.push(`<name>${GENERAL_PURPOSE_AGENT_NAME}</name>`);
-					lines.push(`<description>Full-capability agent for complex multi-step tasks requiring high-quality reasoning. Has access to the same tools and capabilities as the current agent and inherits the parent agent's model and system prompt. Use for tasks that don't fit a more specialized agent.</description>`);
-					lines.push('</agent>');
-				}
 
 				for (const agent of customAgents) {
 					if (!canInvokeAgent(agent)) {
@@ -857,14 +844,14 @@ export class CustomInstructionsReferenceLogger {
 		const customInstructionsDebugInfo = await this.toCustomInstructionsDebugInfo(references);
 		const span = this._otelService.startSpan('collect_automatic_instructions', {
 			attributes: {
-				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
+				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CONTENT_EVENT,
 				...(sessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: sessionId } : {}),
 			},
 		});
 		span.setAttributes({
-			[CopilotChatAttr.DEBUG_NAME]: `Agent Instructions`,
+			[CopilotChatAttr.DEBUG_NAME]: `Custom Instructions`,
 			'copilot_chat.event_category': 'discovery',
-			'copilot_chat.event_details': ICustomInstructionsDebugInfo.formatCompact(customInstructionsDebugInfo) + (collectInstructionsInExtension ? '\n(collected in extension)' : '\n(collected in core)'),
+			'copilot_chat.event_details': ICustomInstructionsDebugInfo.formatAgentDebugLog(customInstructionsDebugInfo) + (collectInstructionsInExtension ? '\n(collected in extension)' : '\n(collected in core)'),
 		});
 		span.end();
 	}
@@ -937,18 +924,14 @@ namespace ICustomInstructionsDebugInfo {
 	function formatSkillNames(a: string[]): string {
 		return a.map(i => posix.basename(posix.dirname(i))).join(', ');
 	}
-	export function formatCompact(a: ICustomInstructionsDebugInfo): string {
+	export function formatAgentDebugLog(a: ICustomInstructionsDebugInfo): string {
 		const result = [];
-		result.push(`instructions: [${a.instructions.length} entries]`);
-		if (a.instructions.length > 0) {
-			result.push(`(${a.instructions.map(i => posix.basename(i)).join(', ')})`);
-		}
+		result.push(`context included: [${a.instructions.length}] ${formatFileNames(a.instructions)}`);
 		if (a.index) {
-			result.push(`index: {`);
-			result.push(`agents: [${a.index.agents.length}] ${formatFileNames(a.index.agents)}`);
-			result.push(`instructions: [${a.index.instructions.length}] ${formatFileNames(a.index.instructions)}`);
-			result.push(`skills: [${a.index.skills.length}] ${formatSkillNames(a.index.skills)}`);
-			result.push(`}`);
+			result.push(`on-demand loading:`);
+			result.push(` instructions: [${a.index.instructions.length}] ${formatFileNames(a.index.instructions)}`);
+			result.push(` skills: [${a.index.skills.length}] ${formatSkillNames(a.index.skills)}`);
+			result.push(` agents: [${a.index.agents.length}] ${formatFileNames(a.index.agents)}`);
 		}
 		return result.join('\n');
 	}
@@ -988,6 +971,3 @@ namespace ICustomInstructionsDebugInfo {
 		return result.join('\n');
 	}
 }
-
-
-

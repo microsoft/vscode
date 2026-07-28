@@ -123,7 +123,7 @@ A `MutableDisposable` on `LocalSession` ensures repeated `trackModel` calls don'
 - **`createNewChat`** — for the current new session, returns the already-prepared `IChat` and updates `mainChat`. For an existing committed session, creates a subsequent (child) chat linked to the primary via `parentResource`.
 - **`deleteChat`** — removes a single child chat from a multi-chat session after a confirmation dialog; deleting the primary (or the last remaining chat) removes the whole session. An unknown/stale chat URI is a no-op.
 
-A **"Delete..."** session context-menu action (registered in `localChatSessions.contribution.ts`, gated on `LOCAL_PROVIDER_ID`) delegates to the shared `confirmAndDeleteSessions` helper, which confirms and then calls `ISessionsManagementService.deleteSession` (routing to `deleteSession` above).
+Local sessions advertise `capabilities.supportsDelete`, so the shared sessions-list **"Delete..."** action (contributed by the sessions workbench, gated on `SessionSupportsDeleteContext`) confirms and then calls `ISessionsManagementService.deleteSessions` (routing to `deleteSession`/`deleteSessions` above). There is no provider-specific delete action.
 
 ## Multi-Chat Support
 
@@ -137,9 +137,9 @@ A local session may host multiple chats. The hierarchy is stored entirely in the
 
 ## Picker Contributions
 
-Local sessions reuse the Copilot provider's pickers (`ModePicker`, `PermissionPicker`) via `when` clauses that match `ActiveSessionTypeContext === 'local'`. The picker actions in `copilotChatSessionsActions.ts` include `IsActiveSessionLocal` in their `when` expressions so the same widgets surface for both the copilot CLI provider and this local provider.
+Local sessions reuse the Copilot provider's pickers (`ModePicker`, `PermissionPicker`) via `when` clauses that match `SessionTypeContext === 'local'`. The picker actions in `copilotChatSessionsActions.ts` include `IsActiveSessionLocal` in their `when` expressions so the same widgets surface for both the copilot CLI provider and this local provider.
 
-The model picker is contributed by the sessions core (`contrib/chat/browser/modelPicker.ts`), not by this provider. It reads models via `ISessionsProvider.getModels`; for local sessions this returns general-purpose registered language models (those without a `targetChatSessionType` that are user-selectable). This provider's `getModelPickerOptions` returns `showManageModelsAction: true`, so the core picker surfaces the **Manage Models** action for local sessions — the decision lives in the provider, not in core.
+The model picker is contributed by the sessions core (`contrib/chat/browser/modelPicker.ts`), not by this provider. It reads models via `ISessionsProvider.getModelsSnapshot`; for local sessions this returns general-purpose registered language models (those without a `targetChatSessionType` that are user-selectable), an explicit `modelTarget: undefined` so the shared unsuffixed preference key is used, plus the desired identifier's `notRequested`, `pending`, `available`, or `unavailable` resolution. This provider's `getModelPickerOptions` returns `showManageModelsAction: true`, so the core picker surfaces the **Manage Models** action for local sessions — the decision lives in the provider, not in core.
 
 ## Differences from `CopilotChatSessionsProvider`
 

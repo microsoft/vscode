@@ -12,6 +12,7 @@ import { createDecorator } from '../../../instantiation/common/instantiation.js'
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agentService.js';
+import { isAhpChatChannel, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { computeChunkedEditSurvival, computeWholeFileEditSurvival } from './editSurvivalTracker.js';
 
 /**
@@ -39,29 +40,19 @@ export interface IEditSurvivalReporterLaunchParams {
 	readonly afterText: string;
 	/** Whether the tool created a new file (no prior content existed). */
 	readonly isCreate: boolean;
+	/** Name of the edit tool, e.g. `Edit`, `apply_patch`. Empty if unknown. */
+	readonly toolName?: string;
 	/**
-	 * The model that produced this edit (e.g. `claude-sonnet-4.5`,
-	 * `gpt-5-mini`). Used to slice survival telemetry by model in
-	 * dashboards. Expected to always be populated in practice (Claude
-	 * reads it off every assistant message; Copilot tracks the session's
-	 * last-seen model via setModel and onUsage). The field is optional
-	 * so a missing model can't suppress the survival sample, but
-	 * `undefined` here is a bug -- the resulting event is emitted with
-	 * `modelId=''` and the caller is expected to log a warning.
+	 * Model that produced this edit, e.g. `claude-sonnet-4.5`. Optional
+	 * defensively, but always expected to be set
 	 */
 	readonly modelId?: string;
 	/**
-	 * The explicit text chunks the AI wrote, extracted from the tool
-	 * input (e.g. `Edit.new_string`, each `MultiEdit.edits[*].new_string`,
-	 * or `Write.content`). When provided, the reporter computes
-	 * `survivalRateFourGram` with the chunked, search-within math -- so
-	 * the score does not decay as the file grows around the chunks.
-	 *
-	 * In practice every known file-edit tool produces chunks (see the
-	 * coverage invariant in `editChunkExtractor.ts`). Omitting or
-	 * passing an empty array is a safety-net path for unknown / drifted
-	 * tool shapes; the reporter then falls back to whole-file scoring
-	 * and tags the telemetry event with `scoringMode='whole-file'`.
+	 * Explicit AI-written text chunks extracted from the tool input
+	 * (see `editChunkExtractor.ts`). When provided, survival is scored
+	 * against just these chunks; when omitted or empty, the reporter
+	 * falls back to whole-file scoring and tags the event with
+	 * `scoringMode='whole-file'`.
 	 */
 	readonly aiChunks?: readonly string[];
 }
@@ -93,6 +84,7 @@ export class NullEditSurvivalReporterFactory implements IEditSurvivalReporterFac
 interface IEditSurvivalTelemetryEvent {
 	provider: string;
 	modelId: string;
+	toolName: string;
 	agentSessionId: string;
 	turnId: string;
 	toolCallId: string;
@@ -113,6 +105,7 @@ interface IEditSurvivalTelemetryEvent {
 type IEditSurvivalTelemetryClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model that produced the edit, e.g. "claude-sonnet-4.5" or "gpt-5-mini". Empty if the host could not determine the per-edit model.' };
+	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the edit tool that produced the edit, e.g. "Edit", "apply_patch". Empty if unknown.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host turn identifier this edit belongs to.' };
 	toolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool call identifier that produced the edit.' };
@@ -199,12 +192,18 @@ class SessionEditSurvivalReporter extends Disposable {
 					? computeChunkedEditSurvival(this._params.beforeText, this._params.afterText, aiChunks, currentText)
 					: computeWholeFileEditSurvival(this._params.beforeText, this._params.afterText, currentText);
 
+			// Sub-channel URIs (e.g. `ahp-chat:` for the default chat or
+			// subagent chats) encode the parent session URI; resolve them
+			// back so provider/id reflect the underlying harness rather than
+			// the chat scheme. See telemetry gap #6 in #8209.
+			const sessionUri = isAhpChatChannel(this._params.sessionUri) ? parseRequiredSessionUriFromChatUri(this._params.sessionUri) : this._params.sessionUri;
 			this._telemetryService.publicLog2<IEditSurvivalTelemetryEvent, IEditSurvivalTelemetryClassification>(
 				'agentHost.trackEditSurvival',
 				{
-					provider: AgentSession.provider(this._params.sessionUri) ?? 'unknown',
+					provider: AgentSession.provider(sessionUri) ?? 'unknown',
 					modelId: this._params.modelId ?? '',
-					agentSessionId: AgentSession.id(this._params.sessionUri),
+					toolName: this._params.toolName ?? '',
+					agentSessionId: AgentSession.id(sessionUri),
 					turnId: this._params.turnId,
 					toolCallId: this._params.toolCallId,
 					fileExtension: extname(this._params.filePath),

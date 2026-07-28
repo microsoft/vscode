@@ -37,7 +37,7 @@ import { ChatModel } from '../../common/model/chatModel.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatSendResult, IChatService } from '../../common/chatService/chatService.js';
-import { ResolvedChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ResolvedChatSessionsExtensionPoint, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { AgentSessionProviders, AgentSessionTarget, CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, IAgentHostDelegationRequest, isAgentHostTarget } from '../agentSessions/agentSessions.js';
@@ -50,6 +50,8 @@ import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { IChatRequestPasteVariableEntry, PromptFileVariableKind, toPasteVariableEntry, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ChatSessionPosition, openChatSession } from '../chatSessions/chatSessions.contribution.js';
+import { importedTurnsFromChatModel } from '../agentSessions/agentHost/importLocalConversationToAgentSession.js';
+import type { ModelSelection } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /**
  * Extracts the "owner/repo" name-with-owner from a git remote URL.
@@ -539,7 +541,22 @@ export class CreateRemoteAgentJobAction {
 				const sourceName = sourceContribution?.displayName ?? getAgentSessionProviderName(sourceSessionType);
 				const continuationContext = attachedContext.asArray();
 				let handoffPrompt = userPrompt;
-				if (transcript) {
+				// Continuing a local chat into Copilot CLI (main window) imports the
+				// prior conversation as real, editable turns seeded into the new
+				// session, instead of handing it over as a read-only transcript
+				// attachment. The turns are threaded through the normal
+				// `openChatSession` flow so the session lifecycle (model picker,
+				// config chips, etc.) is unchanged.
+				const importConversationTurns = (continuationTargetType === SessionType.AgentHostCopilot && !isSessionsWindow)
+					? importedTurnsFromChatModel(chatModel)
+					: undefined;
+				// Carry the source session's selected model so the imported session
+				// resumes on the same model rather than the host default. The raw
+				// model id (`metadata.id`) matches the Copilot catalog shared by the
+				// local models and Copilot CLI.
+				const importConversationModelId = importConversationTurns ? widget.input.selectedLanguageModel.get()?.metadata.id : undefined;
+				const importConversationModel: ModelSelection | undefined = importConversationModelId ? { id: importConversationModelId } : undefined;
+				if (transcript && !importConversationTurns) {
 					if (isAgentHostTarget(continuationTargetType)) {
 						const transcriptAttachment = createDelegationTranscriptAttachment(transcript, sourceName);
 						if (transcriptAttachment) {
@@ -578,11 +595,20 @@ export class CreateRemoteAgentJobAction {
 								type: continuationTargetType,
 								displayName: continuationTarget.displayName,
 								position: isSidebar ? ChatSessionPosition.Sidebar : ChatSessionPosition.Editor,
+								// Replace the source chat editor in place so switching harness
+								// feels like the same chat continues rather than opening a new
+								// tab. The source (local) session stays in chat history and is
+								// recoverable. The sidebar path already swaps in place via
+								// `loadSession`, so it needs no replacement. Pass the source
+								// resource (not a bare flag) so the correct editor is resolved
+								// at replace time even if the active editor changed meanwhile.
+								replaceEditorForResource: isSidebar ? undefined : sessionResource,
 							},
 							{
 								prompt: handoffPrompt,
 								attachedContext: continuationContext,
 								initialSessionOptions: initialSessionOptions.size > 0 ? initialSessionOptions : undefined,
+								importConversation: importConversationTurns ? { turns: importConversationTurns, model: importConversationModel } : undefined,
 							}
 						));
 					}
@@ -619,7 +645,7 @@ export class CreateRemoteAgentJobAction {
 			const sendResult = await chatService.sendRequest(sessionResource, userPrompt, {
 				agentIdSilent: continuationTargetType,
 				attachedContext: attachedContext.asArray(),
-				userSelectedModelId: widget.input.currentLanguageModel,
+				...widget.getSelectedModelRequestOptions(),
 				...widget.getModeRequestOptions()
 			});
 

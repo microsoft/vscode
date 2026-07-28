@@ -223,6 +223,13 @@ export class CopilotCliBridgeSpanProcessor implements SpanProcessor {
 			baseAttributes[CopilotChatAttr.CHAT_SESSION_ID] = sessionId;
 		}
 
+		// Inject the standard GenAI session key so vendor-agnostic OTLP backends
+		// can group these SDK-native spans by conversation without a traceId join.
+		// SDK invoke_agent / chat spans already stamp it; enrich the rest.
+		if (sessionId && !baseAttributes[GenAiAttr.CONVERSATION_ID]) {
+			baseAttributes[GenAiAttr.CONVERSATION_ID] = sessionId;
+		}
+
 		return {
 			name: span.name,
 			spanId: ctx.spanId,

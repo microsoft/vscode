@@ -1260,9 +1260,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			// Future timestamp (clock skew) — treat as not delayed
 			return 0;
 		}
-		const delayHours = this.configurationService.getValue<number>(AutoUpdateDelayConfigurationKey) ?? 2;
-		const delayPeriod = delayHours * 60 * 60 * 1000; // Convert hours to milliseconds
+		const delayPeriod = this.getAutoUpdateDelay();
 		return Math.max(0, delayPeriod - elapsed);
+	}
+
+	getAutoUpdateDelay(): number {
+		const delayHours = this.configurationService.getValue<number>(AutoUpdateDelayConfigurationKey) ?? 2;
+		return delayHours * 60 * 60 * 1000; // Convert hours to milliseconds
 	}
 
 	private isFromTrustedPublisher(extension: IExtension): boolean {

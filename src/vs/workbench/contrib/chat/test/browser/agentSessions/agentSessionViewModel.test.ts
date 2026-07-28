@@ -1284,6 +1284,27 @@ suite('AgentSessions', () => {
 		let instantiationService: TestInstantiationService;
 		let viewModel: AgentSessionsModel;
 
+		class MutableArchiveChatSessionItemController implements IChatSessionItemController {
+			readonly onDidChangeChatSessionItems = Event.None;
+			readonly archiveUpdates: boolean[] = [];
+
+			constructor(private sessionItem: IChatSessionItem) { }
+
+			get items(): readonly IChatSessionItem[] {
+				return [this.sessionItem];
+			}
+
+			async refresh(): Promise<void> { }
+
+			setChatSessionItemArchived(_resource: URI, archived: boolean): void {
+				this.archiveUpdates.push(archived);
+			}
+
+			setProviderArchived(archived: boolean): IChatSessionItem {
+				return this.sessionItem = { ...this.sessionItem, archived };
+			}
+		}
+
 		setup(() => {
 			mockChatSessionsService = new MockChatSessionsService();
 			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
@@ -1359,6 +1380,85 @@ suite('AgentSessions', () => {
 				// Try to archive again with same value
 				session.setArchived(true);
 				assert.strictEqual(changeEventFired, false);
+			});
+		});
+
+		test('should ignore stale local state for controller-owned archived state', async () => {
+			return runWithFakedTimers({}, async () => {
+				const item = makeSimpleSessionItem('session-1', { archived: true });
+				instantiationService.get(IStorageService).store(
+					'agentSessions.state.cache',
+					JSON.stringify([{ resource: item.resource.toString(), archived: false }]),
+					StorageScope.WORKSPACE,
+					StorageTarget.MACHINE,
+				);
+				const controller = new MutableArchiveChatSessionItemController(item);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+				const session = viewModel.sessions[0];
+				session.setArchived(false);
+
+				assert.deepStrictEqual({
+					beforeProviderUpdate: session.isArchived(),
+					archiveUpdates: controller.archiveUpdates,
+				}, {
+					beforeProviderUpdate: true,
+					archiveUpdates: [false],
+				});
+			});
+		});
+
+		test('should not create a local overlay for controller-owned archive writes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const item = makeSimpleSessionItem('session-1', { archived: false });
+				const controller = new MutableArchiveChatSessionItemController(item);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(true);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					archived: viewModel.sessions[0].isArchived(),
+					archiveUpdates: controller.archiveUpdates,
+				}, {
+					archived: false,
+					archiveUpdates: [true],
+				});
+			});
+		});
+
+		test('should fire archive state changes only for effective provider transitions', async () => {
+			return runWithFakedTimers({}, async () => {
+				const item = makeSimpleSessionItem('session-1', { archived: false });
+				const controller = new MutableArchiveChatSessionItemController(item);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const archivedEvents: boolean[] = [];
+				disposables.add(viewModel.onDidChangeSessionArchivedState(session => archivedEvents.push(session.isArchived())));
+
+				const archivedItem = controller.setProviderArchived(true);
+				let sessionsChanged = Event.toPromise(viewModel.onDidChangeSessions);
+				mockChatSessionsService.fireDidChangeSessionItems({ addedOrUpdated: [archivedItem] });
+				await sessionsChanged;
+
+				const unchangedItem = controller.setProviderArchived(true);
+				sessionsChanged = Event.toPromise(viewModel.onDidChangeSessions);
+				mockChatSessionsService.fireDidChangeSessionItems({ addedOrUpdated: [unchangedItem] });
+				await sessionsChanged;
+
+				assert.deepStrictEqual({
+					archived: viewModel.sessions[0].isArchived(),
+					archivedEvents,
+				}, {
+					archived: true,
+					archivedEvents: [true],
+				});
 			});
 		});
 
@@ -2171,7 +2271,12 @@ suite('AgentSessions', () => {
 
 		test('should return correct icon for AgentHostCopilot provider', () => {
 			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostCopilot);
-			assert.strictEqual(icon.id, Codicon.copilot.id);
+			assert.strictEqual(icon.id, Codicon.vm.id);
+		});
+
+		test('should return simplified AgentHostCopilot name', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.AgentHostCopilot);
+			assert.strictEqual(name, 'Copilot');
 		});
 
 		test('should return correct name for Growth provider', () => {

@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
-import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, type MessageAttachment, type MessageEmbeddedResourceAttachment } from '../../common/state/sessionState.js';
 import type { UserInput } from './protocol/generated/v2/UserInput.js';
 import type { TextElement } from './protocol/generated/v2/TextElement.js';
 
@@ -26,6 +26,13 @@ import type { TextElement } from './protocol/generated/v2/TextElement.js';
  *    written to a temp file and surfaced as `{ type: 'localImage' }`. The
  *    returned files are tracked in `cleanupPaths` so the caller can unlink
  *    them after the turn completes.
+ *  - `EmbeddedResource` attachments carrying textual content (e.g. the live
+ *    text of an unsaved / dirty editor or a code selection, which the client
+ *    inlines as a `text/plain` embedded resource) are base64-decoded and
+ *    inlined into the prompt as a labelled fenced block so codex sees the
+ *    exact in-memory content — a path mention would read the stale on-disk
+ *    file (or nothing at all for untitled buffers). Non-textual, non-image
+ *    embedded resources (e.g. `application/pdf`) are still dropped.
  *
  * Skill / app mentions are deferred to a later phase.
  */
@@ -77,8 +84,23 @@ export function resolveCodexInput(
 							// attachment silently — better to send the prompt
 							// without the image than to fail the whole turn.
 						}
+						break;
 					}
-					// Non-image embedded resources are not yet supported.
+					if (isTextualContentType(att.contentType)) {
+						// The client inlines the live text of an unsaved / dirty
+						// editor (or a selection within one) as a `text/plain`
+						// embedded resource. Decode it and inline it into the
+						// prompt so codex sees the exact in-memory content — a
+						// `@<path>` mention would read the stale on-disk file (or
+						// nothing at all for an untitled buffer).
+						const inlined = renderTextualEmbeddedResource(att);
+						if (inlined) {
+							textChunks.push(inlined);
+						}
+						break;
+					}
+					// Non-textual, non-image embedded resources (e.g.
+					// application/pdf) are not supported and are dropped.
 					break;
 				}
 				case MessageAttachmentKind.Simple: {
@@ -117,4 +139,51 @@ function guessImageExtension(contentType: string): string {
 		default:
 			return '';
 	}
+}
+
+/**
+ * Whether an embedded resource's content type carries UTF-8 text that can be
+ * inlined into the prompt. Covers `text/*` plus a small allow-list of textual
+ * `application/*` types. Anything else (e.g. `application/pdf`,
+ * `application/octet-stream`) is treated as binary and dropped.
+ */
+function isTextualContentType(contentType: string): boolean {
+	const type = contentType.toLowerCase().split(';', 1)[0].trim();
+	if (type.startsWith('text/')) {
+		return true;
+	}
+	// Structured-text application subtypes and the `+json` / `+xml` suffixes.
+	return type === 'application/json'
+		|| type === 'application/xml'
+		|| type === 'application/javascript'
+		|| type === 'application/typescript'
+		|| type.endsWith('+json')
+		|| type.endsWith('+xml');
+}
+
+/**
+ * Decode a textual {@link MessageEmbeddedResourceAttachment} (e.g. the live
+ * text of an unsaved / dirty editor or a selection within one) and render it
+ * as a labelled fenced block for inlining into the prompt. Returns `undefined`
+ * when the payload decodes to empty text so the caller can skip it.
+ */
+function renderTextualEmbeddedResource(att: MessageEmbeddedResourceAttachment): string | undefined {
+	let content: string;
+	try {
+		content = Buffer.from(att.data, 'base64').toString('utf8');
+	} catch {
+		return undefined;
+	}
+	if (content.length === 0) {
+		return undefined;
+	}
+	const label = att.label || 'attachment';
+	const range = att.selection?.range;
+	// Positions on the wire are zero-based; render them one-based for humans.
+	const suffix = range
+		? ` (lines ${range.start.line + 1}-${range.end.line + 1})`
+		: '';
+	// A fenced block keeps the inlined text visually distinct from the prompt
+	// and prevents backtick-free content from bleeding into surrounding markup.
+	return `${label}${suffix}:\n\`\`\`\n${content}\n\`\`\``;
 }

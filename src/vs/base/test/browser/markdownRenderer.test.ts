@@ -52,6 +52,34 @@ suite('MarkdownRenderer', () => {
 			assert.ok(anchor, 'expected <a> to be preserved when scheme is allowed');
 			assert.strictEqual(anchor!.dataset.href, 'vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
 		});
+
+		test('Transforms parsed link targets without changing labels, titles, or code', () => {
+			const markdown = { value: '`[same](file:///same)` [a[b].ts](file:///same "file:///same") ![image](file:///same|width=10,height=20)' };
+			const result = store.add(renderMarkdown(markdown, {
+				transformUri: href => href === 'file:///same' ? 'https://example.com/a.ts' : href,
+			})).element;
+			const anchor = result.querySelector('a');
+			assert.deepStrictEqual(
+				{
+					anchorCount: result.querySelectorAll('a').length,
+					text: anchor?.textContent,
+					href: anchor?.dataset.href,
+					title: anchor?.title,
+					image: result.querySelector('img')?.src,
+					imageWidth: result.querySelector('img')?.getAttribute('width'),
+					imageHeight: result.querySelector('img')?.getAttribute('height'),
+				},
+				{
+					anchorCount: 1,
+					text: 'a[b].ts',
+					href: 'https://example.com/a.ts',
+					title: 'file:///same',
+					image: 'https://example.com/a.ts',
+					imageWidth: '10',
+					imageHeight: '20',
+				},
+			);
+		});
 	});
 
 	suite('Images', () => {
@@ -818,6 +846,26 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
+			test('list with bold incomplete link target', () => {
+				const incomplete = `- list item one
+- **[link](http://microsoft`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('ordered list with bold incomplete link target', () => {
+				const incomplete = `1. list item one
+2. **[link](http://microsoft`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
 			test('list with incomplete subitem', () => {
 				const incomplete = `1. list item one
 	- `;
@@ -854,6 +902,35 @@ suite('MarkdownRenderer', () => {
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				const completeTokens = marked.marked.lexer(incomplete + ' &nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+		});
+
+		suite('blockquote', () => {
+			test('incomplete double star', () => {
+				const incomplete = '> **text';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete double star before trailing quote-only lines', () => {
+				const incomplete = '> **text\n>\n>';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer('> **text**\n>\n>');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('preserves reference links when completing inline tokens', () => {
+				const incomplete = '[id]: https://example.com\n\n> [label][id] **text';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '**');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		});
@@ -991,6 +1068,15 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
+			test('incomplete link target inside parentheses', () => {
+				const incomplete = '([text](http://microsoft.com';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
 			test('incomplete link target with extra stuff', () => {
 				const incomplete = '[before `text` after](http://microsoft.com';
 				const tokens = marked.marked.lexer(incomplete);
@@ -1063,12 +1149,30 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
-			test.skip('incomplete link in list', () => {
+			test('incomplete link in list', () => {
 				const incomplete = '- [text';
 				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				const completeTokens = marked.marked.lexer(incomplete + '](https://microsoft.com)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target inside bold', () => {
+				const incomplete = '**[text](http://microsoft';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with arg inside bold', () => {
+				const incomplete = '**[text](http://microsoft.com "more text ';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '")**');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 

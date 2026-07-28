@@ -7,14 +7,13 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { basename } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams, type InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentHostGitService } from './agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 
 export class AgentHostDiscardChangesOperationHandler implements IChangesetOperationHandler {
 
@@ -22,7 +21,6 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
-		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@IAgentHostGitService private readonly _agentHostGitService: IAgentHostGitService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
@@ -59,7 +57,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 				`Operation '${AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES}' requires a resource target.`);
 		}
 
-		const workingDirectoryStr = sessionState.summary.workingDirectory;
+		const workingDirectoryStr = sessionState.workingDirectories?.[0];
 		if (!workingDirectoryStr) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
@@ -77,9 +75,6 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 				JsonRpcErrorCodes.InternalError,
 				`Failed to discard changes: ${err instanceof Error ? err.message : String(err)}`);
 		}
-
-		// Re-compute the uncommitted changeset for the session
-		void this._changesets.computeUncommittedChangeset(sessionUri);
 
 		return { message: { markdown: localize('agentHost.changeset.discardChanges.discarded', "Discarded changes to `{0}`.", basename(resource)) } };
 	}

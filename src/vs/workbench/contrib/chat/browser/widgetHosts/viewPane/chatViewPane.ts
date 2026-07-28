@@ -8,12 +8,15 @@ import { $, addDisposableListener, append, EventHelper, EventType, getWindow, se
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { MutableDisposable, toDisposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { autorun, IReader } from '../../../../../../base/common/observable.js';
+import { autorun, IReader, observableValue } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -31,6 +34,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { ChatViewTitleControl } from './chatViewTitleControl.js';
@@ -47,37 +51,35 @@ import { IChatModel, IChatModelInputState } from '../../../common/model/chatMode
 import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantContribTypes.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
+import { LocalChatSessionUri, getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
-import { ChatWidget } from '../../widget/chatWidget.js';
+import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from '../../viewsWelcome/chatViewWelcomeController.js';
 import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome.js';
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
-import { ChatViewId } from '../../chat.js';
+import { ChatViewId, IChatWidgetService, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { FileAccess } from '../../../../../../base/common/network.js';
 import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
-import { IAgentsVoiceWindowService, AgentsVoiceStorageKeys } from '../../../../agentsVoice/common/agentsVoice.js';
-import { AgentsVoiceWidget } from '../../../../agentsVoice/browser/agentsVoiceWidget.js';
-import { AGENTS_VOICE_WIDGET_FOCUSED } from '../../../../agentsVoice/browser/agentsVoice.contribution.js';
-import { bindWidgetToController } from '../../../../agentsVoice/browser/agentsVoiceWidgetBinding.js';
+import { IVoiceInputModeService, SimulatedVoiceState } from '../../voiceInputMode/voiceInputMode.js';
+import { computeVoiceGlowStyle, isGlowingVoiceState, readVoiceGlowIntensity, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
+import { combineVoiceInput } from '../../voiceClient/voiceInputUtils.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
-import { VoiceOnboardingCompletedClassification, VoiceOnboardingCompletedEvent } from '../../voiceClient/voiceTelemetry.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
@@ -110,13 +112,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private restoringSession: Promise<void> | undefined;
 	private readonly loadSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _applyModelCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	/** While > 0 the sessions list is suppressed so a session transition's transiently-empty widget does not reveal it (see {@link beginSessionsListSuppression}). */
+	private _sessionsListSuppressionCount = 0;
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
 
 	private readonly activityBadge = this._register(new MutableDisposable());
+	private readonly _currentSessionResource = observableValue<URI | undefined>(this, undefined);
 
 	constructor(
 		options: IViewPaneOptions,
-		@IKeybindingService private readonly keybindingService2: IKeybindingService,
+		@IKeybindingService keybindingService2: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -143,10 +149,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
-		@IAgentsVoiceWindowService private readonly agentsVoiceWindowService: IAgentsVoiceWindowService,
-		@IAgentTitleBarStatusService private readonly agentTitleBarStatusService: IAgentTitleBarStatusService,
-		@IVoicePlaybackService private readonly voicePlaybackService: IVoicePlaybackService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IVoiceInputModeService private readonly voiceInputModeService: IVoiceInputModeService,
+		@IChatWidgetService _chatWidgetService: IChatWidgetService,
+		@IAgentTitleBarStatusService _agentTitleBarStatusService: IAgentTitleBarStatusService,
+		@IVoicePlaybackService _voicePlaybackService: IVoicePlaybackService,
+		@IWorkbenchEnvironmentService _workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -332,28 +341,21 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const controlsWrapper = append(parent, $('.voice-agent-controls-wrapper'));
 		this.createControls(controlsWrapper);
 
-		// Bottom area for voice panel — always present, populated when enabled
-		const bottomArea = append(parent, $('.voice-bottom-area'));
-		this._voiceBottomArea = bottomArea;
-		this._updateVoiceBar(bottomArea);
+		// Voice bar — hidden by default, voice is activated via mic button in toolbar.
+		// The widget is still created for PTT keybinding support and session binding.
+		this._voiceBarContainer = $('.voice-agent-bar-host');
+		this._voiceBarContainer.style.display = 'none';
+		this._updateVoiceBar(this._voiceBarContainer);
 
-		// Watch for size changes so we relayout when content changes
-		// (e.g. onboarding → connected, confirmations added/removed)
-		const resizeObserver = new ResizeObserver(() => {
-			if (this.lastDimensions) {
-				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-			}
-		});
-		resizeObserver.observe(bottomArea);
-		this._voiceBarResizeObserver = resizeObserver;
-		this._register({ dispose: () => resizeObserver.disconnect() });
+		// Transcript overlay — shown inside the input container when voice is active
+		const inputContainerEl = this._widget.inputPart.inputContainerElement;
+		if (inputContainerEl) {
+			this._setupVoiceTranscriptOverlay(inputContainerEl);
+		}
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('agents.voice.enabled')) {
-				this._updateVoiceBar(bottomArea);
-				if (this.lastDimensions) {
-					this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-				}
+				this._updateVoiceBar(this._voiceBarContainer!);
 			}
 		}));
 
@@ -382,31 +384,47 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	//#region Voice Agent Bar
 
-	private _voiceBottomArea: HTMLElement | undefined;
-	private _voiceBarResizeObserver: ResizeObserver | undefined;
+	private _voiceBarContainer: HTMLElement | undefined;
 	private readonly _voiceBarDisposables = this._register(new DisposableStore());
 
 	private _updateVoiceBar(container: HTMLElement): void {
 		this._voiceBarDisposables.clear();
 		container.replaceChildren();
 
-		if (this.configurationService.getValue<boolean>('agents.voice.enabled')) {
-			container.style.display = '';
+		// Always keep the container hidden — voice UI is now the mic toolbar
+		// button + transcript overlay. We still register the command bridges
+		// needed by VoiceSessionController.
+		container.style.display = 'none';
 
+		if (this.configurationService.getValue<boolean>('agents.voice.enabled')) {
 			// Voice command bridge — lets the VoiceSessionController reach into the chat widget
-			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string) => {
-				if (text && this._widget?.viewModel) {
-					this._widget.acceptInput(text, { preserveFocus: true });
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (accessor, text: string) => {
+				const chatWidgetService = accessor.get(IChatWidgetService);
+				// Ignore lastFocusedWidget when its input no longer has focus because blur does not clear it.
+				const focusedWidget = chatWidgetService.lastFocusedWidget;
+				const widget = focusedWidget?.hasInputFocus() ? focusedWidget : this._widget;
+				if (text && widget?.viewModel) {
+					if (widget.viewModel.editing) {
+						// When editing an old message, populate the active input
+						// editor so the user can review before submitting.
+						widget.input.setValue(text, false);
+					} else {
+						// Preserve any text the user already typed in the input.
+						widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
+					}
 				}
 			}));
-			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', (_accessor, resourceStr: string): boolean => {
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', async (_accessor, resourceStr: string): Promise<boolean> => {
 				if (!resourceStr) {
 					return false;
 				}
 				try {
-					this.viewState.sessionResource = URI.parse(resourceStr);
+					const resource = URI.parse(resourceStr);
+					this.viewState.sessionResource = resource;
 					this.applyModel();
-					return true;
+					await this.restoringSession;
+					const restoredResource = this._widget?.viewModel?.sessionResource;
+					return !!restoredResource && isEqual(restoredResource, resource);
 				} catch {
 					return false;
 				}
@@ -414,126 +432,312 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.getCurrentSession', (_accessor): string | undefined => {
 				return this._widget?.viewModel?.sessionResource?.toString();
 			}));
-
-			this.createVoiceAgentBar(container);
-		} else {
-			container.style.display = 'none';
 		}
 	}
 
-	private createVoiceAgentBar(parent: HTMLElement): void {
-		const bar = append(parent, $('.voice-agent-bar'));
-		const win = getWindow(bar) as Window & typeof globalThis;
+	private _setupVoiceTranscriptOverlay(inputContainerEl: HTMLElement): void {
+		inputContainerEl.style.position = 'relative';
+		const transcriptOverlay = $('.voice-transcript-overlay');
+		const transcriptScrollable = this._register(new DomScrollableElement(transcriptOverlay, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+		}));
+		const transcriptOverlayNode = transcriptScrollable.getDomNode();
+		transcriptOverlayNode.classList.add('voice-transcript-overlay-scrollable');
+		transcriptOverlayNode.style.display = 'none';
+		inputContainerEl.append(transcriptOverlayNode);
 
-		// Also observe the inner bar — its content changes (onboarding →
-		// connected) before the outer wrapper resizes.
-		this._voiceBarResizeObserver?.observe(bar);
+		// Dynamic audio-reactive glow animation (matches aux window behavior)
+		let animFrameId: number | undefined;
+		const glowDataArrayRef: { value: Uint8Array | undefined } = { value: undefined };
+		const win = getWindow(inputContainerEl);
+		let lastGlowTarget: HTMLElement | undefined;
+		// The session this pane's voice UI belongs to, kept in sync by the
+		// transcript ownership autorun below. The glow only renders on the input
+		// of the session voice is actually bound to, so it never lingers on a
+		// background/last-focused session in another split or window (#8514).
+		let voiceUiOwner: URI | undefined;
+		// Merge the real voice session with any dev/preview simulation so the walkthrough
+		// commands drive the input-box glow exactly as a live session would.
+		const getEffectiveVoice = (): { connected: boolean; voiceState: VoiceGlowState; simulating: boolean } => {
+			const sim: SimulatedVoiceState | undefined = this.voiceInputModeService.simulatedVoiceState.get();
+			if (sim === 'idle' || sim === 'listening' || sim === 'speaking') {
+				return { connected: true, voiceState: sim, simulating: true };
+			}
+			if (sim === 'off' || sim === 'connecting' || sim === 'dictating') {
+				return { connected: false, voiceState: 'idle', simulating: true };
+			}
+			return {
+				connected: this.voiceSessionController.isConnected.get(),
+				voiceState: this.voiceSessionController.voiceState.get() as VoiceGlowState,
+				simulating: false,
+			};
+		};
+		const startGlowAnimation = () => {
+			if (animFrameId !== undefined) { return; }
+			const animate = () => {
+				animFrameId = win.requestAnimationFrame(animate);
+				const { connected, voiceState, simulating } = getEffectiveVoice();
+				// Only glow the input of the session voice is bound to. Mirrors the
+				// transcript overlay's ownership test (see below) so the glow and
+				// the "Listening..."/transcript overlay always render on the same
+				// pane and never on a different split/window (#8514). A dev/preview
+				// simulation bypasses ownership so the walkthrough can light up here.
+				const currentSession = this._currentSessionResource.get();
+				const isOwner = !voiceUiOwner || !currentSession || isEqual(voiceUiOwner, currentSession);
+				const glowActive = connected && isGlowingVoiceState(voiceState) && (simulating || isOwner);
+				const target = inputContainerEl;
 
-		const widget = new AgentsVoiceWidget(bar, {
-			copilotIconSrc: FileAccess.asBrowserUri('vs/sessions/browser/media/sessions-icon.svg').toString(true),
-			connect: () => this.voiceSessionController.connect(win),
-			disconnect: () => this.voiceSessionController.disconnect(),
-			pttDown: () => {
-				if (!this.voiceSessionController.isConnected.get() && !this.voiceSessionController.isConnecting.get()) {
-					this.voiceSessionController.connect(win).then(() => {
-						if (this.voiceSessionController.isConnected.get()) {
-							this.voiceSessionController.pttDown();
-						}
-					});
+				// If the target changed, clear styling on the old one
+				if (lastGlowTarget && lastGlowTarget !== target) {
+					lastGlowTarget.style.borderColor = '';
+					lastGlowTarget.style.boxShadow = '';
+					lastGlowTarget.classList.remove('voice-active', 'voice-listening', 'voice-speaking');
+				}
+				lastGlowTarget = target;
+
+				if (!glowActive) {
+					target.style.borderColor = '';
+					target.style.boxShadow = '';
+					target.classList.remove('voice-active', 'voice-listening', 'voice-speaking');
 					return;
 				}
-				this.voiceSessionController.pttDown();
-			},
-			pttUp: () => this.voiceSessionController.pttUp(),
-			closeWindow: () => { /* no-op: chat pane has no close button */ },
-			stopPlayback: () => this.ttsPlaybackService.stopPlayback(),
-			openSession: (resource) => {
-				this.viewState.sessionResource = resource;
-				this.applyModel();
-			},
-			stopSession: (resource) => {
-				const model = this.chatService.getSession(resource);
-				if (model) {
-					const lastReq = model.getRequests().at(-1);
-					if (lastReq) {
-						this.voiceSessionController.markUserCancelled(resource.toString());
-						this.chatService.cancelCurrentRequestForSession(resource);
+
+				// Get audio intensity from analyser
+				const analyser = this.ttsPlaybackService.analyserNode
+					?? (voiceState === 'listening' ? this.micCaptureService.analyserNode : null)
+					?? null;
+				let intensity: number;
+				if (!analyser && simulating) {
+					// No live audio (a simulation): synthesize a lively pulsing intensity
+					// so the walkthrough glow behaves like real speech instead of sitting flat.
+					const t = Date.now() / 1000;
+					intensity = Math.min(1, 0.28 + 0.34 * Math.abs(Math.sin(t * 6.1)) + 0.22 * Math.abs(Math.sin(t * 11.3 + 1)));
+				} else {
+					intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
+				}
+
+				const transcriptHidden = this.configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
+				const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, transcriptHidden);
+				target.style.borderColor = borderColor;
+				target.style.boxShadow = boxShadow;
+				target.classList.add('voice-active');
+				target.classList.toggle('voice-listening', voiceState === 'listening');
+				target.classList.toggle('voice-speaking', voiceState === 'speaking');
+			};
+			animFrameId = win.requestAnimationFrame(animate);
+		};
+		const stopGlowAnimation = () => {
+			if (animFrameId !== undefined) {
+				win.cancelAnimationFrame(animFrameId);
+				animFrameId = undefined;
+			}
+			const target = lastGlowTarget ?? inputContainerEl;
+			target.style.borderColor = '';
+			target.style.boxShadow = '';
+			target.classList.remove('voice-active', 'voice-listening', 'voice-speaking');
+			lastGlowTarget = undefined;
+		};
+
+		this._register(autorun(reader => {
+			const connected = this.voiceSessionController.isConnected.read(reader);
+			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			// Only run the per-frame glow loop for states that actually render a
+			// glow. Idle renders none, so keeping the loop alive then would burn a
+			// requestAnimationFrame callback every frame for nothing. React to
+			// simulated states too, so the walkthrough commands light up the glow.
+			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
+			const simGlow = sim === 'listening' || sim === 'speaking';
+			if (simGlow || (connected && isGlowingVoiceState(voiceState))) {
+				startGlowAnimation();
+			} else {
+				stopGlowAnimation();
+			}
+		}));
+		this._register({ dispose: () => stopGlowAnimation() });
+
+		// Voice transcript is per-session. The transcript is "owned" by the
+		// session the user is dictating into (the explicit target session, or the
+		// focused session when dictation began) and is only shown in that
+		// session's view. Switching focus to a different session hides the
+		// transcript here; switching to another existing session stops
+		// transcription so it isn't misrouted there. Anything already dictated is
+		// submitted to the original session; an idle hands-free turn may instead
+		// follow an untitled "New Chat" session before any dictation starts.
+		let listeningSession: URI | undefined;
+		let ownerSession: URI | undefined;
+		this._register(autorun(reader => {
+			// Dev/preview: when a walkthrough is simulating, drive the overlay hint from the
+			// simulated state + version so each design shows its own instruction.
+			const simState = this.voiceInputModeService.simulatedVoiceState.read(reader);
+			const simVersion = this.voiceInputModeService.simulatedVersion.read(reader);
+			if (simState !== undefined) {
+				if (simState === 'idle' && simVersion) {
+					transcriptOverlayNode.style.display = '';
+					transcriptOverlayNode.classList.remove('has-transcript');
+					transcriptOverlay.replaceChildren();
+					const hint = $('span.partial');
+					switch (simVersion) {
+						case 'handsFree':
+							hint.textContent = localize('voiceMode.simHint.handsFree', "Hands-free \u2014 just start talking");
+							break;
+						case 'keyboardHold': {
+							const kbLabel = this.keybindingService.lookupKeybinding('workbench.action.chat.voiceInputMode.holdToTalk')?.getLabel();
+							hint.textContent = kbLabel
+								? localize('voiceMode.pttHint', "Hold {0} to talk", kbLabel)
+								: localize('voiceMode.simHint.keyboardHold', "Hold Space to talk");
+							break;
+						}
+						case 'buttonHold':
+							hint.textContent = localize('voiceMode.simHint.buttonHold', "Hold the button to talk, tap to turn off");
+							break;
+						case 'clickToggle':
+							hint.textContent = localize('voiceMode.simHint.clickToggle', "Tap the button to start listening");
+							break;
+					}
+					transcriptOverlay.append(hint);
+					transcriptScrollable.scanDomNode();
+				} else {
+					transcriptOverlayNode.style.display = 'none';
+					transcriptOverlayNode.classList.remove('has-transcript');
+				}
+				return;
+			}
+
+			const turns = this.voiceSessionController.transcriptTurns.read(reader);
+			const connected = this.voiceSessionController.isConnected.read(reader);
+			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			const targetSession = this.voiceSessionController.targetSession.read(reader);
+			const currentSession = this._currentSessionResource.read(reader);
+			const showTranscript = this.configurationService.getValue<boolean>('agents.voice.showTranscript') !== false;
+			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
+
+			if (!connected) {
+				listeningSession = undefined;
+				ownerSession = undefined;
+				voiceUiOwner = undefined;
+				transcriptOverlayNode.style.display = 'none';
+				transcriptOverlayNode.classList.remove('has-transcript');
+				return;
+			}
+
+			// Capture / maintain the session the current transcript belongs to.
+			if (voiceState === 'listening') {
+				if (!listeningSession) {
+					listeningSession = targetSession ?? currentSession;
+					ownerSession = listeningSession;
+				} else if (!targetSession && currentSession && !isEqual(currentSession, listeningSession)) {
+					const dictationSession = listeningSession;
+					const activelyDictating = turns.some(t => t.speaker === 'user' && t.isPartial && t.text.trim().length > 0);
+					if (activelyDictating) {
+						// The user has already spoken — submit their words to the
+						// session they were dictating into rather than losing them
+						// or misrouting to the newly focused session.
+						this.voiceSessionController.finishListeningAndSubmitTo(dictationSession);
+						listeningSession = undefined;
+					} else if (isUntitledChatSession(currentSession)) {
+						// Idle hands-free listen following into a fresh New Chat.
+						listeningSession = currentSession;
+						ownerSession = currentSession;
+					} else {
+						// Idle listen and the user switched to another existing
+						// session before saying anything — nothing to submit.
+						this.voiceSessionController.discardListening();
+						listeningSession = undefined;
 					}
 				}
-			},
-			cancelSession: (resource) => {
-				this.voiceSessionController.markUserCancelled(resource.toString());
-				this.chatService.cancelCurrentRequestForSession(resource);
-			},
-			selectTargetSession: (resource) => {
-				this.voiceSessionController.setTargetSession(resource);
-			},
-			newSessionAsTarget: () => {
-				this.voiceSessionController.newSessionAsTarget();
-			},
-			getAnalyserNode: () => {
-				const state = this.voiceSessionController.voiceState.get();
-				return this.ttsPlaybackService.analyserNode
-					?? (state === 'listening' ? this.micCaptureService.analyserNode : null)
-					?? null;
-			},
-			onResize: () => {
-				if (this.lastDimensions) {
-					this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+			} else {
+				// Allow the next dictation to re-capture the owning session.
+				listeningSession = undefined;
+			}
+
+			// Don't show a transcript that belongs to a different session here.
+			const effectiveOwner = targetSession ?? ownerSession;
+			voiceUiOwner = effectiveOwner;
+			if (effectiveOwner && currentSession && !isEqual(effectiveOwner, currentSession)) {
+				transcriptOverlayNode.style.display = 'none';
+				transcriptOverlayNode.classList.remove('has-transcript');
+				return;
+			}
+
+			// Show hint when connected but no transcript yet
+			if (visible.length === 0 || !showTranscript) {
+				const handsFree = this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
+				if (!showTranscript && voiceState === 'listening') {
+					// Transcript is disabled: surface a minimal "Listening..." overlay
+					// while listening so the user has feedback. Cleared in any other state.
+					transcriptOverlayNode.style.display = '';
+					transcriptOverlayNode.classList.remove('has-transcript');
+					transcriptOverlay.replaceChildren();
+					const listening = $('span.listening');
+					listening.textContent = localize('voiceMode.listening', "Listening...");
+					transcriptOverlay.append(listening);
+					transcriptScrollable.scanDomNode();
+				} else if (!showTranscript && voiceState === 'speaking') {
+					// Transcript is disabled: hint that the user can interrupt playback.
+					transcriptOverlayNode.style.display = '';
+					transcriptOverlayNode.classList.remove('has-transcript');
+					transcriptOverlay.replaceChildren();
+					const hint = $('span.partial');
+					const kb = this.keybindingService.lookupKeybinding('workbench.action.chat.voiceInputMode.holdToTalk')
+						?? this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+					const kbLabel = kb?.getLabel();
+					hint.textContent = kbLabel
+						? localize('voiceMode.bargeInHint', "Speak or use {0}", kbLabel)
+						: localize('voiceMode.bargeInHintNoKb', "Speak to barge in");
+					transcriptOverlay.append(hint);
+					transcriptScrollable.scanDomNode();
+				} else if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
+					transcriptOverlayNode.style.display = '';
+					transcriptOverlayNode.classList.remove('has-transcript');
+					transcriptOverlay.replaceChildren();
+					const hint = $('span.partial');
+					const kb = this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+					const kbLabel = kb?.getLabel();
+					hint.textContent = kbLabel
+						? localize('voiceMode.pttOrBargeInHint', "Press {0} to talk or barge in", kbLabel)
+						: localize('voiceMode.clickMicOrBargeInHint', "Click voice mode to talk or barge in");
+					transcriptOverlay.append(hint);
+					transcriptScrollable.scanDomNode();
+				} else {
+					transcriptOverlayNode.style.display = 'none';
+					transcriptOverlayNode.classList.remove('has-transcript');
 				}
-			},
-			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.pushToTalk'),
-			openPopout: () => this.commandService.executeCommand('agentsVoice.toggleWindow'),
-			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
-			onOnboardingCompleted: () => {
-				this.storageService.store(AgentsVoiceStorageKeys.OnboardingCompleted, true, StorageScope.PROFILE, StorageTarget.USER);
-				this.telemetryService.publicLog2<VoiceOnboardingCompletedEvent, VoiceOnboardingCompletedClassification>('voiceOnboardingCompleted', {});
-			},
-		}, {
-			width: 'auto',
-			draggable: false,
-			showClose: false,
-			showExpandChevron: false,
-			showStatusText: false,
-			showStatusCounters: false,
-			showCopilotIcon: false,
-			centerConnectButton: false,
-			title: localize('agentsVoice.voiceChatTitle', "Voice Mode"),
-			focusable: true,
-			reshowOnboardingOnDisconnect: false,
-		});
-		this._voiceBarDisposables.add(widget);
+				return;
+			}
 
-		// Set context key for voice widget focus (drives Space keybinding)
-		const widgetFocusedKey = AGENTS_VOICE_WIDGET_FOCUSED.bindTo(this.contextKeyService);
-		bar.addEventListener('focusin', () => widgetFocusedKey.set(true));
-		bar.addEventListener('focusout', () => widgetFocusedKey.set(false));
-		this._voiceBarDisposables.add({ dispose: () => widgetFocusedKey.reset() });
-
-		// Hide the popout button when the floating window is already open.
-		widget.setPopoutAvailable(!this.agentsVoiceWindowService.isOpen);
-		this._voiceBarDisposables.add(this.agentsVoiceWindowService.onDidChangeOpen(isOpen => {
-			widget.setPopoutAvailable(!isOpen);
+			transcriptOverlayNode.style.display = '';
+			transcriptOverlayNode.classList.add('has-transcript');
+			// Show only the latest visible turn
+			const lastTurn = visible[visible.length - 1];
+			const contentElements: HTMLElement[] = [];
+			if (lastTurn.speaker === 'user') {
+				const span = $('span');
+				if (lastTurn.isPartial) {
+					const committedPart = lastTurn.committed || '';
+					const unsurePart = lastTurn.text.slice(committedPart.length);
+					if (committedPart) {
+						const c = $('span.committed');
+						c.textContent = committedPart;
+						span.append(c);
+					}
+					const u = $('span.partial');
+					u.textContent = unsurePart + '\u2589';
+					span.append(u);
+				} else {
+					span.className = 'committed';
+					span.textContent = lastTurn.text;
+				}
+				contentElements.push(span);
+			} else {
+				const div = $('div.assistant-text');
+				div.textContent = lastTurn.text;
+				contentElements.push(div);
+			}
+			transcriptOverlay.replaceChildren(...contentElements);
+			transcriptScrollable.scanDomNode();
+			transcriptScrollable.setScrollPosition({ scrollTop: 0 });
 		}));
-
-		// PTT key label from keybinding
-		const getPttLabel = () => this.keybindingService2.lookupKeybinding('agentsVoice.pushToTalk')?.getLabel() ?? undefined;
-		widget.setPttKeyLabel(getPttLabel());
-		this._voiceBarDisposables.add(this.keybindingService2.onDidUpdateKeybindings(() => {
-			widget.setPttKeyLabel(getPttLabel());
-		}));
-
-		// Shared controller→widget binding (also used by the floating window)
-		this._voiceBarDisposables.add(bindWidgetToController(widget, {
-			voiceSessionController: this.voiceSessionController,
-			agentSessionsService: this.agentSessionsService,
-			agentTitleBarStatusService: this.agentTitleBarStatusService,
-			voicePlaybackService: this.voicePlaybackService,
-			environmentService: this.workbenchEnvironmentService,
-			chatService: this.chatService,
-		}));
-
-		this._voiceBarDisposables.add({ dispose: () => { this.voiceSessionController.disconnect(); } });
 	}
 
 	//#endregion
@@ -596,7 +800,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const newSessionButtonContainer = this.sessionsNewButtonContainer = append(sessionsContainer, $('.agent-sessions-new-button-container'));
 		const newSessionButton = this._register(new Button(newSessionButtonContainer, { ...defaultButtonStyles, secondary: true }));
 		newSessionButton.label = localize('newSession', "New Session");
-		this._register(newSessionButton.onDidClick(() => this.commandService.executeCommand(ACTION_ID_NEW_CHAT)));
+		this._register(newSessionButton.onDidClick(() => this.commandService.executeCommand(ACTION_ID_NEW_CHAT, this.getActionsContext())));
 
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
@@ -682,6 +886,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				newSessionsContainerVisible =
 					(!!this.chatEntitlementService.sentiment.completed || this.chatEntitlementService.hasByokModels) &&					// chat is setup (otherwise make room for terms and welcome)
 					(!this._widget || (this._widget.isEmpty() && !!this._widget.viewModel && !this._widget.viewModel.model.title)) &&	// chat widget empty (but not when model is loading or has a title)
+					this._sessionsListSuppressionCount === 0 &&																			// not mid-transition (a slow session transiently shows an empty widget)
 					!this.welcomeController?.isShowingWelcome.get();																	// welcome not showing
 			}
 
@@ -704,6 +909,28 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			changed: sessionsContainerVisible !== newSessionsContainerVisible,
 			visible: newSessionsContainerVisible
 		};
+	}
+
+	private refreshSessionsControlVisibility(): void {
+		const { changed } = this.updateSessionsControlVisibility();
+		if (changed) {
+			this.relayout();
+		}
+	}
+
+	/**
+	 * Suppresses the sessions list until the returned disposable is disposed.
+	 * Used to span a whole session transition (e.g. a "Continue in…" migration:
+	 * load → materializing send → rebind) so the transiently-empty widget never
+	 * falls back to the list.
+	 */
+	beginSessionsListSuppression(): IDisposable {
+		this._sessionsListSuppressionCount++;
+		this.refreshSessionsControlVisibility();
+		return toDisposable(() => {
+			this._sessionsListSuppressionCount--;
+			this.refreshSessionsControlVisibility();
+		});
 	}
 
 	getFocusedSessions(): IAgentSession[] {
@@ -814,6 +1041,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(chatWidget.onDidChangeViewModel(() => {
 			const model = chatWidget.viewModel?.model;
 			this.titleControl?.update(model);
+			this._currentSessionResource.set(chatWidget.viewModel?.sessionResource, undefined);
 
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				return; // only reveal in side-by-side mode
@@ -861,7 +1089,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(autorun(reader => {
 			chatWidget.inputPart.height.read(reader);
 			if (this.sessionsViewerVisible && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-				this.relayout();
+				this.relayoutForInputHeight();
 			}
 		}));
 
@@ -910,40 +1138,65 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	//#region Model Management
 
 	private applyModel(): void {
-		this.restoringSession = this._applyModel();
+		// Make the initial session resolution cancelable so an explicit request
+		// (e.g. New Local Chat via `startNewLocalSession`) can preempt a slow /
+		// blocking default-provider resolution instead of waiting for it.
+		// Cancel any previous in-flight resolution first: assigning to the
+		// MutableDisposable only disposes the old source, and disposing a
+		// CancellationTokenSource does not cancel it.
+		this._applyModelCts.value?.cancel();
+		const cts = this._applyModelCts.value = new CancellationTokenSource();
+		this.restoringSession = this._applyModel(cts.token).catch(err => {
+			if (!isCancellationError(err)) {
+				this.logService.error('ChatViewPane#applyModel failed', err);
+			}
+		});
 		this.restoringSession.finally(() => this.restoringSession = undefined);
 	}
 
-	private async _applyModel(): Promise<void> {
-		const modelRef = await this.acquireTransferredOrPersistedSession(CancellationToken.None, 'ChatViewPane#applyModel');
-		await this.showModel(CancellationToken.None, modelRef, true, !modelRef);
+	private async _applyModel(token: CancellationToken): Promise<void> {
+		const modelRef = await this.acquireTransferredOrPersistedSession(token, 'ChatViewPane#applyModel');
+		await this.showModel(token, modelRef, true, !modelRef);
 	}
 
 	/**
 	 * Force-start a new local chat session in the view, bypassing the
 	 * default-provider override applied by `showModel()`. Used by the
-	 * picker when the user explicitly selects "Local".
+	 * picker when the user explicitly selects "Local", and by New Local Chat.
 	 */
 	async startNewLocalSession(): Promise<IChatModel | undefined> {
+		// Preempt any in-flight initial session resolution (e.g. the computed
+		// default provider). Without this, opening the view kicks off a default
+		// resolution that, when the default is a non-local harness, blocks on
+		// agent host activation; canceling it lets this explicit local request
+		// win immediately.
+		this._applyModelCts.value?.cancel();
 		const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#startNewLocalSession' });
 		return this.showModel(CancellationToken.None, ref);
 	}
 
 	/**
-	 * When the experimental `chat.editor.defaultProvider` setting selects a
-	 * provider other than local and that contribution is registered, return a
-	 * new session reference for it instead of the built-in local provider.
-	 * Returns `undefined` to fall back to `startNewLocalSession`.
+	 * When the remembered or computed default session type is a non-local
+	 * provider (for example when the agent host is enabled), return a new session
+	 * reference for it instead of the built-in local provider. Returns
+	 * `undefined` to fall back to `startNewLocalSession`.
 	 */
 	private async acquireDefaultNewSession(token: CancellationToken): Promise<IChatModelReference | undefined> {
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService);
+		const workspace = this.workspaceContextService.getWorkspace();
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled);
 		if (defaultType === localChatSessionType) {
 			return undefined;
 		}
-		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService);
+		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled);
 		try {
 			return await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession');
 		} catch (error) {
+			// A cancellation means the caller (e.g. `startNewLocalSession`)
+			// deliberately preempted this resolution; propagate it so the
+			// initial `applyModel` bails instead of creating a fallback session.
+			if (isCancellationError(error)) {
+				throw error;
+			}
 			this.logService.warn(`[ChatViewPane] Failed to acquire default agent-host session, falling back to local`, error);
 			return undefined;
 		}
@@ -969,17 +1222,21 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService);
-		const prefersAgentHostCopilot = this.configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) === false
-			&& this.configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider) === 'copilotAh';
-		return (defaultType !== localChatSessionType || prefersAgentHostCopilot)
+		const workspace = this.workspaceContextService.getWorkspace();
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled);
+		return defaultType !== localChatSessionType
 			&& getChatSessionType(sessionResource) === localChatSessionType
 			&& !model.hasRequests;
 	}
 
-	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false): Promise<IChatModel | undefined> {
+	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string): Promise<IChatModel | undefined> {
 		const oldModelResource = this.modelRef.value?.object.sessionResource;
 		this.modelRef.value = undefined;
+
+		// Baseline draft for preserving text typed during loading. `loadSession`
+		// opens its load window before calling us, so it passes its own baseline;
+		// otherwise this call's own await is the load window. See #325323.
+		const baselineInput = inputBeforeLoad ?? this._widget?.getInput() ?? '';
 
 		let ref: IChatModelReference | undefined;
 		if (startNewSession) {
@@ -1015,7 +1272,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.viewState.sessionResource = model.sessionResource;
 		}
 
-		this._widget.setModel(model);
+		if (model) {
+			setModelPreservingInputTypedWhileLoading(this._widget, baselineInput, () => this._widget.setModel(model));
+		} else {
+			this._widget.setModel(model);
+		}
 
 		// Update title control
 		this.titleControl?.update(model);
@@ -1083,6 +1344,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const t0 = Date.now();
 		this.logService.trace(`[ChatViewPane] loadSession start uri=${sessionResource.toString()}`);
 
+		// Capture the input draft up front: the load window (clear + acquire below)
+		// opens before `showModel` binds, so text typed during loading must be
+		// baselined here to be preserved rather than erased. See #325323.
+		const inputBeforeLoad = this._widget?.getInput() ?? '';
+
 		// Cancel any in-flight loadSession call so the last one always wins
 		this.loadSessionCts.value?.cancel();
 		const cts = this.loadSessionCts.value = new CancellationTokenSource();
@@ -1125,7 +1391,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					return undefined;
 				}
 
-				const result = await this.showModel(token, newModelRef);
+				const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad);
 				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 				return result;
 			} catch (err) {
@@ -1141,7 +1407,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				// is not left in a broken state without title or back button.
 				this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
 				this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
-				const result = await this.showModel(token, undefined);
+				const result = await this.showModel(token, undefined, true, false, inputBeforeLoad);
 				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} error=true`);
 				return result;
 			} finally {
@@ -1177,9 +1443,21 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private layoutingBody = false;
 
 	private relayout(): void {
+		if (!this._widget?.visible) {
+			return;
+		}
+
 		if (this.lastDimensions) {
 			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
 		}
+	}
+
+	private relayoutForInputHeight(): void {
+		if (this.layoutingBody || !this._widget?.visible || !this.lastDimensions) {
+			return;
+		}
+
+		this.layoutChatAndSessions(this.lastDimensions.height, this.lastDimensions.width, false);
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -1199,13 +1477,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		super.layoutBody(height, width);
 
 		this.lastDimensions = { height, width };
+		this.layoutChatAndSessions(height, width, true);
+	}
 
+	private layoutChatAndSessions(height: number, width: number, layoutInput: boolean): void {
 		let remainingHeight = height;
 		const remainingWidth = width;
 
-		// Voice bottom area — read current height (ResizeObserver triggers
-		// relayout whenever the content changes size).
-		remainingHeight -= this._voiceBottomArea?.offsetHeight ?? 0;
+		// Voice bar is now inside the input container, no separate height deduction needed
 
 		// Title Control
 		const titleHeight = this.titleControl?.getHeight() ?? 0;
@@ -1220,10 +1499,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// the sessions viewer deduction) so the input can grow freely. As the input
 		// grows, an autorun triggers relayout which shrinks the sessions viewer,
 		// giving the widget more space and converging to the right sizes.
-		this._widget.setInputPartMaxHeightOverride(this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked ? remainingHeight : undefined);
+		const inputMaxHeight = this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked ? remainingHeight : undefined;
 
 		// Chat Widget
-		this._widget.layout(remainingHeight - heightReduction, remainingWidth - widthReduction);
+		if (layoutInput) {
+			this._widget.setInputPartMaxHeightOverride(inputMaxHeight);
+			this._widget.layout(remainingHeight - heightReduction, remainingWidth - widthReduction);
+		} else {
+			layoutChatWidgetForInputHeight(this._widget, inputMaxHeight, remainingHeight - heightReduction, remainingWidth - widthReduction);
+		}
 
 		// Remember last dimensions per orientation
 		this.lastDimensionsPerOrientation.set(this.sessionsViewerOrientation, { height, width });
@@ -1437,4 +1721,5 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			$mid: MarshalledId.ChatViewContext
 		} : undefined;
 	}
+
 }

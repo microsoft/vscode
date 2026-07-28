@@ -14,7 +14,7 @@ function makeConfig(overrides: Partial<OTelConfig> = {}): OTelConfig {
 		enabledVia: 'setting',
 		exporterType: 'otlp-http',
 		otlpEndpoint: 'http://localhost:4318',
-		otlpProtocol: 'http',
+		otlpProtocol: 'http/json',
 		captureContent: false,
 		maxAttributeSizeChars: 0,
 		dbSpanExporter: false,
@@ -24,6 +24,7 @@ function makeConfig(overrides: Partial<OTelConfig> = {}): OTelConfig {
 		serviceVersion: '1.0.0',
 		sessionId: 'test-session',
 		resourceAttributes: {},
+		headers: {},
 		...overrides,
 	};
 }

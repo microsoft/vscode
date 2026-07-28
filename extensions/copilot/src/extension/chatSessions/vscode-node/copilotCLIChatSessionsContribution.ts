@@ -2224,7 +2224,7 @@ export function registerCLIChatCommands(
 		);
 		return siblings.length > 0;
 	}
-	async function deleteSessionById(sessionId: string, options?: { keepWorktree?: boolean }): Promise<void> {
+	async function deleteSessionById(sessionId: string, options?: { keepWorktree?: boolean; sessionLabel?: string }): Promise<void> {
 		const worktree = await copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
 		const worktreePath = await copilotCLIWorktreeManagerService.getWorktreePath(sessionId);
 
@@ -2239,7 +2239,7 @@ export function registerCLIChatCommands(
 					if (!repository) {
 						throw new Error(l10n.t('No active repository found to delete worktree.'));
 					}
-					await gitService.deleteWorktree(repository.rootUri, worktreePath.fsPath);
+					await gitService.deleteWorktree(repository.rootUri, worktreePath.fsPath, { label: options?.sessionLabel });
 				} catch (error) {
 					vscode.window.showErrorMessage(l10n.t('Failed to delete worktree: {0}', error instanceof Error ? error.message : String(error)));
 				}
@@ -2265,7 +2265,7 @@ export function registerCLIChatCommands(
 			);
 
 			if (result === deleteLabel) {
-				await deleteSessionById(sessionId, { keepWorktree });
+				await deleteSessionById(sessionId, { keepWorktree, sessionLabel: sessionItem.label });
 				copilotcliSessionItemProvider.notifySessionsChange();
 			}
 		}
@@ -2296,7 +2296,7 @@ export function registerCLIChatCommands(
 				const sessionId = copilotcliSessionItemProvider.untitledSessionIdMapping.get(id) ?? id;
 				const worktreePath = await copilotCLIWorktreeManagerService.getWorktreePath(sessionId);
 				const keepWorktree = !!worktreePath && await shouldKeepWorktreeForOtherSessions(sessionId, worktreePath);
-				await deleteSessionById(sessionId, { keepWorktree });
+				await deleteSessionById(sessionId, { keepWorktree, sessionLabel: sessionItem.label });
 			}
 		}
 

@@ -16,20 +16,25 @@ import { SymbolKind, SymbolTag } from '../../../../../../../editor/common/langua
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatMarkdownContentPart } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
+import { ChatContentMarkdownRenderer } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { CodeBlockPart, ICodeBlockData } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
 import { IChatOutputRendererService, type RenderedOutputPart } from '../../../../browser/chatOutputItemRenderer.js';
 import { IChatOutputPartStateCache, IOutputPartState } from '../../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatContentInlineReference } from '../../../../common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
+import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { IViewDescriptorService } from '../../../../../../common/views.js';
 import { IDisposableReference } from '../../../../browser/widget/chatContentParts/chatCollections.js';
+import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 
 suite('ChatMarkdownContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,6 +43,7 @@ suite('ChatMarkdownContentPart', () => {
 	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
 	let editorPool: EditorPool;
 	let renderer: IMarkdownRenderer;
+	let chatSessionsService: MockChatSessionsService;
 
 	/** Data captured from each CodeBlockPart.render() call */
 	const renderedCodeBlocks: ICodeBlockData[] = [];
@@ -135,6 +141,8 @@ suite('ChatMarkdownContentPart', () => {
 	setup(() => {
 		disposables = store.add(new DisposableStore());
 		instantiationService = workbenchInstantiationService(undefined, disposables);
+		chatSessionsService = new MockChatSessionsService();
+		instantiationService.stub(IChatSessionsService, chatSessionsService);
 		renderedCodeBlocks.length = 0;
 		renderedCodeBlockOutputs.length = 0;
 		outputStateCache = new Map<string, IOutputPartState>();
@@ -210,8 +218,7 @@ suite('ChatMarkdownContentPart', () => {
 			getViewLocationById: () => null,
 		});
 
-		// Use the real markdown renderer service
-		renderer = instantiationService.get(IMarkdownRendererService);
+		renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
 
 		// Create a mock editor pool
 		editorPool = createMockEditorPool();
@@ -219,6 +226,36 @@ suite('ChatMarkdownContentPart', () => {
 
 	teardown(() => {
 		disposables.dispose();
+	});
+
+	test('transforms accumulated response Markdown while preserving link text', () => {
+		disposables.add(chatSessionsService.registerChatSessionContentProvider('chat-session', {
+			provideChatSessionContent: async () => { throw new Error('Unexpected session resolution'); },
+			resolveChatResponseUri: (_resource, href) => rewriteAgentHostLinkTarget(href, 'my-host'),
+		}));
+
+		const part = createMarkdownPart('`[foo.ts](/code.ts)` [a[b].ts](/remote/a.ts "/remote/a.ts"), [a\\*b.ts](/remote/b.ts), [line.ts](/remote/line.ts:42), [column.ts](/remote/column.ts:42:7), [windows.ts](C:/remote/windows.ts:42), [unc.ts](//server/share/unc.ts:42), [skill](/remote/skill/SKILL.md), and [file-uri.ts](file:///remote/file-uri.ts:42). ![image](/remote/image.png)');
+		const links = Array.from(part.domNode.querySelectorAll('a'));
+		const skillUri = toAgentHostUri(URI.file('/remote/skill/SKILL.md'), 'my-host');
+		assert.deepStrictEqual(
+			{
+				links: links.map(link => ({ text: link.textContent, href: link.dataset.href })),
+				imageSource: part.domNode.querySelector('img')?.getAttribute('src'),
+			},
+			{
+				links: [
+					{ text: 'a[b].ts', href: toAgentHostUri(URI.file('/remote/a.ts'), 'my-host').toString() },
+					{ text: 'a*b.ts', href: toAgentHostUri(URI.file('/remote/b.ts'), 'my-host').toString() },
+					{ text: 'line.ts', href: toAgentHostUri(URI.file('/remote/line.ts').with({ fragment: 'L42' }), 'my-host').toString() },
+					{ text: 'column.ts', href: toAgentHostUri(URI.file('/remote/column.ts').with({ fragment: 'L42,7' }), 'my-host').toString() },
+					{ text: 'windows.ts', href: toAgentHostUri(URI.file('C:/remote/windows.ts').with({ fragment: 'L42' }), 'my-host').toString() },
+					{ text: 'unc.ts', href: toAgentHostUri(URI.file('//server/share/unc.ts').with({ fragment: 'L42' }), 'my-host').toString() },
+					{ text: 'skill', href: skillUri.with({ query: `${skillUri.query}&vscodeLinkType=skill` }).toString() },
+					{ text: 'file-uri.ts', href: toAgentHostUri(URI.file('/remote/file-uri.ts').with({ fragment: 'L42' }), 'my-host').toString() },
+				],
+				imageSource: null,
+			},
+		);
 	});
 
 	test('renders plain markdown without code blocks', () => {

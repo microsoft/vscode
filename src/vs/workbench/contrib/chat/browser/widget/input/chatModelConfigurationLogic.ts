@@ -64,6 +64,13 @@ export function filterConfigurationToSchema(
  * *missing* entry (`undefined`) falls back to the profile-global value, which is
  * the one-time migration for setups that pre-date per-editor scoping.
  *
+ * Schema defaults are merged in every branch so a value the user never
+ * explicitly set (e.g. a model's default `contextSize`) is always present in the
+ * resolved configuration. Otherwise the model picker — which paints the schema
+ * default when a key is absent — would show one value while the request and the
+ * context-usage widget, which read the resolved configuration, fall back to the
+ * model's full native window. See issue #320393.
+ *
  * Distinguishing "present but empty" from "absent" is what prevents a newly
  * opened editor from reverting an explicit default selection back to a stale
  * profile-global value. See issue #320393.
@@ -76,7 +83,7 @@ export function resolveModelConfiguration(
 	if (storedEntry) {
 		return { ...schemaDefaults, ...storedEntry };
 	}
-	return globalConfig ? { ...globalConfig } : {};
+	return globalConfig ? { ...schemaDefaults, ...globalConfig } : { ...schemaDefaults };
 }
 
 /**

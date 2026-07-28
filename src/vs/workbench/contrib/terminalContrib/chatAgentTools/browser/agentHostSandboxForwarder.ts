@@ -5,8 +5,9 @@
 
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostSdkSandboxEnabledSettingId, IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AgentHostSdkSandboxEnabledSettingId, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -56,8 +57,7 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 	private _desired: Record<string, unknown> | undefined;
 
 	constructor(
-		@IAgentHostService private readonly _localAgentHostService: IAgentHostService,
-		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -71,7 +71,7 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 			}
 		}));
 
-		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
+		this._register(this._connectionsService.onDidChangeConnections(() => {
 			this._syncConnectionListeners();
 		}));
 		this._syncConnectionListeners();
@@ -79,17 +79,13 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 
 	private _syncConnectionListeners(): void {
 		const live = new Set<IAgentConnection>();
-		const ensureScheduled = (connection: IAgentConnection) => {
-			live.add(connection);
-			if (!this._scheduled.has(connection)) {
-				this._scheduleInitialPush(connection);
+		for (const info of this._connectionsService.connections) {
+			if (!info.connection) {
+				continue;
 			}
-		};
-		ensureScheduled(this._localAgentHostService);
-		for (const info of this._remoteAgentHostService.connections) {
-			const connection = this._remoteAgentHostService.getConnection(info.address);
-			if (connection) {
-				ensureScheduled(connection);
+			live.add(info.connection);
+			if (!this._scheduled.has(info.connection)) {
+				this._scheduleInitialPush(info.connection);
 			}
 		}
 		for (const [connection, listener] of this._scheduled) {
@@ -120,11 +116,9 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 	}
 
 	private _pushToAllConnections(): void {
-		this._tryPush(this._localAgentHostService);
-		for (const info of this._remoteAgentHostService.connections) {
-			const connection = this._remoteAgentHostService.getConnection(info.address);
-			if (connection) {
-				this._tryPush(connection);
+		for (const info of this._connectionsService.connections) {
+			if (info.connection) {
+				this._tryPush(info.connection);
 			}
 		}
 	}

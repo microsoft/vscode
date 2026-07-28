@@ -161,10 +161,23 @@ export abstract class Part<MementoType extends object = object> extends Componen
 	}
 
 	private relayout() {
-		if (this.dimension && this.contentPosition) {
-			this.layout(this.dimension.width, this.dimension.height, this.contentPosition.top, this.contentPosition.left);
+		const dimension = this.getRelayoutDimension();
+		if (dimension && this.contentPosition) {
+			this.layout(dimension.width, dimension.height, this.contentPosition.top, this.contentPosition.left);
 		}
 	}
+
+	/**
+	 * The dimension to use when the part re-lays out itself in response to internal
+	 * changes (e.g. title, header or footer visibility). Subclasses that reduce the
+	 * dimension passed to {@link layout} (for example to reserve space for a floating
+	 * card margin) must override this to return the original, unreduced dimension so
+	 * the reduction is not applied repeatedly on every relayout.
+	 */
+	protected getRelayoutDimension(): Dimension | undefined {
+		return this._dimension;
+	}
+
 	/**
 	 * Layout title and content area in the given dimension.
 	 */
@@ -204,6 +217,8 @@ class PartLayout {
 
 	private static readonly HEADER_HEIGHT = 35;
 	private static readonly TITLE_HEIGHT = 35;
+	// KEEP IN SYNC WITH: styleOverrides/browser/media/padding.css `.style-override .part > .title { height: 32px }`
+	private static readonly TITLE_HEIGHT_STYLE_OVERRIDE = 32;
 	private static readonly Footer_HEIGHT = 35;
 
 	private headerVisible: boolean = false;
@@ -213,10 +228,16 @@ class PartLayout {
 
 	layout(width: number, height: number): ILayoutContentResult {
 
-		// Title Size: Width (Fill), Height (Variable)
+		// Title Size: Width (Fill), Height (Variable).
+		// When the Modern UI style-override is active the title bar is 32 px
+		// (set in padding.css). Mirror that value here so the content area
+		// calculation stays in sync. Uses the same `.closest('.style-override')`
+		// check as EditorTabsControl.tabHeight.
 		let titleSize: Dimension;
 		if (this.options.hasTitle) {
-			titleSize = new Dimension(width, Math.min(height, PartLayout.TITLE_HEIGHT));
+			const isStyleOverride = !!this.contentArea?.closest('.style-override');
+			const titleHeight = isStyleOverride ? PartLayout.TITLE_HEIGHT_STYLE_OVERRIDE : PartLayout.TITLE_HEIGHT;
+			titleSize = new Dimension(width, Math.min(height, titleHeight));
 		} else {
 			titleSize = Dimension.None;
 		}

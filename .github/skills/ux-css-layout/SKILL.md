@@ -67,6 +67,21 @@ Workbench-level global styles live in `src/vs/workbench/browser/media/`.
 | Missing `min-width: 0` on flex children | Prevents truncation issues |
 | Forgetting `pointer-events: none` on hidden overlays | Prevents click-through bugs |
 
+### Never Add New `!important`
+
+Do not introduce `!important` in new or modified CSS. When a declaration loses
+the cascade, inspect the competing selector and increase specificity with the
+smallest appropriate component, workbench, or state-class prefix instead.
+Existing `!important` declarations may be preserved and must not be removed
+mechanically during unrelated edits. Do not copy them, add new ones, or use
+them to avoid understanding selector ownership.
+
+The narrow exception is shared focus/active-outline suppression, where
+`outline: 0 !important` is intentionally used to override native or global focus
+indicators and prevent flashing outlines during pointer activation. Keep this
+exception scoped to focus-indicator behavior; feature styling must still resolve
+cascade conflicts through selector specificity.
+
 ## 5. SplitView Layout
 
 **File**: `src/vs/base/browser/ui/splitview/splitview.ts`
@@ -297,11 +312,28 @@ scale value, **ties round up** (`5px → 6px`, `3px → 4px`, `1px → 2px`,
 
 ### Font size & weight
 
-Generic UI chrome (fixed px): `13 → --vscode-bodyFontSize` (base),
-`12 → --vscode-bodyFontSize-small`, `11 → --vscode-bodyFontSize-xSmall`.
+Generic UI ramp — pair a **size** token with a **weight** token (mirrors the
+agents ramp; "Strong" = matching size token + `semiBold`, never a separate size):
 
-Agents window (`src/vs/sessions/**`) ramp — pair a **size** token with a
-**weight** token:
+| px | Size var | Weight |
+|----|----------|--------|
+| 26 | `--vscode-fontSize-heading1` | semiBold |
+| 18 | `--vscode-fontSize-heading2` | semiBold |
+| 13 | `--vscode-fontSize-heading3` | semiBold |
+| 13 | `--vscode-fontSize-body1` | regular |
+| 11 | `--vscode-fontSize-body2` | regular |
+| 12 | `--vscode-fontSize-label1` | regular |
+| 11 | `--vscode-fontSize-label2` | regular |
+| 10 | `--vscode-fontSize-label3` | regular |
+
+Generic weights: `--vscode-fontWeight-regular` (400),
+`--vscode-fontWeight-semiBold` (600).
+
+**Deprecated** — `--vscode-bodyFontSize` (13) → `--vscode-fontSize-body1`,
+`--vscode-bodyFontSize-small` (12) → `--vscode-fontSize-label1`,
+`--vscode-bodyFontSize-xSmall` (11) → `--vscode-fontSize-body2`.
+
+Agents window (`src/vs/sessions/**`) ramp — identical values, `agents-`-prefixed:
 
 | px | Size var | Weight |
 |----|----------|--------|
@@ -314,14 +346,15 @@ Agents window (`src/vs/sessions/**`) ramp — pair a **size** token with a
 | 11 | `--vscode-agents-fontSize-label2` | regular |
 | 10 | `--vscode-agents-fontSize-label3` | regular |
 
-The agents weight ramp is **two weights only**:
-`--vscode-agents-fontWeight-regular` (400) and
-`--vscode-agents-fontWeight-semiBold` (600).
+Both weight ramps are **two weights only**: `regular` (400) and
+`semiBold` (600) — generic `--vscode-fontWeight-*`, agents
+`--vscode-agents-fontWeight-*`.
 
 - **No medium (500).** `font-weight: 500` is off the ramp — snap to `semiBold`.
   Likewise `700`/`bold` → round to the nearer of 400/600.
 - **"Strong" is not a separate size.** "Body 1 Strong" = the matching
-  `--vscode-agents-fontSize-*` size token + `semiBold`. Never add a strong *size*.
+  `--vscode-fontSize-*` (or `--vscode-agents-fontSize-*`) size token + `semiBold`.
+  Never add a strong *size*.
 - `normal` ≡ 400 → `regular`. Leave `inherit`, `lighter`, `bolder`,
   `var()`/`calc()` untouched.
 

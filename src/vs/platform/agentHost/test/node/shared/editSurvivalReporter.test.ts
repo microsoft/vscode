@@ -15,6 +15,7 @@ import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFil
 import { NullLogService } from '../../../../log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../telemetry/common/telemetryUtils.js';
 import { EditSurvivalReporterFactory } from '../../../node/shared/editSurvivalReporter.js';
+import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 
 class RecordingTelemetryService extends NullTelemetryServiceShape {
 	readonly events: Array<{ name: string; data: unknown }> = [];
@@ -55,6 +56,7 @@ suite('agentHost editSurvivalReporter', () => {
 			afterText: 'after-text',
 			isCreate: false,
 			modelId: 'claude-sonnet-4.5',
+			toolName: 'Edit',
 			aiChunks: ['after-text'],
 		});
 		disposables.add(reporter);
@@ -68,6 +70,7 @@ suite('agentHost editSurvivalReporter', () => {
 		const data = first.data as Record<string, unknown>;
 		assert.strictEqual(data.provider, 'claude');
 		assert.strictEqual(data.modelId, 'claude-sonnet-4.5');
+		assert.strictEqual(data.toolName, 'Edit');
 		assert.strictEqual(data.agentSessionId, 'session-1');
 		assert.strictEqual(data.turnId, 'turn-1');
 		assert.strictEqual(data.toolCallId, 'tc-1');
@@ -79,6 +82,28 @@ suite('agentHost editSurvivalReporter', () => {
 		assert.strictEqual(data.survivalRateNoRevert, 1);
 		assert.strictEqual(data.scoringMode, 'chunked');
 		assert.strictEqual(data.aiCharCount, 'after-text'.length);
+	});
+
+	test('resolves ahp-chat sub-channel URIs back to the parent harness', async () => {
+		await fileService.writeFile(URI.file('/workspace/b.ts'), VSBuffer.fromString('after-text'));
+
+		const reporter = factory.launch({
+			sessionUri: buildDefaultChatUri('claude:/session-9'),
+			turnId: 'turn-1',
+			toolCallId: 'tc-9',
+			filePath: '/workspace/b.ts',
+			beforeText: 'before-text',
+			afterText: 'after-text',
+			isCreate: false,
+			aiChunks: ['after-text'],
+		});
+		disposables.add(reporter);
+
+		await timeout(50);
+
+		const data = telemetry.events[0].data as Record<string, unknown>;
+		assert.strictEqual(data.provider, 'claude');
+		assert.strictEqual(data.agentSessionId, 'session-9');
 	});
 
 	test('emits a delete event when the file is missing', async () => {
