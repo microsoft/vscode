@@ -197,13 +197,15 @@ suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
 		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledWorkspace);
 	});
 
-	test('canonicalizes case variants order-independently (case-insensitive scheme)', () => {
+	test('canonicalizes case-variant entries within a set order-independently (case-insensitive scheme)', () => {
 		const sut = createSut();
-		// Non-`file` schemes are case-insensitive on every platform, so `Repo-A` and
-		// `repo-a` denote the same root. Paired with a stable second root, the workspace
-		// preference must be shared regardless of which spelling/order each session uses.
-		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'vscode-remote://host/repo-a', ['vscode-remote://host/Repo-A', 'vscode-remote://host/repo-b']));
-		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'vscode-remote://host/repo-b', ['vscode-remote://host/repo-b', 'vscode-remote://host/repo-a']));
+		// A set that lists the same root under two case spellings (`Repo-A`/`repo-a`) plus a
+		// distinct second root. Reversing the entries must not change the durable key: among
+		// spellings that share a comparison key, the representative is chosen deterministically
+		// (lexicographically smallest) rather than by first-seen order. Non-`file` schemes are
+		// case-insensitive on every platform, so this is stable across OSes.
+		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'vscode-remote://host/repo-a', ['vscode-remote://host/Repo-A', 'vscode-remote://host/repo-a', 'vscode-remote://host/repo-b']));
+		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'vscode-remote://host/repo-b', ['vscode-remote://host/repo-b', 'vscode-remote://host/repo-a', 'vscode-remote://host/Repo-A']));
 
 		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
 

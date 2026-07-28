@@ -58,7 +58,10 @@ suite('SessionCustomizationDiscovery', () => {
 		return uri;
 	}
 
-	const inMemoryPathToUri = (path: string) => URI.from({ scheme: Schemas.inMemory, path });
+	// Mirror `URI.file`'s separator normalization (it rewrites `\` → `/` on Windows) so a
+	// round-trip through `.fsPath` — used by `projectPath` attribution in discovery — matches
+	// on Windows too, where `URI.fsPath` yields backslashes.
+	const inMemoryPathToUri = (path: string) => URI.from({ scheme: Schemas.inMemory, path: path.replace(/\\/g, '/') });
 
 	test('discovers supported agent instruction files in workspace roots', async () => {
 		const wsCopilotInstructions = await seed('/workspace/.github/copilot-instructions.md', 'workspace copilot instructions');
