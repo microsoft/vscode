@@ -40,8 +40,26 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	public async resolveCustomTextEditor(
 		document: vscode.TextDocument,
 		webviewPanel: vscode.WebviewPanel,
-		_token: vscode.CancellationToken,
+		token: vscode.CancellationToken,
 	): Promise<void> {
+		if (!vscode.workspace.isTrusted) {
+			const cancel = { title: vscode.l10n.t("Cancel"), isCloseAffordance: true };
+			const openAnyway = { title: vscode.l10n.t("Open Anyway") };
+			const choice = await vscode.window.showWarningMessage(
+				vscode.l10n.t("This Markdown file is in an untrusted workspace. Do you want to open it anyway?"),
+				{
+					modal: true,
+					detail: vscode.l10n.t("For your security, only continue if you trust the source of this Markdown file."),
+				},
+				cancel,
+				openAnyway,
+			);
+			if (choice !== openAnyway || token.isCancellationRequested) {
+				webviewPanel.dispose();
+				return;
+			}
+		}
+
 		const webview = webviewPanel.webview;
 		webview.options = { enableScripts: true, localResourceRoots: [this.#mediaRoot] };
 		webview.html = this.#getHtml(webview);
