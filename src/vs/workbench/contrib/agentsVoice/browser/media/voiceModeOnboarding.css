@@ -11,11 +11,11 @@
  * rhythm. Stacked, the spacing is identical everywhere and nothing has to be
  * dropped, scrolled or clipped.
  *
- * Spacing rhythm, all on the 8px scale:
- *   12px  card padding
- *    8px  between tiers
- *    6px  between voice chips
- *    2px  between title and its sentence
+ * Spacing rhythm, all from the shared spacing ramp:
+ *   12px  card padding                      (size120)
+ *    8px  between tiers, and voices to close (size80)
+ *    2px  between voice chips, and title to its sentence (size20)
+ *  2/4px  inside a voice chip               (size20 / size40)
  */
 
 /* The host is a peer directly above the chat input, and stays out of the layout
@@ -273,6 +273,20 @@
 @keyframes voice-mode-onboarding-eq {
 	0%, 100% { height: 3px; }
 	50% { height: 10px; }
+}
+
+/* --- Reduced motion --- */
+
+/*
+ * The keyframe animations above are already opt-in via `.monaco-enable-motion`,
+ * but transitions are not: without this the icon slot would still slide open
+ * over 200ms and its glyphs still crossfade, which is exactly the movement the
+ * preference asks us not to make. Colour changes are left alone - they convey
+ * state rather than motion.
+ */
+.monaco-reduce-motion .voice-mode-onboarding-voice-icon,
+.monaco-reduce-motion .voice-mode-onboarding-voice-icon > * {
+	transition: none;
 }
 
 /* --- Close --- */

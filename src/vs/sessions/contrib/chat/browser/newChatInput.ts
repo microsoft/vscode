@@ -455,7 +455,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		// First-run Voice Mode introduction, docked above the input area
 		const voiceOnboardingContainer = dom.append(chatInputContainer, dom.$('.voice-mode-onboarding-container'));
-		this._register(this.voiceModeOnboardingService.registerHost(voiceOnboardingContainer, chatInputContainer));
+		this._register(this.voiceModeOnboardingService.registerHost(voiceOnboardingContainer, chatInputContainer, () => this.focus()));
 
 		// Input area inside the input slot
 		const inputAreaWrapper = dom.append(chatInputContainer, dom.$('.new-chat-input-area-wrapper'));

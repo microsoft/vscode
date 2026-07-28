@@ -104,6 +104,25 @@ const VOICES: readonly IVoiceModeVoice[] = [
 	},
 ];
 
+/**
+ * The trace before anyone has chosen: the four signatures averaged component by
+ * component, so it belongs to no voice in particular rather than quietly being
+ * the first one in the list. The declared phases all sit within a couple of
+ * radians of each other, so a plain mean lands between them rather than on the
+ * far side of the circle.
+ */
+const RESTING_SIGNATURE: readonly IWave[] = VOICES[0].signature.map((_, index) => {
+	const components = VOICES.map(voice => voice.signature[index]);
+	const mean = (pick: (wave: IWave) => number) =>
+		components.reduce((sum, wave) => sum + pick(wave), 0) / components.length;
+	return {
+		frequency: mean(wave => wave.frequency),
+		amplitude: mean(wave => wave.amplitude),
+		speed: mean(wave => wave.speed),
+		phase: mean(wave => wave.phase),
+	};
+});
+
 // --- ASCII waveform ------------------------------------------------------
 
 /** Amplitude with nothing playing: present, but clearly at rest. */
@@ -135,12 +154,19 @@ function cloneSignature(signature: readonly IWave[]): MutableWave[] {
  * Ease a signature towards a target in place. Morphing the numbers rather than
  * swapping them is what makes a voice change read as the trace *becoming* the
  * new voice instead of cutting to it.
+ *
+ * `phase` eases with the rest: it is a static offset per component (the motion
+ * comes from `time * speed`), so leaving it behind would strand every voice on
+ * whichever phases the trace happened to start with. Every declared phase sits
+ * within a radian or two of its neighbours, well inside half a turn, so easing
+ * straight to the target is also the shortest way round the circle.
  */
 function easeSignature(current: MutableWave[], target: readonly IWave[]): void {
 	for (let i = 0; i < current.length && i < target.length; i++) {
 		current[i].frequency += (target[i].frequency - current[i].frequency) * SIGNATURE_EASING;
 		current[i].amplitude += (target[i].amplitude - current[i].amplitude) * SIGNATURE_EASING;
 		current[i].speed += (target[i].speed - current[i].speed) * SIGNATURE_EASING;
+		current[i].phase += (target[i].phase - current[i].phase) * SIGNATURE_EASING;
 	}
 }
 
@@ -505,12 +531,14 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		this.domNode.setAttribute('role', 'region');
 		this.domNode.setAttribute('aria-label', localize('voiceMode.onboarding.region', "Voice Mode introduction"));
 
-		// Voice Mode is live, but it should not be listening while the user is
-		// still reading and picking a voice. Listening resumes on "Done" (or on
-		// the mic button) once they have made their choice.
-		if (this.voiceSessionController.voiceState.get() === 'listening') {
-			this.voiceSessionController.stopListening();
-		}
+		// Voice Mode is live, but it must not be listening while the user is still
+		// reading and picking a voice. A hold is used rather than `stopListening`
+		// because the card goes up on `isConnecting`, before the session exists:
+		// `stopListening` no-ops until connected, and hands-free would then open
+		// the microphone on `session_init` with the card still on screen.
+		// Released in `finish()`, which is the only way out of the card.
+		this.voiceSessionController.setAutoListenHeld(true);
+		this._register(toDisposable(() => this.voiceSessionController.setAutoListenHeld(false)));
 
 		const copy = dom.append(this.domNode, dom.$('.voice-mode-onboarding-copy'));
 		const title = dom.append(copy, dom.$('.voice-mode-onboarding-title'));
@@ -533,10 +561,10 @@ export class VoiceModeOnboardingBanner extends Disposable {
 
 	/**
 	 * The signature the shared trace should be showing: the selected voice's, or
-	 * a calm blend of all of them before anything has been chosen.
+	 * {@link RESTING_SIGNATURE} before anything has been chosen.
 	 */
 	private currentSignature(): readonly IWave[] {
-		return this.selectedVoice?.signature ?? VOICES[0].signature;
+		return this.selectedVoice?.signature ?? RESTING_SIGNATURE;
 	}
 
 	/** The single full-width trace the whole card shares. */
@@ -569,7 +597,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 			// click, and "this is yours" after it.
 			const icon = dom.append(option, dom.$('span.voice-mode-onboarding-voice-icon'));
 			dom.append(icon, dom.$(`span.codicon.codicon-${Codicon.play.id}.voice-mode-onboarding-voice-idle`)).setAttribute('aria-hidden', 'true');
-			dom.append(icon, dom.$(`span.codicon.codicon-${Codicon.check.id}.voice-mode-onboarding-voice-chosen`)).setAttribute('aria-hidden', 'true');
+			dom.append(icon, dom.$(`span.codicon.codicon-${Codicon.checkCompact.id}.voice-mode-onboarding-voice-chosen`)).setAttribute('aria-hidden', 'true');
 			const bars = dom.append(icon, dom.$('span.voice-mode-onboarding-voice-bars'));
 			bars.setAttribute('aria-hidden', 'true');
 			for (let bar = 0; bar < 3; bar++) {
@@ -664,7 +692,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		close.tabIndex = 0;
 		close.setAttribute('role', 'button');
 		close.setAttribute('aria-label', localize('voiceMode.onboarding.close', "Close the Voice Mode introduction"));
-		dom.append(close, dom.$(`span.codicon.codicon-${Codicon.close.id}`)).setAttribute('aria-hidden', 'true');
+		dom.append(close, dom.$(`span.codicon.codicon-${Codicon.closeCompact.id}`)).setAttribute('aria-hidden', 'true');
 		this._register(dom.addDisposableListener(close, dom.EventType.CLICK, () => this.finish()));
 		this._register(dom.addDisposableListener(close, dom.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
@@ -721,13 +749,12 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	private finish(): void {
 		this.player.stop();
 
-		if (this.selectedVoice !== undefined && this.configurationService.getValue<boolean>('agents.voice.handsFree') === true) {
-			this.voiceSessionController.pttDown();
-			this.voiceSessionController.pttUp();
-			status(localize('voiceMode.onboarding.listening', "Voice Mode is listening."));
-		} else {
-			status(localize('voiceMode.onboarding.ready', "Voice Mode is ready. Press the mic button to start talking."));
-		}
+		// Releasing the hold is what hands the session back: hands-free picks up
+		// and starts listening, push-to-talk stays quiet until the mic button.
+		// The release itself runs on dispose, below.
+		status(this.configurationService.getValue<boolean>('agents.voice.handsFree') === true
+			? localize('voiceMode.onboarding.listening', "Voice Mode is listening.")
+			: localize('voiceMode.onboarding.ready', "Voice Mode is ready. Press the mic button to start talking."));
 
 		this.options.onDismiss();
 	}
@@ -745,8 +772,11 @@ export interface IVoiceModeOnboardingService {
 	 * @param container the element the banner is appended to.
 	 * @param focusRoot the element whose focus marks this host as the active one
 	 * (typically the chat input part the container lives in).
+	 * @param focus hands focus back to this host's input when the banner closes.
+	 * Passed explicitly because `focusRoot` is a container, not a control - the
+	 * host knows where its caret belongs and this service does not.
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement): IDisposable;
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void): IDisposable;
 
 	/**
 	 * Show the introduction if the user has never seen it. Marks it as seen on
@@ -758,6 +788,7 @@ export interface IVoiceModeOnboardingService {
 interface IHost {
 	readonly container: HTMLElement;
 	readonly focusRoot: HTMLElement;
+	readonly focus: () => void;
 	lastFocused: number;
 }
 
@@ -775,8 +806,8 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 		super();
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement): IDisposable {
-		const host: IHost = { container, focusRoot, lastFocused: 0 };
+	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void): IDisposable {
+		const host: IHost = { container, focusRoot, focus, lastFocused: 0 };
 		this.hosts.add(host);
 
 		const store = new DisposableStore();
@@ -805,8 +836,6 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 			return;
 		}
 
-		this.storageService.store(AgentsVoiceStorageKeys.IntroBannerShown, true, StorageScope.APPLICATION, StorageTarget.USER);
-
 		// The host class is owned here and in `hide()` rather than by the card's
 		// own disposer: a disposer runs when the *next* card replaces this one,
 		// which would strip the class the new card had just added.
@@ -816,6 +845,10 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 		});
 		host.container.classList.add('has-voice-mode-onboarding');
 		this.bannerHost = host;
+
+		// Only now is the one appearance actually spent. Storing any earlier
+		// would burn it on a card that threw on the way up and was never seen.
+		this.storageService.store(AgentsVoiceStorageKeys.IntroBannerShown, true, StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
 	/**
@@ -837,9 +870,20 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 	}
 
 	private hide(): void {
-		this.bannerHost?.container.classList.remove('has-voice-mode-onboarding');
+		const host = this.bannerHost;
+		// Whether focus comes back depends on where it is now: someone who
+		// dismissed from the keyboard is standing inside the card and would
+		// otherwise be dropped on the document body. Someone who clicked away
+		// first should not have the caret yanked back to the input.
+		const restoreFocus = !!host && dom.isAncestorOfActiveElement(host.container);
+
+		host?.container.classList.remove('has-voice-mode-onboarding');
 		this.bannerHost = undefined;
 		this.banner.clear();
+
+		if (restoreFocus) {
+			host.focus();
+		}
 	}
 }
 

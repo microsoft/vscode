@@ -2979,7 +2979,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatToolConfirmationCarouselContainer = elements.chatToolConfirmationCarouselContainer;
 		dom.hide(this.chatToolConfirmationCarouselContainer);
 		this.chatInputNotificationContainer = elements.chatInputNotificationContainer;
-		this._register(this.voiceModeOnboardingService.registerHost(elements.voiceModeOnboardingContainer, this.container));
+		this._register(this.voiceModeOnboardingService.registerHost(elements.voiceModeOnboardingContainer, this.container, () => this.focus()));
 		this.chatGoalBannerContainer = elements.chatGoalBannerContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
 		this.statusToolbarContainer = elements.statusToolbarContainer;

@@ -10,6 +10,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { AgentsVoiceStorageKeys } from '../../common/agentsVoice.js';
 import { IVoiceSessionController, VoiceState } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { VoiceModeOnboardingService } from '../../browser/voiceModeOnboarding.js';
@@ -18,16 +20,25 @@ suite('Voice Mode onboarding', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHost(store: Pick<DisposableStore, 'add'>): { root: HTMLElement; container: HTMLElement } {
+	interface ITestHost { root: HTMLElement; container: HTMLElement; focused: number }
+
+	function createHost(store: Pick<DisposableStore, 'add'>): ITestHost {
 		const root = dom.$('div');
 		root.tabIndex = 0;
 		const container = dom.append(root, dom.$('.voice-mode-onboarding-container'));
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
-		return { root, container };
+		return { root, container, focused: 0 };
 	}
 
-	function createService(store: Pick<DisposableStore, 'add'>, executed: string[] = []): VoiceModeOnboardingService {
+	function register(service: VoiceModeOnboardingService, host: ITestHost) {
+		return service.registerHost(host.container, host.root, () => {
+			host.focused++;
+			host.root.focus();
+		});
+	}
+
+	function createService(store: Pick<DisposableStore, 'add'>, executed: string[] = [], holds: boolean[] = []): VoiceModeOnboardingService {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override executeCommand(id: string): Promise<undefined> {
@@ -37,6 +48,7 @@ suite('Voice Mode onboarding', () => {
 		});
 		instantiationService.stub(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
 			override readonly voiceState = constObservable<VoiceState>('idle');
+			override setAutoListenHeld(held: boolean): void { holds.push(held); }
 			override stopListening(): void { }
 			override pttDown(): void { }
 			override pttUp(): void { }
@@ -47,7 +59,7 @@ suite('Voice Mode onboarding', () => {
 	test('auditions a voice, dismisses, and never returns', () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);
-		disposables.add(service.registerHost(host.container, host.root));
+		disposables.add(register(service, host));
 
 		service.showIfNeeded();
 		const shown = host.container.classList.contains('has-voice-mode-onboarding');
@@ -72,7 +84,7 @@ suite('Voice Mode onboarding', () => {
 	test('can be dismissed without choosing a voice', () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);
-		disposables.add(service.registerHost(host.container, host.root));
+		disposables.add(register(service, host));
 
 		service.showIfNeeded();
 		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-close')!.click();
@@ -83,7 +95,7 @@ suite('Voice Mode onboarding', () => {
 	test('asking twice in one session leaves exactly one card', () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);
-		disposables.add(service.registerHost(host.container, host.root));
+		disposables.add(register(service, host));
 
 		// Voice Mode reports connecting and then connected, so the trigger fires
 		// more than once for a single session start.
@@ -106,7 +118,7 @@ suite('Voice Mode onboarding', () => {
 		service.showIfNeeded();
 
 		const host = createHost(disposables);
-		disposables.add(service.registerHost(host.container, host.root));
+		disposables.add(register(service, host));
 		service.showIfNeeded();
 
 		assert.strictEqual(host.container.classList.contains('has-voice-mode-onboarding'), true);
@@ -116,7 +128,7 @@ suite('Voice Mode onboarding', () => {
 		const executed: string[] = [];
 		const service = createService(disposables, executed);
 		const host = createHost(disposables);
-		disposables.add(service.registerHost(host.container, host.root));
+		disposables.add(register(service, host));
 
 		service.showIfNeeded();
 		const link = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-description a');
@@ -127,12 +139,99 @@ suite('Voice Mode onboarding', () => {
 			{ hasLink: true, executed: ['agentsVoice.openSettings'] });
 	});
 
+	test('holds the microphone shut for as long as the card is up', () => {
+		const holds: boolean[] = [];
+		const service = createService(disposables, [], holds);
+		const host = createHost(disposables);
+		disposables.add(register(service, host));
+
+		// The card goes up while the session is still connecting, so a plain
+		// `stopListening()` would no-op and hands-free would open the microphone
+		// on `session_init` with the card still on screen.
+		service.showIfNeeded();
+		const heldWhileOpen = holds.slice();
+		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-close')!.click();
+
+		assert.deepStrictEqual(
+			{ heldWhileOpen, afterDismiss: holds },
+			{ heldWhileOpen: [true], afterDismiss: [true, false] });
+	});
+
+	test('the one appearance is only spent once the card is really up', () => {
+		// The guarantee is ordering. Anything the card needs at construction can
+		// throw, and if the key were written first the user would silently lose
+		// their only showing - so by the time it is written the card must already
+		// be built and attached.
+		let cardWhenStored: { visible: boolean; cards: number } | undefined;
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
+			override readonly voiceState = constObservable<VoiceState>('idle');
+			override setAutoListenHeld(): void { }
+			override stopListening(): void { }
+		});
+		const host = createHost(disposables);
+		const storageService = instantiationService.get(IStorageService);
+		const store = storageService.store.bind(storageService);
+		instantiationService.stub(IStorageService, new Proxy(storageService, {
+			get: (target, property, receiver) => property === 'store'
+				? (key: string, value: boolean, scope: StorageScope, target2: StorageTarget) => {
+					if (key === AgentsVoiceStorageKeys.IntroBannerShown) {
+						cardWhenStored = {
+							visible: host.container.classList.contains('has-voice-mode-onboarding'),
+							cards: host.container.querySelectorAll('.voice-mode-onboarding-banner').length,
+						};
+					}
+					store(key, value, scope, target2);
+				}
+				: Reflect.get(target, property, receiver),
+		}));
+
+		const service = disposables.add(instantiationService.createInstance(VoiceModeOnboardingService));
+		disposables.add(register(service, host));
+		service.showIfNeeded();
+
+		assert.deepStrictEqual(cardWhenStored, { visible: true, cards: 1 });
+	});
+
+	test('hands focus back to the chat input when dismissed from the keyboard', () => {
+		const service = createService(disposables);
+		const host = createHost(disposables);
+		disposables.add(register(service, host));
+
+		service.showIfNeeded();
+		const close = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-close')!;
+		close.focus();
+		const dismissedFromInside = dom.isAncestorOfActiveElement(host.container);
+		close.click();
+
+		// Dismissing from inside the card must not drop the caret on the body.
+		assert.deepStrictEqual(
+			{ dismissedFromInside, focused: host.focused },
+			{ dismissedFromInside: true, focused: 1 });
+	});
+
+	test('leaves focus alone when the card is dismissed from elsewhere', () => {
+		const service = createService(disposables);
+		const host = createHost(disposables);
+		disposables.add(register(service, host));
+
+		service.showIfNeeded();
+		const elsewhere = document.body.appendChild(dom.$('div'));
+		disposables.add(toDisposable(() => elsewhere.remove()));
+		elsewhere.tabIndex = 0;
+		elsewhere.focus();
+		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-close')!.click();
+
+		// The user already moved on; yanking the caret back would be rude.
+		assert.strictEqual(host.focused, 0);
+	});
+
 	test('attaches to the most recently focused host', () => {
 		const service = createService(disposables);
 		const first = createHost(disposables);
 		const second = createHost(disposables);
-		disposables.add(service.registerHost(first.container, first.root));
-		disposables.add(service.registerHost(second.container, second.root));
+		disposables.add(register(service, first));
+		disposables.add(register(service, second));
 
 		// The renderer running these tests does not reliably hand out real focus,
 		// so raise the same event the focus tracker listens for.
