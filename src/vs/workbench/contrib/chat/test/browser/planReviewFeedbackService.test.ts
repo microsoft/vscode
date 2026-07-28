@@ -450,6 +450,7 @@ suite('PlanReviewFeedbackService - Custom Editor Comments', () => {
 		let fallbackAddCount = 0;
 		store.add(bridge.registerProvider({
 			onDidChangeComments: Event.None,
+			onDidRevealComment: Event.None,
 			acceptsComments: () => true,
 			getComments: () => [],
 			addComment: () => { fallbackAddCount++; },
