@@ -160,11 +160,11 @@ function contextConfirmationCount(context: unknown): number {
 }
 
 export function shouldShowSubagentModel(subagentModelName: string | undefined, parentModelId: string | undefined, parentModelName: string | undefined, parentModelMetadataId: string | undefined): boolean {
-	if (!subagentModelName || !parentModelId) {
+	if (!subagentModelName) {
 		return false;
 	}
 	const normalizedSubagentModel = subagentModelName.trim().toLowerCase();
-	const parentModelIdSuffix = parentModelId.slice(parentModelId.lastIndexOf(':') + 1);
+	const parentModelIdSuffix = parentModelId?.slice(parentModelId.lastIndexOf(':') + 1);
 	return ![parentModelId, parentModelIdSuffix, parentModelName, parentModelMetadataId]
 		.some(candidate => candidate?.trim().toLowerCase() === normalizedSubagentModel);
 }
@@ -343,6 +343,8 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 			this._displayedToolIcon = undefined;
 			this._displayedToolAccessibleLabel = undefined;
 			this._renderActiveToolIcon(undefined);
+			this.updateTooltip();
+			this.updateAriaLabel();
 			return;
 		}
 		if (!this._displayedToolLabel || this.accessibilityService.isMotionReduced()) {
