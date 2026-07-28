@@ -4788,9 +4788,61 @@ suite('AgentSideEffects', () => {
 				responses: agent.respondToPermissionCalls,
 			}, {
 				status: ToolCallStatus.PendingConfirmation,
-				options: ['allow-session', 'allow-once', 'skip'],
+				options: ['allow-once', 'skip'],
 				responses: [],
 			});
+		});
+
+		test('managed approval does not persist allow-session from the client', async () => {
+			setupSession();
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: { type: 'object', properties: {} },
+				values: { permissions: { allow: ['ExistingTool'], deny: [] } },
+			});
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-managed', toolName: 'ManagedTool', displayName: 'Managed Tool', contributor: undefined,
+				},
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-managed', toolName: 'ManagedTool', displayName: 'Managed Tool',
+					invocationMessage: 'Run managed tool', toolInput: undefined,
+					confirmationTitle: 'Run managed tool', edits: undefined,
+				},
+				permissionKind: 'custom-tool',
+				managedApprovalRequired: true,
+			});
+
+			await waitForState(stateManager, () => {
+				const part = stateManager.getSessionState(sessionUri.toString())?.activeTurn?.responseParts.find(
+					responsePart => responsePart.kind === ResponsePartKind.ToolCall && responsePart.toolCall.toolCallId === 'tc-managed'
+				);
+				return part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.PendingConfirmation;
+			});
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatToolCallConfirmed,
+				turnId: 'turn-1',
+				toolCallId: 'tc-managed',
+				approved: true,
+				confirmed: 'user-action',
+				selectedOptionId: 'allow-session',
+			} as ChatAction);
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-managed', approved: true },
+			]);
+			assert.deepStrictEqual(
+				stateManager.getSessionState(sessionUri.toString())?.config?.values[SessionConfigKey.Permissions],
+				{ allow: ['ExistingTool'], deny: [] },
+			);
 		});
 
 		test('subagent tool calls inherit parent session permissions', async () => {
