@@ -291,8 +291,6 @@
 .prompt-timeline-card-files {
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 	margin-top: 8px;
-	max-height: 140px;
-	overflow-y: auto;
 }
 
 .prompt-timeline-card-file {
