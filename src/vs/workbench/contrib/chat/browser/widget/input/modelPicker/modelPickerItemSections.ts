@@ -12,7 +12,7 @@ import { ActionListItemKind, IActionListItem } from '../../../../../../../platfo
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ChatEntitlement } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { buildModelToProviderGroupMap, createModelAction, createModelItem, createPinAction, createUnavailableModelItem, getProviderGroupForModel, getProviderGroupKey, getUnavailableReason, isVersionAtLeast, ProviderGroupKey } from './modelPickerItemPrimitives.js';
+import { buildModelToProviderGroupMap, createModelAction, createModelItem, createPinAction, createUnavailableModelItem, getProviderGroupForModel, getUnavailableReason, isVersionAtLeast } from './modelPickerItemPrimitives.js';
 import type { IBuildModelPickerItemsOptions } from './modelPickerItemTypes.js';
 import { isAutoModel } from './modelPickerPresentation.js';
 
@@ -158,7 +158,9 @@ function createGroupedContext(options: IBuildModelPickerItemsOptions): IGroupedC
 		placed,
 		showGroupLabel: new Set(options.models.map(model => {
 			const group = getProviderGroupForModel(model, modelToGroup, options.languageModelsService);
-			return getProviderGroupKey(group.vendor, group.groupName);
+			// Key by visible section title so sources that share a label (e.g. Chat
+			// vendor `copilot` and agent-host `copilotcli` both → "Copilot") count as one.
+			return group.groupName;
 		})).size > 1,
 		makePinAction: model => options.actions.onTogglePin
 			? createPinAction(model.identifier, options.pinnedModelIds.includes(model.identifier), options.actions.onTogglePin)
@@ -325,11 +327,16 @@ function appendOtherModels(context: IGroupedContext): boolean {
 		className: 'chat-model-picker-section-toggle',
 	});
 	interface IProviderGroupBucket { vendor: string; groupName: string; models: ILanguageModelChatMetadataAndIdentifier[] }
-	const groups = new Map<ProviderGroupKey, IProviderGroupBucket>();
+	const groups = new Map<string, IProviderGroupBucket>();
 	for (const model of otherModels) {
 		const info = getProviderGroupForModel(model, context.modelToGroup, options.languageModelsService);
-		const key = getProviderGroupKey(info.vendor, info.groupName);
+		// Bucket by display name so Chat (`copilot`) and agent-host CLI (`copilotcli` →
+		// "Copilot") share one Other Models section instead of duplicate headers (#327644).
+		const key = info.groupName;
 		const bucket = groups.get(key) ?? { vendor: info.vendor, groupName: info.groupName, models: [] };
+		if (info.vendor === 'copilot') {
+			bucket.vendor = 'copilot';
+		}
 		bucket.models.push(model);
 		groups.set(key, bucket);
 	}
