@@ -554,6 +554,18 @@ export interface ISession {
 	readonly capabilities: IObservable<ISessionCapabilities>;
 }
 
+/** Returns whether any chat or session-level fallback reports file changes. */
+export function sessionHasChanges(session: ISession, reader: IReader | undefined): boolean {
+	if (session.chats.read(reader).some(chat => chat.changes.read(reader).length > 0)) {
+		return true;
+	}
+	const changesSummary = session.changesSummary?.read(reader);
+	if (changesSummary !== undefined) {
+		return changesSummary.files > 0;
+	}
+	return session.changes.read(reader).length > 0;
+}
+
 /**
  * Build the canonical {@link ISession.sessionId} from a provider id and
  * session resource URI.
