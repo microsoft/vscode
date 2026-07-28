@@ -26,9 +26,7 @@ export function registerTerminalVoiceActions() {
 		title: localize2('workbench.action.terminal.startDictation', "Start Dictation in Terminal"),
 		category: VOICE_CATEGORY,
 		precondition: ContextKeyExpr.and(
-			// Keep the command available while terminal dictation is in progress so
-			// the same command can toggle it off, but disable it while an unrelated
-			// speech-to-text session (e.g. voice chat) is running.
+			// Keep the toggle available for terminal dictation, but not unrelated speech-to-text sessions.
 			ContextKeyExpr.or(SpeechToTextInProgress.toNegated(), TerminalContextKeys.terminalDictationInProgress),
 			sharedWhenClause.terminalAvailable
 		),
