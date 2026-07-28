@@ -948,7 +948,7 @@ suite('RunInTerminalTool', () => {
 			const message = (result.content[0] as { value?: string }).value;
 
 			ok(message?.includes(AgentSandboxSettingId.AgentSandboxEnabled));
-			ok(message?.includes('Disable sandboxing'));
+			ok(message?.includes('Sandboxing can be disabled by setting'));
 			strictEqual(result.toolResultMessage, message);
 		});
 
