@@ -2887,6 +2887,43 @@ suite('AgentSideEffects', () => {
 				'tool call should advance to PendingConfirmation for permission-gated tool_ready');
 		});
 
+		test('tool_ready for a shell permission marks autoApproveRulesApply, except when sandbox bypass is requested', async () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			for (const [toolCallId, requestSandboxBypass] of [['tc-shell-rules-1', false], ['tc-shell-rules-2', true]] as const) {
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: {
+						type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+						toolCallId, toolName: 'shell', displayName: 'Shell', contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
+						_meta: { toolKind: undefined, language: undefined },
+					},
+				});
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+					state: {
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId, toolName: '', displayName: '',
+						invocationMessage: 'Run command', toolInput: 'foo --bar',
+						confirmationTitle: 'Run in terminal?', edits: undefined,
+					},
+					permissionKind: 'shell', permissionPath: undefined, requestSandboxBypass,
+				});
+			}
+
+			const state = await waitForState(stateManager, () => {
+				const s = stateManager.getSessionState(sessionUri.toString());
+				const parts = s?.activeTurn?.responseParts;
+				return parts?.length === 2 && parts.every(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.status === ToolCallStatus.PendingConfirmation) ? s : undefined;
+			});
+			assert.deepStrictEqual(
+				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall ? p.toolCall._meta?.['autoApproveRulesApply'] : undefined),
+				[true, undefined],
+				'rule-evaluated shell confirmation is marked; sandbox-bypass confirmation is not');
+		});
+
 		test('tool_ready is dropped when the tool completes while permission lookup is pending', async () => {
 			setupSession();
 			startTurn('turn-1');

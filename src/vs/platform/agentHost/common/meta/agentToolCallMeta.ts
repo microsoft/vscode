@@ -46,6 +46,15 @@ export interface IToolCallMeta {
 	 * explicit user action), so the client can render it as setting-driven.
 	 */
 	readonly autoApproveBySetting?: boolean;
+	/**
+	 * Set by the host's side-effect layer on a shell tool call's pending
+	 * confirmation when the command was evaluated by the rule-based
+	 * auto-approver (`permissionKind === 'shell'` without a sandbox bypass),
+	 * so the client knows that configuring terminal auto-approve rules can
+	 * suppress future prompts like this one. Absent on confirmations rules
+	 * can never satisfy (e.g. sandbox-bypass prompts).
+	 */
+	readonly autoApproveRulesApply?: boolean;
 	/** Transient runtime corpus for the local client tool-search invocation. */
 	readonly toolSearchCandidates?: readonly IToolSearchCandidate[];
 }
@@ -133,6 +142,7 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (typeof meta['mcpServerName'] === 'string') { result.mcpServerName = meta['mcpServerName']; }
 	if (typeof meta['mcpToolName'] === 'string') { result.mcpToolName = meta['mcpToolName']; }
 	if (typeof meta['autoApproveBySetting'] === 'boolean') { result.autoApproveBySetting = meta['autoApproveBySetting']; }
+	if (typeof meta['autoApproveRulesApply'] === 'boolean') { result.autoApproveRulesApply = meta['autoApproveRulesApply']; }
 	const toolSearchCandidates = readToolSearchCandidates(meta['toolSearchCandidates']);
 	if (toolSearchCandidates) { result.toolSearchCandidates = toolSearchCandidates; }
 	const ui = readToolCallUiMeta(meta['ui']);

@@ -9,7 +9,7 @@ import { HoverPosition } from '../../../../../../../base/browser/ui/hover/hoverW
 import { Separator } from '../../../../../../../base/common/actions.js';
 import { asArray } from '../../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { ErrorNoTelemetry } from '../../../../../../../base/common/errors.js';
+import { ErrorNoTelemetry, onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { createCommandUri, escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../../../base/common/severity.js';
@@ -29,7 +29,7 @@ import { ITerminalChatService } from '../../../../../terminal/browser/terminal.j
 import { TerminalContribCommandId, TerminalContribSettingId } from '../../../../../terminal/terminalContribExports.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
-import { localChatSessionType } from '../../../../common/chatSessionsService.js';
+import { SessionType } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
@@ -212,10 +212,14 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			},
 		));
 
-		// Confirmations for sessions whose approval is decided outside the built-in run in
-		// terminal tool (eg. agent host sessions) arrive without pre-computed actions. Generate
-		// them from the command line so the same rule-creating options are offered.
-		if (autoApproveEnabled && !customActions && getChatSessionType(this.context.element.sessionResource) !== localChatSessionType) {
+		// Confirmations for Agent Host Copilot sessions arrive without pre-computed actions, so
+		// generate the same rule-creating options the built-in run in terminal tool offers. Only
+		// do this when the backend marked the confirmation as evaluated by its rule-based
+		// auto-approver (`autoApproveRulesApply`) — other confirmations (e.g. sandbox-bypass
+		// prompts) can never be suppressed by a rule, so offering one would be misleading. Other
+		// session types (agent-host-claude/codex, remote agent hosts, extension-contributed
+		// sessions) are deliberately excluded: they don't consume the resulting setting.
+		if (autoApproveEnabled && !customActions && terminalData.autoApproveRulesApply && getChatSessionType(this.context.element.sessionResource) === SessionType.AgentHostCopilot) {
 			const commandForAnalysis = terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 			const analysisLanguage = terminalData.language === 'powershell' ? 'powershell' : 'shellscript';
 			this.terminalChatService.getAutoApproveActions(commandForAnalysis, analysisLanguage, this.context.element.sessionResource).then(actions => {
@@ -227,7 +231,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				}
 				customActions = actions;
 				confirmWidget.updateButtons(this._createButtons(buildMoreActions()));
-			});
+			}, onUnexpectedError);
 		}
 
 		// Build the unsandboxed-execution reason and disclaimer markdown. When

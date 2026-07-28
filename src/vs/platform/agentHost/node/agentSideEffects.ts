@@ -1151,6 +1151,14 @@ export class AgentSideEffects extends Disposable {
 			// Make sure the agent is registered for the eventual `ChatToolCallConfirmed` response.
 			this._toolCallAgents.set(toolCallKey, agent.id);
 		}
+		if (e.permissionKind === 'shell' && !e.requestSandboxBypass) {
+			// Mark confirmations the rule-based auto-approver evaluated so the
+			// client knows terminal auto-approve rules can suppress future
+			// prompts like this one. Sandbox-bypass prompts are deliberately
+			// left unmarked: rules can never satisfy them (see the
+			// `requestSandboxBypass` early-return in `getAutoApproval`).
+			effective = { ...effective, state: { ...effective.state, _meta: { ...toolCall?._meta, ...effective.state._meta, ...toToolCallMeta({ autoApproveRulesApply: true }) } } };
+		}
 		this._stateManager.dispatchServerAction(
 			sessionKey,
 			this._permissionManager.createToolReadyAction(effective, sessionKey, turnId)
