@@ -999,6 +999,10 @@ interface CapiResponsesTextDeltaEvent extends Omit<OpenAI.Responses.ResponseText
 }
 
 interface CapiResponseCompletedEvent extends OpenAI.Responses.ResponseCompletedEvent {
+	response: OpenAI.Responses.Response & {
+		// Echoes the request's `store` flag; the SDK's Response type omits it
+		store?: boolean | null;
+	};
 	copilot_usage?: {
 		total_nano_aiu: number;
 	};
@@ -1352,9 +1356,11 @@ export class OpenAIResponsesProcessor {
 					});
 					this.logService.debug(`[responsesAPI_compaction] Compaction enabled but context not compacted after threshold was met. headerRequestId=${this.requestId}, gitHubRequestId=${this.ghRequestId}, promptTokens=${promptTokens}, totalTokens=${totalTokens}`);
 				}
+				// An unstored response (store: false) can't be chained via previous_response_id
+				const stored = capiChunk.response.store !== false;
 				onProgress({
 					text: '',
-					statefulMarker: chunk.response.id,
+					statefulMarker: stored ? chunk.response.id : undefined,
 					contextManagement: shouldEmitResolvedCompaction ? latestCompactionItem : undefined,
 				});
 				return {

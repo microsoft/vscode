@@ -8,6 +8,7 @@ import { ChatFetchResponseType, ChatResponse } from '../../../platform/chat/comm
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
 import { IChatModelInformation } from '../../../platform/endpoint/common/endpointProvider';
+import { getStatefulMarkerAndIndex } from '../../../platform/endpoint/common/statefulMarkerContainer';
 import { ChatEndpoint } from '../../../platform/endpoint/node/chatEndpoint';
 import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAiFunctionTool } from '../../../platform/networking/common/fetch';
@@ -251,7 +252,10 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			const zdr = !!this.modelMetadata.zeroDataRetentionEnabled;
 			// When ZDR is on the server refuses to retain responses, so we must
 			// not chain via `previous_response_id` and must not ask it to `store`.
-			options.ignoreStatefulMarker = options.ignoreStatefulMarker || zdr;
+			// A marker without the `resp_` prefix (e.g. from CAPI) can't be chained
+			// either; decide before conversion truncates the input at the marker.
+			const marker = getStatefulMarkerAndIndex(this.model, options.messages);
+			options.ignoreStatefulMarker = options.ignoreStatefulMarker || zdr || (!!marker && !marker.statefulMarker.startsWith('resp_'));
 			const body = super.createRequestBody(options);
 			body.store = !zdr;
 			body.n = undefined;
