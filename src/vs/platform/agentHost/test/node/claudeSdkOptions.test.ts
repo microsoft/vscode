@@ -173,6 +173,16 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 		assert.strictEqual(opts.plugins, undefined);
 	});
 
+	test('debugFile projects onto Options.debugFile', async () => {
+		const opts = await buildOptions({ ...input(undefined), debugFile: '/logs/claude/claude-x.log' }, proxyTransport, () => { });
+		assert.strictEqual(opts.debugFile, '/logs/claude/claude-x.log');
+	});
+
+	test('absent debugFile omits Options.debugFile', async () => {
+		const opts = await buildOptions(input(undefined), proxyTransport, () => { });
+		assert.strictEqual(opts.debugFile, undefined);
+	});
+
 	test('proxy transport sets ANTHROPIC_BASE_URL + per-session ANTHROPIC_AUTH_TOKEN', async () => {
 		const opts = await buildOptions(input(undefined), proxyTransport, () => { });
 		const env = (opts.settings as { env?: Record<string, string> }).env ?? {};

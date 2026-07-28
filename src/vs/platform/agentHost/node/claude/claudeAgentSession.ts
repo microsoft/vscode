@@ -8,6 +8,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -24,8 +25,9 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallContributorKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { isDefaultChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
+import { isDefaultChatUri, withSessionDebugArtifacts, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
+import { ClaudeDebugArtifacts } from './claudeDebugArtifacts.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
 import { toSdkModelId } from './claudeModelId.js';
 import { buildServerToolMcpServer, CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, serverToolAllowList } from './claudeServerToolMcpServer.js';
@@ -349,6 +351,7 @@ export class ClaudeAgentSession extends Disposable {
 		this._provisionalAgent = agent;
 		this.provisionalConfig = config;
 		this.abortController = abortController;
+		this._debugArtifacts = new ClaudeDebugArtifacts(this.sessionId, this._environmentService.logsHome, this._environmentService.userHome, this._fileService, this._logService);
 		this.toolDiff = this._register(toolDiff);
 		this._register(this.clientCustomizationsDiff.onDidChange(() => this._onDidCustomizationsChange.fire()));
 
@@ -364,6 +367,35 @@ export class ClaudeAgentSession extends Disposable {
 			this._logService,
 		));
 		this._customizationWatcher.add(watcher.onDidChange(() => this._onDidCustomizationsChange.fire()));
+	}
+
+	/**
+	 * Discovery of this session's debug artifacts (SDK debug logs + transcript),
+	 * assigned in the constructor. Stateless — {@link _publishDebugArtifacts} reads
+	 * it from disk and mirrors the result into `_meta`.
+	 */
+	private readonly _debugArtifacts: ClaudeDebugArtifacts;
+
+	/**
+	 * Re-read this session's debug artifacts from disk and publish them into the
+	 * well-known `_meta` key, so the export command reads concrete host-side paths
+	 * instead of re-deriving the on-disk layout. `withSessionDebugArtifacts` merges
+	 * with the existing `_meta` slots (git/github) and, on an empty set, clears only
+	 * this slot — so the advertised state stays a projection of disk truth. Called
+	 * at the moments the set can change: materialize/rematerialize (a new debug log)
+	 * and once after the first turn (the transcript file appears). Host-local
+	 * absolute paths; the client resolves them via the resource proxy (`file://`
+	 * local / `vscode-agent-host://` remote).
+	 */
+	private async _publishDebugArtifacts(): Promise<void> {
+		const cwd = this.workingDirectory;
+		if (!cwd) {
+			return; // Not materialized yet; nothing on disk to advertise.
+		}
+		const artifacts = await this._debugArtifacts.refresh(cwd);
+		const sessionKey = this.sessionUri.toString();
+		const current = this._stateManager.getSessionState(sessionKey)?._meta;
+		this._stateManager.setSessionMeta(sessionKey, withSessionDebugArtifacts(current, artifacts));
 	}
 
 	/**
@@ -446,6 +478,7 @@ export class ClaudeAgentSession extends Disposable {
 		const { mcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
 		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 
+		const debugFile = await this._debugArtifacts.prepareDebugFile();
 		const options = await buildOptions(
 			{
 				sessionId: this.sessionId,
@@ -461,6 +494,7 @@ export class ClaudeAgentSession extends Disposable {
 				allowedTools,
 				plugins: this.clientCustomizationsDiff.consume(this._desiredClientPluginPaths()),
 				agent: agentName,
+				debugFile,
 			},
 			ctx.transport,
 			data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -496,6 +530,14 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
 		this._pipeline = pipeline;
+		// Publish the debug artifacts into `_meta` at the moments the set can change.
+		// The debug log exists now (the SDK wrote it during startup); the transcript
+		// FILE of a fresh session isn't on disk until the first turn writes it, so
+		// publish once more after the first turn completes (a short debounce lets it
+		// flush). Locations never change per turn, so no steady-state re-publishing.
+		const publishDebugArtifacts = this._register(new RunOnceScheduler(() => void this._publishDebugArtifacts(), 500));
+		this._register(Event.once(Event.filter(pipeline.onDidProduceSignal, s => s.kind === 'action' && s.action.type === ActionType.ChatTurnComplete))(() => publishDebugArtifacts.schedule()));
+		void this._publishDebugArtifacts();
 		// The materialize succeeded with the staged anchor applied to `Options`
 		// — clear it now so it isn't re-applied. A throw before this point (e.g.
 		// `startup` / pipeline-create) leaves it staged for the next retry.
@@ -543,6 +585,7 @@ export class ClaudeAgentSession extends Disposable {
 				const { mcpServers: rebuildMcp, allowedTools: rebuildAllowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
 				const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 				const rebuildAbort = new AbortController();
+				const rebuildDebugFile = await this._debugArtifacts.prepareDebugFile();
 				const rebuildOptions = await buildOptions(
 					{
 						sessionId: this.sessionId,
@@ -558,6 +601,7 @@ export class ClaudeAgentSession extends Disposable {
 						allowedTools: rebuildAllowedTools,
 						plugins: this.clientCustomizationsDiff.consume(this._desiredClientPluginPaths()),
 						agent: rebuildAgentName,
+						debugFile: rebuildDebugFile,
 					},
 					ctx.transport,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -569,6 +613,9 @@ export class ClaudeAgentSession extends Disposable {
 				// catch alongside the tool/customization diffs) so the next send
 				// retries the truncation instead of dropping the restore.
 				this._pendingResumeSessionAt = undefined;
+				// Rebuild started, so the SDK will write a fresh debug log; re-read from
+				// disk and re-publish it into `_meta`.
+				void this._publishDebugArtifacts();
 				return { warm: rebuildWarm, abortController: rebuildAbort };
 			} catch (err) {
 				this.toolDiff.markDirty();

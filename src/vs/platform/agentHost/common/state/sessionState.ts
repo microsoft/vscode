@@ -1067,6 +1067,17 @@ export function withSessionPromptCacheState(meta: SessionMeta | undefined, promp
 }
 
 /**
+ * Reserved key under {@link SessionMeta} for the well-known debug-artifacts
+ * payload. Value at this key, when present, MUST be an array shaped like
+ * {@link IDebugArtifact}. The host (which owns the on-disk layout of its own
+ * logs and the provider SDK's transcript) advertises the concrete file paths
+ * here so clients — e.g. the "Export Agent Host Debug Logs" command — can
+ * collect them via the resource proxy without hard-coding provider-specific
+ * path conventions.
+ */
+export const SESSION_META_DEBUG_ARTIFACTS_KEY = 'debugArtifacts';
+
+/**
  * Git state of a session's working directory, carried under
  * {@link SessionMeta} at {@link SESSION_META_GIT_KEY}. Used by clients to
  * drive source-control affordances (e.g. PR/merge buttons in the Agents
@@ -1210,6 +1221,58 @@ export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, git
 		next[SESSION_META_GITHUB_KEY] = gitHubState;
 	} else {
 		delete next[SESSION_META_GITHUB_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * A single debug artifact the host advertises for a session, carried under
+ * {@link SessionMeta} at {@link SESSION_META_DEBUG_ARTIFACTS_KEY}. The
+ * {@link uri} is a serialized `file://` URI **encoded on the agent-host machine**
+ * (so drive letters, UNC roots and separators are the host's, not the client's);
+ * the client parses it and resolves it to a readable resource (`file://` locally,
+ * `vscode-agent-host://` remotely) via the resource proxy.
+ */
+export interface IDebugArtifact {
+	/** Human-readable label, used to derive the file name in the export. */
+	readonly label: string;
+	/** Serialized `file://` URI of the artifact, encoded on the agent-host machine. */
+	readonly uri: string;
+}
+
+/**
+ * Reads the well-known debug-artifacts payload from a {@link SessionMeta} bag.
+ * Returns `undefined` when the key is absent or not an array; entries missing a
+ * string `label`/`uri` are dropped so partial state still propagates.
+ */
+export function readSessionDebugArtifacts(meta: SessionMeta | undefined): IDebugArtifact[] | undefined {
+	const value = meta?.[SESSION_META_DEBUG_ARTIFACTS_KEY];
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const artifacts: IDebugArtifact[] = [];
+	for (const entry of value) {
+		if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+			const raw = entry as Record<string, unknown>;
+			if (typeof raw['label'] === 'string' && typeof raw['uri'] === 'string') {
+				artifacts.push({ label: raw['label'], uri: raw['uri'] });
+			}
+		}
+	}
+	return artifacts;
+}
+
+/**
+ * Returns a new {@link SessionMeta} with the debug-artifacts payload set to
+ * `artifacts`, or with the slot removed if `artifacts` is `undefined`/empty.
+ * Returns `undefined` if the result would be empty.
+ */
+export function withSessionDebugArtifacts(meta: SessionMeta | undefined, artifacts: readonly IDebugArtifact[] | undefined): SessionMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (artifacts !== undefined && artifacts.length > 0) {
+		next[SESSION_META_DEBUG_ARTIFACTS_KEY] = artifacts;
+	} else {
+		delete next[SESSION_META_DEBUG_ARTIFACTS_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }

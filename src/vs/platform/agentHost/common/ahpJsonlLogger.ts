@@ -10,6 +10,7 @@ import { joinPath } from '../../../base/common/resources.js';
 import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
+import { sanitizeFilePart, toFileTimestamp } from './agentHostLogNaming.js';
 
 export type AhpLogDirection = 'c2s' | 's2c';
 
@@ -250,12 +251,4 @@ function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 		return URI.revive(value as UriComponents).toString();
 	}
 	return value;
-}
-
-function toFileTimestamp(date: Date): string {
-	return date.toISOString().replace(/[:.]/g, '-');
-}
-
-function sanitizeFilePart(value: string): string {
-	return value.replace(/[\\/:\*\?"<>\|\s]+/g, '-').replace(/^-+|-+$/g, '') || 'connection';
 }
