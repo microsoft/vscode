@@ -3541,18 +3541,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.renderAttachedContext();
 
-		// Defer only the carousel max-height update to the next animation
-		// frame. That write changes a descendant whose height flexes back
-		// up into `this.container` (the observed element), which is what
-		// trips the browser's "ResizeObserver loop completed with
-		// undelivered notifications" warning under bursty input (see
-		// #316509). Publishing `this.height` stays synchronous because its
-		// autorun consumers re-layout siblings/ancestors of the input
-		// container, not the container itself, so they do not feed back
-		// into the same observation phase.
-		const updateCarouselMaxHeightScheduler = this._register(new dom.AnimationFrameScheduler(this.container, () => this.updateToolConfirmationCarouselMaxHeight()));
+		// This observer only publishes the measured height; it must not write
+		// into the observed subtree. The carousel's max-height is a descendant
+		// write that flexes back up into `this.container`, so performing it
+		// here forces another notification pass and trips the browser's
+		// "ResizeObserver loop completed with undelivered notifications"
+		// warning (see #316509). It is computed in `_layout()` instead, from
+		// the same measurement pass that sizes the editor.
 		const inputResizeObserver = this._register(new dom.DisposableResizeObserver('ChatInputPart.containerHeight', () => {
-			updateCarouselMaxHeightScheduler.schedule();
 			const newHeight = this.container.offsetHeight;
 			this.height.set(newHeight, undefined);
 		}));
@@ -4577,6 +4573,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// This is probably the initial layout. Now that the editor is layed out with its correct width, it should report the correct contentHeight
 			return this._layout(width, false);
 		}
+
+		// Allocate the carousel from this same pass, once the editor has been
+		// sized. Doing it here rather than from the container's ResizeObserver
+		// keeps the write outside resize delivery, so it cannot force another
+		// notification pass (see #316509).
+		this.updateToolConfirmationCarouselMaxHeight();
 	}
 
 	private getLayoutData() {

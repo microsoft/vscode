@@ -49,3 +49,57 @@ for (const scenario of scenarios) {
 		});
 	});
 }
+
+/**
+ * Regression probe for the `ChatInputPart.containerHeight` loop warning.
+ *
+ * The carousel's max-height is a descendant of the observed input container.
+ * Writing it from that container's ResizeObserver callback resizes the
+ * observed subtree during delivery, which forces the browser to schedule
+ * another notification pass — the "ResizeObserver loop completed with
+ * undelivered notifications" warning. Note that this is *not* an oscillation:
+ * the allocation converges in a single extra pass. Convergence and the warning
+ * are orthogonal, so asserting only that the value settles would miss the bug.
+ *
+ * Allocating from `_layout()` instead keeps the write outside delivery. This
+ * probe sweeps a band of budgets and requires both that no warning is emitted
+ * and that each budget still reaches its final allocation immediately, so a
+ * fix cannot trade the warning away for a slower or different allocation.
+ */
+test('allocates the tool-confirmation carousel and input editor without oscillating', async ({ page }) => {
+	const resizeObserverErrors: string[] = [];
+	page.on('pageerror', error => {
+		if (error.message.includes('ResizeObserver loop')) {
+			resizeObserverErrors.push(error.message);
+		}
+	});
+
+	await openFixture(page, 'chat/widget/chatWidget/ResizeObserverLoopCarouselBudget/Dark', '.carousel-budget-probe');
+	await page.getByRole('button', { name: 'Run carousel budget probe' }).click();
+	await expect(page.getByRole('status')).toContainText(/Completed/, { timeout: 30_000 });
+
+	const samples = page.locator('.carousel-budget-samples');
+	const carouselFound = await samples.getAttribute('data-carousel-found');
+	const settled = await samples.getAttribute('data-settled');
+	const distinct = await samples.getAttribute('data-distinct');
+	const framesToSettle = await samples.getAttribute('data-frames-to-settle');
+	const series = await samples.getAttribute('data-series');
+	const warningText = await page.locator('.carousel-budget-warnings').textContent();
+	const lastAttribution = await page.locator('.carousel-budget-warnings').getAttribute('data-last-attribution');
+	console.log(`[carousel-budget] carouselFound: ${carouselFound}; settled: ${settled}; distinct: ${distinct}; framesToSettle: ${framesToSettle}; ${warningText}; last attribution: ${lastAttribution}`);
+	console.log(`[carousel-budget] series: ${series}`);
+
+	await test.info().attach('carousel-budget-samples.json', {
+		body: Buffer.from(JSON.stringify({ carouselFound, settled, distinct, framesToSettle, series, warningText, lastAttribution, resizeObserverErrors }, null, 2)),
+		contentType: 'application/json',
+	});
+
+	// Without a rendered carousel nothing contends for the budget, so every
+	// assertion below would pass for the wrong reason.
+	expect(carouselFound).toBe('true');
+	// The allocation must not emit ResizeObserver loop warnings.
+	expect(Number(warningText?.replace('Warnings: ', ''))).toBe(0);
+	// A one-shot allocation reaches its final value immediately, rather than
+	// converging over successive frames.
+	expect(settled).toBe('true');
+});

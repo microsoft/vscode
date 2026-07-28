@@ -747,6 +747,191 @@ async function renderResizeObserverLoopHarness(context: ComponentFixtureContext,
 	}));
 }
 
+/**
+ * A terminal command tall enough that the carousel's intrinsic content exceeds
+ * its collapsed limit, so the carousel genuinely wants more height than it is
+ * granted.
+ */
+const TALL_CONFIRMATION_COMMAND = Array.from(
+	{ length: 40 },
+	(_, index) => `echo "carousel stress line ${index + 1}: ${'pad '.repeat(6)}"`,
+).join(' && \\\n');
+
+/**
+ * Editor content tall enough that the input editor also wants more height than
+ * its minimum, so it competes with the carousel for the same `_maxHeight`.
+ */
+const TALL_EDITOR_VALUE = Array.from(
+	{ length: 24 },
+	(_, index) => `Editor stress line ${index + 1}: ${'pad '.repeat(8)}`,
+).join('\n');
+
+/**
+ * Reproduces the `ChatInputPart.containerHeight` feedback edge.
+ *
+ * The input editor and the tool-confirmation carousel share one `_maxHeight`
+ * budget, and each derives its own allowance by measuring the container and
+ * subtracting itself — that is, by measuring "everything else", which includes
+ * the other one. Under a tight budget where both want more than their share,
+ * each hands back exactly the space the other just released, so the pair never
+ * settles.
+ *
+ * The probe squeezes the budget, then samples the carousel's resolved
+ * `max-height` and the editor's rendered height once per frame. If allocation
+ * converges, the tail of that sample series is constant.
+ */
+async function renderCarouselBudgetProbe(context: ComponentFixtureContext): Promise<void> {
+	const targetWindow = context.container.ownerDocument.defaultView;
+	if (!targetWindow) {
+		throw new Error('Carousel budget probe requires a window');
+	}
+
+	let handle: IChatWidgetFixtureHandle | undefined;
+	await renderChatWidget(context, {
+		messages: [{
+			user: 'Run the tall diagnostic command.',
+			assistant: [{ kind: 'markdown', text: 'Waiting for tool confirmation.' }],
+		}],
+		width: 720,
+		// Roomy enough that the list actually renders the response row: the
+		// confirmation only reaches the carousel via the rendered row. The
+		// budget is squeezed separately via `setMaxHeight` so viewport size and
+		// input budget stay independent.
+		height: 640,
+		renderStyle: 'default',
+		onRendered: value => handle = value,
+	});
+
+	if (!handle) {
+		throw new Error('Carousel budget probe did not initialize');
+	}
+	const fixtureHandle = handle;
+
+	const controls = dom.$('.carousel-budget-probe');
+	const runButton = dom.append(controls, dom.$<HTMLButtonElement>('button.carousel-budget-run'));
+	runButton.type = 'button';
+	runButton.textContent = 'Run carousel budget probe';
+	const status = dom.append(controls, dom.$('span.carousel-budget-status'));
+	status.role = 'status';
+	status.textContent = 'Ready';
+	const warnings = dom.append(controls, dom.$('span.carousel-budget-warnings'));
+	warnings.textContent = 'Warnings: 0';
+	const samplesEl = dom.append(controls, dom.$('span.carousel-budget-samples'));
+	samplesEl.textContent = 'Samples: none';
+	controls.style.position = 'absolute';
+	controls.style.top = '8px';
+	controls.style.right = '8px';
+	controls.style.zIndex = '100';
+	controls.style.display = 'flex';
+	controls.style.gap = '8px';
+	controls.style.alignItems = 'center';
+	controls.style.padding = '6px 8px';
+	controls.style.background = 'var(--vscode-editorWidget-background)';
+	controls.style.border = '1px solid var(--vscode-widget-border)';
+	context.container.style.position = 'relative';
+	context.container.appendChild(controls);
+
+	let warningCount = 0;
+	context.disposableStore.add(dom.addDisposableListener(targetWindow, dom.EventType.ERROR, event => {
+		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
+			warningCount++;
+			warnings.textContent = `Warnings: ${warningCount}`;
+			warnings.dataset['lastAttribution'] = dom.getRecentDisposableResizeObserverAttributionForLoopError(event.message) ?? event.message;
+		}
+	}));
+
+	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+
+	const findCarousel = () => context.container.querySelector<HTMLElement>('.chat-tool-confirmation-carousel');
+
+	const sampleAllocation = () => {
+		const carousel = findCarousel();
+		const editor = context.container.querySelector<HTMLElement>('.chat-editor-container');
+		const carouselHeight = carousel ? Math.round(carousel.getBoundingClientRect().height) : -1;
+		const editorHeight = editor ? Math.round(editor.getBoundingClientRect().height) : -1;
+		return `${carouselHeight}|${editorHeight}`;
+	};
+
+	const runProbe = async () => {
+		runButton.disabled = true;
+		status.textContent = 'Waiting for carousel...';
+
+		// The confirmation only reaches the carousel once the list renders the
+		// response row, so add it and wait for the carousel to appear before
+		// squeezing anything.
+		const request = fixtureHandle.model.addRequest(makeUserMessage('Run the tall diagnostic command.'), { variables: [] }, 0);
+		fixtureHandle.addTerminalConfirmation(request, TALL_CONFIRMATION_COMMAND);
+		fixtureHandle.listWidget.refresh();
+
+		for (let index = 0; index < 30 && !findCarousel(); index++) {
+			await nextFrame();
+		}
+
+		const carouselFound = !!findCarousel();
+		samplesEl.dataset['carouselFound'] = String(carouselFound);
+
+		// Sweep a range of budgets rather than probing a single point. Too tight
+		// and the carousel pins to its minimum; too loose and neither consumer
+		// competes. Both are stable fixed points, so contention — if it exists —
+		// only shows up in the band between them.
+		fixtureHandle.inputPart.setValue(TALL_EDITOR_VALUE, true);
+		const report: string[] = [];
+		let worstFrames = 0;
+		let anyOscillating = false;
+		let firstSeries = '';
+
+		for (const budget of [560, 500, 440, 380, 320, 280]) {
+			status.textContent = `Sampling budget ${budget}...`;
+			fixtureHandle.inputPart.setMaxHeight(budget);
+			fixtureHandle.inputPart.layout(fixtureHandle.width);
+
+			// Sample from the very first frame: the contended re-layout is what
+			// we are measuring, so draining it first would hide the effect.
+			const samples: string[] = [];
+			for (let index = 0; index < 40; index++) {
+				await nextFrame();
+				samples.push(sampleAllocation());
+			}
+
+			// If allocation converges, the tail of the series is a single value.
+			const settled = new Set(samples.slice(-12)).size === 1;
+			// How many frames pass before the series reaches its final value
+			// tells us whether allocation is one-shot or iterative.
+			const finalValue = samples[samples.length - 1];
+			let framesToSettle = samples.length;
+			for (let index = samples.length - 1; index >= 0; index--) {
+				if (samples[index] !== finalValue) {
+					break;
+				}
+				framesToSettle = index;
+			}
+
+			anyOscillating ||= !settled;
+			worstFrames = Math.max(worstFrames, framesToSettle);
+			report.push(`${budget}:${settled ? 'settled' : 'OSC'}@${framesToSettle}=${finalValue}`);
+			if (!firstSeries && framesToSettle > 0) {
+				firstSeries = `${budget} -> ${samples.slice(0, 16).join(' ')}`;
+			}
+		}
+
+		const settled = !anyOscillating;
+		const framesToSettle = worstFrames;
+
+		samplesEl.textContent = `Samples: ${settled ? 'settled' : 'oscillating'} in ${framesToSettle}`;
+		samplesEl.dataset['settled'] = String(settled);
+		samplesEl.dataset['distinct'] = String(report.length);
+		samplesEl.dataset['framesToSettle'] = String(framesToSettle);
+		samplesEl.dataset['series'] = `${report.join(' | ')} || ${firstSeries}`;
+
+		status.textContent = 'Completed';
+		runButton.disabled = false;
+	};
+
+	context.disposableStore.add(dom.addDisposableListener(runButton, dom.EventType.CLICK, () => {
+		void runProbe();
+	}));
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
@@ -770,6 +955,11 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		labels: { kind: 'animated' },
 		virtualTime: { enabled: false },
 		render: context => renderResizeObserverLoopHarness(context, 'none'),
+	}),
+	ResizeObserverLoopCarouselBudget: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: context => renderCarouselBudgetProbe(context),
 	}),
 	CodeBlockInList: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: CODE_BLOCK_IN_LIST }) }),
 	bugs: defineThemedFixtureGroup({
