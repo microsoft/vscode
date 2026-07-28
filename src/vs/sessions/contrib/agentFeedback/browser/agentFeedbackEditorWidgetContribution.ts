@@ -1066,6 +1066,7 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 
 		const rebuildSignal = observableSignalFromEvent(this, Event.any(
 			this._agentFeedbackService.onDidChangeFeedback,
+			this._agentFeedbackService.onDidChangeFeedbackScope,
 			this._editor.onDidChangeModel,
 		));
 
@@ -1096,7 +1097,7 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 			this._sessionResource = undefined;
 			return;
 		}
-		this._sessionResource = this._agentFeedbackService.getSessionForFile(model.uri)?.resource;
+		this._sessionResource = this._agentFeedbackService.getFeedbackSessionResource(model.uri);
 	}
 
 	private _rebuildWidgets(

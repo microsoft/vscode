@@ -16,7 +16,7 @@ import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, 
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction, type ProgressParams } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, type SessionSummary } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionWorkspaceless, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -124,7 +124,7 @@ class MockAgentService implements IAgentService {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
-			workingDirectories: config?.workingDirectory ? [config.workingDirectory.toString()] : undefined,
+			workingDirectories: config?.workingDirectories?.[0] ? [config.workingDirectories?.[0].toString()] : undefined,
 		});
 		return session;
 	}
@@ -737,6 +737,32 @@ suite('ProtocolServerHandler', () => {
 			deletions: 2,
 			files: 3,
 		});
+	});
+
+	test('listSessions carries the workspace-less marker on _meta', async () => {
+		// Regression: the client resolves a session's kind (quick chat vs.
+		// workspace) from `_meta.workspaceless`, and a listing is the first
+		// thing it sees after a window reload.
+		// Dropping `_meta` here made every restored quick chat look
+		// workspace-bound and leak the host's scratch cwd as a workspace folder.
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Quick Chat',
+			workingDirectories: [URI.file('/home/user/.copilot/chats/session-1')],
+			_meta: withSessionWorkspaceless(undefined, true),
+		});
+
+		const transport = connectClient('client-list-workspaceless');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: ListSessionsResult }).result;
+		assert.deepStrictEqual(result.items.map(item => readSessionWorkspaceless(item._meta)), [true]);
 	});
 
 	test('createSession returns null and broadcasts project in sessionAdded summary', async () => {

@@ -472,6 +472,7 @@ class MockAgentHostOTelService implements IAgentHostOTelService {
 	getSpansDbPath() {
 		return undefined;
 	}
+	emitSessionTitleChanged() { }
 	async flush() {
 		//
 	}
@@ -615,6 +616,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 		_serviceBrand: undefined,
 		getSdkTelemetryConfig: async () => undefined,
 		getSpansDbPath: () => undefined,
+		emitSessionTitleChanged: () => { },
 		flush: async () => undefined,
 	});
 	services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService)));
@@ -1145,11 +1147,11 @@ suite('CopilotAgent', () => {
 		const session = AgentSession.uri('copilotcli', 'unauth-create');
 		const workingDirectory = URI.file('/workspace');
 		try {
-			const result = await agent.createSession({ session, workingDirectory });
-			assert.ok(result.workingDirectory);
+			const result = await agent.createSession({ session, workingDirectories: workingDirectory ? [workingDirectory] : undefined });
+			assert.ok(result.resolvedWorkingDirectory);
 			assert.deepStrictEqual({
 				session: result.session.toString(),
-				workingDirectory: result.workingDirectory.toString(),
+				workingDirectory: result.resolvedWorkingDirectory.toString(),
 				provisional: result.provisional,
 				starts: client.startCallCount,
 				stops: client.stopCallCount,
@@ -1427,11 +1429,12 @@ suite('CopilotAgent', () => {
 			});
 
 			assert.strictEqual(result.provisional, true);
-			assert.ok(result.workingDirectory);
+			const resultWorkingDirectory = result.resolvedWorkingDirectory;
+			assert.ok(resultWorkingDirectory);
 			const expected = URI.joinPath(userHome, '.copilot', 'chats', 'temp-fallback');
-			assert.strictEqual(result.workingDirectory.scheme, Schemas.file);
-			assert.strictEqual(result.workingDirectory.fsPath, expected.fsPath);
-			assert.deepStrictEqual(await fs.readdir(result.workingDirectory.fsPath), []);
+			assert.strictEqual(resultWorkingDirectory.scheme, Schemas.file);
+			assert.strictEqual(resultWorkingDirectory.fsPath, expected.fsPath);
+			assert.deepStrictEqual(await fs.readdir(resultWorkingDirectory.fsPath), []);
 			// Tagged workspace-less purely from inference (no input flag).
 			const provisional = (agent as unknown as { _provisionalSessions: Map<string, { workspaceless?: boolean }> })._provisionalSessions.get('temp-fallback');
 			assert.strictEqual(provisional?.workspaceless, true);
@@ -1484,6 +1487,68 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		}).timeout(30_000);
+	});
+
+	suite('working-directory persistence', () => {
+		const repoA = URI.file('/repoA');
+		const repoB = URI.file('/repoB');
+		const repoC = URI.file('/repoC');
+
+		async function restore(seed: (db: ReturnType<TestSessionDataService['openDatabase']>) => Promise<void>, cwd?: string): Promise<{ list: string[] | undefined; meta: string[] | undefined }> {
+			const sessionId = 'wd-persist';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const db = sessionDataService.openDatabase(session);
+			// Mark the project resolved so the restore path does not probe git.
+			await db.object.setMetadata('copilot.project.resolved', 'true');
+			await seed(db);
+			db.dispose();
+			const client = new TestCopilotClient([sdkSession(sessionId, cwd)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				const listed = (await agent.listSessions()).find(s => AgentSession.id(s.session) === sessionId);
+				const meta = await agent.getSessionMetadata(session);
+				return {
+					list: listed?.workingDirectories?.map(d => d.toString()),
+					meta: meta?.workingDirectories?.map(d => d.toString()),
+				};
+			} finally {
+				await disposeAgent(agent);
+			}
+		}
+
+		test('restores the persisted ordered set from copilot.workingDirectories', async () => {
+			const result = await restore(async db => {
+				await db.object.setMetadata('copilot.workingDirectories', JSON.stringify([repoA, repoB, repoC].map(d => d.toString())));
+				await db.object.setMetadata('copilot.workingDirectory', repoA.toString());
+			});
+			assert.deepStrictEqual(result, {
+				list: [repoA.toString(), repoB.toString(), repoC.toString()],
+				meta: [repoA.toString(), repoB.toString(), repoC.toString()],
+			});
+		});
+
+		test('falls back to the legacy single working directory when the set is absent', async () => {
+			const result = await restore(async db => {
+				await db.object.setMetadata('copilot.workingDirectory', repoA.toString());
+			});
+			assert.deepStrictEqual(result, {
+				list: [repoA.toString()],
+				meta: [repoA.toString()],
+			});
+		});
+
+		test('falls back to the legacy single working directory when the set is malformed', async () => {
+			const result = await restore(async db => {
+				await db.object.setMetadata('copilot.workingDirectories', 'not-json');
+				await db.object.setMetadata('copilot.workingDirectory', repoA.toString());
+			});
+			assert.deepStrictEqual(result, {
+				list: [repoA.toString()],
+				meta: [repoA.toString()],
+			});
+		});
 	});
 
 	suite('restart on startup config change', () => {
@@ -2198,7 +2263,7 @@ suite('CopilotAgent', () => {
 				await waitForState(agent.models, m => m.length > 0);
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'ctx-session'),
-					workingDirectory: URI.file('/workspace'),
+					workingDirectories: [URI.file('/workspace')],
 					...(model ? { model } : {}),
 				});
 				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined);
@@ -2585,7 +2650,7 @@ suite('CopilotAgent', () => {
 				startTime: 1000,
 				modifiedTime: 2000,
 				summary: 'SDK legacy',
-				workingDirectory: URI.file('/workspace'),
+				workingDirectories: [URI.file('/workspace')],
 			}]);
 		} finally {
 			await disposeAgent(agent);
@@ -2613,7 +2678,7 @@ suite('CopilotAgent', () => {
 				startTime: 1000,
 				modifiedTime: 2000,
 				summary: 'SDK quick',
-				workingDirectory: URI.file('/scratch/quick'),
+				workingDirectories: [URI.file('/scratch/quick')],
 			}]);
 		} finally {
 			await disposeAgent(agent);
@@ -2639,7 +2704,7 @@ suite('CopilotAgent', () => {
 				startTime: 1000,
 				modifiedTime: 2000,
 				summary: 'SDK target',
-				workingDirectory: URI.file('/workspace'),
+				workingDirectories: [URI.file('/workspace')],
 			});
 			assert.deepStrictEqual(client.getSessionMetadataCalls, ['target']);
 			assert.strictEqual(client.listSessionCallCount, 0);
@@ -2705,7 +2770,7 @@ suite('CopilotAgent', () => {
 				const customizations: ClientPluginCustomization[] = [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true }];
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'test-session'),
-					workingDirectory: URI.file('/workspace'),
+					workingDirectories: [URI.file('/workspace')],
 					activeClient: {
 						clientId: 'client-1',
 						tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
@@ -2732,7 +2797,7 @@ suite('CopilotAgent', () => {
 
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'test-session-2'),
-					workingDirectory: URI.file('/workspace'),
+					workingDirectories: [URI.file('/workspace')],
 				});
 
 				assert.strictEqual(result.provisional, true);
@@ -2900,7 +2965,7 @@ suite('CopilotAgent', () => {
 				const session = AgentSession.uri('copilotcli', 'session-discovery-directories');
 				await agent.createSession({
 					session,
-					workingDirectory: workspace,
+					workingDirectories: [workspace],
 				});
 
 				const customizations = await agent.getSessionCustomizations(session);
@@ -2993,7 +3058,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				const session = AgentSession.uri('copilotcli', 'session-discovery-immediate');
-				await agent.createSession({ session, workingDirectory: workspace });
+				await agent.createSession({ session, workingDirectories: [workspace] });
 
 				provider.trackStats = true;
 				const customizations = agent.getSessionCustomizations(session);
@@ -3026,7 +3091,7 @@ suite('CopilotAgent', () => {
 				const session = AgentSession.uri('copilotcli', 'session-discovery-cleared');
 				await agent.createSession({
 					session,
-					workingDirectory: workspace,
+					workingDirectories: [workspace],
 				});
 
 				const before = await agent.getSessionCustomizations(session);
@@ -3091,7 +3156,7 @@ suite('CopilotAgent', () => {
 				const session = AgentSession.uri('copilotcli', 'session-discovery-neutral-watcher-change');
 				await agent.createSession({
 					session,
-					workingDirectory: workspace,
+					workingDirectories: [workspace],
 				});
 
 				await agent.getSessionCustomizations(session);
@@ -3170,7 +3235,7 @@ suite('CopilotAgent', () => {
 				const session = AgentSession.uri('copilotcli', 'session-discovery-burst-watcher-change');
 				await agent.createSession({
 					session,
-					workingDirectory: workspace,
+					workingDirectories: [workspace],
 				});
 
 				await agent.getSessionCustomizations(session);
@@ -3225,7 +3290,7 @@ suite('CopilotAgent', () => {
 
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'prov-1'),
-					workingDirectory: URI.file('/workspace'),
+					workingDirectories: [URI.file('/workspace')],
 					config: { isolation: 'worktree', branch: 'main' },
 				});
 
@@ -3250,7 +3315,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'prov-default-chat'),
-					workingDirectory: URI.file('/workspace'),
+					workingDirectories: [URI.file('/workspace')],
 				});
 
 				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined);
@@ -3275,7 +3340,7 @@ suite('CopilotAgent', () => {
 
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'prov-2'),
-					workingDirectory: URI.file('/workspace'),
+					workingDirectories: [URI.file('/workspace')],
 				});
 
 				await agent.disposeSession(result.session);
@@ -3312,7 +3377,7 @@ suite('CopilotAgent', () => {
 
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'prov-3'),
-					workingDirectory: URI.file('/workspace'),
+					workingDirectories: [URI.file('/workspace')],
 				});
 
 				await agent.disposeSession(result.session);
@@ -3358,7 +3423,7 @@ suite('CopilotAgent', () => {
 
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'system-message-session'),
-					workingDirectory: URI.file('/workspace'),
+					workingDirectories: [URI.file('/workspace')],
 				});
 				assert.strictEqual(result.provisional, true);
 
@@ -3398,7 +3463,7 @@ suite('CopilotAgent', () => {
 
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'session-level-token'),
-					workingDirectory: URI.file('/workspace'),
+					workingDirectories: [URI.file('/workspace')],
 				});
 				assert.strictEqual(result.provisional, true);
 
@@ -3423,7 +3488,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'gh-token-abc');
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'failed-session-token'),
-					workingDirectory: URI.file('/workspace'),
+					workingDirectories: [URI.file('/workspace')],
 				});
 
 				await assert.rejects(agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined), /create failed/);
@@ -3448,7 +3513,7 @@ suite('CopilotAgent', () => {
 
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'sdk-terminal-defaults'),
-					workingDirectory: URI.file('/workspace'),
+					workingDirectories: [URI.file('/workspace')],
 				});
 				assert.strictEqual(result.provisional, true);
 
@@ -3645,7 +3710,7 @@ suite('CopilotAgent', () => {
 
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'parent-with-peers'),
-					workingDirectory: URI.file('/workspace'),
+					workingDirectories: [URI.file('/workspace')],
 				});
 				const chatUri = URI.parse(buildChatUri(result.session, 'peer-x'));
 				const chat = installStubChat(agent, chatUri);
@@ -3761,7 +3826,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				const session = AgentSession.uri('copilotcli', 'create-peer');
-				await agent.createSession({ session, workingDirectory: URI.file('/workspace') });
+				await agent.createSession({ session, workingDirectories: [URI.file('/workspace')] });
 
 				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
 				const internals = agent as unknown as ChatInternals;
@@ -3836,7 +3901,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				const session = AgentSession.uri('copilotcli', 'fork-peer');
-				await agent.createSession({ session, workingDirectory: URI.file('/workspace') });
+				await agent.createSession({ session, workingDirectories: [URI.file('/workspace')] });
 
 				const internals = agent as unknown as ChatInternals;
 				// Install the default chat as the fork source so resolution stays
@@ -3892,7 +3957,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				const session = AgentSession.uri('copilotcli', 'side-peer');
-				await agent.createSession({ session, workingDirectory: URI.file('/workspace') });
+				await agent.createSession({ session, workingDirectories: [URI.file('/workspace')] });
 				const sourceTurn: Turn = {
 					id: 't1',
 					state: TurnState.Complete,
@@ -3974,7 +4039,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				const session = AgentSession.uri('copilotcli', 'side-local-peer');
-				await agent.createSession({ session, workingDirectory: URI.file('/workspace') });
+				await agent.createSession({ session, workingDirectories: [URI.file('/workspace')] });
 				const sourceTurn: Turn = {
 					id: 't1',
 					state: TurnState.Complete,
@@ -4147,7 +4212,7 @@ suite('CopilotAgent', () => {
 			const agent1 = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
 			try {
 				await agent1.authenticate('https://api.github.com', 'token');
-				await agent1.createSession({ session, workingDirectory: URI.file('/workspace') });
+				await agent1.createSession({ session, workingDirectories: [URI.file('/workspace')] });
 				const internals1 = agent1 as unknown as ChatInternals;
 				internals1._createAgentSession = (launchPlan, _dir, _ac, identity) => {
 					if (identity) {
@@ -4172,7 +4237,7 @@ suite('CopilotAgent', () => {
 				// The orchestrator re-creates the (provisional) parent session on
 				// restore; this seeds the working directory the peer-chat resume
 				// path needs.
-				await agent2.createSession({ session, workingDirectory: URI.file('/workspace') });
+				await agent2.createSession({ session, workingDirectories: [URI.file('/workspace')] });
 
 				const internals2 = agent2 as unknown as ChatInternals;
 				const peerA = URI.parse(buildChatUri(session, 'peer-a'));
@@ -4347,7 +4412,7 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
 			try {
 				const session = AgentSession.uri('copilotcli', 'scope-create');
-				const result = await agent.createSession({ session, workingDirectory: URI.file('/workspace') });
+				const result = await agent.createSession({ session, workingDirectories: [URI.file('/workspace')] });
 				const internals = agent as unknown as ConvInternals;
 				assert.deepStrictEqual({
 					session: result.session.toString(),
@@ -4365,7 +4430,7 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
 			try {
 				const session = AgentSession.uri('copilotcli', 'scope-dispose');
-				await agent.createSession({ session, workingDirectory: URI.file('/workspace') });
+				await agent.createSession({ session, workingDirectories: [URI.file('/workspace')] });
 				const internals = agent as unknown as ConvInternals;
 				assert.strictEqual(internals._provisionalSessions.has(AgentSession.id(session)), true);
 
@@ -4383,7 +4448,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				const session = AgentSession.uri('copilotcli', 'conv-create');
-				await agent.createSession({ session, workingDirectory: URI.file('/workspace') });
+				await agent.createSession({ session, workingDirectories: [URI.file('/workspace')] });
 				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
 
 				stubBackingSession(agent);
@@ -4409,7 +4474,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				const session = AgentSession.uri('copilotcli', 'conv-fork');
-				await agent.createSession({ session, workingDirectory: URI.file('/workspace') });
+				await agent.createSession({ session, workingDirectories: [URI.file('/workspace')] });
 				installFake(agent, AgentSession.id(session), 'session', session);
 
 				const forkArgs: { turnId: string }[] = [];
@@ -5009,9 +5074,9 @@ suite('CopilotAgent', () => {
 
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
-				const result = await agent.createSession({ session: AgentSession.uri('copilotcli', 'anchor-session'), workingDirectory: originalFolder });
+				const result = await agent.createSession({ session: AgentSession.uri('copilotcli', 'anchor-session'), workingDirectories: [originalFolder] });
 				assert.strictEqual(result.provisional, true);
-				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', resolvedWorkingDirectory, undefined, undefined, undefined);
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', resolvedWorkingDirectory ? [resolvedWorkingDirectory] : undefined, undefined, undefined, undefined);
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -5065,11 +5130,11 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'wt-dirs-session'),
-					workingDirectory: originalFolder,
+					workingDirectories: [originalFolder],
 					activeClient: { clientId: 'c1', tools: [] },
 				});
 				assert.strictEqual(result.provisional, true);
-				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', worktree, undefined, undefined, undefined);
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', [worktree], undefined, undefined, undefined);
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -5222,11 +5287,11 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'agent-translate'),
-					workingDirectory: repoFolder,
+					workingDirectories: [repoFolder],
 					agent: { uri: repoAgentFile.toString() },
 				});
 				assert.strictEqual(result.provisional, true);
-				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', worktreeFolder, undefined, undefined, undefined);
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', [worktreeFolder], undefined, undefined, undefined);
 
 				// `_readSessionMetadata` reads back the exact agent field the
 				// resume path consumes, so asserting it stands in for restore.

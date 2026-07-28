@@ -166,13 +166,13 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('branchCompletions returns git branches, empty without a working directory', async () => {
+	test('branchCompletions returns current then default then recent git branches, empty without a working directory', async () => {
 		const isolation = createIsolation(disposables);
 		assert.deepStrictEqual({
 			withDir: await isolation.branchCompletions(repoRoot),
 			noDir: await isolation.branchCompletions(undefined),
 		}, {
-			withDir: { items: [{ value: 'main', label: 'main' }, { value: 'feature', label: 'feature' }] },
+			withDir: { items: [{ value: 'feature', label: 'feature' }, { value: 'main', label: 'main' }] },
 			noDir: { items: [] },
 		});
 	});

@@ -1196,6 +1196,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-sizing: border-box;
 	width: 22px;
 	height: 22px;
+	/* Keep the control corner radius in both states — the enabled rule below only
+		adds the filled background, it shouldn't be what defines the shape. */
+	border-radius: var(--vscode-cornerRadius-small);
 	transition: background-color 250ms ease, color 250ms ease;
 }
 
@@ -1222,7 +1225,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled) > .action-label {
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground) !important;
-	border-radius: var(--vscode-cornerRadius-small);
 	transition: background-color 120ms ease;
 }
 
@@ -1287,7 +1289,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 2px;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .chat-editing-session-list .monaco-scrollable-element:has(.visible.scrollbar.vertical) .monaco-list-row .monaco-icon-label {
+/* Toggled in chatInputPart.ts when the working set overflows. Do not replace
+ * with :has(): workbench-wide invalidation hazard (microsoft/vscode#324985). */
+.interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .chat-editing-session-list.overflowing .monaco-list-row .monaco-icon-label {
 	padding-right: 12px;
 }
 
@@ -3407,6 +3411,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: block;
 }
 
+.chat-attached-context-hover .chat-attached-context-image-container.clickable {
+	cursor: pointer;
+}
+
+.chat-attached-context-hover .chat-attached-context-image-container.clickable:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
 .chat-attached-context-hover .chat-attached-context-image-container .chat-attached-context-image {
 	width: 100%;
 	height: 100%;
@@ -3471,6 +3484,26 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-element-hover .chat-element-hover-section + .chat-element-hover-section {
 	border-top: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.2));
+}
+
+.chat-element-hover .chat-element-hover-screenshot .chat-attached-context-hover {
+	width: fit-content;
+	max-width: min(100%, 240px);
+	margin: 0 auto;
+	padding: 0;
+}
+
+.chat-element-hover .chat-element-hover-screenshot .chat-attached-context-image-container {
+	width: auto;
+	padding: 0;
+}
+
+.chat-element-hover .chat-element-hover-screenshot .chat-attached-context-image {
+	width: auto;
+	height: auto;
+	max-height: 160px;
+	min-width: 0;
+	min-height: 0;
 }
 
 .chat-element-hover .chat-element-hover-header {
@@ -4520,6 +4553,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline: none !important;
 }
 
+/* Standalone dictation / Voice Mode buttons (shown when the segmented voice pill
+	isn't active). Give them the same control tier as the send button they sit
+	beside — a 22×22 surface with the control corner radius — and the compact 12px
+	glyph used by the agent / model pickers, so the mic group reads as one
+	consistent row in every state: dictation idle / recording / preparing /
+	connecting, and Voice Mode idle / connecting / listening / speaking /
+	disconnect. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic-filled,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-mic-download-compact,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-voice-mode-compact,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-loading-compact,
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-debug-disconnect-compact {
+	box-sizing: border-box;
+	width: 22px;
+	height: 22px;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 @keyframes chat-voice-icon-glow {
 	0%,
 	100% {
@@ -4531,30 +4585,32 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-/* Voice mode: blue when listening */
-.chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode {
+/* Voice mode: blue when listening. The glow keeps the button's resting shape —
+	only its color and the pulse change between states, so the control never
+	morphs from a rounded square into a circle mid-session. */
+.chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode-compact {
 	--chat-voice-icon-glow-color: rgba(88, 166, 255, 0.65);
 	color: var(--vscode-charts-blue, #58a6ff) !important;
-	border-radius: 50%;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode {
+.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode-compact {
 	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
 }
 
 /* Voice mode: purple when speaking */
-.chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode {
+.chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode-compact {
 	--chat-voice-icon-glow-color: rgba(163, 113, 247, 0.65);
 	color: var(--vscode-charts-purple, #a371f7) !important;
-	border-radius: 50%;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode {
+.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode-compact {
 	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
 }
 
 /* Voice mode: green disconnect button */
-.chat-input-container .chat-input-toolbars .codicon-debug-disconnect {
+.chat-input-container .chat-input-toolbars .codicon-debug-disconnect-compact {
 	color: var(--vscode-charts-green, #3fb950) !important;
 }
 
@@ -4563,17 +4619,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
  * button. Otherwise the action-label (including its hover background) rotates
  * along with the icon.
  */
-.chat-input-container .chat-input-toolbars .action-label.codicon-loading {
+.chat-input-container .chat-input-toolbars .action-label.codicon-loading,
+.chat-input-container .chat-input-toolbars .action-label.codicon-loading-compact {
 	animation: none;
 }
 
-.chat-input-container .chat-input-toolbars .action-label.codicon-loading::before {
+.chat-input-container .chat-input-toolbars .action-label.codicon-loading::before,
+.chat-input-container .chat-input-toolbars .action-label.codicon-loading-compact::before {
 	display: inline-block;
 	transform-origin: center center;
 	animation: codicon-spin 1.5s steps(30) infinite;
 }
 
-.monaco-reduce-motion .chat-input-container .chat-input-toolbars .action-label.codicon-loading::before {
+.monaco-reduce-motion .chat-input-container .chat-input-toolbars .action-label.codicon-loading::before,
+.monaco-reduce-motion .chat-input-container .chat-input-toolbars .action-label.codicon-loading-compact::before {
 	animation: none;
 }
 
@@ -4596,8 +4655,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: absolute;
 	top: 50%;
 	left: 50%;
-	width: 22px;
-	height: 22px;
+	/* Sized to hug the compact 12px download glyph rather than the full button. */
+	width: 16px;
+	height: 16px;
 	transform: translate(-50%, -50%) rotate(-90deg);
 	pointer-events: none;
 }

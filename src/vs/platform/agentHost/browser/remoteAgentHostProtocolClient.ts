@@ -880,7 +880,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		const promise = this._sendRequest('createSession', {
 			channel: session.toString(),
 			provider,
-			workingDirectories: config?.workingDirectory ? [fromAgentHostUri(config.workingDirectory).toString()] : undefined,
+			workingDirectories: config?.workingDirectories?.map(d => fromAgentHostUri(d).toString()),
 			fork: config?.fork ? { session: fromAgentHostUri(config.fork.session).toString(), turnId: config.fork.turnId } : undefined,
 			config: config?.config,
 			activeClient: config?.activeClient,
@@ -1051,9 +1051,13 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			status: s.status,
 			activity: s.activity,
 			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? toAgentHostUri(URI.parse(s.workingDirectories?.[0]), this._connectionAuthority) : undefined,
+			workingDirectories: s.workingDirectories?.map(d => toAgentHostUri(URI.parse(d), this._connectionAuthority)),
 			isRead: !!(s.status & SessionStatus.IsRead),
 			isArchived: !!(s.status & SessionStatus.IsArchived),
 			changes: s.changes,
+			// Carry `_meta` so a session first materialized from a listing (window
+			// reload, list refresh) resolves its kind correctly.
+			...(s._meta !== undefined ? { _meta: s._meta } : {}),
 		}));
 	}
 

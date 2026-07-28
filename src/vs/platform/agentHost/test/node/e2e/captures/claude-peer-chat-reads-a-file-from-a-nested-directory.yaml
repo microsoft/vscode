@@ -10,7 +10,7 @@ exchanges:
     response:
       content:
         - type: text
-          text: I'll read the file.
+          text: I'll read the file for you.
         - type: tool_use
           id: toolcall_0
           name: Read
@@ -26,7 +26,7 @@ exchanges:
         - role: assistant
           content:
             - type: text
-              text: I'll read the file.
+              text: I'll read the file for you.
             - type: tool_use
               name: Read
               input:
