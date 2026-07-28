@@ -48,7 +48,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 			getMaxContentWidth: () => this._widget.domNode.clientWidth,
 			primaryAction: {
 				label: localize('sessions.selectionSideChat.ask', "Ask Question"),
-				icon: Codicon.send,
+				icon: Codicon.arrowUpCompact,
 				keybindingLabel: localize('sessions.selectionSideChat.enter', "Enter"),
 			},
 		}));
