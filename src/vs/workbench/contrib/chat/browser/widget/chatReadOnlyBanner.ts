@@ -33,7 +33,7 @@ export class ChatReadOnlyBanner extends Disposable {
 		icon.appendChild(renderedIcon);
 
 		const text = dom.append(this.domNode, dom.$('span.chat-readonly-banner-text'));
-		const message = localize('chatReadOnlyBanner.message', "Archived sessions are read-only.");
+		const message = localize('chatReadOnlyBanner.message', "This chat is read-only.");
 		text.textContent = message;
 		this._register(hoverService.setupDelayedHover(text, { content: message }));
 

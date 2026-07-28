@@ -9,6 +9,7 @@ import { IObservable, ObservableMap } from '../../../../../base/common/observabl
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatAgentLocation } from '../constants.js';
+import { IChatSessionPeer } from '../chatSessionsService.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ChatModel, ISerializableChatModelInputState, ISerializedChatDataReference } from './chatModel.js';
 
@@ -21,6 +22,7 @@ export interface IStartSessionProps {
 	readonly disableBackgroundKeepAlive?: boolean;
 	readonly inputState?: ISerializableChatModelInputState;
 	readonly isReadOnly?: IObservable<boolean>;
+	readonly peerChats?: IObservable<readonly IChatSessionPeer[]>;
 }
 
 export interface ChatModelStoreDelegate {

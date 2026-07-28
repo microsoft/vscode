@@ -303,6 +303,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			const data = this._subagentToolInvocation.toolSpecificData;
 			this._openChatToolbar.context = {
 				chatResource,
+				parentSessionResource: this.context.element.sessionResource.toString(),
+				title: this.description,
+				isActive: this.isActive,
 				confirmationCount: this.toolsWaitingForCarouselConfirmation,
 				confirmationActive: this._confirmationActive,
 				startedAt: data?.kind === 'subagent' ? data.startedAt : undefined,

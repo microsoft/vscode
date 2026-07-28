@@ -23,11 +23,16 @@ class SessionsOpenerParticipant implements ISessionOpenerParticipant {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsService = accessor.get(ISessionsService);
 		const target = sessionsManagementService.getSession(resource);
-		if (!target) {
-			return false;
+		if (target) {
+			await sessionsService.openSession(resource, { preserveFocus: openOptions?.editorOptions?.preserveFocus });
+			return true;
 		}
 
-		await sessionsService.openSession(resource, { preserveFocus: openOptions?.editorOptions?.preserveFocus });
+		const ownedChat = resource.fragment ? sessionsManagementService.getSessionForChatResource(resource) : undefined;
+		if (!ownedChat) {
+			return false;
+		}
+		await sessionsService.openChat(ownedChat.session, ownedChat.chat.resource);
 		return true;
 	}
 }
