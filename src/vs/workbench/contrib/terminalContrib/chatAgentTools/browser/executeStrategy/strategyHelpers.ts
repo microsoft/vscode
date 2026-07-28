@@ -5,7 +5,32 @@
 
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
+import type { ICommandDetectionCapability, ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
+
+/**
+ * Returns the start marker of a command that is *genuinely executing* right now,
+ * or `undefined` when the terminal is sitting at an idle prompt.
+ *
+ * {@link ICommandDetectionCapability.executingCommandObject} is misleading: it
+ * returns a non-`undefined` command as soon as the prompt has been drawn (its
+ * `commandStartMarker` is set), even though no command is actually running. The
+ * marker it exposes is the SAME `IMarker` that the *next* command executed on
+ * that prompt reports via `onCommandFinished`. Callers that use this marker to
+ * filter out a stale command's finished event (e.g. an exit-code-130 event from
+ * a Ctrl+C sent to a previously-running command) must therefore only treat it
+ * as stale once the command has actually begun executing — signalled by the
+ * presence of the `commandExecutedMarker` (the `C` sequence). Otherwise the
+ * legitimate completion event for the command we are about to run is discarded
+ * and the command is never detected as complete, forcing it to fall back to the
+ * background (#327747).
+ */
+export function getExecutingCommandStartMarker(commandDetection: ICommandDetectionCapability): ITerminalCommand['marker'] {
+	if (!commandDetection.currentCommand?.commandExecutedMarker) {
+		return undefined;
+	}
+	return commandDetection.executingCommandObject?.marker;
+}
 
 /**
  * Sets up a recreating start marker which is resilient to prompts that clear/re-render (eg. transient

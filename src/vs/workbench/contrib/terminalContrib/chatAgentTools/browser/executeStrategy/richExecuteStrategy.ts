@@ -15,7 +15,7 @@ import { ITerminalLogService, type ITerminalLaunchError } from '../../../../../.
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
+import { createAltBufferPromise, getExecutingCommandStartMarker, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { isMultilineCommand } from '../runInTerminalHelpers.js';
 
@@ -118,7 +118,13 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 			// creates yet another wrapper. Both wrappers share the same
 			// underlying xterm `IMarker` reference from `commandStartMarker`,
 			// so marker identity is a reliable stable comparison.
-			const staleMarker = this._commandDetection.executingCommandObject?.marker;
+			//
+			// Only treat the marker as stale when a command is *genuinely
+			// executing* (see `getExecutingCommandStartMarker`). At an idle
+			// prompt `commandStartMarker` is already set, so the marker would
+			// otherwise match the command we are about to run and its legitimate
+			// completion event would be filtered out (#327747).
+			const staleMarker = getExecutingCommandStartMarker(this._commandDetection);
 			const onCommandFinishedFiltered = staleMarker
 				? Event.filter(this._commandDetection.onCommandFinished, e => e.marker !== staleMarker, store)
 				: this._commandDetection.onCommandFinished;

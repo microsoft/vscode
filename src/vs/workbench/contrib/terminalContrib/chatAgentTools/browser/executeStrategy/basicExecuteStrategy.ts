@@ -14,7 +14,7 @@ import { ITerminalLogService, type ITerminalLaunchError } from '../../../../../.
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
+import { createAltBufferPromise, getExecutingCommandStartMarker, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isMultilineCommand } from '../runInTerminalHelpers.js';
@@ -132,7 +132,13 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			// via `promoteToFullCommand()`, while `onCommandFinished` creates
 			// another. Both share the same xterm `IMarker` from
 			// `commandStartMarker`.
-			const staleMarker = this._commandDetection.executingCommandObject?.marker;
+			//
+			// Only treat the marker as stale when a command is *genuinely
+			// executing* (see `getExecutingCommandStartMarker`). At an idle
+			// prompt `commandStartMarker` is already set, so the marker would
+			// otherwise match the command we are about to run and its legitimate
+			// completion event would be filtered out (#327747).
+			const staleMarker = getExecutingCommandStartMarker(this._commandDetection);
 			const onCommandFinishedFiltered = staleMarker
 				? Event.filter(this._commandDetection.onCommandFinished, e => e.marker !== staleMarker, store)
 				: this._commandDetection.onCommandFinished;
@@ -192,11 +198,14 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 
 			if (this._hasReceivedUserInput()) {
 				// Only send SIGINT (Ctrl+C) when shell integration confirms a previous
-				// command is still executing. Sending Ctrl+C at an idle prompt can be
-				// misinterpreted by the shell as cancelling the command we are about
-				// to send via sendText, producing spurious "Command exited with code
-				// 130" results for what should be the next, unrelated command.
-				if (this._commandDetection.executingCommandObject !== undefined) {
+				// command is still genuinely executing (its `C` executed marker has
+				// been seen). Sending Ctrl+C at an idle prompt can be misinterpreted
+				// by the shell as cancelling the command we are about to send via
+				// sendText, producing spurious "Command exited with code 130" results
+				// for what should be the next, unrelated command. Note that
+				// `executingCommandObject` alone is non-`undefined` at an idle prompt,
+				// so we must check for a genuinely-executing command (#327747).
+				if (getExecutingCommandStartMarker(this._commandDetection) !== undefined) {
 					this._log('Previous command still executing with pending input, sending SIGINT before retrying');
 					await this._instance.sendText('\x03', false);
 					await waitForIdle(this._instance.onData, 100);

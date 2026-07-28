@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { IMarker } from '@xterm/xterm';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { stripCommandEchoAndPrompt } from '../../browser/executeStrategy/strategyHelpers.js';
+import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { getExecutingCommandStartMarker, stripCommandEchoAndPrompt } from '../../browser/executeStrategy/strategyHelpers.js';
 
 suite('stripCommandEchoAndPrompt', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -560,5 +562,55 @@ suite('stripCommandEchoAndPrompt', () => {
 				'Revenue: 1000\nCurrency: USD$'
 			);
 		});
+	});
+});
+
+suite('getExecutingCommandStartMarker', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const startMarker = { line: 5 } as IMarker;
+
+	function createCommandDetection(options: {
+		commandExecutedMarker: IMarker | undefined;
+		executingCommandMarker: IMarker | undefined;
+	}): ICommandDetectionCapability {
+		return {
+			currentCommand: options.commandExecutedMarker
+				? { commandStartMarker: startMarker, commandExecutedMarker: options.commandExecutedMarker }
+				: { commandStartMarker: startMarker },
+			executingCommandObject: options.executingCommandMarker
+				? { marker: options.executingCommandMarker }
+				: undefined,
+		} as unknown as ICommandDetectionCapability;
+	}
+
+	test('returns undefined at an idle prompt (start marker set, no executed marker)', () => {
+		// At an idle prompt the prompt has been drawn so `commandStartMarker` is
+		// set and `executingCommandObject` is non-undefined, but no command has
+		// actually started executing (`commandExecutedMarker` is undefined).
+		const commandDetection = createCommandDetection({
+			commandExecutedMarker: undefined,
+			executingCommandMarker: startMarker,
+		});
+
+		assert.strictEqual(getExecutingCommandStartMarker(commandDetection), undefined);
+	});
+
+	test('returns the marker when a command is genuinely executing', () => {
+		const commandDetection = createCommandDetection({
+			commandExecutedMarker: { line: 6 } as IMarker,
+			executingCommandMarker: startMarker,
+		});
+
+		assert.strictEqual(getExecutingCommandStartMarker(commandDetection), startMarker);
+	});
+
+	test('returns undefined when there is no current command', () => {
+		const commandDetection = {
+			currentCommand: undefined,
+			executingCommandObject: undefined,
+		} as unknown as ICommandDetectionCapability;
+
+		assert.strictEqual(getExecutingCommandStartMarker(commandDetection), undefined);
 	});
 });
