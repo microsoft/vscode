@@ -37,6 +37,8 @@ import { ChatTipContentPart } from '../../../../workbench/contrib/chat/browser/w
 import { ChatContentMarkdownRenderer } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 // #region --- New Chat Widget ---
 
@@ -105,6 +107,7 @@ export class NewChatWidget extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
 		@IChatTipService private readonly chatTipService: IChatTipService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
@@ -174,6 +177,35 @@ export class NewChatWidget extends Disposable {
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
 
+		// Comment 3: Bind Agent mode in the scoped context so that Agent-only tips
+		// (messageQueueing, subagents, etc.) are eligible and chatModeKind-based
+		// when-clauses evaluate correctly against this composer's actual mode.
+		const chatModeKindKey = ChatContextKeys.chatModeKind.bindTo(contextKeyService);
+		chatModeKindKey.set(ChatModeKind.Agent);
+		this._register(toDisposable(() => chatModeKindKey.reset()));
+
+		// Comment 4: Route tip command links to this composer's own pickers
+		// so they do not fall through to IChatWidgetService.lastFocusedWidget
+		// (which this composer is not registered with).
+		this._register(this.openerService.registerOpener({
+			open: async (resource: URI | string): Promise<boolean> => {
+				if (!this._chatTipPart.value) {
+					return false;
+				}
+				const link = typeof resource === 'string' ? resource : resource.toString();
+				if (link === 'command:workbench.action.chat.openModelPicker') {
+					this._newChatInput.openModelPicker();
+					return true;
+				}
+				if (link === 'command:workbench.action.chat.openPlan') {
+					// Plan mode is not available in the new-session composer; consume
+					// the link without action so it does not misfire on a stale widget.
+					return true;
+				}
+				return false;
+			}
+		}));
+
 		this._register(this._workspacePicker.onDidSelectWorkspace(async folderUri => {
 			await this._onWorkspaceSelected(folderUri);
 			this._newChatInput.focus();
@@ -205,6 +237,17 @@ export class NewChatWidget extends Disposable {
 			if (e.affectsSome(foregroundSessionCountContextKeys)) {
 				this._renderChatTip();
 			}
+		}));
+
+		// Comment 2: Re-evaluate the tip when the selected model changes, because
+		// some tips (e.g. tip.switchToAuto) are only eligible for specific models.
+		let previousModelId: string | undefined;
+		this._register(autorun(reader => {
+			const modelId = this._newChatInput.selectedModelState.read(reader).currentModel?.identifier;
+			if (previousModelId !== undefined && previousModelId !== modelId) {
+				this._renderChatTip();
+			}
+			previousModelId = modelId;
 		}));
 
 		// Re-sync the picker's displayed selection when the session's workspace
@@ -338,7 +381,12 @@ export class NewChatWidget extends Disposable {
 		const store = new DisposableStore();
 		const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
 		const tipPart = store.add(this.instantiationService.createInstance(ChatTipContentPart, tip, renderer));
-		store.add(tipPart.onDidHide(() => this._clearChatTip()));
+		store.add(tipPart.onDidHide(() => {
+			this._clearChatTip();
+			// Restore focus to the input after the tip DOM is removed so keyboard
+			// focus is not stranded on <body> (matches ChatWidget behaviour).
+			this.focusInput();
+		}));
 		this._chatTipPart.value = store;
 		dom.clearNode(this._chatTipContainer);
 		this._chatTipContainer.appendChild(tipPart.domNode);

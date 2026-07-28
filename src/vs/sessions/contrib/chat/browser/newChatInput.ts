@@ -303,6 +303,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** The underlying input editor. Exposed for component fixtures. */
 	get inputEditor(): CodeEditorWidget | undefined { return this._editor; }
 
+	/** The current model-selection state. Exposed so host widgets can react to model changes. */
+	get selectedModelState() { return this._sessionModelSelectionModel.state; }
+
+	/** Opens the model picker dropdown. */
+	openModelPicker(): void { this._newChatModelPickerService.openModelPicker(); }
+
 	// Input
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
