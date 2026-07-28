@@ -3120,9 +3120,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const inputReq = responsePart$.get().request;
 		let completionDispatched = false;
 		let completedFromServer = false;
-		const settle = (response: ChatInputResponseKind) => {
+		/** Tell the server how this ended, at most once. Reports whether it was us. */
+		const settle = (response: ChatInputResponseKind): boolean => {
 			if (completionDispatched || completedFromServer) {
-				return;
+				return false;
 			}
 			completionDispatched = true;
 			this._config.connection.dispatch(opts.chatURI, {
@@ -3130,6 +3131,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				requestId: inputReq.id,
 				response,
 			});
+			return true;
+		};
+
+		/**
+		 * Abandon the request. Only overrides the part's state when this is the
+		 * outcome the server was actually given -- an accept that already told the
+		 * server keeps its own result, even though disposal runs afterwards.
+		 */
+		const abandon = () => {
+			if (settle(ChatInputResponseKind.Cancel)) {
+				part.settle(ElicitationState.Rejected);
+			}
+			part.hide();
 		};
 
 		const presentation = getUrlInputRequestPresentation(inputReq, url);
@@ -3168,27 +3182,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			completedFromServer = true;
-			part.state.set(response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected, undefined);
+			// `settle` rather than a direct state write: the server has spoken, so
+			// an accept we are still awaiting locally must not overwrite it.
+			part.settle(response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected);
 			part.hide();
 		}));
 
 		if (opts.cancellationToken.isCancellationRequested) {
-			settle(ChatInputResponseKind.Cancel);
-			part.hide();
+			abandon();
 		} else {
-			const tokenListener = opts.cancellationToken.onCancellationRequested(() => {
-				settle(ChatInputResponseKind.Cancel);
-				part.hide();
-			});
+			const tokenListener = opts.cancellationToken.onCancellationRequested(abandon);
 			store.add(toDisposable(() => tokenListener.dispose()));
 		}
 
 		// Disposal (turn ended): if the user never resolved the request,
 		// dispatch Cancel so the server isn't left hanging.
-		store.add(toDisposable(() => {
-			settle(ChatInputResponseKind.Cancel);
-			part.hide();
-		}));
+		store.add(toDisposable(abandon));
 	}
 
 	/**

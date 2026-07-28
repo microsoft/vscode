@@ -19,7 +19,7 @@ suite('ChatElicitationRequestPart', () => {
 		readonly releaseAccept: DeferredPromise<void>;
 	}
 
-	function harness(): IHarness {
+	function harness(acceptResult = ElicitationState.Accepted): IHarness {
 		const acceptCalls: number[] = [];
 		const rejectCalls: number[] = [];
 		const releaseAccept = new DeferredPromise<void>();
@@ -32,7 +32,7 @@ suite('ChatElicitationRequestPart', () => {
 			async () => {
 				acceptCalls.push(1);
 				await releaseAccept.p;
-				return ElicitationState.Accepted;
+				return acceptResult;
 			},
 			async () => {
 				rejectCalls.push(1);
@@ -110,8 +110,50 @@ suite('ChatElicitationRequestPart', () => {
 
 	test('hide leaves an already-recorded state alone', () => {
 		const { part } = harness();
-		part.state.set(ElicitationState.Accepted, undefined);
+		part.settle(ElicitationState.Accepted);
 		part.hide();
 		assert.strictEqual(part.state.get(), ElicitationState.Accepted);
+	});
+
+	// Some handlers deliberately do not settle. The sandbox prompt's "Focus
+	// Terminal" hands the user off to the terminal and leaves the request open,
+	// so claiming it forever would strand the chat showing "awaiting input".
+
+	test('a handler that stays pending releases the request for later settlement', async () => {
+		const { part, releaseAccept } = harness(ElicitationState.Pending);
+
+		const accepted = part.accept(true);
+		releaseAccept.complete();
+		await accepted;
+
+		assert.strictEqual(part.state.get(), ElicitationState.Pending);
+
+		await part.reject!();
+		assert.strictEqual(part.state.get(), ElicitationState.Rejected, 'the request must still be settleable');
+	});
+
+	test('hiding during a handler that stays pending still settles it', async () => {
+		const { part, releaseAccept } = harness(ElicitationState.Pending);
+
+		const accepted = part.accept(true);
+		part.hide();
+		releaseAccept.complete();
+		await accepted;
+
+		assert.strictEqual(part.state.get(), ElicitationState.Rejected, 'a hidden request left pending never stops blocking the session');
+	});
+
+	// An outcome the server already recorded beats anything this client is still
+	// doing, or the assistant reports an approval the server was never given.
+
+	test('an externally recorded outcome supersedes an in-flight accept', async () => {
+		const { part, releaseAccept } = harness();
+
+		const accepted = part.accept(true);
+		part.settle(ElicitationState.Rejected);
+		releaseAccept.complete();
+		await accepted;
+
+		assert.strictEqual(part.state.get(), ElicitationState.Rejected);
 	});
 });
