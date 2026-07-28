@@ -18,8 +18,9 @@ export function parsePartialToolInputForDisplay(raw: string): Record<string, unk
 		const parsed: unknown = parse(input);
 		lastParsedInput = input;
 		lastParsedValue = parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+			&& Object.keys(parsed).length > 0
 			? parsed as Record<string, unknown>
 			: undefined;
 	}
-	return lastParsedValue;
+	return lastParsedValue ? { ...lastParsedValue } : undefined;
 }

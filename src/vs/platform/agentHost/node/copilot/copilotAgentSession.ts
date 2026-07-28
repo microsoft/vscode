@@ -3386,6 +3386,7 @@ export class CopilotAgentSession extends Disposable {
 				}, parentToolCallId);
 			}
 			if (e.data.toolRequests?.length) {
+				// Wait for the full message boundary; clearing on an earlier tool delta would duplicate assembled markdown.
 				this._beginToolCallRound(parentToolCallId);
 			}
 		}));

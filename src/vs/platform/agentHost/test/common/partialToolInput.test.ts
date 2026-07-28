@@ -23,10 +23,21 @@ suite('PartialToolInput', () => {
 			parsePartialToolInputForDisplay('custom input'),
 			parsePartialToolInputForDisplay('["item"]'),
 		], [
-			{},
+			undefined,
 			undefined,
 			undefined,
 		]);
+	});
+
+	test('returns a snapshot instead of the cached object', () => {
+		const raw = '{"command":"npm test"}';
+		const first = parsePartialToolInputForDisplay(raw);
+		assert.ok(first);
+		first['command'] = 'modified';
+
+		assert.deepStrictEqual(parsePartialToolInputForDisplay(raw), {
+			command: 'npm test',
+		});
 	});
 
 	test('bounds display parsing', () => {
