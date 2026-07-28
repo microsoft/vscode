@@ -343,12 +343,12 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		const attributes = Object.entries(span.attributes)
 			.filter(([key]) => !resourceAttributeKeys.has(key) || key === GenAiAttr.CONVERSATION_ID || key.startsWith('vscode.agent_host.'))
 			.map(([key, value]) => ({
-			key,
-			value: typeof value === 'string' ? { stringValue: value }
-				: typeof value === 'number' ? { doubleValue: value }
-					: typeof value === 'boolean' ? { boolValue: value }
-						: { arrayValue: { values: value.map(item => ({ stringValue: item })) } },
-		}));
+				key,
+				value: typeof value === 'string' ? { stringValue: value }
+					: typeof value === 'number' ? { doubleValue: value }
+						: typeof value === 'boolean' ? { boolValue: value }
+							: { arrayValue: { values: value.map(item => ({ stringValue: item })) } },
+			}));
 		const resourceAttributes = Object.entries(this._config.resourceAttributes).map(([key, value]) => ({ key, value: { stringValue: value } }));
 		return Buffer.from(JSON.stringify({
 			resourceSpans: [{
