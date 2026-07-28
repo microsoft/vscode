@@ -262,6 +262,36 @@ suite('Edit Source Tracking Windows', () => {
 		context.disposables.dispose();
 	}));
 
+	test('does not fall back matched Agent edits while the model is dirty', () => runWithFakedTimers({}, async () => {
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: Event.None,
+				onDidInvalidate: Event.None,
+				register: () => 'observation',
+				isSuppressed: () => true,
+				release: () => { },
+			}),
+			prepareFlush: async () => undefined,
+		};
+		const context = setup(undefined, markerService, true);
+		await timeout(10);
+
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('hello'), 'external', EditSources.reloadFromDisk()));
+		await timeout(1500);
+		context.headHash.set('hash-2', undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			detailCount: context.details.length,
+			statsCount: context.stats.length,
+		}, {
+			detailCount: 0,
+			statsCount: 0,
+		});
+
+		context.disposables.dispose();
+	}));
+
 	test('keeps unmatched reloads as standard external telemetry', () => runWithFakedTimers({}, async () => {
 		let observation = 0;
 		const markerService: IAgentHostEditMarkerService = {
@@ -290,6 +320,47 @@ suite('Edit Source Tracking Windows', () => {
 			sourceKeys: ['source:Chat.applyEdits', 'source:reloadFromDisk'],
 			hasInternalObservationKey: false,
 		});
+
+		context.disposables.dispose();
+	}));
+
+	test('reports partial Agent Host coverage without dropping workbench attribution', () => runWithFakedTimers({}, async () => {
+		const markerService: IAgentHostEditMarkerService = {
+			createCorrelation: () => ({
+				onDidSuppress: Event.None,
+				onDidInvalidate: Event.None,
+				register: () => 'observation',
+				isSuppressed: () => false,
+				release: () => { },
+			}),
+			takeCoverageGap: () => ({
+				editCount: 1,
+				insertedCount: 42,
+			}),
+			prepareFlush: async () => undefined,
+		};
+		const context = setup(undefined, markerService);
+		await timeout(10);
+
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('hello'), 'alpha', chatEdit('request-1')));
+		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('alpha'), 'external', EditSources.reloadFromDisk()));
+		await timeout(1500);
+		context.headHash.set('hash-2', undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual(context.stats.map(event => ({
+			externalModifiedCount: event.externalModifiedCount,
+			totalModifiedCharacters: event.totalModifiedCharacters,
+			agentHostAttributionCoverage: event.agentHostAttributionCoverage,
+			agentHostUntrackedEditCount: event.agentHostUntrackedEditCount,
+			agentHostUntrackedInsertedCount: event.agentHostUntrackedInsertedCount,
+		})), [{
+			externalModifiedCount: 8,
+			totalModifiedCharacters: 8,
+			agentHostAttributionCoverage: 'partial',
+			agentHostUntrackedEditCount: 1,
+			agentHostUntrackedInsertedCount: 42,
+		}]);
 
 		context.disposables.dispose();
 	}));
@@ -486,7 +557,15 @@ function setup(
 		isIgnored: async () => false,
 	} satisfies IScmRepoAdapter;
 	const details: Array<{ sourceKey: string; trigger: string; requestId: string | undefined; statsUuid: string; modifiedCount: number; deltaModifiedCount: number; totalModifiedCount: number }> = [];
-	const stats: Array<{ statsUuid: string; otherAIModifiedCount: number; externalModifiedCount: number; totalModifiedCharacters: number }> = [];
+	const stats: Array<{
+		statsUuid: string;
+		otherAIModifiedCount: number;
+		externalModifiedCount: number;
+		totalModifiedCharacters: number;
+		agentHostAttributionCoverage?: 'complete' | 'partial';
+		agentHostUntrackedEditCount?: number;
+		agentHostUntrackedInsertedCount?: number;
+	}> = [];
 	let uuid = 0;
 	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(), false, undefined, true));
 	instantiationService.stub(ITelemetryService, {

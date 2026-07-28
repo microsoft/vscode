@@ -13,7 +13,7 @@ import { ActionType } from '../../../../../platform/agentHost/common/state/proto
 import { ToolResultContentType } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildCancelEditAttributionResource, buildCommitEditAttributionResource, buildPrepareEditAttributionResource, createFileEditContentDigest, getFileEditAttributionMarker, IEditAttributionFlushResult, IFileEditAttributionMarker, IPreparedEditAttributionFlush } from '../../../../../platform/agentHost/common/fileEditAttribution.js';
+import { buildCancelEditAttributionResource, buildCommitEditAttributionResource, buildPrepareEditAttributionResource, createFileEditContentDigest, getFileEditAttributionMarker, IEditAttributionFlushResult, IPreparedEditAttributionFlush, ITrackedFileEditAttributionMarker } from '../../../../../platform/agentHost/common/fileEditAttribution.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { EditTelemetryTrigger } from '../../../../../platform/telemetry/common/editTelemetry.js';
@@ -25,8 +25,13 @@ const MAX_OBSERVATIONS_PER_RESOURCE = 128;
 const MAX_ROUTES = 1_000;
 const COORDINATION_TIMEOUT = 15_000;
 
-interface IRecentMarker extends IFileEditAttributionMarker {
+interface IRecentMarker extends ITrackedFileEditAttributionMarker {
 	readonly timestamp: number;
+}
+
+export interface IAgentHostEditAttributionCoverageGap {
+	readonly editCount: number;
+	readonly insertedCount: number;
 }
 
 interface IExternalObservation {
@@ -58,6 +63,7 @@ export class AgentHostEditAttributionUnknownOutcomeError extends Error {
 
 export interface IAgentHostEditMarkerService {
 	createCorrelation(resource: URI): IExternalEditCorrelation;
+	takeCoverageGap?(resource: URI): IAgentHostEditAttributionCoverageGap | undefined;
 	prepareFlush(resource: URI, trigger: EditTelemetryTrigger, statsUuid: string, isDirty: boolean, languageId?: string): Promise<IPreparedAgentHostEditAttributionFlush | undefined>;
 }
 
@@ -73,6 +79,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 	private readonly _markers = new Map<string, IRecentMarker[]>();
 	private readonly _observations = new Map<string, IExternalObservation[]>();
 	private readonly _routes = new Map<string, IAgentHostResourceRoute>();
+	private readonly _coverageGaps = new Map<string, IAgentHostEditAttributionCoverageGap & { readonly timestamp: number }>();
 	private readonly _onDidSuppress = this._register(new Emitter<string>());
 	private readonly _onDidInvalidate = this._register(new Emitter<string>());
 	private readonly _connectionListeners = this._register(new DisposableStore());
@@ -94,6 +101,22 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 			register: (before, after) => this._registerObservation(resourceKey, before, after),
 			isSuppressed: id => this._observations.get(resourceKey)?.some(observation => observation.id === id && observation.suppressed) ?? false,
 			release: id => this._releaseObservation(resourceKey, id),
+		};
+	}
+
+	takeCoverageGap(resource: URI): IAgentHostEditAttributionCoverageGap | undefined {
+		const resourceKey = this._key(resource);
+		const coverageGap = this._coverageGaps.get(resourceKey);
+		if (!coverageGap) {
+			return undefined;
+		}
+		this._coverageGaps.delete(resourceKey);
+		if (coverageGap.timestamp < Date.now() - ROUTE_TTL) {
+			return undefined;
+		}
+		return {
+			editCount: coverageGap.editCount,
+			insertedCount: coverageGap.insertedCount,
 		};
 	}
 
@@ -238,9 +261,30 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 						this._invalidateObservations(oldestKey);
 						this._routes.delete(oldestKey);
 					}
-					this._recordMarker(resourceKey, marker);
+					if (marker.status === 'skipped') {
+						this._recordCoverageGap(resourceKey, marker.insertedCount);
+					} else {
+						this._recordMarker(resourceKey, marker);
+					}
 				}
 			}));
+		}
+	}
+
+	private _recordCoverageGap(resourceKey: string, insertedCount: number): void {
+		const existing = this._coverageGaps.get(resourceKey);
+		this._coverageGaps.delete(resourceKey);
+		this._coverageGaps.set(resourceKey, {
+			editCount: (existing?.editCount ?? 0) + 1,
+			insertedCount: (existing?.insertedCount ?? 0) + insertedCount,
+			timestamp: Date.now(),
+		});
+		while (this._coverageGaps.size > MAX_ROUTES) {
+			const oldestKey = this._coverageGaps.keys().next().value;
+			if (oldestKey === undefined) {
+				break;
+			}
+			this._coverageGaps.delete(oldestKey);
 		}
 	}
 
@@ -266,7 +310,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 		return observation.id;
 	}
 
-	private _recordMarker(resourceKey: string, marker: IFileEditAttributionMarker): void {
+	private _recordMarker(resourceKey: string, marker: ITrackedFileEditAttributionMarker): void {
 		this._prune(resourceKey);
 		const markers = this._markers.get(resourceKey) ?? [];
 		if (!markers.some(candidate => candidate.editId === marker.editId)) {
@@ -374,6 +418,9 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 		if ((this._routes.get(resourceKey)?.timestamp ?? now) < now - ROUTE_TTL) {
 			this._invalidateObservations(resourceKey);
 			this._routes.delete(resourceKey);
+		}
+		if ((this._coverageGaps.get(resourceKey)?.timestamp ?? now) < now - ROUTE_TTL) {
+			this._coverageGaps.delete(resourceKey);
 		}
 	}
 

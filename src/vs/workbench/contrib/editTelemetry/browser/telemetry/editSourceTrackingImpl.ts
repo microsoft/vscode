@@ -195,23 +195,27 @@ class TrackedDocumentInfo extends Disposable {
 	private _sendTelemetryAndLog(mode: EditTelemetryMode, trigger: EditTelemetryTrigger, tracker: DocumentEditSourceTracker, focusTime: number, actualTime: number): void {
 		void this.sendTelemetry(mode, trigger, tracker, focusTime, actualTime).catch(error => {
 			this._logService.error(`[EditSourceTrackingImpl] Failed to send ${mode} edit telemetry: ${error}`);
+		}).finally(() => {
+			tracker.releaseExternalEditCorrelations();
 		});
 	}
 
 	async sendTelemetry(mode: EditTelemetryMode, trigger: EditTelemetryTrigger, t: DocumentEditSourceTracker, focusTime: number, actualTime: number) {
+		const coverageGap = mode === 'longterm' ? this._agentHostEditMarkerService?.takeCoverageGap?.(this._doc.document.uri) : undefined;
 		t.applyPendingExternalEdits();
 		let ranges = t.getTrackedRanges();
 		let internalKeys = t.getAllKeys();
 		let data = this.getTelemetryData(ranges);
 		const statsUuid = this._randomService.generateUuid();
 		let preparedAgentFlush: IPreparedAgentHostEditAttributionFlush | undefined;
+		const isDirty = this._textFileService.isDirty(this._doc.document.uri);
 		if (mode === 'longterm' && this._agentHostEditMarkerService) {
 			try {
 				preparedAgentFlush = await this._agentHostEditMarkerService.prepareFlush(
 					this._doc.document.uri,
 					trigger,
 					statsUuid,
-					this._textFileService.isDirty(this._doc.document.uri),
+					isDirty,
 					this._doc.document.languageId.get(),
 				);
 			} catch (error) {
@@ -228,14 +232,14 @@ class TrackedDocumentInfo extends Disposable {
 				}
 			}
 		}
-		const includeSuppressedExternal = !preparedAgentFlush && mode === 'longterm' && !!this._agentHostEditMarkerService;
+		const includeSuppressedExternal = !preparedAgentFlush && !isDirty && mode === 'longterm' && !!this._agentHostEditMarkerService;
 		if (includeSuppressedExternal) {
 			ranges = t.getTrackedRanges(undefined, true);
 			internalKeys = t.getAllKeys(true);
 			data = this.getTelemetryData(ranges);
 		}
 		const agentModifiedCount = preparedAgentFlush?.agentModifiedCount ?? 0;
-		if (internalKeys.length === 0 && agentModifiedCount === 0) {
+		if (internalKeys.length === 0 && agentModifiedCount === 0 && !coverageGap) {
 			return;
 		}
 		const totalModifiedCount = data.totalModifiedCharactersInFinalState + agentModifiedCount;
@@ -313,6 +317,9 @@ class TrackedDocumentInfo extends Disposable {
 			focusTime: number;
 			actualTime: number;
 			trigger: EditTelemetryTrigger;
+			agentHostAttributionCoverage?: 'complete' | 'partial';
+			agentHostUntrackedEditCount?: number;
+			agentHostUntrackedInsertedCount?: number;
 		}, {
 			owner: 'hediet';
 			comment: 'Aggregates character counts by edit source category (user typing, AI completions, NES, IDE actions, external changes) for each editing session. Sessions represent units of work and end when documents close, branches change, commits occur, or time limits are reached (10 or 20 minutes of focus time for visible documents, or 10 hours otherwise). Focus time is computed as accumulated 1-minute blocks where VS Code has focus and there was recent user activity. Tracks both total characters inserted and characters remaining at session end to measure retention. This high-level summary complements editSources.details which provides granular per-source breakdowns. @sentToGitHub';
@@ -334,6 +341,9 @@ class TrackedDocumentInfo extends Disposable {
 			focusTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The focus time in ms during the session.'; isMeasurement: true };
 			actualTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The actual time in ms during the session.'; isMeasurement: true };
 			trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates why the session ended.' };
+			agentHostAttributionCoverage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether long-term Agent Host edit attribution was complete or skipped at least one oversized edit.' };
+			agentHostUntrackedEditCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Number of oversized Agent Host edits excluded from detailed attribution in this long-term window.'; isMeasurement: true };
+			agentHostUntrackedInsertedCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Characters inserted by oversized Agent Host edits excluded from retained-character attribution in this long-term window.'; isMeasurement: true };
 		}>('editTelemetry.editSources.stats', {
 			mode,
 			languageId: this._doc.document.languageId.get(),
@@ -351,6 +361,11 @@ class TrackedDocumentInfo extends Disposable {
 			focusTime,
 			actualTime,
 			trigger,
+			...(mode === 'longterm' ? {
+				agentHostAttributionCoverage: coverageGap ? 'partial' as const : 'complete' as const,
+				agentHostUntrackedEditCount: coverageGap?.editCount ?? 0,
+				agentHostUntrackedInsertedCount: coverageGap?.insertedCount ?? 0,
+			} : {}),
 		});
 	}
 

@@ -46,6 +46,47 @@ suite('Agent Host Edit Marker Service', () => {
 		});
 	});
 
+	test('records oversized Agent edits as coverage gaps without suppressing reloads', () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		context.fireMarker({
+			version: 1,
+			editId: 'edit-skipped',
+			sequence: 1,
+			status: 'skipped',
+			reason: 'fileTooLarge',
+			insertedCount: 42,
+		});
+
+		const observation = correlation.register('a', 'ab');
+
+		assert.deepStrictEqual({
+			suppressed: correlation.isSuppressed(observation),
+			coverageGap: context.service.takeCoverageGap(context.resource),
+		}, {
+			suppressed: false,
+			coverageGap: {
+				editCount: 1,
+				insertedCount: 42,
+			},
+		});
+	});
+
+	test('does not report expired coverage gaps', () => runWithFakedTimers({}, async () => {
+		const context = createContext();
+		context.fireMarker({
+			version: 1,
+			editId: 'edit-skipped',
+			sequence: 1,
+			status: 'skipped',
+			reason: 'fileTooLarge',
+			insertedCount: 42,
+		});
+		await timeout(10 * 60 * 60 * 1000 + 1);
+
+		assert.strictEqual(context.service.takeCoverageGap(context.resource), undefined);
+	}));
+
 	test('matches a connected Agent marker chain to one reload', () => {
 		const context = createContext();
 		const correlation = context.service.createCorrelation(context.resource);

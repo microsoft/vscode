@@ -17,12 +17,10 @@ import { EditTelemetryTrigger, sendEditSourcesDetailsTelemetry } from '../../../
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agentService.js';
 import { IDiffComputeService, IOffsetEdit } from '../../common/diffComputeService.js';
-import { createFileEditContentDigest, IAgentEditAttribution, IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IFileEditAttributionMarker, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush } from '../../common/fileEditAttribution.js';
+import { createFileEditContentDigest, IAgentEditAttribution, IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IFileEditAttributionMarker, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, MAX_EDIT_ATTRIBUTION_FILE_SIZE } from '../../common/fileEditAttribution.js';
 import { IAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 
-// Keep aligned with TextModel._MODEL_SYNC_LIMIT in vs/editor/common/model/textModel.ts.
-const MAX_TRACKED_FILE_SIZE = 50 * 1024 * 1024;
-const MAX_TOTAL_TRACKED_TEXT = MAX_TRACKED_FILE_SIZE;
+const MAX_TOTAL_TRACKED_TEXT = 20 * 1024 * 1024;
 const MAX_TRACKED_RESOURCES = 100;
 const MAX_INTERVALS_PER_RESOURCE = 10_000;
 const MAX_SETTLED_FLUSHES = 1_000;
@@ -129,10 +127,19 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 	async recordEdit(edit: IAgentEditAttribution): Promise<IFileEditAttributionMarker | undefined> {
 		if (
 			!this._enabled ||
-			this._telemetryService.telemetryLevel < TelemetryLevel.USAGE ||
-			Math.max(edit.beforeText.length, edit.afterText.length) > MAX_TRACKED_FILE_SIZE
+			this._telemetryService.telemetryLevel < TelemetryLevel.USAGE
 		) {
 			return undefined;
+		}
+		if (Math.max(edit.beforeText.length, edit.afterText.length) > MAX_EDIT_ATTRIBUTION_FILE_SIZE) {
+			return {
+				version: 1,
+				editId: generateUuid(),
+				sequence: ++this._sequence,
+				status: 'skipped',
+				reason: 'fileTooLarge',
+				insertedCount: edit.changes.reduce((sum, change) => sum + change.newText.length, 0),
+			};
 		}
 
 		const key = resourceKey(edit.sessionUri, edit.filePath);

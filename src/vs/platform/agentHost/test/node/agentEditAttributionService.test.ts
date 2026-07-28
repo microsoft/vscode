@@ -73,13 +73,13 @@ suite('Agent Edit Attribution Service', () => {
 		});
 
 		assert.deepStrictEqual({
-			marker: marker && {
+			marker: marker?.status !== 'skipped' && marker ? {
 				version: marker.version,
 				sequence: marker.sequence,
 				editIdLength: marker.editId.length,
 				beforeDigest: marker.beforeDigest,
 				afterDigest: marker.afterDigest,
-			},
+			} : marker,
 			events: events.map(event => ({
 				eventName: event.eventName,
 				sourceKey: event.data.sourceKey,
@@ -344,7 +344,7 @@ suite('Agent Edit Attribution Service', () => {
 		assert.deepStrictEqual({ marker, eventCount }, { marker: undefined, eventCount: 0 });
 	});
 
-	test('tracks files larger than the previous five MB limit', async () => {
+	test('signals files larger than the five MB attribution limit', async () => {
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
 		const resource = URI.file('/workspace/large.ts');
@@ -375,7 +375,15 @@ suite('Agent Edit Attribution Service', () => {
 		});
 		await service.flushSession('copilot:/session-1');
 
-		assert.strictEqual(marker?.version, 1);
+		assert.deepStrictEqual(marker && {
+			status: marker.status,
+			reason: marker.status === 'skipped' ? marker.reason : undefined,
+			insertedCount: marker.status === 'skipped' ? marker.insertedCount : undefined,
+		}, {
+			status: 'skipped',
+			reason: 'fileTooLarge',
+			insertedCount: 1,
+		});
 	});
 
 	test('flushes only the closing session when sessions edit the same file', async () => {

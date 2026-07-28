@@ -11,15 +11,29 @@ import { URI } from '../../../base/common/uri.js';
 import { EditTelemetryTrigger } from '../../telemetry/common/editTelemetry.js';
 
 export const FILE_EDIT_ATTRIBUTION_PROPERTY = '_vscodeEditAttribution';
+// Workbench edit-source tracking reports a coverage gap when Agent Host attribution exceeds this cap.
+export const MAX_EDIT_ATTRIBUTION_FILE_SIZE = 5 * 1024 * 1024;
 const EDIT_ATTRIBUTION_RESOURCE_SCHEME = 'agent-edit-attribution';
 
-export interface IFileEditAttributionMarker {
+interface IFileEditAttributionMarkerBase {
 	readonly version: 1;
 	readonly editId: string;
 	readonly sequence: number;
+}
+
+export interface ITrackedFileEditAttributionMarker extends IFileEditAttributionMarkerBase {
+	readonly status?: 'tracked';
 	readonly beforeDigest: string;
 	readonly afterDigest: string;
 }
+
+export interface ISkippedFileEditAttributionMarker extends IFileEditAttributionMarkerBase {
+	readonly status: 'skipped';
+	readonly reason: 'fileTooLarge';
+	readonly insertedCount: number;
+}
+
+export type IFileEditAttributionMarker = ITrackedFileEditAttributionMarker | ISkippedFileEditAttributionMarker;
 
 export type AttributedToolResultFileEditContent = ToolResultFileEditContent & {
 	readonly [FILE_EDIT_ATTRIBUTION_PROPERTY]: IFileEditAttributionMarker;
@@ -99,13 +113,18 @@ export function getFileEditAttributionMarker(content: ToolResultFileEditContent)
 	if (
 		marker?.version !== 1 ||
 		typeof marker.editId !== 'string' ||
-		typeof marker.sequence !== 'number' ||
-		typeof marker.beforeDigest !== 'string' ||
-		typeof marker.afterDigest !== 'string'
+		!Number.isSafeInteger(marker.sequence) ||
+		marker.sequence < 0
 	) {
 		return undefined;
 	}
-	return marker;
+	if (marker.status === 'skipped') {
+		return marker.reason === 'fileTooLarge' && Number.isSafeInteger(marker.insertedCount) && marker.insertedCount >= 0 ? marker : undefined;
+	}
+	if (marker.status !== undefined && marker.status !== 'tracked') {
+		return undefined;
+	}
+	return typeof marker.beforeDigest === 'string' && typeof marker.afterDigest === 'string' ? marker : undefined;
 }
 
 export function createFileEditContentDigest(content: string): string {

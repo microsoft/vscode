@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { observableSignal, runOnChange, IReader } from '../../../../../base/common/observable.js';
 import { AnnotatedStringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -81,12 +81,14 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 					this._update.trigger(undefined);
 				}
 			}));
-			this._register(toDisposable(() => {
-				for (const observationId of this._externalObservationIds) {
-					this._externalEditCorrelation?.release(observationId);
-				}
-			}));
 		}
+	}
+
+	public releaseExternalEditCorrelations(): void {
+		for (const observationId of this._externalObservationIds) {
+			this._externalEditCorrelation?.release(observationId);
+		}
+		this._externalObservationIds.clear();
 	}
 
 	private _applyEdit(e: AnnotatedStringEdit<EditKeySourceData>): void {
