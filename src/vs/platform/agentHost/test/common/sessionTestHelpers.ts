@@ -191,12 +191,17 @@ export class TestDiffComputeService implements IDiffComputeService {
 		return {
 			added: Math.max(0, modifiedLines.length - originalLines.length),
 			removed: Math.max(0, originalLines.length - modifiedLines.length),
+			changes: original === modified ? [] : [{
+				startOffset: 0,
+				endOffsetExclusive: original.length,
+				newText: modified,
+			}],
 		};
 	}
 }
 
 export function createZeroDiffComputeService(): IDiffComputeService {
-	return new TestDiffComputeService({ added: 0, removed: 0 });
+	return new TestDiffComputeService({ added: 0, removed: 0, changes: [] });
 }
 
 export function createSessionDataService(database: ISessionDatabase = new TestSessionDatabase()): ISessionDataService {
