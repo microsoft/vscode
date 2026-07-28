@@ -562,16 +562,15 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
 	private readonly _autoApprovals = new Map<string, PermissionAutoApproval | null>();
 	private readonly _pendingAutoApprovals = new Map<string, DeferredPromise<PermissionAutoApproval | undefined>>();
-	/**
-	 * Per-tool-call state used to emit `chat.toolApproval` telemetry at the
-	 * tool.execution_start (approved path) or permission.completed (denied path)
-	 * boundary. Absence at tool.execution_start means the SDK never asked for
-	 * permission, mapped to `confirmationNotNeeded`.
-	 */
+	/** Correlates tool execution with the SDK permission lifecycle for `chat.toolApproval` telemetry. */
 	private readonly _toolApprovalRecords = new Map<string, {
+		permissionRequested: boolean;
 		resolvedByHook: boolean;
 		requestSandboxBypass: boolean;
 		resultKind: PermissionResult['kind'] | undefined;
+		toolName: string | undefined;
+		mcpServerName: string | undefined;
+		reported: boolean;
 	}>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new Map<string, DeferredPromise<PermissionRequestResult>>();
@@ -1014,14 +1013,11 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _reportToolApproval(toolCallId: string, toolName: string | undefined, mcpServerName: string | undefined): void {
-		if (!toolName || isHiddenTool(toolName)) {
+		const record = this._toolApprovalRecords.get(toolCallId);
+		if (!toolName || isHiddenTool(toolName) || record?.reported) {
 			return;
 		}
-		const record = this._toolApprovalRecords.get(toolCallId);
 		const confirmKind = mapPermissionResultToConfirmKind(record?.resultKind, record?.resolvedByHook === true);
-		const confirmationNotNeededReason = confirmKind === 'confirmationNotNeeded'
-			? (record ? (record.resolvedByHook ? 'auto-approve-all' : 'other') : 'auto-approve-all')
-			: undefined;
 		this._telemetryReporter.toolApproval({
 			provider: 'copilot',
 			session: this.sessionUri.toString(),
@@ -1029,11 +1025,20 @@ export class CopilotAgentSession extends Disposable {
 			toolId: toolName,
 			toolSourceKind: this._toolSourceKindFor(toolName, mcpServerName),
 			confirmKind,
-			confirmationNotNeededReason,
+			confirmationNotNeededReason: confirmKind === 'confirmationNotNeeded' && record?.resolvedByHook ? 'other' : undefined,
 			requestUnsandboxedExecution: record?.requestSandboxBypass ? true : undefined,
 		});
+		if (record) {
+			record.reported = true;
+		}
 	}
 
+	private _reportToolApprovalIfNoPermission(toolCallId: string): void {
+		const record = this._toolApprovalRecords.get(toolCallId);
+		if (record && !record.permissionRequested) {
+			this._reportToolApproval(toolCallId, record.toolName, record.mcpServerName);
+		}
+	}
 	private _toolSourceKindFor(toolName: string, mcpServerName: string | undefined): string {
 		if (mcpServerName) {
 			return 'mcp';
@@ -3180,16 +3185,21 @@ export class CopilotAgentSession extends Disposable {
 		// TODO@connor4312: Remove this correlation once the SDK permission callback includes auto-approval data.
 		this._register(wrapper.onPermissionRequested(e => {
 			const toolCallId = e.data.permissionRequest.toolCallId;
-			if (toolCallId) {
-				this._recordAutoApproval(toolCallId, e.data.promptRequest?.autoApproval);
-				const existing = this._toolApprovalRecords.get(toolCallId);
-				const sandboxBypass = (e.data.permissionRequest as { requestSandboxBypass?: boolean }).requestSandboxBypass === true;
-				this._toolApprovalRecords.set(toolCallId, {
-					resolvedByHook: existing?.resolvedByHook || e.data.resolvedByHook === true,
-					requestSandboxBypass: existing?.requestSandboxBypass || sandboxBypass,
-					resultKind: existing?.resultKind,
-				});
+			if (!toolCallId) {
+				return;
 			}
+			this._recordAutoApproval(toolCallId, e.data.promptRequest?.autoApproval);
+			const existing = this._toolApprovalRecords.get(toolCallId);
+			const permissionRequest = e.data.permissionRequest as { requestSandboxBypass?: boolean; toolName?: string };
+			this._toolApprovalRecords.set(toolCallId, {
+				permissionRequested: true,
+				resolvedByHook: existing?.resolvedByHook || e.data.resolvedByHook === true,
+				requestSandboxBypass: existing?.requestSandboxBypass || permissionRequest.requestSandboxBypass === true,
+				resultKind: existing?.resultKind,
+				toolName: existing?.toolName ?? permissionRequest.toolName,
+				mcpServerName: existing?.mcpServerName,
+				reported: existing?.reported ?? false,
+			});
 		}));
 
 		this._register(wrapper.onPermissionCompleted(e => {
@@ -3198,15 +3208,18 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const existing = this._toolApprovalRecords.get(toolCallId);
-			const resultKind = e.data.result.kind;
-			this._toolApprovalRecords.set(toolCallId, {
+			const record = {
+				permissionRequested: existing?.permissionRequested ?? true,
 				resolvedByHook: existing?.resolvedByHook ?? false,
 				requestSandboxBypass: existing?.requestSandboxBypass ?? false,
-				resultKind,
-			});
-			if (isPermissionDeniedKind(resultKind)) {
-				const tracked = this._activeToolCalls.get(toolCallId);
-				this._reportToolApproval(toolCallId, tracked?.toolName, tracked?.mcpServerName);
+				resultKind: e.data.result.kind,
+				toolName: existing?.toolName,
+				mcpServerName: existing?.mcpServerName,
+				reported: existing?.reported ?? false,
+			};
+			this._toolApprovalRecords.set(toolCallId, record);
+			this._reportToolApproval(toolCallId, record.toolName, record.mcpServerName);
+			if (isPermissionDeniedKind(record.resultKind)) {
 				this._toolApprovalRecords.delete(toolCallId);
 			}
 		}));
@@ -3234,8 +3247,20 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, mcpServerName: e.data.mcpServerName, meta: undefined });
-			this._reportToolApproval(e.data.toolCallId, e.data.toolName, e.data.mcpServerName);
-			this._toolApprovalRecords.delete(e.data.toolCallId);
+			const existingApproval = this._toolApprovalRecords.get(e.data.toolCallId);
+			const approvalRecord = {
+				permissionRequested: existingApproval?.permissionRequested ?? false,
+				resolvedByHook: existingApproval?.resolvedByHook ?? false,
+				requestSandboxBypass: existingApproval?.requestSandboxBypass ?? false,
+				resultKind: existingApproval?.resultKind,
+				toolName: e.data.toolName,
+				mcpServerName: e.data.mcpServerName,
+				reported: existingApproval?.reported ?? false,
+			};
+			this._toolApprovalRecords.set(e.data.toolCallId, approvalRecord);
+			if (approvalRecord.resultKind !== undefined) {
+				this._reportToolApproval(e.data.toolCallId, e.data.toolName, e.data.mcpServerName);
+			}
 			if (isTaskCompleteTool(e.data.toolName)) {
 				const scope = parentToolCallId ?? '';
 				this._currentTurn?.markdownPartIds.delete(scope);
@@ -3312,6 +3337,8 @@ export class CopilotAgentSession extends Disposable {
 			// tool.execution_complete for this id is suppressed.
 			if (isClientTool && !contributor) {
 				this._logService.warn(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' started with no connected client; failing it immediately.`);
+				this._reportToolApprovalIfNoPermission(e.data.toolCallId);
+				this._toolApprovalRecords.delete(e.data.toolCallId);
 				this._activeToolCalls.delete(e.data.toolCallId);
 				this._emitAction({
 					type: ActionType.ChatToolCallReady,
@@ -3368,6 +3395,7 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			this._logService.info(`[Copilot:${sessionId}] Tool completed: ${e.data.toolCallId}`);
+			this._reportToolApprovalIfNoPermission(e.data.toolCallId);
 			this._activeToolCalls.delete(e.data.toolCallId);
 			this._autoApprovals.delete(e.data.toolCallId);
 			this._toolApprovalRecords.delete(e.data.toolCallId);
