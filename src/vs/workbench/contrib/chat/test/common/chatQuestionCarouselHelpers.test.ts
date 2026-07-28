@@ -7,7 +7,6 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatQuestion } from '../../common/chatService/chatService.js';
 import {
-	formatQuestionPrompt,
 	getOptionsWithDefaultsFirst,
 	resolveQuestionAnswers,
 } from '../../common/chatService/chatQuestionCarouselHelpers.js';
@@ -77,55 +76,6 @@ suite('ChatQuestionCarouselHelpers', () => {
 			assert.deepStrictEqual(
 				getOptionsWithDefaultsFirst({ ...single, defaultValue: 'o2' }).map(o => o.originalIndex),
 				[1, 0],
-			);
-		});
-	});
-
-	suite('formatQuestionPrompt', () => {
-		// These expectations are byte-identical to the Python fixtures in
-		// apps/voice_code/tests/test_session_pending.py::test_format_*. The client
-		// speaks question 1 and the backend speaks 2..N, so a divergence here is
-		// audible as the assistant changing register partway through one form.
-		test('single select', () => {
-			assert.strictEqual(
-				formatQuestionPrompt(single, false),
-				'Which region? Options: 1, West US. 2, East US.',
-			);
-		});
-
-		test('appends the skip hint when the form allows skipping', () => {
-			assert.strictEqual(
-				formatQuestionPrompt(single, true),
-				'Which region? Options: 1, West US. 2, East US. Or say skip.',
-			);
-		});
-
-		test('mentions freeform when the question allows it', () => {
-			assert.strictEqual(
-				formatQuestionPrompt(multi, false),
-				'Which features? Options: 1, Auth. 2, Search. 3, Billing. You can also give your own answer.',
-			);
-		});
-
-		test('a text question is just its title', () => {
-			assert.strictEqual(formatQuestionPrompt(text, false), 'Anything else?');
-		});
-
-		test('a text question with skip', () => {
-			assert.strictEqual(formatQuestionPrompt(text, true), 'Anything else? Or say skip.');
-		});
-
-		test('tolerates an empty title', () => {
-			assert.strictEqual(
-				formatQuestionPrompt({ ...single, title: '' }, false),
-				'Options: 1, West US. 2, East US.',
-			);
-		});
-
-		test('numbers options in displayed order, not declared order', () => {
-			assert.strictEqual(
-				formatQuestionPrompt({ ...single, defaultValue: 'o2' }, false),
-				'Which region? Options: 1, East US. 2, West US.',
 			);
 		});
 	});

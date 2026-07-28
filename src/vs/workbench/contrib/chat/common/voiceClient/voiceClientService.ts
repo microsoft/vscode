@@ -41,6 +41,18 @@ export interface IVoicePendingQuestion {
  *
  * Field names are snake_case because this crosses the voice websocket verbatim.
  */
+export interface IVoiceSessionPending {
+	type: 'questions' | 'approval' | 'elicitation';
+	pending_id: string;
+	request_id: string;
+	resolve_id?: string;
+	approval_kind?: string;
+	allow_skip?: boolean;
+	title?: string;
+	message?: string;
+	questions?: IVoicePendingQuestion[];
+}
+
 /**
  * Derive the id that routes a voice response back to the exact pending part.
  *
@@ -55,18 +67,6 @@ export interface IVoicePendingQuestion {
  */
 export function derivePendingId(requestId: string, partIndex: number): string {
 	return `${requestId}#${partIndex}`;
-}
-
-export interface IVoiceSessionPending {
-	type: 'questions' | 'approval' | 'elicitation';
-	pending_id: string;
-	request_id: string;
-	resolve_id?: string;
-	approval_kind?: string;
-	allow_skip?: boolean;
-	title?: string;
-	message?: string;
-	questions?: IVoicePendingQuestion[];
 }
 
 /**

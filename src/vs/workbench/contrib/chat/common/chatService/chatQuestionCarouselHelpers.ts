@@ -64,35 +64,6 @@ export function getOptionsWithDefaultsFirst(question: IChatQuestion): IOrderedQu
 }
 
 /**
- * Render the canonical spoken form of a question.
- *
- * Mirrors `format_question_prompt` in the voice backend's `session_pending.py`
- * exactly, and is tested against the same fixtures: the client speaks the first
- * question of a form and the backend speaks the rest, so a divergence here is
- * audible as the assistant changing register mid-form. The option numbers are
- * also what the user says back, so they must come from the displayed order.
- */
-export function formatQuestionPrompt(question: IChatQuestion, allowSkip: boolean): string {
-	const parts: string[] = [];
-	const title = (question.title ?? '').trim();
-	if (title) {
-		parts.push(title);
-	}
-	const options = getOptionsWithDefaultsFirst(question);
-	if (options.length > 0) {
-		const choices = options.map(({ option }, index) => `${index + 1}, ${option.label}`).join('. ');
-		parts.push(`Options: ${choices}.`);
-	}
-	if (question.allowFreeformInput) {
-		parts.push('You can also give your own answer.');
-	}
-	if (allowSkip) {
-		parts.push('Or say skip.');
-	}
-	return parts.join(' ');
-}
-
-/**
  * Convert backend-resolved answers into carousel answers, or `undefined`.
  *
  * Matching is by exact option `value` only — no ordinals, no labels, no fuzzy
