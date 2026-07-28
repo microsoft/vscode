@@ -55,7 +55,7 @@ export class NativeExtensionManagementService extends ProfileAwareExtensionManag
 		}
 		this.logService.trace('Downloading extension from', vsix.toString());
 		const location = joinPath(this.nativeEnvironmentService.extensionsDownloadLocation, generateUuid());
-		await this.downloadService.download(vsix, location);
+		await this.downloadService.download(vsix, location, 'extensionManagement.downloadNativeVsix');
 		this.logService.info('Downloaded extension to', location.toString());
 		const cleanup = async () => {
 			try {

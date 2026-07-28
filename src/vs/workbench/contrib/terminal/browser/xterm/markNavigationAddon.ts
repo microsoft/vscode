@@ -331,9 +331,6 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 								element.classList.add('bottom');
 							}
 						}
-						if (this._terminal?.element) {
-							element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;
-						}
 					}));
 				}
 			}

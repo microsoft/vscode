@@ -170,7 +170,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	async getSessions(scopes: string[] | undefined, options: AuthenticationGetSessionOptions = {}): Promise<AuthenticationSession[]> {
 		const askingForAll = scopes === undefined;
-		const scopeData = new ScopeData(scopes, undefined, options?.authorizationServer);
+		const scopeData = new ScopeData(scopes, undefined, options?.authorizationServer, options?.clientId);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 		this._logger.info('[getSessions]', askingForAll ? '[all]' : `[${scopeData.scopeStr}]`, 'starting');
 
@@ -192,19 +192,21 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			return allSessions;
 		}
 
+		const resource = options?.resource;
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
-		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData, options?.account);
+		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData, options?.account, resource);
 		this._logger.info(`[getSessions] [${scopeData.scopeStr}] returned ${sessions.length} session(s)`);
 		return sessions;
 
 	}
 
 	async createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
-		const scopeData = new ScopeData(scopes, undefined, options.authorizationServer);
+		const scopeData = new ScopeData(scopes, undefined, options.authorizationServer, options.clientId);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 
 		this._logger.info('[createSession]', `[${scopeData.scopeStr}]`, 'starting');
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
+		const resource = options.resource;
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
 		let userCancelled: boolean | undefined;
@@ -228,7 +230,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		const flows = getMsalFlows({
 			extensionHost: this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote,
 			supportedClient: isSupportedClient(callbackUri),
-			isBrokerSupported: cachedPca.isBrokerAvailable
+			isBrokerSupported: cachedPca.isBrokerAvailable,
+			isPortableMode: env.isAppPortable
 		});
 
 		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();
@@ -250,6 +253,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					windowHandle: window.nativeHandle ? Buffer.from(window.nativeHandle) : undefined,
 					logger: this._logger,
 					uriHandler: this._uriHandler,
+					resource,
 					callbackUri
 				});
 
@@ -314,7 +318,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		if (!claims) {
 			throw new Error('No claims found in authentication challenges');
 		}
-		const scopeData = new ScopeData(scopes, claims, options?.authorizationServer);
+		const scopeData = new ScopeData(scopes, claims, options?.authorizationServer, options?.clientId);
 		this._logger.info('[getSessionsFromChallenges]', `[${scopeData.scopeStr}]`, 'with claims:', scopeData.claims);
 
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
@@ -337,7 +341,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		// Use scopes if available, otherwise fall back to default scopes
 		const effectiveScopes = scopes.length > 0 ? scopes : ['https://graph.microsoft.com/User.Read'];
 
-		const scopeData = new ScopeData(effectiveScopes, claims, options.authorizationServer);
+		const scopeData = new ScopeData(effectiveScopes, claims, options.authorizationServer, options.clientId);
 		this._logger.info('[createSessionFromChallenges]', `[${scopeData.scopeStr}]`, 'starting with claims:', claims);
 
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
@@ -364,7 +368,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		const flows = getMsalFlows({
 			extensionHost: this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote,
 			isBrokerSupported: cachedPca.isBrokerAvailable,
-			supportedClient: isSupportedClient(callbackUri)
+			supportedClient: isSupportedClient(callbackUri),
+			isPortableMode: env.isAppPortable
 		});
 
 		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();
@@ -446,7 +451,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	private async getAllSessionsForPca(
 		cachedPca: ICachedPublicClientApplication,
 		scopeData: ScopeData,
-		accountFilter?: AuthenticationSessionAccountInformation
+		accountFilter?: AuthenticationSessionAccountInformation,
+		resource?: string
 	): Promise<AuthenticationSession[]> {
 		let filteredAccounts = accountFilter
 			? cachedPca.accounts.filter(a => a.homeAccountId === accountFilter.id)
@@ -510,11 +516,13 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
 						redirectUri = Config.macOSBrokerRedirectUri;
 					}
+					this._logger.trace(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.environment}] [${account.username}] acquiring token silently with${forceRefresh ? ' ' : 'out '}force refresh${claims ? ' and claims' : ''}${resource ? ' and resource' : ''}...`);
 					const result = await cachedPca.acquireTokenSilent({
 						account,
 						authority,
 						scopes: scopeData.scopesToSend,
 						claims,
+						resource,
 						redirectUri,
 						forceRefresh
 					});

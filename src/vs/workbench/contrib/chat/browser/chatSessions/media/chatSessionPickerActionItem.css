@@ -21,10 +21,15 @@
 .monaco-action-bar .action-item .chat-session-option-picker {
 	align-items: center;
 	overflow: hidden;
+	padding: 2px 3px;
 
 	.chat-session-option-label {
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	.codicon + .chat-session-option-label {
+		margin-left: 6px;
 	}
 
 	span.codicon {
@@ -36,4 +41,18 @@
 		font-size: 12px;
 		margin-left: 2px;
 	}
+}
+
+/* Locked state styling - matches disabled action item styling */
+.monaco-action-bar .action-item.locked .chat-session-option-picker {
+	color: var(--vscode-disabledForeground);
+	cursor: default;
+}
+
+.monaco-action-bar .action-item.locked .chat-session-option-picker .codicon {
+	color: var(--vscode-disabledForeground);
+}
+
+.monaco-action-bar .action-item.locked {
+	pointer-events: none;
 }

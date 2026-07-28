@@ -34,9 +34,6 @@ export class Rulers extends ViewPart {
 		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	// --- begin event handlers
 
@@ -70,7 +67,7 @@ export class Rulers extends ViewPart {
 			while (addCount > 0) {
 				const node = createFastDomNode(document.createElement('div'));
 				node.setClassName('view-ruler');
-				node.setWidth('1px');
+				node.setWidth('1ch');
 				this.domNode.appendChild(node);
 				this._renderedRulers.push(node);
 				addCount--;

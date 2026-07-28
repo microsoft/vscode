@@ -71,6 +71,14 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 			// Make sure we do class removal from prior template rendering
 			data.root.classList.remove('option-disabled');
 		}
+
+		// Separator option - show a CSS border instead of text characters
+		if (element.isSeparator) {
+			data.root.classList.add('option-separator');
+			data.root.classList.add('option-disabled');
+		} else {
+			data.root.classList.remove('option-separator');
+		}
 	}
 
 	disposeTemplate(_templateData: ISelectListTemplateData): void {
@@ -395,13 +403,13 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { background-color: ${this.styles.listHoverBackground} !important; }`);
 		}
 
-		// Match quick input outline styles - ignore for disabled options
+		// Match action widget outline styles - ignore for disabled options
 		if (this.styles.listFocusOutline) {
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { outline: 1.6px dotted ${this.styles.listFocusOutline} !important; outline-offset: -1.6px !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { outline: 1px solid ${this.styles.listFocusOutline} !important; outline-offset: -1px !important; }`);
 		}
 
 		if (this.styles.listHoverOutline) {
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { outline: 1.6px dashed ${this.styles.listHoverOutline} !important; outline-offset: -1.6px !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { outline: 1px solid ${this.styles.listHoverOutline} !important; outline-offset: -1px !important; }`);
 		}
 
 		// Clear list styles on focus and on hover for disabled options
@@ -425,11 +433,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		const background = this.styles.selectBackground ?? '';
 
 		const listBackground = cssJs.asCssValueWithDefault(this.styles.selectListBackground, background);
+		this.selectDropDownContainer.style.backgroundColor = listBackground;
 		this.selectDropDownListContainer.style.backgroundColor = listBackground;
 		this.selectionDetailsPane.style.backgroundColor = listBackground;
-		const optionsBorder = this.styles.focusBorder ?? '';
-		this.selectDropDownContainer.style.outlineColor = optionsBorder;
-		this.selectDropDownContainer.style.outlineOffset = '-1px';
 
 		this.selectList.style(this.styles);
 	}
@@ -509,6 +515,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	private renderSelectDropDown(container: HTMLElement, preLayoutPosition?: boolean): IDisposable {
 		container.appendChild(this.selectDropDownContainer);
+
+		// Inherit font-size from the select button so the dropdown matches
+		const computedFontSize = dom.getWindow(this.selectElement).getComputedStyle(this.selectElement).fontSize;
+		if (computedFontSize) {
+			this.selectDropDownContainer.style.fontSize = computedFontSize;
+		}
 
 		// Pre-Layout allows us to change position
 		this.layoutSelectDropDown(preLayoutPosition);
@@ -727,6 +739,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			mouseSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
+					if (element.isSeparator) {
+						return localize('selectBoxSeparator', "separator");
+					}
+
 					let label = element.text;
 					if (element.detail) {
 						label += `. ${element.detail}`;
@@ -772,7 +788,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		// SetUp list mouse controller - control navigation, disabled items, focus
 		this._register(dom.addDisposableListener(this.selectList.getHTMLElement(), dom.EventType.POINTER_UP, e => this.onPointerUp(e)));
 
-		this._register(this.selectList.onMouseOver(e => typeof e.index !== 'undefined' && this.selectList.setFocus([e.index])));
+		this._register(this.selectList.onMouseOver(e => typeof e.index !== 'undefined' && !this.options[e.index]?.isDisabled && this.selectList.setFocus([e.index])));
 		this._register(this.selectList.onDidChangeFocus(e => this.onListFocus(e)));
 
 		this._register(dom.addDisposableListener(this.selectDropDownContainer, dom.EventType.FOCUS_OUT, e => {
@@ -932,6 +948,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private onEnter(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
 
+		// Ignore if current selection is disabled (e.g. separator)
+		if (this.options[this.selected]?.isDisabled) {
+			this.hideSelectDropDown(true);
+			return;
+		}
+
 		// Only fire if selection change
 		if (this.selected !== this._currentSelection) {
 			this._currentSelection = this.selected;
@@ -947,21 +969,22 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this.hideSelectDropDown(true);
 	}
 
-	// List navigation - have to handle a disabled option (jump over)
+	// List navigation - have to handle disabled options (jump over)
 	private onDownArrow(e: StandardKeyboardEvent): void {
 		if (this.selected < this.options.length - 1) {
 			dom.EventHelper.stop(e, true);
 
-			// Skip disabled options
-			const nextOptionDisabled = this.options[this.selected + 1].isDisabled;
-
-			if (nextOptionDisabled && this.options.length > this.selected + 2) {
-				this.selected += 2;
-			} else if (nextOptionDisabled) {
-				return;
-			} else {
-				this.selected++;
+			// Skip over all contiguous disabled options
+			let next = this.selected + 1;
+			while (next < this.options.length && this.options[next].isDisabled) {
+				next++;
 			}
+
+			if (next >= this.options.length) {
+				return;
+			}
+
+			this.selected = next;
 
 			// Set focus/selection - only fire event when closing drop-down or on blur
 			this.select(this.selected);
@@ -973,13 +996,19 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private onUpArrow(e: StandardKeyboardEvent): void {
 		if (this.selected > 0) {
 			dom.EventHelper.stop(e, true);
-			// Skip disabled options
-			const previousOptionDisabled = this.options[this.selected - 1].isDisabled;
-			if (previousOptionDisabled && this.selected > 1) {
-				this.selected -= 2;
-			} else {
-				this.selected--;
+
+			// Skip over all contiguous disabled options
+			let prev = this.selected - 1;
+			while (prev >= 0 && this.options[prev].isDisabled) {
+				prev--;
 			}
+
+			if (prev < 0) {
+				return;
+			}
+
+			this.selected = prev;
+
 			// Set focus/selection - only fire event when closing drop-down or on blur
 			this.select(this.selected);
 			this.selectList.setFocus([this.selected]);
@@ -994,13 +1023,17 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// Allow scrolling to settle
 		setTimeout(() => {
-			this.selected = this.selectList.getFocus()[0];
+			let candidate = this.selectList.getFocus()[0];
 
-			// Shift selection down if we land on a disabled option
-			if (this.options[this.selected].isDisabled && this.selected < this.options.length - 1) {
-				this.selected++;
-				this.selectList.setFocus([this.selected]);
+			// Shift selection up if we land on a disabled option
+			while (candidate > 0 && this.options[candidate].isDisabled) {
+				candidate--;
 			}
+			if (this.options[candidate].isDisabled) {
+				return;
+			}
+			this.selected = candidate;
+			this.selectList.setFocus([this.selected]);
 			this.selectList.reveal(this.selected);
 			this.select(this.selected);
 		}, 1);
@@ -1013,13 +1046,17 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// Allow scrolling to settle
 		setTimeout(() => {
-			this.selected = this.selectList.getFocus()[0];
+			let candidate = this.selectList.getFocus()[0];
 
-			// Shift selection up if we land on a disabled option
-			if (this.options[this.selected].isDisabled && this.selected > 0) {
-				this.selected--;
-				this.selectList.setFocus([this.selected]);
+			// Shift selection down if we land on a disabled option
+			while (candidate < this.options.length - 1 && this.options[candidate].isDisabled) {
+				candidate++;
 			}
+			if (this.options[candidate].isDisabled) {
+				return;
+			}
+			this.selected = candidate;
+			this.selectList.setFocus([this.selected]);
 			this.selectList.reveal(this.selected);
 			this.select(this.selected);
 		}, 1);
@@ -1031,10 +1068,14 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		if (this.options.length < 2) {
 			return;
 		}
-		this.selected = 0;
-		if (this.options[this.selected].isDisabled && this.selected > 1) {
-			this.selected++;
+		let candidate = 0;
+		while (candidate < this.options.length - 1 && this.options[candidate].isDisabled) {
+			candidate++;
 		}
+		if (this.options[candidate].isDisabled) {
+			return;
+		}
+		this.selected = candidate;
 		this.selectList.setFocus([this.selected]);
 		this.selectList.reveal(this.selected);
 		this.select(this.selected);
@@ -1046,10 +1087,14 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		if (this.options.length < 2) {
 			return;
 		}
-		this.selected = this.options.length - 1;
-		if (this.options[this.selected].isDisabled && this.selected > 1) {
-			this.selected--;
+		let candidate = this.options.length - 1;
+		while (candidate > 0 && this.options[candidate].isDisabled) {
+			candidate--;
 		}
+		if (this.options[candidate].isDisabled) {
+			return;
+		}
+		this.selected = candidate;
 		this.selectList.setFocus([this.selected]);
 		this.selectList.reveal(this.selected);
 		this.select(this.selected);

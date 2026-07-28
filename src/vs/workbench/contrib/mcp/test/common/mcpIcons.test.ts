@@ -22,7 +22,8 @@ const createStdioLaunch = (): McpServerTransportStdio => ({
 	command: 'cmd',
 	args: [],
 	env: {},
-	envFile: undefined
+	envFile: undefined,
+	sandbox: undefined
 });
 
 suite('MCP Icons', () => {

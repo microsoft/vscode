@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { homedir } from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './configuration/configuration';
@@ -99,6 +98,8 @@ namespace ServerState {
 export const emptyAuthority = 'ts-nul-authority';
 
 export const inMemoryResourcePrefix = '^';
+
+const copilotChatExtensionId = 'github.copilot-chat';
 
 interface WatchEvent {
 	updated?: Set<string>;
@@ -537,13 +538,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	public async openTsServerLogFile(): Promise<boolean> {
 		if (this._configuration.tsServerLogLevel === TsServerLogLevel.Off) {
 			vscode.window.showErrorMessage<vscode.MessageItem>(
-				vscode.l10n.t("TS Server logging is off. Please set 'typescript.tsserver.log' and restart the TS server to enable logging"),
+				vscode.l10n.t("TS Server logging is off. Please set 'js/ts.tsserver.log' and restart the TS server to enable logging"),
 				{
 					title: vscode.l10n.t("Enable logging and restart TS server"),
 				})
 				.then(selection => {
 					if (selection) {
-						return vscode.workspace.getConfiguration().update('typescript.tsserver.log', 'verbose', true).then(() => {
+						return vscode.workspace.getConfiguration().update('js/ts.tsserver.log', 'verbose', true).then(() => {
 							this.restartTsServer();
 						});
 					}
@@ -645,7 +646,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.numberRestarts++;
 			let startService = true;
 
-			const pluginExtensionList = this.pluginManager.plugins.map(plugin => plugin.extension.id).join(', ');
+			const plugins = this.pluginManager.plugins;
+			const pluginsForCrashPrompt = plugins.filter(plugin => plugin.extension.id.toLowerCase() !== copilotChatExtensionId);
+			const pluginExtensionList = [...new Set(pluginsForCrashPrompt.map(plugin => plugin.extension.id))].join(', ');
 			const reportIssueItem: vscode.MessageItem = {
 				title: vscode.l10n.t("Report Issue"),
 			};
@@ -657,10 +660,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					this.lastStart = Date.now();
 					startService = false;
 					this.hasServerFatallyCrashedTooManyTimes = true;
-					if (this.pluginManager.plugins.length) {
+					if (pluginsForCrashPrompt.length) {
 						prompt = vscode.window.showErrorMessage<vscode.MessageItem>(
 							vscode.l10n.t("The JS/TS language service immediately crashed 5 times. The service will not be restarted.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
-					} else {
+					} else if (!plugins.length) {
 						prompt = vscode.window.showErrorMessage(
 							vscode.l10n.t("The JS/TS language service immediately crashed 5 times. The service will not be restarted."),
 							reportIssueItem);
@@ -678,10 +681,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				} else if (diff < 60 * 1000 * 5 /* 5 Minutes */) {
 					this.lastStart = Date.now();
 					if (!this._isPromptingAfterCrash) {
-						if (this.pluginManager.plugins.length) {
+						if (pluginsForCrashPrompt.length) {
 							prompt = vscode.window.showWarningMessage<vscode.MessageItem>(
 								vscode.l10n.t("The JS/TS language service crashed 5 times in the last 5 Minutes.\nThis may be caused by a plugin contributed by one of these extensions: {0}\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
-						} else {
+						} else if (!plugins.length) {
 							prompt = vscode.window.showWarningMessage(
 								vscode.l10n.t("The JS/TS language service crashed 5 times in the last 5 Minutes."),
 								reportIssueItem);
@@ -692,10 +695,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				// Prompt after a single restart
 				this.numberRestarts = 0;
 				if (!this._isPromptingAfterCrash) {
-					if (this.pluginManager.plugins.length) {
+					if (pluginsForCrashPrompt.length) {
 						prompt = vscode.window.showWarningMessage<vscode.MessageItem>(
 							vscode.l10n.t("The JS/TS language service crashed.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
-					} else {
+					} else if (!plugins.length) {
 						prompt = vscode.window.showWarningMessage(
 							vscode.l10n.t("The JS/TS language service crashed."),
 							reportIssueItem);
@@ -1043,11 +1046,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				if (fpath.startsWith(inMemoryResourcePrefix)) {
 					return;
 				}
-				if (process.platform === 'darwin' && fpath === path.join(homedir(), 'Library')) {
-					// ignore directory watch requests on ~/Library
-					// until microsoft/TypeScript#59831 is resolved
-					return;
-				}
 
 				this.createFileSystemWatcher(
 					(event.body as Proto.CreateDirectoryWatcherEventBody).id,
@@ -1223,9 +1221,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		/* __GDPR__
 			"typingsInstalled" : {
 				"owner": "mjbvz",
-				"installedPackages" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"installSuccess": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"installedPackages": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"installSuccess": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				]

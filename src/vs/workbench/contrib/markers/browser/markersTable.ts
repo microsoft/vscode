@@ -38,7 +38,6 @@ const $ = DOM.$;
 interface IMarkerIconColumnTemplateData {
 	readonly icon: HTMLElement;
 	readonly actionBar: ActionBar;
-	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 }
 
@@ -78,22 +77,17 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 		const severityColumn = DOM.append(container, $('.severity'));
 		const icon = DOM.append(severityColumn, $(''));
 
-		const templateDisposables = new DisposableStore()
-
 		const actionBarColumn = DOM.append(container, $('.actions'));
-		const actionBar = templateDisposables.add(new ActionBar(actionBarColumn, {
+		const actionBar = new ActionBar(actionBarColumn, {
 			actionViewItemProvider: (action: IAction, options) => action.id === QuickFixAction.ID ? this.instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action, options) : undefined
-		}));
+		});
 
-
-		const elementDisposables = new DisposableStore();
-
-		templateDisposables.add(elementDisposables);
-
-		return { actionBar, icon, elementDisposables, templateDisposables };
+		return { actionBar, icon, elementDisposables: new DisposableStore() };
 	}
 
 	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerIconColumnTemplateData): void {
+		templateData.elementDisposables.clear();
+
 		const toggleQuickFix = (enabled?: boolean) => {
 			if (!isUndefinedOrNull(enabled)) {
 				const container = DOM.findParentWithClass(templateData.icon, 'monaco-table-td')!;
@@ -104,6 +98,7 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 		templateData.icon.title = MarkerSeverity.toString(element.marker.severity);
 		templateData.icon.className = `marker-icon ${Severity.toString(MarkerSeverity.toSeverity(element.marker.severity))} codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
 
+		templateData.actionBar.clear();
 		const viewModel = this.markersViewModel.getViewModel(element);
 		if (viewModel) {
 			const quickFixAction = viewModel.quickFixAction;
@@ -127,6 +122,7 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 
 	disposeTemplate(templateData: IMarkerIconColumnTemplateData): void {
 		templateData.elementDisposables.dispose();
+		templateData.actionBar.dispose();
 	}
 }
 
@@ -469,6 +465,11 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 					this.filterOptions.showInfos && MarkerSeverity.Info === marker.marker.severity;
 
 				if (!matchesSeverity) {
+					continue;
+				}
+
+				// Source filters
+				if (!this.filterOptions.matchesSourceFilters(marker.marker.source)) {
 					continue;
 				}
 
