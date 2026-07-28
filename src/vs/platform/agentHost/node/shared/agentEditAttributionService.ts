@@ -5,7 +5,7 @@
 
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { IntervalTimer } from '../../../../base/common/async.js';
+import { IntervalTimer, SequencerByKey } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { dirname } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
@@ -77,6 +77,7 @@ export type AgentEditAttributionGitStateReader = (workingDirectory: string) => P
 
 interface IPreparedFlush {
 	readonly token: string;
+	readonly fileKey: string;
 	readonly trigger: EditTelemetryTrigger;
 	readonly statsUuid: string;
 	readonly languageId: string | undefined;
@@ -94,6 +95,8 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 
 	private readonly _resources = new Map<string, ITrackedResource>();
 	private readonly _claimedResources = new Set<ITrackedResource>();
+	private readonly _recordingEdits = new Set<IAgentEditAttribution>();
+	private readonly _fileSequencer = new SequencerByKey<string>();
 	private readonly _preparedFlushes = new Map<string, IPreparedFlush>();
 	private readonly _preparingFlushes = new Map<string, Promise<IPreparedEditAttributionFlush | undefined>>();
 	private readonly _settledFlushes = new Map<string, { readonly result: IEditAttributionFlushResult; readonly timestamp: number }>();
@@ -130,6 +133,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		this._generation++;
 		this._resources.clear();
 		this._claimedResources.clear();
+		this._recordingEdits.clear();
 		this._preparedFlushes.clear();
 		this._preparingFlushes.clear();
 		this._settledFlushes.clear();
@@ -157,9 +161,18 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			};
 		}
 
-		const generation = this._generation;
+		this._recordingEdits.add(edit);
+		try {
+			const fileKey = this._filePathKey(edit.filePath);
+			return await this._fileSequencer.queue(fileKey, () => this._recordEdit(edit, this._generation, fileKey));
+		} finally {
+			this._recordingEdits.delete(edit);
+		}
+	}
+
+	private async _recordEdit(edit: IAgentEditAttribution, generation: number, fileKey: string): Promise<IFileEditAttributionMarker | undefined> {
 		const key = resourceKey(edit.sessionUri, edit.filePath);
-		await this._ensureCapacity(key, edit.afterText.length, generation);
+		await this._ensureCapacity(key, edit.afterText.length, generation, fileKey);
 		if (!this._isCurrentGeneration(generation)) {
 			return undefined;
 		}
@@ -223,7 +236,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		};
 		resource.lastSequence = marker.sequence;
 		if (resource.intervals.length > MAX_INTERVALS_PER_RESOURCE) {
-			await this._flushStandalone(resource, 'closed', generation);
+			await this._flushStandalone(resource, 'closed', generation, true);
 			return this._isCurrentGeneration(generation) ? marker : undefined;
 		}
 
@@ -244,7 +257,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		if (!this._isCurrentGeneration(generation)) {
 			return undefined;
 		}
-		this._expireFlushState();
+		await this._expireFlushState();
 		if (params.isDirty) {
 			return undefined;
 		}
@@ -275,8 +288,12 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 	}
 
 	private async _prepareFlush(params: IPrepareEditAttributionFlushParams, generation: number): Promise<IPreparedEditAttributionFlush | undefined> {
+		return this._fileSequencer.queue(this._filePathKey(params.resource.fsPath), () => this._prepareFlushLocked(params, generation));
+	}
+
+	private async _prepareFlushLocked(params: IPrepareEditAttributionFlushParams, generation: number): Promise<IPreparedEditAttributionFlush | undefined> {
 		const standaloneOwnershipKey = this._filePathKey(params.resource.fsPath);
-		const standaloneOwnership = this._standaloneOwnership.get(standaloneOwnershipKey);
+		let standaloneOwnership = this._standaloneOwnership.get(standaloneOwnershipKey);
 		if (standaloneOwnership) {
 			this._standaloneOwnership.delete(standaloneOwnershipKey);
 		}
@@ -287,7 +304,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		const preparedResources: IPreparedFlush[] = [];
 		try {
 			for (const resource of resources) {
-				const prepared = await this._prepareResource(resource, params.trigger, params.statsUuid, generation);
+				const prepared = await this._prepareResourceNow(resource, params.trigger, params.statsUuid, generation);
 				if (!this._isCurrentGeneration(generation)) {
 					return undefined;
 				}
@@ -304,8 +321,18 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			}
 			throw error;
 		}
+		if (!standaloneOwnership) {
+			standaloneOwnership = this._standaloneOwnership.get(standaloneOwnershipKey);
+			if (standaloneOwnership) {
+				this._standaloneOwnership.delete(standaloneOwnershipKey);
+			}
+		}
+		if (preparedResources.length === 0 && !standaloneOwnership) {
+			return undefined;
+		}
 		const prepared = combinePreparedFlushes(
 			preparedResources,
+			standaloneOwnershipKey,
 			params.trigger,
 			params.statsUuid,
 			params.flushToken,
@@ -333,7 +360,18 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		if (!this._enabled) {
 			return { outcome: 'missing', agentModifiedCount: 0 };
 		}
-		this._expireFlushState();
+		await this._expireFlushState();
+		const prepared = this._preparedFlushes.get(params.flushToken);
+		if (!prepared) {
+			return this._settledFlushes.get(params.flushToken)?.result ?? { outcome: 'missing', agentModifiedCount: 0 };
+		}
+		return this._fileSequencer.queue(prepared.fileKey, async () => this._commitFlushNow(params));
+	}
+
+	private _commitFlushNow(params: ICommitEditAttributionFlushParams): IEditAttributionFlushResult {
+		if (!this._enabled) {
+			return { outcome: 'missing', agentModifiedCount: 0 };
+		}
 		const prepared = this._preparedFlushes.get(params.flushToken);
 		if (!prepared) {
 			return this._settledFlushes.get(params.flushToken)?.result ?? { outcome: 'missing', agentModifiedCount: 0 };
@@ -359,7 +397,24 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		if (!this._enabled) {
 			return { outcome: 'missing', agentModifiedCount: 0 };
 		}
-		this._expireFlushState();
+		await this._expireFlushState();
+		const settled = this._settledFlushes.get(params.flushToken);
+		if (settled) {
+			return settled.result;
+		}
+		const prepared = this._preparedFlushes.get(params.flushToken);
+		if (!prepared) {
+			const result = { outcome: 'cancelled', agentModifiedCount: 0 } as const;
+			this._recordSettledFlush(params.flushToken, result);
+			return result;
+		}
+		return this._fileSequencer.queue(prepared.fileKey, async () => this._cancelFlushNow(params));
+	}
+
+	private _cancelFlushNow(params: ICancelEditAttributionFlushParams): IEditAttributionFlushResult {
+		if (!this._enabled) {
+			return { outcome: 'missing', agentModifiedCount: 0 };
+		}
 		const settled = this._settledFlushes.get(params.flushToken);
 		if (settled) {
 			return settled.result;
@@ -388,20 +443,19 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		return result;
 	}
 
-	private async _ensureCapacity(key: string, nextLength: number, generation: number): Promise<void> {
-		const existingLength = this._resources.get(key)?.currentContent.length ?? 0;
-		while (
-			this._isCurrentGeneration(generation) &&
-			(
-				this._resources.size >= MAX_TRACKED_RESOURCES ||
-				this._trackedTextLength - existingLength + nextLength > MAX_TOTAL_TRACKED_TEXT
-			)
-		) {
-			const oldest = this._resources.values().next().value;
-			if (!oldest) {
+	private async _ensureCapacity(key: string, nextLength: number, generation: number, lockedFileKey: string): Promise<void> {
+		while (this._isCurrentGeneration(generation)) {
+			const existing = this._resources.get(key);
+			const projectedTextLength = this._trackedTextLength - (existing?.currentContent.length ?? 0) + nextLength;
+			if (this._resources.size < MAX_TRACKED_RESOURCES && projectedTextLength <= MAX_TOTAL_TRACKED_TEXT) {
 				return;
 			}
-			await this._flushStandalone(oldest, 'closed', generation);
+			const sameFileResource = Array.from(this._resources.values()).find(resource => this._filePathKey(resource.filePath) === lockedFileKey);
+			const resource = existing ?? sameFileResource ?? this._resources.values().next().value;
+			if (!resource) {
+				return;
+			}
+			await this._flushStandalone(resource, 'closed', generation, this._filePathKey(resource.filePath) === lockedFileKey);
 		}
 	}
 
@@ -444,7 +498,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		if (!this._isCurrentGeneration(generation)) {
 			return;
 		}
-		this._expireFlushState();
+		await this._expireFlushState();
 		for (const repository of Array.from(this._repositories.values())) {
 			let current: IAgentEditAttributionGitState | undefined;
 			try {
@@ -467,11 +521,12 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			if (!trigger) {
 				continue;
 			}
-			const resources = Array.from(this._resources.values()).filter(resource => resource.repositoryRoot === repository.root);
+			const resources = Array.from(this._resources.values()).filter(resource => resource.repositoryRoot === repository.root && !this._isRecordingFile(resource.filePath));
 			const results = await Promise.allSettled(resources.map(resource => this._flushStandalone(resource, trigger, generation)));
 			const hasPendingResources = Array.from(this._resources.values()).some(resource => resource.repositoryRoot === repository.root);
 			const hasClaimedResources = Array.from(this._claimedResources).some(resource => resource.repositoryRoot === repository.root);
-			if (this._isCurrentGeneration(generation) && results.every(result => result.status === 'fulfilled') && !hasPendingResources && !hasClaimedResources) {
+			const hasRecordingEdits = Array.from(this._recordingEdits).some(edit => extUriBiasedIgnorePathCase.isEqualOrParent(URI.file(edit.filePath), URI.file(repository.root)));
+			if (this._isCurrentGeneration(generation) && results.every(result => result.status === 'fulfilled') && !hasPendingResources && !hasClaimedResources && !hasRecordingEdits) {
 				repository.branch = current.branch;
 				repository.head = current.head;
 			}
@@ -501,13 +556,16 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		return current;
 	}
 
-	private async _flushStandalone(resource: ITrackedResource, trigger: EditTelemetryTrigger, generation: number): Promise<void> {
-		const prepared = await this._prepareResource(resource, trigger, generateUuid(), generation);
+	private async _flushStandalone(resource: ITrackedResource, trigger: EditTelemetryTrigger, generation: number, fileLockHeld = false): Promise<void> {
+		if (!fileLockHeld) {
+			return this._fileSequencer.queue(this._filePathKey(resource.filePath), () => this._flushStandalone(resource, trigger, generation, true));
+		}
+		const prepared = await this._prepareResourceNow(resource, trigger, generateUuid(), generation);
 		if (!prepared || !this._isCurrentGeneration(generation)) {
 			return;
 		}
 		this._preparedFlushes.set(prepared.token, prepared);
-		await this.commitFlush({
+		this._commitFlushNow({
 			flushToken: prepared.token,
 			totalModifiedCount: prepared.agentModifiedCount,
 		});
@@ -516,7 +574,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		}
 	}
 
-	private async _prepareResource(resource: ITrackedResource, trigger: EditTelemetryTrigger, statsUuid: string, generation: number): Promise<IPreparedFlush | undefined> {
+	private async _prepareResourceNow(resource: ITrackedResource, trigger: EditTelemetryTrigger, statsUuid: string, generation: number): Promise<IPreparedFlush | undefined> {
 		if (!this._isCurrentGeneration(generation) || this._resources.get(resource.key) !== resource) {
 			return undefined;
 		}
@@ -541,6 +599,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			}
 			const prepared: IPreparedFlush = {
 				token: generateUuid(),
+				fileKey: this._filePathKey(resource.filePath),
 				trigger,
 				statsUuid,
 				languageId: undefined,
@@ -560,10 +619,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				return undefined;
 			}
 			this._logService.warn(`[AgentEditAttributionService] Failed to flush ${resource.filePath}: ${error}`);
-			if (!this._resources.has(resource.key)) {
-				this._resources.set(resource.key, resource);
-				this._trackedTextLength += resource.currentContent.length;
-			}
+			this._restoreResources([resource]);
 			throw error;
 		}
 	}
@@ -649,6 +705,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				repositoryRoot &&
 				!Array.from(this._resources.values()).some(candidate => candidate.repositoryRoot === repositoryRoot) &&
 				!Array.from(this._claimedResources).some(candidate => candidate.repositoryRoot === repositoryRoot) &&
+				!Array.from(this._recordingEdits).some(edit => extUriBiasedIgnorePathCase.isEqualOrParent(URI.file(edit.filePath), URI.file(repositoryRoot))) &&
 				!Array.from(this._preparedFlushes.values()).some(prepared => prepared.resources.some(candidate => candidate.repositoryRoot === repositoryRoot))
 			) {
 				this._repositories.delete(repositoryRoot);
@@ -724,23 +781,20 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		return extUriBiasedIgnorePathCase.getComparisonKey(URI.file(filePath));
 	}
 
-	private _expireFlushState(): void {
+	private _isRecordingFile(filePath: string): boolean {
+		const resource = URI.file(filePath);
+		return Array.from(this._recordingEdits).some(edit => extUriBiasedIgnorePathCase.isEqual(URI.file(edit.filePath), resource));
+	}
+
+	private async _expireFlushState(): Promise<void> {
 		const now = this._now();
+		const expirations: Promise<void>[] = [];
 		for (const [flushToken, prepared] of this._preparedFlushes) {
 			if (prepared.timestamp < now - PREPARED_FLUSH_TTL) {
-				this._preparedFlushes.delete(flushToken);
-				if (prepared.resources.some(resource => this._resources.has(resource.key))) {
-					this._releaseResourceClaims(prepared.resources);
-					this._emitTelemetry(prepared, prepared.agentModifiedCount);
-					this._recordSettledFlush(flushToken, { outcome: 'committed', agentModifiedCount: prepared.agentModifiedCount });
-				} else {
-					this._restoreResources(prepared.resources);
-					this._restoreStandaloneOwnership(prepared.standaloneOwnership);
-					this._recordSettledFlush(flushToken, { outcome: 'cancelled', agentModifiedCount: 0 });
-				}
-				this._cleanupRepositories(prepared.resources);
+				expirations.push(this._fileSequencer.queue(prepared.fileKey, async () => this._expirePreparedFlush(flushToken, prepared, now)));
 			}
 		}
+		await Promise.allSettled(expirations);
 		for (const [flushToken, settled] of this._settledFlushes) {
 			if (settled.timestamp < now - SETTLED_FLUSH_TTL) {
 				this._settledFlushes.delete(flushToken);
@@ -751,6 +805,23 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				this._standaloneOwnership.delete(resourceKey);
 			}
 		}
+	}
+
+	private _expirePreparedFlush(flushToken: string, prepared: IPreparedFlush, now: number): void {
+		if (this._preparedFlushes.get(flushToken) !== prepared || prepared.timestamp >= now - PREPARED_FLUSH_TTL) {
+			return;
+		}
+		this._preparedFlushes.delete(flushToken);
+		if (prepared.resources.some(resource => this._resources.has(resource.key))) {
+			this._releaseResourceClaims(prepared.resources);
+			this._emitTelemetry(prepared, prepared.agentModifiedCount);
+			this._recordSettledFlush(flushToken, { outcome: 'committed', agentModifiedCount: prepared.agentModifiedCount });
+		} else {
+			this._restoreResources(prepared.resources);
+			this._restoreStandaloneOwnership(prepared.standaloneOwnership);
+			this._recordSettledFlush(flushToken, { outcome: 'cancelled', agentModifiedCount: 0 });
+		}
+		this._cleanupRepositories(prepared.resources);
 	}
 
 	override dispose(): void {
@@ -765,6 +836,7 @@ function resourceKey(sessionUri: string, filePath: string): string {
 
 function combinePreparedFlushes(
 	flushes: readonly IPreparedFlush[],
+	fileKey: string,
 	trigger: EditTelemetryTrigger,
 	statsUuid: string,
 	flushToken: string,
@@ -789,6 +861,7 @@ function combinePreparedFlushes(
 	}
 	return {
 		token: flushToken,
+		fileKey,
 		trigger,
 		statsUuid,
 		languageId,

@@ -340,6 +340,153 @@ suite('Agent Edit Attribution Service', () => {
 		});
 	});
 
+	test('keeps a Git boundary pending while an edit is being recorded', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resource = URI.file('/workspace/file.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
+
+		const bridgeStarted = new DeferredPromise<void>();
+		const bridgeResult = new DeferredPromise<ReturnType<typeof computeDiffCounts>>();
+		let branch = 'main';
+		let eventCount = 0;
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, {
+			async computeDiffCounts(original, modified, timeoutMs) {
+				if (original === 'ab' && modified === 'ac') {
+					bridgeStarted.complete();
+					return bridgeResult.p;
+				}
+				return computeDiffCounts(original, modified, timeoutMs ?? 5_000);
+			},
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			publicLog2() {
+				eventCount++;
+			},
+		});
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => ({
+			root: '/workspace',
+			branch,
+			head: 'head-1',
+		}), undefined));
+		await service.recordEdit({
+			sessionUri: 'copilot:/session-1',
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			filePath: resource.fsPath,
+			beforeText: 'a',
+			afterText: 'ab',
+			changes: [{ startOffset: 1, endOffsetExclusive: 1, newText: 'b' }],
+			modelId: 'model',
+			toolName: 'edit',
+		});
+
+		const recording = service.recordEdit({
+			sessionUri: 'copilot:/session-1',
+			turnId: 'turn-2',
+			toolCallId: 'tool-2',
+			filePath: resource.fsPath,
+			beforeText: 'ac',
+			afterText: 'acd',
+			changes: [{ startOffset: 2, endOffsetExclusive: 2, newText: 'd' }],
+			modelId: 'model',
+			toolName: 'edit',
+		});
+		await bridgeStarted.p;
+		await fileService.writeFile(resource, VSBuffer.fromString('acd'));
+		branch = 'feature';
+		await service.checkGitState();
+		const eventCountWhileRecording = eventCount;
+		bridgeResult.complete(computeDiffCounts('ab', 'ac', 5_000));
+		await recording;
+		await service.checkGitState();
+
+		assert.deepStrictEqual({
+			eventCountWhileRecording,
+			eventCountAfterRecording: eventCount,
+		}, {
+			eventCountWhileRecording: 0,
+			eventCountAfterRecording: 1,
+		});
+	});
+
+	test('serializes a new edit behind a failing Git flush', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		const readStarted = new DeferredPromise<void>();
+		const readResult = new DeferredPromise<Uint8Array>();
+		const provider = disposables.add(new class extends InMemoryFileSystemProvider {
+			blockReads = false;
+
+			override async readFile(resource: URI): Promise<Uint8Array> {
+				if (this.blockReads) {
+					readStarted.complete();
+					return readResult.p;
+				}
+				return super.readFile(resource);
+			}
+		}());
+		disposables.add(fileService.registerProvider('file', provider));
+		const resource = URI.file('/workspace/file.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('ab'));
+
+		let branch = 'main';
+		const retainedCounts: number[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, new TestDiffComputeService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			publicLog2(_eventName, data) {
+				retainedCounts.push((data as { modifiedCount: number }).modifiedCount);
+			},
+		});
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => ({
+			root: '/workspace',
+			branch,
+			head: 'head-1',
+		}), undefined));
+		await service.recordEdit({
+			sessionUri: 'copilot:/session-1',
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			filePath: resource.fsPath,
+			beforeText: 'a',
+			afterText: 'ab',
+			changes: [{ startOffset: 1, endOffsetExclusive: 1, newText: 'b' }],
+			modelId: 'model',
+			toolName: 'edit',
+		});
+		provider.blockReads = true;
+		branch = 'feature';
+
+		const boundaryFlush = service.checkGitState();
+		await readStarted.p;
+		await fileService.writeFile(resource, VSBuffer.fromString('abc'));
+		const recording = service.recordEdit({
+			sessionUri: 'copilot:/session-1',
+			turnId: 'turn-2',
+			toolCallId: 'tool-2',
+			filePath: resource.fsPath,
+			beforeText: 'ab',
+			afterText: 'abc',
+			changes: [{ startOffset: 2, endOffsetExclusive: 2, newText: 'c' }],
+			modelId: 'model',
+			toolName: 'edit',
+		});
+		await readResult.error(new Error('Read failed'));
+		await boundaryFlush;
+		await recording;
+		provider.blockReads = false;
+		await service.checkGitState();
+
+		assert.deepStrictEqual(retainedCounts, [2]);
+	});
+
 	test('does not retain attribution when usage telemetry is disabled', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, disposables.add(new FileService(new NullLogService())));
@@ -758,7 +905,19 @@ suite('Agent Edit Attribution Service', () => {
 			}),
 		]);
 
-		assert.deepStrictEqual({ prepared, eventCount }, { prepared: undefined, eventCount: 1 });
+		assert.deepStrictEqual({
+			prepared: prepared && {
+				agentModifiedCount: prepared.agentModifiedCount,
+				lastSequence: prepared.lastSequence,
+			},
+			eventCount,
+		}, {
+			prepared: {
+				agentModifiedCount: 1,
+				lastSequence: 1,
+			},
+			eventCount: 1,
+		});
 	});
 
 	test('coordinates Windows resources when path casing differs', async () => {
