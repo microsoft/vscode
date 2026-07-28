@@ -124,7 +124,7 @@ class MockAgentService implements IAgentService {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
-			workingDirectories: config?.workingDirectory ? [config.workingDirectory.toString()] : undefined,
+			workingDirectories: config?.workingDirectories?.[0] ? [config.workingDirectories?.[0].toString()] : undefined,
 		});
 		return session;
 	}
@@ -750,7 +750,7 @@ suite('ProtocolServerHandler', () => {
 			startTime: 1000,
 			modifiedTime: 2000,
 			summary: 'Quick Chat',
-			workingDirectory: URI.file('/home/user/.copilot/chats/session-1'),
+			workingDirectories: [URI.file('/home/user/.copilot/chats/session-1')],
 			_meta: withSessionWorkspaceless(undefined, true),
 		});
 
@@ -763,6 +763,29 @@ suite('ProtocolServerHandler', () => {
 
 		const result = (resp as unknown as { result: ListSessionsResult }).result;
 		assert.deepStrictEqual(result.items.map(item => readSessionWorkspaceless(item._meta)), [true]);
+	});
+
+	test('listSessions omits _meta when the agent provides none', async () => {
+		// The wire item is built field by field and `satisfies SessionSummary`
+		// cannot catch a dropped optional, so pin the absent case too: a
+		// listing must not start manufacturing an empty `_meta` bag that later
+		// overwrites a richer one on the client.
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Session Summary',
+		});
+
+		const transport = connectClient('client-list-no-meta');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: ListSessionsResult }).result;
+		assert.deepStrictEqual(result.items.map(item => item._meta), [undefined]);
 	});
 
 	test('createSession returns null and broadcasts project in sessionAdded summary', async () => {

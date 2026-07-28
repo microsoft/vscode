@@ -70,9 +70,10 @@ import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
+import { buildOpenSessionLinkForChatResource } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
+import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../common/languageModels.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -540,9 +541,20 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'Current model';
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
-		this._register(createImageElements(resource, attachment.name, fullName, this.element, imageData ?? (attachment.value as Uint8Array), attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState));
+
+		const imageElements = this._register(new MutableDisposable<IDisposable>());
+		const renderImageElements = (buffer: Uint8Array) => {
+			imageElements.value = createImageElements(resource, attachment.name, fullName, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState);
+			// createImageElements resets the label; restore the deletion hint after each render.
+			this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
+		};
+		renderImageElements(imageData ?? new Uint8Array());
+
+		// Hydrated attachments need disk bytes so the preview does not fall back to a generic file icon.
+		if (!imageData && resource && omittedState !== OmittedState.Full && omittedState !== OmittedState.ImageLimitExceeded) {
+			void this.loadImageBytes(resource, renderImageElements);
+		}
 		this.attachSaveButton(resource, imageData, attachment.name, options.supportsDeletion);
-		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
 		// Wire up click + keyboard (Enter/Space) open handlers
 		const canOpenCarousel = !!imageData && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled);
@@ -558,6 +570,20 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 				this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 			});
 		}
+	}
+
+	private async loadImageBytes(resource: URI, render: (buffer: Uint8Array) => void): Promise<void> {
+		let content: VSBuffer;
+		try {
+			content = (await this.fileService.readFile(resource)).value;
+		} catch {
+			// The file may no longer exist; keep the icon fallback that is already rendered.
+			return;
+		}
+		if (this._store.isDisposed) {
+			return;
+		}
+		render(content.buffer);
 	}
 
 	private async openInCarousel(id: string, name: string, data: Uint8Array | undefined, referenceUri: URI | undefined, preferCurrentInput: boolean | undefined): Promise<void> {
@@ -736,6 +762,13 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			hoverElement.appendChild(dom.$('div', undefined, localize('chat.autoImageAttachmentHover', "Image support depends on the model selected by Auto.")));
 		}
 	}
+
+	// Remove old DOM so the widget can safely re-render after hydrated bytes load.
+	disposable.add(toDisposable(() => {
+		currentPill.remove();
+		textLabel.remove();
+	}));
+
 	return disposable;
 }
 
@@ -1069,8 +1102,67 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 			}, commonHoverLifecycleOptions));
 		}
 	}
+}
 
+/**
+ * Renders an agent-host {@link IChatRequestChatReferenceVariableEntry chat-reference}
+ * attachment (`#chat:<title>`) as a clickable chip. Clicking (or pressing
+ * Enter/Space) opens the referenced chat in the Agents window by handing an
+ * `agent-host-session://` link to the {@link IOpenerService}. When the link
+ * cannot be built or the opener declines it (e.g. the chat was deleted or lives
+ * in another window) the chip degrades gracefully and still renders its label.
+ */
+export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget {
+	constructor(
+		attachment: IChatRequestChatReferenceVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService,
+	) {
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
+		const title = attachment.name;
+		const chatResource = attachment.value;
+
+		this.label.setLabel(`$(${Codicon.commentDiscussion.id})\u00A0${title}`, undefined);
+
+		this.element.style.cursor = 'pointer';
+		this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment.chatReference', "Link to chat {0}", title));
+
+		this._register(hoverService.setupDelayedHover(this.element, {
+			...commonHoverOptions,
+			content: localize('chat.attachment.chatReference.hover', "Open chat \"{0}\"", title),
+		}, commonHoverLifecycleOptions));
+
+		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e: MouseEvent) => {
+			dom.EventHelper.stop(e, true);
+			this._openReferencedChat(chatResource);
+		}));
+
+		this._register(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				dom.EventHelper.stop(e, true);
+				this._openReferencedChat(chatResource);
+			}
+		}));
+	}
+
+	private async _openReferencedChat(chatResource: URI): Promise<void> {
+		const link = buildOpenSessionLinkForChatResource(chatResource);
+		if (!link) {
+			return;
+		}
+		// The opener returns false when the link cannot be resolved (e.g. the
+		// referenced chat was deleted or belongs to a different window). Degrade
+		// gracefully in that case — the chip stays but no error dialog is shown.
+		await this.openerService.open(link);
+	}
 }
 
 export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachmentWidget {

@@ -17,6 +17,7 @@ import {
 	AgentHostCodexAgentEnabledSettingId,
 	AgentHostCodexAgentSdkRootSettingId,
 	AgentHostCodexAgentCodexHomeSettingId,
+	AgentHostCopilotMultiRootEnabledSettingId,
 	AgentHostOTelCaptureContentSettingId,
 	AgentHostOTelDbSpanExporterEnabledSettingId,
 	AgentHostOTelEnabledSettingId,
@@ -91,6 +92,15 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
+		},
+		[AgentHostCopilotMultiRootEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.copilotAgent.multiRootEnabled', "When enabled, Copilot agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
+			default: false,
+			// Hidden from the Settings UI while the feature is dogfooded internally.
+			// Still settable via `settings.json`; flip `default` (e.g. to
+			// `product.quality !== 'stable'`) to enable it for a build channel.
+			included: false,
 		},
 		[AgentHostClaudeAgentEnabledSettingId]: {
 			type: 'boolean',

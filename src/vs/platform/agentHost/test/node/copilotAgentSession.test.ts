@@ -207,6 +207,9 @@ class MockCopilotSession {
 			},
 			enable: async (params: { serverName: string }) => {
 				this.mcpEnableCalls.push(params);
+				if (this.mcpEnableError !== undefined) {
+					throw this.mcpEnableError;
+				}
 				this.mcpListResult = {
 					servers: this.mcpListResult.servers.map(server => server.name === params.serverName ? { ...server, status: 'pending' } : server),
 				};
@@ -253,6 +256,7 @@ class MockCopilotSession {
 
 	mcpListResult: { servers: ReadonlyArray<{ name: string; status: 'connected' | 'failed' | 'needs-auth' | 'pending' | 'disabled' | 'not_configured'; error?: string }> } = { servers: [] };
 	mcpListError: unknown = undefined;
+	mcpEnableError: unknown = undefined;
 }
 
 class TestCopilotApiService implements ICopilotApiService {
@@ -542,6 +546,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// session class will read.
 		getEffectiveValue: ((_session: string, _schema: unknown, key: string) => configValues[key]) as IAgentConfigurationService['getEffectiveValue'],
 		getEffectiveWorkingDirectory: () => undefined,
+		getEffectiveWorkingDirectories: () => undefined,
 		isWorkingDirectoryPending: () => false,
 		resolveWorkingDirectoryForResume: async (_session, workingDirectory) => workingDirectory,
 		getSessionConfigValues: () => undefined,
@@ -921,7 +926,7 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('preserves simple attachment display kind through SDK blobs', async () => {
+	test('sends display-kind simple attachments as inline text SDK blobs', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		const attachment = {
 			type: MessageAttachmentKind.Simple,
@@ -934,7 +939,7 @@ suite('CopilotAgentSession', () => {
 		const sdkAttachment = {
 			type: 'blob' as const,
 			data: encodeBase64(VSBuffer.fromString(attachment.modelRepresentation)),
-			mimeType: 'text/plain; x-vscode-display-kind=workspace',
+			mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=workspace',
 			displayName: attachment.label,
 		};
 		assert.deepStrictEqual(mockSession.sendRequests, [{
@@ -950,7 +955,10 @@ suite('CopilotAgentSession', () => {
 			data: {
 				interactionId: 'message-1',
 				content: 'hello',
-				attachments: [sdkAttachment],
+				attachments: [{
+					...sdkAttachment,
+					mimeType: 'text/plain; x-vscode-display-kind=workspace',
+				}],
 			},
 		}];
 
@@ -1018,7 +1026,7 @@ suite('CopilotAgentSession', () => {
 			attachments: [{
 				type: 'blob',
 				data: encodeBase64(VSBuffer.fromString('Transcript text')),
-				mimeType: 'text/plain; x-vscode-display-kind=paste',
+				mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=paste',
 				displayName: 'Previous conversation',
 			}],
 		}]);
@@ -1034,7 +1042,7 @@ suite('CopilotAgentSession', () => {
 				attachments: [{
 					type: 'blob',
 					data: encodeBase64(VSBuffer.fromString('Transcript text')),
-					mimeType: 'text/plain; x-vscode-display-kind=paste',
+					mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=paste',
 					displayName: 'Previous conversation',
 				}],
 			},
@@ -6529,7 +6537,7 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('sending a message optimistically marks an enabled server as Starting', async () => {
+		test('sending a message does not mark an enabled server as Starting', async () => {
 			const serverName = 'db';
 			const id = 'mcp-top-level:copilot:test-session-1:db';
 			const { session } = await createAgentSession(disposables, {
@@ -6541,8 +6549,9 @@ suite('CopilotAgentSession', () => {
 					enabled: true,
 					state: { kind: McpServerStatus.Stopped },
 				}],
-				// The server is settled (failed) before the turn; the SDK reconnects
-				// enabled servers in the background on send without a live event.
+				// The server is settled (failed) before the turn. Sending does not
+				// reconnect it, so its state must stay put until the SDK reports a
+				// live `pending` of its own.
 				configureMockSession: mock => { mock.mcpListResult = { servers: [{ name: serverName, status: 'failed', error: 'boom' }] }; },
 			});
 
@@ -6552,14 +6561,14 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual({ beforeSend, afterSend }, {
 				beforeSend: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
-				afterSend: { kind: McpServerStatus.Starting },
+				afterSend: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
 			});
 		});
 
-		test('startMcpServer optimistically marks the server Starting before the blocking reconnect', async () => {
+		test('startMcpServer reports Starting only once the SDK reports the reconnect', async () => {
 			const serverName = 'db';
 			const id = 'mcp-top-level:copilot:test-session-1:db';
-			const { session } = await createAgentSession(disposables, {
+			const { session, mockSession } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
 					type: CustomizationType.McpServer,
 					id,
@@ -6568,20 +6577,31 @@ suite('CopilotAgentSession', () => {
 					enabled: true,
 					state: { kind: McpServerStatus.Stopped },
 				}],
-				// Settled (failed) before the explicit restart; the disable->enable
-				// reconnect is a background SDK operation with no live "starting" event.
-				configureMockSession: mock => { mock.mcpListResult = { servers: [{ name: serverName, status: 'failed', error: 'boom' }] }; },
+				// Settled (failed) before the explicit restart, and the enable
+				// rejects, so the SDK never reports a connect attempt.
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'failed', error: 'boom' }] };
+					mock.mcpEnableError = new Error('enable failed');
+				},
 			});
 
 			const beforeStart = session.topLevelMcpCustomizations()[0]?.state;
-			await session.startMcpServer(id);
-			// The trailing inventory refresh is fire-and-forget, so right after the
-			// awaited enable the optimistic Starting is observable.
-			const afterStart = session.topLevelMcpCustomizations()[0]?.state;
+			await session.startMcpServer(id).catch(() => { });
+			// Let the fire-and-forget inventory refresh settle: the disable
+			// landed but the enable rejected, so the server reads as stopped
+			// rather than optimistically Starting.
+			await timeout(0);
+			const afterFailedStart = session.topLevelMcpCustomizations()[0]?.state;
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName,
+				status: 'pending',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			const afterSdkPending = session.topLevelMcpCustomizations()[0]?.state;
 
-			assert.deepStrictEqual({ beforeStart, afterStart }, {
+			assert.deepStrictEqual({ beforeStart, afterFailedStart, afterSdkPending }, {
 				beforeStart: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
-				afterStart: { kind: McpServerStatus.Starting },
+				afterFailedStart: { kind: McpServerStatus.Stopped },
+				afterSdkPending: { kind: McpServerStatus.Starting },
 			});
 		});
 

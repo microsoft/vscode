@@ -139,6 +139,44 @@ suite('ByokLmProxyService', () => {
 		assert.deepStrictEqual(captured?.messages, [{ role: 'user', content: 'hi', toolCalls: undefined, toolCallId: undefined }]);
 	});
 
+	test('forwards custom tool call history with freeform input', async () => {
+		let captured: IByokLmChatRequest | undefined;
+		await withProxy(
+			async (request) => {
+				captured = request;
+				return { content: 'done' };
+			},
+			async (handle) => {
+				const response = await fetch(chatUrl(handle, 'acme'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({
+						model: 'm',
+						messages: [
+							{
+								role: 'assistant',
+								content: '',
+								tool_calls: [{ id: 'call_1', type: 'custom', custom: { name: 'apply_patch', input: '*** Begin Patch\n*** End Patch' } }],
+							},
+							{ role: 'tool', tool_call_id: 'call_1', content: 'Done!' },
+						],
+					}),
+				});
+				assert.strictEqual(response.status, 200);
+				await response.text();
+			},
+		);
+		assert.deepStrictEqual(captured?.messages, [
+			{
+				role: 'assistant',
+				content: '',
+				toolCalls: [{ id: 'call_1', name: 'apply_patch', argumentsJson: '{"input":"*** Begin Patch\\n*** End Patch"}' }],
+				toolCallId: undefined,
+			},
+			{ role: 'tool', content: 'Done!', toolCalls: undefined, toolCallId: 'call_1' },
+		]);
+	});
+
 	test('decodes a url-encoded vendor path segment', async () => {
 		let captured: IByokLmChatRequest | undefined;
 		await withProxy(
