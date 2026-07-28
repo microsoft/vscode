@@ -5,7 +5,7 @@
 
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
-import { CUSTOMIZATIONS_INDEX_FORMAT_MARKER, ICustomInstructionsService } from '../../../platform/customInstructions/common/customInstructionsService';
+import { ICustomInstructionsService } from '../../../platform/customInstructions/common/customInstructionsService';
 import { SKILL_FILENAME } from '../../../platform/customInstructions/common/promptTypes';
 import { TextDocumentSnapshot } from '../../../platform/editing/common/textDocumentSnapshot';
 import { IExtensionsService } from '../../../platform/extensions/common/extensionsService';
@@ -231,9 +231,7 @@ export function resolveSkillUri(
 ): URI {
 	const availableSkills: string[] = [];
 
-	// Skill files are read without a separate file confirmation, so only a
-	// structurally encoded index can be used as the authorization source.
-	if (isString(indexValue) && indexValue.startsWith(CUSTOMIZATIONS_INDEX_FORMAT_MARKER)) {
+	if (isString(indexValue)) {
 		const indexFile = parseInstructionIndexFile(indexValue);
 		for (const skillUri of indexFile.skills) {
 			const info = getSkillInfo(skillUri);

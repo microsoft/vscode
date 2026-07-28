@@ -32,7 +32,7 @@ import { getToolReferencePromptContent } from '../../../extension/prompt/vscode-
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { getChatSessionType, matchesSessionType } from '../../chat/common/sessionUtils';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService } from '../../otel/common';
-import { CUSTOMIZATIONS_INDEX_FORMAT_MARKER, ICustomInstructionsService } from '../../customInstructions/common/customInstructionsService';
+import { ICustomInstructionsService } from '../../customInstructions/common/customInstructionsService';
 import { IPromptVariablesService } from '../../../extension/prompt/node/promptVariablesService';
 import { arrayEqual } from 'diff/lib/util/array.js';
 import { structuralEquals } from '../../../util/vs/base/common/equals';
@@ -397,7 +397,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 			lines.push('Here is a list of instruction files that contain rules for working with this codebase.');
 			lines.push('These files are important for understanding the codebase structure, conventions, and best practices.');
 			lines.push('When an instruction file applies to your task (based on its description or applyTo pattern), follow the rules specified in it.');
-			lines.push(`If the file content is not already included in the context, use the ${getToolReferencePromptContent(readTool)} tool to read it before proceeding. Decode XML entities in the <file> value exactly once, then use the decoded value as-is with the tool; do not add or remove prefixes or otherwise modify it.`);
+			lines.push(`If the file content is not already included in the context, use the ${getToolReferencePromptContent(readTool)} tool to read it before proceeding. Use the exact value from the <file> element as-is with the tool; do not add or remove prefixes or otherwise modify it.`);
 			lines.push('Only load instruction files when they are relevant to the current task. Do not eagerly load all instructions upfront.');
 			lines.push('When modifying or creating files, check for instructions whose applyTo pattern matches the file path and follow them.');
 
@@ -407,7 +407,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 					continue;
 				}
 				lines.push('<instruction>');
-				lines.push(`<file>${escapeXml(filePath(instruction.uri))}</file>`);
+				lines.push(`<file>${filePath(instruction.uri)}</file>`);
 				if (instruction.description) {
 					lines.push(`<description>${escapeXml(instruction.description)}</description>`);
 				}
@@ -425,7 +425,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 					? l10n.t('Instructions for the workspace')
 					: l10n.t('Instructions for folder \'{0}\'', folderName);
 				lines.push('<instruction>');
-				lines.push(`<file>${escapeXml(filePath(uri))}</file>`);
+				lines.push(`<file>${filePath(uri)}</file>`);
 				lines.push(`<description>${escapeXml(description)}</description>`);
 				lines.push('</instruction>');
 				hasContent = true;
@@ -501,7 +501,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 					if (skill.description) {
 						skillEntry.push(`<description>${escapeXml(skill.description)}</description>`);
 					}
-					skillEntry.push(`<file>${escapeXml(filePath(skill.uri))}</file>`);
+					skillEntry.push(`<file>${filePath(skill.uri)}</file>`);
 					skillEntry.push('</skill>');
 					const entryLength = skillEntry.join('\n').length + 1;
 					if (skillTool && skillCharCount + entryLength > SKILL_DESCRIPTION_CHAR_BUDGET) {
@@ -580,7 +580,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 			return undefined;
 		}
 
-		lines.unshift(CUSTOMIZATIONS_INDEX_FORMAT_MARKER, 'Dynamic text values in this index are XML-entity encoded; decode XML entities exactly once before using a name or path.', '', '');
+
 		return toCustomizationsIndexReference(lines.join('\n'));
 	}
 

@@ -49,9 +49,6 @@ export interface IInstruction {
 
 export const ICustomInstructionsService = createServiceIdentifier<ICustomInstructionsService>('ICustomInstructionsService');
 
-// V2 uses entity-encoded text nodes. Unmarked V1 indexes must remain byte-compatible.
-export const CUSTOMIZATIONS_INDEX_FORMAT_MARKER = '<!-- vscode-customizations-index-format: 2 -->';
-
 export interface IExtensionPromptFile {
 	uri: URI;
 	type: PromptsType;
@@ -507,12 +504,10 @@ class InstructionIndexFile implements IInstructionIndexFile {
 	private skillUris: ResourceSet | undefined;
 	private skillFolderUris: ResourceSet | undefined;
 	private agentNames: Set<string> | undefined;
-	private readonly hasEncodedValues: boolean;
 
 	constructor(
 		public readonly content: string,
 		@IPromptPathRepresentationService private readonly promptPathRepresentationService: IPromptPathRepresentationService) {
-		this.hasEncodedValues = content.startsWith(CUSTOMIZATIONS_INDEX_FORMAT_MARKER);
 	}
 
 	/**
@@ -526,7 +521,7 @@ class InstructionIndexFile implements IInstructionIndexFile {
 			for (const instruction of instructions) {
 				const filePath = xmlContents(instruction, propertyName);
 				if (filePath.length > 0) {
-					result.push(this.hasEncodedValues ? decodeXmlText(filePath[0]) : filePath[0]);
+					result.push(filePath[0]);
 				}
 			}
 		}
@@ -588,20 +583,4 @@ function xmlContents(text: string, tag: string): string[] {
 		matches.push(match[1].trim());
 	}
 	return matches;
-}
-
-/**
- * Decodes only the entities emitted by `escape` and only after the index
- * structure has been extracted. Decoding earlier would turn encoded metadata
- * back into elements and reintroduce the structure injection this parser guards.
- */
-function decodeXmlText(text: string): string {
-	return text.replace(/&(?:amp|lt|gt);/g, entity => {
-		switch (entity) {
-			case '&amp;': return '&';
-			case '&lt;': return '<';
-			case '&gt;': return '>';
-		}
-		return entity;
-	});
 }
