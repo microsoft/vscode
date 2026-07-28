@@ -5,11 +5,13 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
+import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -53,8 +55,14 @@ suite('Voice Mode onboarding', () => {
 		});
 	}
 
-	function createService(store: Pick<DisposableStore, 'add'>, executed: string[] = [], holds: boolean[] = [], telemetryEvents: ITelemetryEvent[] = []): VoiceModeOnboardingService {
+	function createService(store: Pick<DisposableStore, 'add'>, executed: string[] = [], holds: boolean[] = [], telemetryEvents: ITelemetryEvent[] = [], screenReaderOptimized = false): VoiceModeOnboardingService {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
+			override readonly onDidChangeScreenReaderOptimized = Event.None;
+			override readonly onDidChangeReducedMotion = Event.None;
+			override isScreenReaderOptimized(): boolean { return screenReaderOptimized; }
+			override isMotionReduced(): boolean { return false; }
+		});
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override executeCommand(id: string): Promise<undefined> {
 				executed.push(id);
@@ -84,6 +92,7 @@ suite('Voice Mode onboarding', () => {
 		// Nothing is chosen until the user chooses: the card asks a question
 		// rather than arriving with an answer already filled in.
 		const selectedOnOpen = host.container.querySelectorAll('.voice-mode-onboarding-voice.selected').length;
+		const voices = [...host.container.querySelectorAll<HTMLElement>('.voice-mode-onboarding-voice-label')].map(element => element.textContent);
 		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-voice')!.click();
 		const selectedAfterPick = host.container.querySelectorAll('.voice-mode-onboarding-voice.selected').length;
 
@@ -94,10 +103,11 @@ suite('Voice Mode onboarding', () => {
 		const shownAgain = host.container.classList.contains('has-voice-mode-onboarding');
 
 		assert.deepStrictEqual(
-			{ shown, selectedOnOpen, selectedAfterPick, shownAfterClose, shownAgain, telemetryEvents },
+			{ shown, selectedOnOpen, voices, selectedAfterPick, shownAfterClose, shownAgain, telemetryEvents },
 			{
 				shown: true,
 				selectedOnOpen: 0,
+				voices: ['Maya', 'Victoria', 'Kevin', 'Daniel'],
 				selectedAfterPick: 1,
 				shownAfterClose: false,
 				shownAgain: false,
@@ -138,6 +148,31 @@ suite('Voice Mode onboarding', () => {
 		host.container.querySelector<HTMLElement>('.voice-mode-onboarding-close')!.click();
 
 		assert.strictEqual(host.container.classList.contains('has-voice-mode-onboarding'), false);
+	});
+
+	test('focuses the introduction in screen reader mode', () => {
+		const service = createService(disposables, [], [], [], true);
+		const host = createHost(disposables);
+		disposables.add(register(service, host));
+
+		service.showIfNeeded();
+		const card = host.container.querySelector<HTMLElement>('.voice-mode-onboarding-banner');
+
+		assert.deepStrictEqual(
+			{
+				activeElement: document.activeElement,
+				card,
+				tabIndex: card?.tabIndex,
+				closeIcon: host.container.querySelector('.voice-mode-onboarding-close .codicon')?.className,
+				listeningNotice: host.container.querySelector('.voice-mode-onboarding-listening-notice')?.textContent,
+			},
+			{
+				activeElement: card,
+				card,
+				tabIndex: -1,
+				closeIcon: 'codicon codicon-check-compact',
+				listeningNotice: 'Close this when you\'re ready to speak.',
+			});
 	});
 
 	test('asking twice in one session leaves exactly one card', () => {
@@ -212,7 +247,7 @@ suite('Voice Mode onboarding', () => {
 			{ heldWhileOpen, listeningNotice, afterDismiss: holds },
 			{
 				heldWhileOpen: [true],
-				listeningNotice: 'Voice Mode isn\'t listening while this introduction is open. Close it when you\'re ready to use the microphone.',
+				listeningNotice: 'Close this when you\'re ready to speak.',
 				afterDismiss: [true, false],
 			});
 	});

@@ -80,6 +80,17 @@ interface IWave {
 
 const VOICES: readonly IVoiceModeVoice[] = [
 	{
+		id: 'maya_neutral',
+		label: localize('voiceMode.onboarding.voice.maya', "Maya"),
+		// Flowing mid-range: even spread, gentle drift.
+		signature: [
+			{ frequency: 1.0, amplitude: 0.42, speed: 0.42, phase: 0.0 },
+			{ frequency: 1.7, amplitude: 0.26, speed: -0.31, phase: 1.1 },
+			{ frequency: 2.6, amplitude: 0.19, speed: 0.24, phase: 2.4 },
+			{ frequency: 4.1, amplitude: 0.13, speed: -0.18, phase: 0.7 },
+		],
+	},
+	{
 		id: 'victoria_neutral',
 		label: localize('voiceMode.onboarding.voice.victoria', "Victoria"),
 		// Bright and quick: higher frequencies, tighter ripple.
@@ -99,17 +110,6 @@ const VOICES: readonly IVoiceModeVoice[] = [
 			{ frequency: 1.2, amplitude: 0.28, speed: -0.22, phase: 1.7 },
 			{ frequency: 2.0, amplitude: 0.16, speed: 0.18, phase: 0.9 },
 			{ frequency: 3.1, amplitude: 0.09, speed: -0.14, phase: 2.2 },
-		],
-	},
-	{
-		id: 'maya_neutral',
-		label: localize('voiceMode.onboarding.voice.maya', "Maya"),
-		// Flowing mid-range: even spread, gentle drift.
-		signature: [
-			{ frequency: 1.0, amplitude: 0.42, speed: 0.42, phase: 0.0 },
-			{ frequency: 1.7, amplitude: 0.26, speed: -0.31, phase: 1.1 },
-			{ frequency: 2.6, amplitude: 0.19, speed: 0.24, phase: 2.4 },
-			{ frequency: 4.1, amplitude: 0.13, speed: -0.18, phase: 0.7 },
 		],
 	},
 	{
@@ -553,6 +553,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		options: IVoiceModeOnboardingBannerOptions,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -596,6 +597,9 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		this.renderVoices(actions);
 		this.renderClose();
 		this.logAction('shown');
+
+		this.focusForScreenReader();
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.focusForScreenReader()));
 	}
 
 	/**
@@ -736,10 +740,7 @@ export class VoiceModeOnboardingBanner extends Disposable {
 		const icon = dom.append(notice, dom.$(`span.codicon.codicon-${Codicon.mic.id}`));
 		icon.setAttribute('aria-hidden', 'true');
 		const text = dom.append(notice, dom.$('span'));
-		text.textContent = localize(
-			'voiceMode.onboarding.listeningPaused',
-			"Voice Mode isn't listening while this introduction is open. Close it when you're ready to use the microphone."
-		);
+		text.textContent = localize('voiceMode.onboarding.closeWhenReady', "Close this when you're ready to speak.");
 	}
 
 	/**
@@ -750,10 +751,17 @@ export class VoiceModeOnboardingBanner extends Disposable {
 	private renderClose(): void {
 		this.card.addAction({
 			className: 'voice-mode-onboarding-close',
-			ariaLabel: localize('voiceMode.onboarding.close', "Close the Voice Mode introduction"),
-			icon: Codicon.closeCompact,
+			ariaLabel: localize('voiceMode.onboarding.close', "Close the introduction and continue to Voice Mode"),
+			icon: Codicon.checkCompact,
 			onActivate: () => this.finish(),
 		});
+	}
+
+	private focusForScreenReader(): void {
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			this.domNode.tabIndex = -1;
+			this.domNode.focus();
+		}
 	}
 
 	private selectVoice(voice: IVoiceModeVoice): void {
