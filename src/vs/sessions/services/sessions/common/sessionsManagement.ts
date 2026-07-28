@@ -147,6 +147,9 @@ export interface IActiveSession extends ISession {
 	/** The currently active chat within this session. */
 	readonly activeChat: IObservable<IChat>;
 
+	/** Set when this slot is a detached single-chat view of another session's chat. */
+	readonly detachedChat?: IChat;
+
 	readonly isCreated: IObservable<boolean>;
 
 	/** Whether this session is sticky in the sessions part's grid. */

@@ -18,6 +18,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
+import { DetachedChatSession } from '../common/detachedChatSession.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { SessionsNavigation } from './sessionNavigation.js';
@@ -210,6 +211,11 @@ export interface ISessionsService {
 	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right', activate?: boolean): void;
 
 	/**
+	 * Open one chat in an adjacent transient leaf while leaving its session visible.
+	 */
+	splitChat(session: ISession, chat: IChat, side: 'left' | 'right'): void;
+
+	/**
 	 * Toggle a session's stickiness in the grid. The session keeps its grid
 	 * slot when toggled. If the session is not currently visible, it is
 	 * appended to the grid as sticky.
@@ -392,6 +398,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// one disappears.
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => this._onDidChangeSessions(e)));
 
+		// removeMany feeds back into this autorun, but its transactional refresh leaves no matching slots for the next pass.
+		this._register(autorun(reader => {
+			const detachedSessionIds = this.visibleSessions.read(reader)
+				.filter((session): session is IActiveSession => !!session?.detachedChat)
+				.filter(session => !session.chats.read(reader).some(chat => this.uriIdentityService.extUri.isEqual(chat.resource, session.detachedChat!.resource)))
+				.map(session => session.sessionId);
+			if (detachedSessionIds.length > 0) {
+				this._visibility.removeMany(detachedSessionIds);
+			}
+		}));
+
 		// Reflect provider session replacement (e.g. a draft graduating into a
 		// committed session) onto the grid slot.
 		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this._onDidReplaceSession(from, to)));
@@ -437,6 +454,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private _onDidReplaceSession(from: ISession, to: ISession): void {
+		const detachedSessionIds = this._visibility.visibleSessions.get()
+			.filter((session): session is IActiveSession => !!session?.detachedChat)
+			.filter(session =>
+				session.providerId === from.providerId
+				&& this.uriIdentityService.extUri.isEqual(session.resource, from.resource))
+			.map(session => session.sessionId);
+		this._visibility.removeMany(detachedSessionIds);
 		this._visibility.updateSession(from, to);
 	}
 
@@ -501,6 +525,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _onDidChangeSessions(e: ISessionsChangeEvent): void {
 		const currentActive = this._visibility.activeSession.get();
+		const removedDetachedSessionIds = this._visibility.visibleSessions.get()
+			.filter((session): session is IActiveSession => !!session?.detachedChat)
+			.filter(session => e.removed.some(removed =>
+				removed.providerId === session.providerId
+				&& this.uriIdentityService.extUri.isEqual(removed.resource, session.resource)))
+			.map(session => session.sessionId);
+		const activeSessionWasRemoved = !!currentActive && (
+			e.removed.some(removed => removed.sessionId === currentActive.sessionId)
+			|| (currentActive.detachedChat !== undefined && e.removed.some(removed =>
+				removed.providerId === currentActive.providerId
+				&& this.uriIdentityService.extUri.isEqual(removed.resource, currentActive.resource)))
+		);
 
 		// Clean removed sessions out of the visibility model (drops their grid
 		// slot and disposes their wrapper). If the active session is among the
@@ -511,14 +547,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 			for (const session of e.removed) {
 				this._sessionStates.delete(session.resource);
 			}
-			this._visibility.removeMany(e.removed.map(r => r.sessionId));
+			this._visibility.removeMany([...e.removed.map(r => r.sessionId), ...removedDetachedSessionIds]);
 		}
 
 		if (!currentActive) {
 			return;
 		}
 
-		if (e.removed.length && e.removed.some(r => r.sessionId === currentActive.sessionId)) {
+		if (e.removed.length && activeSessionWasRemoved) {
 			const fallback = this._visibility.activeSession.get();
 			if (fallback && this.sessionsManagementService.getSession(fallback.resource)) {
 				this.openSession(fallback.resource);
@@ -835,6 +871,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._visibility.insertAt(session, targetSessionId, side, activate);
 	}
 
+	splitChat(session: ISession, chat: IChat, side: 'left' | 'right'): void {
+		if (session.status.get() === SessionStatus.Untitled
+			|| !session.chats.get().some(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, chat.resource))) {
+			return;
+		}
+		this._visibility.insertAt(new DetachedChatSession(session, chat), session.sessionId, side, true);
+	}
+
 	closeSession(session: ISession | undefined): void {
 		const sessionId = session?.sessionId;
 		const visible = this._visibility.visibleSessions.get();
@@ -991,6 +1035,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const entries: ISessionState[] = [];
 		visible.forEach((session, index) => {
 			if (!session) {
+				return;
+			}
+
+			// Detached leaves share their source resource and must remain transient.
+			if (session.detachedChat) {
 				return;
 			}
 

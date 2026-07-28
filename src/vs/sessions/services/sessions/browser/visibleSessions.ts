@@ -9,6 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
+import { isDetachedChatSession } from '../common/detachedChatSession.js';
 
 /**
  * Wraps an {@link ISession} with an active chat observable to form an
@@ -219,6 +220,10 @@ export class VisibleSession extends Disposable implements IActiveSession {
 			}
 		}
 		return undefined;
+	}
+
+	get detachedChat(): IChat | undefined {
+		return isDetachedChatSession(this._session) ? this._session.chat : undefined;
 	}
 
 	setSticky(value: boolean): void {

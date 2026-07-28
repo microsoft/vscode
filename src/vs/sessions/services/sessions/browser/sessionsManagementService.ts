@@ -462,43 +462,46 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined> {
-		const provider = this._getProvider(session);
+		const live = this._resolveLiveSession(session);
+		const provider = this._getProvider(live);
 		if (!provider) {
-			this.logService.warn(`[SessionsManagement] createNewChatInSession: provider '${session.providerId}' not found`);
+			this.logService.warn(`[SessionsManagement] createNewChatInSession: provider '${live.providerId}' not found`);
 			return undefined;
 		}
 		// `forceNew` skips reuse so callers can reset the composer right after
 		// sending a chat (which may still transiently report `Untitled`).
 		if (!options?.forceNew) {
-			const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled);
+			const existingUntitled = live.chats.get().find(c => c.status.get() === SessionStatus.Untitled);
 			if (existingUntitled) {
 				return existingUntitled;
 			}
 		}
-		const created = await provider.createNewChat(session.sessionId);
+		const created = await provider.createNewChat(live.sessionId);
 		return created;
 	}
 
 	async forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat> {
-		const provider = this._getProvider(session);
+		const live = this._resolveLiveSession(session);
+		const provider = this._getProvider(live);
 		if (!provider) {
-			throw new Error(`Provider '${session.providerId}' not found for session '${session.sessionId}'`);
+			throw new Error(`Provider '${live.providerId}' not found for session '${live.sessionId}'`);
 		}
-		if (!session.capabilities.get().supportsMultipleChats) {
-			throw new Error(`Session '${session.sessionId}' does not support forking into a chat`);
+		if (!live.capabilities.get().supportsMultipleChats) {
+			throw new Error(`Session '${live.sessionId}' does not support forking into a chat`);
 		}
-		return provider.forkChat(session.sessionId, sourceChat, turnId);
+		return provider.forkChat(live.sessionId, sourceChat, turnId);
 	}
 
 	async createSideChatInSession(session: ISession, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat> {
-		const provider = this._getProvider(session);
+		const live = this._resolveLiveSession(session);
+		const provider = this._getProvider(live);
 		if (!provider) {
-			throw new Error(`Provider '${session.providerId}' not found for session '${session.sessionId}'`);
+			throw new Error(`Provider '${live.providerId}' not found for session '${live.sessionId}'`);
 		}
-		if (!session.capabilities.get().supportsSideChat) {
-			throw new Error(`Session '${session.sessionId}' does not support side chats`);
+		if (!live.capabilities.get().supportsSideChat) {
+			throw new Error(`Session '${live.sessionId}' does not support side chats`);
 		}
-		return provider.createSideChat(session.sessionId, sourceChat, turnId, selection);
+		return provider.createSideChat(live.sessionId, sourceChat, turnId, selection);
 	}
 
 	/**
@@ -808,20 +811,21 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
+		const live = this._resolveLiveSession(session);
 		// Sending into an existing session abandons any in-progress new session,
 		// so dispose it to release its eager backend session.
 		this.discardNewSession();
 
-		const provider = this._getProvider(session);
+		const provider = this._getProvider(live);
 		if (!provider) {
-			throw new Error(`Sessions provider '${session.providerId}' not found`);
+			throw new Error(`Sessions provider '${live.providerId}' not found`);
 		}
 
 		if (options.background) {
 			// Fire-and-forget so the composer can reset immediately. Unlike the
 			// foreground path this skips `_onWillSendRequest` so the view's
 			// send-follow does not navigate the visible slot into the sent chat.
-			this._sendRequestInBackground(provider, session, chat, options).catch(e => {
+			this._sendRequestInBackground(provider, live, chat, options).catch(e => {
 				this.logService.error('[SessionsManagement] Failed to send background request:', e);
 			});
 			return;
@@ -831,19 +835,19 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// can use this to prewarm caches whose result is consumed when
 		// `onDidSendRequest` fires below. The view service observes the will/did
 		// send pair to keep the sent chat active in the visible slot.
-		this._onWillSendRequest.fire(session);
+		this._onWillSendRequest.fire(live);
 
-		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
+		const sendOptions = this._augmentOptionsForTroubleshoot(live, options);
 		const chatResourceKey = chat.resource.toString();
 		this._pendingSendChatResources.add(chatResourceKey);
 		let updatedSession: ISession;
 		try {
-			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, sendOptions);
+			updatedSession = await provider.sendRequest(live.sessionId, chat.resource, sendOptions);
 		} finally {
 			this._pendingSendChatResources.delete(chatResourceKey);
 		}
-		if (updatedSession.sessionId !== session.sessionId) {
-			this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
+		if (updatedSession.sessionId !== live.sessionId) {
+			this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${live.sessionId} -> ${updatedSession.sessionId}`);
 		}
 
 		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: false, isNewChat: true, options });
@@ -878,18 +882,32 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this.sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
 	}
 
+	/**
+	 * Resolve a view adapter back to the provider-owned session for model operations.
+	 * View-layer adapters such as `DetachedChatSession` carry a synthetic
+	 * `sessionId` to own an independent grid slot, but provider calls need the
+	 * real id. This is a no-op for provider-owned sessions.
+	 */
+	private _resolveLiveSession(session: ISession): ISession {
+		const live = this.getSession(session.resource);
+		return live?.providerId === session.providerId ? live : session;
+	}
+
 	async archiveSession(session: ISession): Promise<void> {
-		await this._getProvider(session)?.archiveSession(session.sessionId);
-		this._onDidArchiveSession.fire(session);
+		const live = this._resolveLiveSession(session);
+		await this._getProvider(live)?.archiveSession(live.sessionId);
+		this._onDidArchiveSession.fire(live);
 	}
 
 	async unarchiveSession(session: ISession): Promise<void> {
-		await this._getProvider(session)?.unarchiveSession(session.sessionId);
-		this._onDidUnarchiveSession.fire(session);
+		const live = this._resolveLiveSession(session);
+		await this._getProvider(live)?.unarchiveSession(live.sessionId);
+		this._onDidUnarchiveSession.fire(live);
 	}
 
 	async setSessionReadState(session: ISession, isRead: boolean): Promise<void> {
-		await this._getProvider(session)?.setSessionReadState(session.sessionId, isRead);
+		const live = this._resolveLiveSession(session);
+		await this._getProvider(live)?.setSessionReadState(live.sessionId, isRead);
 	}
 
 	markRead(session: ISession): Promise<void> {
@@ -905,22 +923,24 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async deleteSession(session: ISession): Promise<void> {
-		await this._getProvider(session)?.deleteSession(session.sessionId);
-		this._onDidDeleteSession.fire(session);
+		const live = this._resolveLiveSession(session);
+		await this._getProvider(live)?.deleteSession(live.sessionId);
+		this._onDidDeleteSession.fire(live);
 	}
 
 	async deleteSessions(sessions: readonly ISession[]): Promise<void> {
 		const byProvider = new Map<ISessionsProvider, ISession[]>();
 		for (const session of sessions) {
-			const provider = this._getProvider(session);
+			const live = this._resolveLiveSession(session);
+			const provider = this._getProvider(live);
 			if (!provider) {
 				continue;
 			}
 			const group = byProvider.get(provider);
 			if (group) {
-				group.push(session);
+				group.push(live);
 			} else {
-				byProvider.set(provider, [session]);
+				byProvider.set(provider, [live]);
 			}
 		}
 
@@ -942,20 +962,23 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<void> {
-		const deleted = await this._getProvider(session)?.deleteChat(session.sessionId, chatUri, options);
+		const live = this._resolveLiveSession(session);
+		const deleted = await this._getProvider(live)?.deleteChat(live.sessionId, chatUri, options);
 		if (deleted) {
-			this._onDidDeleteChat.fire(session);
+			this._onDidDeleteChat.fire(live);
 		}
 	}
 
 	async renameChat(session: ISession, chatUri: URI, title: string): Promise<void> {
-		await this._getProvider(session)?.renameChat(session.sessionId, chatUri, title);
-		this._onDidRenameChat.fire(session);
+		const live = this._resolveLiveSession(session);
+		await this._getProvider(live)?.renameChat(live.sessionId, chatUri, title);
+		this._onDidRenameChat.fire(live);
 	}
 
 	async renameSession(session: ISession, title: string): Promise<void> {
-		await this._getProvider(session)?.renameSession(session.sessionId, title);
-		this._onDidRenameSession.fire(session);
+		const live = this._resolveLiveSession(session);
+		await this._getProvider(live)?.renameSession(live.sessionId, title);
+		this._onDidRenameSession.fire(live);
 	}
 }
 

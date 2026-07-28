@@ -257,6 +257,61 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({ resolved }, { resolved: true });
 	});
 
+	test('splitChat opens one chat in a transient leaf without duplicating it', async () => {
+		const splitChat = { ...stubChat, resource: URI.parse('test:///split') };
+		const session = stubSession({
+			sessionId: 'split',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Completed),
+			chats: constObservable([stubChat, splitChat]),
+			mainChat: constObservable(stubChat),
+		});
+		const { view } = createSessionsManagementService(session, disposables);
+
+		await view.openSession(session.resource);
+		view.splitChat(session, splitChat, 'right');
+		view.splitChat(session, splitChat, 'right');
+
+		const afterSplit = {
+			visible: view.visibleSessions.get().map(activeSession => ({
+				sessionId: activeSession?.sessionId,
+				activeChat: activeSession?.activeChat.get().resource.toString(),
+			})),
+			active: view.activeSession.get()?.sessionId,
+		};
+		view.closeSession(view.activeSession.get());
+
+		assert.deepStrictEqual({ afterSplit, afterClose: view.visibleSessions.get().map(activeSession => activeSession?.sessionId) }, {
+			afterSplit: {
+				visible: [
+					{ sessionId: session.sessionId, activeChat: stubChat.resource.toString() },
+					{ sessionId: `${session.sessionId}::detached::${splitChat.resource.toString()}`, activeChat: splitChat.resource.toString() },
+				],
+				active: `${session.sessionId}::detached::${splitChat.resource.toString()}`,
+			},
+			afterClose: [session.sessionId],
+		});
+	});
+
+	test('splitChat closes the detached leaf when its chat is removed', async () => {
+		const splitChat = { ...stubChat, resource: URI.parse('test:///split-removed') };
+		const chats = observableValue<readonly IChat[]>('splitChats', [stubChat, splitChat]);
+		const session = stubSession({
+			sessionId: 'split-removed',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Completed),
+			chats,
+			mainChat: constObservable(stubChat),
+		});
+		const { view } = createSessionsManagementService(session, disposables);
+
+		await view.openSession(session.resource);
+		view.splitChat(session, splitChat, 'right');
+		chats.set([stubChat], undefined);
+
+		assert.deepStrictEqual(view.visibleSessions.get().map(activeSession => activeSession?.sessionId), [session.sessionId]);
+	});
+
 	test('marks the active session as read via its provider even when its provider state was unread', async () => {
 		const isRead = observableValue('isRead', false);
 		const session = stubSession({ sessionId: 'unread', providerId: 'test', isRead });

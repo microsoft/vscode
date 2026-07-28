@@ -189,6 +189,8 @@ Read-only is honored on both rendering paths: `SessionView` only routes an `Unti
 
 The active session (`IActiveSession`) extends `ISession` with an `activeChat` observable that tracks which chat the user is viewing.
 
+**Split Right** opens a tab's chat in a transient adjacent leaf. Its synthetic session id gives that leaf independent grid and active-chat state. Detached leaves are not persisted, cannot be dragged, and close when their source session or chat disappears.
+
 Chat input history in the Agents Window is scoped by `ISession.sessionId`. Pressing Up/Down in a chat input only navigates prompts previously submitted in the same session, including across multiple chats in that session. Users can disable `chat.agentSessions.scopedInputHistory` to restore shared input history across sessions. When a provider replaces a temporary untitled session with a committed session after the first send, history is moved from the temporary session id to the committed session id.
 
 ### Workspaces and Folders

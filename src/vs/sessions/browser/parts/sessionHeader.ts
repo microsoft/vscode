@@ -238,11 +238,11 @@ export class SessionHeader extends Disposable {
 	}
 
 	private _registerDragSource(): void {
-		this._container.draggable = true;
+		this._container.draggable = false;
 
 		this._register(addDisposableListener(this._container, EventType.DRAG_START, (e: DragEvent) => {
 			const session = this._session;
-			if (!session || !e.dataTransfer) {
+			if (!session || session.detachedChat || !e.dataTransfer) {
 				e.preventDefault();
 				return;
 			}
@@ -291,6 +291,7 @@ export class SessionHeader extends Disposable {
 		// Cancel any in-flight rename when switching sessions.
 		this._cancelTitleEditing();
 		this._session = session;
+		this._container.draggable = !!session && !session.detachedChat;
 		this._toolbar.context = session;
 		this._metaToolbar.context = session;
 		this._statusIcon.reset();
