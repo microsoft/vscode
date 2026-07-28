@@ -124,7 +124,7 @@ class MockAgentService implements IAgentService {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
-			workingDirectories: config?.workingDirectory ? [config.workingDirectory.toString()] : undefined,
+			workingDirectories: config?.workingDirectories?.[0] ? [config.workingDirectories?.[0].toString()] : undefined,
 		});
 		return session;
 	}
@@ -750,7 +750,7 @@ suite('ProtocolServerHandler', () => {
 			startTime: 1000,
 			modifiedTime: 2000,
 			summary: 'Quick Chat',
-			workingDirectory: URI.file('/home/user/.copilot/chats/session-1'),
+			workingDirectories: [URI.file('/home/user/.copilot/chats/session-1')],
 			_meta: withSessionWorkspaceless(undefined, true),
 		});
 
