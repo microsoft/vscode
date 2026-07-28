@@ -1632,6 +1632,57 @@ suite('AgentHostChatContribution', () => {
 	});
 
 	suite('draft', () => {
+		function seedDraftSession(agentHostService: MockAgentHostService, backendSession: URI, title: string, draft?: ChatState['draft']): void {
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title,
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+				draft,
+			});
+		}
+
+		function createDraftInputModel(initialState: IChatModelInputState) {
+			const inputState = observableValue<IChatModelInputState | undefined>('test.inputState', initialState);
+			const inputModel = upcastPartial<IInputModel>({
+				state: inputState,
+				setState(state: Partial<IChatModelInputState>): void {
+					inputState.set({
+						attachments: [],
+						mode: { id: 'agent', kind: ChatModeKind.Agent },
+						selectedModel: undefined,
+						inputText: '',
+						selections: [],
+						contrib: {},
+						...inputState.get(),
+						...state,
+						origin: state.origin,
+					}, undefined);
+				},
+				clearState(): void {
+					inputState.set(undefined, undefined);
+				},
+				toJSON: () => undefined,
+			});
+			return { inputModel, inputState };
+		}
+
+		function fireRemoteDraft(agentHostService: MockAgentHostService, backendSession: URI, draft: ChatState['draft']): void {
+			agentHostService.fireAction({
+				channel: buildDefaultChatUri(backendSession.toString()),
+				action: { type: ActionType.ChatDraftChanged, draft },
+				serverSeq: 1,
+				origin: undefined,
+			});
+		}
+
 		test('hydrates chat input state from AHP draft', async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' })],
@@ -1895,6 +1946,196 @@ suite('AgentHostChatContribution', () => {
 				},
 			}]);
 
+		}));
+
+		test('applies a remote draft to a clean live input', async () => {
+			const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' });
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:opus-4.7', modelMetadata],
+			]);
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables, { languageModels });
+			const backendSession = AgentSession.uri('copilot', 'remote-draft');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/remote-draft' });
+			seedDraftSession(agentHostService, backendSession, 'Remote Draft');
+			const { inputModel, inputState } = createDraftInputModel({
+				attachments: [],
+				mode: { id: 'agent', kind: ChatModeKind.Agent },
+				selectedModel: undefined,
+				inputText: '',
+				selections: [],
+				contrib: {},
+			});
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+				sessionResource,
+				inputModel,
+				onDidChangePendingRequests: Event.None,
+				getPendingRequests: () => [],
+			}));
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			fireRemoteDraft(agentHostService, backendSession, {
+				text: 'remote text',
+				origin: { kind: MessageKind.User },
+				attachments: [{ type: MessageAttachmentKind.Simple, label: 'Context', modelRepresentation: 'context' }],
+				model: { id: 'opus-4.7' },
+				agent: { uri: 'agent://reviewer' },
+			});
+
+			const state = inputState.get()!;
+			assert.deepStrictEqual({
+				text: state.inputText,
+				attachments: state.attachments.map(attachment => ({ kind: attachment.kind, name: attachment.name, value: attachment.value })),
+				mode: state.mode,
+				model: state.selectedModel?.identifier,
+			}, {
+				text: 'remote text',
+				attachments: [{ kind: 'generic', name: 'Context', value: 'context' }],
+				mode: { id: 'agent://reviewer', kind: ChatModeKind.Agent },
+				model: 'agent-host-copilot:opus-4.7',
+			});
+		});
+
+		test('does not overwrite a locally edited input', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'local-draft');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/local-draft' });
+			seedDraftSession(agentHostService, backendSession, 'Local Draft');
+			const { inputModel, inputState } = createDraftInputModel({
+				attachments: [],
+				mode: { id: 'agent', kind: ChatModeKind.Agent },
+				selectedModel: undefined,
+				inputText: '',
+				selections: [],
+				contrib: {},
+			});
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+				sessionResource,
+				inputModel,
+				onDidChangePendingRequests: Event.None,
+				getPendingRequests: () => [],
+			}));
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			agentHostService.dispatchedActions.length = 0;
+
+			inputModel.setState({ inputText: 'local text' });
+			fireRemoteDraft(agentHostService, backendSession, {
+				text: 'remote text',
+				origin: { kind: MessageKind.User },
+			});
+			await timeout(500);
+
+			assert.deepStrictEqual({
+				text: inputState.get()!.inputText,
+				drafts: agentHostService.dispatchedActions.map(dispatch => dispatch.action),
+			}, {
+				text: 'local text',
+				drafts: [{
+					type: ActionType.ChatDraftChanged,
+					draft: {
+						text: 'local text',
+						origin: { kind: MessageKind.User },
+					},
+				}],
+			});
+		}));
+
+		test('remote clear wipes text and attachments but keeps the model', async () => {
+			const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' });
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:opus-4.7', modelMetadata],
+			]);
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables, { languageModels });
+			const backendSession = AgentSession.uri('copilot', 'remote-clear');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/remote-clear' });
+			const attachment = {
+				type: MessageAttachmentKind.Simple,
+				label: 'Pasted context',
+				modelRepresentation: 'context',
+				_meta: {
+					[ChatPasteAttachmentMetadata.Kind]: 'paste',
+					[ChatPasteAttachmentMetadata.Language]: 'plaintext',
+					[ChatPasteAttachmentMetadata.FileName]: 'context.txt',
+					[ChatPasteAttachmentMetadata.PastedLines]: '1 line',
+				},
+			} as const;
+			seedDraftSession(agentHostService, backendSession, 'Remote Clear', {
+				text: 'existing text',
+				origin: { kind: MessageKind.User },
+				attachments: [attachment],
+				model: { id: 'opus-4.7' },
+				agent: { uri: 'agent://reviewer' },
+			});
+			const { inputModel, inputState } = createDraftInputModel({
+				attachments: messageAttachmentsToVariableData([attachment], 'local')?.variables ?? [],
+				mode: { id: 'agent://reviewer', kind: ChatModeKind.Agent },
+				selectedModel: { identifier: 'agent-host-copilot:opus-4.7', metadata: modelMetadata },
+				inputText: 'existing text',
+				selections: [],
+				contrib: {},
+			});
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+				sessionResource,
+				inputModel,
+				onDidChangePendingRequests: Event.None,
+				getPendingRequests: () => [],
+			}));
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			fireRemoteDraft(agentHostService, backendSession, undefined);
+
+			const state = inputState.get()!;
+			assert.deepStrictEqual({
+				text: state.inputText,
+				attachments: state.attachments,
+				model: state.selectedModel?.identifier,
+				mode: state.mode,
+			}, {
+				text: '',
+				attachments: [],
+				model: 'agent-host-copilot:opus-4.7',
+				mode: { id: 'agent://reviewer', kind: ChatModeKind.Agent },
+			});
+		});
+
+		test('does not echo a locally re-derived draft when the remote model is unavailable', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const fallbackModel = upcastPartial<ILanguageModelChatMetadata>({ id: 'fallback', name: 'Fallback' });
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:fallback', fallbackModel],
+			]);
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables, { languageModels });
+			const backendSession = AgentSession.uri('copilot', 'unavailable-remote-model');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/unavailable-remote-model' });
+			seedDraftSession(agentHostService, backendSession, 'Unavailable Remote Model');
+			const { inputModel } = createDraftInputModel({
+				attachments: [],
+				mode: { id: 'agent', kind: ChatModeKind.Agent },
+				selectedModel: undefined,
+				inputText: '',
+				selections: [],
+				contrib: {},
+			});
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+				sessionResource,
+				inputModel,
+				onDidChangePendingRequests: Event.None,
+				getPendingRequests: () => [],
+			}));
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			agentHostService.dispatchedActions.length = 0;
+
+			fireRemoteDraft(agentHostService, backendSession, {
+				text: 'remote text',
+				origin: { kind: MessageKind.User },
+				model: { id: 'unavailable' },
+			});
+			inputModel.setState({ selectedModel: { identifier: 'agent-host-copilot:fallback', metadata: fallbackModel } });
+			await timeout(500);
+
+			assert.deepStrictEqual(agentHostService.dispatchedActions, []);
 		}));
 	});
 

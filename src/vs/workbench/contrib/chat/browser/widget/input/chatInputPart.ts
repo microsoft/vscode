@@ -1599,6 +1599,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		} finally {
 			this._isSyncingToOrFromInputModel = false;
+			this._syncTextDebounced.cancel();
 		}
 	}
 
