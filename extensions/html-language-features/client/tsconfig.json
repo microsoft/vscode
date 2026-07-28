@@ -1,11 +1,17 @@
 {
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
+		"rootDir": "./src",
 		"outDir": "./out",
 		"lib": [
+			"ES2024",
 			"webworker"
 		],
-		"module": "Node16",
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"types": [
+			"node"
+		],
 		"typeRoots": [
 			"../node_modules/@types"
 		]

@@ -10,12 +10,13 @@ import { renderFormattedText } from '../../../../../../base/browser/formattedTex
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { combinedDisposable, Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { combinedDisposable, Disposable, MutableDisposable, thenRegisterOrDispose } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
-import { URI, UriComponents } from '../../../../../../base/common/uri.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IEditorConstructionOptions } from '../../../../../../editor/browser/config/editorConfiguration.js';
 import { IDiffEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
@@ -24,14 +25,15 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../../ed
 import { DiffEditorWidget } from '../../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { EditorOption, IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../../../../editor/common/config/fontInfo.js';
-import { IRange, Range } from '../../../../../../editor/common/core/range.js';
-import { ScrollType } from '../../../../../../editor/common/editorCommon.js';
-import { TextEdit } from '../../../../../../editor/common/languages.js';
 import { EndOfLinePreference, ITextModel } from '../../../../../../editor/common/model.js';
+import { TextEdit } from '../../../../../../editor/common/languages.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../../editor/common/languages/modesRegistry.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
 import { TextModelText } from '../../../../../../editor/common/model/textModelText.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { DefaultModelSHA1Computer } from '../../../../../../editor/common/services/modelService.js';
-import { ITextModelContentProvider, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { BracketMatchingController } from '../../../../../../editor/contrib/bracketMatching/browser/bracketMatching.js';
 import { ColorDetector } from '../../../../../../editor/contrib/colorPicker/browser/colorDetector.js';
 import { ContextMenuController } from '../../../../../../editor/contrib/contextmenu/browser/contextmenu.js';
@@ -45,6 +47,7 @@ import { SmartSelectController } from '../../../../../../editor/contrib/smartSel
 import { WordHighlighterContribution } from '../../../../../../editor/contrib/wordHighlighter/browser/wordHighlighter.js';
 import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -56,7 +59,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ResourceLabel } from '../../../../../browser/labels.js';
-import { ResourceContextKey } from '../../../../../common/contextkeys.js';
+import { StaticResourceContextKey } from '../../../../../common/contextkeys.js';
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { InspectEditorTokensController } from '../../../../codeEditor/browser/inspectEditorTokens/inspectEditorTokens.js';
 import { MenuPreventer } from '../../../../codeEditor/browser/menuPreventer.js';
@@ -65,72 +68,36 @@ import { getSimpleEditorOptions } from '../../../../codeEditor/browser/simpleEdi
 import { IMarkdownVulnerability } from '../../../common/widget/annotations.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../../common/model/chatModel.js';
-import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
 import { emptyProgressRunner, IEditorProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { SuggestController } from '../../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { SnippetController2 } from '../../../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 
 const $ = dom.$;
 
 export interface ICodeBlockData {
 	readonly codeBlockIndex: number;
-	readonly codeBlockPartIndex: number;
-	readonly element: unknown;
+	readonly element: IChatRequestViewModel | IChatResponseViewModel;
 
-	readonly textModel: Promise<ITextModel> | undefined;
+	/**
+	 * Text content for the code block. The CodeBlockPart will manage
+	 * creating and updating its own text model from this text.
+	 */
+	readonly text: string;
 	readonly languageId: string;
 
 	readonly codemapperUri?: URI;
-	readonly fromSubagent?: boolean;
 
 	readonly vulns?: readonly IMarkdownVulnerability[];
-	readonly range?: Range;
 
 	readonly parentContextKeyService?: IContextKeyService;
 	readonly renderOptions?: ICodeBlockRenderOptions;
 
 	readonly chatSessionResource: URI;
-}
-
-/**
- * Special markdown code block language id used to render a local file.
- *
- * The text of the code path should be a {@link LocalFileCodeBlockData} json object.
- */
-export const localFileLanguageId = 'vscode-local-file';
-
-
-export function parseLocalFileData(text: string) {
-
-	interface RawLocalFileCodeBlockData {
-		readonly uri: UriComponents;
-		readonly range?: IRange;
-	}
-
-	let data: RawLocalFileCodeBlockData;
-	try {
-		data = JSON.parse(text);
-	} catch (e) {
-		throw new Error('Could not parse code block local file data');
-	}
-
-	let uri: URI;
-	try {
-		uri = URI.revive(data?.uri);
-	} catch (e) {
-		throw new Error('Invalid code block local file data URI');
-	}
-
-	let range: IRange | undefined;
-	if (data.range) {
-		// Note that since this is coming from extensions, position are actually zero based and must be converted.
-		range = new Range(data.range.startLineNumber + 1, data.range.startColumn + 1, data.range.endLineNumber + 1, data.range.endColumn + 1);
-	}
-
-	return { uri, range };
 }
 
 export interface ICodeBlockActionContext {
@@ -152,12 +119,23 @@ export interface ICodeBlockRenderOptions {
 }
 
 const defaultCodeblockPadding = 10;
+const defaultChatScrollbarSize = 7;
 export class CodeBlockPart extends Disposable {
-	protected readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
+
+	/**
+	 * Compute a pool reuse key for a code block. When the same key is used
+	 * across render cycles the pool will try to return the same CodeBlockPart,
+	 * which lets the setText append-optimisation avoid a full model reset.
+	 */
+	static poolKey(elementId: string, codeBlockIndex: number): string {
+		return `${elementId}/${codeBlockIndex}`;
+	}
 
 	public readonly editor: CodeEditorWidget;
-	protected readonly toolbar: MenuWorkbenchToolBar;
+	private toolbar: MenuWorkbenchToolBar | undefined;
+	private _toolbarFactory: (() => MenuWorkbenchToolBar) | undefined;
+	private _pendingToolbarAriaLabel: string | undefined;
+	private _pendingToolbarContext: ICodeBlockActionContext | undefined;
 	private readonly contextKeyService: IContextKeyService;
 
 	public readonly element: HTMLElement;
@@ -165,12 +143,18 @@ export class CodeBlockPart extends Disposable {
 	private readonly vulnsButton: Button;
 	private readonly vulnsListElement: HTMLElement;
 
+	private readonly _textModel!: ITextModel;
+
 	private currentCodeBlockData: ICodeBlockData | undefined;
 	private currentScrollWidth = 0;
+	private lastLayoutWidth: number | undefined;
+	private _isHovered = false;
+	private _isDropdownVisible = false;
+	private _toolbarElement!: HTMLElement;
 
 	private isDisposed = false;
 
-	private resourceContextKey: ResourceContextKey;
+	private resourceContextKey: StaticResourceContextKey;
 
 	private get verticalPadding(): number {
 		return this.currentCodeBlockData?.renderOptions?.verticalPadding ?? defaultCodeblockPadding;
@@ -185,13 +169,16 @@ export class CodeBlockPart extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService protected readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ILogService private readonly logService: ILogService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
 		super();
 		this.element = $('.interactive-result-code-block');
 
-		this.resourceContextKey = this._register(instantiationService.createInstance(ResourceContextKey));
+		this.resourceContextKey = instantiationService.createInstance(StaticResourceContextKey);
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
@@ -223,13 +210,18 @@ export class CodeBlockPart extends Disposable {
 		});
 
 		const toolbarElement = dom.append(this.element, $('.interactive-result-code-block-toolbar'));
-		const editorScopedService = this.editor.contextKeyService.createScoped(toolbarElement);
+		this._toolbarElement = toolbarElement;
+		const editorScopedService = this._register(this.editor.contextKeyService.createScoped(toolbarElement));
 		const editorScopedInstantiationService = this._register(scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService])));
-		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarElement, menuId, {
+		// The toolbar itself creates listeners on the menu service and shared
+		// context key service. In large responses there can be many code
+		// blocks, so defer creation until the user actually interacts with
+		// this code block (hover, editor focus, or screen reader mode).
+		this._toolbarFactory = () => editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarElement, menuId, {
 			menuOptions: {
 				shouldForwardArgs: true
 			}
-		}));
+		});
 
 		const vulnsContainer = dom.append(this.element, $('.interactive-result-vulns'));
 		const vulnsHeaderElement = dom.append(vulnsContainer, $('.interactive-result-vulns-header', undefined));
@@ -252,12 +244,28 @@ export class CodeBlockPart extends Disposable {
 			element.vulnerabilitiesListExpanded = !element.vulnerabilitiesListExpanded;
 			this.vulnsButton.label = this.getVulnerabilitiesLabel();
 			this.element.classList.toggle('chat-vulnerabilities-collapsed', !element.vulnerabilitiesListExpanded);
-			this._onDidChangeContentHeight.fire();
+			this.layout();
 			// this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
 		}));
 
-		this._register(this.toolbar.onDidChangeDropdownVisibility(e => {
-			toolbarElement.classList.toggle('force-visibility', e);
+		// Track hover state via JS so the toolbar remains visible and clickable
+		// even when the code block DOM element is briefly detached and reattached
+		// during streaming re-renders. CSS :hover is lost when an element leaves
+		// the DOM, which causes the toolbar to flicker and become unclickable
+		// because of the pointer-events:none rule. By tracking hover state with a
+		// persistent boolean and the force-visibility class, the toolbar survives
+		// DOM reattachment.
+		this._isHovered = false;
+		this._register(dom.addDisposableListener(this.element, 'mouseenter', () => {
+			this._isHovered = true;
+			toolbarElement.classList.add('force-visibility');
+			this._ensureToolbar();
+		}));
+		this._register(dom.addDisposableListener(this.element, 'mouseleave', () => {
+			this._isHovered = false;
+			if (!this._isDropdownVisible) {
+				toolbarElement.classList.remove('force-visibility');
+			}
 		}));
 
 		this._configureForScreenReader();
@@ -277,7 +285,7 @@ export class CodeBlockPart extends Disposable {
 		}));
 		this._register(this.editor.onDidContentSizeChange(e => {
 			if (e.contentHeightChanged) {
-				this._onDidChangeContentHeight.fire();
+				this.layout();
 			}
 		}));
 		this._register(this.editor.onDidBlurEditorWidget(() => {
@@ -287,6 +295,9 @@ export class CodeBlockPart extends Disposable {
 		}));
 		this._register(this.editor.onDidFocusEditorWidget(() => {
 			this.element.classList.add('focused');
+			// Editor focus puts the code block into keyboard interaction range;
+			// create the toolbar so Tab can reach it.
+			this._ensureToolbar();
 			WordHighlighterContribution.get(this.editor)?.restoreViewState(true);
 		}));
 		this._register(Event.any(
@@ -304,6 +315,16 @@ export class CodeBlockPart extends Disposable {
 				this.clearWidgets();
 			}));
 		}
+
+		this._textModel = this._register(this.modelService.createModel('', null,
+			URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: generateUuid() }),
+			this.isSimpleWidget
+		));
+		// Hold a model reference to prevent the TextModelResolverService from
+		// disposing our model when other consumers (e.g. WordHighlighter)
+		// acquire and release their references.
+		thenRegisterOrDispose(this.textModelService.createModelReference(this._textModel.uri), this._store);
+		this.editor.setModel(this._textModel);
 	}
 
 	override dispose() {
@@ -356,16 +377,76 @@ export class CodeBlockPart extends Disposable {
 		this.editor.updateOptions({ padding: { top: this.verticalPadding, bottom: bottomPadding } });
 	}
 
+	private _ensureToolbar(): MenuWorkbenchToolBar | undefined {
+		if (this.isDisposed) {
+			return undefined;
+		}
+		// If the current render explicitly hid the toolbar, don't pay the cost
+		// of creating it (and adding listeners on the shared menu / context
+		// key services). It will be created later if a render makes it visible.
+		if (this.currentCodeBlockData?.renderOptions?.hideToolbar) {
+			return undefined;
+		}
+		if (!this.toolbar) {
+			const factory = this._toolbarFactory;
+			if (!factory) {
+				return undefined;
+			}
+			this._toolbarFactory = undefined;
+			const toolbar = this._register(factory());
+			this.toolbar = toolbar;
+
+			this._register(toolbar.onDidChangeDropdownVisibility(e => {
+				this._isDropdownVisible = e;
+				this._toolbarElement.classList.toggle('force-visibility', e || this._isHovered);
+			}));
+
+			if (this._pendingToolbarAriaLabel !== undefined) {
+				toolbar.setAriaLabel(this._pendingToolbarAriaLabel);
+				this._pendingToolbarAriaLabel = undefined;
+			}
+			if (this._pendingToolbarContext !== undefined) {
+				toolbar.context = this._pendingToolbarContext;
+				this._pendingToolbarContext = undefined;
+			}
+		}
+		return this.toolbar;
+	}
+
 	private _configureForScreenReader(): void {
-		const toolbarElt = this.toolbar.getElement();
+		const hideToolbar = !!this.currentCodeBlockData?.renderOptions?.hideToolbar;
 		if (this.accessibilityService.isScreenReaderOptimized()) {
-			toolbarElt.style.display = 'block';
+			if (hideToolbar) {
+				// hideToolbar is authoritative; don't reveal the wrapper just
+				// because SR mode is on.
+				dom.hide(this._toolbarElement);
+			} else {
+				this._toolbarElement.style.display = 'block';
+				// Screen readers need the toolbar DOM to exist so it can be
+				// announced and navigated, but only create it once render data
+				// is available so pooled or reset instances don't eagerly
+				// attach toolbar listeners.
+				if (this.currentCodeBlockData) {
+					this._ensureToolbar();
+				}
+			}
+		} else if (hideToolbar) {
+			dom.hide(this._toolbarElement);
 		} else {
-			toolbarElt.style.display = '';
+			this._toolbarElement.style.display = '';
 		}
 	}
 
 	private getEditorOptionsFromConfig(): IEditorOptions {
+		const renderOptions = this.currentCodeBlockData?.renderOptions;
+		// When the code block is height-capped via `maxHeightInLines`, content can
+		// exceed the visible area. In that case the default hidden vertical
+		// scrollbar leaves users unable to reach the clipped content (see #283242).
+		// Enable a chat-sized visible scrollbar. Callers can still override
+		// via `renderOptions.editorOptions.scrollbar`.
+		const scrollbar: IEditorOptions['scrollbar'] | undefined = renderOptions?.maxHeightInLines
+			? { vertical: 'auto', verticalScrollbarSize: defaultChatScrollbarSize, ...renderOptions?.editorOptions?.scrollbar }
+			: undefined;
 		return {
 			wordWrap: this.editorOptions.configuration.resultEditor.wordWrap,
 			fontLigatures: this.editorOptions.configuration.resultEditor.fontLigatures,
@@ -376,11 +457,17 @@ export class CodeBlockPart extends Disposable {
 			fontSize: this.editorOptions.configuration.resultEditor.fontSize,
 			fontWeight: this.editorOptions.configuration.resultEditor.fontWeight,
 			lineHeight: this.editorOptions.configuration.resultEditor.lineHeight,
-			...this.currentCodeBlockData?.renderOptions?.editorOptions,
+			...renderOptions?.editorOptions,
+			...(scrollbar ? { scrollbar } : {}),
 		};
 	}
 
-	layout(width: number): void {
+	layout(width = this.lastLayoutWidth): void {
+		if (width === undefined) {
+			return; // not yet in DOM
+		}
+
+		this.lastLayoutWidth = width;
 		const contentHeight = this.getContentHeight();
 
 		let height = contentHeight;
@@ -390,20 +477,20 @@ export class CodeBlockPart extends Disposable {
 
 		const editorBorder = 2;
 		width = width - editorBorder - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
-		this.editor.layout({ width: isRequestVM(this.currentCodeBlockData?.element) ? width * 0.9 : width, height });
+		// !!!!
+		// Important: Using here postponeRendering = true to avoid doing a sync layout on the editor
+		// which can be very expensive if there are many code blocks being laid out at once.
+		// This allows multiple editors to coordinate and render together at the next animation frame.
+		// !!!!
+		this.editor.layout({ width: isRequestVM(this.currentCodeBlockData?.element) ? width * 0.9 : width, height }, /* postponeRendering */ true);
 		this.updatePaddingForLayout();
 	}
 
 	private getContentHeight() {
-		if (this.currentCodeBlockData?.range) {
-			const lineCount = this.currentCodeBlockData.range.endLineNumber - this.currentCodeBlockData.range.startLineNumber + 1;
-			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-			return lineCount * lineHeight;
-		}
 		return this.editor.getContentHeight();
 	}
 
-	async render(data: ICodeBlockData, width: number) {
+	render(data: ICodeBlockData, width: number) {
 		this.currentCodeBlockData = data;
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
@@ -415,7 +502,7 @@ export class CodeBlockPart extends Disposable {
 			this.layout(width);
 		}
 
-		const didUpdate = await this.updateEditor(data);
+		const didUpdate = this.updateEditor(data);
 		if (!didUpdate || this.isDisposed || this.currentCodeBlockData !== data) {
 			return;
 		}
@@ -430,11 +517,23 @@ export class CodeBlockPart extends Disposable {
 			});
 		}
 		this.layout(width);
-		this.toolbar.setAriaLabel(localize('chat.codeBlockToolbarLabel', "Code block {0}", data.codeBlockIndex + 1));
-		if (data.renderOptions?.hideToolbar) {
-			dom.hide(this.toolbar.getElement());
+		const toolbarAriaLabel = localize('chat.codeBlockToolbarLabel', "Code block {0}", data.codeBlockIndex + 1);
+		if (this.toolbar) {
+			this.toolbar.setAriaLabel(toolbarAriaLabel);
 		} else {
-			dom.show(this.toolbar.getElement());
+			this._pendingToolbarAriaLabel = toolbarAriaLabel;
+		}
+		if (data.renderOptions?.hideToolbar) {
+			dom.hide(this._toolbarElement);
+		} else {
+			dom.show(this._toolbarElement);
+			// In screen reader mode the toolbar must exist in the DOM so it
+			// can be announced and Tab-navigated. If a previous render hid
+			// the toolbar, _ensureToolbar would have early-exited; create
+			// it now that it is visible.
+			if (this.accessibilityService.isScreenReaderOptimized()) {
+				this._ensureToolbar();
+			}
 		}
 
 		if (data.vulns?.length && isResponseVM(data.element)) {
@@ -447,7 +546,22 @@ export class CodeBlockPart extends Disposable {
 			this.element.classList.add('no-vulns');
 		}
 
-		this._onDidChangeContentHeight.fire();
+		// Restore toolbar visibility if the element was hovered before re-render.
+		// During streaming, code block elements are briefly detached from and
+		// reattached to the DOM, which causes the browser to lose CSS :hover state.
+		// The force-visibility class ensures the toolbar remains interactive.
+		if (this._isHovered) {
+			this._toolbarElement.classList.add('force-visibility');
+		}
+
+		this.layout();
+
+		// The editor element is typically not yet connected to the live DOM at
+		// this point (the caller still needs to attach it). Any render pass
+		// scheduled by setText/setLanguage/layout is silently dropped by the
+		// editor view when `isConnected` is false. Schedule a deferred render
+		// so the view lines are painted once the element is in the document.
+		this.editor.renderAsync(true);
 	}
 
 	reset() {
@@ -455,23 +569,27 @@ export class CodeBlockPart extends Disposable {
 		this.currentCodeBlockData = undefined;
 	}
 
+	onDidRemount(): void {
+		if (this.currentCodeBlockData) {
+			// !!!!
+			// Important: if the editor was off-dom and is now connected, we need to re-render it
+			// !!!!
+			this.editor.renderAsync(true);
+		}
+	}
+
 	private clearWidgets() {
 		ContentHoverController.get(this.editor)?.hideContentHover();
 		GlyphHoverController.get(this.editor)?.hideGlyphHover();
 	}
 
-	private async updateEditor(data: ICodeBlockData): Promise<boolean> {
-		const textModel = await data.textModel;
-		if (this.isDisposed || this.currentCodeBlockData !== data || !textModel || textModel.isDisposed()) {
+	private updateEditor(data: ICodeBlockData): boolean {
+		if (this.isDisposed || this.currentCodeBlockData !== data) {
 			return false;
 		}
 
-		this.editor.setModel(textModel);
-		if (data.range) {
-			this.editor.setSelection(data.range);
-			this.editor.revealRangeInCenter(data.range, ScrollType.Immediate);
-		}
-
+		this.setText(data.text);
+		this.setLanguage(data.languageId);
 		this.updateContexts(data);
 
 		return true;
@@ -495,34 +613,61 @@ export class CodeBlockPart extends Disposable {
 			return;
 		}
 
-		this.toolbar.context = {
-			code: textModel.getTextBuffer().getValueInRange(data.range ?? textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
+		const context: ICodeBlockActionContext = {
+			code: textModel.getTextBuffer().getValueInRange(textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
 			codeBlockIndex: data.codeBlockIndex,
 			element: data.element,
 			languageId: textModel.getLanguageId(),
 			codemapperUri: data.codemapperUri,
 			chatSessionResource: data.chatSessionResource
-		} satisfies ICodeBlockActionContext;
+		};
+		if (this.toolbar) {
+			this.toolbar.context = context;
+		} else {
+			this._pendingToolbarContext = context;
+		}
 		this.resourceContextKey.set(textModel.uri);
+	}
+
+	private setText(newText: string): void {
+		const currentText = this._textModel.getValue(EndOfLinePreference.LF);
+		if (newText === currentText) {
+			return;
+		}
+
+		if (newText.startsWith(currentText)) {
+			const text = newText.slice(currentText.length);
+			const lastLine = this._textModel.getLineCount();
+			const lastCol = this._textModel.getLineMaxColumn(lastLine);
+			this._textModel.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
+		} else {
+			this.logService.trace('[CodeBlockPart] setText could not optimize, falling back to setValue');
+			this._textModel.setValue(newText);
+		}
+	}
+
+	private setLanguage(languageId: string): void {
+		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(languageId);
+		if (vscodeLanguageId && vscodeLanguageId !== this._textModel.getLanguageId()) {
+			this._textModel.setLanguage(vscodeLanguageId);
+		} else if (!vscodeLanguageId && this._textModel.getLanguageId() !== PLAINTEXT_LANGUAGE_ID) {
+			this._textModel.setLanguage(PLAINTEXT_LANGUAGE_ID);
+		}
 	}
 }
 
-export class ChatCodeBlockContentProvider extends Disposable implements ITextModelContentProvider {
+export class ChatCodeBlockContentProvider extends Disposable {
 
 	constructor(
 		@ITextModelService textModelService: ITextModelService,
 		@IModelService private readonly _modelService: IModelService,
 	) {
 		super();
-		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeChatCodeBlock, this));
-	}
-
-	async provideTextContent(resource: URI): Promise<ITextModel | null> {
-		const existing = this._modelService.getModel(resource);
-		if (existing) {
-			return existing;
-		}
-		return this._modelService.createModel('', null, resource);
+		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeChatCodeBlock, {
+			provideTextContent: (resource: URI) => {
+				return Promise.resolve(this._modelService.getModel(resource));
+			}
+		}));
 	}
 }
 
@@ -532,6 +677,7 @@ export interface ICodeCompareBlockActionContext {
 	readonly element: IChatResponseViewModel;
 	readonly diffEditor: IDiffEditor;
 	readonly edit: IChatTextEditGroup;
+	toggleDiffViewMode(): void;
 }
 
 export interface ICodeCompareBlockDiffData {
@@ -557,9 +703,6 @@ export interface ICodeCompareBlockData {
 
 // long-lived object that sits in the DiffPool and that gets reused
 export class CodeCompareBlockPart extends Disposable {
-	protected readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
-
 	private readonly contextKeyService: IContextKeyService;
 	private readonly diffEditor: DiffEditorWidget;
 	private readonly resourceLabel: ResourceLabel;
@@ -571,6 +714,8 @@ export class CodeCompareBlockPart extends Disposable {
 	private readonly _lastDiffEditorViewModel = this._store.add(new MutableDisposable());
 	private currentScrollWidth = 0;
 	private currentHorizontalPadding = 0;
+
+	private lastLayoutWidth: number | undefined;
 
 	constructor(
 		private readonly options: ChatEditorOptions,
@@ -636,7 +781,7 @@ export class CodeCompareBlockPart extends Disposable {
 
 		this.resourceLabel = this._register(scopedInstantiationService.createInstance(ResourceLabel, editorHeader, { supportIcons: true }));
 
-		const editorScopedService = this.diffEditor.getModifiedEditor().contextKeyService.createScoped(editorHeader);
+		const editorScopedService = this._register(this.diffEditor.getModifiedEditor().contextKeyService.createScoped(editorHeader));
 		const editorScopedInstantiationService = this._register(scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService])));
 		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, editorHeader, menuId, {
 			menuOptions: {
@@ -658,11 +803,6 @@ export class CodeCompareBlockPart extends Disposable {
 
 		this._register(this.diffEditor.getModifiedEditor().onDidScrollChange(e => {
 			this.currentScrollWidth = e.scrollWidth;
-		}));
-		this._register(this.diffEditor.onDidContentSizeChange(e => {
-			if (e.contentHeightChanged) {
-				this._onDidChangeContentHeight.fire();
-			}
 		}));
 		this._register(this.diffEditor.getModifiedEditor().onDidBlurEditorWidget(() => {
 			this.element.classList.remove('focused');
@@ -747,11 +887,10 @@ export class CodeCompareBlockPart extends Disposable {
 
 	private _configureForScreenReader(): void {
 		const toolbarElt = this.toolbar.getElement();
+		// Always show toolbar, but add aria-label for screen readers
+		toolbarElt.style.display = 'block';
 		if (this.accessibilityService.isScreenReaderOptimized()) {
-			toolbarElt.style.display = 'block';
 			toolbarElt.ariaLabel = localize('chat.codeBlock.toolbar', 'Code block toolbar');
-		} else {
-			toolbarElt.style.display = '';
 		}
 	}
 
@@ -769,7 +908,13 @@ export class CodeCompareBlockPart extends Disposable {
 		};
 	}
 
-	layout(width: number): void {
+	layout(width = this.lastLayoutWidth): void {
+		if (width === undefined) {
+			return; // not yet in DOM
+		}
+
+		this.lastLayoutWidth = width;
+
 		const editorBorder = 2;
 
 		const toolbar = dom.getTotalHeight(this.editorHeader);
@@ -778,7 +923,6 @@ export class CodeCompareBlockPart extends Disposable {
 			: dom.getTotalHeight(this.messageElement);
 
 		const dimension = new dom.Dimension(width - editorBorder - this.currentHorizontalPadding * 2, toolbar + content);
-		this.element.style.height = `${dimension.height}px`;
 		this.element.style.width = `${dimension.width}px`;
 		this.diffEditor.layout(dimension.with(undefined, content - editorBorder));
 		this.updatePaddingForLayout();
@@ -810,8 +954,6 @@ export class CodeCompareBlockPart extends Disposable {
 			fileKind: FileKind.FILE,
 			fileDecorations: { colors: true, badges: false }
 		});
-
-		this._onDidChangeContentHeight.fire();
 	}
 
 	reset() {
@@ -865,6 +1007,9 @@ export class CodeCompareBlockPart extends Disposable {
 		}
 
 		const diffData = await data.diffData;
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		if (!isEditApplied && diffData) {
 			const viewModel = this.diffEditor.createViewModel({
@@ -889,13 +1034,24 @@ export class CodeCompareBlockPart extends Disposable {
 		} else {
 			this.diffEditor.setModel(null);
 			this._lastDiffEditorViewModel.value = undefined;
-			this._onDidChangeContentHeight.fire();
 		}
 
 		this.toolbar.context = {
 			edit: data.edit,
 			element: data.element,
 			diffEditor: this.diffEditor,
+			toggleDiffViewMode: () => {
+				const isCurrentlyInline = !!this.diffEditor.getModifiedEditor().contextKeyService.getContextKeyValue(EditorContextKeys.diffEditorInlineMode.key);
+				const renderSideBySide = isCurrentlyInline;
+				this.diffEditor.updateOptions({
+					renderSideBySide,
+					// Make it not-compact in side by side mode, otherwise we may not actually
+					// show it side-by-side if it's a simple diff https://github.com/microsoft/vscode/blob/0632563332c7c08656fb47c97bc4328d62ee1d80/src/vs/editor/browser/widget/diffEditor/diffEditorOptions.ts#L35-L39
+					compactMode: !renderSideBySide,
+					useInlineViewWhenSpaceIsLimited: false,
+				});
+				this.layout();
+			},
 		} satisfies ICodeCompareBlockActionContext;
 	}
 }

@@ -1,0 +1,131 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+trigger: none
+pr: none
+
+resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: microsoft/vscode-engineering
+      ref: main
+      endpoint: Monaco
+    - repository: capi
+      type: github
+      name: microsoft/vscode-capi
+      ref: main
+      endpoint: Monaco
+    - repository: vscode_loc
+      type: github
+      name: microsoft/vscode-extensions-loc
+      ref: main
+      endpoint: Monaco
+
+parameters:
+  - name: customNPMRegistry
+    displayName: Custom NPM Registry (Terrapin)
+    type: boolean
+    default: true
+  - name: publishExtension
+    displayName: Publish Stable Recovery Extension
+    type: boolean
+    default: false
+
+variables:
+  - name: VSCODE_QUALITY
+    value: stable
+  # The 1ES extension template configures the NPM registry itself (via the
+  # customNPMRegistry / Terrapin parameter below). Set NPM_REGISTRY to 'none'
+  # so the shared copilot/setup-steps.yml skips its own registry rewrite, which
+  # would otherwise corrupt package-lock.json resolved URLs when unset.
+  - name: NPM_REGISTRY
+    value: none
+
+extends:
+  template: azure-pipelines/extension/stable.yml@templates
+  parameters:
+    workingDirectory: ./extensions/copilot
+    l10nSourcePaths: ./extensions/copilot/src
+    nodeVersion: 22.21.x
+    # The copilot extension is bundled with esbuild and vendors prebuilt native
+    # modules (e.g. @os-theme, @picovoice/pvrecorder-node) that depend on a
+    # newer GLIBC than the template's sysroot check allows. The main product
+    # build (product-copilot.yml) ships these natives without a sysroot or GLIBC
+    # check, so disable the sysroot here for parity; this also skips the GLIBC/
+    # GLIBCXX verification that would otherwise fail on those vendored natives.
+    buildPlatforms:
+      - name: Linux
+        vsceTarget: ""
+        useSysroot: false
+        codesignPaths: []
+    # Copilot handles localization itself via copilot/l10n-steps.yml (importing
+    # translated strings from the microsoft/vscode-extensions-loc checkout),
+    # mirroring product-copilot.yml. Disable the template's own l10n jobs and
+    # the import-localized-files step: the latter runs before buildSteps and
+    # expects an implicit self checkout, which is unavailable here because
+    # build-steps.yml checks out microsoft/vscode-capi.
+    l10nShouldProcess: false
+
+    cgIgnoreDirectories: $(Build.SourcesDirectory)/extensions/copilot/script
+
+    # Suppress false positive strings SG.default.* that show up in
+    # dist/extension.js after the build. The original strings come from ora.
+    vscePackageArgs: '--allow-package-secrets sendgrid'
+
+    buildSteps:
+      - ${{ if eq(parameters.publishExtension, true) }}:
+        - ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/heads/release/')) }}:
+          - script: |
+              echo "##vso[task.logissue type=error]publishExtension requires a release/* branch"
+              exit 1
+            displayName: Validate release branch
+
+      - checkout: self
+        path: s
+        lfs: true
+        fetchDepth: 1
+        fetchTags: false
+        retryCountOnTaskFailure: 3
+        displayName: Checkout microsoft/vscode
+
+      - template: copilot/setup-steps.yml
+      - template: copilot/build-steps.yml
+      - template: copilot/l10n-steps.yml
+
+    uploadSourceMaps:
+      enabled: true
+
+    testSteps:
+      - checkout: self
+        lfs: true
+        retryCountOnTaskFailure: 3
+      - template: copilot/setup-steps.yml
+      - template: copilot/test-steps.yml
+
+    tsa:
+      config:
+        areaPath: 'Visual Studio Code Copilot Extensions'
+        serviceTreeID: '1788a767-5861-45fb-973b-c686b67c5541'
+      enabled: true
+
+    # The Copilot build steps check out microsoft/vscode-capi and
+    # microsoft/vscode-extensions-loc (via the Monaco GitHub App instead of a
+    # PAT). Every checked-out repository must be declared for the 1ES SDL source
+    # analysis, so re-declare the template defaults plus capi and vscode_loc here.
+    sourceRepositoriesToScan:
+      exclude:
+        - repository: translations
+        - repository: vscode-copilot-cache
+        - repository: templates
+        - repository: capi
+        - repository: vscode_loc
+
+    ${{ if eq(parameters.customNPMRegistry, false) }}:
+      customNPMRegistry: ''
+
+    generateNotice: true
+
+    publishExtension: ${{ parameters.publishExtension }}
+    ghCreateTag: ${{ parameters.publishExtension }}
+    ghTagPrefix: 'copilot/'
+    ghCreateRelease: false

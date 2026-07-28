@@ -19,8 +19,8 @@ async function main() {
 	// 2. Codesign Powershell scripts
 	// 3. Codesign context menu appx package (insiders only)
 	const codesignTask1 = spawnCodesignProcess(esrpCliDLLPath, 'sign-windows', codeSigningFolderPath, '*.dll,*.exe,*.node');
-	const codesignTask2 = spawnCodesignProcess(esrpCliDLLPath, 'sign-windows-appx', codeSigningFolderPath, '*.ps1');
-	const codesignTask3 = process.env['VSCODE_QUALITY'] === 'insider'
+	const codesignTask2 = spawnCodesignProcess(esrpCliDLLPath, 'sign-windows-appx', codeSigningFolderPath, '*.ps1,*.psm1,*.psd1,*.ps1xml');
+	const codesignTask3 = process.env['VSCODE_QUALITY'] !== 'exploration'
 		? spawnCodesignProcess(esrpCliDLLPath, 'sign-windows-appx', codeSigningFolderPath, '*.appx')
 		: undefined;
 

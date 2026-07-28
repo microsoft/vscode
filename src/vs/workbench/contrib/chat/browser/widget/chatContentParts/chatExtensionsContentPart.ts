@@ -5,7 +5,7 @@
 
 import './media/chatExtensionsContent.css';
 import * as dom from '../../../../../../base/browser/dom.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ExtensionsList, getExtensions } from '../../../../extensions/browser/extensionsViewer.js';
@@ -21,9 +21,6 @@ import { localize } from '../../../../../../nls.js';
 
 export class ChatExtensionsContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
-
-	private _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	public get codeblocks(): IChatCodeBlockInfo[] {
 		return [];
@@ -53,7 +50,6 @@ export class ChatExtensionsContentPart extends Disposable implements IChatConten
 			}
 			list.setModel(new PagedModel(extensions));
 			list.layout();
-			this._onDidChangeHeight.fire();
 		});
 	}
 

@@ -39,6 +39,7 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 
 export const VIEWLET_ID = 'workbench.view.remote';
+export const TOGGLE_VIEW_ACTION_ID = 'remoteExplorer.toggleForwardedPortsView';
 
 export class ForwardedPortsView extends Disposable implements IWorkbenchContribution {
 	private readonly contextKeyListener = this._register(new MutableDisposable<IDisposable>());
@@ -166,7 +167,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 			text: `$(radio-tower) ${text}`,
 			ariaLabel: tooltip,
 			tooltip,
-			command: `${TUNNEL_VIEW_ID}.focus`
+			command: TOGGLE_VIEW_ACTION_ID
 		};
 	}
 }
@@ -338,6 +339,7 @@ class OnAutoForwardedAction extends Disposable {
 	private lastNotifyTime: Date;
 	private static NOTIFY_COOL_DOWN = 5000; // milliseconds
 	private lastNotification: INotificationHandle | undefined;
+	private readonly notificationDisposable = this._register(new MutableDisposable());
 	private lastShownPort: number | undefined;
 	private doActionTunnels: RemoteTunnel[] | undefined;
 	private alreadyOpenedOnce: Set<string> = new Set();
@@ -479,7 +481,7 @@ class OnAutoForwardedAction extends Disposable {
 		this.lastNotification = this.notificationService.prompt(Severity.Info, message, choices, { neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
 		this.lastShownPort = tunnel.tunnelRemotePort;
 		this.lastNotifyTime = new Date();
-		this.lastNotification.onDidClose(() => {
+		this.notificationDisposable.value = this.lastNotification.onDidClose(() => {
 			this.lastNotification = undefined;
 			this.lastShownPort = undefined;
 		});
@@ -540,7 +542,7 @@ class OnAutoForwardedAction extends Disposable {
 					await this.basicMessage(newTunnel) + this.linkMessage(),
 					[this.openBrowserChoice(newTunnel), this.openPreviewChoice(tunnel)],
 					{ neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
-				this.lastNotification.onDidClose(() => {
+				this.notificationDisposable.value = this.lastNotification.onDidClose(() => {
 					this.lastNotification = undefined;
 					this.lastShownPort = undefined;
 				});

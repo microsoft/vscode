@@ -10,7 +10,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { autorun, derived, IObservable, ITransaction, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Location, TextEdit } from '../../../../../editor/common/languages.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
 import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -23,9 +23,9 @@ import { IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
+import { ChatUserAction, IChatService } from '../../common/chatService/chatService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatResponseModel } from '../../common/model/chatModel.js';
-import { ChatUserAction, IChatService } from '../../common/chatService/chatService.js';
 
 class AutoAcceptControl {
 	constructor(
@@ -188,8 +188,6 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		}
 	}
 
-	public abstract hasModificationAt(location: Location): boolean;
-
 	acquire() {
 		this._refCounter++;
 		return this;
@@ -275,7 +273,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	}
 
 	protected _notifyAction(action: ChatUserAction) {
-		if (action.kind === 'chatEditingHunkAction') {
+		if (action.kind === 'chatEditingHunkAction' && action.outcome === 'accepted') {
 			this._aiEditTelemetryService.handleCodeAccepted({
 				suggestionId: undefined, // TODO@hediet try to figure this out
 				acceptanceMethod: 'accept',
@@ -292,6 +290,26 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 				feature: this._telemetryInfo.feature,
 				languageId: action.languageId,
 				source: undefined,
+				sourceRequestId: this._telemetryInfo.requestId,
+			});
+		} else if (action.kind === 'chatEditingHunkAction' && action.outcome === 'rejected') {
+			this._aiEditTelemetryService.handleCodeRejected({
+				suggestionId: undefined,
+				rejectionMethod: 'reject',
+				presentation: 'highlightedEdit',
+				modelId: this._telemetryInfo.modelId,
+				modeId: this._telemetryInfo.modeId,
+				applyCodeBlockSuggestionId: this._telemetryInfo.applyCodeBlockSuggestionId,
+				editDeltaInfo: new EditDeltaInfo(
+					action.linesAdded,
+					action.linesRemoved,
+					-1,
+					-1,
+				),
+				feature: this._telemetryInfo.feature,
+				languageId: action.languageId,
+				source: undefined,
+				sourceRequestId: this._telemetryInfo.requestId,
 			});
 		}
 
@@ -372,7 +390,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	// --- inital content
 
 	abstract resetToInitialContent(): Promise<void>;
-
+	abstract resetEditTrackerToInitialContent(): Promise<void>;
 	abstract initialContent: string;
 
 	/**

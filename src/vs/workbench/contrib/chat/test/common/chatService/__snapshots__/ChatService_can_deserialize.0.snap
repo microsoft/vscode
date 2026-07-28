@@ -1,6 +1,5 @@
 {
   responderUsername: "",
-  responderAvatarIconUri: undefined,
   initialLocation: "panel",
   requests: [
     {
@@ -76,6 +75,8 @@
       confirmation: undefined,
       editedFileEvents: undefined,
       modelId: undefined,
+      modeInfo: undefined,
+      terminalExecutionId: undefined,
       responseId: undefined,
       result: { metadata: { metadataKey: "value" } },
       responseMarkdownInfo: undefined,

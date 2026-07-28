@@ -162,7 +162,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 		let totalHeight = 0;
 		for (let i = 0; i < candidateLineNumbers.length; i++) {
-			totalHeight += this._editor.getLineHeightForPosition(new Position(candidateLineNumbers[i], 1));
+			const position = new Position(candidateLineNumbers[i], 1);
+			const viewModel = this._editor._getViewModel();
+			if (viewModel && position.lineNumber <= viewModel.getLineCount()) {
+				totalHeight += this._editor.getLineHeightForPosition(new Position(candidateLineNumbers[i], 1));
+			}
 		}
 		if (totalHeight === 0) {
 			return { lineNumbers: [], lastLineRelativePosition: 0 };
@@ -229,7 +233,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (let i = rebuildFromIndex; i < lineNumbers.length; i++) {
-			const stickyLine = this._renderChildNode(viewModel, i, lineNumbers[i], top, lastLineNumber === lineNumbers[i], foldingModel, layoutInfo);
+			const lineNumber = lineNumbers[i];
+			if (lineNumber > viewModel.getLineCount()) {
+				continue;
+			}
+			const stickyLine = this._renderChildNode(viewModel, i, lineNumber, top, lastLineNumber === lineNumber, foldingModel, layoutInfo);
 			top += stickyLine.height;
 			this._linesDomNode.appendChild(stickyLine.lineDomNode);
 			this._lineNumbersDomNode.appendChild(stickyLine.lineNumberDomNode);
@@ -503,11 +511,11 @@ class RenderedStickyLine {
 		innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
 
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
-		const foldingIcon = this._renderFoldingIconForLine(editor, foldingModel, lineNumber, lineHeight, isOnGlyphMargin);
-		if (foldingIcon) {
-			lineNumberHTMLNode.appendChild(foldingIcon.domNode);
-			foldingIcon.domNode.style.left = `${layoutInfo.lineNumbersWidth + layoutInfo.lineNumbersLeft}px`;
-			foldingIcon.domNode.style.lineHeight = `${lineHeight}px`;
+		this.foldingIcon = this._renderFoldingIconForLine(editor, foldingModel, lineNumber, lineHeight, isOnGlyphMargin);
+		if (this.foldingIcon) {
+			lineNumberHTMLNode.appendChild(this.foldingIcon.domNode);
+			this.foldingIcon.domNode.style.left = `${layoutInfo.lineNumbersWidth + layoutInfo.lineNumbersLeft}px`;
+			this.foldingIcon.domNode.style.lineHeight = `${lineHeight}px`;
 		}
 
 		editor.applyFontInfo(lineHTMLNode);

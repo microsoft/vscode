@@ -1,0 +1,15 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+export function f(args_: string[], flags: any, child: any) {
+	if (flags.verbose) {
+		child.stdout?.on('data', (data) => console.log(data.toString('utf8')));
+		child.stderr?.on('data', (data) => console.error(data.toString('utf8')));
+	}
+	if (flags.verbose) {
+		return new Promise((c) => child.once('exit', () => c(null)));
+	}
+	child.unref();
+	return Promise.resolve();
+}

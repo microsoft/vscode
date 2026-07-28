@@ -9,9 +9,10 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ToolDataSource, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type CountTokensCallback, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { TerminalToolId } from './toolIds.js';
 
 export const GetTerminalSelectionToolData: IToolData = {
-	id: 'terminal_selection',
+	id: TerminalToolId.TerminalSelection,
 	toolReferenceName: 'terminalSelection',
 	legacyToolReferenceFullNames: ['runCommands/terminalSelection'],
 	displayName: localize('terminalSelectionTool.displayName', 'Get Terminal Selection'),

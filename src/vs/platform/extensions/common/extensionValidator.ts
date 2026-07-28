@@ -8,8 +8,7 @@ import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
 import * as nls from '../../../nls.js';
 import * as semver from '../../../base/common/semver/semver.js';
-import { IExtensionManifest, parseApiProposals } from './extensions.js';
-import { allApiProposals } from './extensionsApiProposals.js';
+import { IExtensionManifest } from './extensions.js';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
@@ -35,7 +34,7 @@ export interface INormalizedVersion {
 }
 
 const VERSION_REGEXP = /^(\^|>=)?((\d+)|x)\.((\d+)|x)\.((\d+)|x)(\-.*)?$/;
-const NOT_BEFORE_REGEXP = /^-(\d{4})(\d{2})(\d{2})$/;
+const NOT_BEFORE_REGEXP = /^-(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?$/;
 
 export function isValidVersionStr(version: string): boolean {
 	version = version.trim();
@@ -105,8 +104,8 @@ export function normalizeVersion(version: IParsedVersion | null): INormalizedVer
 	if (version.preRelease) {
 		const match = NOT_BEFORE_REGEXP.exec(version.preRelease);
 		if (match) {
-			const [, year, month, day] = match;
-			notBefore = Date.UTC(Number(year), Number(month) - 1, Number(day));
+			const [, year, month, day, hours, minutes] = match;
+			notBefore = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hours) || 0, Number(minutes) || 0);
 		}
 	}
 
@@ -240,7 +239,7 @@ export function isValidVersion(_inputVersion: string | INormalizedVersion, _inpu
 
 type ProductDate = string | Date | undefined;
 
-export function validateExtensionManifest(productVersion: string, productDate: ProductDate, extensionLocation: URI, extensionManifest: IExtensionManifest, extensionIsBuiltin: boolean, validateApiVersion: boolean): readonly [Severity, string][] {
+export function validateExtensionManifest(productVersion: string, productDate: ProductDate, extensionLocation: URI, extensionManifest: IExtensionManifest, extensionIsBuiltin: boolean): readonly [Severity, string][] {
 	const validations: [Severity, string][] = [];
 	if (typeof extensionManifest.publisher !== 'undefined' && typeof extensionManifest.publisher !== 'string') {
 		validations.push([Severity.Error, nls.localize('extensionDescription.publisher', "property publisher must be of type `string`.")]);
@@ -265,6 +264,12 @@ export function validateExtensionManifest(productVersion: string, productDate: P
 	if (typeof extensionManifest.extensionDependencies !== 'undefined') {
 		if (!isStringArray(extensionManifest.extensionDependencies)) {
 			validations.push([Severity.Error, nls.localize('extensionDescription.extensionDependencies', "property `{0}` can be omitted or must be of type `string[]`", 'extensionDependencies')]);
+			return validations;
+		}
+	}
+	if (typeof extensionManifest.extensionAffinity !== 'undefined') {
+		if (!isStringArray(extensionManifest.extensionAffinity)) {
+			validations.push([Severity.Error, nls.localize('extensionDescription.extensionAffinity', "property `{0}` can be omitted or must be of type `string[]`", 'extensionAffinity')]);
 			return validations;
 		}
 	}
@@ -322,15 +327,6 @@ export function validateExtensionManifest(productVersion: string, productDate: P
 		}
 	}
 
-	if (validateApiVersion && extensionManifest.enabledApiProposals?.length) {
-		const incompatibleNotices: string[] = [];
-		if (!areApiProposalsCompatible([...extensionManifest.enabledApiProposals], incompatibleNotices)) {
-			for (const notice of incompatibleNotices) {
-				validations.push([Severity.Error, notice]);
-			}
-		}
-	}
-
 	return validations;
 }
 
@@ -347,41 +343,6 @@ export function isValidExtensionVersion(productVersion: string, productDate: Pro
 export function isEngineValid(engine: string, version: string, date: ProductDate): boolean {
 	// TODO@joao: discuss with alex '*' doesn't seem to be a valid engine version
 	return engine === '*' || isVersionValid(version, date, engine);
-}
-
-export function areApiProposalsCompatible(apiProposals: string[]): boolean;
-export function areApiProposalsCompatible(apiProposals: string[], notices: string[]): boolean;
-export function areApiProposalsCompatible(apiProposals: string[], productApiProposals: Readonly<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }>): boolean;
-export function areApiProposalsCompatible(apiProposals: string[], arg1?: string[] | Readonly<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }>): boolean {
-	if (apiProposals.length === 0) {
-		return true;
-	}
-	const notices: string[] | undefined = Array.isArray(arg1) ? arg1 : undefined;
-	const productApiProposals: Readonly<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }> = (Array.isArray(arg1) ? undefined : arg1) ?? allApiProposals;
-	const incompatibleProposals: string[] = [];
-	const parsedProposals = parseApiProposals(apiProposals);
-	for (const { proposalName, version } of parsedProposals) {
-		if (!version) {
-			continue;
-		}
-		const existingProposal = productApiProposals[proposalName];
-		if (existingProposal?.version !== version) {
-			incompatibleProposals.push(proposalName);
-		}
-	}
-	if (incompatibleProposals.length) {
-		if (notices) {
-			if (incompatibleProposals.length === 1) {
-				notices.push(nls.localize('apiProposalMismatch1', "This extension is using the API proposal '{0}' that is not compatible with the current version of VS Code.", incompatibleProposals[0]));
-			} else {
-				notices.push(nls.localize('apiProposalMismatch2', "This extension is using the API proposals {0} and '{1}' that are not compatible with the current version of VS Code.",
-					incompatibleProposals.slice(0, incompatibleProposals.length - 1).map(p => `'${p}'`).join(', '),
-					incompatibleProposals[incompatibleProposals.length - 1]));
-			}
-		}
-		return false;
-	}
-	return true;
 }
 
 function isVersionValid(currentVersion: string, date: ProductDate, requestedVersion: string, notices: string[] = []): boolean {

@@ -24,6 +24,7 @@ suite('PromptInputModel', () => {
 	let onCommandStart: Emitter<ITerminalCommand>;
 	let onCommandStartChanged: Emitter<void>;
 	let onCommandExecuted: Emitter<ITerminalCommand>;
+	let onCommandFinished: Emitter<ITerminalCommand>;
 
 	async function writePromise(data: string) {
 		await new Promise<void>(r => xterm.write(data, r));
@@ -35,6 +36,10 @@ suite('PromptInputModel', () => {
 
 	function fireCommandExecuted() {
 		onCommandExecuted.fire(null!);
+	}
+
+	function fireCommandFinished() {
+		onCommandFinished.fire(null!);
 	}
 
 	function setContinuationPrompt(prompt: string) {
@@ -68,7 +73,8 @@ suite('PromptInputModel', () => {
 		onCommandStart = store.add(new Emitter());
 		onCommandStartChanged = store.add(new Emitter());
 		onCommandExecuted = store.add(new Emitter());
-		promptInputModel = store.add(new PromptInputModel(xterm, onCommandStart.event, onCommandStartChanged.event, onCommandExecuted.event, new NullLogService));
+		onCommandFinished = store.add(new Emitter());
+		promptInputModel = store.add(new PromptInputModel(xterm, onCommandStart.event, onCommandStartChanged.event, onCommandExecuted.event, onCommandFinished.event, new NullLogService));
 	});
 
 	test('basic input and execute', async () => {
@@ -136,6 +142,21 @@ suite('PromptInputModel', () => {
 			xterm.input('\x03');
 			writePromise('^C').then(() => fireCommandExecuted());
 		});
+	});
+
+	test('should clear value when command finishes', async () => {
+		await writePromise('$ ');
+		fireCommandStart();
+		await assertPromptInput('|');
+
+		await writePromise('echo hello');
+		await assertPromptInput('echo hello|');
+
+		fireCommandExecuted();
+		strictEqual(promptInputModel.value, 'echo hello');
+
+		fireCommandFinished();
+		strictEqual(promptInputModel.value, '');
 	});
 
 	test('cursor navigation', async () => {

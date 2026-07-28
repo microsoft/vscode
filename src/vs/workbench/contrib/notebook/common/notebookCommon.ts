@@ -739,7 +739,7 @@ export class MimeTypeDisplayOrder {
 		// them after it, retaining order.
 		const uniqueIndices = new Set(otherMimeTypes.map(m => this.findIndex(m, chosenIndex)));
 		uniqueIndices.delete(-1);
-		const otherIndices = Array.from(uniqueIndices).sort();
+		const otherIndices = Array.from(uniqueIndices).sort((a, b) => a - b);
 		this.order.splice(chosenIndex + 1, 0, ...otherIndices.map(i => this.order[i]));
 
 		for (let oi = otherIndices.length - 1; oi >= 0; oi--) {
@@ -1025,7 +1025,6 @@ export const NotebookSetting = {
 	markupFontSize: 'notebook.markup.fontSize',
 	markdownLineHeight: 'notebook.markdown.lineHeight',
 	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
-	outputScrollingDeprecated: 'notebook.experimental.outputScrolling',
 	outputScrolling: 'notebook.output.scrolling',
 	textOutputLineLimit: 'notebook.output.textLineLimit',
 	LinkifyOutputFilePaths: 'notebook.output.linkifyFilePaths',
@@ -1036,11 +1035,8 @@ export const NotebookSetting = {
 	formatOnCellExecution: 'notebook.formatOnCellExecution',
 	codeActionsOnSave: 'notebook.codeActionsOnSave',
 	outputWordWrap: 'notebook.output.wordWrap',
-	outputLineHeightDeprecated: 'notebook.outputLineHeight',
 	outputLineHeight: 'notebook.output.lineHeight',
-	outputFontSizeDeprecated: 'notebook.outputFontSize',
 	outputFontSize: 'notebook.output.fontSize',
-	outputFontFamilyDeprecated: 'notebook.outputFontFamily',
 	outputFontFamily: 'notebook.output.fontFamily',
 	findFilters: 'notebook.find.filters',
 	logging: 'notebook.logging',

@@ -7,7 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { autorun, constObservable, IObservable, isObservable } from '../../../../../../base/common/observable.js';
@@ -17,6 +17,7 @@ import { localize } from '../../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { FileKind } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
@@ -29,7 +30,9 @@ import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiD
 import { MultiDiffEditorItem } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import { IChatMultiDiffData, IChatMultiDiffInnerData } from '../../../common/chatService/chatService.js';
+import { ChatEditingSnapshotTextModelContentProvider } from '../../chatEditing/chatEditingTextModelContentProviders.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatMultiDiffInnerData } from '../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -48,21 +51,19 @@ const MAX_ITEMS_SHOWN = 6;
 export class ChatMultiDiffContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
-
 	private list!: WorkbenchList<IChatMultiDiffItem>;
 	private isCollapsed: boolean = false;
 	private readonly readOnly: boolean;
 	private readonly diffData: IObservable<IChatMultiDiffInnerData>;
 
 	constructor(
-		private readonly content: IChatMultiDiffData,
+		private readonly content: IChatMultiDiffData | IChatMultiDiffDataSerialized,
 		private readonly _element: ChatTreeItem,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -93,7 +94,6 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		const setExpansionState = () => {
 			viewListButton.icon = this.isCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			this.domNode.classList.toggle('chat-file-changes-collapsed', this.isCollapsed);
-			this._onDidChangeHeight.fire();
 		};
 		setExpansionState();
 
@@ -150,7 +150,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			$mid: MarshalledId.Uri
 		};
 
-		const toolbar = disposables.add(nestedInsta.createInstance(
+		disposables.add(nestedInsta.createInstance(
 			MenuWorkbenchToolBar,
 			buttonsContainer,
 			MenuId.ChatMultiDiffContext,
@@ -164,8 +164,6 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 				},
 			}
 		));
-
-		disposables.add(toolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 
 		return disposables;
 	}
@@ -231,7 +229,6 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			const height = Math.min(items.length, MAX_ITEMS_SHOWN) * ELEMENT_HEIGHT;
 			this.list.layout(height);
 			listContainer.style.height = `${height}px`;
-			this._onDidChangeHeight.fire();
 		}));
 
 
@@ -241,6 +238,20 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 					return;
 				}
 
+				const altKey = (dom.isMouseEvent(e.browserEvent) || dom.isKeyboardEvent(e.browserEvent)) && e.browserEvent.altKey;
+				const openInDiffEditorByDefault = this.configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
+				const openInDiffEditor = altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault;
+
+				if (e.element.diff && !openInDiffEditor) {
+					const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(e.element.diff.modifiedURI);
+					if (fileURI) {
+						this.editorService.openEditor({ resource: fileURI, options: { preserveFocus: true } });
+						return;
+					}
+					// The file's origin cannot be recovered (e.g. legacy snapshot URIs):
+					// fall back to the diff editor.
+				}
+
 				if (e.element.diff) {
 					this.editorService.openEditor({
 						original: { resource: e.element.diff.originalURI },
@@ -248,8 +259,9 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 						options: { preserveFocus: true }
 					});
 				} else {
+					const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(e.element.uri) ?? e.element.uri;
 					this.editorService.openEditor({
-						resource: e.element.uri,
+						resource: fileURI,
 						options: { preserveFocus: true }
 					});
 				}

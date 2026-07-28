@@ -57,6 +57,12 @@ export interface IExtensionHostInitData {
 	uiKind: UIKind;
 	messagePorts?: ReadonlyMap<string, MessagePortLike>;
 	handle?: string;
+	/**
+	 * The value of the `extensionEnabledApiProposalsFallback`-experiment: a comma-separated list of
+	 * `publisher.extension:proposalName` entries that are granted proposed API access even when the
+	 * extension has not declared the proposal. Only set on `stable` builds.
+	 */
+	enabledApiProposalsFallback?: string;
 }
 
 export interface IEnvironment {
@@ -67,6 +73,7 @@ export interface IEnvironment {
 	appLanguage: string;
 	isExtensionTelemetryLoggingOnly: boolean;
 	appUriScheme: string;
+	isPortable?: boolean;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;
@@ -74,6 +81,7 @@ export interface IEnvironment {
 	useHostProxy?: boolean;
 	skipWorkspaceStorageLock?: boolean;
 	extensionLogLevel?: [string, LogLevel][];
+	isSessionsWindow?: boolean;
 }
 
 export interface IStaticWorkspaceData {

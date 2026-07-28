@@ -60,6 +60,9 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		const editor = context.editor;
 		const disposables = new DisposableStore();
 
+		// Set initial ariaLabel for screen readers
+		picker.ariaLabel = localize('gotoLine.ariaLabel', "Go to line. Type a line number, optionally followed by colon and column number.");
+
 		// Goto line once picked
 		disposables.add(picker.onDidAccept(event => {
 			const [item] = picker.selectedItems;
@@ -97,6 +100,9 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 				lineNumber,
 				column,
 				label,
+				ariaLabel: lineNumber
+					? localize('gotoLine.itemAriaLabel', "Go to line {0}, column {1}. Press Enter to navigate.", lineNumber, column || 1)
+					: label,
 			}];
 
 			// Clear decorations for invalid range

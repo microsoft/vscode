@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../../notebook/common/notebookService.js';
@@ -14,7 +15,6 @@ import { ICodeMapperService } from '../../editing/chatCodeMapperService.js';
 import { ChatModel } from '../../model/chatModel.js';
 import { IChatService } from '../../chatService/chatService.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../languageModelToolsService.js';
-import { LocalChatSessionUri } from '../../model/chatUri.js';
 
 export const ExtensionEditToolId = 'vscode_editFile';
 export const InternalEditToolId = 'vscode_editFile_internal';
@@ -48,7 +48,7 @@ export class EditTool implements IToolImpl {
 		const fileUri = URI.revive(parameters.uri);
 		const uri = CellUri.parse(fileUri)?.notebook || fileUri;
 
-		const model = this.chatService.getSession(LocalChatSessionUri.forSession(invocation.context?.sessionId)) as ChatModel;
+		const model = this.chatService.getSession(invocation.context.sessionResource) as ChatModel;
 		const request = model.getRequests().at(-1)!;
 
 		model.acceptResponseProgress(request, {
@@ -119,7 +119,7 @@ export class EditTool implements IToolImpl {
 			dispose = autorun((r) => {
 
 				const entries = editSession.entries.read(r);
-				const currentFile = entries?.find((e) => e.modifiedURI.toString() === uri.toString());
+				const currentFile = entries?.find((e) => isEqual(e.modifiedURI, uri));
 				if (currentFile) {
 					if (currentFile.isCurrentlyBeingModifiedBy.read(r)) {
 						wasFileBeingModified = true;

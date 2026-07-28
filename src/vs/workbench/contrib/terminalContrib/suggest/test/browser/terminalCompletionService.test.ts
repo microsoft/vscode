@@ -198,6 +198,32 @@ suite('TerminalCompletionService', () => {
 			], { replacementRange: [1, 3] });
 		});
 
+		test('../| should return parent folder completions', async () => {
+			// Scenario: cwd is /parent/folder1, sibling is /parent/folder2
+			// When typing ../, should see contents of /parent/ (folder1 and folder2)
+			validResources = [
+				URI.parse('file:///parent/folder1'),
+				URI.parse('file:///parent'),
+			];
+			childResources = [
+				{ resource: URI.parse('file:///parent/folder1/'), isDirectory: true },
+				{ resource: URI.parse('file:///parent/folder2/'), isDirectory: true },
+			];
+			const resourceOptions: TerminalCompletionResourceOptions = {
+				cwd: URI.parse('file:///parent/folder1'),
+				showDirectories: true,
+				pathSeparator
+			};
+			const result = await terminalCompletionService.resolveResources(resourceOptions, '../', 3, provider, capabilities);
+
+			assertCompletions(result, [
+				{ label: '../', detail: '/parent/' },
+				{ label: '../folder1/', detail: '/parent/folder1/' },
+				{ label: '../folder2/', detail: '/parent/folder2/' },
+				{ label: '../../', detail: '/' },
+			], { replacementRange: [0, 3] });
+		});
+
 		test('cd ./| should return folder completions', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
@@ -564,7 +590,8 @@ suite('TerminalCompletionService', () => {
 			assertCompletions(result, [
 				{ label: './test/', detail: '/test/test/' },
 				{ label: './test/inner/', detail: '/test/test/inner/' },
-				{ label: './test/../', detail: '/' }
+				// ../` from the viewed folder (/test/test/) goes to /test/, not /
+				{ label: './test/../', detail: '/test/' }
 			], { replacementRange: [0, 5] });
 		});
 		test('test/| should normalize current and parent folders', async () => {
@@ -801,6 +828,87 @@ suite('TerminalCompletionService', () => {
 			});
 		});
 	}
+	if (!isWindows) {
+		suite('remote file completion (e.g. WSL)', () => {
+			const remoteAuthority = 'wsl+Ubuntu';
+			const remoteTestEnv: IProcessEnvironment = {
+				HOME: '/home/remoteuser',
+				USERPROFILE: '/home/remoteuser'
+			};
+
+			test('/absolute/path should preserve remote authority', async () => {
+				terminalCompletionService.processEnv = remoteTestEnv;
+				const resourceOptions: TerminalCompletionResourceOptions = {
+					cwd: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser' }),
+					showDirectories: true,
+					pathSeparator: '/'
+				};
+				validResources = [
+					URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home' }),
+					URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser' }),
+				];
+				childResources = [
+					{ resource: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser' }), isDirectory: true },
+				];
+				const result = await terminalCompletionService.resolveResources(resourceOptions, '/home/', 6, provider, capabilities);
+
+				// Check that results exist and have the correct scheme/authority
+				assert.ok(result && result.length > 0, 'Should return completions for remote absolute path');
+				// Verify completions contain paths resolved via the remote file service (not local file://)
+				const absoluteCompletion = result?.find(c => c.label === '/home/');
+				assert.ok(absoluteCompletion, 'Should have absolute path completion');
+				assert.ok(absoluteCompletion.detail?.includes('/home/'), 'Detail should show remote path');
+			});
+
+			test('~/ should preserve remote authority for tilde expansion', async () => {
+				terminalCompletionService.processEnv = remoteTestEnv;
+				const resourceOptions: TerminalCompletionResourceOptions = {
+					cwd: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/project' }),
+					showDirectories: true,
+					pathSeparator: '/'
+				};
+				validResources = [
+					URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser' }),
+					URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/project' }),
+				];
+				childResources = [
+					{ resource: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/Documents' }), isDirectory: true },
+					{ resource: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/project' }), isDirectory: true },
+				];
+				const result = await terminalCompletionService.resolveResources(resourceOptions, '~/', 2, provider, capabilities);
+
+				// Check that results exist for remote tilde path
+				assert.ok(result && result.length > 0, 'Should return completions for remote tilde path');
+				// Verify the tilde path was resolved using the remote home directory
+				const documentsCompletion = result?.find(c => c.detail?.includes('Documents'));
+				assert.ok(documentsCompletion, 'Should find Documents folder from remote home');
+			});
+
+			test('./relative should preserve remote authority for relative paths', async () => {
+				terminalCompletionService.processEnv = remoteTestEnv;
+				const resourceOptions: TerminalCompletionResourceOptions = {
+					cwd: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/project' }),
+					showDirectories: true,
+					pathSeparator: '/'
+				};
+				validResources = [
+					URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/project' }),
+				];
+				childResources = [
+					{ resource: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/project/src' }), isDirectory: true },
+					{ resource: URI.from({ scheme: 'vscode-remote', authority: remoteAuthority, path: '/home/remoteuser/project/docs' }), isDirectory: true },
+				];
+				const result = await terminalCompletionService.resolveResources(resourceOptions, './', 2, provider, capabilities);
+
+				// Check that results exist for remote relative path
+				assert.ok(result && result.length > 0, 'Should return completions for remote relative path');
+				// Verify completions are from the remote filesystem
+				const srcCompletion = result?.find(c => c.detail?.includes('/home/remoteuser/project/src'));
+				assert.ok(srcCompletion, 'Should find src folder completion with remote path in detail');
+			});
+		});
+	}
+
 	suite('completion label escaping', () => {
 		test('| should escape special characters in file/folder names for POSIX shells', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {

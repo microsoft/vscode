@@ -478,6 +478,34 @@ const create = Object.create || function (p) {
 	expectsError(false, await waitForActual(fn), message);
   };
 
+	assert.match = function match(string, regexp, message) {
+		if (typeof string !== 'string') {
+			throw new TypeError(`The "string" argument must be of type string. Received type ${typeof string}`);
+		}
+
+		if (!(regexp instanceof RegExp)) {
+			throw new TypeError(`The "regexp" argument must be an instance of RegExp. Received type ${typeof regexp}`);
+		}
+
+		if (!regexp.test(string)) {
+			fail(string, regexp, message, 'match', assert.match);
+		}
+	};
+
+	assert.doesNotMatch = function doesNotMatch(string, regexp, message) {
+		if (typeof string !== 'string') {
+			throw new TypeError(`The "string" argument must be of type string. Received type ${typeof string}`);
+		}
+
+		if (!(regexp instanceof RegExp)) {
+			throw new TypeError(`The "regexp" argument must be an instance of RegExp. Received type ${typeof regexp}`);
+		}
+
+		if (regexp.test(string)) {
+			fail(string, regexp, message, 'doesNotMatch', assert.doesNotMatch);
+		}
+	};
+
   // ESM export
   export default assert;
   export const AssertionError = assert.AssertionError
@@ -496,3 +524,6 @@ const create = Object.create || function (p) {
   export const ifError = assert.ifError
   export const rejects = assert.rejects
   export const doesNotReject = assert.doesNotReject
+
+	export const match = assert.match
+	export const doesNotMatch = assert.doesNotMatch

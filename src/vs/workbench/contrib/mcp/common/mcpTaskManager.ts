@@ -89,6 +89,7 @@ export class McpTaskManager extends Disposable {
 			status: 'working',
 			createdAt,
 			ttl,
+			lastUpdatedAt: new Date().toISOString(),
 			pollInterval: 1000, // Suggest 1 second polling interval
 		};
 
@@ -171,6 +172,8 @@ export class McpTaskManager extends Disposable {
 		}
 
 		entry.task.status = status;
+		entry.task.lastUpdatedAt = new Date().toISOString();
+
 		if (statusMessage !== undefined) {
 			entry.task.statusMessage = statusMessage;
 		}

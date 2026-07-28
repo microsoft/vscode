@@ -83,8 +83,8 @@ export interface IColorTheme {
 
 export class IFontTokenOptions {
 	fontFamily?: string;
-	fontSize?: string;
-	lineHeight?: number;
+	fontSizeMultiplier?: number;
+	lineHeightMultiplier?: number;
 }
 
 export interface IFileIconTheme {
@@ -231,6 +231,10 @@ export interface IPartsSplash {
 		activityBarBorder: string | undefined;
 		sideBarBackground: string | undefined;
 		sideBarBorder: string | undefined;
+		panelBackground: string | undefined;
+		editorGroupBorder: string | undefined;
+		agentsPanelBackground: string | undefined;
+		agentsPanelBorder: string | undefined;
 		statusBarBackground: string | undefined;
 		statusBarBorder: string | undefined;
 		statusBarNoFolderBackground: string | undefined;
@@ -246,5 +250,12 @@ export interface IPartsSplash {
 		statusBarHeight: number;
 		windowBorder: boolean;
 		windowBorderRadius: string | undefined;
+		modernUI: boolean;
+		partBounds: {
+			sideBar: { top: number; left: number; width: number; height: number } | undefined;
+			auxiliaryBar: { top: number; left: number; width: number; height: number } | undefined;
+			panel: { top: number; left: number; width: number; height: number } | undefined;
+			editor: { top: number; left: number; width: number; height: number } | undefined;
+		} | undefined;
 	} | undefined;
 }

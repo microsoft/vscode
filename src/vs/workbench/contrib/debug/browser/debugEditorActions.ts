@@ -39,9 +39,10 @@ class ToggleBreakpointAction extends Action2 {
 		super({
 			id: TOGGLE_BREAKPOINT_ID,
 			title: {
-				...nls.localize2('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
+				...nls.localize2('toggleBreakpointAction', "Toggle Breakpoint"),
 				mnemonicTitle: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint"),
 			},
+			category: nls.localize2('debugCategory', "Debug"),
 			f1: true,
 			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
 			keybinding: {
@@ -49,12 +50,12 @@ class ToggleBreakpointAction extends Action2 {
 				primary: KeyCode.F9,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menu: {
+			menu: [{
 				id: MenuId.MenubarDebugMenu,
 				when: CONTEXT_DEBUGGERS_AVAILABLE,
 				group: '4_new_breakpoint',
 				order: 1
-			}
+			}]
 		});
 	}
 

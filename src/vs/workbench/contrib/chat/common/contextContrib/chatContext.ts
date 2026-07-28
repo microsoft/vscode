@@ -4,24 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
+
 export interface IChatContextItem {
-	icon: ThemeIcon;
-	label: string;
+	iconPath?: ChatContextIconPath;
+	label?: string;
+	resourceUri?: URI;
 	modelDescription?: string;
+	tooltip?: IMarkdownString;
 	handle: number;
 	value?: string;
+	command?: {
+		id: string;
+	};
 }
 
-export interface IChatContextSupport {
-	supportsResource: boolean;
-	supportsResolve: boolean;
+export interface IChatWorkspaceContextProvider {
+	provideWorkspaceChatContext(token: CancellationToken): Promise<IChatContextItem[]>;
 }
 
-export interface IChatContextProvider {
-	provideChatContext(options: {}, token: CancellationToken): Promise<IChatContextItem[]>;
-	provideChatContextForResource?(resource: URI, withValue: boolean, token: CancellationToken): Promise<IChatContextItem | undefined>;
-	resolveChatContext?(context: IChatContextItem, token: CancellationToken): Promise<IChatContextItem>;
+export interface IChatExplicitContextProvider {
+	provideChatContext(token: CancellationToken): Promise<IChatContextItem[]>;
+	resolveChatContext(context: IChatContextItem, token: CancellationToken): Promise<IChatContextItem>;
+}
+
+export interface IChatResourceContextProvider {
+	provideChatContext(resource: URI, withValue: boolean, viewType: string | undefined, token: CancellationToken): Promise<IChatContextItem | undefined>;
+	resolveChatContext(context: IChatContextItem, token: CancellationToken): Promise<IChatContextItem>;
 }

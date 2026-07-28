@@ -85,7 +85,7 @@ suite('Terminal Suggest', () => {
 				let expectedString = testSpec.expectedCompletions ? `[${testSpec.expectedCompletions.map(e => `'${e}'`).join(', ')}]` : '[]';
 				if (testSpec.expectedResourceRequests) {
 					expectedString += ` + ${testSpec.expectedResourceRequests.type}`;
-					if (testSpec.expectedResourceRequests.cwd.fsPath !== testPaths.cwd.fsPath) {
+					if (testSpec.expectedResourceRequests.cwd && testSpec.expectedResourceRequests.cwd.fsPath !== testPaths.cwd.fsPath) {
 						expectedString += ` @ ${basename(testSpec.expectedResourceRequests.cwd.fsPath)}/`;
 					}
 				}

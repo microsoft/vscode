@@ -215,7 +215,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		table.push(['restore secondary viewlet', metrics.timers.ellapsedAuxiliaryViewletRestore, '[renderer]', metrics.auxiliaryViewletId]);
 		table.push(['restore panel', metrics.timers.ellapsedPanelRestore, '[renderer]', metrics.panelId]);
 		table.push(['restore & resolve visible editors', metrics.timers.ellapsedEditorRestore, '[renderer]', `${metrics.editorIds.length}: ${metrics.editorIds.join(', ')}`]);
-		table.push(['create workbench contributions', metrics.timers.ellapsedWorkbenchContributions, '[renderer]', `${(contribTimings.get(LifecyclePhase.Starting)?.length ?? 0) + (contribTimings.get(LifecyclePhase.Starting)?.length ?? 0)} blocking startup`]);
+		table.push(['create workbench contributions', metrics.timers.ellapsedWorkbenchContributions, '[renderer]', `${(contribTimings.get(LifecyclePhase.Starting)?.length ?? 0) + (contribTimings.get(LifecyclePhase.Ready)?.length ?? 0)} blocking startup`]);
 		table.push(['overall workbench load', metrics.timers.ellapsedWorkbench, '[renderer]', undefined]);
 		table.push(['workbench ready', metrics.ellapsed, '[main->renderer]', undefined]);
 		table.push(['renderer ready', metrics.timers.ellapsedRenderer, '[renderer]', undefined]);

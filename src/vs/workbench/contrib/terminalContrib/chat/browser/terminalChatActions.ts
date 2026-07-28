@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -13,9 +14,8 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { ChatViewId, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
-import { LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../chat/common/constants.js';
-import { AbstractInline1ChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
+
 import { isDetachedTerminalInstance, ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
@@ -28,10 +28,12 @@ import { TerminalChatController } from './terminalChatController.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { isString } from '../../../../../base/common/types.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IPreferencesService, IOpenSettingsOptions } from '../../../../services/preferences/common/preferences.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { AbstractInlineChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
@@ -86,7 +88,7 @@ registerActiveXtermAction({
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Close,
 	title: localize2('closeChat', 'Close'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	keybinding: {
 		primary: KeyCode.Escape,
 		when: ContextKeyExpr.and(
@@ -119,7 +121,7 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.RunCommand,
 	title: localize2('runCommand', 'Run Chat Command'),
 	shortTitle: localize2('run', 'Run'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -152,7 +154,7 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.RunFirstCommand,
 	title: localize2('runFirstCommand', 'Run First Chat Command'),
 	shortTitle: localize2('runFirst', 'Run First'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -184,7 +186,7 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.InsertCommand,
 	title: localize2('insertCommand', 'Insert Chat Command'),
 	shortTitle: localize2('insert', 'Insert'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	icon: Codicon.insert,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
@@ -218,7 +220,7 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.InsertFirstCommand,
 	title: localize2('insertFirstCommand', 'Insert First Chat Command'),
 	shortTitle: localize2('insertFirst', 'Insert First'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -251,7 +253,7 @@ registerActiveXtermAction({
 	title: localize2('chat.rerun.label', "Rerun Request"),
 	f1: false,
 	icon: Codicon.refresh,
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -293,7 +295,7 @@ registerActiveXtermAction({
 registerActiveXtermAction({
 	id: TerminalChatCommandId.ViewInChat,
 	title: localize2('viewInChat', 'View in Chat'),
-	category: AbstractInline1ChatAction.category,
+	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -316,6 +318,15 @@ registerActiveXtermAction({
 	}
 });
 
+type ViewHiddenChatTerminalsEvent = {
+	hiddenCount: number;
+};
+type ViewHiddenChatTerminalsClassification = {
+	owner: 'anthonykim1';
+	comment: 'Tracks when the user opens the hidden chat terminals UI to understand how often users need to reach into agent-owned terminals.';
+	hiddenCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of hidden chat terminals that existed when the action was invoked. A value of 1 reveals the terminal directly, while more than 1 shows a quick pick.' };
+};
+
 registerAction2(class ShowChatTerminalsAction extends Action2 {
 	constructor() {
 		super({
@@ -334,7 +345,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
 		const groupService = accessor.get(ITerminalGroupService);
 		const editorService = accessor.get(ITerminalEditorService);
@@ -342,6 +353,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const chatService = accessor.get(IChatService);
+		const telemetryService = accessor.get(ITelemetryService);
 
 		const visible = new Set<ITerminalInstance>([...groupService.instances, ...editorService.instances]);
 		const toolInstances = terminalChatService.getToolSessionTerminalInstances();
@@ -356,6 +368,25 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			if (!visible.has(i)) {
 				all.set(i.instanceId, i);
 			}
+		}
+
+		// If there are no hidden terminals, return early
+		if (all.size === 0) {
+			return;
+		}
+
+		telemetryService.publicLog2<ViewHiddenChatTerminalsEvent, ViewHiddenChatTerminalsClassification>('terminal.chatViewHiddenTerminals', {
+			hiddenCount: all.size,
+		});
+
+		// If there's only one hidden terminal, show it directly without the quick pick
+		if (all.size === 1) {
+			const instance = Array.from(all.values())[0];
+			terminalService.setActiveInstance(instance);
+			await terminalService.revealTerminal(instance);
+			await terminalService.focusInstance(instance);
+			this._logRevealHiddenTerminal(telemetryService, 'single');
+			return;
 		}
 
 		const items: IQuickPickItem[] = [];
@@ -376,10 +407,11 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			const lastCommand = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands.at(-1)?.command;
 
 			// Get the chat session title
-			const chatSessionId = terminalChatService.getChatSessionIdForInstance(instance);
+			const chatSessionResource = terminalChatService.getChatSessionResourceForInstance(instance);
 			let chatSessionTitle: string | undefined;
-			if (chatSessionId) {
-				chatSessionTitle = chatService.getSessionTitle(LocalChatSessionUri.forSession(chatSessionId));
+			if (chatSessionResource) {
+				const liveTitle = chatService.getSession(chatSessionResource)?.title;
+				chatSessionTitle = liveTitle ?? chatService.getSessionTitle(chatSessionResource);
 			}
 
 			const description = chatSessionTitle;
@@ -441,6 +473,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 					await terminalService.revealTerminal(instance);
 					qp.hide();
 					await terminalService.focusInstance(instance);
+					this._logRevealHiddenTerminal(telemetryService, 'quickPick');
 				} else {
 					qp.hide();
 				}
@@ -454,6 +487,18 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		}));
 		qp.show();
 	}
+
+	private _logRevealHiddenTerminal(telemetryService: ITelemetryService, via: 'single' | 'quickPick'): void {
+		type RevealHiddenChatTerminalEvent = {
+			via: 'single' | 'quickPick';
+		};
+		type RevealHiddenChatTerminalClassification = {
+			owner: 'anthonykim1';
+			comment: 'Tracks when the user reveals and focuses a specific hidden chat terminal, indicating they needed to interact directly with an agent-owned terminal.';
+			via: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the terminal was revealed: single (only one hidden terminal) or quickPick (selected from the list).' };
+		};
+		telemetryService.publicLog2<RevealHiddenChatTerminalEvent, RevealHiddenChatTerminalClassification>('terminal.chatRevealHiddenTerminal', { via });
+	}
 });
 
 
@@ -462,7 +507,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: TerminalChatCommandId.FocusMostRecentChatTerminal,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ChatContextKeys.inChatSession,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyT,
 	handler: async (accessor: ServicesAccessor) => {
 		const terminalChatService = accessor.get(ITerminalChatService);
 		const part = terminalChatService.getMostRecentProgressPart();
@@ -541,7 +585,7 @@ CommandsRegistry.registerCommand(TerminalChatCommandId.OpenTerminalSettingsLink,
 	}
 });
 
-CommandsRegistry.registerCommand(TerminalChatCommandId.DisableSessionAutoApproval, async (accessor, chatSessionId: string) => {
+CommandsRegistry.registerCommand(TerminalChatCommandId.DisableSessionAutoApproval, async (accessor, chatSessionResource: URI) => {
 	const terminalChatService = accessor.get(ITerminalChatService);
-	terminalChatService.setChatSessionAutoApproval(chatSessionId, false);
+	terminalChatService.setChatSessionAutoApproval(chatSessionResource, false);
 });

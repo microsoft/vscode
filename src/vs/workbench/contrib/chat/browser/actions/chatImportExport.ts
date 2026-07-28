@@ -11,7 +11,7 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { IChatWidgetService } from '../chat.js';
+import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -19,9 +19,22 @@ import { isExportableSessionData } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { revive } from '../../../../../base/common/marshalling.js';
+import { ACTIVE_GROUP, PreferredGroup } from '../../../../services/editor/common/editorService.js';
 
 const defaultFileName = 'chat.json';
 const filters = [{ name: localize('chat.file.label', "Chat Session"), extensions: ['json'] }];
+
+/**
+ * Target location for importing a chat session.
+ * - 'chatViewPane': Opens in the chat view pane (sidebar/panel)
+ * - 'default': Opens in the active editor group
+ */
+export type ChatImportTarget = 'chatViewPane' | 'default';
+
+export interface ChatImportOptions {
+	inputPath?: URI;
+	target?: ChatImportTarget;
+}
 
 export function registerChatExportActions() {
 	registerAction2(class ExportChatAction extends Action2 {
@@ -78,30 +91,53 @@ export function registerChatExportActions() {
 				f1: true,
 			});
 		}
-		async run(accessor: ServicesAccessor, ...args: unknown[]) {
-			const fileDialogService = accessor.get(IFileDialogService);
+		async run(accessor: ServicesAccessor, opts?: ChatImportOptions) {
 			const fileService = accessor.get(IFileService);
 			const widgetService = accessor.get(IChatWidgetService);
+			const chatService = accessor.get(IChatService);
+			const fileDialogService = accessor.get(IFileDialogService);
 
-			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
-			const result = await fileDialogService.showOpenDialog({
-				defaultUri,
-				canSelectFiles: true,
-				filters
-			});
-			if (!result) {
-				return;
+			let inputPath = opts?.inputPath;
+			if (!inputPath) {
+				const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
+				const result = await fileDialogService.showOpenDialog({
+					defaultUri,
+					canSelectFiles: true,
+					filters
+				});
+				if (!result) {
+					return;
+				}
+				inputPath = result[0];
 			}
 
-			const content = await fileService.readFile(result[0]);
+			const content = await fileService.readFile(inputPath);
 			try {
 				const data = revive(JSON.parse(content.value.toString()));
 				if (!isExportableSessionData(data)) {
 					throw new Error('Invalid chat session data');
 				}
 
-				const options: IChatEditorOptions = { target: { data }, pinned: true };
-				await widgetService.openSession(ChatEditorInput.getNewEditorUri(), undefined, options);
+				let sessionResource: URI;
+				let resolvedTarget: typeof ChatViewPaneTarget | PreferredGroup;
+				let options: IChatEditorOptions;
+
+				if (opts?.target === 'chatViewPane') {
+					const modelRef = chatService.loadSessionFromData(data, 'ChatImportExport#importToChatView');
+					try {
+						sessionResource = modelRef.object.sessionResource;
+						resolvedTarget = ChatViewPaneTarget;
+						options = { pinned: true };
+						await widgetService.openSession(sessionResource, resolvedTarget, options);
+					} finally {
+						modelRef.dispose();
+					}
+				} else {
+					sessionResource = ChatEditorInput.getNewEditorUri();
+					resolvedTarget = ACTIVE_GROUP;
+					options = { target: { data }, pinned: true };
+					await widgetService.openSession(sessionResource, resolvedTarget, options);
+				}
 			} catch (err) {
 				throw err;
 			}
