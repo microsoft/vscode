@@ -200,6 +200,29 @@ suite('EnterpriseManagedPolicyService', () => {
 		expect(value).toContain('web_fetch');
 	});
 
+	test('includes bypass-permissions prompt when disabled by policy', async () => {
+		fetchResponseFactory = async () => Response.fromText(200, 'OK', new HeadersImpl({}), JSON.stringify({
+			permissions: { disableBypassPermissionsMode: 'disable' },
+		}), 'test-stub');
+
+		const service = createService();
+		const value = await service.getEffectiveEnterprisePolicy();
+
+		expect(value).toContain('Bypass-permissions mode is disabled by policy');
+	});
+
+	test('omits bypass-permissions prompt when not disabled', async () => {
+		fetchResponseFactory = async () => Response.fromText(200, 'OK', new HeadersImpl({}), JSON.stringify({
+			emsPrompt: 'Speak like Yoda',
+			permissions: { disableBypassPermissionsMode: 'enable' },
+		}), 'test-stub');
+
+		const service = createService();
+		const value = await service.getEffectiveEnterprisePolicy();
+
+		expect(value).not.toContain('Bypass-permissions mode is disabled');
+	});
+
 	test('extractEMSSettingsFromManagedSettings extracts all fields', () => {
 		const result = extractEMSSettingsFromManagedSettings({
 			emsPrompt: 'Speak like Yoda',

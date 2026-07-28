@@ -20,7 +20,6 @@ import { ContextKeysContribution } from '../../contextKeys/vscode-node/contextKe
 import { ByokUtilityModelNotificationContribution } from '../../chatInputNotification/vscode-node/byokUtilityModel.contribution';
 import { AiMappedEditsContrib } from '../../conversation/vscode-node/aiMappedEditsContrib';
 import { ConversationFeature } from '../../conversation/vscode-node/conversationFeature';
-import { EnterprisePolicyStartupNoticeContribution } from '../../conversation/vscode-node/enterprisePolicyStartupNotice';
 import { FeedbackCommandContribution } from '../../conversation/vscode-node/feedbackContribution';
 import { LanguageModelAccess } from '../../conversation/vscode-node/languageModelAccess';
 import { LogWorkspaceStateContribution } from '../../conversation/vscode-node/logWorkspaceState';
@@ -132,5 +131,4 @@ export const vscodeNodeChatContributions: IExtensionContributionFactory[] = [
 	newWorkspaceContribution,
 	asContributionFactory(OTelChatDebugLogProviderContribution),
 	asContributionFactory(ChatDebugFileLoggerContribution),
-	asContributionFactory(EnterprisePolicyStartupNoticeContribution),
 ];

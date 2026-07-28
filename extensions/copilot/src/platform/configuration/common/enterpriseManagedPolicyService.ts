@@ -16,6 +16,8 @@ const ENTERPRISE_POLICY_KEY = 'github.copilot.enterprisePolicy';
 const EMS_PROMPT_KEY = 'emsPrompt';
 const TOOL_ALLOW_LIST_KEY = 'toolAllowList';
 const TOOL_DENY_LIST_KEY = 'toolDenyList';
+const PERMISSIONS_KEY = 'permissions';
+const DISABLE_BYPASS_PERMISSIONS_MODE_KEY = 'disableBypassPermissionsMode';
 
 // Managed settings are shared across products, but the exposed tool identifiers
 // are not always identical between Copilot CLI and VS Code.
@@ -33,6 +35,7 @@ interface EMSManagedSettings {
 	readonly enterprisePolicy: EnterprisePolicyConfigValue | undefined;
 	readonly toolAllowList: string[] | undefined;
 	readonly toolDenyList: string[] | undefined;
+	readonly bypassPermissionsModeDisabled: boolean;
 }
 
 export interface EnterpriseToolAccessPolicy {
@@ -83,12 +86,22 @@ export function extractEMSSettingsFromManagedSettings(json: unknown): EMSManaged
 	const enterprisePolicy = extractEnterprisePolicyFromManagedSettings(json);
 	const toolAllowList = extractStringArray(json[TOOL_ALLOW_LIST_KEY]);
 	const toolDenyList = extractStringArray(json[TOOL_DENY_LIST_KEY]);
+	const bypassPermissionsModeDisabled = extractBypassPermissionsModeDisabled(json);
 
-	if (!emsPrompt && !enterprisePolicy && !toolAllowList && !toolDenyList) {
+	if (!emsPrompt && !enterprisePolicy && !toolAllowList && !toolDenyList && !bypassPermissionsModeDisabled) {
 		return undefined;
 	}
 
-	return { emsPrompt, enterprisePolicy, toolAllowList, toolDenyList };
+	return { emsPrompt, enterprisePolicy, toolAllowList, toolDenyList, bypassPermissionsModeDisabled };
+}
+
+function extractBypassPermissionsModeDisabled(json: Record<string, unknown>): boolean {
+	const permissions = json[PERMISSIONS_KEY];
+	if (!isRecord(permissions)) {
+		return false;
+	}
+	const value = permissions[DISABLE_BYPASS_PERMISSIONS_MODE_KEY];
+	return typeof value === 'string' && value.trim().toLowerCase() === 'disable';
 }
 
 function extractStringArray(value: unknown): string[] | undefined {
@@ -205,7 +218,16 @@ export class EnterpriseManagedPolicyService implements IEnterpriseManagedPolicyS
 			].join(" ")}`
 			: undefined;
 
-		const combined = [enterprisePolicyPrompt, allowedToolsPrompt, deniedToolsPrompt].filter(Boolean).join('\n\n');
+		// Bypass-permissions mode section (only applied when disabled by policy)
+		const bypassPermissionsPrompt = settings?.bypassPermissionsModeDisabled
+			? `${[
+				"Bypass-permissions mode is disabled by policy, so the user must individually approve your tool calls and shell commands.",
+				"To make the user interact as little as possible, minimize the number of tool calls and shell commands you make: prefer a single batched operation over many small ones, chain related shell steps into one command, and avoid exploratory, speculative, or redundant calls.",
+				"Do as much as you safely can per call, while still completing the task correctly and not guessing — do not sacrifice correctness to save a call.",
+			].join(" ")}`
+			: undefined;
+
+		const combined = [enterprisePolicyPrompt, allowedToolsPrompt, deniedToolsPrompt, bypassPermissionsPrompt].filter(Boolean).join('\n\n');
 		return combined.length > 0 ? combined : undefined;
 	}
 
