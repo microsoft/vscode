@@ -18,7 +18,7 @@ import { Range } from '../../../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { ModelService } from '../../../../../../../editor/common/services/modelService.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
@@ -49,7 +49,7 @@ import { IPathService } from '../../../../../../services/path/common/pathService
 import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 import { IRemoteAgentService } from '../../../../../../services/remote/common/remoteAgentService.js';
-import { ChatModeKind } from '../../../../common/constants.js';
+import { ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
 import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -4536,6 +4536,22 @@ suite('PromptsService', () => {
 	});
 
 	suite('customization lockdown', () => {
+		test('policy changes invalidate cached standalone agent locations', async () => {
+			const rootFolderUri = URI.file('/dynamic-agent-lockdown');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [{
+				path: '/dynamic-agent-lockdown/.github/agents/reviewer.agent.md',
+				contents: ['---', 'description: "Review code"', '---'],
+			}]);
+
+			assert.strictEqual((await service.getCustomAgents(CancellationToken.None)).length, 1);
+
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['agents']);
+			fireConfigChange(testConfigService, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG);
+
+			assert.deepStrictEqual(await service.getCustomAgents(CancellationToken.None), []);
+		});
+
 		test('selective agent lockdown filters workspace agents without affecting prompts', async () => {
 			const rootFolderUri = URI.file('/lockdown-agents');
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
@@ -4610,6 +4626,52 @@ suite('PromptsService', () => {
 			const agents = await service.getCustomAgents(CancellationToken.None);
 			assert.strictEqual(agents.length, 1);
 			assert.strictEqual(agents[0].hooks, undefined);
+		});
+
+		test('managed-only hooks preserve frontmatter hooks from force-enabled plugin agents', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, true);
+			const pluginUri = URI.file('/home/user/.copilot/installed-plugins/managed-marketplace/managed-plugin');
+			const agentUri = URI.joinPath(pluginUri, 'agents', 'reviewer.agent.md');
+			await mockFiles(fileService, [{
+				path: agentUri.path,
+				contents: [
+					'---',
+					'description: "Review code"',
+					'hooks:',
+					'  PreToolUse:',
+					'    - type: command',
+					'      command: "echo managed"',
+					'---',
+				],
+			}]);
+
+			const originalInspect = testConfigService.inspect.bind(testConfigService);
+			testConfigService.inspect = <T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> => {
+				const inspected = originalInspect<T>(key, overrides);
+				return key === ChatConfiguration.EnabledPlugins
+					? { ...inspected, policyValue: { 'managed-plugin@managed-marketplace': true } as T }
+					: inspected;
+			};
+
+			const plugin: IAgentPlugin = {
+				uri: pluginUri,
+				format: PluginFormat.Copilot,
+				label: 'managed-plugin',
+				enablement: observableValue('managedPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
+				hooks: observableValue('managedPluginHooks', []),
+				commands: observableValue('managedPluginCommands', []),
+				skills: observableValue('managedPluginSkills', []),
+				agents: observableValue<readonly IAgentPluginAgent[]>('managedPluginAgents', [{ uri: agentUri, name: 'reviewer' }]),
+				instructions: observableValue('managedPluginInstructions', []),
+				mcpServerDefinitions: observableValue('managedPluginMcpServers', []),
+			};
+			testPluginsObservable.set([plugin], undefined);
+			fireConfigChange(testConfigService, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, ChatConfiguration.EnabledPlugins);
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+			assert.strictEqual(agents.length, 1);
+			assert.strictEqual(agents[0].hooks?.[HookType.PreToolUse]?.[0].command, 'echo managed');
 		});
 	});
 

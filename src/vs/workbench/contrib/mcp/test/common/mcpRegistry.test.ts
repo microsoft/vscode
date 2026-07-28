@@ -542,6 +542,28 @@ suite('Workbench - MCP - Registry', () => {
 			assert.strictEqual(removedCalled, true);
 		});
 
+		test('blocked lazy collection is rejected before activation', async () => {
+			let loadCalled = false;
+			lazyCollection = {
+				...lazyCollection,
+				lazy: {
+					...lazyCollection.lazy!,
+					load: async () => { loadCalled = true; },
+				},
+			};
+			store.add(registry.registerCollection(lazyCollection));
+			configurationService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['mcpServers']);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: (key: string) => key === COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG,
+			} as unknown as IConfigurationChangeEvent);
+
+			await assert.rejects(
+				registry.resolveConnection({ collectionRef: lazyCollection, definitionRef: baseDefinition, logger, trustNonceBearer, taskManager }),
+				/blocked by enterprise customization policy/,
+			);
+			assert.strictEqual(loadCalled, false);
+		});
+
 		test('cached lazy collections are tracked correctly', () => {
 			lazyCollection.lazy!.isCached = true;
 			store.add(registry.registerCollection(lazyCollection));

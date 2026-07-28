@@ -502,6 +502,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	public async resolveConnection(opts: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
 		const { collectionRef, definitionRef, interaction, logger, debug } = opts;
 		let collection = this._collections.get().find(c => c.id === collectionRef.id);
+		if (collection && !this.isCollectionAllowed(collection, this._strictPluginOnlyCustomization.get())) {
+			throw new Error(`MCP collection ${collectionRef.id} is blocked by enterprise customization policy`);
+		}
 		if (collection?.lazy) {
 			await collection.lazy.load();
 			collection = this._collections.get().find(c => c.id === collectionRef.id);

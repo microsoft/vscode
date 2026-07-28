@@ -165,6 +165,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const onDidChangeExtensionPromptFiles = this.extensionPromptFiles.onDidChange;
 		const onDidChangeCustomizationLockdown = Event.filter(this.configurationService.onDidChangeConfiguration,
 			e => e.affectsConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG) || e.affectsConfiguration(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG));
+		this._register(onDidChangeCustomizationLockdown(() => {
+			this.cachedFileLocations[PromptsType.agent] = undefined;
+			this.cachedFileLocations[PromptsType.skill] = undefined;
+			this.cachedFileLocations[PromptsType.hook] = undefined;
+		}));
 
 		// Invalidate the cached file location list whenever an extension contribution
 		// or provider for the same type changes (or its `when` re-evaluates).
@@ -470,6 +475,21 @@ export class PromptsService extends Disposable implements IPromptsService {
 			|| (type === PromptsType.hook && this.configurationService.getValue<boolean>(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG) === true);
 	}
 
+	private areAgentHooksAllowed(promptPath: IPromptPath): boolean {
+		if (this.configurationService.getValue<boolean>(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG) === true) {
+			if (promptPath.storage !== PromptsStorage.plugin || !promptPath.pluginUri) {
+				return false;
+			}
+			const plugin = this.agentPluginService.plugins.get().find(candidate => isEqual(candidate.uri, promptPath.pluginUri));
+			const enabledPluginsPolicy = this.configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue;
+			return plugin !== undefined && isAgentPluginForceEnabledByPolicy(plugin, enabledPluginsPolicy);
+		}
+
+		const strictPluginOnly = this.configurationService.getValue<StrictPluginOnlyCustomization>(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG);
+		return !isPromptTypeBlocked(strictPluginOnly, PromptsType.hook)
+			|| (promptPath.storage !== PromptsStorage.local && promptPath.storage !== PromptsStorage.user);
+	}
+
 	// slash prompt commands
 
 	/**
@@ -711,10 +731,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				// Parse hooks from the frontmatter if present
 				let hooks: ChatRequestHooks | undefined;
 				const hooksRaw = ast.header?.hooksRaw;
-				const strictPluginOnly = this.configurationService.getValue<StrictPluginOnlyCustomization>(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG);
-				const standaloneHooksBlocked = isPromptTypeBlocked(strictPluginOnly, PromptsType.hook)
-					&& (promptPath.storage === PromptsStorage.local || promptPath.storage === PromptsStorage.user);
-				if (useChatHooks && isWorkspaceTrusted && hooksRaw && !standaloneHooksBlocked && this.configurationService.getValue<boolean>(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG) !== true) {
+				if (useChatHooks && isWorkspaceTrusted && hooksRaw && this.areAgentHooksAllowed(promptPath)) {
 					const hookWorkspaceFolder = this.workspaceService.getWorkspaceFolder(uri) ?? defaultFolder;
 					const workspaceRootUri = hookWorkspaceFolder?.uri;
 					const target = getTarget(PromptsType.agent, ast.header ?? promptPath.uri);
