@@ -21,6 +21,7 @@ import {
 	IServerHandle,
 	nextSessionUri,
 	startServer,
+	stopServer,
 	TestProtocolClient
 } from '../serverIntegrationTestHelpers.js';
 
@@ -28,6 +29,13 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
+	const secondaryClients: TestProtocolClient[] = [];
+
+	function createSecondaryClient(): TestProtocolClient {
+		const secondaryClient = new TestProtocolClient(server.port);
+		secondaryClients.push(secondaryClient);
+		return secondaryClient;
+	}
 
 	// Short idle-release grace so the release/restore test exercises a real
 	// release promptly. Safe on the shared server because the mock agent's
@@ -39,8 +47,9 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		server = await startServer({ env: { [AgentHostSessionReleaseGraceMsEnvVar]: String(RELEASE_GRACE_MS) } });
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
 	});
 
 	setup(async function () {
@@ -51,6 +60,9 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 	teardown(function () {
 		client.close();
+		for (const secondaryClient of secondaryClients.splice(0)) {
+			secondaryClient.close();
+		}
 	});
 
 	test('create session triggers sessionAdded notification', async function () {
@@ -97,7 +109,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	});
 
 	test('subscribe to a pre-existing session restores turns from agent history', async function () {
-		this.timeout(10_000);
+		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-restore' });
 
@@ -130,7 +142,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 		// Restoring should NOT emit a duplicate sessionAdded notification
 		// (the session is already known to clients via listSessions).
-		await new Promise(resolve => setTimeout(resolve, 200));
+		await client.call('ping');
 		const sessionAddedNotifs = client.receivedNotifications(n =>
 			n.method === 'root/sessionAdded'
 		);
@@ -204,7 +216,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 		// Poll listSessions until the persisted flags appear (async DB write)
 		client.close();
-		const client2 = new TestProtocolClient(server.port);
+		const client2 = createSecondaryClient();
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-read-archived-flags-2' });
 
@@ -221,7 +233,6 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		assert.ok(session.status & SessionStatus.IsArchived, 'IsArchived should be persisted in listSessions');
 		assert.ok(session.status & SessionStatus.IsRead, 'IsRead should be persisted in listSessions');
 
-		client2.close();
 	});
 
 	test('dispatching isRead=false explicitly persists as false', async function () {
@@ -244,7 +255,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'session/isReadChanged'));
 
 		client.close();
-		const client2 = new TestProtocolClient(server.port);
+		const client2 = createSecondaryClient();
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-isread-false-2' });
 
@@ -260,6 +271,5 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		assert.ok(session, 'session should appear in listSessions');
 		assert.strictEqual(session.status & SessionStatus.IsRead, 0, 'IsRead flag should not be set');
 
-		client2.close();
 	});
 });

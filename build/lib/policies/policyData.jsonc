@@ -915,6 +915,21 @@
             "type": "boolean",
             "default": true,
             "included": true
+        },
+        {
+            "key": "dictation.enabled",
+            "name": "DictationEnabled",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.131",
+            "localization": {
+                "description": {
+                    "key": "dictation.enabled.policy",
+                    "value": "Controls whether dictation is available across the product (chat input, editor, and terminal)."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
         }
     ]
 }

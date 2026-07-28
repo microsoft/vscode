@@ -71,6 +71,7 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	// isolation via the resolved working directory alone.
 	supportsHostTerminalTool: false,
 	supportsSubagents: true,
+	supportsSideChats: true,
 	// Claude rebuilds a reopened subagent transcript from the SDK's on-disk
 	// `subagents/agent-*.jsonl`, not reliably visible on Windows (see PR #325284).
 	subagentReplayUnstableOnWindows: true,
@@ -83,6 +84,7 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	// The Claude SDK currently receives the AHP turn id as upToMessageId and
 	// rejects it as invalid when the fork is exercised against a real transcript.
 	supportsChatForkE2E: false,
+	stableNewScenarioResponse: true,
 };
 
 defineAgentHostE2ETests(CLAUDE_CONFIG);

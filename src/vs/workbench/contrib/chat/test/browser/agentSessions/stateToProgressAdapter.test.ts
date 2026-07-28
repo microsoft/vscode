@@ -14,7 +14,7 @@ import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/age
 import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -842,6 +842,45 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolCallId, 'tc-42');
 			assert.strictEqual(invocation.toolId, 'my_tool');
 			assert.strictEqual(invocation.source, ToolDataSource.Internal);
+		});
+
+		test('attaches automation result data to live and restored configureAutomation calls', () => {
+			const content: ToolResultContent[] = [{
+				type: ToolResultContentType.Text,
+				text: JSON.stringify({
+					status: 'created',
+					automation: { id: 'automation-1', name: 'Morning review' },
+				}),
+			}];
+			const completed = createCompletedToolCall({
+				toolCallId: 'automation-call',
+				toolName: 'configureAutomation',
+				content,
+			});
+			const restored = completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+			const live = toolCallStateToInvocation(createToolCallState({
+				toolCallId: 'automation-call',
+				toolName: 'configureAutomation',
+			}));
+			finalizeToolInvocation(live, completed);
+
+			assert.deepStrictEqual({
+				restored: restored.toolSpecificData,
+				live: live.toolSpecificData,
+			}, {
+				restored: {
+					kind: 'automationConfigured',
+					automationId: 'automation-1',
+					automationName: 'Morning review',
+					operation: 'created',
+				},
+				live: {
+					kind: 'automationConfigured',
+					automationId: 'automation-1',
+					automationName: 'Morning review',
+					operation: 'created',
+				},
+			});
 		});
 
 		test('represents another client tool without surfacing its confirmation', () => {
@@ -2027,6 +2066,52 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'preview only\r\n');
 			assert.strictEqual(termData.terminalCommandOutput?.truncated, true);
 			assert.ok(!termData.terminalCommandOutput?.text.includes('shellId'));
+		});
+
+		test('preserves an explicitly empty non-PTY retained completion snapshot', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'true',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/copilotNonPtyShells/tc-1', title: 'Run Shell Command', isPty: false, result: { exitCode: 0, preview: '' } },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const termData = getSerializedTerminalData(serialized);
+			assert.deepStrictEqual(termData.terminalCommandOutput, { text: '' });
+		});
+
+		test('does not store an explicitly empty PTY completion preview when isPty is omitted', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'true',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///pty-empty', title: 'Run Shell Command', result: { exitCode: 0, preview: '' } },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const termData = getSerializedTerminalData(serialized);
+			assert.strictEqual(termData.terminalCommandOutput, undefined);
 		});
 
 		test('does not use text content when a terminal block owns the output', () => {
